@@ -233,6 +233,17 @@ describe('BillingPlans', () => {
     screen.getByText(/Stripe is not configured on this deployment/)
   })
 
+  it('offers no sales motion for a self-serve plan on an unconfigured deployment', async () => {
+    await renderPlans({ stripeConfigured: false, currentPlanId: 'starter' })
+    // Team is self-serve: without Stripe there is nothing to click and no
+    // sales team to contact, so the card says checkout is unavailable...
+    expect(screen.getByText(/Checkout is not available right now/)).toBeTruthy()
+    expect(screen.queryByText(/Contact sales to move to Team/)).toBeNull()
+    // ...while the sales-led tier keeps the contact line it always had.
+    expect(screen.getByText(/Contact sales to move to Enterprise/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /upgrade to team/i })).toBeNull()
+  })
+
   it('renders no portal button for a viewer who cannot manage billing', async () => {
     await renderPlans({ viewer: member })
     expect(screen.queryByRole('button', { name: /manage billing/i })).toBeNull()

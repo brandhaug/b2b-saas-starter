@@ -13,13 +13,18 @@ import {
 import { usePreview } from '@/lib/preview-context'
 import { previewWorkspaceLocation } from '@/lib/preview-navigation'
 import { m } from '@b2b-saas-starter/i18n/messages'
+import { seedWorkspaceRecord } from '@b2b-saas-starter/capabilities/governance/workspace-identity.seed'
 
 /**
  * Active and inactive treatments for nav links, kept as constants so the
  * active state reads as one statement: the page link is foreground text on
  * the sidebar's own accent plus `aria-current="page"` (set through
- * `activeProps`). Sidebar tokens, not body tokens — the sidebar separates
- * from the body independently (DESIGN.md).
+ * `activeProps`). The accent fill alone is under 2:1 against the sidebar, so
+ * the active row also carries a one-pixel inset ring, a non-color cue that
+ * clears the 3:1 floor for UI components. Mauve, because mauve means
+ * current/selected (DESIGN.md), which leaves the lavender `sidebar-ring` to
+ * mean focus alone; inset, so nothing shifts. Sidebar tokens otherwise, not
+ * body tokens — the sidebar separates from the body independently.
  */
 /** The active marker, typed here so no call site needs an assertion. */
 const activeLinkProps = { 'aria-current': 'page' } satisfies {
@@ -27,7 +32,7 @@ const activeLinkProps = { 'aria-current': 'page' } satisfies {
 }
 
 const navLinkClasses =
-  'flex min-h-9 items-center gap-2 rounded-md px-3 py-2 text-sm text-sidebar-foreground/80 outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring data-[status=active]:bg-sidebar-accent data-[status=active]:text-sidebar-accent-foreground max-md:min-h-11'
+  'flex min-h-9 items-center gap-2 rounded-md px-3 py-2 text-sm text-sidebar-foreground/80 outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring data-[status=active]:bg-sidebar-accent data-[status=active]:text-sidebar-accent-foreground data-[status=active]:ring-1 data-[status=active]:ring-inset data-[status=active]:ring-primary max-md:min-h-11'
 
 export function WorkspaceNav({
   workspace,
@@ -59,7 +64,7 @@ export function WorkspaceNav({
       navRows.push(
         <p
           key={`group-${group}`}
-          className="px-3 pt-4 pb-1 text-2xs font-medium text-sidebar-foreground/60"
+          className="px-3 pt-4 pb-1 font-mono text-2xs font-medium text-sidebar-foreground/60"
         >
           {group}
         </p>
@@ -125,7 +130,7 @@ export function WorkspaceNav({
       <div className="mt-6">
         {preview ? (
           <div className="rounded-md border border-sidebar-border px-3 py-2 text-sm font-medium">
-            Starter Lab
+            {seedWorkspaceRecord.name}
           </div>
         ) : (
           <WorkspaceChoice workspace={workspace} onNavigate={onNavigate} />

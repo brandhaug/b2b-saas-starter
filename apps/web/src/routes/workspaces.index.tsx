@@ -1,10 +1,14 @@
 import { ChevronRightIcon } from 'lucide-react'
 import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
-import { CreateWorkspaceForm } from '@/components/create-workspace-form'
+import { type CreatedWorkspace } from '@b2b-saas-starter/capabilities/governance/workspace-lifecycle'
+import {
+  CreateWorkspaceForm,
+  type CreateWorkspace
+} from '@/components/create-workspace-form'
 import { EmailVerificationBanner } from '@/components/email-verification-banner'
 import { PageHeader } from '@/components/page/page-header'
 import { pageTitle } from '@/components/page/page-title'
-import { Panel } from '@/components/page/panel'
+import { CreateAction, Panel } from '@/components/page/panel'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { RoutePending } from '@/components/route-pending'
 import { getTurnstileSiteKey } from '@/lib/server/turnstile'
@@ -29,31 +33,85 @@ export const Route = createFileRoute('/workspaces/')({
   // (env-gated: `null` renders no widget and sends no token).
   loader: () => getTurnstileSiteKey(),
   pendingComponent: RoutePending,
-  component: WorkspacesPage,
+  component: WorkspacesRoute,
   head: () => ({ meta: [{ title: pageTitle(m.public_meta_workspaces()) }] })
 })
 
-function WorkspacesPage() {
+/** The route's thin wrapper: the directory, the session, and where to go next. */
+function WorkspacesRoute() {
   const workspaces: WorkspaceDirectory = useWorkspaceDirectory() ?? []
   const session = Route.useRouteContext().session
   const turnstileSiteKey = Route.useLoaderData()
   const navigate = useNavigate()
-
   return (
-    <WorkspaceShell viewer={null} systemRole={session.user.role} workspaceSlug={null}>
+    <WorkspacesPage
+      workspaces={workspaces}
+      user={session.user}
+      turnstileSiteKey={turnstileSiteKey}
+      onCreated={(workspace) =>
+        void navigate({
+          to: '/workspaces/$workspaceSlug',
+          params: { workspaceSlug: workspace.slug }
+        })
+      }
+    />
+  )
+}
+
+/**
+ * The workspace picker. Props-only so a test renders it without a route tree.
+ *
+ * Creating a workspace is reachable from both states, not just the empty one:
+ * a user who already belongs to a workspace still starts new ones, and the
+ * list has no other way in. The empty state keeps the form inline — with no
+ * list to read, hiding the one thing to do behind a sheet is a wasted step.
+ */
+export function WorkspacesPage({
+  workspaces,
+  user,
+  turnstileSiteKey,
+  onCreated,
+  createWorkspace
+}: {
+  readonly workspaces: WorkspaceDirectory
+  readonly user: {
+    readonly role: string
+    readonly email: string
+    readonly emailVerified: boolean
+  }
+  /** Env-gated: `null` renders no widget and sends no token on resend. */
+  readonly turnstileSiteKey: string | null
+  readonly onCreated: (workspace: CreatedWorkspace) => void
+  /** The form's server-call port, injected by tests. */
+  readonly createWorkspace?: CreateWorkspace
+}) {
+  const formProps = createWorkspace === undefined ? {} : { createWorkspace }
+  return (
+    <WorkspaceShell viewer={null} systemRole={user.role} workspaceSlug={null}>
       <PageHeader
         title={m.page_workspaces()}
         description={m.page_workspaces_description()}
+        {...(workspaces.length === 0
+          ? {}
+          : {
+              actions: (
+                <CreateAction title={m.workspaces_new_action()}>
+                  <CreateWorkspaceForm onCreated={onCreated} {...formProps} />
+                </CreateAction>
+              )
+            })}
       />
       {/* The unverified state surfaces here rather than gating anything:
           verification is encouraged, not enforced (provider-light rule). */}
-      {session.user.emailVerified ? null : (
+      {user.emailVerified ? null : (
         <EmailVerificationBanner
-          email={session.user.email}
+          email={user.email}
           turnstileSiteKey={turnstileSiteKey}
         />
       )}
-      <Panel title={m.page_workspaces()}>
+      {/* No panel title: the page header already names this list, and a
+          second "Your workspaces" heading only lengthens the outline. */}
+      <Panel>
         {workspaces.length === 0 ? (
           <div className="grid gap-5">
             {/* Creating is the way in: the creator becomes the workspace's
@@ -62,14 +120,7 @@ function WorkspacesPage() {
             <p className="text-sm text-muted-foreground">
               {m.empty_no_workspace_membership()}
             </p>
-            <CreateWorkspaceForm
-              onCreated={(workspace) =>
-                void navigate({
-                  to: '/workspaces/$workspaceSlug',
-                  params: { workspaceSlug: workspace.slug }
-                })
-              }
-            />
+            <CreateWorkspaceForm onCreated={onCreated} {...formProps} />
           </div>
         ) : (
           <ItemGroup>

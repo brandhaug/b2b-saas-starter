@@ -101,10 +101,16 @@ export function VerifyAuthenticationPage({
           >
             {m.security_verify_passkey()}
           </Button>
-          <Link to="/account" className="text-sm underline underline-offset-4">
+          <Link
+            to="/account"
+            className="inline-flex items-center text-sm underline underline-offset-4 max-md:min-h-11"
+          >
             {m.security_manage_factors()}
           </Link>
-          <Link to="/forgot-password" className="text-sm underline underline-offset-4">
+          <Link
+            to="/forgot-password"
+            className="inline-flex items-center text-sm underline underline-offset-4 max-md:min-h-11"
+          >
             {m.forgot_password()}
           </Link>
           <p className="text-sm text-muted-foreground">{m.security_recovery_help()}</p>

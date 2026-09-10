@@ -54,7 +54,7 @@ export function AccountPage({
       <PageHeader title={m.page_account()} description={m.page_account_description()} />
       <Link
         to="/verify-authentication"
-        className="text-primary underline underline-offset-4"
+        className="inline-flex items-center text-primary underline underline-offset-4 max-md:min-h-11"
       >
         {m.security_verify_title()}
       </Link>
@@ -122,7 +122,7 @@ export function AccountPage({
           <NotificationPreferencesPanel preferences={preferences} />
           <Link
             to="/account/notifications"
-            className="text-sm underline underline-offset-4"
+            className="inline-flex items-center text-sm underline underline-offset-4 max-md:min-h-11"
           >
             {m.email_delivery_title()}
           </Link>

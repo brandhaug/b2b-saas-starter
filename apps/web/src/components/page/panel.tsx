@@ -77,9 +77,10 @@ export function Panel({
  * The list half of the resource-panel shape, and `CreateSection`'s sibling:
  * the section's `h3`, then its rows — the list, or the empty state in the
  * list's place — and an optional trailing footer (a denied-action reason, a
- * mutation's failure). Every resource panel reads as
- * `Panel > CreateSection + ListSection`, so a new one copies the anatomy
- * instead of hand-rolling the heading-and-empty markup a fourth time.
+ * mutation's failure). Panels whose page title already names the list put the
+ * create action in `Panel`'s `actions` slot and skip the heading; the rest
+ * read as `Panel > CreateSection + ListSection`, so a new one copies the
+ * anatomy instead of hand-rolling the heading-and-empty markup again.
  * Like `Panel`, the `h3` names a landmark region.
  */
 export function ListSection({
@@ -141,20 +142,30 @@ export function CreateSection({
   )
 }
 
-/** A focused creation form opened from an explicit action. */
+/**
+ * A focused creation form opened from an explicit action.
+ *
+ * `allowed` is `viewerCan(...)` on the permission-gated surfaces, and the
+ * reason takes the trigger's place when it is false. Both are omitted on the
+ * surfaces that gate nothing — creating your own workspace is open to every
+ * signed-in account — rather than inventing a refusal that cannot happen.
+ */
 export function CreateAction({
-  allowed,
+  allowed = true,
   title,
   deniedReason,
   children
 }: {
-  readonly allowed: boolean
+  readonly allowed?: boolean
   readonly title: string
-  readonly deniedReason: string
+  /** Shown in the trigger's place when the viewer's role cannot create. */
+  readonly deniedReason?: string
   readonly children: ReactNode
 }) {
   if (!allowed) {
-    return <p className="text-sm text-muted-foreground">{deniedReason}</p>
+    return deniedReason === undefined ? null : (
+      <p className="text-sm text-muted-foreground">{deniedReason}</p>
+    )
   }
   return (
     <div className="flex justify-end">

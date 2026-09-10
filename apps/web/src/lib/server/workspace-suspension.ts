@@ -12,12 +12,25 @@ type WorkspaceSuspensionPayload = Pick<
   'workspaceId' | 'status' | 'customerExplanation' | 'changedAt'
 >
 
-export type WorkspaceSuspensionGatePayload = WorkspaceSuspensionPayload & {
+/** The workspace identity every suspension read carries. */
+type WorkspaceSuspensionIdentity = WorkspaceSuspensionPayload & {
   readonly workspaceName: string
   readonly viewer: WorkspaceViewer
 }
 
-export type WorkspaceRecoveryPayload = WorkspaceSuspensionGatePayload & {
+export type WorkspaceSuspensionGatePayload = WorkspaceSuspensionIdentity & {
+  /**
+   * Whether this session still owes privileged-authentication proof for this
+   * workspace. The gate read reports it instead of failing on it, so the
+   * subtree's `beforeLoad` can send the actor to /verify-authentication as a
+   * redirect — a page load, not an error boundary. It rides this payload
+   * rather than a second server fn because the gate already resolves the
+   * actor and the workspace on the same request.
+   */
+  readonly strongAuthenticationRequired: boolean
+}
+
+export type WorkspaceRecoveryPayload = WorkspaceSuspensionIdentity & {
   readonly canViewExplanation: boolean
   readonly canManageBilling: boolean
   readonly billingConfigured: boolean

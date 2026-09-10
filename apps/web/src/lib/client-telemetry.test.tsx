@@ -1,6 +1,7 @@
 import { type init as sentryInit } from '@sentry/react'
+import { type default as posthog, type PostHog } from 'posthog-js'
 import { act, render, waitFor } from '@testing-library/react'
-import { afterEach, expect, it, vi } from 'vite-plus/test'
+import { expect, it, vi } from 'vite-plus/test'
 import { ClientTelemetry } from './client-telemetry'
 
 const providers = vi.hoisted(() => {
@@ -14,7 +15,8 @@ const providers = vi.hoisted(() => {
   return {
     sentryDownload,
     finishDownload,
-    sentryInit: vi.fn<typeof sentryInit>()
+    sentryInit: vi.fn<typeof sentryInit>(),
+    posthogInit: vi.fn<typeof posthog.init>()
   }
 })
 
@@ -23,113 +25,55 @@ vi.mock('@sentry/react', async () => {
   return { getClient: () => undefined, init: providers.sentryInit }
 })
 
-// The component subscribes to the router to re-send `$pageview` per
-// client-side navigation; a router tree would add nothing to these cases.
-vi.mock('@tanstack/react-router', () => ({
-  useRouter: () => ({ subscribe: () => () => undefined })
+vi.mock('posthog-js', () => ({
+  default: { __loaded: false, init: providers.posthogInit }
 }))
 
-type Payload = { readonly url: string; readonly body: unknown }
-
-function captureRequests(): Array<Payload> {
-  const payloads: Array<Payload> = []
-  const stub = vi.fn(async (url: string, init?: RequestInit) => {
-    const body: unknown = JSON.parse(await new Response(init?.body).text())
-    payloads.push({ url, body })
-    return new Response('{}', { status: 200 })
-  })
-  vi.stubGlobal('fetch', stub)
-  return payloads
-}
-
-/** jsdom has no `sendBeacon`, so the beacon path is installed per test. */
-function stubSendBeacon(sendBeacon: (url: string, body?: BodyInit) => boolean) {
-  Object.defineProperty(navigator, 'sendBeacon', {
-    value: sendBeacon,
-    configurable: true
-  })
-}
-
-afterEach(() => {
-  vi.unstubAllGlobals()
-  Reflect.deleteProperty(navigator, 'sendBeacon')
-})
-
-it('stays silent while both providers are unconfigured', async () => {
-  const payloads = captureRequests()
-  const { unmount } = render(
+it('starts analytics while error reporting downloads and cancels initialization on unmount', async () => {
+  const { rerender, unmount } = render(
     <ClientTelemetry
       config={{ sentryDsn: undefined, posthogKey: undefined, posthogHost: undefined }}
     />
   )
   await act(async () => {})
-  unmount()
-  expect(payloads).toHaveLength(0)
+  expect(providers.posthogInit).not.toHaveBeenCalled()
   expect(providers.sentryInit).not.toHaveBeenCalled()
-})
 
-it('posts one pageview per view and a pageleave when the view ends', async () => {
-  const payloads = captureRequests()
-  const { unmount } = render(
-    <ClientTelemetry
-      config={{
-        sentryDsn: undefined,
-        posthogKey: 'public-key',
-        posthogHost: 'https://analytics.example'
-      }}
-    />
-  )
-  await waitFor(() => expect(payloads).toHaveLength(1))
-  expect(payloads[0]?.url).toBe('https://analytics.example/i/v0/e/')
-  expect(payloads[0]?.body).toMatchObject({
-    api_key: 'public-key',
-    event: '$pageview',
-    properties: { $process_person_profile: false }
-  })
-  expect(payloads[0]?.body).toHaveProperty('distinct_id')
-  expect(JSON.stringify(payloads[0]?.body)).not.toContain('/docs')
-
-  unmount()
-  await waitFor(() => expect(payloads).toHaveLength(2))
-  expect(payloads[1]?.body).toMatchObject({ event: '$pageleave' })
-})
-
-it('prefers a beacon so the unload event survives', async () => {
-  const payloads = captureRequests()
-  const sendBeacon = vi.fn((_url: string, _body?: BodyInit) => true)
-  stubSendBeacon(sendBeacon)
-  const { unmount } = render(
-    <ClientTelemetry
-      config={{
-        sentryDsn: undefined,
-        posthogKey: 'public-key',
-        posthogHost: undefined
-      }}
-    />
-  )
-  await waitFor(() => expect(sendBeacon).toHaveBeenCalledTimes(1))
-  expect(sendBeacon.mock.calls[0]?.[0]).toBe('https://us.i.posthog.com/i/v0/e/')
-  unmount()
-  expect(payloads).toHaveLength(0)
-})
-
-it('scrubs browser error reports', async () => {
-  const { unmount } = render(
+  rerender(
     <ClientTelemetry
       config={{
         sentryDsn: 'https://public@example.com/1',
-        posthogKey: undefined,
+        posthogKey: 'public-key',
         posthogHost: undefined
       }}
     />
   )
+  await waitFor(() => expect(providers.posthogInit).toHaveBeenCalledTimes(1))
+  expect(providers.sentryInit).not.toHaveBeenCalled()
+
+  unmount()
   await act(async () => {
     providers.finishDownload()
     await vi.dynamicImportSettled()
   })
+  expect(providers.sentryInit).not.toHaveBeenCalled()
+})
+
+it('emits minimal page analytics and scrubs browser error reports', async () => {
+  const { unmount } = render(
+    <ClientTelemetry
+      config={{
+        sentryDsn: 'https://public@example.com/1',
+        posthogKey: 'public-key',
+        posthogHost: undefined
+      }}
+    />
+  )
   await waitFor(() => expect(providers.sentryInit).toHaveBeenCalledTimes(1))
   const sentryOptions = providers.sentryInit.mock.calls[0]?.[0]
+  const posthogOptions = providers.posthogInit.mock.calls.at(-1)?.[1]
   expect(sentryOptions).toBeDefined()
+  expect(posthogOptions).toBeDefined()
   const secret = 'BROWSER_SENSITIVE_SENTINEL'
   const output = sentryOptions?.beforeSend?.(
     {
@@ -147,5 +91,46 @@ it('scrubs browser error reports', async () => {
   )
   expect(JSON.stringify(output)).not.toContain(secret)
   expect(JSON.stringify(output)).toContain('TypeError')
+  const payloads: Array<string> = []
+  const fetch = vi.fn<typeof globalThis.fetch>(async (_input, init) => {
+    payloads.push(await new Response(init?.body).text())
+    return new Response('{}', { status: 200 })
+  })
+  vi.stubGlobal('fetch', fetch)
+  const actual = await vi.importActual<{ PostHog: typeof PostHog }>('posthog-js')
+  const analytics = new actual.PostHog()
+  try {
+    analytics.init('public-key', {
+      ...posthogOptions,
+      api_transport: 'fetch',
+      request_batching: false,
+      disable_compression: true
+    })
+    analytics.capture(
+      '$pageview',
+      {
+        $current_url: `https://app.example?token=${secret}`,
+        email: secret,
+        $set: { name: secret }
+      },
+      { send_instantly: true }
+    )
+    analytics.capture(
+      '$pageleave',
+      { $referrer: `https://example.com/${secret}`, $elements: [secret] },
+      { send_instantly: true }
+    )
+    analytics.capture('customer-content', { content: secret }, { send_instantly: true })
+    await waitFor(() => expect(payloads.length).toBeGreaterThanOrEqual(2))
+    expect(payloads.join('')).not.toContain(secret)
+    expect(payloads.join('')).not.toContain('customer-content')
+    expect(payloads.join('')).not.toContain('$current_url')
+    expect(payloads.join('')).toContain('$pageview')
+    expect(payloads.join('')).toContain('$pageleave')
+    expect(payloads.join('')).toContain('distinct_id')
+  } finally {
+    analytics.opt_out_capturing()
+    vi.unstubAllGlobals()
+  }
   unmount()
 })

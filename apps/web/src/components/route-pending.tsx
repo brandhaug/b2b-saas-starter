@@ -1,3 +1,4 @@
+import { Panel } from '@/components/page/panel'
 import { Skeleton } from '@/components/ui/skeleton'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
@@ -16,10 +17,12 @@ export function RoutePending() {
         <Skeleton className="h-7 w-56" />
         <Skeleton className="h-4 w-96 max-w-full" />
       </div>
-      <div className="grid gap-4 rounded-none border border-border bg-card p-4 sm:p-6">
+      {/* The real page renders a Panel here, so the skeleton renders one too
+          instead of a second copy of the panel surface. */}
+      <Panel>
         <Skeleton className="h-5 w-40" />
         <Skeleton className="h-40 w-full" />
-      </div>
+      </Panel>
     </output>
   )
 }

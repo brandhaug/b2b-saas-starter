@@ -1,6 +1,6 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { pageTitle } from '@/components/page/page-title'
-import { AuditRouteError } from '@/components/audit-route-error'
+import { workspaceRouteError } from '@/components/workspace-route-error'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceAuditPage } from '@/components/workspace-audit-page'
 import {
@@ -10,6 +10,14 @@ import {
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { pickOptionalStrings } from '@/lib/utils'
 import { loadWorkspaceAuditEventsServerFn } from '@/lib/server/workspace-audit'
+
+/** The audit page's denial and failure copy, rendered inside the shell. */
+const AuditRouteError = workspaceRouteError({
+  deniedTitle: m.audit_access_denied,
+  deniedDescription: m.audit_forbidden_description,
+  failedTitle: m.audit_unavailable,
+  failedDescription: m.audit_load_failed
+})
 
 /**
  * The audit page is read-only, so its whole state lives in the URL: filters and

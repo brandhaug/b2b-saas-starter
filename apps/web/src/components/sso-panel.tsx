@@ -322,7 +322,7 @@ export function SsoPanel({
                         errors={field.state.meta.errors}
                         onBlur={field.handleBlur}
                         onChange={field.handleChange}
-                        placeholder="https://login.acme.com"
+                        placeholder={m.sso_issuer_placeholder()}
                       />
                     )}
                   </form.Field>
@@ -370,7 +370,7 @@ export function SsoPanel({
                         errors={field.state.meta.errors}
                         onBlur={field.handleBlur}
                         onChange={field.handleChange}
-                        placeholder="https://login.acme.com/saml/metadata"
+                        placeholder={m.sso_metadata_url_placeholder()}
                       />
                     )}
                   </form.Field>
@@ -385,7 +385,7 @@ export function SsoPanel({
                           onBlur={field.handleBlur}
                           onChange={(event) => field.handleChange(event.target.value)}
                           rows={4}
-                          placeholder="<EntityDescriptor …>"
+                          placeholder={m.sso_metadata_xml_placeholder()}
                           className="font-mono text-xs"
                         />
                       </div>
@@ -417,7 +417,7 @@ export function SsoPanel({
                 errors={field.state.meta.errors}
                 onBlur={field.handleBlur}
                 onChange={field.handleChange}
-                placeholder="acme.com"
+                placeholder={m.sso_domain_placeholder()}
               />
             )}
           </form.Field>

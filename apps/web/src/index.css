@@ -36,15 +36,8 @@
      input-vs-secondary hierarchy. */
   --input: oklch(0.5497 0.0345 277.095); /* mocha overlay0 #6c7086 */
   --ring: oklch(0.8166 0.091 277.309); /* mocha lavender #b4befe */
-  --chart-1: oklch(0.7664 0.1113 259.885); /* mocha blue #89b4fa */
-  --chart-2: oklch(0.8577 0.1092 142.715); /* mocha green #a6e3a1 */
-  --chart-3: oklch(0.9193 0.0704 86.5281); /* mocha yellow #f9e2af */
-  --chart-4: oklch(0.8237 0.1015 52.6294); /* mocha peach #fab387 */
-  --chart-5: oklch(0.7871 0.1187 304.769); /* mocha mauve #cba6f7 */
   --sidebar: oklch(0.2155 0.0254 284.065);
   --sidebar-foreground: oklch(0.8787 0.0426 272.277);
-  --sidebar-primary: oklch(0.7871 0.1187 304.769);
-  --sidebar-primary-foreground: oklch(0.1828 0.0204 284.204);
   --sidebar-accent: oklch(0.4037 0.032 280.152);
   --sidebar-accent-foreground: oklch(0.8787 0.0426 272.277);
   --sidebar-border: oklch(0.324 0.0319 281.978);
@@ -57,28 +50,21 @@
     'Newsreader Variable', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
   --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
   --radius: 0.5rem;
-  --shadow-x: 0;
-  --shadow-y: 1px;
-  --shadow-blur: 3px;
-  --shadow-spread: 0px;
-  --shadow-opacity: 0.1;
-  --shadow-color: oklch(0 0 0);
-  --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-  --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-  --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-  --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-  --shadow-md: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
-  --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
-  --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
-  --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
+  /* Two rungs, because two exist in the UI: `shadow-md` for floating menus,
+     popovers and tooltips, `shadow-lg` for sheets and dialogs. Panels and
+     cards stay flat with a 1px border (DESIGN.md), so the rest of the ramp
+     was defined and never referenced. Add a rung when a surface needs it. */
+  --shadow-md: 0 1px 3px 0px oklch(0 0 0 / 0.1), 0 2px 4px -1px oklch(0 0 0 / 0.1);
+  --shadow-lg: 0 1px 3px 0px oklch(0 0 0 / 0.1), 0 4px 6px -1px oklch(0 0 0 / 0.1);
   /* Signal pair: Catppuccin peach. Both halves are the same value now that
      every surface is dark — there is no light surface needing an AA-on-light
      variant, but the two names stay so component call sites are unchanged. */
   --signal: oklch(0.8237 0.1015 52.6294); /* mocha peach #fab387 */
   --signal-ink: oklch(0.8237 0.1015 52.6294);
   /* Status vocabulary: Catppuccin green/yellow/blue, shared by badges, alerts
-     and toasts so a status is one hue everywhere. Chart hues keep their own
-     names — status colors are chrome, chart colors are data series. */
+     and toasts so a status is one hue everywhere. The charts read these too:
+     their bars carry a health judgement, not a series identity, so the app
+     ships no separate chart palette. */
   --status-ok: oklch(0.8577 0.1092 142.715); /* mocha green #a6e3a1 */
   --status-warn: oklch(0.9193 0.0704 86.5281); /* mocha yellow #f9e2af */
   --status-info: oklch(0.7664 0.1113 259.885); /* mocha blue #89b4fa */
@@ -95,33 +81,23 @@
    any color token. No hardcoded colors in marketing components; they go
    through the shadcn tokens or the `--signal` pair. */
 
-/* Drenched band. Redefines the same token contract so shadcn utilities
-   (bg-background, text-muted-foreground, …) work inside it. Sunk to
-   Catppuccin crust/mantle so the landing page keeps its section rhythm
-   against the base background; primary flips to peach so CTAs pop. */
+/* Drenched band. Sunk to Catppuccin crust so the landing page keeps its
+   section rhythm against the base background; primary flips to peach so CTAs
+   pop, and the surfaces that sat on base slide down one step. Only the
+   overrides live here — everything else (text, card, popover, border, input,
+   the signal pair) inherits :root, including the control-edge rule, whose
+   overlay0 clears 3:1 against this band's crust too (3.84:1, and 3.59:1 on
+   the mantle card). */
 .band-deep {
   --background: oklch(0.1828 0.0204 284.204); /* mocha crust #11111b */
-  --foreground: oklch(0.8787 0.0426 272.277); /* mocha text #cdd6f4 */
-  --card: oklch(0.2155 0.0254 284.065); /* mocha mantle #181825 */
-  --card-foreground: oklch(0.8787 0.0426 272.277);
-  --popover: oklch(0.2155 0.0254 284.065);
-  --popover-foreground: oklch(0.8787 0.0426 272.277);
   --primary: oklch(0.8237 0.1015 52.6294); /* mocha peach #fab387 */
-  --primary-foreground: oklch(0.1828 0.0204 284.204);
+  --primary-foreground: oklch(0.1828 0.0204 284.204); /* crust on peach */
   --secondary: oklch(0.2429 0.0304 283.911); /* mocha base #1e1e2e */
   --secondary-foreground: oklch(0.8787 0.0426 272.277);
   --muted: oklch(0.2429 0.0304 283.911);
-  --muted-foreground: oklch(0.751 0.0396 273.932); /* mocha subtext0 #a6adc8 */
   --accent: oklch(0.324 0.0319 281.978); /* mocha surface0 #313244 */
   --accent-foreground: oklch(0.8787 0.0426 272.277);
-  /* Same control-edge rule as :root: overlay0 clears 3:1 against this
-     block's crust background (3.84:1) and mantle card (3.59:1), where
-     surface0 managed 1.49:1. */
-  --border: oklch(0.324 0.0319 281.978);
-  --input: oklch(0.5497 0.0345 277.095); /* mocha overlay0 #6c7086 */
   --ring: oklch(0.8237 0.1015 52.6294);
-  --signal: oklch(0.8237 0.1015 52.6294);
-  --signal-ink: oklch(0.8237 0.1015 52.6294);
 }
 
 @theme inline {
@@ -150,15 +126,8 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-overlay: var(--overlay);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
   --color-sidebar-accent: var(--sidebar-accent);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
@@ -173,7 +142,6 @@
      inside the architecture schematic. Never prose, never interactive labels. */
   --text-2xs: 0.6875rem;
   --text-3xs: 0.625rem;
-  --text-4xs: 0.5rem;
 
   /* Near-solid leading for the display face at display sizes (the hero h1):
      a 5–6xl serif wants its lines locked together, where `leading-tight`
@@ -193,14 +161,8 @@
   --radius-lg: 0rem;
   --radius-xl: 0rem;
 
-  --shadow-2xs: var(--shadow-2xs);
-  --shadow-xs: var(--shadow-xs);
-  --shadow-sm: var(--shadow-sm);
-  --shadow: var(--shadow);
   --shadow-md: var(--shadow-md);
   --shadow-lg: var(--shadow-lg);
-  --shadow-xl: var(--shadow-xl);
-  --shadow-2xl: var(--shadow-2xl);
 }
 
 @layer base {
@@ -430,6 +392,14 @@
   animation: trace-travel 7.2s linear infinite;
 }
 
+/* The schematic marks itself off-screen; paused animations stop the
+   compositor work the ten travelling signals would otherwise never stop
+   doing. Running is the default so the SSR markup and the first client paint
+   agree. */
+[data-schematic-visible='false'] .trace-signal {
+  animation-play-state: paused;
+}
+
 @keyframes trace-travel {
   0% {
     stroke-dashoffset: 12;
@@ -475,15 +445,26 @@
   .schematic-pulse {
     display: none;
   }
-  /* Hover motion (e.g. the knowledge-list arrow nudge) becomes instant;
-     color transitions stay but resolve immediately. */
-  .marketing *,
-  .marketing *::before,
-  .marketing *::after {
+  /* Hover and state motion (the knowledge-list arrow nudge, a switch thumb,
+     a sheet's slide) resolves instantly: the property list drops transform,
+     translate, scale and rotate, and what remains — the color family — lands
+     on its end value with no duration and no delay. Unscoped on purpose: the
+     `.marketing` wrapper missed the workspace app entirely, and it also
+     missed the portaled overlays (sheets, dialogs, popovers, tooltips) that
+     mount at the document root rather than inside the page tree.
+
+     Animations are not swept from here. Each one is gated at its own
+     definition — the rules above, and the `motion-safe:` variants the
+     primitives carry — so an entrance can choose between fading and being
+     removed instead of every keyframe collapsing to a blink. */
+  *,
+  *::before,
+  *::after {
     transition-duration: 0s !important;
+    transition-delay: 0s !important;
     transition-property:
       color, background-color, border-color, outline-color, text-decoration-color, fill,
-      stroke !important;
+      stroke, opacity !important;
   }
 }
 

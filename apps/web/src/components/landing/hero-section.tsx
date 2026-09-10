@@ -30,7 +30,7 @@ function HeroSection() {
             rather than trailing the lede. */}
         <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,25rem)] lg:items-end lg:gap-16">
           <div className="max-w-2xl">
-            <p className="rise font-mono text-sm text-signal-ink">
+            <p className="rise font-mono text-sm text-muted-foreground">
               {m.landing_tagline()}
             </p>
             {/* `leading-display`: a display face at 5–6xl wants near-solid

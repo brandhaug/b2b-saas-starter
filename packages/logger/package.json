@@ -16,7 +16,8 @@
     "@b2b-saas-starter/env": "workspace:*",
     "@b2b-saas-starter/failure": "workspace:*",
     "@sentry/cloudflare": "catalog:",
-    "effect": "catalog:"
+    "effect": "catalog:",
+    "posthog-node": "catalog:"
   },
   "devDependencies": {
     "@effect/vitest": "catalog:",

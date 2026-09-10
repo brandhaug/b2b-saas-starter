@@ -4,16 +4,18 @@ import { DEPLOY_COMMAND } from '@/lib/toolchain'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 /** `to` stays a literal union so TanStack Router still type-checks the links.
- *  No Pricing entry: the starter is MIT and does not sell plans — the plan
- *  vocabulary lives in the capability catalog and the billing docs. */
+ *  Pricing is in the nav: the page shows the reference application's example
+ *  plan catalog — the vocabulary a deployment starts from — not a sales
+ *  offer, and an unreachable public page is worse than an honest one. */
 export type PublicLink = {
-  readonly to: '/docs' | '/help'
+  readonly to: '/docs' | '/pricing' | '/help'
   readonly label: string
 }
 
 export function publicLinks(): ReadonlyArray<PublicLink> {
   return [
     { to: '/docs', label: m.docs() },
+    { to: '/pricing', label: m.public_meta_pricing() },
     { to: '/help', label: m.public_meta_support() }
   ]
 }

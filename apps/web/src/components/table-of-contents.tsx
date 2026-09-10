@@ -32,10 +32,20 @@ export function TableOfContents({
                   const reducedMotion = window.matchMedia(
                     '(prefers-reduced-motion: reduce)'
                   ).matches
-                  document.getElementById(heading.id)?.scrollIntoView({
+                  const target = document.getElementById(heading.id)
+                  target?.scrollIntoView({
                     behavior: reducedMotion ? 'instant' : 'smooth'
                   })
                   history.replaceState(null, '', `#${heading.id}`)
+                  // Preventing the default navigation also keeps the sequential
+                  // focus start point on the link, so Tab would walk the nav
+                  // again instead of the section just jumped to. Focusing the
+                  // heading moves it; `preventScroll` leaves the smooth scroll
+                  // above in charge of the viewport.
+                  if (target !== null) {
+                    target.tabIndex = -1
+                    target.focus({ preventScroll: true })
+                  }
                 }}
                 aria-current={isActive ? 'location' : undefined}
                 className={cn(

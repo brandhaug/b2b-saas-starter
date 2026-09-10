@@ -10,6 +10,11 @@
   "public_meta_reset_password": "Tilbakestill passord",
   "public_meta_sign_in": "Logg inn",
   "public_meta_support": "Kundestøtte",
+  "public_meta_pricing": "Priser",
+  "public_pricing_title": "Planer og priser",
+  "public_pricing_description": "Eksempelkatalogen med planer som følger med denne referanseappen. Et arbeidsområde velger en av dem i faktureringsinnstillingene sine.",
+  "public_pricing_cta_note": "Planer velges inne i et arbeidsområde, der abonnementet og plassene hører hjemme.",
+  "public_pricing_cta": "Gå til arbeidsområdene dine",
   "support_title": "Kontakt kundestøtte",
   "support_description": "Velg en kontaktmåte nedenfor. Du kan kopiere støtteinformasjon og ta den med i meldingen.",
   "support_contact_title": "Kontakt kundestøtte",
@@ -41,7 +46,7 @@
   "public_demo_notifications": "Varsler",
   "public_demo_open": "Utforsk demoen",
   "public_knowledge_heading": "Resonnementet er sjekket inn.",
-  "public_knowledge_description": "Dokumentasjon, FAQ og blogg er versjonert MDX i repoet og søkes fra genererte indekser, uten CMS. Bloggen forklarer hvorfor hver teknologibeslutning ble tatt, og utgivelser lages av release-please.",
+  "public_knowledge_description": "Dokumentasjon og FAQ er versjonert MDX i repoet og søkes fra genererte indekser, uten CMS. Utgivelser lages av release-please.",
   "public_request_heading": "Én forespørsel, sporet fra ende til ende.",
   "public_request_description": "Det samme oppslaget som fylte tallene over, fulgt fra curl-kallet som starter det til bindingen som lagrer det. Alle utdragene nedenfor er ekte kode fra dette repoet; bildeteksten på hvert panel viser stien. I sidestolpen lyser noden som omtales mens du leser.",
   "public_architecture_aria": "Arkitekturskjema, kan rulles vannrett",
@@ -65,26 +70,39 @@
   "public_request_binding": "binding",
   "public_request_holds": "hva den inneholder",
   "public_request_declared_in": "deklarert i",
-  "public_request_rail": "Den opplyste noden følger trinnet.",
   "public_request_caption": "De tre infrastrukturbindingene dette sporet ender i, én rad per node i skjemaet",
   "public_request_d1_holds": "SQLite: skjema, migreringer og seed-rader",
   "public_request_queues_holds": "Webhook-leveranser med nye forsøk og tilbakekobling",
   "public_request_email_holds": "Transaksjonelle utsendinger, leverandørstyrt til den er konfigurert",
-  "public_request_more_notifications": "… {count} flere varsler",
+  "public_request_more_notifications": [
+    {
+      "declarations": ["input count", "local category = count: plural"],
+      "selectors": ["category"],
+      "match": {
+        "category=one": "… 1 varsel til",
+        "category=other": "… {count} varsler til"
+      }
+    }
+  ],
   "public_knowledge_docs": "docs/",
-  "public_knowledge_blog": "blogg/",
   "public_docs_title": "Dokumentasjon",
   "public_docs_description": "Konsepter og oppskrifter for starterens arkitektur, moduler, kapabilitetsgrensesnitt og drift.",
-  "public_docs_article": "artikkel",
-  "public_docs_articles": "artikler",
+  "public_docs_article_count": [
+    {
+      "declarations": ["input count", "local category = count: plural"],
+      "selectors": ["category"],
+      "match": {
+        "category=one": "1 artikkel",
+        "category=other": "{count} artikler"
+      }
+    }
+  ],
   "public_docs_category_getting_started": "Kom i gang",
   "public_docs_category_architecture": "Arkitektur",
   "public_docs_category_capability_interfaces": "Kapabilitetsgrensesnitt",
   "public_docs_category_integrations": "Integrasjonsflater",
   "public_docs_category_operations": "Drift",
   "public_docs_category_governance": "Styring",
-  "public_blog_title": "Blogg",
-  "public_blog_description": "Artikler om teknologi- og bibliotekvalgene i denne starteren.",
   "public_faq_title": "FAQ",
   "public_faq_description": "Svar om fakturering, lisensiering og hvordan du tar B2B SaaS Starter i bruk i produktet ditt.",
   "public_faq_q1": "Hvorfor TanStack Start i stedet for Next.js eller Remix?",
@@ -121,9 +139,7 @@
   "public_knowledge_nav": "Kunnskap",
   "public_knowledge_on_page": "På denne siden",
   "public_knowledge_adjacent": "Nærliggende artikler",
-  "public_knowledge_back_blog": "Tilbake til bloggen",
   "public_knowledge_article_error": "Artikkelen kunne ikke lastes inn.",
-  "public_knowledge_post_error": "Innlegget kunne ikke lastes inn.",
   "public_knowledge_loading": "Laster inn …",
   "public_meta_magic_link": "Innloggingslenke",
   "public_meta_email_code": "Logg inn med en kode",

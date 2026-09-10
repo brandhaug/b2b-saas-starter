@@ -8,10 +8,13 @@ import { WorkspaceNav } from '@/components/workspace-nav'
 import { CommandPaletteProvider, SearchButton } from '@/components/command-palette'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { DEMO_WORKSPACE_SLUG } from '@/lib/demo-workspace'
+import { seedWorkspaceRecord } from '@b2b-saas-starter/capabilities/governance/workspace-identity.seed'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { type WorkspaceViewer } from '@/lib/permissions'
 
-const workspace = { slug: DEMO_WORKSPACE_SLUG, name: 'Starter Lab' }
+// The preview names the same workspace the seed fixture defines, so the demo
+// chrome cannot drift from the workspace the fixtures render inside it.
+const workspace = { slug: DEMO_WORKSPACE_SLUG, name: seedWorkspaceRecord.name }
 const viewer = { role: 'owner' } satisfies WorkspaceViewer
 
 export function PreviewShell({
@@ -82,7 +85,11 @@ export function PreviewShell({
               {m.demo_try_sign_in()}
             </Button>
           </div>
-          <main id="main-content" className="px-4 py-6 sm:px-6">
+          <main
+            id="main-content"
+            tabIndex={-1}
+            className="px-4 py-6 sm:px-6 outline-none"
+          >
             <div className="mx-auto grid w-full max-w-4xl gap-6">{children}</div>
           </main>
         </div>

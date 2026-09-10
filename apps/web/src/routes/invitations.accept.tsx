@@ -99,7 +99,8 @@ function UnusableInvitation() {
     <PublicLayout>
       <main
         id="main-content"
-        className="mx-auto grid w-full max-w-lg flex-1 place-items-center px-4 py-12"
+        tabIndex={-1}
+        className="mx-auto grid w-full max-w-lg flex-1 place-items-center px-4 py-12 outline-none"
       >
         <Card className="w-full">
           <CardHeader>
@@ -151,7 +152,8 @@ function PendingInvitation({
     <PublicLayout>
       <main
         id="main-content"
-        className="mx-auto grid w-full max-w-lg flex-1 place-items-center px-4 py-12"
+        tabIndex={-1}
+        className="mx-auto grid w-full max-w-lg flex-1 place-items-center px-4 py-12 outline-none"
       >
         <Card className="w-full">
           <CardHeader>

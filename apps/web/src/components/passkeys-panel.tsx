@@ -211,7 +211,7 @@ function AddPasskeyForm({
         <Label htmlFor="passkey-name">{m.form_passkey_name()}</Label>
         <Input
           id="passkey-name"
-          placeholder="MacBook Touch ID"
+          placeholder={m.passkey_name_placeholder()}
           autoComplete="off"
           value={name}
           onChange={(event) => setName(event.target.value)}
@@ -274,7 +274,9 @@ function RenamePasskey({
         event.preventDefault()
         rename.run()
       }}
-      className="flex items-center gap-2"
+      // Wraps rather than squeezes: on a narrow row the field takes the full
+      // width and the two actions drop to the next line.
+      className="flex flex-wrap items-center gap-2"
       aria-label={m.rename_passkey_named({ name: row.label })}
     >
       <Label htmlFor={`passkey-rename-${row.id}`} className="sr-only">
@@ -286,7 +288,7 @@ function RenamePasskey({
         autoComplete="off"
         onChange={(event) => setName(event.target.value)}
         required
-        className="h-8 w-36"
+        className="h-8 max-md:h-11 w-full sm:w-36"
       />
       <Button type="submit" variant="outline" disabled={rename.pending}>
         {m.save_action()}

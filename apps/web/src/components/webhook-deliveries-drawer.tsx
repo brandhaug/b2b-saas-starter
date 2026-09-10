@@ -104,7 +104,7 @@ export function WebhookDeliveriesDrawer({
                   {sendTest.pending ? <Spinner data-icon="inline-start" /> : null}
                   {m.send_test_event()}
                 </Button>
-                <p className="mt-1 text-3xs text-muted-foreground">
+                <p className="mt-1 text-xs text-muted-foreground">
                   {m.test_event_description()} <code>webhook.test_event</code>
                 </p>
               </div>
@@ -138,7 +138,7 @@ export function WebhookDeliveriesDrawer({
                           </span>
                         )}
                       </div>
-                      <p className="text-3xs text-muted-foreground">
+                      <p className="text-xs text-muted-foreground">
                         {m.webhook_attempt_count({ count: delivery.attempts })} ·{' '}
                         {formatTimestampOr(delivery.lastAttemptAt, m.not_attempted())}
                         {delivery.nextAttemptAt === null
@@ -146,7 +146,7 @@ export function WebhookDeliveriesDrawer({
                           : ` · ${m.webhook_next_attempt({ time: formatTimestampOr(delivery.nextAttemptAt, '') })}`}
                       </p>
                       {delivery.replayedFrom === null ? null : (
-                        <p className="text-3xs text-muted-foreground">
+                        <p className="text-xs text-muted-foreground">
                           {m.replayed_from()}{' '}
                           <span className="font-mono">{delivery.replayedFrom}</span>
                         </p>

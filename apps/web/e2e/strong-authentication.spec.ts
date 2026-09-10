@@ -20,20 +20,19 @@ test('password-only owners must verify this session with a passkey', async ({
 }, testInfo) => {
   const browserErrors: Array<Error> = []
   page.on('pageerror', (error) => browserErrors.push(error))
-  await signInWithPassword(
-    page,
-    'demo@starter.local',
+  await signInWithPassword(page, 'demo@starter.local', '/account')
+  // The workspace subtree gates in `beforeLoad`, so an unverified owner is
+  // redirected to the verification page carrying the path they asked for —
+  // the gate is a page load, not a failed page read.
+  await page.goto('/workspaces/starter-lab/settings')
+  await expect(page).toHaveURL(/\/verify-authentication\?redirect=/)
+  expect(new URL(page.url()).searchParams.get('redirect')).toBe(
     '/workspaces/starter-lab/settings'
   )
   await expect(
     page.getByRole('heading', { name: 'Verify your identity' })
   ).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Workspace settings' })).toHaveCount(0)
-  await page.getByRole('link', { name: 'Verify and continue', exact: true }).click()
-  await expect(page).toHaveURL(/\/verify-authentication\?redirect=/)
-  expect(new URL(page.url()).searchParams.get('redirect')).toBe(
-    '/workspaces/starter-lab/settings'
-  )
 
   await page.locator('form[data-hydrated="true"]').waitFor()
   await page.screenshot({

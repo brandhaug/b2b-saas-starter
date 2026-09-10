@@ -99,7 +99,7 @@ export function CreateWorkspaceForm({
                 form.setFieldValue('slug', suggestSlug(next))
               }
             }}
-            placeholder="Acme Corp"
+            placeholder={m.workspace_name_placeholder()}
           />
         )}
       </form.Field>
@@ -118,7 +118,7 @@ export function CreateWorkspaceForm({
               slugEdited.current = true
               field.handleChange(next)
             }}
-            placeholder="acme-corp"
+            placeholder={m.workspace_slug_placeholder()}
           />
         )}
       </form.Field>

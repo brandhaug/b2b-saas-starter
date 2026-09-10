@@ -52,6 +52,13 @@ describe('ApiTokensPanel', () => {
     expect(screen.getByLabelText('Token name')).not.toBeNull()
   })
 
+  it('leaves naming the list to the page header', async () => {
+    await renderPanel({ role: 'owner' })
+    // The page's h1 already reads "API tokens"; the panel adds the create
+    // action beside it instead of a second heading.
+    expect(screen.queryByRole('heading', { name: 'API tokens' })).toBeNull()
+  })
+
   it('keeps revoke but removes mint and replacement controls in recovery mode', async () => {
     await renderPanel({ role: 'owner', creation: 'hidden' })
     expect(screen.queryByRole('button', { name: 'Create a token' })).toBeNull()

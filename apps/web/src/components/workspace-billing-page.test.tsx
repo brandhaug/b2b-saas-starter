@@ -100,11 +100,13 @@ async function renderBilling(
   } = {}
 ) {
   let payload = initial
+  // Counting loader runs is how the polling tests see a refresh happen.
+  const billingLoads = vi.fn(() => payload)
   const root = createRootRoute()
   const route = createRoute({
     getParentRoute: () => root,
     path: '/workspaces/$workspaceSlug/billing',
-    loader: () => payload,
+    loader: billingLoads,
     component: function BillingRoute() {
       return (
         <WorkspaceBillingPage
@@ -142,6 +144,7 @@ async function renderBilling(
   return {
     ...view,
     router,
+    billingLoads,
     read: () => payload,
     update: (next: WorkspaceBillingPayload) => {
       payload = next
@@ -176,6 +179,66 @@ async function saveSelection() {
 
 beforeEach(() => {
   save.mockReset()
+})
+
+function pendingSync(): WorkspaceBillingPayload {
+  return {
+    ...fixture(),
+    stripeConfigured: true,
+    synchronization: { status: 'pending', lastSyncedAt: null }
+  }
+}
+
+/** jsdom reports a visible tab; these tests own the value while they run. */
+function setVisibility(state: DocumentVisibilityState): void {
+  Object.defineProperty(document, 'visibilityState', {
+    configurable: true,
+    get: () => state
+  })
+  document.dispatchEvent(new Event('visibilitychange'))
+}
+
+describe('billing synchronization polling', () => {
+  it('refreshes the payload while synchronization is pending and stops after it settles', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const view = await renderBilling(pendingSync())
+      expect(view.billingLoads).toHaveBeenCalledTimes(1)
+      await act(() => vi.advanceTimersByTimeAsync(10_000))
+      expect(view.billingLoads).toHaveBeenCalledTimes(2)
+
+      // Once the provider is in step the poll retires instead of running for
+      // as long as the tab stays open.
+      view.update({
+        ...pendingSync(),
+        synchronization: { status: 'current', lastSyncedAt: null }
+      })
+      await act(() => view.router.invalidate())
+      const settled = view.billingLoads.mock.calls.length
+      await act(() => vi.advanceTimersByTimeAsync(120_000))
+      expect(view.billingLoads).toHaveBeenCalledTimes(settled)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('waits out a hidden tab and catches up when it comes back', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const view = await renderBilling(pendingSync())
+      setVisibility('hidden')
+      await act(() => vi.advanceTimersByTimeAsync(60_000))
+      expect(view.billingLoads).toHaveBeenCalledTimes(1)
+      await act(async () => {
+        setVisibility('visible')
+        await Promise.resolve()
+      })
+      await waitFor(() => expect(view.billingLoads).toHaveBeenCalledTimes(2))
+    } finally {
+      setVisibility('visible')
+      vi.useRealTimers()
+    }
+  })
 })
 
 describe('WorkspaceBillingPage route', () => {

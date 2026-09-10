@@ -130,7 +130,10 @@ export function SignUpPage({
       footer={
         <p className="text-center text-sm text-muted-foreground">
           {m.already_have_account()}{' '}
-          <Link to="/sign-in" className="text-primary underline underline-offset-4">
+          <Link
+            to="/sign-in"
+            className="inline-flex items-center text-primary underline underline-offset-4 max-md:min-h-11"
+          >
             {m.form_sign_in()}
           </Link>
         </p>
@@ -150,7 +153,7 @@ export function SignUpPage({
             name={field.name}
             label={m.form_name()}
             type="text"
-            placeholder="Ada Lovelace"
+            placeholder={m.name_placeholder()}
             autoComplete="name"
             value={field.state.value}
             errors={field.state.meta.errors}
@@ -167,7 +170,7 @@ export function SignUpPage({
             name={field.name}
             label={m.form_email()}
             type="email"
-            placeholder="you@example.com"
+            placeholder={m.email_placeholder()}
             autoComplete="email"
             value={field.state.value}
             errors={field.state.meta.errors}

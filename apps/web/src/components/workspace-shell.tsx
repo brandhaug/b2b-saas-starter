@@ -213,7 +213,7 @@ function AuthenticatedWorkspaceShell({
         </div>
         {/* One content width for every shell page — the page body centers at
             `max-w-4xl` instead of each page picking its own column. */}
-        <main id="main-content" className="px-4 py-6 sm:px-6">
+        <main id="main-content" tabIndex={-1} className="px-4 py-6 sm:px-6 outline-none">
           <div className="mx-auto grid w-full max-w-4xl gap-6">
             {children}
             <footer className="border-t border-border pt-6">

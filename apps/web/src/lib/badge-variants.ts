@@ -7,7 +7,7 @@ export type BadgeVariant = NonNullable<React.ComponentProps<typeof Badge>['varia
 
 /**
  * Workspace role → badge variant, the one mapping every surface that renders
- * a role uses (roster, `/admin`'s membership editor, invitation accept). A
+ * a role uses (roster and `/admin`'s membership editor). A
  * role is identity, not a status: the status hues (ok/warn/info/destructive)
  * stay reserved for states, mauve stays reserved for emphasis, and the owner
  * — the one role a workspace cannot share, since only owners grant ownership
@@ -67,18 +67,25 @@ export function workspaceExportStatusVariant(
 
 /**
  * Audit actor type → badge variant. Like a role, an actor type is identity,
- * not a state — no status hue and no emphasis: a session user is the common
- * case in neutral, the platform acted alone in `info` (the informational
- * hue), and a machine credential takes the bordered `outline` pill, visible
- * without claiming a state. Unknown values (a row newer than the vocabulary)
- * fall back to `outline`, the badge vocabulary's home for exactly that.
+ * not a state — no status hue and no emphasis: a session user and the
+ * platform acting alone are both filled neutral pills, and a machine
+ * credential takes the bordered `outline` pill, visible without claiming a
+ * state. Unknown values (a row newer than the vocabulary) fall back to
+ * `outline`, the badge vocabulary's home for exactly that.
  */
 export function auditActorTypeVariant(actorType: string): BadgeVariant {
-  if (actorType === 'user') {
+  if (actorType === 'user' || actorType === 'system') {
     return 'neutral'
   }
-  if (actorType === 'system') {
-    return 'info'
-  }
   return 'outline'
+}
+
+/**
+ * Enabled/disabled → badge variant, for every switchable integration (SSO
+ * connections, webhook endpoints). Enabled is the healthy operational state,
+ * so it takes `ok`; disabled is settled and unremarkable, so it goes neutral
+ * — the same one-hue-per-state rule the status mappings above follow.
+ */
+export function enabledVariant(enabled: boolean): BadgeVariant {
+  return enabled ? 'ok' : 'neutral'
 }

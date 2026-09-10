@@ -6,18 +6,25 @@ import { type SupportConfig } from '@/lib/support-config'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 export function SupportPage({ config }: { readonly config: SupportConfig }) {
+  // A deployment with neither a helpdesk nor a support address has no
+  // contact option to choose, so the lead says so instead of pointing at an
+  // empty section — the notice is the lead here, not a footnote under it.
+  const contactAvailable = Boolean(config.helpdeskUrl || config.email)
   return (
     <main
       id="main-content"
-      className="mx-auto grid w-full max-w-3xl flex-1 gap-10 px-4 py-12 sm:px-6"
+      tabIndex={-1}
+      className="mx-auto grid w-full max-w-3xl flex-1 gap-10 px-4 py-12 sm:px-6 outline-none"
     >
       <section className="max-w-2xl">
-        <h1 className="text-4xl font-semibold tracking-tight">{m.support_title()}</h1>
-        <p className="mt-4 text-lg text-muted-foreground">{m.support_description()}</p>
+        <h1 className="text-3xl font-semibold tracking-tight">{m.support_title()}</h1>
+        <p className="mt-4 text-lg text-muted-foreground">
+          {contactAvailable ? m.support_description() : m.support_unavailable()}
+        </p>
       </section>
-      {config.helpdeskUrl || config.email || config.helpCenterUrl ? (
+      {contactAvailable || config.helpCenterUrl ? (
         <div className="grid gap-4 sm:grid-cols-2">
-          {config.helpdeskUrl || config.email ? (
+          {contactAvailable ? (
             <Card>
               <CardHeader>
                 <CardTitle as="h2" className="flex items-center gap-2">
@@ -82,14 +89,14 @@ export function SupportPage({ config }: { readonly config: SupportConfig }) {
         </p>
         <SupportDetails routeName="help" appVersion={config.appVersion} />
       </section>
-      {!config.helpdeskUrl && !config.email ? (
-        <p className="text-sm text-muted-foreground">{m.support_unavailable()}</p>
-      ) : null}
       {import.meta.env.DEV ? (
         <p className="text-xs text-muted-foreground">{m.support_development_hint()}</p>
       ) : null}
       <p className="text-sm">
-        <Link to="/" className="underline underline-offset-4">
+        <Link
+          to="/"
+          className="inline-flex items-center underline underline-offset-4 max-md:min-h-11"
+        >
           {m.shell_home()}
         </Link>
       </p>

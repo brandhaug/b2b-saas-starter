@@ -1,4 +1,5 @@
 import { isStrongAuthenticationError } from '@/lib/ui-error'
+import { FallbackPage } from '@/components/fallback-page'
 import { SupportDetails } from '@/components/support-details'
 import * as m from '@b2b-saas-starter/i18n/messages'
 import { deLocalizeUrl, localizeUrl } from '@b2b-saas-starter/i18n/runtime'
@@ -12,16 +13,23 @@ import { StrongAuthenticationNotice } from '@/components/strong-authentication-n
 
 function NotFound() {
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center gap-4 p-6">
-      <h1 className="text-2xl font-semibold">{m.shell_not_found()}</h1>
+    <FallbackPage>
+      <h1 className="text-3xl font-semibold tracking-tight">{m.shell_not_found()}</h1>
       <p className="text-sm text-muted-foreground">{m.shell_not_found_description()}</p>
-      <Link to="/" className="text-sm underline underline-offset-4">
+      <Link
+        to="/"
+        className="inline-flex items-center text-sm underline underline-offset-4 max-md:min-h-11"
+      >
         {m.shell_home()}
       </Link>
-      <Link to="/help" reloadDocument className="text-sm underline underline-offset-4">
+      <Link
+        to="/help"
+        reloadDocument
+        className="inline-flex items-center text-sm underline underline-offset-4 max-md:min-h-11"
+      >
         {m.public_meta_support()}
       </Link>
-    </div>
+    </FallbackPage>
   )
 }
 
@@ -35,26 +43,39 @@ function RouteError({ error }: { readonly error: Error }) {
   }
   const degraded = error.name === CAPABILITY_UNAVAILABLE_ERROR_NAME
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center gap-4 p-6">
-      <h1 className="text-2xl font-semibold">
+    <FallbackPage>
+      <h1 className="text-3xl font-semibold tracking-tight">
         {degraded ? m.shell_unavailable() : m.shell_error()}
       </h1>
-      <p className="max-w-md text-center text-sm text-muted-foreground">
+      <p className="max-w-md text-sm text-muted-foreground">
         {degraded ? m.shell_unavailable_description() : m.shell_error_description()}
       </p>
-      <Link to="/" className="text-sm underline underline-offset-4">
+      <Link
+        to="/"
+        className="inline-flex items-center text-sm underline underline-offset-4 max-md:min-h-11"
+      >
         {m.shell_home()}
       </Link>
       <SupportDetails routeName="application" />
-      <Link to="/help" reloadDocument className="text-sm underline underline-offset-4">
+      <Link
+        to="/help"
+        reloadDocument
+        className="inline-flex items-center text-sm underline underline-offset-4 max-md:min-h-11"
+      >
         {m.public_meta_support()}
       </Link>
-    </div>
+    </FallbackPage>
   )
 }
 
 export function getRouter() {
-  const queryClient = new QueryClient()
+  // Query defaults, not library defaults: the SSR payload a page hydrates
+  // from is trusted for 30s instead of being refetched the moment a component
+  // mounts, and returning to the tab does not restart every query a
+  // multi-panel page holds at once.
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false } }
+  })
   // `lastWorkspace` remembers the workspace the user last visited: the
   // workspace shell writes it, and surfaces without a workspace of their own
   // (/account, /admin, the picker) read it back so the sidebar keeps its shape

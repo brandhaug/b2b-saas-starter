@@ -42,19 +42,26 @@ beforeEach(() => {
 async function loadDashboard(): Promise<WorkspaceDashboardPayload> {
   return loadWorkspaceDashboardHandler({ workspaceSlug: 'starter-lab' })
 }
-const listNotifications = vi.fn<ListNotifications>(async () => [
+// One unread notification stands in for the seed feed. The panel trusts the
+// loader payload on mount (no refetch until it goes stale), so the fixture
+// rides in as the payload's notifications and the port answers only explicit
+// refreshes.
+const fixtureNotifications: WorkspaceDashboardPayload['notifications'] = [
   {
     id: 'not_email',
+    kind: 'announcement',
     title: 'Email needs configuration',
     message: 'Set it up.',
     read: false,
     // The seed row's own timestamp, so the fixture mirrors the real feed.
     createdAt: '2026-05-16T08:10:00.000Z'
   }
-])
+]
+const listNotifications = vi.fn<ListNotifications>(async () => fixtureNotifications)
 const markNotificationsRead = vi.fn<MarkNotificationsRead>(async () => 1)
 
-async function renderDashboard(data: WorkspaceDashboardPayload) {
+async function renderDashboard(payload: WorkspaceDashboardPayload) {
+  const data = { ...payload, notifications: fixtureNotifications }
   return renderWithRouter(
     <QueryClientProvider client={new QueryClient()}>
       <WorkspaceDashboardPage
@@ -91,7 +98,7 @@ describe('WorkspaceDashboardPage', () => {
     await renderDashboard(await loadDashboard())
     // The unread notification offers its own mark-read control...
     await screen.findByRole('button', {
-      name: 'Mark read: Email needs configuration'
+      name: 'Mark as read: Email needs configuration'
     })
     // ...and the panel a mark-all control over every unread id.
     fireEvent.click(screen.getByText(/Mark all read/))

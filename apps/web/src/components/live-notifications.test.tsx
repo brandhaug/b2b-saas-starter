@@ -77,6 +77,15 @@ describe('LiveNotifications', () => {
     screen.getByText(/all caught up/)
   })
 
+  it('renders the loader payload without a refetch on mount', () => {
+    listNotifications.mockResolvedValue([])
+    renderCard(fallback)
+    // The loader already fetched this list, so the panel is not allowed to
+    // ask the server for it again the moment it mounts.
+    expect(listNotifications).not.toHaveBeenCalled()
+    screen.getByText('Webhook delivered')
+  })
+
   it('fetches notifications for the workspace and renders the server data', async () => {
     listNotifications.mockResolvedValue([
       {
@@ -88,6 +97,7 @@ describe('LiveNotifications', () => {
       }
     ])
     renderCard(fallback)
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh notifications' }))
     await screen.findByText('New module ready')
     expect(listNotifications).toHaveBeenCalledWith({
       data: { workspaceSlug: 'starter-lab' }
@@ -98,6 +108,7 @@ describe('LiveNotifications', () => {
   it('keeps the fallback visible and shows an alert when the refresh fails', async () => {
     listNotifications.mockRejectedValue(new Error('Session expired'))
     renderCard(fallback)
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh notifications' }))
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain('Could not refresh notifications.')
     screen.getByText('Webhook delivered')
@@ -108,13 +119,28 @@ describe('LiveNotifications', () => {
     markRead.mockRejectedValue(new Error('Write refused'))
     renderCard(fallback)
     fireEvent.click(
-      screen.getByRole('button', { name: 'Mark read: Webhook delivered' })
+      screen.getByRole('button', { name: 'Mark as read: Webhook delivered' })
     )
     // The failure renders inside the row that produced it, not at the panel
     // foot far below the button.
     await screen.findByText(/Could not mark the notification read/)
     const row = screen.getByText('Webhook delivered').closest('[role="listitem"]')
     expect(row?.textContent).toContain('Could not mark the notification read.')
+  })
+
+  it('counts the unread rows behind “Mark all read” as a plural', () => {
+    // The screen-reader suffix on the bulk button is a plural message, not a
+    // count glued to an English `s`: one unread row reads “1 unread”.
+    listNotifications.mockReturnValue(new Promise(() => {}))
+    const { unmount } = renderCard(fallback)
+    expect(screen.getByRole('button', { name: /Mark all read/ }).textContent).toContain(
+      '1 unread'
+    )
+    unmount()
+    renderCard(allUnread)
+    expect(screen.getByRole('button', { name: /Mark all read/ }).textContent).toContain(
+      '2 unread'
+    )
   })
 
   it('shows a mark-all failure once, outside the rows', async () => {

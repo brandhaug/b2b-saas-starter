@@ -15,6 +15,7 @@ import { WorkspaceShell } from '@/components/workspace-shell'
 import { useState } from 'react'
 import {
   demoAuditDetails,
+  demoBillingPorts,
   demoFixtures,
   demoNotificationPorts,
   demoWebhookPorts,
@@ -78,7 +79,13 @@ export function DemoRenderer({ section }: { readonly section: DemoSection }) {
       return <DemoAudit />
     }
     case 'billing': {
-      return <WorkspaceBillingPage workspaceSlug={slug} data={demoFixtures.billing} />
+      return (
+        <WorkspaceBillingPage
+          workspaceSlug={slug}
+          data={demoFixtures.billing}
+          ports={demoBillingPorts}
+        />
+      )
     }
     case 'settings': {
       return <WorkspaceSettingsPage workspaceSlug={slug} data={demoFixtures.settings} />

@@ -1,4 +1,8 @@
 import { type WebhookDeliveryAttempt } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
+import {
+  seedMembers,
+  seedWorkspaceRecord
+} from '@b2b-saas-starter/capabilities/governance/workspace-identity.seed'
 import { type Notification } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { type NotificationPreview } from '@/components/live-notifications'
 import { LocalizedError } from '@/lib/localized-error'
@@ -7,6 +11,7 @@ import { type AssistantPagePayload } from '@/lib/server/assistant'
 import { type WorkspaceApiTokensPayload } from '@/lib/server/api-tokens'
 import { type WorkspaceAuditPayload } from '@/lib/server/workspace-audit'
 import { type WorkspaceBillingPayload } from '@/lib/server/billing'
+import { type BillingPorts } from '@/components/workspace-billing'
 import { type WorkspaceDashboardPayload } from '@/lib/server/workspace-dashboard'
 import { type WorkspaceMembersPayload } from '@/lib/server/workspace-members'
 import { type WorkspaceSettingsPayload } from '@/lib/server/workspace-settings'
@@ -38,35 +43,18 @@ export function isDemoSection(value: string): value is DemoSection {
   return demoSections.some((section) => section === value)
 }
 const viewer = { role: 'owner' } satisfies WorkspaceViewer
-const members = [
-  {
-    id: 'usr_demo',
-    name: 'Demo Admin',
-    email: 'demo@starter.local',
-    role: 'owner',
-    systemRole: 'admin'
-  },
-  {
-    id: 'usr_ops',
-    name: 'Ops Lead',
-    email: 'ops@starter.local',
-    role: 'admin',
-    systemRole: 'user'
-  },
-  {
-    id: 'usr_dev',
-    name: 'Product Engineer',
-    email: 'engineer@example.com',
-    role: 'member',
-    systemRole: 'user'
-  }
-] satisfies WorkspaceMembersPayload['members']
+/**
+ * The preview roster is the seed workspace's roster. Retyping it here is how
+ * the showcase starts claiming members the app never had, so the fixture
+ * package owns the list and this module only projects it.
+ */
+const members = seedMembers satisfies WorkspaceMembersPayload['members']
 const notifications = [
   {
     id: 'not_export',
     kind: 'announcement',
     title: 'Workspace export ready',
-    message: 'Your export of Starter Lab is ready to download from workspace settings.',
+    message: `Your export of ${seedWorkspaceRecord.name} is ready to download from workspace settings.`,
     read: false,
     createdAt: '2026-05-16T07:30:05.000Z'
   },
@@ -347,12 +335,7 @@ const resourceEntitlements = {
 
 export const demoFixtures = {
   dashboard: {
-    workspace: {
-      id: 'wrk_starter',
-      slug: 'starter-lab',
-      name: 'Starter Lab',
-      planId: 'team'
-    },
+    workspace: seedWorkspaceRecord,
     viewer,
     unreadCount: 2,
     notifications,
@@ -393,12 +376,12 @@ export const demoFixtures = {
   } satisfies WorkspaceAuditPayload,
   billing: {
     viewer,
-    workspaceName: 'Starter Lab',
+    workspaceName: seedWorkspaceRecord.name,
     unreadCount: 2,
     plans: billingPlans,
     pricingUnavailable: false,
     currentPlanId: 'team',
-    stripeConfigured: true,
+    stripeConfigured: false,
     synchronization: { status: 'current', lastSyncedAt: '2026-05-16T07:30:05.000Z' },
     lifecycle: {
       status: 'active',
@@ -415,7 +398,7 @@ export const demoFixtures = {
   } satisfies WorkspaceBillingPayload,
   settings: {
     viewer,
-    workspaceName: 'Starter Lab',
+    workspaceName: seedWorkspaceRecord.name,
     unreadCount: 2,
     ssoConnections: [
       {
@@ -445,7 +428,10 @@ export const demoFixtures = {
       ]
     }
   } satisfies WorkspaceSettingsPayload,
-  assistant: { viewer, configured: true } satisfies AssistantPagePayload
+  // Both providers read as inactive, the provider-light default the landing
+  // page promises: an unset key leaves the surface honest instead of faking
+  // a configured deployment.
+  assistant: { viewer, configured: false } satisfies AssistantPagePayload
 } satisfies {
   readonly dashboard: WorkspaceDashboardPayload
   readonly members: WorkspaceMembersPayload
@@ -462,6 +448,20 @@ export const demoNotificationPorts = {
   list: async () => notifications,
   // oxlint-disable-next-line effect/noNewPromise -- this port deliberately rejects to make standalone preview usage explicitly read-only
   markRead: () => Promise.reject(new LocalizedError(m.shell_demo_read_only()))
+}
+/**
+ * Billing's server functions, refused. Without these the page falls back to
+ * the real checkout and portal server fns, so a guest clicking Upgrade in the
+ * preview would reach Stripe — the banner promises no action changes anything.
+ */
+function refusePreviewAction(): Promise<never> {
+  // oxlint-disable-next-line effect/noNewPromise -- a preview port refuses through the same rejected-promise contract the real server fns use
+  return Promise.reject(new LocalizedError(m.shell_demo_read_only()))
+}
+export const demoBillingPorts: BillingPorts = {
+  startCheckout: refusePreviewAction,
+  startPortalSession: refusePreviewAction,
+  selectBillingResources: refusePreviewAction
 }
 export const demoWebhookPorts = {
   // oxlint-disable-next-line typescript/require-await -- static preview port implements the production promise contract without I/O

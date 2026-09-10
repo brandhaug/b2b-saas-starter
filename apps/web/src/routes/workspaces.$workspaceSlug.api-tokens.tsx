@@ -1,9 +1,21 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { pageTitle } from '@/components/page/page-title'
 import { RoutePending } from '@/components/route-pending'
+import { workspaceRouteError } from '@/components/workspace-route-error'
 import { WorkspaceApiTokensPage } from '@/components/workspace-api-tokens-page'
 import { loadWorkspaceApiTokensServerFn } from '@/lib/server/api-tokens'
 import { m } from '@b2b-saas-starter/i18n/messages'
+
+/**
+ * A member without the page's read permission meets an intended page, not a
+ * crash screen: the denial renders inside the workspace shell.
+ */
+const ApiTokensRouteError = workspaceRouteError({
+  deniedTitle: m.api_tokens_access_denied,
+  deniedDescription: m.api_tokens_forbidden_description,
+  failedTitle: m.api_tokens_unavailable,
+  failedDescription: m.api_tokens_load_failed
+})
 
 // The auth gate lives on the /workspaces layout route (workspaces.tsx);
 // `context.session` arrives from there. The page's own read permission
@@ -14,6 +26,7 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/api-tokens')({
       data: { workspaceSlug: params.workspaceSlug }
     }),
   pendingComponent: RoutePending,
+  errorComponent: ApiTokensRouteError,
   component: WorkspaceApiTokensRoute,
   head: ({ params }) => ({
     meta: [{ title: pageTitle(m.public_meta_api_tokens(), params.workspaceSlug) }]
