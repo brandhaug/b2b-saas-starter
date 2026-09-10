@@ -7,7 +7,10 @@ import {
   validateRetentionPolicyTarget
 } from '@b2b-saas-starter/capabilities/governance/retention-policy'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
-import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
+import {
+  selectCapabilitiesLayer,
+  starterEnv
+} from '@b2b-saas-starter/capabilities/runtime'
 import { withTriggerScope } from '@b2b-saas-starter/logger'
 import {
   captureMonitoringSignal,
@@ -140,6 +143,6 @@ export function cleanRetention(env: Env, scheduledTime: number) {
         yield* captureRetentionFailure(env, databaseTarget, failure)
         return yield* Effect.fail(failure)
       }
-    }).pipe(Effect.provide(selectCapabilitiesLayer(env)))
+    }).pipe(Effect.provide(selectCapabilitiesLayer(starterEnv(env))))
   )
 }

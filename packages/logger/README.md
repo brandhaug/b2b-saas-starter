@@ -55,18 +55,20 @@ text in a remote service.
   and Sentry transactions are disabled; OTLP owns server traces. Replay is not
   configured. With no `SENTRY_DSN`, the server SDK has no transport and the browser
   SDK is not loaded.
-- Server PostHog emits only operation name, service, status, duration, environment,
-  and trace ID, using that per-request trace as the distinct ID. It creates and
-  flushes a client within the invocation. No `POSTHOG_KEY` means no analytics client
-  or traffic. `POSTHOG_HOST` selects the deployment's ingestion region.
-- Browser PostHog retains only `$pageview` and `$pageleave`, a fresh event UUID,
-  the public ingestion token, and a false person-profile flag. It uses the event
-  UUID as its distinct ID. The output hook rebuilds the payload, dropping URL,
-  referrer, DOM, user, and custom properties, and drops all other event types.
-  Autocapture, exception capture, recording, person profiles, feature-flag requests,
-  and external dependency loading are off. Persistence is memory-only.
-  Without a key the SDK is not loaded. New analytics data requires an explicit
-  addition to this small contract and output-boundary tests.
+- Server PostHog posts one capture event per wide-event scope with `fetch`, inside
+  the invocation, carrying only operation name, service, status, duration,
+  environment, and trace ID, using that per-request trace as the distinct ID. No
+  SDK is loaded. No `POSTHOG_KEY` means nothing is sent. `POSTHOG_HOST` selects the
+  deployment's ingestion region.
+- Browser PostHog sends `$pageview` and `$pageleave` to the same capture endpoint
+  through `navigator.sendBeacon`, falling back to `keepalive` `fetch`. Each event
+  carries only the public ingestion token, a fresh event UUID used as the distinct
+  ID, and a false person-profile flag. The payload is built here rather than
+  collected, so URL, referrer, DOM, user, and custom properties never enter it, and
+  no other event type exists. No SDK is loaded, so autocapture, exception capture,
+  recording, person profiles, and feature-flag requests have nothing to turn off.
+  Without a key nothing is sent. New analytics data requires an explicit addition to
+  this small contract and output-boundary tests.
 
 Regression tests capture console output, actual OTLP HTTP bodies, real
 Sentry transport envelopes, and decompressed PostHog HTTP bodies with sensitive

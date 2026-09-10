@@ -23,7 +23,13 @@ function otlpHeaders(value: string | undefined): Record<string, string> | undefi
   const headers = Object.fromEntries(
     value
       .split(',')
-      .map((entry) => entry.split('=', 2).map((part) => part.trim()))
+      .filter((entry) => entry.includes('='))
+      .map((entry) => {
+        // Split on the first `=` only: header values carry `=` themselves,
+        // such as the padding on a base64 credential.
+        const separator = entry.indexOf('=')
+        return [entry.slice(0, separator).trim(), entry.slice(separator + 1).trim()]
+      })
       .filter(([key, headerValue]) => key && headerValue)
   )
   if (Object.keys(headers).length === 0) {

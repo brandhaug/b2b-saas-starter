@@ -1,4 +1,7 @@
-import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
+import {
+  selectCapabilitiesLayer,
+  starterEnv
+} from '@b2b-saas-starter/capabilities/runtime'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { WEBHOOK_USER_AGENT } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import {
@@ -284,7 +287,7 @@ function deliverWebhook(
     program: Effect.gen(function* () {
       const traceId = yield* currentTraceId
       return yield* processWebhookMessage(delivery, traceId)
-    }).pipe(Effect.provide(selectCapabilitiesLayer(env)))
+    }).pipe(Effect.provide(selectCapabilitiesLayer(starterEnv(env))))
   })
 }
 
@@ -346,7 +349,7 @@ function recordDeadLetter(
   const delivery = readDelivery(WebhookQueueMessage, envelope)
   const program: Effect.Effect<DeliveryOutcome, never, Scope.Scope> =
     processDeadLetterMessage(delivery).pipe(
-      Effect.provide(selectCapabilitiesLayer(env)),
+      Effect.provide(selectCapabilitiesLayer(starterEnv(env))),
       // `as<'ack'>(...)`, not `satisfies`: under pipe inference the naked type
       // parameter widens the satisfies-checked literal to `string`.
       Effect.as<'ack'>('ack'),

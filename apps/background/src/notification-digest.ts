@@ -1,4 +1,7 @@
-import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
+import {
+  selectCapabilitiesLayer,
+  starterEnv
+} from '@b2b-saas-starter/capabilities/runtime'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import {
   type NotificationEmailContext,
@@ -215,7 +218,10 @@ export function sendDailyDigest(
       `${DateTime.formatIso(DateTime.makeUnsafe(scheduledTime)).slice(0, 10)}T08:00:00.000Z`
     ).pipe(
       Effect.provide(
-        Layer.merge(selectCapabilitiesLayer(env), selectEmailDispatcherLayer(env))
+        Layer.merge(
+          selectCapabilitiesLayer(starterEnv(env)),
+          selectEmailDispatcherLayer(env)
+        )
       ),
       Effect.retry(
         Schedule.upTo({ times: 2 })(

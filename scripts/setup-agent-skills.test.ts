@@ -170,6 +170,20 @@ test('Claude alias collision prevents installing or overwriting the alias', () =
   assert.equal(fs.readlinkSync(f.alias), join(f.root, 'missing-personal-skill'))
 })
 
+test('a dangling alias to a deleted install reinstalls instead of colliding', () => {
+  const f = fixture()
+  assert.equal(f.run(), 0)
+  fs.rmSync(f.destination, { recursive: true })
+  assert.equal(fs.existsSync(f.destination), false)
+  assert.ok(fs.lstatSync(f.alias).isSymbolicLink())
+  assert.equal(f.run(), 0)
+  assert.equal(
+    fs.readFileSync(join(f.destination, 'SKILL.md'), 'utf8'),
+    'Pinned instructions'
+  )
+  assert.equal(fs.realpathSync(f.alias), fs.realpathSync(f.destination))
+})
+
 test('Claude skills directory can link to the canonical skills directory', () => {
   const f = fixture()
   fs.mkdirSync(join(f.home, '.claude'), { recursive: true })

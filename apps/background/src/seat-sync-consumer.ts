@@ -10,6 +10,7 @@ import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-e
 import { billingOptionsFromEnv } from '@b2b-saas-starter/billing/billing-config'
 import {
   selectCapabilitiesLayer,
+  starterEnv,
   type StarterEnv
 } from '@b2b-saas-starter/capabilities/runtime'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -160,7 +161,7 @@ export function processSeatSyncMessage(
  */
 function seatSyncEnv(env: Env): StarterEnv {
   return {
-    ...env,
+    ...starterEnv(env),
     billing: billingOptionsFromEnv(env)
   }
 }

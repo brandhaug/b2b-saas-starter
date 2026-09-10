@@ -53,9 +53,19 @@ function exists(path: string) {
 function canonical(path: string): string {
   try {
     return realpathSync(path)
-  } catch {
-    return join(canonical(dirname(path)), basename(path))
+  } catch (error) {
+    // oxlint-disable-next-line unicorn/no-instanceof-builtins -- This synchronous Node filesystem call throws in the current realm; ES2023 typings omit Error.isError.
+    if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') {
+      throw error
+    }
   }
+  // A symlink whose target is gone still resolves to that target: the alias
+  // stays comparable to the install path instead of reading as a foreign entry.
+  const stat = lstatSync(path, { throwIfNoEntry: false })
+  if (stat?.isSymbolicLink()) {
+    return canonical(resolve(dirname(path), readlinkSync(path)))
+  }
+  return join(canonical(dirname(path)), basename(path))
 }
 
 export function digest(folder: string): string {

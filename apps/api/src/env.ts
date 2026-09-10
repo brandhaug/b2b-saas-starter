@@ -1,3 +1,4 @@
+import { starterEnv as capabilityStarterEnv } from '@b2b-saas-starter/capabilities/runtime'
 import { type WebhookQueueBinding } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
 import {
   type WorkspaceExportBucketBinding,
@@ -50,7 +51,7 @@ export type ApiEnv = Partial<Omit<ServerEnv, ApiBindingName>> &
 // binding enables real fan-out. Add the API-owned evidence sink at this boundary.
 export function starterEnv(env: ApiEnv) {
   return {
-    ...env,
+    ...capabilityStarterEnv(env),
     securityEvidence: securityEvidenceSink(env)
   }
 }

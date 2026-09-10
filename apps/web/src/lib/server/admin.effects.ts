@@ -17,7 +17,10 @@ import { adminSystemRole } from '@b2b-saas-starter/db/enums'
 import { Effect } from 'effect'
 import { env } from 'cloudflare:workers'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
-import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
+import {
+  selectCapabilitiesLayer,
+  starterEnv
+} from '@b2b-saas-starter/capabilities/runtime'
 import { CapabilityUnavailableError } from '../capability-error'
 import { webRuntime, withWebRequestScope } from '../observability'
 
@@ -192,7 +195,7 @@ export async function replayFailedDeliveryHandler(
         Effect.mapError(
           (error) => new CapabilityUnavailableError(error.capability, error.reason)
         ),
-        Effect.provide(selectCapabilitiesLayer(env))
+        Effect.provide(selectCapabilitiesLayer(starterEnv(env)))
       )
     )
   )

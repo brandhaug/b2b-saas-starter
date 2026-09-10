@@ -8,7 +8,8 @@
 // wrangler writes its error to *stdout*, which a captured run must surface
 // — exiting on the bare code alone (the original shape) turned
 // missing-database failures into a silent exit 1.
-import { execFile } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
+import { once } from 'node:events'
 import { promisify } from 'node:util'
 import { join } from 'node:path'
 import { Option, Schema } from 'effect'
@@ -39,39 +40,56 @@ const execWrangler = promisify(execFile)
  * falls back to the error message.
  */
 const ExecFileFailure = Schema.Struct({
-  code: Schema.optionalKey(Schema.Number),
+  // A signal kill leaves `code` null and a maxBuffer kill sets a string errno;
+  // the streams must still be surfaced in both cases, so `code` is decoded apart.
+  code: Schema.optionalKey(Schema.Unknown),
   stdout: Schema.optionalKey(Schema.String),
   stderr: Schema.optionalKey(Schema.String)
 })
 const decodeExecFileFailure = Schema.decodeUnknownOption(ExecFileFailure)
+const decodeExitCode = Schema.decodeUnknownOption(Schema.Number)
 
 async function runWrangler(
   args: ReadonlyArray<string>,
   capture: boolean
 ): Promise<WranglerRun> {
+  const wranglerArgs = ['d1', ...args]
+  if (!capture) {
+    // An uncaptured run is the caller's console output; nothing parses it, so
+    // wrangler streams straight through and only the exit code comes back.
+    try {
+      const child = spawn(wranglerBin, wranglerArgs, { stdio: 'inherit' })
+      const [code] = await once(child, 'exit')
+      const exitCode = Option.getOrElse(decodeExitCode(code), () => 1)
+      return exitCode === 0
+        ? { ok: true, stdout: '' }
+        : { ok: false, code: exitCode, output: '' }
+    } catch (error) {
+      return {
+        ok: false,
+        code: 1,
+        output: errorMessage(error) ?? 'wrangler failed to spawn'
+      }
+    }
+  }
   try {
-    const { stdout, stderr } = await execWrangler(wranglerBin, ['d1', ...args], {
+    const { stdout } = await execWrangler(wranglerBin, wranglerArgs, {
       // Migration and export output far exceeds the 1 MiB default.
       maxBuffer: 64 * 1024 * 1024
     })
-    if (!capture) {
-      // An uncaptured run is the caller's console output; nothing parses it.
-      process.stdout.write(stdout)
-      process.stderr.write(stderr)
-      return { ok: true, stdout: '' }
-    }
     return { ok: true, stdout }
   } catch (error) {
     const spawned = Option.getOrUndefined(decodeExecFileFailure(error))
+    const code = Option.getOrElse(decodeExitCode(spawned?.code), () => 1)
     const output = [spawned?.stderr, spawned?.stdout].filter(Boolean).join('\n')
     if (output === '') {
       return {
         ok: false,
-        code: spawned?.code ?? 1,
+        code,
         output: errorMessage(error) ?? 'wrangler failed to spawn'
       }
     }
-    return { ok: false, code: spawned?.code ?? 1, output }
+    return { ok: false, code, output }
   }
 }
 
@@ -81,8 +99,8 @@ async function runWrangler(
  * A remote target is passed to wrangler by uuid, a local one by name (see
  * `remoteDatabaseId`). When `captureJson` is set the `--json` output — and,
  * on failure, wrangler's error, which json mode writes to stdout — is
- * captured for the caller; otherwise wrangler streams straight through and
- * `stdout` comes back empty.
+ * captured for the caller; otherwise wrangler inherits this process's stdio,
+ * streams straight through, and `stdout` comes back empty.
  */
 export async function wranglerD1Execute(
   database: string,

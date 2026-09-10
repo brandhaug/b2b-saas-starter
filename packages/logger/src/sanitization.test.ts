@@ -326,4 +326,45 @@ describe('telemetry output policy', () => {
       vi.unstubAllGlobals()
     }
   })
+
+  it('keeps `=` inside OTLP header values, including base64 padding', async () => {
+    const sent: Array<Headers> = []
+    const output = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const fetch = vi.fn<typeof globalThis.fetch>(async (input, init) => {
+      if (input instanceof Request) {
+        sent.push(input.headers)
+      } else {
+        sent.push(new Headers(init?.headers))
+      }
+      return new Response('{}', { status: 200 })
+    })
+    try {
+      await Effect.runPromise(
+        withRequestScope(
+          { service: 'api', event: 'request.canonical' },
+          Effect.void
+        ).pipe(
+          Effect.provide(
+            makeOtlpLayer('api', {
+              OTEL_EXPORTER_OTLP_ENDPOINT: 'https://collector.example',
+              OTEL_EXPORTER_OTLP_HEADERS:
+                'authorization=Basic dXNlcjpwYXNz==, x-scope=team=platform, malformed, empty='
+            }),
+            { local: true }
+          ),
+          Effect.provide(WideEventLoggerLive),
+          Effect.provideService(FetchHttpClient.Fetch, fetch)
+        )
+      )
+      expect(sent.length).toBeGreaterThan(0)
+      for (const headers of sent) {
+        expect(headers.get('authorization')).toBe('Basic dXNlcjpwYXNz==')
+        expect(headers.get('x-scope')).toBe('team=platform')
+        expect(headers.get('empty')).toBeNull()
+      }
+    } finally {
+      output.mockRestore()
+      vi.unstubAllGlobals()
+    }
+  })
 })

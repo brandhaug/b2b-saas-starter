@@ -224,7 +224,7 @@ async function capturePostHogEvent(record: WideEventRecord): Promise<void> {
   const host = env.POSTHOG_HOST || DEFAULT_POSTHOG_HOST
   const traceId = diagnosticFields({ traceId: record.traceId })['traceId']
   // oxlint-disable-next-line effect/noGlobals -- vendor HTTP boundary: this module is provider glue, deliberately outside the Effect HttpClient
-  await fetch(`${host.replace(/\/$/, '')}/capture/`, {
+  await fetch(`${host.replace(/\/+$/u, '')}/i/v0/e/`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     // Undefined values are dropped by JSON serialization.

@@ -1,6 +1,7 @@
 import {
   selectCapabilitiesLayer,
-  selectWorkspaceContextLayer
+  selectWorkspaceContextLayer,
+  starterEnv
 } from '@b2b-saas-starter/capabilities/runtime'
 import {
   WorkspaceExportGeneration,
@@ -88,9 +89,10 @@ export function buildWorkspaceExport(
   env: Env
 ): Effect.Effect<DeliveryOutcome> {
   const delivery = readDelivery(WorkspaceExportQueueMessage, envelope)
+  const capabilitiesEnv = starterEnv(env)
   const generationLayer = WorkspaceExportGenerationLayer((slug) =>
-    selectWorkspaceContextLayer(env, slug, undefined, 'system')
-  ).pipe(Layer.provide(selectCapabilitiesLayer(env)))
+    selectWorkspaceContextLayer(capabilitiesEnv, slug, undefined, 'system')
+  ).pipe(Layer.provide(selectCapabilitiesLayer(capabilitiesEnv)))
 
   return consumerInvocation(env, {
     event: 'workspace_export',
