@@ -1,9 +1,24 @@
-import { describe, expect, it } from 'vite-plus/test'
+import { describe, expect, it, vi } from 'vite-plus/test'
 
+import { fixtureSession } from '@/test/fixture-session'
 import {
-  UnverifiedEmailError,
+  createWorkspaceHandler,
   unverifiedCreatorRefused
 } from './workspace-lifecycle.effects'
+import type * as AuthModule from './auth'
+
+/** The verification stance the gate keys off; local dev leaves it open. */
+vi.mock('cloudflare:workers', () => ({
+  env: { ENVIRONMENT: 'production', DB: undefined }
+}))
+
+const creator = vi.hoisted(() => ({ emailVerified: true }))
+
+vi.mock('./auth', async (importOriginal) => ({
+  ...(await importOriginal<typeof AuthModule>()),
+  requireRequestSession: async () =>
+    fixtureSession({ userId: 'usr_demo', emailVerified: creator.emailVerified })
+}))
 
 /**
  * The creation gate's decision, driven as the exported branch rather than the
@@ -36,11 +51,16 @@ describe('unverifiedCreatorRefused', () => {
   })
 })
 
-describe('UnverifiedEmailError', () => {
-  it('carries the discriminant name and the sentence the form shows', () => {
-    expect(new UnverifiedEmailError().name).toBe('UnverifiedEmailError')
-    expect(new UnverifiedEmailError().message).toBe(
-      'Verify your email address before creating a workspace.'
-    )
+describe('createWorkspaceHandler', () => {
+  it('refuses an unverified creator as an allowlisted UI error', async () => {
+    // The refusal has to reach the caller as a `UiError` code: that is the
+    // only shape `causeMessage` can translate on the creation form.
+    creator.emailVerified = false
+    await expect(
+      createWorkspaceHandler({ name: 'New Workspace', slug: 'new-workspace' })
+    ).rejects.toMatchObject({
+      name: 'UnverifiedEmailError',
+      code: 'unverified_email'
+    })
   })
 })

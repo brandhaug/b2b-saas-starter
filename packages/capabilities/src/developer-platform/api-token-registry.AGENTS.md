@@ -6,8 +6,8 @@ Workspace-scoped programmatic-access tokens for the REST and MCP surface. Tokens
 
 ## Entry Points & Contracts
 
-- Creation admission belongs to [Resource entitlements](../billing/resource-entitlements.AGENTS.md); token writes and audits stay here. Published projections must never carry plaintext.
-- `revoke` stamps `revokedAt`. Its where clause carries `workspaceId` and `isNull(revokedAt)`, so a double or cross-workspace revoke resolves `false` and emits no audit event and no webhook.
+- Creation admission belongs to [Resource entitlements](../../../billing/src/resource-entitlements.AGENTS.md); token writes and audits stay here. Published projections must never carry plaintext.
+- `revoke` files `api_token_revoked` security evidence from both adapters and stamps `revokedAt`. Its where clause carries `workspaceId` and `isNull(revokedAt)`, so a double or cross-workspace revoke resolves `false` and emits no audit event and no webhook.
 - `verifyBearerToken` authenticates only: it reports the token's scopes and `requirePermission` decides. It fails `AuthorizationDenied` with `reason: 'invalid_token'`, this layer's single authorization-shaped failure, which `apps/api` answers as 401.
 - Bearer verification stays read-mostly and emits no audit event; preserve the throttle on `lastUsedAt` writes.
 - `replace` requires `apiToken:create` at the boundary. The shared policy preserves workspace, scope subset, and expiry; overlap is 0–86,400 seconds. D1 claims the source, inserts the replacement, and audits in one batch. Its mandatory workspace subquery makes a lost concurrent claim roll back. See ADR 0026 before changing this write.

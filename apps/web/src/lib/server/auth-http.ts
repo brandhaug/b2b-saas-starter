@@ -32,6 +32,7 @@ import { notifyCredentialChangedEffect } from '@/lib/server/credential-change-no
 import { TurnstileVerifier } from '@b2b-saas-starter/capabilities/governance/turnstile-verification'
 import { recordEvidence } from '@/lib/server/security-evidence-sink'
 import { runAuthRequestGuards } from '@/lib/server/auth-request-guard'
+import { authRefusal } from '@/lib/server/auth-refusal'
 
 /**
  * The credential-change sender, bound to the provider-light email dispatcher:
@@ -73,15 +74,31 @@ async function sendCredentialChangeEmail(input: {
  * The Turnstile gates (ADR 0031): when TURNSTILE is configured, the widget's
  * token must ride the `x-turnstile-token` header and verify against
  * siteverify before Better Auth sees the request. Gated surfaces are the ones
- * an anonymous visitor can point at somebody else's inbox — sign-up and the
- * magic-link send. Unconfigured, `verify` returns `inactive` and the request
- * passes through untouched — provider-light local development is unaffected.
- * Returns a JSON error response for `rejected` / `unavailable`, or `undefined`
- * to let the request proceed. Runs OUTSIDE the request scope (no
- * `Effect.annotateLogsScoped` here); the caller annotates the wide event from
- * the response it gets back.
+ * an anonymous visitor can point at somebody else's inbox: sign-up, the
+ * magic-link send, the one-time-code send, and both lifecycle sends
+ * (password reset, email verification). Every one of them mails an address
+ * the caller names, and none needs a session to do it — the rate limiter caps
+ * the volume per IP, this caps the automation.
+ *
+ * Matched on the end of the pathname, so `/request-password-reset` covers the
+ * link flow and its `/email-otp` sibling in one row, exactly like the
+ * `auth_sign_in` bucket's table. Every gated path has a widget on the screen
+ * that drives it (`components/auth/turnstile-challenge.tsx`); a gated path
+ * without one would refuse its own form.
+ *
+ * Unconfigured, `verify` returns `inactive` and the request passes through
+ * untouched — provider-light local development is unaffected. Returns a JSON
+ * error response for `rejected` / `unavailable`, or `null` to let the request
+ * proceed. Runs OUTSIDE the request scope (no `Effect.annotateLogsScoped`
+ * here); the caller annotates the wide event from the response it gets back.
  */
-const TURNSTILE_GATED_POST_PATHS = ['/sign-up/email', '/sign-in/magic-link']
+const TURNSTILE_GATED_POST_PATHS = [
+  '/sign-up/email',
+  '/sign-in/magic-link',
+  '/email-otp/send-verification-otp',
+  '/request-password-reset',
+  '/send-verification-email'
+]
 
 function verifyTurnstile(
   request: Request,
@@ -104,10 +121,7 @@ function verifyTurnstile(
     const code =
       verdict.outcome === 'unavailable' ? 'captcha_unavailable' : 'captcha_rejected'
     // Better Auth's error-body convention (`{ code }`), like every pre-handler refusal here.
-    return new Response(JSON.stringify({ code }), {
-      status,
-      headers: { 'content-type': 'application/json; charset=utf-8' }
-    })
+    return authRefusal(status, code)
   }).pipe(Effect.provide(makeTurnstileLayer()))
 }
 
@@ -136,10 +150,7 @@ export async function handleAuth(request: Request): Promise<Response> {
         })
         if (!allowed) {
           yield* Effect.annotateLogsScoped({ outcome: 'rate_limited' })
-          return new Response(JSON.stringify({ code: 'rate_limited' }), {
-            status: 429,
-            headers: { 'content-type': 'application/json; charset=utf-8' }
-          })
+          return authRefusal(429, 'rate_limited')
         }
         // Turnstile gate before Better Auth consumes the request (ADR 0031).
         const turnstileResponse = yield* verifyTurnstile(request, exchange)

@@ -1,6 +1,6 @@
 import { Clock, DateTime, Effect, Metric, Schedule, Schema } from 'effect'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
-import { randomHex } from './crypto.ts'
+import { randomHex } from '@b2b-saas-starter/failure/crypto'
 import {
   EmailDelivery,
   type ClaimEmail,
@@ -332,10 +332,20 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
         if (reasonRank(old.reason) > reasonRank(reason)) {
           reason = old.reason
         }
+        // Only evidence that the provider took the message marks acceptance. A
+        // bounce or a suppression must not backfill an acceptance that never
+        // happened, and `terminal` reads that marker as proof of submission.
+        let acceptedAt = old.acceptedAt
+        if (
+          acceptedAt === null &&
+          (event.status === 'delivered' || event.status === 'delayed')
+        ) {
+          acceptedAt = iso(now)
+        }
         const row: StoredDelivery = {
           ...old,
           status: event.status,
-          acceptedAt: old.acceptedAt ?? iso(now),
+          acceptedAt,
           updatedAt: iso(now),
           lastEventId: event.eventId,
           lastEventAt: event.occurredAt,

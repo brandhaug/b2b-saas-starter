@@ -63,8 +63,8 @@ it('fetches evidence only on expansion and preserves a failed attempt before suc
   expect(listAttempts).not.toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: 'View attempt history' }))
   await screen.findByText('Temporarily unavailable')
-  expect(screen.getByText('HTTP 200')).toBeTruthy()
-  expect(screen.getByText('123 ms')).toBeTruthy()
+  expect(screen.getByText('HTTP 200')).not.toBeNull()
+  expect(screen.getByText('123 ms')).not.toBeNull()
   expect(screen.getByRole('list', { name: 'Attempt history' }).textContent).toMatch(
     /Attempt 1.*Attempt 2/
   )
@@ -123,8 +123,8 @@ it('shows loading followed by a never-dispatched terminal outcome', async () => 
     ])
   )
   await screen.findByText('Endpoint was disabled before dispatch')
-  expect(screen.getByText('Terminal outcome')).toBeTruthy()
+  expect(screen.getByText('Terminal outcome')).not.toBeNull()
   expect(screen.queryByText('Request headers')).toBeNull()
   expect(screen.queryByText('Response body')).toBeNull()
-  expect(screen.getByText(/"event": "test"/)).toBeTruthy()
+  expect(screen.getByText(/"event": "test"/)).not.toBeNull()
 })

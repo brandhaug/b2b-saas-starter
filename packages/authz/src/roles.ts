@@ -1,7 +1,9 @@
 import {
   type ApiTokenScopeValue,
+  type SystemRoleValue,
   type workspaceRoles,
-  adminSystemRole
+  adminSystemRole,
+  systemRoles
 } from '@b2b-saas-starter/db/enums'
 import { type Role, type Statements } from 'better-auth/plugins/access'
 import { adminAc, memberAc, ownerAc } from 'better-auth/plugins/organization/access'
@@ -22,12 +24,29 @@ import {
  */
 
 export type WorkspaceRole = (typeof workspaceRoles)[number]
+/**
+ * The stored system axis, from the same enum module as the workspace roles.
+ * Named here because `needsStrongAuthentication` is the one place in this
+ * package that reads a role NAME rather than a permission — see the exception
+ * note in `packages/authz/AGENTS.md`.
+ */
+export type SystemRole = SystemRoleValue
 export type ApiTokenScope = ApiTokenScopeValue
+
+/**
+ * The stored system role a plugin-supplied string names, or `undefined` for
+ * anything else. Better Auth exposes `user.role` as a bare string at every
+ * server boundary; this is where that boundary value becomes the union
+ * `needsStrongAuthentication` takes, instead of each caller widening the
+ * predicate.
+ */
+export function toSystemRole(value: string | null | undefined): SystemRole | undefined {
+  return systemRoles.find((role) => role === value)
+}
 
 /** Privileged human actions require current session-bound strong authentication. */
 export function needsStrongAuthentication(input: {
-  // Better Auth exposes this field as a string, including at server boundaries.
-  readonly systemRole?: string | null | undefined
+  readonly systemRole?: SystemRole | null | undefined
   readonly workspaceRole?: WorkspaceRole | null | undefined
 }): boolean {
   return (
@@ -107,8 +126,10 @@ const readScopeStatements = {
   assistant: ['read'],
   mcp: ['read'],
   // The sanitized connection list only (the capability strips secrets) — the
-  // mutations stay out of every token scope: a machine credential changing how
-  // humans authenticate is an escalation, like `apiToken:create`.
+  // mutations stay out of every scope below `admin`: a machine credential
+  // changing how humans authenticate is an escalation, like
+  // `apiToken:create`. `admin` scope is the owner role itself (see
+  // `apiTokenScopeAccess`), so it reaches them, deliberately.
   sso: ['list']
 } as const
 

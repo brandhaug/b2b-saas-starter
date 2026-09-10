@@ -14,7 +14,7 @@ import {
 } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { Effect } from 'effect'
 import { StrongAuthentication } from '@b2b-saas-starter/capabilities/governance/strong-authentication'
-import { requireRequestSession } from './auth'
+import { requireRequestSessionEffect } from './auth'
 
 /**
  * The web app's enforcement point, and the session counterpart of the API
@@ -44,7 +44,7 @@ export function requireWorkspacePermission(
     )
     yield* requireWorkspaceAccess(operation)
     if (needsRecentAuthentication(permission) && operation !== 'credential_recovery') {
-      const session = yield* Effect.promise(requireRequestSession)
+      const session = yield* requireRequestSessionEffect()
       const authentication = yield* StrongAuthentication
       yield* authentication.requireRecent({
         userId: session.user.id,
@@ -67,7 +67,7 @@ function requireWorkspaceAccess(operation: WorkspaceSuspensionOperation) {
         workspaceRole: ctx.actor.role
       })
     ) {
-      const session = yield* Effect.promise(requireRequestSession)
+      const session = yield* requireRequestSessionEffect()
       const authentication = yield* StrongAuthentication
       yield* authentication.require({
         userId: ctx.actor.userId,

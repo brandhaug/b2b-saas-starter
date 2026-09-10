@@ -21,6 +21,7 @@ export {
 } from './trace.ts'
 export {
   WideEventLoggerLive,
+  withRequestScope,
   withTriggerScope,
   type TriggerScopeOptions,
   type WideEventScopeOptions

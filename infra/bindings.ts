@@ -151,8 +151,12 @@ export const notificationEmailQueueName = 'b2b-saas-starter-notification-emails'
 
 // Only Cloudflare Email Sending subscriptions produce onto this queue.
 // No application Worker receives a producer binding.
+//
+// No dead-letter queue: nothing consumed one, so exhausted events sat in it
+// unread. Twelve attempts a minute apart is the whole recovery budget, and
+// `queue_exhausted` (apps/background/src/monitoring.ts) is what tells an
+// operator that a delivery event gave up.
 export const emailEventsQueueName = 'b2b-saas-starter-email-events'
-export const emailEventsDeadLetterQueueName = 'b2b-saas-starter-email-events-dlq'
 export const emailEventsConsumerSettings: QueueConsumerSettings = {
   batchSize: 10,
   maxConcurrency: 2,
@@ -348,6 +352,22 @@ export const webhookDlqConsumerSettings: QueueConsumerSettings = {
 }
 
 /**
+ * The billing dead-letter consumer's own settings. Same numbers as the webhook
+ * DLQ's today, but a separate constant on purpose: `apps/background`'s billing
+ * DLQ handler reads `maxRetries` to decide whether a delivery gets another
+ * attempt, and a local bound above the deployed one would say `retry` for a
+ * delivery Cloudflare will never hand back. Sharing the webhook constant made
+ * that agreement invisible; naming it makes the handler import the number the
+ * deploy binds.
+ */
+export const billingDlqConsumerSettings: QueueConsumerSettings = {
+  batchSize: 25,
+  maxConcurrency: 1,
+  maxRetries: 1,
+  maxWaitTimeMs: 5000
+}
+
+/**
  * Stage-aware physical names. `prod` keeps the historical names so the
  * production stack's D1, queues, and Workers are untouched; every other stage
  * (a `pr-<number>` preview, a developer's `dev_<user>`) gets its own copies
@@ -395,7 +415,6 @@ export type StageResourceNames = {
   readonly workspaceExportBucket: string
   readonly notificationEmailQueue: string
   readonly emailEventsQueue: string
-  readonly emailEventsDeadLetterQueue: string
   readonly worker: (app: WorkerApp) => string
 }
 
@@ -417,7 +436,6 @@ export function stageResourceNames(stage: string): StageResourceNames {
       workspaceExportBucket: workspaceExportBucketName,
       notificationEmailQueue: notificationEmailQueueName,
       emailEventsQueue: emailEventsQueueName,
-      emailEventsDeadLetterQueue: emailEventsDeadLetterQueueName,
       worker: (app) => `b2b-saas-starter-${app}`
     }
   }
@@ -433,7 +451,6 @@ export function stageResourceNames(stage: string): StageResourceNames {
     workspaceExportBucket: `${prefix}-workspace-exports`,
     notificationEmailQueue: `${prefix}-notification-emails`,
     emailEventsQueue: `${prefix}-email-events`,
-    emailEventsDeadLetterQueue: `${prefix}-email-events-dlq`,
     worker: (app) => `${prefix}-${app}`
   }
 }
@@ -451,8 +468,9 @@ export function workersDevUrl(workerName: string, subdomain: string): string {
 // Workspace data export (ADR 0055). One queue carries export jobs from the
 // requesting worker to the background worker, and one R2 bucket holds the
 // finished ZIP artifacts. Both are provisioned only when
-// `WORKSPACE_EXPORT_BUCKET` is set at deploy time; the generated wrangler
-// configs always carry them because miniflare simulates both locally.
+// `WORKSPACE_EXPORTS_ENABLED` is `true` at deploy time, and both are named per
+// stage by `stageResourceNames`; the generated wrangler configs always carry
+// them because miniflare simulates both locally.
 export const workspaceExportQueueName = 'b2b-saas-starter-workspace-exports'
 export const workspaceExportBucketName = 'b2b-saas-starter-workspace-exports'
 

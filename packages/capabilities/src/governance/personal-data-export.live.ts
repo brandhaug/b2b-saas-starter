@@ -241,31 +241,42 @@ export const LivePersonalDataExports: Layer.Layer<
         }))
       }
     })
+    /**
+     * Both verbs are gated on the same thing: the caller still holds the
+     * unexpired session the archive is bound to. Revoking a session has to
+     * take the archive with it, so the check belongs to `download` as much as
+     * to `request` — and stating it once is what keeps them from drifting.
+     */
+    const requireLiveSession = Effect.fn('PersonalDataExports.requireLiveSession')(
+      function* (userId: string, sessionId: string, now: number) {
+        const rows = yield* unavailable(
+          db
+            .select({ id: session.id })
+            .from(session)
+            .where(
+              and(
+                eq(session.id, sessionId),
+                eq(session.userId, userId),
+                gt(session.expiresAt, DateTime.toDate(DateTime.makeUnsafe(now)))
+              )
+            )
+            .limit(1)
+        )
+        if (!rows[0]) {
+          return yield* new CapabilityUnavailable({
+            capability: 'personal-data-export',
+            reason: 'session_not_found'
+          })
+        }
+      }
+    )
     const request = Effect.fn('PersonalDataExports.request')(function* (
       userId: string,
       sessionId: string
     ) {
       const data = yield* collect(userId)
       const now = yield* Clock.currentTimeMillis
-      const activeSession = yield* unavailable(
-        db
-          .select({ id: session.id })
-          .from(session)
-          .where(
-            and(
-              eq(session.id, sessionId),
-              eq(session.userId, userId),
-              gt(session.expiresAt, DateTime.toDate(DateTime.makeUnsafe(now)))
-            )
-          )
-          .limit(1)
-      )
-      if (!activeSession[0]) {
-        return yield* new CapabilityUnavailable({
-          capability: 'personal-data-export',
-          reason: 'session_not_found'
-        })
-      }
+      yield* requireLiveSession(userId, sessionId, now)
       const id = yield* newCapabilityId('pde')
       const expiresAt = iso(now + PERSONAL_DATA_EXPORT_TTL_MS)
       yield* auditedMutation({
@@ -297,25 +308,7 @@ export const LivePersonalDataExports: Layer.Layer<
       exportId: string
     ) {
       const now = yield* Clock.currentTimeMillis
-      const activeSession = yield* unavailable(
-        db
-          .select({ id: session.id })
-          .from(session)
-          .where(
-            and(
-              eq(session.id, sessionId),
-              eq(session.userId, userId),
-              gt(session.expiresAt, DateTime.toDate(DateTime.makeUnsafe(now)))
-            )
-          )
-          .limit(1)
-      )
-      if (!activeSession[0]) {
-        return yield* new CapabilityUnavailable({
-          capability: 'personal-data-export',
-          reason: 'session_not_found'
-        })
-      }
+      yield* requireLiveSession(userId, sessionId, now)
       const rows = yield* unavailable(
         db
           .select()

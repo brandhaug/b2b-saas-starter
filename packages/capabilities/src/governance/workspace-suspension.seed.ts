@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import { DateTime, Effect, Layer, Match, Ref, Semaphore } from 'effect'
 import { AuditEventLog } from './audit-event-log.ts'
 import {
@@ -8,6 +9,7 @@ import {
 } from './workspace-suspension.ts'
 import { type SystemUserAccount } from './platform-user-admin.ts'
 import { type Workspace } from './workspace-identity.ts'
+import { newCapabilityId } from '../internal/ids.ts'
 import { NotificationFeed } from '../notifications/notification-feed.ts'
 import {
   suspensionNotice,
@@ -43,6 +45,9 @@ export function SeedWorkspaceSuspension(options: {
         initial.set(options.initial.workspaceId, options.initial)
       }
       const state = yield* Ref.make<ReadonlyMap<string, WorkspaceSuspension>>(initial)
+      // The id of the transition that last won a workspace — Live's
+      // `workspaces.suspensionTransitionId` column, held in memory.
+      const transitions = yield* Ref.make<ReadonlyMap<string, string>>(new Map())
       const get = Effect.fn('WorkspaceSuspension.get')(function* (workspaceId: string) {
         const known = yield* Ref.get(catalog)
         if (!known.some((workspace) => workspace.id === workspaceId)) {
@@ -55,12 +60,36 @@ export function SeedWorkspaceSuspension(options: {
         list: Effect.gen(function* () {
           const known = yield* Ref.get(catalog)
           const current = yield* Ref.get(state)
-          return known.map((workspace) => ({
-            id: workspace.id,
-            slug: workspace.slug,
-            name: workspace.name,
-            suspension: current.get(workspace.id) ?? active(workspace.id)
-          }))
+          return (
+            known
+              // `(name, id)` — the same `ORDER BY` Live's operator list uses.
+              // Insertion order would put the operator console's rows in
+              // whatever sequence the fixture happened to be built in.
+              // Codepoint comparison, not `localeCompare`: SQLite's default
+              // TEXT collation is BINARY, and a locale-aware sort would
+              // disagree with it on the first accented workspace name.
+              .toSorted((left, right) => {
+                if (left.name !== right.name) {
+                  if (left.name < right.name) {
+                    return -1
+                  }
+                  return 1
+                }
+                if (left.id === right.id) {
+                  return 0
+                }
+                if (left.id < right.id) {
+                  return -1
+                }
+                return 1
+              })
+              .map((workspace) => ({
+                id: workspace.id,
+                slug: workspace.slug,
+                name: workspace.name,
+                suspension: current.get(workspace.id) ?? active(workspace.id)
+              }))
+          )
         }),
         get,
         requireAllowed: Effect.fn('WorkspaceSuspension.requireAllowed')(
@@ -98,7 +127,40 @@ export function SeedWorkspaceSuspension(options: {
               changedAt: DateTime.formatIso(yield* DateTime.now),
               changedByUserId: input.actor.userId
             }
-            const notice = yield* feed.prepareWorkspaceOwners(suspensionNotice(next))
+            // Same lost-transition guard as Live: the state write only lands
+            // if this request's transition is still the one on the row, and
+            // the owners' notifications are conditional on the same answer.
+            // A loser reads the winner's projection back instead of
+            // overwriting it.
+            const transitionId = yield* newCapabilityId('susp')
+            const notice = yield* feed.prepareWorkspaceOwners(suspensionNotice(next), {
+              // Seed has no SQL to gate; the fixture answers `holds`.
+              sql: sql`1 = 1`,
+              holds: Effect.map(
+                Ref.get(transitions),
+                (stamps) => stamps.get(next.workspaceId) === transitionId
+              )
+            })
+            const wonTransition = yield* Ref.modify(
+              state,
+              (
+                states
+              ): readonly [boolean, ReadonlyMap<string, WorkspaceSuspension>] => {
+                if (
+                  (states.get(next.workspaceId) ?? active(next.workspaceId)).status !==
+                  current.status
+                ) {
+                  return [false, states]
+                }
+                return [true, new Map(states).set(next.workspaceId, next)]
+              }
+            )
+            if (!wonTransition) {
+              return yield* get(input.workspaceId)
+            }
+            yield* Ref.update(transitions, (stamps) =>
+              new Map(stamps).set(next.workspaceId, transitionId)
+            )
             yield* audit.record({
               workspaceId: next.workspaceId,
               actorUserId: input.actor.userId,
@@ -114,9 +176,7 @@ export function SeedWorkspaceSuspension(options: {
               targetId: next.workspaceId,
               metadata: { customerExplanation: next.customerExplanation }
             })
-            yield* Ref.update(state, (states) =>
-              new Map(states).set(next.workspaceId, next)
-            )
+            yield* notice.commit
             yield* notice.publish
             return next
           },

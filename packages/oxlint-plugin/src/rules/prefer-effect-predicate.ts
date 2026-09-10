@@ -14,10 +14,27 @@ import { getPropertyName, isIdentifier, unwrapExpression } from '../internal/ast
  * Ported from oxlint-plugin-executor/rules/prefer-effect-predicate.js (MIT).
  */
 
-const MESSAGE =
-  'Avoid hand-written nullish predicates. Use Predicate.isNotNull or Predicate.isNotNullable from effect, which also narrow the filtered type.'
+/**
+ * Which pair to name depends on the operator: `value !== null` is
+ * `isNotNull`, `value === null` is `isNull`. Naming the inverted helper sent
+ * anyone who followed the message to the wrong one.
+ */
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+const MESSAGES = {
+  presence:
+    'Avoid hand-written nullish predicates. Use Predicate.isNotNull or Predicate.isNotNullable from effect, which also narrow the filtered type.',
+  absence:
+    'Avoid hand-written nullish predicates. Use Predicate.isNull or Predicate.isNullable from effect, which also narrow the filtered type.'
+} as const
 
-const COMPARISON_OPERATORS = new Set(['!==', '!=', '===', '=='])
+type NullishDirection = keyof typeof MESSAGES
+
+const COMPARISON_DIRECTIONS = new Map<string, NullishDirection>([
+  ['!==', 'presence'],
+  ['!=', 'presence'],
+  ['===', 'absence'],
+  ['==', 'absence']
+])
 
 function isNullishLiteral(node: ESTree.Node | undefined): boolean {
   if (node === undefined) {
@@ -29,24 +46,28 @@ function isNullishLiteral(node: ESTree.Node | undefined): boolean {
   return isIdentifier(node, 'undefined')
 }
 
-function isNullishComparison(
+function nullishComparisonDirection(
   node: ESTree.Node | null | undefined,
   parameterName: string
-): boolean {
+): NullishDirection | undefined {
   const expression = unwrapExpression(node)
   if (expression?.type !== 'BinaryExpression') {
-    return false
+    return undefined
   }
-  if (!COMPARISON_OPERATORS.has(expression.operator)) {
-    return false
+  const direction = COMPARISON_DIRECTIONS.get(expression.operator)
+  if (direction === undefined) {
+    return undefined
   }
 
   const left = unwrapExpression(expression.left)
   const right = unwrapExpression(expression.right)
   if (isIdentifier(left, parameterName) && isNullishLiteral(right)) {
-    return true
+    return direction
   }
-  return isIdentifier(right, parameterName) && isNullishLiteral(left)
+  if (isIdentifier(right, parameterName) && isNullishLiteral(left)) {
+    return direction
+  }
+  return undefined
 }
 
 function singleParameterName(
@@ -91,12 +112,14 @@ function predicateResult(
   return statement.argument
 }
 
-function isNullishPredicate(node: ESTree.ArrowFunctionExpression | ESTree.Function) {
+function nullishPredicateDirection(
+  node: ESTree.ArrowFunctionExpression | ESTree.Function
+): NullishDirection | undefined {
   const parameterName = singleParameterName(node.params)
   if (parameterName === undefined) {
-    return false
+    return undefined
   }
-  return isNullishComparison(predicateResult(node.body), parameterName)
+  return nullishComparisonDirection(predicateResult(node.body), parameterName)
 }
 
 function isFilterCall(node: ESTree.CallExpression): boolean {
@@ -132,21 +155,23 @@ export default defineRule({
         if (init?.type !== 'ArrowFunctionExpression') {
           return
         }
-        if (!isNullishPredicate(init)) {
+        const direction = nullishPredicateDirection(init)
+        if (direction === undefined) {
           return
         }
 
-        context.report({ node: init, message: MESSAGE })
+        context.report({ node: init, message: MESSAGES[direction] })
       },
       FunctionDeclaration(node) {
         if (!hasEffectImport) {
           return
         }
-        if (!isNullishPredicate(node)) {
+        const direction = nullishPredicateDirection(node)
+        if (direction === undefined) {
           return
         }
 
-        context.report({ node, message: MESSAGE })
+        context.report({ node, message: MESSAGES[direction] })
       },
       CallExpression(node) {
         if (!hasEffectImport || !isFilterCall(node)) {
@@ -164,11 +189,12 @@ export default defineRule({
         ) {
           return
         }
-        if (!isNullishPredicate(predicate)) {
+        const direction = nullishPredicateDirection(predicate)
+        if (direction === undefined) {
           return
         }
 
-        context.report({ node: predicate, message: MESSAGE })
+        context.report({ node: predicate, message: MESSAGES[direction] })
       }
     }
   }

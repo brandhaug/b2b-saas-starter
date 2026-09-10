@@ -431,8 +431,9 @@ const { lint = {} } = defineConfig({
   lint: {
     plugins: [
       'typescript',
+      // `react-hooks/*` rules ship inside oxlint's `react` plugin; `react-hooks`
+      // is not a plugin name the config schema accepts.
       'react',
-      'react-hooks',
       'jsx-a11y',
       'oxc',
       'unicorn',

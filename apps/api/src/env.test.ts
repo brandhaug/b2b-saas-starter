@@ -31,7 +31,7 @@ import { type ApiEnv } from './env.ts'
 type HandWrittenApiEnv = Readonly<
   Partial<Record<ApiRateLimitBindingName, CloudflareRateLimit>>
 > &
-  Partial<Omit<ServerEnv, 'WORKSPACE_EXPORT_BUCKET'>> & {
+  Partial<ServerEnv> & {
     readonly DB?: D1Database
     readonly AI?: WorkersAIBinding
     readonly WEBHOOK_QUEUE?: WebhookQueueBinding

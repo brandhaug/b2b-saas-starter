@@ -39,6 +39,18 @@ export const CONTRACT_EXPIRED_AT = '1969-12-31T00:00:00.000Z'
  */
 export const CONTRACT_UNEXPIRED_AT = '2099-01-01T00:00:00.000Z'
 
+/**
+ * The three creation stamps the ordering case's planted invitations carry,
+ * oldest first. Fixed literals rather than clock reads, so "newest" means the
+ * same thing in a `TestClock` case and against a real D1.
+ */
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+export const CONTRACT_ORDER_CREATED_AT = [
+  '2026-06-01T00:00:00.000Z',
+  '2026-06-02T00:00:00.000Z',
+  '2026-06-03T00:00:00.000Z'
+] as const
+
 export type InvitationContractIds = {
   /**
    * A fresh invitee address per case. Both adapters refuse a second pending
@@ -65,6 +77,15 @@ export type InvitationContractIds = {
     readonly invitationId: string
     readonly email: string
   }
+  /**
+   * Three invitations the harness planted with distinct, ascending
+   * `createdAt` stamps, named here newest-first. No case may create or settle
+   * them: they exist so the ordering case has rows whose relative age both
+   * adapters agree on. `create` cannot supply them, because neither adapter
+   * lets a caller state a creation time and both clocks tick too coarsely
+   * for three calls in a row to differ.
+   */
+  readonly orderedNewestFirst: ReadonlyArray<string>
 }
 
 export type InvitationContractCase = {
@@ -94,6 +115,42 @@ export function workspaceInvitationsContractCases(
 
         const listed = yield* invitations.list
         expect(listed.some((each) => each.id === created.id)).toBe(true)
+      })
+    },
+    {
+      // An address is the invitation's identity, and `requireRecipient`
+      // reads it case insensitively — so whatever decides "already invited"
+      // has to as well, or one person holds two pending invitations and
+      // either one lets them in. D1's default TEXT collation is BINARY, so
+      // this is a real divergence, not a theoretical one.
+      name: 'refuses a second pending invitation to the same address in another case',
+      assert: Effect.gen(function* () {
+        const invitations = yield* WorkspaceInvitations
+        const address = ids.emailFor('casing')
+        const created = yield* invitations.create({
+          email: address.toUpperCase(),
+          role: 'member'
+        })
+
+        const outcome = yield* Effect.exit(
+          invitations.create({ email: address, role: 'member' })
+        )
+        expect(failureTag(outcome)).toBe('MembershipChangeRejected')
+
+        // And exactly one pending invitation exists for it, whichever case
+        // the caller asks in.
+        const pending: Array<string> = []
+        for (const invitation of yield* invitations.list) {
+          if (
+            invitation.status === 'pending' &&
+            invitation.email.toLowerCase() === address.toLowerCase()
+          ) {
+            pending.push(invitation.id)
+          }
+        }
+        expect(pending).toEqual([created.id])
+
+        yield* invitations.cancel({ invitationId: created.id })
       })
     },
     {
@@ -270,6 +327,25 @@ export function workspaceInvitationsContractCases(
 
         const members = yield* membership.listMembers
         expect(members.some((each) => each.id === ids.accepter.userId)).toBe(false)
+      })
+    },
+    {
+      // `list` promises newest-first. Membership in the list is not the
+      // promise — a Seed adapter returning insertion order and a Live one
+      // with no `ORDER BY` both satisfy a `some()` assertion while handing
+      // the settings page a different roster of invitations.
+      name: 'lists invitations newest first',
+      assert: Effect.gen(function* () {
+        const invitations = yield* WorkspaceInvitations
+        const listed = yield* invitations.list
+        const planted = new Set(ids.orderedNewestFirst)
+        const seen: Array<string> = []
+        for (const invitation of listed) {
+          if (planted.has(invitation.id)) {
+            seen.push(invitation.id)
+          }
+        }
+        expect(seen).toEqual([...ids.orderedNewestFirst])
       })
     },
     {

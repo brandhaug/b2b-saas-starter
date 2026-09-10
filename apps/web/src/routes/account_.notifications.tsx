@@ -10,6 +10,7 @@ import { Panel } from '@/components/page/panel'
 import { pageTitle } from '@/components/page/page-title'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { requireSession } from '@/lib/server/auth'
+import { getTurnstileSiteKey } from '@/lib/server/turnstile'
 import {
   isNotificationKind,
   loadNotificationPreferencesServerFn
@@ -32,11 +33,14 @@ export const Route = createFileRoute('/account_/notifications')({
   },
   loader: async () => {
     // oxlint-disable-next-line effect/noNewPromise -- parallel client-safe server-fn calls; importing Effect here would ship its runtime
-    const [preferences, deliveries] = await Promise.all([
+    const [preferences, deliveries, turnstileSiteKey] = await Promise.all([
       loadNotificationPreferencesServerFn(),
-      loadOwnEmailDeliveryServerFn()
+      loadOwnEmailDeliveryServerFn(),
+      // Env-gated server-only read: `null` renders no widget and sends no
+      // token, so the resend buttons work provider-light.
+      getTurnstileSiteKey()
     ])
-    return { ...preferences, deliveries }
+    return { ...preferences, deliveries, turnstileSiteKey }
   },
   component: AccountNotificationsRoute,
   head: () => ({ meta: [{ title: pageTitle(m.notification_preferences()) }] })
@@ -44,7 +48,7 @@ export const Route = createFileRoute('/account_/notifications')({
 
 function AccountNotificationsRoute() {
   const { session } = Route.useRouteContext()
-  const { preferences, deliveries } = Route.useLoaderData()
+  const { preferences, deliveries, turnstileSiteKey } = Route.useLoaderData()
   const { kind } = Route.useSearch()
   let highlightKind: NotificationKind | undefined
   if (isNotificationKind(kind)) {
@@ -85,6 +89,7 @@ function AccountNotificationsRoute() {
       <OwnEmailResend
         email={session.user.email}
         verified={session.user.emailVerified}
+        turnstileSiteKey={turnstileSiteKey}
       />
     </WorkspaceShell>
   )

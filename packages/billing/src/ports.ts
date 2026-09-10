@@ -37,7 +37,9 @@ export type AuditPort = {
   readonly record: (
     input: AuditRecordInput
   ) => Effect.Effect<void, CapabilityUnavailable>
-  readonly prepareRecord: (input: AuditRecordInput) => Effect.Effect<BatchStatement>
+  readonly prepareRecord: (
+    input: AuditRecordInput
+  ) => Effect.Effect<BatchStatement, CapabilityUnavailable>
 }
 export class AuditEventLog extends Context.Service<AuditEventLog, AuditPort>()(
   '@b2b-saas-starter/billing/AuditEventLog'

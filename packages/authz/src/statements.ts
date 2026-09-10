@@ -25,8 +25,10 @@ export const starterResources = {
   assistant: ['read'],
   mcp: ['read'],
   onboarding: ['dismiss'],
-  // Owner-only by policy (roles.ts empties it for admin and member): a full
-  // workspace export carries every member's email and the whole audit trail.
+  // Reserved for the owner role by policy (roles.ts empties it for admin and
+  // member, and for every token scope below `admin` — which is the owner role
+  // itself): a full workspace export carries every member's email and the
+  // whole audit trail.
   workspaceExport: ['request', 'download'],
   sso: ['list', 'create', 'update', 'remove']
 } as const

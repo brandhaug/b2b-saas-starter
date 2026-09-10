@@ -181,14 +181,14 @@ describe('WorkspaceSettingsPage data export', () => {
       exports: {
         availability: {
           available: false,
-          reason: 'Set WORKSPACE_EXPORT_BUCKET to enable.'
+          reason: 'Set WORKSPACE_EXPORTS_ENABLED to enable.'
         },
         exports: []
       }
     })
     expect(screen.queryByRole('button', { name: 'Request export' })).toBeNull()
     fireEvent.click(screen.getByRole('tab', { name: 'Data export' }))
-    screen.getByText('Set WORKSPACE_EXPORT_BUCKET to enable.')
+    screen.getByText('Set WORKSPACE_EXPORTS_ENABLED to enable.')
     screen.getByText('No exports yet')
   })
 

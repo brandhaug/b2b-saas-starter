@@ -84,14 +84,29 @@ The workflow and Alchemy's `prod` stage set `ENVIRONMENT=production`, enabling
 email verification and rejecting insecure auth secrets or URLs. Preserve that
 value in customer deployments.
 
-The workflow also forwards `SENTRY_DSN`, `MAINTENANCE_MODE`, and, when configured,
-the independent security-evidence endpoint and token. See [operations setup](operations.md). To activate
-optional providers (Stripe, Sentry, PostHog, Turnstile, Workers AI or
-OpenAI, OTLP export), add each secret to the `production` environment and
-forward it in the deploy job's `env` block. `packages/env/src/server.ts` owns
-the key lists and secret classifications; the
-[provider guide](../apps/web/content/docs/getting-started/optional-providers.mdx) explains activation. An unset optional provider degrades to inactive instead
-of failing the deploy.
+The deploy job forwards every optional provider variable
+`packages/env/src/server.ts` lists, so activating a provider is a matter of
+adding its value to the `production` environment — no workflow edit. Secret
+keys come from environment **secrets**, plain keys from environment
+**variables**, following that file's classification. An unset value resolves to
+the empty string, which `alchemy.run.ts` drops from the worker env entirely, so
+the provider stays inactive instead of half-configured. The
+[provider guide](../apps/web/content/docs/getting-started/optional-providers.mdx)
+explains activation, [operations setup](operations.md) the evidence endpoint,
+and [retention](retention.md) the `RETENTION_*` values an approval artifact
+prints.
+
+Three names do not match their variable one-for-one:
+
+| Worker variable        | Store it as                                 | Why                                                              |
+| ---------------------- | ------------------------------------------- | ---------------------------------------------------------------- |
+| `GITHUB_CLIENT_ID`     | variable `OAUTH_GITHUB_CLIENT_ID`           | GitHub rejects secret and variable names starting with `GITHUB_` |
+| `GITHUB_CLIENT_SECRET` | secret `OAUTH_GITHUB_CLIENT_SECRET`         | Same restriction                                                 |
+| `SERVICE_VERSION`      | variable `SERVICE_VERSION`, else the commit | Defaults to `github.sha` alongside `GIT_COMMIT_SHA`              |
+
+`WORKSPACE_EXPORTS_ENABLED` is a deploy-time switch, not a bucket name: set the
+variable to `true` and Alchemy provisions the export bucket and queue, named
+per stage by `infra/bindings.ts` so no two stages share one bucket.
 
 ## Running a deploy
 

@@ -4,7 +4,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./capability": "./src/capability.ts"
+    "./capability": "./src/capability.ts",
+    "./crypto": "./src/crypto.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
@@ -16,7 +17,6 @@
   },
   "devDependencies": {
     "typescript": "catalog:",
-    "vite": "catalog:",
     "vite-plus": "catalog:",
     "vitest": "catalog:"
   }

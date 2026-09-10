@@ -60,32 +60,39 @@ function loadTurnstileScript(): Promise<TurnstileApi> {
 /**
  * The Turnstile challenge widget, explicit-render flavor. Renders nothing —
  * and loads no script — until a site key is passed, which is the whole
- * provider-light story: the sign-up form only mounts this when the server
- * reports `TURNSTILE_SITE_KEY` is configured.
+ * provider-light story: a form only mounts this when the server reports
+ * `TURNSTILE_SITE_KEY` is configured.
+ *
+ * `resetKey` is how a form asks for a fresh challenge: a Turnstile token is
+ * single-use, so a screen that sends twice (the code resend, the reset page's
+ * second ask) bumps the counter after each send and the widget issues a new
+ * token through `onToken`.
  */
 export function TurnstileWidget({
   siteKey,
-  onToken
+  onToken,
+  resetKey = 0
 }: {
   readonly siteKey: string
   readonly onToken: (token: string | null) => void
+  readonly resetKey?: number
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const onTokenRef = useRef(onToken)
+  const widgetIdRef = useRef<string | undefined>(undefined)
 
   useEffect(() => {
     onTokenRef.current = onToken
   }, [onToken])
 
   useEffect(() => {
-    let widgetId: string | undefined
     let cancelled = false
 
     function mount(api: TurnstileApi) {
       if (cancelled || containerRef.current === null) {
         return
       }
-      widgetId = api.render(containerRef.current, {
+      widgetIdRef.current = api.render(containerRef.current, {
         sitekey: siteKey,
         callback: (token) => onTokenRef.current(token),
         'expired-callback': () => onTokenRef.current(null),
@@ -103,11 +110,24 @@ export function TurnstileWidget({
 
     return () => {
       cancelled = true
+      const widgetId = widgetIdRef.current
+      widgetIdRef.current = undefined
       if (widgetId !== undefined && window.turnstile !== undefined) {
         window.turnstile.remove(widgetId)
       }
     }
   }, [siteKey])
+
+  useEffect(() => {
+    // Skips the first render: the mount above already issued the first token.
+    if (resetKey === 0) {
+      return
+    }
+    const widgetId = widgetIdRef.current
+    if (widgetId !== undefined && window.turnstile !== undefined) {
+      window.turnstile.reset(widgetId)
+    }
+  }, [resetKey])
 
   return <div ref={containerRef} className="flex justify-center" />
 }

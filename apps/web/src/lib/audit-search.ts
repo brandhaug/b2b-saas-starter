@@ -63,3 +63,31 @@ export function auditSearchFromFilters(
     until: filters.until
   })
 }
+
+/**
+ * The URL vocabulary mapped back onto the capability's filter contract — the
+ * inverse of `auditSearchFromFilters`, and the one place `actor` becomes
+ * `actorUserId`. Shared by the audit route's loader and the `/demo` renderer,
+ * which filters the same shape against fixtures.
+ */
+export function auditFiltersFromSearch(search: {
+  readonly actor?: string | undefined
+  readonly eventType?: string | undefined
+  readonly since?: string | undefined
+  readonly until?: string | undefined
+}): WorkspaceAuditPayload['filters'] {
+  const filters: WorkspaceAuditPayload['filters'] = {}
+  if (search.actor !== undefined) {
+    filters.actorUserId = search.actor
+  }
+  if (search.eventType !== undefined) {
+    filters.eventType = search.eventType
+  }
+  if (search.since !== undefined) {
+    filters.since = search.since
+  }
+  if (search.until !== undefined) {
+    filters.until = search.until
+  }
+  return filters
+}

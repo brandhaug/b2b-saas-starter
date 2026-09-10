@@ -21,7 +21,13 @@ export const SecurityEvidenceRecord = Schema.Struct({
   subjectId: Schema.String,
   workspaceId: Schema.NullOr(Schema.String),
   occurredAt: Schema.String,
-  source: Schema.Literal('live')
+  /**
+   * Which adapter recorded it. `'seed'` never reaches a real evidence store
+   * — no deployment binds a sink to the fixture layers — but both adapters
+   * record, so the contract can assert the evidence rather than trusting
+   * that the Live half was not forgotten.
+   */
+  source: Schema.Literals(['live', 'seed'])
 })
 export type SecurityEvidenceRecord = typeof SecurityEvidenceRecord.Type
 
@@ -84,7 +90,8 @@ export type EvidenceOutcome = 'recorded' | 'gap'
 /** Record a completed mutation. A failed write is alerted and never undoes it. */
 export function recordSecurityEvidence(
   input: SecurityEvidenceInput,
-  sink: SecurityEvidenceSink | undefined
+  sink: SecurityEvidenceSink | undefined,
+  source: SecurityEvidenceRecord['source'] = 'live'
 ): Effect.Effect<EvidenceOutcome> {
   if (sink === undefined) {
     return Effect.succeed('recorded')
@@ -97,7 +104,7 @@ export function recordSecurityEvidence(
       subjectId: input.subjectId,
       workspaceId: input.workspaceId ?? null,
       occurredAt: DateTime.formatIso(now),
-      source: 'live'
+      source
     }
     const appended = yield* Effect.result(
       Effect.tryPromise({

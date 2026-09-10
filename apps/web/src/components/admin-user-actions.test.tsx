@@ -56,7 +56,7 @@ describe('AdminUserActions', () => {
     await renderActions()
     fireEvent.click(screen.getByRole('button', { name: /Load workspaces/ }))
     await screen.findByLabelText('Make admin: Starter Lab')
-    expect(screen.getByLabelText('Make owner: Starter Lab')).toBeTruthy()
+    expect(screen.getByLabelText('Make owner: Starter Lab')).not.toBeNull()
     // The role the membership already holds is not offered.
     expect(screen.queryByLabelText('Make member: Starter Lab')).toBeNull()
     expect(listWorkspaces).toHaveBeenCalledWith({ data: { userId: 'usr_dev' } })

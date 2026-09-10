@@ -1,0 +1,1 @@
+resource-entitlements.AGENTS.md

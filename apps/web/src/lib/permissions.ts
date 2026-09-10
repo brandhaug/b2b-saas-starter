@@ -10,7 +10,11 @@ import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/governance/wo
 // rule bans it from routes/components) and never touch the capability
 // modules that own the `Schema.Literals` forms — those pin effect/Schema
 // into the route tree the browser preloads.
-export { apiTokenScopes, workspaceRoles } from '@b2b-saas-starter/db/enums'
+export {
+  adminSystemRole,
+  apiTokenScopes,
+  workspaceRoles
+} from '@b2b-saas-starter/db/enums'
 
 /**
  * Client-side permission checks for workspace UI.

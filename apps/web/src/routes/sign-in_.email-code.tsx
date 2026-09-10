@@ -2,18 +2,23 @@ import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { EmailCodeExchangePage } from '@/components/auth/email-code-exchange'
 import { pageTitle } from '@/components/page/page-title'
 import { authClient } from '@/lib/auth-client'
+import { getTurnstileSiteKey } from '@/lib/server/turnstile'
 import { redirectSearch, safeRedirect } from '@/lib/utils'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 export const Route = createFileRoute('/sign-in_/email-code')({
   validateSearch: redirectSearch,
+  // Server-only read, env-gated: `null` renders no widget and sends no token.
+  loader: () => getTurnstileSiteKey(),
   component: EmailCodeSignInRoute,
   head: () => ({ meta: [{ title: pageTitle(m.public_meta_email_code()) }] })
 })
 
 function EmailCodeSignInRoute() {
   const { redirect } = Route.useSearch()
-  return <EmailCodeSignInPage redirect={redirect} />
+  return (
+    <EmailCodeSignInPage redirect={redirect} turnstileSiteKey={Route.useLoaderData()} />
+  )
 }
 
 /**
@@ -27,14 +32,18 @@ function EmailCodeSignInRoute() {
  * still works.
  */
 export function EmailCodeSignInPage({
-  redirect
+  redirect,
+  turnstileSiteKey = null
 }: {
   readonly redirect?: string | undefined
+  /** Server-provided Turnstile site key; `null` renders no widget (provider-light). */
+  readonly turnstileSiteKey?: string | null | undefined
 }) {
   const router = useRouter()
   return (
     <EmailCodeExchangePage
       purpose="sign-in"
+      turnstileSiteKey={turnstileSiteKey}
       verify={({ email, otp }) => authClient.signIn.emailOtp({ email, otp })}
       onVerified={() => {
         router.history.push(safeRedirect(redirect))

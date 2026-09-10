@@ -30,9 +30,9 @@ import { appUrlFrom, preferencesUrl } from './notification-links.ts'
 import { type Env } from './queue-consumer.ts'
 
 /** How far back one digest looks — one run per day, so one day of rows. */
-export const DIGEST_WINDOW = Duration.hours(24)
+const DIGEST_WINDOW = Duration.hours(24)
 
-export type RecipientDigest = {
+type RecipientDigest = {
   readonly recipient: NotificationRecipient
   readonly items: ReadonlyArray<DigestItem>
 }
@@ -42,7 +42,7 @@ export type RecipientDigest = {
  * reads no clock, so the sender turns the ISO string it already holds into a
  * display line. UTC by construction — `DateTime.formatIso` writes UTC.
  */
-export function formatDigestTimestamp(
+function formatDigestTimestamp(
   createdAt: string,
   locale: Locale = DEFAULT_LOCALE,
   timeZone = 'UTC'
@@ -121,15 +121,14 @@ export type DigestRunSummary = {
  */
 export function runNotificationDigest(
   appUrl: string,
-  windowEnd?: string
+  windowEnd: string
 ): Effect.Effect<
   DigestRunSummary,
   CapabilityUnavailable,
   NotificationEmailEligibility | EmailDispatcher | EmailDelivery | Scope.Scope
 > {
   return Effect.gen(function* () {
-    const now = yield* DateTime.now
-    const until = windowEnd ?? DateTime.formatIso(now)
+    const until = windowEnd
     const since = DateTime.formatIso(
       DateTime.subtractDuration(DateTime.makeUnsafe(until), DIGEST_WINDOW)
     )

@@ -1,3 +1,5 @@
+import { classifyTrustedOrigin, trustedOriginEntries } from './trusted-origin.ts'
+
 // Single source of truth for server env vars. Add a new var HERE
 // (and, when alchemy should forward it to deployed workers, to exactly one of
 // the optional-module key lists below) — everything else derives from the
@@ -57,10 +59,15 @@ export type ServerEnv = {
   readonly ENVIRONMENT?: string | undefined
   /** Pauses customer traffic and business processing during recovery. */
   readonly MAINTENANCE_MODE?: string | undefined
-  // Workspace data export (ADR 0055): the R2 bucket name gates provisioning at
-  // deploy time; the API worker's public origin is where the web app points
-  // signed download links.
-  readonly WORKSPACE_EXPORT_BUCKET?: string | undefined
+  // Workspace data export (ADR 0055). `WORKSPACE_EXPORTS_ENABLED` is a
+  // deploy-time switch only — alchemy provisions the export bucket and queue
+  // when it is `true`, and names the bucket from the stage
+  // (`infra/bindings.ts`), never from this value. It is deliberately NOT the
+  // binding name: `WORKSPACE_EXPORT_BUCKET` is the R2 `Bucket` a worker reads,
+  // and a string var of that name would collide with it in every worker env
+  // type. `API_PUBLIC_URL` is the API worker's public origin, where the web
+  // app points signed download links.
+  readonly WORKSPACE_EXPORTS_ENABLED?: string | undefined
   readonly API_PUBLIC_URL?: string | undefined
   readonly SUPPORT_EMAIL?: string | undefined
   readonly SUPPORT_HELPDESK_URL?: string | undefined
@@ -361,22 +368,21 @@ export function auditRequiredEnv(source: RawEnvSource): RequiredEnvAudit {
   // CSRF carve-out. Flag any entry that does not parse as an http(s) URL.
   const trustedOrigins = source.BETTER_AUTH_TRUSTED_ORIGINS ?? undefined
   if (trustedOrigins !== undefined && trustedOrigins.length > 0) {
-    for (const entry of trustedOrigins.split(',')) {
-      const origin = entry.trim()
-      let valid = false
-      if (origin.startsWith('*.')) {
-        // Better Auth's scheme-less wildcard form (`*.example.com`).
-        valid = !origin.slice(2).includes('*')
-      } else {
-        // A `null` from `URL.parse` IS the answer here: the entry is not a
-        // URL, so it stays `valid: false` and is flagged below.
-        const parsed = URL.parse(origin)
-        valid = parsed?.protocol === 'https:' || parsed?.protocol === 'http:'
-      }
-      if (origin.length === 0 || !valid) {
+    for (const origin of trustedOriginEntries(trustedOrigins)) {
+      const kind = classifyTrustedOrigin(origin)
+      if (kind === 'malformed') {
         problems.push({
           key: 'BETTER_AUTH_TRUSTED_ORIGINS',
           reason: 'malformed'
+        })
+      }
+      // An origin with userinfo parses fine, so it would otherwise pass this
+      // audit while `auditSecureEndpoints` refuses it — and it puts a
+      // credential in a config string either way.
+      if (kind === 'credentialed') {
+        problems.push({
+          key: 'BETTER_AUTH_TRUSTED_ORIGINS',
+          reason: 'insecure'
         })
       }
     }

@@ -146,7 +146,8 @@ export const testSsoConnectionServerFn = createServerFn({ method: 'POST' })
 /**
  * The sign-in page's routing ask, as a server fn: does this email's domain
  * belong to an enabled connection? See `resolveSsoRoutingHandler` in
- * `workspace-sso.effects.ts` for why it is deliberately **not** session-gated.
+ * `workspace-sso.effects.ts` for why it is deliberately **not** session-gated
+ * and why it is rate limited on the client key instead.
  */
 export const resolveSsoRoutingServerFn = createServerFn({ method: 'POST' })
   .validator(Schema.decodeUnknownSync(RoutingInput))

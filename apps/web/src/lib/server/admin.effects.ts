@@ -21,7 +21,10 @@ import {
   selectCapabilitiesLayer,
   starterEnv
 } from '@b2b-saas-starter/capabilities/runtime'
-import { CapabilityUnavailableError } from '../capability-error'
+import {
+  CapabilityUnavailableError,
+  ImpersonationStateError
+} from '../capability-error'
 import { webRuntime, withWebRequestScope } from '../observability'
 
 import { runCapabilities } from '../capabilities'
@@ -42,25 +45,6 @@ import {
   requireRecentAuthentication
 } from './strong-authentication.effects'
 import { webUserAdminBinding } from './user-admin-binding'
-
-/**
- * Typed failure for the impersonation server functions when the request's
- * session is not what the action needs: starting one from a session that is
- * already an impersonation (no nesting — the admin cookie holds one token),
- * or stopping one from an ordinary session. Same shape and reason as
- * `UnauthorizedError`: server functions serialize thrown errors with
- * `name`/`message` intact, and the calling control shows `message`.
- *
- * Defined here (its only thrower) so the client-safe `admin.ts` never imports
- * a value back from its effects sibling — that would be a module cycle the
- * dead-code gate rejects.
- */
-export class ImpersonationStateError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'ImpersonationStateError'
-  }
-}
 
 /**
  * The `/admin` capability effects and their server-only wiring, reached only
@@ -162,7 +146,7 @@ export async function replayFailedDeliveryHandler(
   const session = await requireAdminSession()
   if (session.session.impersonatedBy) {
     // oxlint-disable-next-line effect/noThrowStatement -- serialized server-fn refusal
-    throw new ImpersonationStateError('Stop impersonating before replaying deliveries.')
+    throw new ImpersonationStateError('replay_blocked')
   }
   if (env.DB !== undefined && env.WEBHOOK_QUEUE === undefined) {
     return {
@@ -281,7 +265,7 @@ export async function impersonateUserHandler(
   await requireRecentAuthentication(session)
   if (session.session.impersonatedBy) {
     // oxlint-disable-next-line effect/noThrowStatement -- TanStack Start serializes a thrown server-fn error back to the caller; the returned Promise has no error channel
-    throw new ImpersonationStateError('Stop the current impersonation first.')
+    throw new ImpersonationStateError('nested')
   }
   return runCapabilities(
     Effect.gen(function* () {
@@ -307,7 +291,7 @@ export async function stopImpersonatingHandler(): Promise<void> {
   const actorUserId = session.session.impersonatedBy
   if (!actorUserId) {
     // oxlint-disable-next-line effect/noThrowStatement -- TanStack Start serializes a thrown server-fn error back to the caller; the returned Promise has no error channel
-    throw new ImpersonationStateError('This session is not impersonating anyone.')
+    throw new ImpersonationStateError('not_impersonating')
   }
   return runCapabilities(
     Effect.gen(function* () {

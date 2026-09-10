@@ -8,6 +8,8 @@ import {
 } from '../two-factor-refusal'
 import { withWebRequestScope } from '../observability'
 import { type AuthExchange } from './auth-audit/exchanges'
+import { authRefusal } from './auth-refusal'
+import { readSessionForCookie } from './auth-session-read'
 
 /**
  * The two-factor gate for the two mailbox-only sign-ins: the emailed one-time
@@ -110,13 +112,9 @@ export function twoFactorRefusal(exchange: {
   readonly pathname: string
 }): Response | null {
   if (isEmailOtpSignIn(exchange)) {
-    return new Response(
-      JSON.stringify({
-        code: TWO_FACTOR_REQUIRED_ERROR_CODE,
-        message: twoFactorRequiredMessage()
-      }),
-      { status: 403, headers: { 'content-type': 'application/json; charset=utf-8' } }
-    )
+    return authRefusal(403, TWO_FACTOR_REQUIRED_ERROR_CODE, {
+      message: twoFactorRequiredMessage()
+    })
   }
   if (isMagicLinkVerify(exchange)) {
     return new Response(null, {
@@ -129,11 +127,11 @@ export function twoFactorRefusal(exchange: {
 
 /**
  * The gate: `null` when the handler's response stands, the refusal when it
- * does not. The session read follows `readPreHandlerSession` in
- * `api.auth.$.ts` — a failed read must never fail the auth request it
- * observes, so any error resolves `null` and the minted response passes
- * through (better a session than a broken sign-in; the audit row still
- * records it).
+ * does not. A failed read must never fail the auth request it observes, so any
+ * error resolves `null` and the minted response passes through (better a
+ * session than a broken sign-in; the audit row still records it). The
+ * pre-handler guards make the opposite call — they refuse — because there the
+ * read decides whether a privileged action runs at all.
  */
 export function enforceTwoFactorSignIn(
   exchange: AuthExchange,
@@ -164,6 +162,21 @@ async function refuseMintedSession(
     // Nothing session-shaped was minted (a failure redirect lands here too).
     return null
   }
+  // A failed read leaves the minted response standing, by the contract above.
+  const session = await readSessionForCookie(cookie).catch(() => null)
+  if (session === null || session.user.twoFactorEnabled !== true) {
+    return null
+  }
+  await revokeMintedSession(cookie)
+  return twoFactorRefusal(exchange)
+}
+
+/**
+ * Deletes exactly the session the refused cookie proves. Best-effort: a
+ * revocation failure must not turn a refusal into a pass-through, so the
+ * caller returns its refusal either way.
+ */
+function revokeMintedSession(cookie: string): Promise<void> {
   const headers = new Headers({ cookie })
   return authRuntime
     .runPromise(
@@ -171,14 +184,9 @@ async function refuseMintedSession(
         { event: 'auth.two_factor_gate' },
         Effect.gen(function* () {
           const auth = yield* Auth.Tag
-          const session = yield* auth.api.getSession({ headers })
-          if (session === null || session.user.twoFactorEnabled !== true) {
-            return null
-          }
           yield* Effect.result(auth.api.signOut({ headers }))
-          return twoFactorRefusal(exchange)
         })
       )
     )
-    .catch(() => null)
+    .catch(() => undefined)
 }

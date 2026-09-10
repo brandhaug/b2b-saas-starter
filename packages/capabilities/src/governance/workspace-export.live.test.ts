@@ -26,6 +26,7 @@ import {
 } from './workspace-export.ts'
 import { WorkspaceMembership } from './workspace-membership.ts'
 import { WorkspaceSuspensionService } from './workspace-suspension.ts'
+import { workspaceExportContractCases } from './workspace-export.contract.ts'
 
 /**
  * Stub queue and bucket: the Live adapter's platform ports, in memory. The
@@ -98,6 +99,20 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         })
       })
     )
+  })
+
+  // The Seed half of this same list runs in `workspace-export.test.ts`.
+  describe('live workspace export contract', () => {
+    for (const contractCase of workspaceExportContractCases(expect)) {
+      it.effect(contractCase.name, () =>
+        inWorkspace(
+          'live-lab',
+          contractCase.assert,
+          { userId: 'usr_owner' },
+          { workspaceExports: stubPorts().workspaceExports }
+        )
+      )
+    }
   })
 
   describe('lifecycle', () => {
@@ -273,7 +288,17 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         const ready = listed.find((row) => row.id === requested.id)
         expect(ready).toMatchObject({ status: 'ready' })
         expect(ready?.sizeBytes).toBeGreaterThan(0)
-        expect(ready?.expiresAt).not.toBeNull()
+        // The artifact's shelf life is a literal, not a rounding of one:
+        // exactly `WORKSPACE_EXPORT_RETENTION_DAYS` past the completion the
+        // row records. `not.toBeNull()` would pass for any date at all.
+        expect(ready?.expiresAt).toBe(
+          DateTime.formatIso(
+            DateTime.addDuration(
+              DateTime.makeUnsafe(ready?.completedAt ?? ''),
+              `${WORKSPACE_EXPORT_RETENTION_DAYS} days`
+            )
+          )
+        )
 
         // The requester was notified.
         const notifications = yield* inWorkspace(

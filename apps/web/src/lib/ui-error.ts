@@ -8,6 +8,8 @@ export type UiErrorCode =
   | 'plan_limit'
   | 'membership_refused'
   | 'user_admin_refused'
+  | 'impersonation_state'
+  | 'unverified_email'
   | 'unauthorized'
   | 'strong_authentication_required'
   | 'invalid_timezone'

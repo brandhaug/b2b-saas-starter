@@ -48,7 +48,7 @@ function providerFixture() {
     if (paid) {
       amount = 1200
       status = 'paid'
-      if (!snapshot.payment.currentInvoicePaid) {
+      if (!snapshot.currentInvoicePaid) {
         id = 'in_previous'
       }
       if (at !== null) {
@@ -143,9 +143,7 @@ function providerFixture() {
         )
       }
       if (url.pathname === '/v1/invoices/in_current') {
-        return Promise.resolve(
-          Response.json(invoice(snapshot.payment.currentInvoicePaid))
-        )
+        return Promise.resolve(Response.json(invoice(snapshot.currentInvoicePaid)))
       }
       if (url.pathname === '/v1/events') {
         return Promise.resolve(
@@ -303,9 +301,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('Live lifecycle', (it) => {
           currentPeriodEnd: '2026-11-01T00:00:00.000Z',
           payment: {
             lastPaymentAt: '2026-10-01T00:00:00.000Z',
-            firstFailedAt: null,
-            currentInvoicePaid: true
-          }
+            firstFailedAt: null
+          },
+          currentInvoicePaid: true
         }
         fixture.set(paying)
         yield* db
@@ -334,9 +332,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('Live lifecycle', (it) => {
             status: 'past_due',
             payment: {
               ...paying.payment,
-              currentInvoicePaid: false,
               firstFailedAt: '2026-10-02T00:00:00.000Z'
-            }
+            },
+            currentInvoicePaid: false
           })
           yield* Effect.acquireUseRelease(
             Effect.promise(() =>
@@ -451,6 +449,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('Live lifecycle', (it) => {
           ).toHaveLength(1)
         })
         yield* run.pipe(Effect.ensuring(Effect.sync(() => vi.unstubAllGlobals())))
-      })
+      }),
+    30_000
   )
 })

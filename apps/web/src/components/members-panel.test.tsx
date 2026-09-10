@@ -42,8 +42,8 @@ function renderPanel(role: 'owner' | 'admin' | 'member', actorUserId = 'usr_demo
 describe('MembersPanel', () => {
   it('offers every other role to an owner, including the owner role', async () => {
     await renderPanel('owner')
-    expect(screen.getByLabelText('Make admin: Dev Member')).toBeTruthy()
-    expect(screen.getByLabelText('Make owner: Dev Member')).toBeTruthy()
+    expect(screen.getByLabelText('Make admin: Dev Member')).not.toBeNull()
+    expect(screen.getByLabelText('Make owner: Dev Member')).not.toBeNull()
     // A member is never offered the role they already hold.
     expect(screen.queryByLabelText('Make member: Dev Member')).toBeNull()
     expect(screen.queryByLabelText('Make owner: Demo Owner')).toBeNull()
@@ -53,7 +53,7 @@ describe('MembersPanel', () => {
   it('withholds the owner role from an admin — the plugin reserves it for owners', async () => {
     await renderPanel('admin', 'usr_ops')
     // `member:update` covers the admin's changes of a plain member…
-    expect(screen.getByLabelText('Make admin: Dev Member')).toBeTruthy()
+    expect(screen.getByLabelText('Make admin: Dev Member')).not.toBeNull()
     // …but "Make owner" would only ever fail: only owners grant the owner
     // role, so the button is not offered at all.
     expect(screen.queryByLabelText('Make owner: Dev Member')).toBeNull()
@@ -65,7 +65,7 @@ describe('MembersPanel', () => {
 
   it('replaces the role controls with a reason for a viewer who cannot', async () => {
     await renderPanel('member', 'usr_dev')
-    expect(screen.getByText('Your role cannot change member roles.')).toBeTruthy()
+    expect(screen.getByText('Your role cannot change member roles.')).not.toBeNull()
     expect(screen.queryByLabelText('Make admin: Dev Member')).toBeNull()
     // `member:delete` is denied with `member:update` — no removal either.
     expect(screen.queryByLabelText('Remove Dev Member')).toBeNull()
@@ -80,17 +80,17 @@ describe('MembersPanel', () => {
         actorUserId="usr_demo"
       />
     )
-    expect(screen.getByText('No members yet')).toBeTruthy()
+    expect(screen.getByText('No members yet')).not.toBeNull()
   })
 
   it('offers removal for other rows but never the actor’s own', async () => {
     await renderPanel('owner')
-    expect(screen.getByLabelText('Remove Dev Member')).toBeTruthy()
-    expect(screen.getByLabelText('Remove Ops Admin')).toBeTruthy()
+    expect(screen.getByLabelText('Remove Dev Member')).not.toBeNull()
+    expect(screen.getByLabelText('Remove Ops Admin')).not.toBeNull()
     // The own row carries the leave verb instead — removing yourself is
     // leaving, and leaving has no `member:delete` requirement.
     expect(screen.queryByLabelText('Remove Demo Owner')).toBeNull()
-    expect(screen.getByLabelText('Leave workspace')).toBeTruthy()
+    expect(screen.getByLabelText('Leave workspace')).not.toBeNull()
   })
 
   it('offers the leave verb on the actor’s own row to a plain member too', async () => {
@@ -102,11 +102,11 @@ describe('MembersPanel', () => {
   it('arms one removal at a time and disarms on cancel', async () => {
     await renderPanel('owner')
     fireEvent.click(screen.getByLabelText('Remove Dev Member'))
-    expect(screen.getByLabelText('Confirm remove Dev Member')).toBeTruthy()
+    expect(screen.getByLabelText('Confirm remove Dev Member')).not.toBeNull()
     // The second row stays idle: one armed confirm at a time.
-    expect(screen.getByLabelText('Remove Ops Admin')).toBeTruthy()
+    expect(screen.getByLabelText('Remove Ops Admin')).not.toBeNull()
     fireEvent.click(screen.getByLabelText('Cancel Dev Member'))
     expect(screen.queryByLabelText('Confirm remove Dev Member')).toBeNull()
-    expect(screen.getByLabelText('Remove Dev Member')).toBeTruthy()
+    expect(screen.getByLabelText('Remove Dev Member')).not.toBeNull()
   })
 })

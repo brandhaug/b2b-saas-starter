@@ -25,7 +25,7 @@ import { clampPageLimit, cutKeysetPage } from '../internal/keyset-cursor.ts'
 import { keysetResume } from '../internal/keyset-query.ts'
 
 import {
-  type CapabilityUnavailable,
+  CapabilityUnavailable,
   orUnavailable
 } from '@b2b-saas-starter/failure/capability'
 import { newCapabilityId } from '../internal/ids.ts'
@@ -41,6 +41,7 @@ import {
   type Notification,
   type NotificationEmailContext,
   type NotifyWorkspaceOwnersInput,
+  type PreparedNotificationCondition,
   type PreparedWorkspaceOwnerNotifications,
   type NotificationFeedOptions,
   type NotificationWorkspace
@@ -245,7 +246,7 @@ export function LiveNotificationFeed(
         'NotificationFeed.prepareWorkspaceOwners'
       )(function* (
         input: NotifyWorkspaceOwnersInput,
-        condition?: SQL
+        condition?: PreparedNotificationCondition
       ): Effect.fn.Return<PreparedWorkspaceOwnerNotifications, CapabilityUnavailable> {
         const prepared = yield* prepareOwners(input)
         const writes = prepared.created.map(({ row }) =>
@@ -263,10 +264,12 @@ export function LiveNotificationFeed(
                 createdAt: sql<string>`${row.createdAt}`.as('createdAt')
               })
               .from(sql`(select 1)`)
-              .where(condition)
+              .where(condition?.sql)
           )
         )
-        return { writes, publish: prepared.publish }
+        // The rows ride the producer's batch, so there is nothing left to
+        // commit here; Seed's counterpart carries its write instead.
+        return { writes, commit: Effect.void, publish: prepared.publish }
       })
 
       return {
@@ -339,12 +342,13 @@ export function LiveNotificationFeed(
             const ctx = yield* WorkspaceContext
             const readAt = yield* DateTime.now
             // The visibility filter scopes the write exactly like the read: an
-            // id the actor cannot see is never stamped. Matching ids are
-            // selected first so the returned count is exact.
-            const matching = yield* unavailable(
+            // id the actor cannot see is never stamped. One statement, and
+            // the rows it returns are the count — a select-then-update pair
+            // would report rows another request stamped in between.
+            const stamped = yield* unavailable(
               db
-                .select({ id: notifications.id })
-                .from(notifications)
+                .update(notifications)
+                .set({ readAt: DateTime.formatIso(readAt) })
                 .where(
                   and(
                     visibilityFilter(ctx.workspace.id, ctx.actor),
@@ -352,22 +356,9 @@ export function LiveNotificationFeed(
                     inArray(notifications.id, [...ids])
                   )
                 )
+                .returning({ id: notifications.id })
             )
-            if (matching.length === 0) {
-              return 0
-            }
-            yield* unavailable(
-              db
-                .update(notifications)
-                .set({ readAt: DateTime.formatIso(readAt) })
-                .where(
-                  inArray(
-                    notifications.id,
-                    matching.map((row) => row.id)
-                  )
-                )
-            )
-            return matching.length
+            return stamped.length
           }),
         create: (input) =>
           Effect.gen(function* () {
@@ -404,7 +395,14 @@ export function LiveNotificationFeed(
               if (stored !== undefined) {
                 return toNotification(stored)
               }
-              return yield* unavailable(Effect.fail('notification_disappeared'))
+              // Inserted nothing and found nothing: the row was deleted
+              // between the two statements. Unavailable, stated directly —
+              // laundering a bare string through `orUnavailable` hides which
+              // capability is answering.
+              return yield* new CapabilityUnavailable({
+                capability: 'notification-feed',
+                reason: 'notification_disappeared'
+              })
             }
             const recipients = yield* recipientsOf(row)
             const traceparent = yield* currentTraceparent

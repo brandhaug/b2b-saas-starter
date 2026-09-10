@@ -306,41 +306,49 @@ export const passkey = sqliteTable(
 // Add a column here only by adding an `additionalFields` entry on the plugin
 // too — a column the plugin does not know about is invisible to its endpoints.
 
-export const workspaces = sqliteTable('workspaces', {
-  id: id(),
-  name: text('name').notNull(),
-  slug: text('slug').unique().notNull(),
-  logo: text('logo'),
-  // Plugin-owned free-form bag. The plugin JSON-stringifies on write and parses
-  // on read itself, so this stays plain `text` — `mode: 'json'` would encode a
-  // second time. The starter's own fields are `additionalFields` below, not
-  // entries in here.
-  metadata: text('metadata'),
-  // additionalFields: typed, queryable, defaulted — `planId` is part of the
-  // public `Workspace` DTO, so it does not belong in `metadata`.
-  planId: text('planId').default('starter').notNull(),
-  // Starter-owned, capability-only: when an owner or admin dismissed the
-  // workspace's onboarding checklist. Read and written solely by the
-  // `workspace-onboarding` capability, never by the plugin — so unlike
-  // `planId` it deliberately has no `additionalFields` entry: nothing that
-  // goes through a plugin endpoint needs it back. Epoch integer like the
-  // rest of this plugin-shaped table.
-  onboardingDismissedAt: integer('onboardingDismissedAt', { mode: 'timestamp' }),
-  // Capability-owned lifecycle state. Never declare these as organization
-  // additionalFields: the plugin must not expose internal reasons to customers.
-  suspensionStatus: text('suspensionStatus', { enum: workspaceSuspensionStatuses })
-    .default('active')
-    .notNull(),
-  suspensionInternalReason: text('suspensionInternalReason'),
-  suspensionCustomerExplanation: text('suspensionCustomerExplanation'),
-  suspensionChangedAt: text('suspensionChangedAt'),
-  suspensionTransitionId: text('suspensionTransitionId'),
-  suspensionChangedByUserId: text('suspensionChangedByUserId').references(
-    () => user.id,
-    { onDelete: 'set null' }
-  ),
-  ...authTimestamps()
-})
+export const workspaces = sqliteTable(
+  'workspaces',
+  {
+    id: id(),
+    name: text('name').notNull(),
+    slug: text('slug').unique().notNull(),
+    logo: text('logo'),
+    // Plugin-owned free-form bag. The plugin JSON-stringifies on write and parses
+    // on read itself, so this stays plain `text` — `mode: 'json'` would encode a
+    // second time. The starter's own fields are `additionalFields` below, not
+    // entries in here.
+    metadata: text('metadata'),
+    // additionalFields: typed, queryable, defaulted — `planId` is part of the
+    // public `Workspace` DTO, so it does not belong in `metadata`.
+    planId: text('planId').default('starter').notNull(),
+    // Starter-owned, capability-only: when an owner or admin dismissed the
+    // workspace's onboarding checklist. Read and written solely by the
+    // `workspace-onboarding` capability, never by the plugin — so unlike
+    // `planId` it deliberately has no `additionalFields` entry: nothing that
+    // goes through a plugin endpoint needs it back. Epoch integer like the
+    // rest of this plugin-shaped table.
+    onboardingDismissedAt: integer('onboardingDismissedAt', { mode: 'timestamp' }),
+    // Capability-owned lifecycle state. Never declare these as organization
+    // additionalFields: the plugin must not expose internal reasons to customers.
+    suspensionStatus: text('suspensionStatus', { enum: workspaceSuspensionStatuses })
+      .default('active')
+      .notNull(),
+    suspensionInternalReason: text('suspensionInternalReason'),
+    suspensionCustomerExplanation: text('suspensionCustomerExplanation'),
+    suspensionChangedAt: text('suspensionChangedAt'),
+    suspensionTransitionId: text('suspensionTransitionId'),
+    suspensionChangedByUserId: text('suspensionChangedByUserId').references(
+      () => user.id,
+      { onDelete: 'set null' }
+    ),
+    ...authTimestamps()
+  },
+  (table) => [
+    // The child side of the only workspace foreign key that had no index: a
+    // `set null` cascade scans this column for every deleted user.
+    index('workspaces_suspension_changed_by_idx').on(table.suspensionChangedByUserId)
+  ]
+)
 
 export const workspaceMembers = sqliteTable(
   'workspace_members',

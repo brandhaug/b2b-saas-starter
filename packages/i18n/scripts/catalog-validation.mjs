@@ -124,3 +124,28 @@ export function validateCatalogs(catalogs, baseLocale = 'en', translatedLocale =
     }
   }
 }
+
+/**
+ * The inlang project must declare exactly the locales `src/locale.ts` does.
+ * They are two files a compile step reads separately: a locale added to one
+ * and not the other produces a catalog nobody validates, or a compiled runtime
+ * for a locale the parser rejects.
+ */
+export function validateProjectLocales(settings, locales) {
+  const declared = settings.locales
+  if (!Array.isArray(declared)) {
+    throw new TypeError('project.inlang/settings.json declares no `locales` array')
+  }
+  const expected = [...locales].toSorted((left, right) => left.localeCompare(right))
+  const actual = [...declared].toSorted((left, right) => left.localeCompare(right))
+  if (expected.join(',') !== actual.join(',')) {
+    throw new Error(
+      `Locale mismatch: src/locale.ts has ${expected.join(',')}, project.inlang/settings.json has ${actual.join(',')}`
+    )
+  }
+  if (!locales.includes(settings.baseLocale)) {
+    throw new Error(
+      `project.inlang/settings.json baseLocale ${String(settings.baseLocale)} is not one of ${expected.join(',')}`
+    )
+  }
+}

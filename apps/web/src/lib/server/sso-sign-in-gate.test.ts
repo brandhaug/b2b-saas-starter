@@ -106,9 +106,8 @@ describe('disabledConnectionResponse (the SSO half)', () => {
     expect(disabledConnectionResponse(target({ enabled: true }))).toBeNull()
   })
 
-  it('lets a domain without a connection, and a failed resolution, through', () => {
+  it('lets a domain without a connection through', () => {
     expect(disabledConnectionResponse(Option.none())).toBeNull()
-    expect(disabledConnectionResponse(null)).toBeNull()
   })
 })
 

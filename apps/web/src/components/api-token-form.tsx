@@ -9,8 +9,7 @@ import { useForm } from '@tanstack/react-form'
 import { CheckboxSetField } from '@/components/checkbox-set-field'
 import { FormTextField } from '@/components/form-text-field'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
-import { Spinner } from '@/components/ui/spinner'
+import { FormSubmitButton } from '@/components/form-submit-button'
 import { SecretReveal } from '@/components/secret-reveal'
 import { createApiTokenServerFn } from '@/lib/server/api-tokens'
 import { useServerCall } from '@/hooks/use-server-call'
@@ -171,23 +170,7 @@ export function ApiTokenForm({
       </form.Field>
       <p className="text-xs text-muted-foreground">{m.form_expiry_hint()}</p>
 
-      <form.Subscribe
-        selector={(state): readonly [boolean, boolean] => [
-          state.canSubmit,
-          state.isSubmitting
-        ]}
-      >
-        {([canSubmit, isSubmitting]) => (
-          <Button
-            type="submit"
-            disabled={!canSubmit || isSubmitting}
-            className="justify-self-start"
-          >
-            {isSubmitting ? <Spinner data-icon="inline-start" /> : null}
-            {m.form_create_token()}
-          </Button>
-        )}
-      </form.Subscribe>
+      <FormSubmitButton form={form} label={m.form_create_token()} />
 
       {created ? (
         // The one secret this form ever shows: the `ok` variant separates it

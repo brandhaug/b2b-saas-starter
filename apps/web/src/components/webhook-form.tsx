@@ -10,8 +10,7 @@ import { CheckboxSetField } from '@/components/checkbox-set-field'
 import { FormTextField } from '@/components/form-text-field'
 import { Identifier } from '@/components/page/identifier'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
-import { Spinner } from '@/components/ui/spinner'
+import { FormSubmitButton } from '@/components/form-submit-button'
 import { createWebhookEndpointServerFn } from '@/lib/server/webhooks'
 import { useServerCall } from '@/hooks/use-server-call'
 import { m } from '@b2b-saas-starter/i18n/messages'
@@ -135,23 +134,7 @@ export function WebhookForm({
         )}
       </form.Field>
 
-      <form.Subscribe
-        selector={(state): readonly [boolean, boolean] => [
-          state.canSubmit,
-          state.isSubmitting
-        ]}
-      >
-        {([canSubmit, isSubmitting]) => (
-          <Button
-            type="submit"
-            disabled={!canSubmit || isSubmitting}
-            className="justify-self-start"
-          >
-            {isSubmitting ? <Spinner data-icon="inline-start" /> : null}
-            {m.webhook_create_action()}
-          </Button>
-        )}
-      </form.Subscribe>
+      <FormSubmitButton form={form} label={m.webhook_create_action()} />
 
       {created ? (
         // `ok`, not the neutral default: this is the one moment the signing

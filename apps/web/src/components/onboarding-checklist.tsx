@@ -82,7 +82,7 @@ function StepLink({
 }
 
 /** The one-line confirmation the card becomes right after a dismissal. */
-export function OnboardingChecklistDismissed() {
+function OnboardingChecklistDismissed() {
   return (
     // `role="status"`: a quiet confirmation of the click, not an interruption.
     // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- see above

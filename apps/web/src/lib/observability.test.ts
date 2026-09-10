@@ -199,6 +199,32 @@ describe('memoizePerRequest', () => {
     expect(reads).toBe(1)
   })
 
+  it('drops a rejected slot so the next caller retries', async () => {
+    const request = new Request('http://localhost/workspaces/acme')
+    ambient.request = request
+    let reads = 0
+
+    await runWebRequestScope({ request, handlerType: 'router' }, async () => {
+      async function failingRead() {
+        reads += 1
+        throw new Error('the session read failed')
+      }
+      // A failure must not become the request's cached answer: a gate that
+      // asked while the database blinked would otherwise poison every
+      // later read in the same request.
+      await expect(memoizePerRequest('auth.session', failingRead)).rejects.toThrow(
+        'the session read failed'
+      )
+      await expect(memoizePerRequest('auth.session', failingRead)).rejects.toThrow(
+        'the session read failed'
+      )
+      expect(reads).toBe(2)
+      // And the slot is free for a read that works.
+      expect(await memoizePerRequest('auth.session', async () => 'value')).toBe('value')
+      return new Response(null, { status: 204 })
+    })
+  })
+
   it('falls back to calling make on every call outside a request scope', async () => {
     let reads = 0
     async function make() {

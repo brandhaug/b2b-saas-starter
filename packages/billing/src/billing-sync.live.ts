@@ -28,12 +28,27 @@ import { type makeBillingSyncStore } from './billing-sync-store.ts'
 import { recoverCheckoutClaim } from './checkout-recovery.ts'
 import { AuditEventLog } from './ports.ts'
 import {
+  isCurrentSubscriptionStatus,
   listStripeCustomerSubscriptions,
   retrieveStripeCustomer,
   retrieveStripeSubscription,
   searchStripeCustomersByWorkspace,
   updateStripeSubscriptionItemQuantity
 } from './stripe.ts'
+import { billableSeatQuantity } from './plan-catalog.ts'
+
+/**
+ * How many workspaces one bounded pass may reconcile after its unresolved
+ * provider evidence took its share. Always at least one: a full page of
+ * retryable evidence would otherwise pass `limit(0)` to the workspace query,
+ * which returns nothing and stalls every workspace behind it.
+ */
+export function reconcileWorkspaceBudget(
+  limit: number,
+  unresolvedTaken: number
+): number {
+  return Math.max(1, limit - unresolvedTaken)
+}
 
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory, not a constructor invocation
 class BillingSyncConflict extends Schema.TaggedError<BillingSyncConflict>()(
@@ -219,10 +234,8 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
               secretKey,
               customerId
             })
-            const active = listed.data.filter(
-              (subscription) =>
-                subscription.status !== 'canceled' &&
-                subscription.status !== 'incomplete_expired'
+            const active = listed.data.filter((subscription) =>
+              isCurrentSubscriptionStatus(subscription.status)
             )
             let selected = active[0]
             if (active.length !== 1) {
@@ -235,8 +248,7 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
             }
             let payment: PaymentEvidence = {
               lastPaymentAt: null,
-              firstFailedAt: null,
-              currentInvoicePaid: false
+              firstFailedAt: null
             }
             if (selected !== undefined) {
               payment = yield* retrievePaymentEvidence(
@@ -283,7 +295,7 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
             let desiredQuantity = 0
             let repairedProvider = false
             if (decision.subscription.subscriptionItemId !== null) {
-              desiredQuantity = yield* members(workspaceId)
+              desiredQuantity = billableSeatQuantity(yield* members(workspaceId))
               if (decision.subscription.seatQuantity !== desiredQuantity) {
                 yield* updateStripeSubscriptionItemQuantity({
                   secretKey,
@@ -303,7 +315,7 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
             }
             let latestDesired = 0
             if (decision.subscription.subscriptionItemId !== null) {
-              latestDesired = yield* members(workspaceId)
+              latestDesired = billableSeatQuantity(yield* members(workspaceId))
             }
             const drift = yield* store.commit(
               lease,
@@ -564,7 +576,10 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
           )
         })
         .slice(0, Math.min(5, limit))
-      const workspaceBudget = limit - retryableUnresolved.length
+      const workspaceBudget = reconcileWorkspaceBudget(
+        limit,
+        retryableUnresolved.length
+      )
       // Oldest attempted first, including failures; one broken customer cannot
       // monopolize a bounded pass. The invocation records lastAttemptAt under lease.
       const rows = yield* unavailable(

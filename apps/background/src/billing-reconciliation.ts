@@ -1,26 +1,15 @@
 import { Billing } from '@b2b-saas-starter/billing/billing'
 import {
   billingConfigured,
-  billingOptionsFromEnv,
-  type BillingOptions
+  billingOptionsFromEnv
 } from '@b2b-saas-starter/billing/billing-config'
-import {
-  selectCapabilitiesLayer,
-  starterEnv,
-  type StarterEnv
-} from '@b2b-saas-starter/capabilities/runtime'
+import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { Effect } from 'effect'
 
+import { billingCapabilitiesEnv } from './billing-runtime.ts'
 import { type Env } from './queue-consumer.ts'
 
 const RECONCILIATION_LIMIT = 25
-
-function billingEnv(env: Env, billing: BillingOptions): StarterEnv {
-  return {
-    ...starterEnv(env),
-    billing
-  }
-}
 
 /**
  * Runs one bounded provider reconciliation pass. Stripe is an optional
@@ -62,7 +51,7 @@ export function reconcileBillingEffect(env: Env, scheduledTime: number) {
     }
   })
   return program.pipe(
-    Effect.provide(selectCapabilitiesLayer(billingEnv(env, options))),
+    Effect.provide(selectCapabilitiesLayer(billingCapabilitiesEnv(env, options))),
     Effect.scoped
   )
 }

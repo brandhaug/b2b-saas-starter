@@ -138,11 +138,7 @@ export function SeedNotificationPreferences(
         return Effect.map(Ref.get(store), (rows) => rows.get(userId) ?? new Map())
       }
       return {
-        list: (userId) => Effect.map(storedFor(userId), resolvePreferences),
-        resolve: (userId, kind) =>
-          Effect.map(storedFor(userId), (stored) =>
-            resolveChannel(kind, stored.get(kind))
-          ),
+        ...storedPreferenceReads(storedFor),
         set: (input) =>
           Effect.gen(function* () {
             yield* Ref.update(store, (rows) => {
@@ -158,6 +154,24 @@ export function SeedNotificationPreferences(
       }
     })
   )
+}
+
+/**
+ * The two reads, derived from whatever the adapter has stored. Neither
+ * adapter decides anything here — the defaults live in `resolveChannel` and
+ * `resolvePreferences` — so both take the same projection off the same map
+ * and only the lookup behind it differs (a `Ref` or a D1 select).
+ */
+function storedPreferenceReads<E>(
+  storedFor: (
+    userId: string
+  ) => Effect.Effect<ReadonlyMap<NotificationKind, NotificationChannel>, E>
+) {
+  return {
+    list: (userId: string) => Effect.map(storedFor(userId), resolvePreferences),
+    resolve: (userId: string, kind: NotificationKind) =>
+      Effect.map(storedFor(userId), (stored) => resolveChannel(kind, stored.get(kind)))
+  }
 }
 
 const unavailable = orUnavailable('notification-preferences')
@@ -195,11 +209,7 @@ export const LiveNotificationPreferences: Layer.Layer<
     }
 
     return {
-      list: (userId) => Effect.map(storedFor(userId), resolvePreferences),
-      resolve: (userId, kind) =>
-        Effect.map(storedFor(userId), (stored) =>
-          resolveChannel(kind, stored.get(kind))
-        ),
+      ...storedPreferenceReads(storedFor),
       set: (input) =>
         Effect.gen(function* () {
           const id = yield* newCapabilityId('npref')

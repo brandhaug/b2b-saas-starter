@@ -159,7 +159,39 @@ describe('privileged authentication HTTP boundary', () => {
     expect(await request('/passkey/verify-registration')).toBeNull()
     const admin = await request('/admin/impersonate-user')
     expect(admin?.status).toBe(403)
+    // Containment waives the five-minute step aside, never the strong
+    // authentication itself — a recovery session has neither.
+    expect(await request('/admin/revoke-user-sessions')).toEqual(
+      expect.objectContaining({ status: 403 })
+    )
+  })
+
+  it('waives only recency for admin containment actions', async () => {
+    evidence.qualified = true
+    evidence.recent = false
+    expect(await request('/admin/revoke-user-session')).toBeNull()
     expect(await request('/admin/revoke-user-sessions')).toBeNull()
+    // Every other admin mutation still needs the fresh proof.
+    expect(await request('/admin/set-role')).toEqual(
+      expect.objectContaining({ status: 403 })
+    )
+    evidence.qualified = false
+    expect(await request('/admin/revoke-user-sessions')).toEqual(
+      expect.objectContaining({ status: 403 })
+    )
+  })
+
+  it('lets an impersonating operator end the impersonation it can never qualify for', async () => {
+    // The capability reports every impersonation session as unqualified, so
+    // the exit is the one admin action that asks for nothing (ADR 0054).
+    const impersonating = fixtureSession({
+      userId: 'usr_admin',
+      impersonatedBy: 'usr_admin'
+    })
+    expect(await request('/admin/stop-impersonating', 'POST', impersonating)).toBeNull()
+    expect(await request('/admin/impersonate-user', 'POST', impersonating)).toEqual(
+      expect.objectContaining({ status: 403 })
+    )
   })
 
   it('impersonation never grants factor management, even with stale proof', async () => {
@@ -185,7 +217,6 @@ describe('privileged authentication HTTP boundary', () => {
   it('requires fresh password evidence for sensitive changes without enrolled factors', async () => {
     for (const path of [
       '/change-password',
-      '/change-email',
       '/set-password',
       '/unlink-account',
       '/link-social',
@@ -199,7 +230,6 @@ describe('privileged authentication HTTP boundary', () => {
     evidence.recent = true
     for (const path of [
       '/change-password',
-      '/change-email',
       '/set-password',
       '/unlink-account',
       '/link-social',

@@ -93,6 +93,22 @@ export function workspaceSuspensionContractCases(expect: typeof vitestExpect) {
       })
     },
     {
+      // The operator console renders this list as-is, so its order is part of
+      // the contract. Both harnesses hold more than one workspace and neither
+      // declares them in name order, so an adapter that returned insertion
+      // order fails here.
+      name: 'lists workspaces by name, with ids breaking ties',
+      assert: Effect.gen(function* () {
+        const suspension = yield* WorkspaceSuspensionService
+        const listed = yield* suspension.list
+        expect(listed.length > 1).toBe(true)
+        // `\u0000` sorts below every printable character, so comparing the
+        // joined key is comparing `(name, id)` — SQLite's BINARY collation.
+        const keys = listed.map((row) => `${row.name}\u0000${row.id}`)
+        expect(keys).toEqual(keys.toSorted())
+      })
+    },
+    {
       name: 'fails closed for an unknown workspace',
       assert: Effect.gen(function* () {
         const suspension = yield* WorkspaceSuspensionService

@@ -13,6 +13,7 @@ import {
 } from '@b2b-saas-starter/capabilities/workspace-context'
 import { Effect, type Scope } from 'effect'
 
+import { type UnauthorizedError } from './auth'
 import { requireWorkspacePermission } from './authorize'
 import {
   type StrongAuthentication,
@@ -32,7 +33,10 @@ export type WorkspacePageFrame<Payload> = Effect.Effect<
   | AuthorizationDenied
   | CapabilityUnavailable
   | WorkspaceSuspended
-  | StrongAuthenticationRequired,
+  | StrongAuthenticationRequired
+  // The permission gate reads the session, and an expired one is a typed
+  // failure rather than a defect (`server/auth.ts`).
+  | UnauthorizedError,
   CapabilityServices | WorkspaceServices | WorkspaceSuspensionService | Scope.Scope
 >
 
@@ -64,7 +68,8 @@ export function workspacePage<Segment, E, R>(
   | AuthorizationDenied
   | CapabilityUnavailable
   | WorkspaceSuspended
-  | StrongAuthenticationRequired,
+  | StrongAuthenticationRequired
+  | UnauthorizedError,
   | R
   | WorkspaceServices
   | WorkspaceSuspensionService

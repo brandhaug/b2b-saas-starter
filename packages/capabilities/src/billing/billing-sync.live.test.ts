@@ -765,6 +765,49 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         )
     )
 
+    it.effect('a later successful commit leaves a recorded conflict standing', () =>
+      withStripe(({ state }) =>
+        Effect.gen(function* () {
+          // A conflict is the operator's evidence that one event could not
+          // be applied. Settling it alongside an unrelated later success
+          // would erase the only record that something needs looking at —
+          // hence `SETTLED_EVENT_STATUSES` naming `processing`/`failed` and
+          // not `conflict`.
+          const priced = state.subscriptions
+          state.subscriptions = [
+            subscription({
+              items: {
+                data: [
+                  {
+                    ...testItem,
+                    id: 'si_sync',
+                    quantity: 1,
+                    price: { ...testPrice, id: 'price_unknown' }
+                  }
+                ]
+              }
+            })
+          ]
+          expect(
+            (yield* billingRun((billing) =>
+              billing.processProviderEvent(event('evt_conflicted'))
+            )).outcome
+          ).toBe('conflict')
+
+          state.subscriptions = priced
+          yield* billingRun((billing) =>
+            billing.processProviderEvent(event('evt_recovered'))
+          )
+
+          const evidence = yield* stored
+          const byId = new Map(evidence.events.map((row) => [row.providerEventId, row]))
+          expect(byId.get('evt_conflicted')?.status).toBe('conflict')
+          expect(byId.get('evt_conflicted')?.outcome).not.toBe('reconciled')
+          expect(byId.get('evt_recovered')?.status).toBe('completed')
+        })
+      )
+    )
+
     it.effect(
       'does not retry terminal unknown-workspace evidence in a bounded pass',
       () =>

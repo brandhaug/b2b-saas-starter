@@ -34,7 +34,7 @@ export type AccountLifecycleRunner = <A, E>(
   request?: Request
 ) => Promise<A>
 
-export type AccountDeletedEmailInput = {
+type AccountDeletedEmailInput = {
   readonly email: string
   readonly workspacesLeft: number
   readonly workspacesDeleted: number

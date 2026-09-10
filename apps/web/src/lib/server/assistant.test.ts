@@ -8,7 +8,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { type Layer } from 'effect'
 
-import { fixtureSession } from '@/test/fixture-session'
+import { fixtureAuthModule } from '@/test/fixture-session'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { askAssistantHandler, loadAssistantPageHandler } from './assistant.effects'
 import type * as AiModule from '@b2b-saas-starter/ai'
@@ -29,10 +29,9 @@ import type * as AuthModule from './auth'
  */
 const actor = vi.hoisted(() => ({ userId: 'usr_demo' }))
 
-vi.mock('./auth', async (importOriginal) => ({
-  ...(await importOriginal<typeof AuthModule>()),
-  requireRequestSession: async () => fixtureSession(actor)
-}))
+vi.mock('./auth', async (importOriginal) =>
+  fixtureAuthModule(await importOriginal<typeof AuthModule>(), actor)
+)
 
 /** The deployment's two assistant decisions, mutable per test. */
 type AssistantDeployment = {

@@ -2,7 +2,7 @@ import { getLocale } from '@b2b-saas-starter/i18n/runtime'
 import { DEFAULT_LOCALE, isLocale } from '@b2b-saas-starter/i18n/locale'
 import { presentationSettings } from '../i18n'
 import { UiError } from '../ui-error'
-import { Auth, type Session } from '@b2b-saas-starter/auth'
+import { type Session } from '@b2b-saas-starter/auth'
 import { redirect } from '@tanstack/react-router'
 import {
   createIsomorphicFn,
@@ -10,46 +10,24 @@ import {
   createServerOnlyFn
 } from '@tanstack/react-start'
 import { Effect } from 'effect'
-import { authRuntime } from '../auth-runtime'
-import { memoizePerRequest, withWebRequestScope } from '../observability'
 import { currentRequest } from '../request-context'
+import { readSessionFromHeaders } from './auth-session-read'
 
 /**
- * The session read every gate below is built on. `authRuntime` carries the
- * `Auth` service only, so the scope has to come from the request:
- * `withWebRequestScope` makes this a child span of the request span and folds
- * the gate's outcome into that request's one wide event. Without it the gate
- * that runs first on every gated route would be invisible.
+ * The session read every gate below is built on — the shared one in
+ * `auth-session-read.ts`, which owns the span, the `authenticated` annotation
+ * and the one-read-per-request memoization the auth catchall's guards join.
  */
-// One session read per request through `memoizePerRequest`: a route whose
-// `beforeLoad` gate and a server function both read the session must not pay
-// two DB round-trips for one document request. Slots live on the request's
-// telemetry, so they survive Start re-wrapping the `Request` mid-flight —
-// which the old module-local WeakMap did not.
-export const readOptionalSession = createServerOnlyFn((): Promise<Session | null> =>
-  memoizePerRequest('auth.session', () =>
-    authRuntime.runPromise(
-      withWebRequestScope(
-        { event: 'auth.session' },
-        Effect.gen(function* () {
-          const auth = yield* Auth.Tag
-          const request = currentRequest()
-          // No ambient request (unit tests, scripts) means no cookie jar to
-          // read — that is an unauthenticated caller, not a crash.
-          if (request === undefined) {
-            yield* Effect.annotateLogsScoped({ authenticated: false })
-            return null
-          }
-          const session = yield* auth.api.getSession({ headers: request.headers })
-          // Whether the gate found a session is the useful fact. Never the token,
-          // never the email.
-          yield* Effect.annotateLogsScoped({ authenticated: session !== null })
-          return session
-        })
-      )
-    )
-  )
-)
+export const readOptionalSession = createServerOnlyFn((): Promise<Session | null> => {
+  const request = currentRequest()
+  // No ambient request (unit tests, scripts) means no cookie jar to read —
+  // that is an unauthenticated caller, not a crash.
+  if (request === undefined) {
+    // oxlint-disable-next-line effect/noNewPromise -- the gate's contract is a Promise and there is no read to make: no request, no cookie jar
+    return Promise.resolve(null)
+  }
+  return readSessionFromHeaders(request.headers)
+})
 
 const getSessionServerFn = createServerFn({ method: 'GET' }).handler(
   readOptionalSession
@@ -143,11 +121,22 @@ export async function requireSession(
 /**
  * Typed failure for server-function handlers on session expiry. XHR
  * mutations must not be redirected — redirects belong to navigation gates
- * (`requireSession`/`requireAdmin`) only. Server functions serialize thrown
- * errors back to the caller with `name`/`message` intact, so form callers
- * surface `message` directly (see `api-token-form.tsx`).
+ * (`requireSession`/`requireAdmin`) only.
+ *
+ * It crosses the SSR boundary through `uiErrorAdapter`, which carries the
+ * `code` and the allowlisted `details` and nothing else (`lib/ui-error.ts`):
+ * the constructor's sentence is a server-side diagnostic, and the client
+ * rebuilds the error with the code as its message. Callers translate the
+ * code (`causeMessage`) rather than displaying `message`.
  */
 export class UnauthorizedError extends UiError {
+  /**
+   * The discriminant `Effect.catchTag` matches on: this error now travels the
+   * error channel (`requireRequestSessionEffect`), and a tag is how the repo
+   * distinguishes failures across module boundaries — never `instanceof`.
+   */
+  readonly _tag = 'UnauthorizedError'
+
   constructor() {
     super('unauthorized', {}, 'Your session has expired. Sign in again and retry.')
     this.name = 'UnauthorizedError'
@@ -169,4 +158,22 @@ export async function requireRequestSession(): Promise<Session> {
     throw new UnauthorizedError()
   }
   return session
+}
+
+/**
+ * The same gate on the Effect error channel, for the enforcement points that
+ * compose inside a capability effect (`server/authorize.ts`). `Effect.promise`
+ * would send the expiry to the defect channel, where `catchTag` cannot see it
+ * and the wide event reports a crash instead of an expired session.
+ */
+export function requireRequestSessionEffect(): Effect.Effect<
+  Session,
+  UnauthorizedError
+> {
+  return Effect.tryPromise({
+    try: requireRequestSession,
+    // Every failure of this read means the same thing to the caller: this
+    // request has no session it may act on.
+    catch: () => new UnauthorizedError()
+  })
 }

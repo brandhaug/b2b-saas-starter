@@ -53,7 +53,8 @@ function stubFeed(
     unreadCount: Effect.die('unused'),
     markRead: () => Effect.die('unused'),
     notifyUser: () => Effect.die('unused'),
-    prepareWorkspaceOwners: () => Effect.succeed({ writes: [], publish: Effect.void }),
+    prepareWorkspaceOwners: () =>
+      Effect.succeed({ writes: [], commit: Effect.void, publish: Effect.void }),
     notifyWorkspaceOwners: () => Effect.die('unused'),
     create: () => Effect.die('unused'),
     loadForEmail: () => Effect.succeed(found),

@@ -716,11 +716,22 @@ export function SeedWebhookEndpoints(
                 new WebhookEndpointNotFound({ endpointId: input.endpointId })
               )
             }
-            // Deliveries cascade with the endpoint row, same as the FK.
+            // Deliveries cascade with the endpoint row, and attempts cascade
+            // with their delivery — the same two hops D1's foreign keys make.
+            // Leaving the attempts behind would let a Seed-backed admin read
+            // find delivery evidence for a delivery that no longer exists.
             endpoints.splice(endpoints.indexOf(endpoint), 1)
+            const cascaded = new Set<string>()
             for (let i = deliveries.length - 1; i >= 0; i--) {
-              if (deliveries[i]?.endpointId === endpoint.id) {
+              const delivery = deliveries[i]
+              if (delivery?.endpointId === endpoint.id) {
+                cascaded.add(delivery.id)
                 deliveries.splice(i, 1)
+              }
+            }
+            for (let i = attempts.length - 1; i >= 0; i--) {
+              if (cascaded.has(attempts[i]?.deliveryId ?? '')) {
+                attempts.splice(i, 1)
               }
             }
             yield* audit.record({

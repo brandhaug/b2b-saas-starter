@@ -1,5 +1,6 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
+import { renderWithRouter } from '@/test/router-harness'
 import { AdminFailedDeliveries } from './admin-failed-deliveries'
 import {
   loadFailedDeliveriesServerFn,
@@ -59,13 +60,15 @@ describe('AdminFailedDeliveries', () => {
       status: 'refused',
       reason: 'Endpoint was disabled. Re-enable it in the workspace.'
     })
-    render(<AdminFailedDeliveries initialPage={initialPage} />)
-    expect(screen.getByText(/Auto-disable threshold reached/)).toBeTruthy()
-    expect(screen.getByText('First workspace')).toBeTruthy()
+    await renderWithRouter(<AdminFailedDeliveries initialPage={initialPage} />, {
+      path: '/admin'
+    })
+    expect(screen.getByText(/Auto-disable threshold reached/)).not.toBeNull()
+    expect(screen.getByText('First workspace')).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Replay whd_terminal' }))
     expect(
       await screen.findByText('Endpoint was disabled. Re-enable it in the workspace.')
-    ).toBeTruthy()
+    ).not.toBeNull()
   })
 
   it('acknowledges a queued copy without hiding the source or offering an immediate duplicate', async () => {
@@ -73,10 +76,12 @@ describe('AdminFailedDeliveries', () => {
       status: 'queued',
       deliveryId: 'whd_copy'
     })
-    render(<AdminFailedDeliveries initialPage={initialPage} />)
+    await renderWithRouter(<AdminFailedDeliveries initialPage={initialPage} />, {
+      path: '/admin'
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Replay whd_terminal' }))
-    expect(await screen.findByText(/Queued as whd_copy/)).toBeTruthy()
-    expect(screen.getByText('dead_lettered')).toBeTruthy()
+    expect(await screen.findByText(/Queued as whd_copy/)).not.toBeNull()
+    expect(screen.getByText('dead_lettered')).not.toBeNull()
     expect(
       screen
         .getByRole('button', { name: 'Replay whd_terminal' })
@@ -88,13 +93,15 @@ describe('AdminFailedDeliveries', () => {
     vi.mocked(loadFailedDeliveriesServerFn)
       .mockRejectedValueOnce(new Error('Session expired'))
       .mockResolvedValueOnce({ items: [], nextCursor: null })
-    render(<AdminFailedDeliveries initialPage={initialPage} />)
+    await renderWithRouter(<AdminFailedDeliveries initialPage={initialPage} />, {
+      path: '/admin'
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Older failures' }))
     expect(await screen.findByRole('alert')).toHaveProperty(
       'textContent',
       'Could not load failed deliveries.'
     )
-    expect(screen.getByText('dead_lettered')).toBeTruthy()
+    expect(screen.getByText('dead_lettered')).not.toBeNull()
     await waitFor(() =>
       expect(
         screen.getByRole('button', { name: 'Older failures' }).hasAttribute('disabled')
@@ -116,11 +123,13 @@ describe('AdminFailedDeliveries', () => {
     vi.mocked(replayFailedDeliveryServerFn).mockRejectedValue(
       new Error('Queue unavailable')
     )
-    render(<AdminFailedDeliveries initialPage={initialPage} />)
+    await renderWithRouter(<AdminFailedDeliveries initialPage={initialPage} />, {
+      path: '/admin'
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Replay whd_terminal' }))
     expect(
       await screen.findByText(/Replay failed\. A pending copy may already exist\./)
-    ).toBeTruthy()
+    ).not.toBeNull()
     expect(screen.queryByText(/Queued as/)).toBeNull()
   })
 
@@ -128,14 +137,16 @@ describe('AdminFailedDeliveries', () => {
     const response =
       deferred<Awaited<ReturnType<typeof replayFailedDeliveryServerFn>>>()
     vi.mocked(replayFailedDeliveryServerFn).mockReturnValue(response.promise)
-    render(<AdminFailedDeliveries initialPage={initialPage} />)
+    await renderWithRouter(<AdminFailedDeliveries initialPage={initialPage} />, {
+      path: '/admin'
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Replay whd_terminal' }))
     expect(await screen.findByText('Queuing…')).toHaveProperty('disabled', true)
     expect(screen.queryByText(/Queued as/)).toBeNull()
     await act(async () => {
       response.resolve({ status: 'refused', reason: 'Endpoint is disabled' })
     })
-    expect(screen.getByText('Endpoint is disabled')).toBeTruthy()
+    expect(screen.getByText('Endpoint is disabled')).not.toBeNull()
     expect(screen.getByRole('button', { name: 'Replay whd_terminal' })).toHaveProperty(
       'disabled',
       false
@@ -145,10 +156,12 @@ describe('AdminFailedDeliveries', () => {
   it('keeps rows visible and disables both paging controls while reading', async () => {
     const response = deferred<FailedDeliveriesPayload>()
     vi.mocked(loadFailedDeliveriesServerFn).mockReturnValue(response.promise)
-    render(<AdminFailedDeliveries initialPage={initialPage} />)
+    await renderWithRouter(<AdminFailedDeliveries initialPage={initialPage} />, {
+      path: '/admin'
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Older failures' }))
-    expect(await screen.findByText('Loading failures…')).toBeTruthy()
-    expect(screen.getByText('dead_lettered')).toBeTruthy()
+    expect(await screen.findByText('Loading failures…')).not.toBeNull()
+    expect(screen.getByText('dead_lettered')).not.toBeNull()
     expect(screen.getByRole('button', { name: 'Older failures' })).toHaveProperty(
       'disabled',
       true
@@ -160,6 +173,8 @@ describe('AdminFailedDeliveries', () => {
     await act(async () => {
       response.resolve({ items: [], nextCursor: null })
     })
-    expect(screen.getByText('No terminal webhook failures on this page.')).toBeTruthy()
+    expect(
+      screen.getByText('No terminal webhook failures on this page.')
+    ).not.toBeNull()
   })
 })

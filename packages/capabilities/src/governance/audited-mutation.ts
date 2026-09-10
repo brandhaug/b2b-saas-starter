@@ -1,4 +1,5 @@
-import { batch, type BatchStatement, RawD1 } from '@b2b-saas-starter/db/service'
+import { type BatchStatement, RawD1 } from '@b2b-saas-starter/db/service'
+import { type SQL } from 'drizzle-orm'
 import { Effect } from 'effect'
 
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -12,12 +13,18 @@ import { type RecordAuditEventInput } from './audit-event-log.ts'
  * hand-copy (`auditedEndpointUpdate`, `ApiTokenRegistry.create`/`revoke`, the
  * terminal delivery-attempt write). The atomicity caveat travels with it:
  * this is check-then-act, not atomic across the lookup and the batch — a
- * concurrent delete between the two can leave a phantom audit row (the UPDATE
- * no-ops while the audit insert commits; D1 batches discard per-statement
- * results, so the row count cannot gate the insert inside one batch). What
- * every caller gets by construction is workspace scoping: the pre-check and
- * the write's own where clause must re-apply the workspace key, so a foreign
- * workspace's row is never mutated even when the pre-check goes stale.
+ * concurrent delete between the two can leave a phantom audit row. D1 does
+ * report each statement's change count, but only once the batch has already
+ * committed, so the count cannot *gate* an unconditional audit insert from
+ * inside the same batch. A mutation that can lose a race states a
+ * {@link AuditedTransition} instead: the predicate travels into the audit
+ * insert's own `WHERE`, so the audit row commits only where the write won,
+ * and the change count is then read back to tell the winner from the loser.
+ *
+ * What every caller gets by construction is workspace scoping: the pre-check
+ * and the write's own where clause must re-apply the workspace key, so a
+ * foreign workspace's row is never mutated even when the pre-check goes
+ * stale.
  *
  * Mutations that match zero rows skip both writes **and** the audit event —
  * no phantom revocation, no phantom disable.
@@ -26,8 +33,9 @@ import { type RecordAuditEventInput } from './audit-event-log.ts'
 /** What a Live layer hands over once: the audit preparer and its own `orUnavailable` wrapper (so a 503 names the failing capability). The raw binding comes from the {@link RawD1} service instead. */
 type AuditedMutationDeps = {
   readonly prepareAuditRecord: (
-    input: RecordAuditEventInput
-  ) => Effect.Effect<BatchStatement>
+    input: RecordAuditEventInput,
+    condition?: SQL
+  ) => Effect.Effect<BatchStatement, CapabilityUnavailable>
   readonly unavailable: <A, E, R>(
     effect: Effect.Effect<A, E, R>
   ) => Effect.Effect<A, CapabilityUnavailable, R>
@@ -50,9 +58,38 @@ type AuditedMutationInput = {
    * it mints) adds them here.
    */
   readonly write: () => ReadonlyArray<BatchStatement>
+  /**
+   * Present when the write is a conditional single-row transition that a
+   * concurrent request can win instead. See {@link AuditedTransition}.
+   */
+  readonly transition?: AuditedTransition
 }
 
-/** One audited mutation: `true` when the batch ran, `false` when the pre-check found nothing. */
+/**
+ * A conditional single-row transition and everything that must commit only
+ * with the request that won it.
+ *
+ * `condition` must be true exactly for the winning transition (in practice an
+ * `EXISTS` naming the unique id the write stamps). It gates the audit insert
+ * and every statement in `alongside`, all in one batch with the write, so a
+ * loser commits nothing at all. The mutation then resolves `false`, read off
+ * the write's own change count — no racy re-read after the batch.
+ */
+type AuditedTransition = {
+  readonly condition: SQL
+  /**
+   * Statements the transition also commits — notification rows, a delivery
+   * attempt. Each must carry `condition` itself; the audit insert is the only
+   * statement this combinator gates on the caller's behalf.
+   */
+  readonly alongside: ReadonlyArray<BatchStatement>
+}
+
+/**
+ * One audited mutation. Without a `transition`: `true` when the batch ran,
+ * `false` when the pre-check found nothing. With one: `true` only when this
+ * request's write is the one that changed the row.
+ */
 type AuditedMutation = (
   input: AuditedMutationInput
 ) => Effect.Effect<boolean, CapabilityUnavailable>
@@ -73,30 +110,32 @@ export function auditedMutations(
         if (!(yield* input.matched)) {
           return false
         }
-        const auditStatement = yield* deps.prepareAuditRecord(input.auditEvent)
-        yield* deps.unavailable(batch([...input.write(), auditStatement]))
-        return true
-      }).pipe(Effect.provideService(RawD1, d1))
+        const auditStatement = yield* deps.prepareAuditRecord(
+          input.auditEvent,
+          input.transition?.condition
+        )
+        const statements: Array<BatchStatement> = [
+          ...input.write(),
+          ...(input.transition?.alongside ?? []),
+          auditStatement
+        ]
+        const results = yield* deps.unavailable(
+          Effect.tryPromise(() =>
+            d1.batch(
+              statements.map((statement) => {
+                const query = statement.toSQL()
+                return d1.prepare(query.sql).bind(...query.params)
+              })
+            )
+          )
+        )
+        if (input.transition === undefined) {
+          return true
+        }
+        // The write is the batch's first statement, and its change count is
+        // what separates the request that won the transition from the one
+        // that arrived a moment late.
+        return results[0]?.meta.changes === 1
+      })
   })
 }
-
-/**
- * Commit a conditional single-row transition and its conditional audit insert.
- * The audit predicate must match the transition's unique id. The D1 change
- * count identifies the winning request without a racy read after the batch.
- */
-export const commitAuditedTransition = Effect.fn('Audit.commitTransition')(function* (
-  write: BatchStatement,
-  records: ReadonlyArray<BatchStatement>
-) {
-  const d1 = yield* RawD1
-  const results = yield* Effect.tryPromise(() =>
-    d1.batch(
-      [write, ...records].map((statement) => {
-        const query = statement.toSQL()
-        return d1.prepare(query.sql).bind(...query.params)
-      })
-    )
-  )
-  return results[0]?.meta.changes === 1
-})

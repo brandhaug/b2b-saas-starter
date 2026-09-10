@@ -18,6 +18,7 @@ import {
   visibleToActor,
   type CreateNotificationInput,
   type NotificationEmailContext,
+  type PreparedNotificationCondition,
   type Notification,
   type PreparedWorkspaceOwnerNotifications,
   type NotificationFeedOptions,
@@ -144,10 +145,11 @@ export function SeedNotificationFeed(
       const prepareWorkspaceOwners = Effect.fn(
         'NotificationFeed.prepareWorkspaceOwners'
       )(function* (
-        input: NotifyWorkspaceOwnersInput
+        input: NotifyWorkspaceOwnersInput,
+        condition?: PreparedNotificationCondition
       ): Effect.fn.Return<PreparedWorkspaceOwnerNotifications> {
         if (input.workspaceId !== fixture.workspace.id) {
-          return { writes: [], publish: Effect.void }
+          return { writes: [], commit: Effect.void, publish: Effect.void }
         }
         const owners = fixture.members.filter(
           (member) =>
@@ -172,11 +174,26 @@ export function SeedNotificationFeed(
             }
           })
         }
+        // The condition is asked once, at commit, and the answer decides the
+        // emails too — Live's rows and emails are settled by one `WHERE`, so
+        // a Seed adapter that emailed regardless would drift.
+        let committed = false
         return {
+          // No D1 batch to join; the fixture's write is `commit`, which the
+          // producer runs at the same point Live's batch commits.
           writes: [],
-          publish: Effect.gen(function* () {
+          commit: Effect.gen(function* () {
+            if (condition !== undefined && !(yield* condition.holds)) {
+              return
+            }
+            committed = true
             // One store write for all rows, mirroring Live's single insert.
             yield* Ref.update(rows, (all) => [...all, ...created.map(({ row }) => row)])
+          }),
+          publish: Effect.gen(function* () {
+            if (!committed) {
+              return
+            }
             // One enqueue per row: a notification id addresses one (row,
             // recipient) pair, exactly like the Live fan-out.
             const traceparent = yield* currentTraceparent
@@ -349,7 +366,9 @@ export function SeedNotificationFeed(
           }),
         prepareWorkspaceOwners,
         notifyWorkspaceOwners: (input) =>
-          Effect.flatMap(prepareWorkspaceOwners(input), (prepared) => prepared.publish),
+          Effect.flatMap(prepareWorkspaceOwners(input), (prepared) =>
+            Effect.flatMap(prepared.commit, () => prepared.publish)
+          ),
         loadForEmail: (notificationId, recipientUserId) =>
           Effect.gen(function* () {
             const all = yield* Ref.get(rows)

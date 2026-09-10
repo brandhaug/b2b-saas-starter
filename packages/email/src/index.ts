@@ -163,29 +163,35 @@ function sendFailure(cause: unknown, to: string, subject: string): EmailSendErro
   })
 }
 
+/**
+ * Delivery to the log: the Optional Provider Module's inactive posture (ADR
+ * 0014). The rendered plain text goes out body and all, because log mode
+ * exists so flows that email a link (magic link, password reset,
+ * verification) stay finishable without a provider.
+ */
+function logDelivery(
+  message: EmailMessage
+): Effect.Effect<EmailDeliveryResult, EmailRenderError> {
+  return Effect.gen(function* () {
+    const rendered = yield* renderMessage(message)
+    yield* Effect.log('email.dispatched', {
+      mode: 'log',
+      to: message.to,
+      subject: message.subject,
+      text: rendered.text
+    })
+    return EmailDeliveryResult.make({
+      mode: 'log',
+      to: message.to,
+      subject: message.subject
+    })
+  })
+}
+
 export const LogEmailDispatcherLayer: Layer.Layer<EmailDispatcher> = Layer.succeed(
   EmailDispatcher
 )({
-  send: (message) =>
-    Effect.gen(function* () {
-      const rendered = yield* renderMessage(message)
-      yield* Effect.log('email.dispatched', {
-        mode: 'log',
-        to: message.to,
-        subject: message.subject,
-        // The rendered plain text, body and all: log mode exists so flows that
-        // email a link (magic link, password reset, verification) complete
-        // without a provider — a log line that names the recipient but drops
-        // the link leaves the flow unfinishable. Dev/test only; a configured
-        // EMAIL binding never takes this branch.
-        text: rendered.text
-      })
-      return EmailDeliveryResult.make({
-        mode: 'log',
-        to: message.to,
-        subject: message.subject
-      })
-    })
+  send: logDelivery
 })
 
 export function makeCloudflareEmailDispatcherLayer(
@@ -195,18 +201,13 @@ export function makeCloudflareEmailDispatcherLayer(
   return Layer.succeed(EmailDispatcher)({
     send: (message) =>
       Effect.gen(function* () {
-        const { html, text } = yield* renderMessage(message)
         const from = message.from || options?.defaultFrom
         if (!from) {
-          return yield* Effect.fail(
-            new EmailSendError({
-              message: 'email send failed: permanent',
-              to: message.to,
-              subject: message.subject,
-              failureKind: 'permanent'
-            })
-          )
+          // A binding without a sender address is unconfigured, not broken:
+          // the same call renders and logs instead of failing (ADR 0014).
+          return yield* logDelivery(message)
         }
+        const { html, text } = yield* renderMessage(message)
         const result = yield* Effect.tryPromise({
           try: () =>
             binding.send({

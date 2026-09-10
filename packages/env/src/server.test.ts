@@ -220,6 +220,18 @@ describe('auditRequiredEnv', () => {
     ).toEqual([])
   })
 
+  it('flags a trusted origin that carries embedded credentials', () => {
+    expect(
+      auditRequiredEnv({
+        ENVIRONMENT: 'production',
+        BETTER_AUTH_SECRET: realSecret,
+        BETTER_AUTH_URL: realUrl,
+        BETTER_AUTH_TRUSTED_ORIGINS:
+          'https://app.acme.test, https://user:pass@admin.acme.test'
+      }).problems
+    ).toEqual([{ key: 'BETTER_AUTH_TRUSTED_ORIGINS', reason: 'insecure' }])
+  })
+
   it('flags malformed trusted-origin entries', () => {
     for (const origins of [
       'not-a-url',

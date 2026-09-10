@@ -23,6 +23,7 @@ import { type SeedSsoConnection } from './governance/workspace-sso-connections.s
 import { type SystemUserAccount } from './governance/platform-user-admin.ts'
 import { type SeedMembership } from './governance/platform-user-admin.seed.ts'
 import { type SeedWorkspaceExportFixture } from './governance/workspace-export.seed.ts'
+import { type SeedPersonalAccountArtifacts } from './governance/personal-data-export.seed.ts'
 // The workspace record and roster live in a data-only leaf so client bundles
 // can read them without this module's Effect Schema graph.
 import {
@@ -98,6 +99,77 @@ export const seedAccountProfiles: ReadonlyArray<PersonalDataExport['user']> =
     createdAt: DateTime.formatIso(DateTime.makeUnsafe(seedAccountCreatedAt * 1000)),
     updatedAt: DateTime.formatIso(DateTime.makeUnsafe(seedAccountCreatedAt * 1000))
   }))
+
+/**
+ * The account artifacts a personal data export carries beside the profile:
+ * sessions, linked provider accounts, registered OAuth clients, standing
+ * consents, and passkeys. Live reads each from its own table; the fixture
+ * states them here so the Seed archive has the same five sections rather
+ * than five empty arrays.
+ *
+ * Only the demo owner has them — signing in as anyone else in local
+ * development produces an archive with the sections present and empty,
+ * which is exactly what Live produces for an account with no such rows.
+ */
+export const seedPersonalAccountArtifacts: ReadonlyArray<SeedPersonalAccountArtifacts> =
+  [
+    {
+      userId: demoUserIdentity.id,
+      sessions: [
+        {
+          id: 'ses_demo_local',
+          expiresAt: '2026-06-15T10:00:00.000Z',
+          createdAt: '2026-05-15T10:00:00.000Z',
+          updatedAt: '2026-05-15T10:00:00.000Z',
+          ipAddress: '127.0.0.1',
+          userAgent: 'Mozilla/5.0 (Macintosh) Starter/1.0'
+        }
+      ],
+      linkedAccounts: [
+        {
+          id: 'acc_demo_github',
+          providerId: 'github',
+          issuer: 'https://github.com',
+          accountId: 'demo-github-account',
+          createdAt: '2026-05-12T11:00:00.000Z',
+          updatedAt: '2026-05-12T11:00:00.000Z'
+        }
+      ],
+      oauthClients: [
+        {
+          clientId: 'https://mcp-client.example.com/oauth/client-metadata.json',
+          name: 'Example MCP client',
+          uri: 'https://mcp-client.example.com',
+          icon: null,
+          disabled: false,
+          scopes: ['openid', 'offline_access', 'mcp:read'],
+          createdAt: '2026-05-15T10:00:00.000Z',
+          updatedAt: '2026-05-15T10:00:00.000Z'
+        }
+      ],
+      oauthConsents: [
+        {
+          id: 'con_example_mcp',
+          clientId: 'https://mcp-client.example.com/oauth/client-metadata.json',
+          referenceId: seedWorkspaceRecord.id,
+          scopes: ['openid', 'offline_access', 'mcp:read'],
+          createdAt: '2026-05-15T10:00:00.000Z',
+          updatedAt: '2026-05-15T10:00:00.000Z'
+        }
+      ],
+      passkeys: [
+        {
+          id: 'pky_demo_laptop',
+          name: 'Demo laptop',
+          credentialID: 'demo-credential',
+          deviceType: 'singleDevice',
+          backedUp: false,
+          transports: 'internal',
+          createdAt: '2026-05-14T09:00:00.000Z'
+        }
+      ]
+    }
+  ]
 
 /** The (workspace, user) pairs the seed `changeWorkspaceRole` treats as real. */
 export const seedUserAdminMemberships: ReadonlyArray<SeedMembership> = seedMembers.map(

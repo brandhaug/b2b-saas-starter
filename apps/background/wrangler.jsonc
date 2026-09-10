@@ -93,8 +93,7 @@
         "max_batch_timeout": 5,
         "max_retries": 12,
         "max_concurrency": 2,
-        "retry_delay": 60,
-        "dead_letter_queue": "b2b-saas-starter-email-events-dlq"
+        "retry_delay": 60
       }
     ]
   },

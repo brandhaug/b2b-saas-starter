@@ -65,6 +65,16 @@ type SeedExportRow = {
   readonly requestedByUserId: string | null
   readonly downloadSecret: string
   archive: Uint8Array | null
+  /**
+   * The build the fixture owes this row, standing in for the queued job Live
+   * hands a worker. `request` leaves it here and returns a `pending`
+   * projection, exactly as Live does; the next read drains it, which is the
+   * fixture's version of a worker that drained the queue immediately.
+   * `null` once drained (or for a row that never had one).
+   */
+  deferredBuild: Effect.Effect<Uint8Array, CapabilityUnavailable> | null
+  /** The instant the deferred build is stamped as completing at. */
+  deferredAt: DateTime.Utc | null
 }
 
 /** Newest first, like Live's `ORDER BY created_at DESC`. */
@@ -167,7 +177,9 @@ export function SeedWorkspaceExports(options: {
               sizeBytes: built.success.length,
               failureReason: null
             },
-            archive: built.success
+            archive: built.success,
+            deferredBuild: null,
+            deferredAt: null
           })
         } else {
           rows.push({
@@ -181,10 +193,31 @@ export function SeedWorkspaceExports(options: {
               sizeBytes: null,
               failureReason: built.failure.reason
             },
-            archive: null
+            archive: null,
+            deferredBuild: null,
+            deferredAt: null
           })
         }
       }
+
+      /**
+       * Runs every build `request` deferred. Reads call this first, so a
+       * caller that looks again sees what a drained queue would have left —
+       * while `complete` and `fail` still find the row pending, the way they
+       * would against a worker that has not got to it yet.
+       */
+      const drainDeferredBuilds = Effect.gen(function* () {
+        for (const row of rows) {
+          const build = row.deferredBuild
+          const at = row.deferredAt
+          row.deferredBuild = null
+          row.deferredAt = null
+          if (build === null || at === null || row.record.status !== 'pending') {
+            continue
+          }
+          yield* completeRow(row, yield* build, at, audit, feed)
+        }
+      })
 
       function findPending(exportId: string, workspaceId: string) {
         return rows.find(
@@ -202,6 +235,7 @@ export function SeedWorkspaceExports(options: {
         list: Effect.fn('WorkspaceExports.list')(function* () {
           const ctx = yield* WorkspaceContext
           yield* requireProduct(ctx.workspace.id)
+          yield* drainDeferredBuilds
           return rows
             .filter((row) => row.workspaceId === ctx.workspace.id)
             .toSorted(byRequestedAtDesc)
@@ -227,7 +261,9 @@ export function SeedWorkspaceExports(options: {
             workspaceName: ctx.workspace.name,
             requestedByUserId: ctx.actor?.userId ?? null,
             downloadSecret: yield* newCapabilityId('sec'),
-            archive: null
+            archive: null,
+            deferredBuild: null,
+            deferredAt: null
           }
           rows.push(row)
           yield* audit.record({
@@ -239,16 +275,23 @@ export function SeedWorkspaceExports(options: {
             targetId: id,
             metadata: {}
           })
-          // No queue: the background half runs inline, against the requester's
-          // own context, and the row lands `ready` before `request` returns.
-          const archive = yield* buildArchive(id, requestedAt)
-          yield* completeRow(row, archive, requestedAt, audit, feed)
+          // The projection the caller is handed is the one Live hands back:
+          // a `pending` export whose artifact does not exist yet. The
+          // fixture has no queue, so the build waits here and the next read
+          // drains it — the state a caller sees is the same either way.
+          // The build reads the workspace's own data, so it carries the
+          // requester's context with it rather than the next reader's.
+          row.deferredBuild = buildArchive(id, requestedAt).pipe(
+            Effect.provideService(WorkspaceContext, ctx)
+          )
+          row.deferredAt = requestedAt
           return row.record
         })(),
         issueDownloadLink: Effect.fn('WorkspaceExports.issueDownloadLink')(function* (
           input: IssueWorkspaceExportDownloadInput
         ) {
           const ctx = yield* WorkspaceContext
+          yield* drainDeferredBuilds
           const row = rows.find(
             (candidate) =>
               candidate.record.id === input.exportId &&
@@ -290,12 +333,24 @@ export function SeedWorkspaceExports(options: {
             completedAt: DateTime.formatIso(completedAt),
             failureReason: input.reason
           }
+          // The same event Live commits beside the transition: a settled
+          // failure is the outcome an operator most needs a trail for.
+          yield* audit.record({
+            workspaceId: row.workspaceId,
+            actorUserId: null,
+            actorType: 'system',
+            eventType: 'workspace.export_failed',
+            targetType: 'workspace_export',
+            targetId: row.record.id,
+            metadata: { reason: input.reason }
+          })
           return true
         }),
         openDownload: Effect.fn('WorkspaceExports.openDownload')(function* (
           input: OpenWorkspaceExportDownloadInput
         ) {
           const now = yield* DateTime.now
+          yield* drainDeferredBuilds
           const row = rows.find((candidate) => candidate.record.id === input.exportId)
           if (row) {
             yield* requireProduct(row.workspaceId)

@@ -52,6 +52,7 @@ describe('stageResourceNames', () => {
       names.billingQueue,
       names.billingDeadLetterQueue,
       names.notificationEmailQueue,
+      names.workspaceExportBucket,
       names.worker('web'),
       names.worker('api'),
       names.worker('background')
@@ -66,11 +67,31 @@ describe('stageResourceNames', () => {
   })
 })
 
+/**
+ * Seconds between runs of a schedule whose only varying field is the minute —
+ * enough to compare a repair cadence against a retry ladder without pulling in
+ * a cron library.
+ */
+function cronIntervalSeconds(cron: string): number {
+  const [minute, ...rest] = cron.split(' ')
+  if (rest.length !== 4 || rest.some((field) => field !== '*')) {
+    throw new Error(`Only minute-field schedules are supported here: ${cron}`)
+  }
+  const step = /^\*(?:\/(\d+))?$/.exec(minute ?? '')
+  if (step === null) {
+    throw new Error(`Unsupported cron minute field: ${cron}`)
+  }
+  return Number(step[1] ?? '1') * 60
+}
+
 describe('billing recovery bindings', () => {
-  it('keeps bounded reconciliation and queue recovery wired', () => {
-    expect(billingReconciliationCron).toBe('* * * * *')
-    expect(billingConsumerSettings.maxRetries).toBe(6)
-    expect(billingConsumerSettings.retryDelay).toBe(30)
+  it('reconciles more often than the seat-sync consumer can exhaust its retries', () => {
+    // Reconciliation is the repair pass for a seat sync that never converged.
+    // It has to come round again before the consumer has finished giving up,
+    // or a workspace waits out the whole retry ladder with a stale seat count.
+    const ladderSeconds =
+      billingConsumerSettings.maxRetries * (billingConsumerSettings.retryDelay ?? 0)
+    expect(cronIntervalSeconds(billingReconciliationCron)).toBeLessThan(ladderSeconds)
   })
 })
 

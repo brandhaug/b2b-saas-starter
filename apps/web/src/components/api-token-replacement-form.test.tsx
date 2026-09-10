@@ -58,12 +58,12 @@ describe('ApiTokenReplacementForm', () => {
       }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Show Replacement API token' }))
-    expect(screen.getByText('bsk_replacement_secret')).toBeTruthy()
+    expect(screen.getByText('bsk_replacement_secret')).not.toBeNull()
     expect(
       screen.getByText(
         /Update your clients before the old credential expires at Sep 6, 2026, 12:00 PM UTC/
       )
-    ).toBeTruthy()
+    ).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Close replacement' }))
     expect(onClose).toHaveBeenCalledOnce()
   })

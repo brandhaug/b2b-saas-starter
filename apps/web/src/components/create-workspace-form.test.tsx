@@ -67,7 +67,7 @@ describe('CreateWorkspaceForm', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Create workspace' }))
 
-    expect(await screen.findByText(/Use lowercase letters/)).toBeTruthy()
+    expect(await screen.findByText(/Use lowercase letters/)).not.toBeNull()
     expect(createWorkspace).not.toHaveBeenCalled()
   })
 

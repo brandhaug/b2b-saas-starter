@@ -9,7 +9,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { Effect, Layer } from 'effect'
 
-import { fixtureSession } from '@/test/fixture-session'
+import { fixtureAuthModule } from '@/test/fixture-session'
 import {
   acceptInvitationHandler,
   cancelInvitationHandler,
@@ -52,10 +52,9 @@ const env = vi.hoisted(() => ({
   outbox: [] as Array<EmailMessage>
 }))
 
-vi.mock('./auth', async (importOriginal) => ({
-  ...(await importOriginal<typeof AuthModule>()),
-  requireRequestSession: async () => fixtureSession(env)
-}))
+vi.mock('./auth', async (importOriginal) =>
+  fixtureAuthModule(await importOriginal<typeof AuthModule>(), env)
+)
 
 vi.mock('./request-origin', () => ({
   requestOrigin: () => env.origin

@@ -33,7 +33,7 @@ describe('DataTable', () => {
         <DataTableContent />
       </DataTable>
     )
-    screen.getByText('No modules yet.')
+    expect(screen.getByText('No modules yet.')).not.toBeNull()
   })
 
   it('filters rows through the global filter input', () => {

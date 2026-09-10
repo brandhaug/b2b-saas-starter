@@ -8,7 +8,12 @@ import {
   LIVE_SUITE_TIMEOUT,
   TestDatabase
 } from '../testing/live-harness.ts'
-import { AUDIT_EVENT_PAGE_SIZE, AuditEventLog } from './audit-event-log.ts'
+import {
+  AUDIT_ACTOR_TYPE_INVALID,
+  AUDIT_EVENT_PAGE_SIZE,
+  AuditEventLog
+} from './audit-event-log.ts'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { auditEventLogContractCases } from './audit-event-log.contract.ts'
 
 layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live audit event log', (it) => {
@@ -76,6 +81,44 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live audit event log', (it
             expect(none.nextCursor).toBe(null)
           })
         )
+      )
+    )
+  })
+
+  // Live-only: the Seed adapter has no store whose column could hold an
+  // uninterpretable value, and every in-repo caller is typed. What this
+  // covers is the boundary an untyped one would arrive at — a decoded
+  // payload, a future consumer without `satisfies` — where the column has no
+  // CHECK constraint to fall back on.
+  describe('live audit event provenance', () => {
+    it.effect('refuses to record or prepare a write with no actor type', () =>
+      inWorkspace(
+        'live-lab',
+        Effect.gen(function* () {
+          const audit = yield* AuditEventLog
+          const input = {
+            workspaceId: 'wrk_live',
+            eventType: 'api_token.created',
+            targetType: 'api_token',
+            targetId: 'tok_no_provenance'
+          }
+          const before = (yield* audit.list()).items.length
+
+          // @ts-expect-error Deliberately exercise an untyped caller omitting actorType.
+          const recorded = yield* Effect.flip(audit.record(input))
+          expect(recorded).toBeInstanceOf(CapabilityUnavailable)
+          expect(recorded.reason).toBe(AUDIT_ACTOR_TYPE_INVALID)
+
+          // The batch preparer refuses the same input, so a mutation cannot
+          // commit alongside an audit row nobody can read.
+          // @ts-expect-error The atomic-write preparer must reject the same malformed input.
+          const prepared = yield* Effect.flip(audit.prepareRecord(input))
+          expect(prepared).toBeInstanceOf(CapabilityUnavailable)
+          expect(prepared.reason).toBe(AUDIT_ACTOR_TYPE_INVALID)
+
+          expect((yield* audit.list()).items).toHaveLength(before)
+        }),
+        { userId: 'usr_owner' }
       )
     )
   })

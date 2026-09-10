@@ -25,8 +25,12 @@ For issue/spec implementation, follow the [implement skill](.agents/skills/imple
 | Authentication    | [packages/auth/AGENTS.md](packages/auth/AGENTS.md)                     |
 | Authorization     | [packages/authz/AGENTS.md](packages/authz/AGENTS.md)                   |
 | Email             | [packages/email/AGENTS.md](packages/email/AGENTS.md)                   |
+| Assistant         | [packages/ai/AGENTS.md](packages/ai/AGENTS.md)                         |
 | Environment       | [packages/env/AGENTS.md](packages/env/AGENTS.md)                       |
 | Observability     | [packages/logger/AGENTS.md](packages/logger/AGENTS.md)                 |
+| Failures          | [packages/failure/AGENTS.md](packages/failure/AGENTS.md)               |
+| Rate limiting     | [packages/rate-limit/AGENTS.md](packages/rate-limit/AGENTS.md)         |
+| Localization      | [packages/i18n/AGENTS.md](packages/i18n/AGENTS.md)                     |
 | Lint rules        | [packages/oxlint-plugin/AGENTS.md](packages/oxlint-plugin/AGENTS.md)   |
 
 ## Setup

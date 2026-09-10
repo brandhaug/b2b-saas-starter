@@ -8,7 +8,8 @@ Cloudflare Worker for external REST clients and MCP. Serves the `StarterApi` con
 
 ## Changes
 
-- Change the contract in `packages/api` first, then the handler. An endpoint's error channel stays a subset of its contract errors.
+- Change the contract in `packages/api` first, then the handler. An endpoint's error channel stays a subset of its contract errors, and the contract declares no error the handlers cannot construct.
+- Protocol-driving tests share `src/test-utils.ts` (`jsonBody`, `mcpClient`); do not re-declare those helpers per file.
 - Yield stable capability services once in the handler layer. Resolve `WorkspaceContext`, actor, request origin, and log scope per request. Translate expected domain errors at the route boundary; let contract schemas encode declared failures.
 - A handler is `observed(...)` around `enforcePermission(permission, slug)` plus one capability call. Auth and the bucket come from `BearerAuth`, so no handler reads `Authorization`.
 - Endpoints name permissions, never scopes. [`authz`](../../packages/authz/AGENTS.md) owns the scope-to-permission map, so a token and a web session resolve through one `authorize()`.

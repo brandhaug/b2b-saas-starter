@@ -3,6 +3,7 @@ import { walkKeysetPages } from '@b2b-saas-starter/capabilities/internal/keyset-
 import { describe, expect, it } from '@effect/vitest'
 import { Effect, Schema } from 'effect'
 import { buildWebHandler } from './http.ts'
+import { jsonBody } from './test-utils.ts'
 
 /**
  * The REST paging contract, end to end over the worker's web handler
@@ -25,12 +26,6 @@ function get(path: string): Request {
 
 function send(request: Request): Effect.Effect<Response> {
   return Effect.promise(() => buildWebHandler({}).handler(request))
-}
-
-function jsonBody<S extends Schema.Top>(response: Response, schema: S) {
-  return Effect.promise(() => response.json()).pipe(
-    Effect.flatMap((body) => Schema.decodeUnknownEffect(schema)(body))
-  )
 }
 
 /** Walks one endpoint cursor-to-cursor, collecting item ids. */

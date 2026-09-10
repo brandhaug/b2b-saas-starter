@@ -1,4 +1,5 @@
 import { hasValue, type ProviderEnvOf, type ServerEnv } from './server.ts'
+import { classifyTrustedOrigin, trustedOriginEntries } from './trusted-origin.ts'
 
 /** Minimum transport security accepted at a Cloudflare Worker boundary. */
 const MINIMUM_TLS_VERSION = 'TLSv1.2'
@@ -140,9 +141,26 @@ export function auditSecureEndpoints(
   }
   const origins = source.BETTER_AUTH_TRUSTED_ORIGINS
   if (hasValue(origins)) {
-    for (const origin of origins.split(',')) {
-      const value = origin.trim()
-      check('BETTER_AUTH_TRUSTED_ORIGINS', value)
+    for (const origin of trustedOriginEntries(origins)) {
+      // A wildcard host (`*.example.com`) is the scheme-less form Better Auth
+      // accepts. It carries no scheme to judge, so it is neither malformed nor
+      // insecure — running it through `URL.parse` used to refuse every
+      // production boot whose trusted origins Better Auth itself accepted.
+      const kind = classifyTrustedOrigin(origin)
+      if (kind === 'wildcard') {
+        continue
+      }
+      // `isSecureEndpoint` stays the rule for anything with a scheme, so a
+      // trusted origin is held to exactly what every other configured
+      // endpoint is: https, and no userinfo.
+      if (kind === 'https' && isSecureEndpoint(origin)) {
+        continue
+      }
+      if (kind === 'malformed') {
+        problems.push({ key: 'BETTER_AUTH_TRUSTED_ORIGINS', reason: 'malformed' })
+        continue
+      }
+      problems.push({ key: 'BETTER_AUTH_TRUSTED_ORIGINS', reason: 'insecure' })
     }
   }
   return problems

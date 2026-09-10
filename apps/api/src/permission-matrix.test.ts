@@ -4,6 +4,7 @@ import { BearerAuth, rateLimitBucketFor, StarterApi } from '@b2b-saas-starter/ap
 import { describe, expect, it } from '@effect/vitest'
 import { Effect, Schema } from 'effect'
 import { buildWebHandler } from './http.ts'
+import { jsonBody } from './test-utils.ts'
 import {
   mirroredRestPath,
   mutationOperations,
@@ -61,12 +62,6 @@ function makeRequest(
 
 function send(request: Request): Effect.Effect<Response> {
   return Effect.promise(() => buildWebHandler({}).handler(request))
-}
-
-function jsonBody<S extends Schema.Top>(response: Response, schema: S) {
-  return Effect.promise(() => response.json()).pipe(
-    Effect.flatMap((body) => Schema.decodeUnknownEffect(schema)(body))
-  )
 }
 
 type GatedOperation = {

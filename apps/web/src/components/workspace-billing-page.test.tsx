@@ -266,7 +266,7 @@ describe('WorkspaceBillingPage route', () => {
       { checkoutReturn: true, reconcileCheckoutReturn: reconcile }
     )
     await waitFor(() =>
-      expect(screen.getByText(/billing updates are pending/i)).toBeTruthy()
+      expect(screen.getByText(/billing updates are pending/i)).not.toBeNull()
     )
     deferredReconcile.resolve({
       workspaceId: 'wrk_starter',
@@ -284,7 +284,7 @@ describe('WorkspaceBillingPage route', () => {
       { ...fixture(), stripeConfigured: true },
       { checkoutReturn: true, reconcileCheckoutReturn: failing }
     )
-    await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy())
+    await waitFor(() => expect(screen.getByRole('alert')).not.toBeNull())
   })
 
   it('does not reconcile a crafted return for an unpermitted viewer', async () => {
@@ -305,7 +305,7 @@ describe('WorkspaceBillingPage route', () => {
 
   it('keeps partially filled and full selections editable when pricing is unavailable', async () => {
     await renderBilling({ ...fixture(), stripeConfigured: true })
-    expect(screen.getByText(/Plan pricing is temporarily unavailable/)).toBeTruthy()
+    expect(screen.getByText(/Plan pricing is temporarily unavailable/)).not.toBeNull()
     expect(checkbox('Token A').getAttribute('aria-checked')).toBe('true')
     fireEvent.click(checkbox('Token B'))
     await saveSelection()
@@ -409,8 +409,8 @@ describe('WorkspaceBillingPage route', () => {
 
   it('explains partial restrictions to a member after terminal cancellation', async () => {
     await renderBilling({ ...fixture(), viewer: { role: 'member' } })
-    expect(screen.getByText(/Some workspace features are restricted/)).toBeTruthy()
-    expect(screen.getByText(/Contact an owner or admin/)).toBeTruthy()
+    expect(screen.getByText(/Some workspace features are restricted/)).not.toBeNull()
+    expect(screen.getByText(/Contact an owner or admin/)).not.toBeNull()
     expect(screen.queryByRole('button', { name: /save selection/i })).toBeNull()
   })
 })
@@ -498,7 +498,7 @@ it.each(statuses)(
         trialEnd: '2026-09-02T00:00:00.000Z'
       }
     })
-    expect(screen.getByText(scenario.expected)).toBeTruthy()
+    expect(screen.getByText(scenario.expected)).not.toBeNull()
     if (scenario.status !== 'unpaid') {
       expect(screen.queryByText(/Stripe marked this subscription unpaid/)).toBeNull()
     }

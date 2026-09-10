@@ -23,6 +23,10 @@ All three Workers ──> packages/capabilities ────┤
 | [Authorization](packages/authz/AGENTS.md)           | Permissions, workspace/system roles, token scope mapping, and guards. No database or auth-instance dependency.                      |
 | [Email](packages/email/AGENTS.md)                   | Templates and the outbound sending boundary.                                                                                        |
 | [Email delivery](packages/email-delivery/AGENTS.md) | Send claims and sanitized delivery evidence for auth, invitations, and notifications.                                               |
+| [HTTP contract](packages/api/AGENTS.md)             | The `StarterApi` Effect HTTP contract every REST and MCP surface derives from.                                                      |
+| [Environment](packages/env/AGENTS.md)               | `ServerEnv` as the one env schema, plus the pure required-env and transport-security audits.                                        |
+| [Observability](packages/logger/AGENTS.md)          | Wide events, traces, RED metrics, and per-invocation OTLP export for all three Workers.                                             |
+| [Localization](packages/i18n/AGENTS.md)             | Message catalogs, Paraglide compilation, and locale resolution for the web app and emails.                                          |
 
 Auth and capabilities are siblings; neither imports the other. Apps provide structural bindings to plugin-backed capabilities. Route handlers and components gate access and adapt transport data; business behavior belongs in capabilities.
 

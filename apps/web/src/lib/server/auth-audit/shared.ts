@@ -75,7 +75,8 @@ const decodeRequestBody = Schema.decodeUnknownSync(RequestBody)
  * rather than asserted.
  */
 export function readRequestUserId(request: {
-  readonly json: <T>() => Promise<T>
+  // oxlint-disable-next-line anti-slop/no-unknown-returns -- `json()` IS the untrusted I/O boundary; `decodeRequestBody` below is the parse step that establishes the shape
+  readonly json: () => Promise<unknown>
 }): Effect.Effect<string | null, AuthAuditBodyUnreadable> {
   return Effect.tryPromise({
     try: async () => {
@@ -131,8 +132,14 @@ export type AuthAuditContext = {
    * successful credential change (`credential-change-notification.ts`).
    */
   readonly actorEmail?: string
-  /** A clone of the request, gathered before the handler consumed the body. Only `json()` is read. */
-  readonly request?: { readonly json: <T>() => Promise<T> }
+  /**
+   * A clone of the request, gathered before the handler consumed the body.
+   * Only `json()` is read, and it answers `unknown`: the body is an untrusted
+   * boundary value, so `decodeRequestBody` establishes its shape rather than a
+   * caller-chosen type parameter asserting it.
+   */
+  // oxlint-disable-next-line anti-slop/no-unknown-returns -- see `readRequestUserId`: `json()` is the untrusted boundary and the schema decode is the parse step
+  readonly request?: { readonly json: () => Promise<unknown> }
 }
 
 /**

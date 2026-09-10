@@ -51,7 +51,6 @@ export const prepareTokenSelectionRotation = Effect.fn(
   'ResourceSelections.prepareTokenRotation'
 )(function* (workspaceId: string, fromId: string, toId: string, now: string) {
   const db = yield* Database
-  yield* readSelection(workspaceId)
   return db
     .update(workspaceResourceSelections)
     .set({
@@ -100,6 +99,19 @@ export const LiveResourceEntitlements: Layer.Layer<
         webhookEndpointIds: endpoints.map((row) => row.id)
       }
     })
+    // Admission counts every stored endpoint, including disabled ones, so an
+    // over-limit workspace sees the same ceiling the create refusal enforces.
+    const storedWebhookIds = Effect.fn('ResourceSelections.storedWebhooks')(function* (
+      workspaceId: string
+    ) {
+      const rows = yield* unavailable(
+        db
+          .select({ id: webhookEndpoints.id })
+          .from(webhookEndpoints)
+          .where(eq(webhookEndpoints.workspaceId, workspaceId))
+      )
+      return rows.map((row) => row.id)
+    })
     const getSelectionForWorkspace = Effect.fn(
       'ResourceEntitlements.getSelectionForWorkspace'
     )(function* (workspaceId: string) {
@@ -118,11 +130,17 @@ export const LiveResourceEntitlements: Layer.Layer<
       const selected = yield* readSelection(workspaceId).pipe(
         Effect.provideService(Database, db)
       )
+      const eligibleIds = resourceIds(inventory, resource)
+      let storedIds = eligibleIds
+      if (resource === 'webhook_endpoint') {
+        storedIds = yield* storedWebhookIds(workspaceId)
+      }
       return resourceEntitlement(
         yield* billing.currentPlanForWorkspace(workspaceId),
         resource,
-        resourceIds(inventory, resource),
-        normalizeSelection(selected, inventory)
+        eligibleIds,
+        normalizeSelection(selected, inventory),
+        storedIds
       )
     })
     const summarize = Effect.fn('ResourceEntitlements.summarize')(function* (input: {

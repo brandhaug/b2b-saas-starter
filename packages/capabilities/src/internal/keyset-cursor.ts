@@ -35,10 +35,10 @@ export type ListPageInput = {
 }
 
 /** The page size every paged read serves when the caller names none. */
-export const DEFAULT_PAGE_LIMIT = 50
+const DEFAULT_PAGE_LIMIT = 50
 
 /** The largest page any paged read will serve, whatever the caller asks. */
-export const MAX_PAGE_LIMIT = 200
+const MAX_PAGE_LIMIT = 200
 
 export function clampPageLimit(limit: number | undefined): number {
   if (limit === undefined || Number.isNaN(limit)) {

@@ -26,6 +26,7 @@ async function renderPage(
     <WorkspacesPage
       workspaces={workspaces}
       user={user}
+      turnstileSiteKey={null}
       onCreated={() => undefined}
       {...(createWorkspace === undefined ? {} : { createWorkspace })}
     />,

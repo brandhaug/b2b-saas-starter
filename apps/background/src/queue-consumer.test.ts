@@ -36,6 +36,40 @@ describe('consumeBatch', () => {
       )
     )
   })
+
+  it.effect('holds every message in the queue while maintenance mode is on', () => {
+    const retry = vi.fn()
+    const perMessage = vi.fn(() => Effect.succeed<'ack'>('ack'))
+    const message = {
+      id: 'message-2',
+      timestamp: DateTime.toDate(DateTime.makeUnsafe(0)),
+      body: {},
+      attempts: 1,
+      ack: vi.fn(),
+      retry
+    } satisfies Message<unknown>
+    const batch = {
+      queue: 'b2b-saas-starter-webhooks',
+      messages: [message],
+      metadata: { metrics: { backlogCount: 0, backlogBytes: 0 } },
+      retryAll: vi.fn(),
+      ackAll: vi.fn()
+    } satisfies MessageBatch<unknown>
+
+    return Effect.tryPromise(() =>
+      consumeBatch({ MAINTENANCE_MODE: 'true' }, batch, perMessage)
+    ).pipe(
+      Effect.tap(() =>
+        Effect.sync(() => {
+          // Acking here would discard customer work while an operator restores
+          // the shared database, so the batch is neither consumed nor acked.
+          expect(perMessage).not.toHaveBeenCalled()
+          expect(message.ack).not.toHaveBeenCalled()
+          expect(retry).toHaveBeenCalledWith({ delaySeconds: 60 })
+        })
+      )
+    )
+  })
 })
 
 describe('background HTTP transport', () => {

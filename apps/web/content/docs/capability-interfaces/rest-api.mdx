@@ -53,7 +53,7 @@ Each route declares a Cloudflare RateLimit bucket (`rest_read`, `rest_write`, `a
 
 ## Error model
 
-Tagged errors like `WorkspaceNotFound`, `Unauthorized`, `RateLimited`, and `InternalError` carry an `httpApiStatus` annotation so they map to HTTP status codes through one mapping. MCP uses the same guard status mapping at its transport gate and returns expected operation refusals as tool errors. Declare each operation's errors in its contract and handle them at the transport boundary.
+Tagged errors like `WorkspaceNotFound`, `Unauthorized`, and `RateLimited` carry an `httpApiStatus` annotation so they map to HTTP status codes through one mapping. MCP uses the same guard status mapping at its transport gate and returns expected operation refusals as tool errors. Declare each operation's errors in its contract and handle them at the transport boundary.
 
 ## OpenAPI and Scalar
 

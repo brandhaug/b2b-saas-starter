@@ -18,13 +18,16 @@ type WebhookUrlValidation =
 const IPV4_PATTERN = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/
 
 function isPrivateIpv4(octets: ReadonlyArray<number>): boolean {
-  const [a, b = 0] = octets
+  const [a, b = 0, c = 0] = octets
   if (a === 0) {
     return true
   } // "this network" (0.0.0.0/8)
   if (a === 10) {
     return true
   } // 10.0.0.0/8
+  if (a === 100 && b >= 64 && b <= 127) {
+    return true
+  } // carrier-grade NAT (100.64.0.0/10)
   if (a === 127) {
     return true
   } // loopback (127.0.0.0/8)
@@ -34,14 +37,20 @@ function isPrivateIpv4(octets: ReadonlyArray<number>): boolean {
   if (a === 172 && b >= 16 && b <= 31) {
     return true
   } // 172.16.0.0/12
+  if (a === 192 && b === 0 && c === 0) {
+    return true
+  } // IETF protocol assignments (192.0.0.0/24)
   if (a === 192 && b === 168) {
     return true
   } // 192.168.0.0/16
+  if (a !== undefined && a >= 224 && a <= 239) {
+    return true
+  } // multicast (224.0.0.0/4)
   return false
 }
 
 const PRIVATE_RANGE_REASON =
-  'IP-literal hosts in private, loopback, or link-local ranges are not allowed'
+  'IP-literal hosts in private, loopback, link-local, carrier-grade NAT, or multicast ranges are not allowed'
 
 function checkIpv4Literal(hostname: string): string | null {
   const match = IPV4_PATTERN.exec(hostname)
@@ -103,9 +112,10 @@ function checkIpv6Literal(hostname: string): string | null {
  * against an internal target after a rule change.
  *
  * Rules: https only, no credentials in the URL, no `localhost` or single-label
- * hostnames, and no IP-literal hosts in private, loopback, or link-local
- * ranges (10/8, 172.16/12, 192.168/16, 127/8, 169.254/16, 0/8, ::1, fc00::/7,
- * fe80::/10). Non-default ports are allowed. DNS-rebinding protection
+ * hostnames, and no IP-literal hosts in private, loopback, link-local,
+ * carrier-grade NAT, or multicast ranges (10/8, 172.16/12, 192.168/16, 127/8,
+ * 169.254/16, 0/8, 100.64/10, 192.0.0/24, 224/4, ::1, fc00::/7, fe80::/10).
+ * Non-default ports are allowed. DNS-rebinding protection
  * (resolving the hostname and pinning the connection to a vetted address) is
  * deliberately out of scope for the starter.
  */

@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { BoxesIcon, ChevronsUpDownIcon } from 'lucide-react'
-import { viewerCan, type Viewer } from '@/lib/permissions'
+import { adminSystemRole, viewerCan, type Viewer } from '@/lib/permissions'
 import { type SidebarWorkspace } from '@/lib/workspace-directory'
 import { WorkspaceSwitcher } from '@/components/workspace-switcher'
 import {
@@ -72,7 +72,7 @@ export function WorkspaceNav({
     }
   }
   for (const row of shellNav()) {
-    if (row.adminOnly === true && (preview || systemRole !== 'admin')) {
+    if (row.adminOnly === true && (preview || systemRole !== adminSystemRole)) {
       continue
     }
     if (row.permission !== undefined && !viewerCan(viewer, row.permission)) {

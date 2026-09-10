@@ -2,11 +2,10 @@ import { type CreatedWorkspace } from '@b2b-saas-starter/capabilities/governance
 import { useRef, useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 import { FormTextField } from '@/components/form-text-field'
-import { Button } from '@/components/ui/button'
+import { FormSubmitButton } from '@/components/form-submit-button'
 import { createWorkspaceServerFn } from '@/lib/server/workspace-lifecycle'
 import { callServerFn } from '@/lib/server-call'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Spinner } from '@/components/ui/spinner'
 import { validateWorkspaceName } from '@/lib/workspace-name'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
@@ -123,23 +122,7 @@ export function CreateWorkspaceForm({
           />
         )}
       </form.Field>
-      <form.Subscribe
-        selector={(state): readonly [boolean, boolean] => [
-          state.canSubmit,
-          state.isSubmitting
-        ]}
-      >
-        {([canSubmit, isSubmitting]) => (
-          <Button
-            type="submit"
-            disabled={!canSubmit || isSubmitting}
-            className="justify-self-start"
-          >
-            {isSubmitting ? <Spinner data-icon="inline-start" /> : null}
-            {m.form_create_workspace()}
-          </Button>
-        )}
-      </form.Subscribe>
+      <FormSubmitButton form={form} label={m.form_create_workspace()} />
       {submitError ? (
         <Alert variant="destructive">
           <AlertDescription>{submitError}</AlertDescription>

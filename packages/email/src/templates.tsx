@@ -175,8 +175,6 @@ WorkspaceInvitationEmail.PreviewProps = {
   inviteUrl: 'http://localhost:3071/invitations/accept?invitation=preview-invitation'
 } satisfies WorkspaceInvitationEmailProps
 
-export default WorkspaceInvitationEmail
-
 type PasswordResetEmailProps = {
   readonly url: string
   readonly locale?: Locale | undefined

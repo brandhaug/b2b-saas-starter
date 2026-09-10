@@ -1,0 +1,21 @@
+// The repo-root TypeScript that belongs to no workspace: the deploy
+// entrypoint, the operator CLIs, the CI scripts, and the root tool configs.
+// `vp run -r typecheck` walks workspaces, so without this project these files
+// were the only TypeScript in the repo nothing type-checked. `test:scripts`
+// runs it before the script tests, so `pnpm run check` covers it.
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    // Node 24 ships ES2025 built-ins (`RegExp.escape`) the CLIs use; the
+    // shared base targets the oldest runtime the app packages support.
+    "lib": ["ES2025", "DOM", "DOM.Iterable"]
+  },
+  "include": [
+    "alchemy.run.ts",
+    "lint.config.ts",
+    "vite.config.ts",
+    "scripts/**/*.ts",
+    ".github/scripts/**/*.ts"
+  ]
+}

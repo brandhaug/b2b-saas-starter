@@ -45,11 +45,11 @@ describe('ApiTokensPanel', () => {
 
   it('offers the create form and the revoke control to a role that holds both', async () => {
     await renderPanel({ role: 'owner' })
-    expect(screen.getByRole('button', { name: 'Revoke' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Revoke' })).not.toBeNull()
     expect(screen.queryByText('Your role cannot mint tokens.')).toBeNull()
     expect(screen.queryByText('Your role cannot revoke tokens.')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Create a token' }))
-    expect(screen.getByLabelText('Token name')).toBeTruthy()
+    expect(screen.getByLabelText('Token name')).not.toBeNull()
   })
 
   it('leaves naming the list to the page header', async () => {
@@ -63,13 +63,13 @@ describe('ApiTokensPanel', () => {
     await renderPanel({ role: 'owner', creation: 'hidden' })
     expect(screen.queryByRole('button', { name: 'Create a token' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Replace' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Revoke' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Revoke' })).not.toBeNull()
   })
 
   it('replaces each control with its reason for a role that holds neither', async () => {
     await renderPanel({ role: 'member' })
-    expect(screen.getByText('Your role cannot mint tokens.')).toBeTruthy()
-    expect(screen.getByText('Your role cannot revoke tokens.')).toBeTruthy()
+    expect(screen.getByText('Your role cannot mint tokens.')).not.toBeNull()
+    expect(screen.getByText('Your role cannot revoke tokens.')).not.toBeNull()
     expect(screen.queryByLabelText('Token name')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Revoke' })).toBeNull()
   })
@@ -78,12 +78,12 @@ describe('ApiTokensPanel', () => {
     await renderPanel({ role: 'owner' })
     expect(
       screen.getByText('Created 5/16/2026, 9:00:00 AM · Last used never')
-    ).toBeTruthy()
+    ).not.toBeNull()
   })
 
   it('shows the empty state with no tokens', async () => {
     await renderPanel({ role: 'owner', tokens: [] })
-    expect(screen.getByText('No tokens')).toBeTruthy()
+    expect(screen.getByText('No tokens')).not.toBeNull()
   })
 
   it('revokes on the second click and reports a failure once', async () => {
@@ -92,7 +92,7 @@ describe('ApiTokensPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Revoke' }))
     fireEvent.click(screen.getByRole('button', { name: 'Confirm revoke' }))
     await waitFor(() => {
-      expect(screen.getByText('Failed to revoke token')).toBeTruthy()
+      expect(screen.getByText('Failed to revoke token')).not.toBeNull()
     })
     expect(revokeToken).toHaveBeenCalledWith({
       data: { workspaceSlug: 'starter-lab', tokenId: 'tok_ci' }
@@ -107,6 +107,6 @@ it('shows expired and replaced tokens without offering another replacement', asy
       { ...token, expiresAt: '2000-01-01T00:00:00.000Z', replacedByTokenId: 'tok_new' }
     ]
   })
-  expect(screen.getByText(/Expired.*Replacement issued/)).toBeTruthy()
+  expect(screen.getByText(/Expired.*Replacement issued/)).not.toBeNull()
   expect(screen.queryByRole('button', { name: 'Replace' })).toBeNull()
 })

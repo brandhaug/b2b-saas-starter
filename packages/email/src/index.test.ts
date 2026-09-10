@@ -40,6 +40,30 @@ describe('EmailDispatcher', () => {
     }).pipe(Effect.provide(LogEmailDispatcherLayer))
   )
 
+  it.effect('logs instead of failing when no sender address resolves', () => {
+    const send = vi.fn<(message: SendEmailBuilderArgs) => Promise<SendEmailResult>>(
+      () => Promise.resolve({ messageId: 'cfmsg_unused' })
+    )
+
+    return Effect.gen(function* () {
+      const dispatcher = yield* EmailDispatcher
+      // An unconfigured sender is the Optional Provider Module's inactive
+      // posture (ADR 0014), not a permanent send failure.
+      const result = yield* dispatcher.send({
+        to: 'user@example.com',
+        subject: 'You are invited',
+        element: WorkspaceInvitationEmail({
+          workspaceName: 'Starter Lab',
+          inviteUrl: 'https://example.com/accept'
+        })
+      })
+
+      expect(result.mode).toBe('log')
+      expect(result.providerMessageId).toBeUndefined()
+      expect(send).not.toHaveBeenCalled()
+    }).pipe(Effect.provide(makeCloudflareEmailDispatcherLayer({ send })))
+  })
+
   it.effect('renders both html and text, then forwards to the binding', () => {
     const send = vi.fn<(message: SendEmailBuilderArgs) => Promise<SendEmailResult>>(
       () => Promise.resolve({ messageId: 'cfmsg_123' })

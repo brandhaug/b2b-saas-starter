@@ -49,6 +49,7 @@ export const AUDIT_EVENT_TYPES = [
   // governance — workspace data export (ADR 0055)
   'workspace.export_requested',
   'workspace.export_completed',
+  'workspace.export_failed',
   'workspace.export_downloaded',
   'auth.personal_data_exported',
   // governance — membership

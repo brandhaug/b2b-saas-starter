@@ -20,7 +20,7 @@ describe('formatTimestamp', () => {
 
   it('accepts a Date as well as an ISO string', () => {
     expect(formatTimestamp(new Date('2026-05-16T09:00:00.000Z'))).toBe(
-      formatTimestamp('2026-05-16T09:00:00.000Z')
+      '5/16/2026, 9:00:00 AM'
     )
   })
 
@@ -38,7 +38,7 @@ describe('formatTimestampOr', () => {
 
   it('formats a present value', () => {
     expect(formatTimestampOr('2026-05-16T09:00:00.000Z', 'never')).toBe(
-      formatTimestamp('2026-05-16T09:00:00.000Z')
+      '5/16/2026, 9:00:00 AM'
     )
   })
 })

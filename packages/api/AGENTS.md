@@ -18,6 +18,7 @@ The HTTP contract and nothing that serves it: paths, payloads, statuses, error u
 
 - Never append an endpoint after a group's `.middleware(BearerAuth)` call. It compiles and ships ungated.
 - Never add a group without `BearerAuth` and a `GROUP_BUCKETS` row. `health` alone is public.
+- Never put an error in a group's tuple that no handler constructs: a declared status no client can receive is a documented lie, and the schema is dead weight.
 - Never re-declare a capability schema. A status may be restated outside `httpApiStatus` in exactly one place: the `guardFailureResponse` tag table, whose rows `errors.test.ts` pins to the annotations.
 - No versioning of the surface (ADR 0048).
 

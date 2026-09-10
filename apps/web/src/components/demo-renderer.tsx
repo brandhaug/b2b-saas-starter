@@ -21,9 +21,11 @@ import {
   demoWebhookPorts,
   type DemoSection
 } from '@/lib/demo-fixtures'
+import {
+  auditFiltersFromSearch,
+  type WorkspaceAuditSearchUpdate
+} from '@/lib/audit-search'
 import { DEMO_WORKSPACE_SLUG } from '@/lib/demo-workspace'
-import { type WorkspaceAuditSearchUpdate } from '@/lib/audit-search'
-import { type WorkspaceAuditPayload } from '@/lib/server/workspace-audit'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 // oxlint-disable-next-line typescript/require-await -- preview refusal implements the assistant's promise contract without I/O
@@ -157,19 +159,7 @@ function DemoAudit() {
     selectedEventId === null
       ? null
       : (demoAuditDetails.find((event) => event.id === selectedEventId) ?? null)
-  const filters: WorkspaceAuditPayload['filters'] = {}
-  if (search.actor !== undefined) {
-    filters.actorUserId = search.actor
-  }
-  if (search.eventType !== undefined) {
-    filters.eventType = search.eventType
-  }
-  if (search.since !== undefined) {
-    filters.since = search.since
-  }
-  if (search.until !== undefined) {
-    filters.until = search.until
-  }
+  const filters = auditFiltersFromSearch(search)
   return (
     <WorkspaceAuditPage
       workspaceSlug={DEMO_WORKSPACE_SLUG}

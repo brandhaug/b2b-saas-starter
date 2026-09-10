@@ -18,9 +18,11 @@ Web loaders, server mutations, direct auth management routes and privileged huma
 
 Settings loads expose export metadata only. Download actions issue signed links bound to the human user, session and Workspace. Redemption rechecks the current session, factor, five-minute proof window and Workspace permission. Session or factor revocation immediately invalidates the human grant.
 
-MCP tokens carry their issuing session ID through refresh, and privileged requests check its current proof. Workspace API Tokens retain their separate machine-principal policy. Urgent session revocation remains available without verification. API Token revocation retains its credential-recovery path and does not require recent proof.
+MCP tokens carry their issuing session ID through refresh, and privileged requests check its current proof. Workspace API Tokens retain their separate machine-principal policy. API Token revocation retains its credential-recovery path and does not require recent proof.
 
 Privileged entry accepts factor proof for twelve hours. Sensitive actions require proof within five minutes, rechecked against the authoritative session and current factor. Federated sign-in remains additional assurance until the application verifies an equivalent factor.
+
+Two System Admin exceptions are stated at the auth boundary (`auth-request-guard.ts`). Containment — revoking one session or every session of a user — requires the twelve-hour proof but waives the five-minute step aside, because an operator reaches for it mid-incident and it withdraws access rather than granting any. Ending an impersonation is unchecked: the capability reports every impersonation session as unqualified by construction, so demanding proof would trap the operator inside the session they are leaving ([ADR 0054](adr/0054-system-admin-impersonation.md)). Every other `/admin/*` mutation keeps the full requirement, and reads keep the twelve-hour one.
 
 ## Recovery
 

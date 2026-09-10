@@ -39,6 +39,7 @@ import {
   collectWorkspaceExportSnapshot,
   type WorkspaceExportSnapshotServices
 } from './workspace-export-snapshot.ts'
+import { workspaceExportContractCases } from './workspace-export.contract.ts'
 import {
   issueWorkspaceExportDownloadLink,
   signWorkspaceExportDownload,
@@ -73,6 +74,15 @@ function linkParams(path: string) {
     signature: url.searchParams.get('signature') ?? ''
   }
 }
+
+// The Live half of this same list runs in `workspace-export.live.test.ts`.
+describe('seed workspace export contract', () => {
+  for (const contractCase of workspaceExportContractCases(expect)) {
+    it.effect(contractCase.name, () =>
+      contractCase.assert.pipe(Effect.provide(ownerLayer))
+    )
+  }
+})
 
 describe('SeedWorkspaceExports', () => {
   it.effect('starts with the fixture export ready and downloadable', () =>
@@ -134,27 +144,23 @@ describe('SeedWorkspaceExports', () => {
     }).pipe(Effect.provide(ownerLayer))
   )
 
-  it.effect('reports available without any provider configuration', () =>
-    Effect.gen(function* () {
-      const exports = yield* WorkspaceExports
-      expect(yield* exports.availability).toEqual({ available: true })
-    }).pipe(Effect.provide(ownerLayer))
-  )
-
-  it.effect('request lands ready, audits both steps, and notifies the requester', () =>
+  it.effect('a requested export completes on the next read', () =>
     Effect.gen(function* () {
       const exports = yield* WorkspaceExports
       const audit = yield* AuditEventLog
       const feed = yield* NotificationFeed
       const before = (yield* feed.list).length
 
+      // `request` answers `pending` — the shared contract asserts that. What
+      // is the fixture's own is *when* the build lands: there is no queue, so
+      // the next read drains it.
       const created = yield* exports.request
-      expect(created.status).toBe('ready')
-      expect(created.completedAt).not.toBeNull()
-      expect(created.expiresAt).not.toBeNull()
-      expect(created.sizeBytes).toBeGreaterThan(0)
-
       const listed = yield* exports.list
+      const completed = listed.find((row) => row.id === created.id)
+      expect(completed?.status).toBe('ready')
+      expect(completed?.completedAt).not.toBeNull()
+      expect(completed?.expiresAt).not.toBeNull()
+      expect(completed?.sizeBytes).toBeGreaterThan(0)
       expect(listed[0]?.id).toBe(created.id)
 
       const events = (yield* audit.list()).items.filter(
@@ -181,6 +187,8 @@ describe('SeedWorkspaceExports', () => {
       const exports = yield* WorkspaceExports
       const audit = yield* AuditEventLog
       const created = yield* exports.request
+      // `issueDownloadLink` is a read, so it drains the deferred build first
+      // and the link is issued against a `ready` row.
       const link = yield* exports.issueDownloadLink({
         recipient: { type: 'api_token' },
         exportId: created.id
@@ -196,7 +204,8 @@ describe('SeedWorkspaceExports', () => {
         return
       }
       expect(download.value.fileName).toBe(`starter-lab-export-${created.id}.json.gz`)
-      expect(download.value.sizeBytes).toBe(created.sizeBytes)
+      const ready = (yield* exports.list).find((row) => row.id === created.id)
+      expect(download.value.sizeBytes).toBe(ready?.sizeBytes)
       // Gzip magic bytes: 0x1f 0x8b.
       expect([...download.value.body.subarray(0, 2)]).toEqual([0x1f, 0x8b])
 

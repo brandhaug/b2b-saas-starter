@@ -114,11 +114,24 @@ export function readDelivery<S extends Schema.ConstraintDecoder<unknown>>(
 }
 
 /**
+ * How every consumer reports a malformed body: its own terminal outcome plus
+ * the reason, on the wide event the scope is already holding. Nothing else is
+ * recorded — an undecodable body names no row to attach evidence to. Lives
+ * here beside `readDelivery`, which is what produces the `malformed` kind, so
+ * the six consumers cannot spell the same terminal arm six ways.
+ */
+export function annotateMalformed(
+  outcome: string
+): Effect.Effect<void, never, Scope.Scope> {
+  return Effect.annotateLogsScoped({ outcome, skipReason: 'malformed_message' })
+}
+
+/**
  * The upstream trace to continue, if the producer stamped a `traceparent` on
  * the message. Reads the delivery the consumer already decoded; a malformed
  * body carries no trusted `traceparent`, so it simply starts its own trace.
  */
-export function queueParentSpan<M extends { traceparent?: string | undefined }>(
+function queueParentSpan<M extends { traceparent?: string | undefined }>(
   delivery: QueueDelivery<M>
 ) {
   if (delivery.kind === 'message') {
@@ -181,12 +194,16 @@ export function consumerInvocation<R>(
     readonly delivery: QueueDelivery<{ readonly traceparent?: string | undefined }>
     readonly program: Effect.Effect<DeliveryOutcome, unknown, R>
     /**
-     * What the queue does with a message the invocation could not settle:
-     * `'retry'` folds an escaped cause into `'retry'`, riding the queue's
-     * backoff (every retryable consumer); `'ack'` folds it into `'ack'` — the
-     * DLQ entry, where throwing or looping would silently lose dead letters.
+     * What the queue does with a message the invocation could not settle —
+     * including a defect, which is what a decode bug or an unexpected throw
+     * arrives as. `'retry'` folds an escaped cause into `'retry'`, riding the
+     * queue's backoff (every retryable consumer); `'ack'` folds it into
+     * `'ack'`, where looping would gain nothing. A function decides per
+     * attempt: the dead-letter entries retry while the platform will still
+     * redeliver and ack on the last attempt, so neither an unbounded loop nor
+     * a first-failure ack can lose the dead letter.
      */
-    readonly onFailure: 'retry' | 'ack'
+    readonly onFailure: 'retry' | 'ack' | ((attempts: number) => DeliveryOutcome)
   }
 ): Effect.Effect<DeliveryOutcome, never, Exclude<R, Scope.Scope>> {
   return withTriggerScope(
@@ -201,13 +218,16 @@ export function consumerInvocation<R>(
     options.program
   ).pipe(
     Effect.catchCause(() => {
-      // `_cause` is deliberately unused: the wide event above logged the
-      // failure cause on exit, and the queue needs an outcome, not an
-      // exception.
-      if (options.onFailure === 'retry') {
+      // The cause is deliberately unread: the wide event above logged it on
+      // exit, and the queue needs an outcome, not an exception.
+      const onFailure = options.onFailure
+      if (onFailure === 'retry') {
         return Effect.succeed<DeliveryOutcome>('retry')
       }
-      return Effect.succeed<DeliveryOutcome>('ack')
+      if (onFailure === 'ack') {
+        return Effect.succeed<DeliveryOutcome>('ack')
+      }
+      return Effect.sync(() => onFailure(options.delivery.attempts))
     })
   )
 }

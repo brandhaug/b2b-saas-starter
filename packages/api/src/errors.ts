@@ -13,13 +13,6 @@ import { Schema } from 'effect'
  */
 
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
-export class InternalError extends Schema.TaggedError<InternalError>()(
-  'InternalError',
-  { traceId: Schema.String },
-  { httpApiStatus: 500 }
-) {}
-
-// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
 export class Unauthorized extends Schema.TaggedError<Unauthorized>()(
   'Unauthorized',
   { message: Schema.String },

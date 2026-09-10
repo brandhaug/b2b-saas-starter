@@ -26,7 +26,7 @@ Restart development processes after changing configuration.
 | Google sign-in              | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                                                                  | No Google button                                           |
 | Workers AI                  | `WORKERS_AI_ENABLED=true` plus an `AI` binding                                                              | Tries the next assistant provider                          |
 | OpenAI-compatible assistant | `OPENAI_API_KEY`; optional `OPENAI_BASE_URL`, `OPENAI_MODEL_ID`                                             | Mock assistant                                             |
-| Workspace export            | `WORKSPACE_EXPORT_BUCKET`, `API_PUBLIC_URL`                                                                 | D1-backed export actions unavailable                       |
+| Workspace export            | `WORKSPACE_EXPORTS_ENABLED=true`, `API_PUBLIC_URL`                                                          | D1-backed export actions unavailable                       |
 | Stripe                      | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_TEAM`; optional `STRIPE_PRICE_ID_ENTERPRISE` | Plan display and local entitlement checks remain available |
 | Sentry                      | `SENTRY_DSN`                                                                                                | No error export to Sentry                                  |
 | PostHog                     | `POSTHOG_KEY`; optional `POSTHOG_HOST`                                                                      | No PostHog capture                                         |

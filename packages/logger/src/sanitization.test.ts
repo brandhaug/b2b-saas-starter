@@ -9,7 +9,7 @@ import { withHttpInvocation } from './invocation.ts'
 import { makeOtlpLayer } from './otlp.ts'
 import { WideEventLoggerLive, withRequestScope } from './wide-event.ts'
 import { makeSentryOptions, wireWideEventProviders } from './providers.ts'
-import { diagnosticFields } from './sanitization.ts'
+import { diagnosticErrorSummary, diagnosticFields } from './sanitization.ts'
 
 async function requestBody(init: RequestInit | undefined): Promise<string> {
   const bytes = new Uint8Array(await new Response(init?.body).arrayBuffer())
@@ -65,6 +65,34 @@ describe('telemetry output policy', () => {
       eventType: 'workspace.created',
       workspaceId: 'wrk_test'
     })
+  })
+
+  it('keeps a defect findable by name and frame without exporting its message', () => {
+    const summary = diagnosticErrorSummary(
+      [
+        `TypeError: cannot read ${secret} of undefined`,
+        '    at buildExport (/worker/src/queue-consumer.ts:118:9)',
+        '    at async run (/worker/src/index.ts:12:3)'
+      ].join('\n')
+    )
+    expect(summary).toBe('TypeError-queue-consumer.ts-118-9')
+    // The summary is scalar-allowlist shaped, so it survives to Sentry's tags
+    // instead of being dropped alongside the message it deliberately omits.
+    expect(diagnosticFields({ errorSummary: summary })).toEqual({
+      errorSummary: 'TypeError-queue-consumer.ts-118-9'
+    })
+  })
+
+  it('omits a defect summary it cannot build from a name or a source frame', () => {
+    expect(
+      diagnosticErrorSummary(`provider rejected ${secret}\n    at ${secret}`)
+    ).toBeUndefined()
+    // A frame whose file is a data URL carries a payload, not a location.
+    expect(
+      diagnosticErrorSummary(
+        `Error: boom\n    at run (data:text/javascript,${secret}:1:1)`
+      )
+    ).toBe('Error')
   })
 
   it('removes nested exceptions and annotation content from console and all OTLP signals', async () => {

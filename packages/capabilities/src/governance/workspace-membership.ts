@@ -11,13 +11,12 @@ import {
   publishSeatSyncWith,
   SeatSyncPublisher
 } from '@b2b-saas-starter/billing/seat-sync'
-import { AuditEventLog, recordInWorkspace } from './audit-event-log.ts'
+import { AuditEventLog, recordCompletedMutationAudit } from './audit-event-log.ts'
 import {
-  fabricateSeedMember,
-  Member,
-  Workspace,
-  type WorkspaceRole
-} from './workspace-identity.ts'
+  recordSecurityEvidence,
+  type SecurityEvidenceSink
+} from './security-recovery-evidence.ts'
+import { Member, Workspace, type WorkspaceRole } from './workspace-identity.ts'
 
 export const WorkspaceWithMembership = Schema.Struct({
   workspace: Workspace,
@@ -51,14 +50,6 @@ type WorkspaceMembershipInterface = {
   readonly listWorkspacesForUser: (
     userId: string
   ) => Effect.Effect<ReadonlyArray<WorkspaceWithMembership>, CapabilityUnavailable>
-  readonly addMember: (
-    input: MemberRoleInput
-  ) => Effect.Effect<
-    Member,
-    CapabilityUnavailable | MembershipChangeRejected,
-    WorkspaceContext
-  >
-
   readonly removeMember: (
     input: MemberRef
   ) => Effect.Effect<
@@ -220,7 +211,13 @@ function ownerCountOf(members: ReadonlyArray<Member>): number {
  */
 export function SeedWorkspaceMembership(
   roster: SeedRoster,
-  workspace: Workspace
+  workspace: Workspace,
+  /**
+   * The same optional sink the Live adapter takes. No deployment binds one
+   * to the fixture, but recording from both adapters is what lets a contract
+   * case assert the evidence instead of trusting the Live half alone.
+   */
+  securityEvidence?: SecurityEvidenceSink
 ): Layer.Layer<WorkspaceMembership, never, SeatSyncPublisher> {
   return Layer.effect(WorkspaceMembership)(
     Effect.gen(function* () {
@@ -257,29 +254,6 @@ export function SeedWorkspaceMembership(
               })
             )
         ),
-        addMember: Effect.fn('WorkspaceMembership.addMember')(function* (
-          input: MemberRoleInput
-        ) {
-          // No `user` table to join, so the fixture fabricates the identity
-          // fields the way `SeedApiTokenRegistry.create` fabricates a token.
-          const added = fabricateSeedMember(input.userId, input.role)
-          yield* Ref.update(roster, (current) => [...current, added])
-          // Same event, same target, same metadata as the Live adapter.
-          const audit = yield* Effect.serviceOption(AuditEventLog)
-          if (Option.isSome(audit)) {
-            yield* recordInWorkspace(audit.value, {
-              eventType: 'workspace_member.added',
-              targetType: 'workspace_member',
-              targetId: input.userId,
-              metadata: { role: input.role }
-            })
-          }
-          yield* publishSeatSyncWith(seatSync, {
-            workspaceId: workspace.id,
-            reason: 'member_added'
-          })
-          return added
-        }),
         removeMember: Effect.fn('WorkspaceMembership.removeMember')(function* (
           input: MemberRef
         ) {
@@ -301,13 +275,26 @@ export function SeedWorkspaceMembership(
           yield* Ref.update(roster, (rows) =>
             rows.filter((candidate) => candidate.id !== input.userId)
           )
+          yield* recordSecurityEvidence(
+            {
+              kind: 'workspace_access_removed',
+              subjectId: input.userId,
+              workspaceId: workspace.id
+            },
+            securityEvidence,
+            'seed'
+          )
           const audit = yield* Effect.serviceOption(AuditEventLog)
           if (Option.isSome(audit)) {
-            yield* recordInWorkspace(audit.value, {
-              eventType: 'workspace_member.removed',
-              targetType: 'workspace_member',
-              targetId: input.userId
-            })
+            yield* recordCompletedMutationAudit(
+              audit.value,
+              {
+                eventType: 'workspace_member.removed',
+                targetType: 'workspace_member',
+                targetId: input.userId
+              },
+              'workspace_membership.remove'
+            )
           }
           yield* publishSeatSyncWith(seatSync, {
             workspaceId: workspace.id,
@@ -340,14 +327,27 @@ export function SeedWorkspaceMembership(
           yield* Ref.update(roster, (rows) =>
             rows.filter((member) => member.id !== own.id)
           )
+          yield* recordSecurityEvidence(
+            {
+              kind: 'workspace_access_removed',
+              subjectId: own.id,
+              workspaceId: workspace.id
+            },
+            securityEvidence,
+            'seed'
+          )
           const audit = yield* Effect.serviceOption(AuditEventLog)
           if (Option.isSome(audit)) {
-            yield* recordInWorkspace(audit.value, {
-              eventType: 'workspace_member.removed',
-              targetType: 'workspace_member',
-              targetId: own.id,
-              metadata: { reason: 'left' }
-            })
+            yield* recordCompletedMutationAudit(
+              audit.value,
+              {
+                eventType: 'workspace_member.removed',
+                targetType: 'workspace_member',
+                targetId: own.id,
+                metadata: { reason: 'left' }
+              },
+              'workspace_membership.leave'
+            )
           }
           yield* publishSeatSyncWith(seatSync, {
             workspaceId: workspace.id,
@@ -378,6 +378,18 @@ export function SeedWorkspaceMembership(
           if (refusal !== null) {
             return yield* Effect.fail(new MembershipChangeRejected({ reason: refusal }))
           }
+          // A role change can strip authority the old role carried, so the
+          // Live adapter files the same removal evidence — the fixture must
+          // not be the quieter of the two.
+          yield* recordSecurityEvidence(
+            {
+              kind: 'workspace_access_removed',
+              subjectId: input.userId,
+              workspaceId: workspace.id
+            },
+            securityEvidence,
+            'seed'
+          )
           const promoted: Member = { ...member, role: input.role }
           yield* Ref.update(roster, (rows) =>
             rows.map((candidate) => {
@@ -389,12 +401,16 @@ export function SeedWorkspaceMembership(
           )
           const audit = yield* Effect.serviceOption(AuditEventLog)
           if (Option.isSome(audit)) {
-            yield* recordInWorkspace(audit.value, {
-              eventType: 'workspace_member.role_changed',
-              targetType: 'workspace_member',
-              targetId: input.userId,
-              metadata: { role: input.role }
-            })
+            yield* recordCompletedMutationAudit(
+              audit.value,
+              {
+                eventType: 'workspace_member.role_changed',
+                targetType: 'workspace_member',
+                targetId: input.userId,
+                metadata: { role: input.role }
+              },
+              'workspace_membership.change_role'
+            )
           }
           return promoted
         })
@@ -411,9 +427,13 @@ export function SeedWorkspaceMembership(
  * `@cloudflare/workers-types`, and the reason `auth` and `capabilities` stay
  * siblings (see `../../authz/AGENTS.md`).
  *
- * The app supplies the adapter, because three of the four plugin endpoints are
+ * The app supplies the adapter, because every plugin endpoint behind it is
  * `requireHeaders: true` and only the app holds the request's session headers.
- * `addMember` alone runs headerless.
+ *
+ * There is no add-member port: joining a workspace goes through an invitation
+ * the invitee accepts (`WorkspaceInvitations`), never a direct grant. A
+ * headerless add would also sidestep the `ownerRequiresOwner` rule the other
+ * three intents are checked against.
  *
  * Promise-returning on purpose: an Effect-shaped port would have to name the
  * plugin's error type, which is exactly the leak this avoids. Rejections are
@@ -424,11 +444,6 @@ export function SeedWorkspaceMembership(
  * not this package's contract. Handing the raw response back would leak it.
  */
 export type WorkspaceMemberBinding = {
-  readonly addMember: (input: {
-    readonly workspaceId: string
-    readonly userId: string
-    readonly role: WorkspaceRole
-  }) => Promise<void>
   readonly removeMember: (input: {
     readonly workspaceId: string
     readonly memberId: string

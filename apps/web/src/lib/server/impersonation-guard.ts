@@ -5,6 +5,7 @@ import {
 } from '@b2b-saas-starter/capabilities/governance/platform-user-admin'
 import { Effect, Result } from 'effect'
 import { type AuthExchange } from './auth-audit/exchanges'
+import { authRefusal } from './auth-refusal'
 
 /**
  * Which Better Auth endpoints perform each account action an impersonation
@@ -27,8 +28,9 @@ const FORBIDDEN_PATHS: ReadonlyArray<{
   // password change (ADR 0054).
   { suffix: '/passkey/verify-registration', action: 'change_passkey' },
   { suffix: '/passkey/delete-passkey', action: 'change_passkey' },
-  { suffix: '/change-email', action: 'change_email' },
-  { suffix: '/delete-user', action: 'delete_account' }
+  { suffix: '/change-email', action: 'change_email' }
+  // No `/delete-user` row: account deletion is a capability-route refusal for
+  // every session, impersonated or not, so this guard never sees one.
 ]
 
 /** The forbidden action an exchange performs, or `null` when it is allowed regardless. */
@@ -63,13 +65,9 @@ export function impersonationGuardResponse(
       if (Result.isSuccess(verdict)) {
         return null
       }
-      return new Response(
-        JSON.stringify({
-          code: 'forbidden_while_impersonating',
-          action: verdict.failure.action
-        }),
-        { status: 403, headers: { 'content-type': 'application/json; charset=utf-8' } }
-      )
+      return authRefusal(403, 'forbidden_while_impersonating', {
+        action: verdict.failure.action
+      })
     })
   )
 }

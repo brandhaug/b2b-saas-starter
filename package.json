@@ -16,7 +16,7 @@
   "type": "module",
   "scripts": {
     "skills:setup": "node scripts/setup-agent-skills.ts",
-    "test:scripts": "tsc -p scripts/tsconfig.json && vp test run scripts/ .github/scripts/",
+    "test:scripts": "tsc -p tsconfig.repo.json && vp test run scripts/ .github/scripts/",
     "dev": "pnpm -C packages/i18n generate && vp run -r --parallel dev",
     "build": "pnpm -C packages/i18n generate && vp run -r build",
     "validate": "pnpm run check && pnpm run build && pnpm run infra:wrangler && git diff --exit-code -- apps/*/wrangler.jsonc && pnpm run db:migrate:local && pnpm run db:seed && CI=1 E2E_PORT=${E2E_PORT:-3097} pnpm run test:e2e",

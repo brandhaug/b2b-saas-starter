@@ -23,6 +23,7 @@ import { parseArgs, promisify } from 'node:util'
 
 import { Predicate, Schema } from 'effect'
 import { isSecureDsn, isSecureEndpoint } from '../packages/env/src/transport.ts'
+import { remoteDatabaseIdFromList } from '../packages/db/scripts/wrangler-d1.ts'
 import { requiredEnv } from './lib/env.ts'
 
 const exec = promisify(execFile)
@@ -63,11 +64,6 @@ const S3ListingSchema = Schema.Struct({
   )
 })
 const decodeS3Listing = Schema.decodeUnknownSync(S3ListingSchema)
-
-const D1DatabasesSchema = Schema.Array(
-  Schema.Struct({ name: Schema.String, uuid: Schema.String })
-)
-const decodeD1Databases = Schema.decodeUnknownSync(D1DatabasesSchema)
 
 const DrillCountsSchema = Schema.Array(
   Schema.Struct({
@@ -363,13 +359,7 @@ export function retentionPlan(
 
 async function remoteDatabaseId(database: string): Promise<string> {
   const raw = await retry(wranglerBin(), ['d1', 'list', '--json', `--config=${CONFIG}`])
-  const found = decodeD1Databases(JSON.parse(raw)).find(
-    (candidate) => candidate.name === database
-  )
-  if (found === undefined) {
-    throw new Error(`no D1 database named '${database}' exists in the account`)
-  }
-  return found.uuid
+  return remoteDatabaseIdFromList(raw, database)
 }
 
 export async function backup(

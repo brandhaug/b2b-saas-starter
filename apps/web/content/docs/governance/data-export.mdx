@@ -44,7 +44,7 @@ Machine clients hold an `admin`-scoped API Token and use the REST surface: `POST
 
 ## When exports are unavailable
 
-The export queue and R2 bucket are an Optional Provider. Set `WORKSPACE_EXPORT_BUCKET` at deploy time and `alchemy.run.ts` provisions both with their bindings on all three workers. Unset, the settings card explains that exports are not configured and shows no button; nothing else degrades. Set `API_PUBLIC_URL` on the web worker so download links point at the deployed API worker; unset, they point at the local dev server on port 8787.
+The export queue and R2 bucket are an Optional Provider. Set `WORKSPACE_EXPORTS_ENABLED=true` at deploy time and `alchemy.run.ts` provisions both with their bindings on all three workers. Unset, the settings card explains that exports are not configured and shows no button; nothing else degrades. Set `API_PUBLIC_URL` on the web worker so download links point at the deployed API worker; unset, they point at the local dev server on port 8787.
 
 ## Account data
 

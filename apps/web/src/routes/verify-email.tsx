@@ -5,11 +5,14 @@ import { EmailCodeExchangeCard } from '@/components/auth/email-code-exchange'
 import { PublicLayout } from '@/components/public-layout'
 import { authClient } from '@/lib/auth-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { getTurnstileSiteKey } from '@/lib/server/turnstile'
 import { pickOptionalStrings } from '@/lib/utils'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 export const Route = createFileRoute('/verify-email')({
   validateSearch: (search) => pickOptionalStrings(search, ['error']),
+  // Server-only read, env-gated: `null` renders no widget and sends no token.
+  loader: () => getTurnstileSiteKey(),
   component: VerifyEmailRoute,
   head: () => ({ meta: [{ title: pageTitle(m.public_meta_verify_email()) }] })
 })
@@ -23,10 +26,17 @@ export const Route = createFileRoute('/verify-email')({
  */
 function VerifyEmailRoute() {
   const { error } = Route.useSearch()
-  return <VerifyEmailPage error={error} />
+  return <VerifyEmailPage error={error} turnstileSiteKey={Route.useLoaderData()} />
 }
 
-export function VerifyEmailPage({ error }: { readonly error?: string | undefined }) {
+export function VerifyEmailPage({
+  error,
+  turnstileSiteKey = null
+}: {
+  readonly error?: string | undefined
+  /** Server-provided Turnstile site key; `null` renders no widget (provider-light). */
+  readonly turnstileSiteKey?: string | null | undefined
+}) {
   const router = useRouter()
   return (
     <PublicLayout>
@@ -80,6 +90,7 @@ export function VerifyEmailPage({ error }: { readonly error?: string | undefined
           <EmailCodeExchangeCard
             title={m.verify_with_code()}
             purpose="email-verification"
+            turnstileSiteKey={turnstileSiteKey}
             verify={({ email, otp }) => authClient.emailOtp.verifyEmail({ email, otp })}
             onVerified={() => {
               // autoSignInAfterVerification means the verify response carries

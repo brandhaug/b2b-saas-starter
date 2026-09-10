@@ -37,9 +37,10 @@ declare namespace Cloudflare {
   )
 
   rule.valid(
-    'allows declare global in a global script',
-    `declare global {
-  var localD1: string | undefined
+    'allows declare global in a module',
+    `import { type D1Database } from '@cloudflare/workers-types'
+declare global {
+  var localD1: Promise<D1Database | undefined> | undefined
 }`
   )
 
@@ -66,13 +67,12 @@ export const x = 1`,
   )
 
   rule.invalid(
-    'reports declare global inside a module',
-    `import { type D1Database } from '@cloudflare/workers-types'
-declare global {
-  var localD1: Promise<D1Database | undefined> | undefined
+    'reports declare global in a global script',
+    `declare global {
+  var localD1: string | undefined
 }`,
     (messages) => {
-      assert.match(messages, /never reaches the global scope/)
+      assert.match(messages, /TS2669/)
     }
   )
 

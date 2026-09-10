@@ -2,7 +2,7 @@ import { BillingAuditLayer, BillingNotificationLayer } from './billing-adapters.
 import { layerFromD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
-import { type Member } from './governance/workspace-identity.ts'
+import { fabricateSeedMember, type Member } from './governance/workspace-identity.ts'
 import { SeedLayer } from './layers.ts'
 import { SeedBilling } from '@b2b-saas-starter/billing/billing.seed'
 import { SeedResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements.seed'
@@ -17,7 +17,10 @@ import {
   seedSystemUsers,
   seedWorkspaceRecord
 } from './seed-fixture.ts'
-import { SeedWorkspaceInvitations } from './governance/workspace-invitations.seed.ts'
+import {
+  SeedWorkspaceInvitations,
+  type SeedInvitationRow
+} from './governance/workspace-invitations.seed.ts'
 import { SeedSeatSyncPublisher } from '@b2b-saas-starter/billing/seat-sync'
 import {
   makeSeedRoster,
@@ -85,6 +88,8 @@ import { WorkspaceSuspensionService } from './governance/workspace-suspension.ts
 import { SeedAccountPreferences } from './governance/account-preferences.ts'
 import {
   CONTRACT_EXPIRED_AT,
+  CONTRACT_ORDER_CREATED_AT,
+  CONTRACT_UNEXPIRED_AT,
   workspaceInvitationsContractCases
 } from './governance/workspace-invitations.contract.ts'
 import {
@@ -142,15 +147,59 @@ describe('seed developer-platform contract', () => {
 // the demo fixture sits on `team` (uncapped).
 describe('seed mcp client connections contract', () => {
   const auditLog = SeedAuditEventLog([])
+  // The demo fixture plus the two grants the contract's `getGrant` cases
+  // read: a re-consented one whose binding must carry its version, and one
+  // on a client whose registration has since been disabled. Both are local
+  // to this suite — the demo fixture shows neither in the reference app.
+  const disabledClient = {
+    clientId: 'https://retired.seed.test/oauth/client-metadata.json',
+    name: 'Retired MCP client',
+    uri: 'https://retired.seed.test',
+    disabled: true
+  }
   const layer = Layer.mergeAll(
     auditLog,
     testWorkspaceContext(seedWorkspaceRecord),
     SeedMcpClientConnections({
-      clients: seedMcpClients,
-      connections: seedMcpClientConnections
+      clients: [...seedMcpClients, disabledClient],
+      connections: [
+        ...seedMcpClientConnections.map((connection) => ({
+          ...connection,
+          grantVersion: 2
+        })),
+        {
+          id: 'con_seed_disabled_client',
+          client: disabledClient,
+          workspace: {
+            id: seedWorkspaceRecord.id,
+            slug: seedWorkspaceRecord.slug,
+            name: seedWorkspaceRecord.name
+          },
+          scopes: ['mcp:read'],
+          grantedAt: '2026-05-14T10:00:00.000Z'
+        }
+      ]
     }).pipe(Layer.provide(auditLog))
   )
-  for (const contractCase of mcpClientConnectionsContractCases(expect)) {
+  const activeConnection = seedMcpClientConnections[0]
+  const contractGrants = {
+    active: {
+      userId: demoUserIdentity.id,
+      clientId: activeConnection?.client.clientId ?? '',
+      workspaceId: seedWorkspaceRecord.id,
+      binding: `${activeConnection?.id ?? ''}:2`,
+      scopes: activeConnection?.scopes ?? []
+    },
+    disabledClient: {
+      userId: demoUserIdentity.id,
+      clientId: disabledClient.clientId,
+      workspaceId: seedWorkspaceRecord.id
+    }
+  }
+  for (const contractCase of mcpClientConnectionsContractCases(
+    contractGrants,
+    expect
+  )) {
     it.effect(contractCase.name, () => contractCase.assert.pipe(Effect.provide(layer)))
   }
 })
@@ -651,16 +700,33 @@ describe('seed workspace membership contract', () => {
   // ownership-rule cases need a sole owner to refuse on, and `leave` needs the
   // actor resolved. Built below from the demo fixture; a fresh audit log lets
   // the audit-count case read back only its own mutations.
+  // The deployment's evidence sink, as a recording stand-in: no real one is
+  // ever bound to the fixture, but the contract asserts that the adapter
+  // files evidence, so the harness has to be able to read it back.
+  const evidence: Array<{ kind: string; subjectId: string }> = []
+  const evidenceSink = {
+    append: (record: { kind: string; subjectId: string }) => {
+      evidence.push({ kind: record.kind, subjectId: record.subjectId })
+      return Promise.resolve()
+    },
+    reportGap: () => Promise.resolve()
+  }
   const contractLayer = Layer.unwrap(
     Effect.gen(function* () {
       // The demo fixture minus `usr_demo`: exactly one owner (`usr_martin`,
       // also the resolved actor — their own leave is one of the cases), so
       // the ownership-rule cases refuse on precisely the sole-owner standing.
-      const roster = yield* makeSeedRoster(
-        seedMembers.filter((member) => member.id !== demoUserIdentity.id)
-      )
+      // The three fabricated plain members are what the mutation cases spend:
+      // membership has no add verb, so each case that consumes a member is
+      // handed its own, exactly as the live harness seeds them.
+      const roster = yield* makeSeedRoster([
+        ...seedMembers.filter((member) => member.id !== demoUserIdentity.id),
+        fabricateSeedMember('usr_removable', 'member'),
+        fabricateSeedMember('usr_mutable', 'member'),
+        fabricateSeedMember('usr_auditable', 'member')
+      ])
       return Layer.mergeAll(
-        SeedWorkspaceMembership(roster, seedWorkspaceRecord).pipe(
+        SeedWorkspaceMembership(roster, seedWorkspaceRecord, evidenceSink).pipe(
           Layer.provide(SeedSeatSyncPublisher)
         ),
         // A fresh log, not the fixture's: the audit-count case reads back
@@ -677,7 +743,14 @@ describe('seed workspace membership contract', () => {
     })
   )
   const cases = workspaceMembershipContractCases(
-    { member: 'usr_martin', newcomer: 'usr_newcomer', stranger: 'usr_stranger' },
+    {
+      member: 'usr_martin',
+      removable: 'usr_removable',
+      mutable: 'usr_mutable',
+      auditable: 'usr_auditable',
+      stranger: 'usr_stranger',
+      recordedEvidence: Effect.sync(() => [...evidence])
+    },
     expect
   )
   for (const contractCase of cases) {
@@ -692,12 +765,14 @@ describe('seed workspace membership contract', () => {
       // The Live half of this success path runs in
       // `workspace-membership.live.test.ts` against a second workspace: a
       // leave ends the actor's membership, which the shared contract above
-      // cannot afford to do to its own runner's actor.
-      const added = yield* membership.addMember({
-        userId: 'usr_newcomer',
+      // cannot afford to do to its own runner's actor. The successor is
+      // promoted out of the roster rather than added to it — an owner hands
+      // ownership over, they do not mint a replacement.
+      const promoted = yield* membership.changeRole({
+        userId: 'usr_ops',
         role: 'owner'
       })
-      expect(added.role).toBe('owner')
+      expect(promoted.role).toBe('owner')
       yield* membership.leave
 
       const members = yield* membership.listMembers
@@ -705,9 +780,7 @@ describe('seed workspace membership contract', () => {
       // The successor keeps the workspace owned, and the leave recorded the
       // removal the audit trail shows for an admin-driven one.
       expect(
-        members.some(
-          (member) => member.id === 'usr_newcomer' && member.role === 'owner'
-        )
+        members.some((member) => member.id === 'usr_ops' && member.role === 'owner')
       ).toBe(true)
       const log = yield* AuditEventLog
       const removed = yield* log.list({ eventType: 'workspace_member.removed' })
@@ -792,8 +865,23 @@ describe('seed workspace invitations contract', () => {
               email: expired.email,
               role: 'member',
               status: 'pending',
-              expiresAt: CONTRACT_EXPIRED_AT
-            }
+              expiresAt: CONTRACT_EXPIRED_AT,
+              createdAt: CONTRACT_ORDER_CREATED_AT[0]
+            },
+            // Three rows with distinct, ascending creation stamps, declared
+            // oldest-first so the ordering case proves the adapter sorts
+            // rather than echoes the fixture's order.
+            ...CONTRACT_ORDER_CREATED_AT.map(
+              (createdAt, index) =>
+                ({
+                  id: `inv_seed_order_${String(index)}`,
+                  email: `order-${String(index)}@seed-invite.test`,
+                  role: 'member',
+                  status: 'pending',
+                  expiresAt: CONTRACT_UNEXPIRED_AT,
+                  createdAt
+                }) satisfies SeedInvitationRow
+            )
           ]
         }).pipe(Layer.provide(SeedSeatSyncPublisher)),
         SeedWorkspaceMembership(roster, seedWorkspaceRecord).pipe(
@@ -809,7 +897,8 @@ describe('seed workspace invitations contract', () => {
     {
       emailFor: (slot) => `${slot}@seed-invite.test`,
       accepter,
-      expired
+      expired,
+      orderedNewestFirst: ['inv_seed_order_2', 'inv_seed_order_1', 'inv_seed_order_0']
     },
     expect
   )

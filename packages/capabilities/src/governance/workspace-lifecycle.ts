@@ -126,6 +126,8 @@ export function SeedWorkspaceLifecycle(options: {
   readonly roster?: SeedRoster | undefined
   readonly workspace: Workspace
   readonly catalog?: Ref.Ref<ReadonlyArray<Workspace>> | undefined
+  /** The same optional sink the Live adapter takes; see `SeedWorkspaceMembership`. */
+  readonly securityEvidence?: SecurityEvidenceSink | undefined
 }): Layer.Layer<WorkspaceLifecycle, never, WorkspaceSuspensionService> {
   return Layer.effect(WorkspaceLifecycle)(
     Effect.gen(function* () {
@@ -225,6 +227,11 @@ export function SeedWorkspaceLifecycle(options: {
           const removed = ctx.workspace
           yield* Ref.update(catalog, (rows) =>
             rows.filter((each) => each.id !== ctx.workspace.id)
+          )
+          yield* recordSecurityEvidence(
+            { kind: 'workspace_deleted', subjectId: removed.id },
+            options.securityEvidence,
+            'seed'
           )
           // Unscoped on purpose, matching Live: the trail stays readable
           // after the workspace it describes is gone. The actor stays the

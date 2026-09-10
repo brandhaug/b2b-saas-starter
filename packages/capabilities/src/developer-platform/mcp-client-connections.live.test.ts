@@ -25,17 +25,67 @@ const grantedAt = new Date('2026-08-20T10:00:00.000Z')
 const farFuture = new Date('2027-01-01T00:00:00.000Z')
 
 const CLIENT_ID = 'https://mcp-client.live.test/oauth/client-metadata.json'
+/** A client whose registration was disabled after its consent was granted. */
+const DISABLED_CLIENT_ID = 'https://retired.live.test/oauth/client-metadata.json'
+/** The contract's grant has been re-consented twice; its binding must say so. */
+const CONTRACT_GRANT_VERSION = 2
+
+/**
+ * The grants the shared contract cases read. Their own client, user, and ids,
+ * so the revoke flow above — which asserts the whole `oauth_consent` table
+ * after it runs — never sees them. Idempotent, because every case ensures
+ * them and they outlive none of it.
+ */
+const insertContractGrantRows = Effect.gen(function* () {
+  const db = yield* Database
+  yield* db
+    .insert(oauthConsent)
+    .values([
+      {
+        id: 'con_live_contract',
+        clientId: CLIENT_ID,
+        userId: 'usr_joiner',
+        referenceId: 'wrk_live',
+        scopes: ['mcp:read', 'offline_access'],
+        grantVersion: CONTRACT_GRANT_VERSION,
+        createdAt: grantedAt,
+        updatedAt: grantedAt
+      },
+      // A consent as real as the one above, on a client that has since been
+      // disabled: `getGrant` must stop honouring it.
+      {
+        id: 'con_live_disabled_client',
+        clientId: DISABLED_CLIENT_ID,
+        userId: 'usr_joiner',
+        referenceId: 'wrk_live',
+        scopes: ['mcp:read'],
+        createdAt: grantedAt,
+        updatedAt: grantedAt
+      }
+    ])
+    .onConflictDoNothing()
+})
 
 /** The rows the OAuth provider would have written during an authorization. */
 const insertConsentRows = Effect.gen(function* () {
   const db = yield* Database
-  yield* db.insert(oauthClient).values({
-    id: 'oac_live',
-    clientId: CLIENT_ID,
-    name: 'Live MCP client',
-    uri: 'https://mcp-client.live.test',
-    redirectUris: ['http://127.0.0.1:33418/callback']
-  })
+  yield* db.insert(oauthClient).values([
+    {
+      id: 'oac_live',
+      clientId: CLIENT_ID,
+      name: 'Live MCP client',
+      uri: 'https://mcp-client.live.test',
+      redirectUris: ['http://127.0.0.1:33418/callback']
+    },
+    {
+      id: 'oac_live_disabled',
+      clientId: DISABLED_CLIENT_ID,
+      name: 'Retired MCP client',
+      uri: 'https://retired.live.test',
+      redirectUris: ['http://127.0.0.1:33418/callback'],
+      disabled: true
+    }
+  ])
   yield* db.insert(oauthConsent).values([
     {
       id: 'con_live_owner',
@@ -224,8 +274,29 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
       // The contract cases that both adapters must satisfy from an empty
       // store — the revoke-with-tokens flow above stays in this file, since
       // its rows are the provider's writes.
-      for (const contractCase of mcpClientConnectionsContractCases(expect)) {
-        it.effect(contractCase.name, () => inWorkspace('live-lab', contractCase.assert))
+      const contractGrants = {
+        active: {
+          userId: 'usr_joiner',
+          clientId: CLIENT_ID,
+          workspaceId: 'wrk_live',
+          binding: `con_live_contract:${String(CONTRACT_GRANT_VERSION)}`,
+          scopes: ['mcp:read', 'offline_access']
+        },
+        disabledClient: {
+          userId: 'usr_joiner',
+          clientId: DISABLED_CLIENT_ID,
+          workspaceId: 'wrk_live'
+        }
+      }
+      for (const contractCase of mcpClientConnectionsContractCases(
+        contractGrants,
+        expect
+      )) {
+        it.effect(contractCase.name, () =>
+          Effect.flatMap(insertContractGrantRows, () =>
+            inWorkspace('live-lab', contractCase.assert)
+          )
+        )
       }
 
       it.effect('revokes the tokens of a consent that named no workspace', () =>

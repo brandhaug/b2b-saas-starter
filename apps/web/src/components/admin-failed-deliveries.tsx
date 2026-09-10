@@ -1,5 +1,5 @@
 import { statusLabel } from '@/lib/value-labels'
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import { type GlobalWebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { DataTable, DataTableContent, type DataTableColumnDef } from './data-table'
 import { Panel } from './page/panel'
@@ -7,7 +7,7 @@ import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { formatDateTime } from '@/lib/format-date'
 import { webhookDeliveryStatusVariant } from '@/lib/badge-variants'
-import { callServerFn } from '@/lib/server-call'
+import { useServerAction } from '@/hooks/use-server-action'
 import {
   loadFailedDeliveriesServerFn,
   replayFailedDeliveryServerFn,
@@ -16,38 +16,40 @@ import {
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 function ReplayAction({ delivery }: { readonly delivery: GlobalWebhookDelivery }) {
-  const [pending, startTransition] = useTransition()
-  const [message, setMessage] = useState<string | null>(null)
+  // The queue's own answer to a replay: a refusal reason, or the id of the
+  // copy it enqueued. Failures are the hook's; only these belong here.
+  const [outcome, setOutcome] = useState<string | null>(null)
   const [queued, setQueued] = useState(false)
-  function replay() {
-    startTransition(async () => {
-      setMessage(null)
-      const result = await callServerFn(
-        () => replayFailedDeliveryServerFn({ data: { deliveryId: delivery.id } }),
-        m.replay_failed()
-      )
-      if (!result.ok) {
-        setMessage(`${result.message} ${m.replay_pending_copy()}`)
-        return
+  const replay = useServerAction(
+    () => replayFailedDeliveryServerFn({ data: { deliveryId: delivery.id } }),
+    {
+      failureMessage: m.replay_failed(),
+      invalidate: false,
+      onSuccess: (result) => {
+        if (result.status === 'refused') {
+          setOutcome(result.reason)
+          return
+        }
+        setQueued(true)
+        setOutcome(m.replay_queued({ id: result.deliveryId }))
       }
-      if (result.value.status === 'refused') {
-        setMessage(result.value.reason)
-        return
-      }
-      setQueued(true)
-      setMessage(m.replay_queued({ id: result.value.deliveryId }))
-    })
-  }
+    }
+  )
+  const message =
+    replay.error === null ? outcome : `${replay.error} ${m.replay_pending_copy()}`
   return (
     <div className="flex flex-col gap-2">
       <Button
         variant="outline"
         size="xs"
-        disabled={pending || queued}
-        onClick={replay}
+        disabled={replay.pending || queued}
+        onClick={() => {
+          setOutcome(null)
+          replay.run(undefined)
+        }}
         aria-label={m.replay_named({ id: delivery.id })}
       >
-        {pending ? m.replay_queuing() : m.replay_action()}
+        {replay.pending ? m.replay_queuing() : m.replay_action()}
       </Button>
       {message ? (
         <output className="max-w-64 text-sm whitespace-normal">{message}</output>
@@ -124,25 +126,19 @@ export function AdminFailedDeliveries({
   readonly initialPage: FailedDeliveriesPayload
 }) {
   const [page, setPage] = useState(initialPage)
-  const [pending, startTransition] = useTransition()
-  const [error, setError] = useState<string | null>(null)
-  function load(cursor?: string) {
-    startTransition(async () => {
-      setError(null)
-      const result = await callServerFn(
-        () =>
-          loadFailedDeliveriesServerFn({
-            data: cursor === undefined ? {} : { cursor }
-          }),
-        m.load_failed_deliveries_failed()
-      )
-      if (!result.ok) {
-        setError(result.message)
-        return
-      }
-      setPage(result.value)
-    })
-  }
+  // `/admin` has no loader for this list, so the page it reads is local state
+  // and the hook keeps its own invalidation out of the way.
+  const deliveries = useServerAction(
+    (cursor: string | undefined) =>
+      loadFailedDeliveriesServerFn({
+        data: cursor === undefined ? {} : { cursor }
+      }),
+    {
+      failureMessage: m.load_failed_deliveries_failed(),
+      invalidate: false,
+      onSuccess: setPage
+    }
+  )
   return (
     <Panel
       title={m.failed_webhook_deliveries()}
@@ -157,23 +153,27 @@ export function AdminFailedDeliveries({
         <DataTableContent />
       </DataTable>
       <div className="flex flex-wrap gap-2">
-        <Button variant="outline" disabled={pending} onClick={() => load()}>
+        <Button
+          variant="outline"
+          disabled={deliveries.pending}
+          onClick={() => deliveries.run(undefined)}
+        >
           {m.refresh_newest()}
         </Button>
         <Button
           variant="outline"
-          disabled={pending || page.nextCursor === null}
+          disabled={deliveries.pending || page.nextCursor === null}
           onClick={() => {
             if (page.nextCursor !== null) {
-              load(page.nextCursor)
+              deliveries.run(page.nextCursor)
             }
           }}
         >
           {m.older_failures()}
         </Button>
-        {pending ? <output>{m.loading_failures()}</output> : null}
+        {deliveries.pending ? <output>{m.loading_failures()}</output> : null}
       </div>
-      {error ? <p role="alert">{error}</p> : null}
+      {deliveries.error ? <p role="alert">{deliveries.error}</p> : null}
     </Panel>
   )
 }

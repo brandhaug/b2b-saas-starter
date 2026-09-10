@@ -22,10 +22,3 @@ export async function hmacSha256Hex(secret: string, payload: string): Promise<st
   )
   return bytesToHex(signed)
 }
-
-export function randomHex(byteLength: number): string {
-  const bytes = new Uint8Array(byteLength)
-  // oxlint-disable-next-line effect/noGlobals -- platform adapter: signing secrets and bearer tokens need a CSPRNG; Effect's Random is a seedable PRNG and must not back credential material.
-  crypto.getRandomValues(bytes)
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
-}

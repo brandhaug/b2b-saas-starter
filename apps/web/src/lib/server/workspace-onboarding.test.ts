@@ -2,7 +2,7 @@
 import '@/test/qualified-session'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 
-import { fixtureSession } from '@/test/fixture-session'
+import { fixtureAuthModule } from '@/test/fixture-session'
 import { loadWorkspaceDashboardHandler } from './workspace-dashboard.effects'
 import { dismissOnboardingChecklistHandler } from './workspace-onboarding.effects'
 import type * as AuthModule from './auth'
@@ -18,10 +18,9 @@ import type * as AuthModule from './auth'
  */
 const actor = vi.hoisted(() => ({ userId: 'usr_demo' }))
 
-vi.mock('./auth', async (importOriginal) => ({
-  ...(await importOriginal<typeof AuthModule>()),
-  requireRequestSession: async () => fixtureSession(actor)
-}))
+vi.mock('./auth', async (importOriginal) =>
+  fixtureAuthModule(await importOriginal<typeof AuthModule>(), actor)
+)
 
 describe('dismissOnboardingChecklistHandler', () => {
   beforeEach(() => {

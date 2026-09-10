@@ -17,6 +17,22 @@ describe('safeRedirect', () => {
     expect(safeRedirect('//evil.example.com/workspaces')).toBe('/workspaces')
   })
 
+  it('rejects the backslash spelling of a protocol-relative URL', () => {
+    // Browsers normalize a backslash in the authority position, so
+    // `/\evil.example.com` navigates off-origin exactly like `//`.
+    expect(safeRedirect(String.raw`/\evil.example.com`)).toBe('/workspaces')
+    expect(safeRedirect(String.raw`/\evil.example.com/workspaces`)).toBe('/workspaces')
+    expect(safeRedirect(String.raw`/\/evil.example.com`)).toBe('/workspaces')
+  })
+
+  it('keeps a path whose later characters are slashes or backslashes', () => {
+    expect(safeRedirect('/workspaces/starter-lab/settings')).toBe(
+      '/workspaces/starter-lab/settings'
+    )
+    const query = String.raw`/search?q=a\b`
+    expect(safeRedirect(query)).toBe(query)
+  })
+
   it('rejects absolute URLs to other origins', () => {
     expect(safeRedirect('https://evil.example.com')).toBe('/workspaces')
     expect(safeRedirect('javascript:alert(1)')).toBe('/workspaces')

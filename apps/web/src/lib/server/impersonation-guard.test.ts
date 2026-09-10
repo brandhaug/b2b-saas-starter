@@ -13,7 +13,7 @@ function post(pathname: string) {
 }
 
 describe('impersonationForbiddenAction', () => {
-  it('maps the password, two-factor, passkey, email and delete endpoints onto the capability vocabulary', () => {
+  it('maps the password, two-factor, passkey and email endpoints onto the capability vocabulary', () => {
     expect(impersonationForbiddenAction(post('/api/auth/change-password'))).toBe(
       'change_password'
     )
@@ -36,9 +36,13 @@ describe('impersonationForbiddenAction', () => {
     expect(impersonationForbiddenAction(post('/api/auth/change-email'))).toBe(
       'change_email'
     )
-    expect(impersonationForbiddenAction(post('/api/auth/delete-user'))).toBe(
-      'delete_account'
-    )
+  })
+
+  it('leaves account deletion to the capability-route refusal', () => {
+    // `/delete-user` never reaches this guard: the classification refuses it
+    // for every session, impersonated or not, because deletion runs through
+    // the app's own capability path.
+    expect(impersonationForbiddenAction(post('/api/auth/delete-user'))).toBeNull()
   })
 
   it('leaves every other exchange alone, including reads', () => {

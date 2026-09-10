@@ -42,6 +42,11 @@ describe('validateWebhookUrl', () => {
       'https://127.0.0.1/',
       'https://169.254.169.254/',
       'https://0.0.0.0/',
+      'https://100.64.0.1/',
+      'https://100.127.255.255/',
+      'https://192.0.0.1/',
+      'https://224.0.0.1/',
+      'https://239.255.255.255/',
       'https://[::1]/',
       'https://[fc00::1]/',
       'https://[fe80::1]/',
@@ -58,6 +63,11 @@ describe('validateWebhookUrl', () => {
   it('allows public boundary neighbours of blocked ranges', () => {
     expect(validateWebhookUrl('https://172.15.0.1/').valid).toBe(true)
     expect(validateWebhookUrl('https://172.32.0.1/').valid).toBe(true)
+    expect(validateWebhookUrl('https://100.63.255.255/').valid).toBe(true)
+    expect(validateWebhookUrl('https://100.128.0.1/').valid).toBe(true)
+    expect(validateWebhookUrl('https://192.0.1.1/').valid).toBe(true)
+    expect(validateWebhookUrl('https://223.255.255.255/').valid).toBe(true)
+    expect(validateWebhookUrl('https://240.0.0.1/').valid).toBe(true)
   })
 
   it('rejects localhost and single-label hostnames', () => {
