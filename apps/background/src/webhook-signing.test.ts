@@ -1,6 +1,6 @@
 import { activeSigningSecrets } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { randomWebhookSecret } from '@b2b-saas-starter/capabilities/crypto'
-import { describe, expect, it } from '@effect/vitest'
+import { describe, expect, it, vi } from '@effect/vitest'
 import { DateTime, Effect } from 'effect'
 import { Webhook } from 'standardwebhooks'
 import { computeWebhookSignature, signatureHeaderValue } from './webhook-signing.ts'
@@ -26,12 +26,18 @@ const signedHeaders = Effect.fn('Test.signedHeaders')(function* (
 })
 
 describe('Standard Webhooks reference verifier interoperability', () => {
-  // The independent verifier checks wall-clock freshness internally.
-  it.live(
+  it.effect(
     'verifies exact UTF-8 bytes and rejects changed body, identity, and stale time',
     () =>
       Effect.gen(function* () {
         const now = yield* DateTime.now
+        // Match TestClock because the independent verifier reads Date.now().
+        yield* Effect.acquireRelease(
+          Effect.sync(() =>
+            vi.spyOn(Date, 'now').mockReturnValue(DateTime.toEpochMillis(now))
+          ),
+          (clock) => Effect.sync(() => clock.mockRestore())
+        )
         const timestamp = Math.floor(DateTime.toEpochMillis(now) / 1000)
         const headers = yield* signedHeaders([currentSecret], timestamp)
         const verifier = new Webhook(currentSecret)
