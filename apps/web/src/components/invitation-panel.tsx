@@ -177,7 +177,7 @@ export function InvitationPanel({
                 errors={field.state.meta.errors}
                 onBlur={field.handleBlur}
                 onChange={field.handleChange}
-                placeholder="teammate@example.com"
+                placeholder={m.invitation_email_placeholder()}
               />
             )}
           </form.Field>

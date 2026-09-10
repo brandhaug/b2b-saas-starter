@@ -97,14 +97,14 @@ export function TwoFactorChallengePage({
   // and rides whichever form is showing — the label association survives the
   // swap because the id is stable.
   const trustControl = (
-    <div className="flex items-center gap-2">
+    <Label htmlFor="trust-device">
       <Checkbox
         id="trust-device"
         checked={trustDevice}
         onCheckedChange={setTrustDevice}
       />
-      <Label htmlFor="trust-device">{m.trust_device()}</Label>
-    </div>
+      {m.trust_device()}
+    </Label>
   )
 
   // The method switch rides the card footer, after the point of action, like
@@ -147,7 +147,7 @@ export function TwoFactorChallengePage({
               name={field.name}
               label={m.form_backup_code()}
               autoComplete="off"
-              placeholder="aB3dE-f9gH1"
+              placeholder={m.backup_code_placeholder()}
               maxLength={11}
               // oxlint-disable-next-line jsx-a11y/no-autofocus -- the challenge page has exactly one field, so focusing it cannot surprise anyone mid-task
               autoFocus
@@ -187,7 +187,7 @@ export function TwoFactorChallengePage({
             label={m.form_verification_code()}
             inputMode="numeric"
             autoComplete="one-time-code"
-            placeholder="123456"
+            placeholder={m.totp_code_placeholder()}
             maxLength={6}
             // oxlint-disable-next-line jsx-a11y/no-autofocus -- the challenge page has exactly one field, so focusing it cannot surprise anyone mid-task
             autoFocus

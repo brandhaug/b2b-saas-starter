@@ -35,6 +35,12 @@ import { render, type RenderResult } from '@testing-library/react'
  * stand-in for a gate's `{ session }`, for components that read the route
  * context (`useRouteContext`) instead of taking it as a prop.
  *
+ * `rootLoaderData` seeds the root route's loader data — the document-wide
+ * payload production loads there (`lib/server/root-data.ts`), for components
+ * that read it back through `useMatch({ from: '__root__' })`. Omit it and the
+ * root has no loader, which is the pre-load state those components must also
+ * survive.
+ *
  * `routerContext` seeds the router-level context object instead — the
  * client-session memory production keeps there (`lastWorkspace`, see
  * `lib/workspace-directory.ts`), for tests of the surfaces that read it back.
@@ -46,11 +52,15 @@ export async function renderWithRouter(
     readonly destinations?: ReadonlyArray<string>
     readonly initialEntry?: string
     readonly routeContext?: Record<string, unknown>
+    readonly rootLoaderData?: Record<string, unknown>
     readonly routerContext?: Record<string, unknown>
   }
 ): Promise<RenderResult & { readonly router: AnyRouter }> {
   const path = options?.path ?? '/'
-  const rootRoute = createRootRoute()
+  const rootLoaderData = options?.rootLoaderData
+  const rootRoute = createRootRoute(
+    rootLoaderData === undefined ? {} : { loader: () => rootLoaderData }
+  )
   const routeContext = options?.routeContext ?? {}
   const routeUnderTest = createRoute({
     getParentRoute: () => rootRoute,

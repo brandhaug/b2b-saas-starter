@@ -166,7 +166,7 @@ export function EnrollmentFlow({
             id="twofactor-code"
             inputMode="numeric"
             autoComplete="one-time-code"
-            placeholder="123456"
+            placeholder={m.totp_code_placeholder()}
             value={code}
             onChange={(event) => setCode(event.target.value)}
             required

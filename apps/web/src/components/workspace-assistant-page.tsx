@@ -83,15 +83,17 @@ function TranscriptBody({
 function TranscriptBubble({ item }: { readonly item: TranscriptEntry }) {
   const isUser = item.role === 'user'
   return (
-    <li className="grid gap-1">
+    // `min-w-0` plus `wrap-anywhere`: a pasted URL or token in a message has
+    // no break opportunity, and would otherwise stretch the transcript column.
+    <li className="grid min-w-0 gap-1">
       <div className="text-muted-foreground text-xs font-medium">
         {isUser ? m.assistant_you() : m.assistant_label()}
       </div>
       <div
         className={
           isUser
-            ? 'rounded-md bg-muted px-3 py-2 text-sm whitespace-pre-wrap'
-            : 'rounded-md border border-border px-3 py-2 text-sm whitespace-pre-wrap'
+            ? 'rounded-md bg-muted px-3 py-2 text-sm whitespace-pre-wrap wrap-anywhere'
+            : 'rounded-md border border-border px-3 py-2 text-sm whitespace-pre-wrap wrap-anywhere'
         }
       >
         {item.text}

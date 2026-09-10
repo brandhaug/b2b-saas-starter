@@ -70,7 +70,7 @@ export function ResetPasswordPage({
           <p className="text-center text-sm text-muted-foreground">
             <Link
               to="/forgot-password"
-              className="text-primary underline underline-offset-4"
+              className="inline-flex items-center text-primary underline underline-offset-4 max-md:min-h-11"
             >
               {m.request_new_reset_link()}
             </Link>

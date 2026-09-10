@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { useRouter } from '@tanstack/react-router'
+import { useMatch, useRouter } from '@tanstack/react-router'
 import {
   reconcileCheckoutReturnServerFn,
   type WorkspaceBillingPayload,
@@ -9,7 +9,7 @@ import { useServerAction } from '@/hooks/use-server-action'
 import { PageHeader } from '@/components/page/page-header'
 import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
 import { WorkspaceShell } from '@/components/workspace-shell'
-import { BillingPlans } from '@/components/workspace-billing'
+import { BillingPlans, type BillingPorts } from '@/components/workspace-billing'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { viewerCan } from '@/lib/permissions'
 import { m } from '@b2b-saas-starter/i18n/messages'
@@ -28,6 +28,7 @@ export function WorkspaceBillingPage({
   data,
   systemRole,
   checkoutReturn,
+  ports,
   reconcileCheckoutReturn = reconcileCheckoutReturnServerFn
 }: {
   readonly workspaceSlug: string
@@ -35,9 +36,19 @@ export function WorkspaceBillingPage({
   /** The signed-in user's Better Auth system role, for the shell's admin link. */
   readonly systemRole?: string | null
   readonly checkoutReturn?: boolean
+  /** Checkout, portal and selection transports. The preview refuses all three. */
+  readonly ports?: BillingPorts
   readonly reconcileCheckoutReturn?: ReconcileCheckout
 }) {
   const router = useRouter()
+  // The invalidate filter names this route, not the nearest match, so the
+  // demo renderer hosting this page does not re-run its own loader.
+  const { routeId } = useMatch({
+    from: '/workspaces/$workspaceSlug/billing',
+    shouldThrow: false
+  }) ?? {
+    routeId: null
+  }
   const reconciliationKey = useRef<string | null>(null)
   const { stripeConfigured, synchronization } = data
   const canManageBilling =
@@ -64,14 +75,26 @@ export function WorkspaceBillingPage({
     reconcile.run(undefined)
   }, [canManageBilling, checkoutReturn, reconcile, stripeConfigured, workspaceSlug])
   useEffect(() => {
-    if (!stripeConfigured) {
+    if (!stripeConfigured || synchronization.status !== 'pending') {
       return
     }
-    // Poll the same loader that mutations invalidate; there is no second cache.
-    const interval = synchronization.status === 'pending' ? 10_000 : 30_000
-    const timer = window.setInterval(() => void router.invalidate(), interval)
-    return () => window.clearInterval(timer)
-  }, [router, stripeConfigured, synchronization.status])
+    // Pending provider synchronization is the one state a refresh can resolve,
+    // so the poll lives and dies with it. It refreshes this route's loader
+    // only — a bare invalidate re-runs every loader in the match chain — and a
+    // hidden tab waits, then catches up the moment it comes back.
+    function refresh(): void {
+      if (document.visibilityState !== 'visible') {
+        return
+      }
+      void router.invalidate({ filter: (match) => match.routeId === routeId })
+    }
+    const timer = window.setInterval(refresh, 10_000)
+    document.addEventListener('visibilitychange', refresh)
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', refresh)
+    }
+  }, [router, routeId, stripeConfigured, synchronization.status])
   return (
     <WorkspaceShell
       workspaceSlug={workspaceSlug}
@@ -97,6 +120,7 @@ export function WorkspaceBillingPage({
         webhookEndpoints={data.webhookEndpoints}
         resourceEntitlements={data.resourceEntitlements}
         canManageBilling={canManageBilling}
+        {...ports}
       />
       {reconcile.pending ? (
         <output className="block text-sm text-muted-foreground">

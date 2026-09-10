@@ -9,7 +9,10 @@ import {
   type Actor
 } from '@b2b-saas-starter/capabilities/workspace-context'
 
-import { workspaceRecoveryPayload } from './workspace-suspension.effects'
+import {
+  workspaceRecoveryPayload,
+  workspaceSuspensionGate
+} from './workspace-suspension.effects'
 
 function actor(userId: string, role: Actor['role']): Actor {
   return { userId, role, systemRole: 'user' }
@@ -79,6 +82,34 @@ describe('workspace recovery projection', () => {
         'workspaceName'
       ])
       expect(JSON.stringify(owner)).not.toContain('private operator note')
+    }).pipe(Effect.provide(SeedLayer))
+  )
+})
+
+describe('workspace subtree gate', () => {
+  it.effect('asks for verification from privileged roles only', () =>
+    Effect.gen(function* () {
+      // The Seed authentication adapter never qualifies a session, so this
+      // states who is *asked* to verify, not who passes.
+      const owner = yield* workspaceSuspensionGate('ses_owner').pipe(
+        Effect.provide(
+          testWorkspaceContext(seedWorkspaceRecord, actor('usr_demo', 'owner'))
+        )
+      )
+      const admin = yield* workspaceSuspensionGate('ses_admin').pipe(
+        Effect.provide(
+          testWorkspaceContext(seedWorkspaceRecord, actor('usr_ops', 'admin'))
+        )
+      )
+      const member = yield* workspaceSuspensionGate('ses_member').pipe(
+        Effect.provide(
+          testWorkspaceContext(seedWorkspaceRecord, actor('usr_dev', 'member'))
+        )
+      )
+      expect(owner.strongAuthenticationRequired).toBe(true)
+      expect(admin.strongAuthenticationRequired).toBe(true)
+      // A plain member holds nothing privileged, so nothing is asked of them.
+      expect(member.strongAuthenticationRequired).toBe(false)
     }).pipe(Effect.provide(SeedLayer))
   )
 })

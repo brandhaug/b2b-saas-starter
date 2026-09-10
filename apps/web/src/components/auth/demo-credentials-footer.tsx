@@ -59,7 +59,7 @@ export function DemoCredentialsFooter() {
           <Link
             to="/workspaces/$workspaceSlug"
             params={{ workspaceSlug: DEMO_WORKSPACE_SLUG }}
-            className="text-center text-sm text-primary underline underline-offset-4"
+            className="inline-flex items-center text-center text-sm text-primary underline underline-offset-4 max-md:min-h-11"
           >
             {m.public_auth_open_seeded_workspace()}
           </Link>

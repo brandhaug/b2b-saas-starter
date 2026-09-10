@@ -55,17 +55,17 @@ describe('AdminUserActions', () => {
   it('loads the memberships and names each role button by its workspace', async () => {
     await renderActions()
     fireEvent.click(screen.getByRole('button', { name: /Load workspaces/ }))
-    await screen.findByLabelText('Make Starter Lab role admin')
-    expect(screen.getByLabelText('Make Starter Lab role owner')).toBeTruthy()
+    await screen.findByLabelText('Make admin: Starter Lab')
+    expect(screen.getByLabelText('Make owner: Starter Lab')).toBeTruthy()
     // The role the membership already holds is not offered.
-    expect(screen.queryByLabelText('Make Starter Lab role member')).toBeNull()
+    expect(screen.queryByLabelText('Make member: Starter Lab')).toBeNull()
     expect(listWorkspaces).toHaveBeenCalledWith({ data: { userId: 'usr_dev' } })
   })
 
   it('re-reads the memberships after a role change', async () => {
     await renderActions()
     fireEvent.click(screen.getByRole('button', { name: /Load workspaces/ }))
-    fireEvent.click(await screen.findByLabelText('Make Starter Lab role admin'))
+    fireEvent.click(await screen.findByLabelText('Make admin: Starter Lab'))
     await waitFor(() => {
       expect(changeUserRole).toHaveBeenCalledWith({
         data: { userId: 'usr_dev', workspaceId: 'wrk_1', role: 'admin' }
@@ -101,7 +101,7 @@ describe('AdminUserActions', () => {
     )
     await renderActions()
     fireEvent.click(screen.getByRole('button', { name: /Load workspaces/ }))
-    fireEvent.click(await screen.findByLabelText('Make Starter Lab role admin'))
+    fireEvent.click(await screen.findByLabelText('Make admin: Starter Lab'))
     await screen.findByText(
       'The workspace refused this change: a System Admin can only change a membership in a workspace where they are also an admin or owner. The system role confers nothing inside a workspace.'
     )

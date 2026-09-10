@@ -13,6 +13,7 @@
   },
   "scripts": {
     "generate": "node scripts/compile.mjs",
+    "check:unused": "node scripts/check-unused-messages.mjs",
     "build": "node scripts/compile.mjs && tsc --noEmit",
     "typecheck": "node scripts/compile.mjs && tsc --noEmit",
     "test": "node scripts/compile.mjs && vp test run --passWithNoTests"

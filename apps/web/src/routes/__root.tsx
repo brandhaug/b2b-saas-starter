@@ -24,7 +24,7 @@ import {
 } from '@tanstack/react-router'
 import { Toaster } from '@/components/ui/sonner'
 import { ClientTelemetry } from '@/lib/client-telemetry'
-import { clientTelemetryConfigServerFn } from '@/lib/server/telemetry-config'
+import { rootDataServerFn } from '@/lib/server/root-data'
 import { type SidebarWorkspace } from '@/lib/workspace-directory'
 import appCss from '../index.css?url'
 
@@ -59,15 +59,16 @@ type RouterAppContext = {
 }
 
 export const Route = createRootRouteWithContext<RouterAppContext>()({
-  // Server-side only: hands the browser SDKs their public config. Undefined
+  // Server-side only: hands the browser SDKs their public config, and tells
+  // the public header whether the visitor is signed in. Undefined telemetry
   // fields keep Sentry/PostHog inactive in the browser (see
-  // lib/client-telemetry.tsx). The config crosses through a server fn whose
-  // env-bag read lives behind a dynamic import — the root route is the one
-  // route the code splitter cannot split, so a static import of the reader
-  // would ride the entry chunk every page preloads, pinning `env/server`'s
-  // Effect Schema chunk with it.
+  // lib/client-telemetry.tsx). The payload crosses through a server fn whose
+  // env-bag and session reads live behind a dynamic import — the root route
+  // is the one route the code splitter cannot split, so a static import of
+  // the reader would ride the entry chunk every page preloads, pinning
+  // `env/server`'s Effect Schema chunk with it.
   beforeLoad: ({ location }) => ({ canonicalPath: location.pathname }),
-  loader: async () => clientTelemetryConfigServerFn(),
+  loader: async () => rootDataServerFn(),
   head: ({ match }) => ({
     meta: [
       { charSet: 'utf8' },
@@ -111,10 +112,10 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
 })
 
 function RootComponent() {
-  const telemetryConfig = Route.useLoaderData()
+  const { telemetry } = Route.useLoaderData()
   return (
     <RootDocument>
-      <ClientTelemetry config={telemetryConfig} />
+      <ClientTelemetry config={telemetry} />
       <Outlet />
     </RootDocument>
   )

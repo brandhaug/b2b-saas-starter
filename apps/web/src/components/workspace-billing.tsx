@@ -47,6 +47,16 @@ export type SelectBillingResources = (input: {
   }
 }) => Promise<ResourceSelection>
 
+/**
+ * The three billing server functions as one bundle. A preview or a test hands
+ * over all of them together, so no surface can quietly keep one live port.
+ */
+export type BillingPorts = {
+  readonly startCheckout: StartCheckout
+  readonly startPortalSession: StartPortalSession
+  readonly selectBillingResources: SelectBillingResources
+}
+
 const EMPTY_RESOURCE_IDS: ReadonlyArray<string> = []
 const EMPTY_RESOURCES: ReadonlyArray<{ readonly id: string; readonly name: string }> =
   []
@@ -350,14 +360,18 @@ function PlanAction({
   if (plan.id === currentPlanId || !canManageBilling) {
     return null
   }
-  if (plan.purchase === 'self_serve' && stripeConfigured) {
-    return (
+  if (plan.purchase === 'self_serve') {
+    // A self-serve plan on a deployment without Stripe has no sales motion to
+    // fall back on; say checkout is unavailable rather than invent a sales team.
+    return stripeConfigured ? (
       <UpgradeButton
         planName={plan.name}
         disabled={pendingPlan !== null}
         busy={pendingPlan === plan.id}
         onUpgrade={onUpgrade}
       />
+    ) : (
+      <p className="mt-2 text-xs text-muted-foreground">{m.checkout_disabled()}</p>
     )
   }
   return <StaticPlanHint plan={plan} />
@@ -394,7 +408,7 @@ function UpgradeButton({
   )
 }
 
-/** The copy under plans that are not self-serve upgradable from here. */
+/** The copy under plans this product never sells itself: downgrades and sales-led tiers. */
 function StaticPlanHint({ plan }: { readonly plan: BillingPlan }) {
   return (
     <p className="text-xs text-muted-foreground">
@@ -750,7 +764,7 @@ function EntitlementRow({
   if (limit === null) {
     return (
       <li className="flex items-center gap-2">
-        <Check className="size-4 text-primary" />
+        <Check className="size-4 text-status-ok" />
         {unlimitedLabel ??
           m.shell_plan_unlimited_label({ label: label.toLocaleLowerCase(getLocale()) })}
       </li>

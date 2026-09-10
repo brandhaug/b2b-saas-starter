@@ -11,7 +11,7 @@ Use semantic utilities. Raw colors belong in the stylesheet, apart from the docu
 - Mauve `primary` marks the main action or selection. Reserve one primary action per region.
 - Neutral `secondary` gives an action more weight than outline without competing with primary. `muted` separates nested content; `accent` supplies hover states.
 - Cards and popovers use the darker mantle color with a one-pixel border. Input edges use the lighter `input` token so controls remain distinguishable from their surroundings.
-- `destructive` marks destructive actions and refusals. Use `status-ok`, `status-warn`, and `status-info` for operational states; chart tokens belong to data series.
+- `destructive` marks destructive actions and refusals. Use `status-ok`, `status-warn`, and `status-info` for operational states, in charts as well as chrome: the dashboard's bars carry a health judgement, so the scheme ships no separate chart palette.
 - Peach `signal` marks schematics and `.band-deep` calls to action. That scope darkens whole sections and changes primary to peach.
 - Sidebar components use `sidebar-*` tokens. Overlays use `overlay/80`.
 
@@ -23,14 +23,15 @@ Self-hosted family names must match Fontsource: `Geist Variable`, `Geist Mono Va
 
 Geist handles body text and headings. Geist Mono handles code, identifiers, and tabular numeric data. Newsreader is limited to the landing hero and section headings through `font-display`, with optical size 72; never use it for workspace, card, or small-text headings.
 
-| Content                         | Treatment                                                          |
-| ------------------------------- | ------------------------------------------------------------------ |
-| Landing hero / section headings | Newsreader, `text-5xl` to `text-6xl` / `text-3xl` to `text-4xl`    |
-| Other page titles               | Geist `text-3xl`; workspace shell title `text-xl`                  |
-| Article section headings        | `text-xl` h2, `text-base` h3                                       |
-| Card titles                     | Geist `text-lg font-semibold`                                      |
-| Body and controls               | `text-base` below `md`, `text-sm` above; long-form prose `text-lg` |
-| Micro text                      | Mono hints, table headers, and schematic labels only               |
+| Content                         | Treatment                                                       |
+| ------------------------------- | --------------------------------------------------------------- |
+| Landing hero / section headings | Newsreader, `text-5xl` to `text-6xl` / `text-3xl` to `text-4xl` |
+| Other page titles               | Geist `text-3xl`; workspace shell title `text-xl`               |
+| Article section headings        | `text-xl` h2, `text-base` h3                                    |
+| Card titles                     | Geist `text-lg font-semibold`                                   |
+| Body                            | `text-sm` at every width; long-form prose `text-lg`             |
+| Form controls and their labels  | `text-base` below `md`, `text-sm` above                         |
+| Micro text                      | Mono hints, table headers, and schematic labels only            |
 
 Use sentence case. Keep input text at 16px on mobile to avoid focus zoom. Micro sizes are unsuitable for prose or interactive labels.
 

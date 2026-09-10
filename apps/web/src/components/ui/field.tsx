@@ -104,6 +104,12 @@ function FieldLabel({ className, ...props }: React.ComponentProps<typeof Label>)
       className={cn(
         'group/field-label peer/field-label flex w-fit gap-2 leading-snug group-data-[disabled=true]/field:opacity-50 has-data-checked:border-primary/20 has-data-checked:bg-primary/10 has-[>[data-slot=field]]:rounded-none has-[>[data-slot=field]]:border has-[>[data-slot=field]]:not-has-[:disabled,[data-disabled]]:hover:bg-muted/50 has-[>[data-slot=field]]:has-[:focus-visible]:border-ring has-[>[data-slot=field]]:has-[:focus-visible]:ring-2 has-[>[data-slot=field]]:has-[:focus-visible]:ring-ring has-[>[data-slot=field]]:has-[:focus-visible]:ring-offset-2 has-[>[data-slot=field]]:has-[:focus-visible]:ring-offset-background *:data-[slot=field]:p-2',
         'has-[>[data-slot=field]]:w-full has-[>[data-slot=field]]:flex-col',
+        // A label that wraps its own checkbox, radio or switch is the row the
+        // finger aims at, so below `md` it carries the 44px touch height
+        // (DESIGN.md) with the control centred in it. Gated on containing a
+        // control: a plain label above an input must stay text-height, or
+        // every mobile form grows a 44px gap under its label.
+        'max-md:[&:has([data-slot=checkbox],[data-slot=radio-group-item],[data-slot=switch])]:min-h-11 max-md:[&:has([data-slot=checkbox],[data-slot=radio-group-item],[data-slot=switch])]:items-center',
         className
       )}
       {...props}

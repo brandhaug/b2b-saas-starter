@@ -1,4 +1,5 @@
 /* oxlint-disable jsx-a11y/prefer-tag-over-role -- inline SVG uses role="img" for its accessible description */
+import { useEffect, useRef, useState } from 'react'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 export type SchematicNode =
@@ -36,15 +37,39 @@ export function ArchitectureSchematic({
   readonly className?: string
 }) {
   const active = new Set(activeNodes)
+  const svgRef = useRef<SVGSVGElement | null>(null)
+  // Ten paths animate `stroke-dashoffset` forever, which keeps the compositor
+  // busy even when the schematic has scrolled away. The observer pauses them
+  // off-screen. The default is `true` so the server render and the first
+  // client paint agree and the animation never restarts on hydration; the
+  // observer only ever pauses what is already out of view.
+  const [visible, setVisible] = useState(true)
+
+  useEffect(() => {
+    const node = svgRef.current
+    if (node === null || !('IntersectionObserver' in window)) {
+      return
+    }
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        setVisible(entry.isIntersecting)
+      }
+    })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+
   return (
     <svg
+      ref={svgRef}
       viewBox="0 0 408 460"
       role="img"
       aria-label={m.public_architecture_aria()}
       className={className}
+      data-schematic-visible={visible}
     >
       <title>{m.public_architecture_title()}</title>
-      <g fill="none" strokeWidth="1" className="stroke-muted-foreground/50">
+      <g fill="none" strokeWidth="1" className="stroke-muted-foreground/70">
         {CONNECTIONS.map(({ path }) => (
           <path key={path} d={path} />
         ))}

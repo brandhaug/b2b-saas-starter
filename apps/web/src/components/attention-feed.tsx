@@ -49,7 +49,7 @@ export function AttentionFeed({
             <Link
               to={item.to}
               params={{ workspaceSlug }}
-              className="flex shrink-0 items-center gap-1 text-sm underline underline-offset-2 max-md:w-full max-md:justify-end"
+              className="flex shrink-0 items-center gap-1 text-sm underline underline-offset-2 max-md:min-h-11 max-md:w-full max-md:justify-end"
             >
               {item.linkLabel}
               <ArrowRightIcon aria-hidden className="size-3.5" />

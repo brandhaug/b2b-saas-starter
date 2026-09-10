@@ -52,7 +52,7 @@ export function EmailCodeSignInPage({
           <Link
             to="/sign-in"
             search={redirect ? { redirect } : {}}
-            className="text-primary underline underline-offset-4"
+            className="inline-flex items-center text-primary underline underline-offset-4 max-md:min-h-11"
           >
             {m.public_auth_sign_in_that_way()}
           </Link>
@@ -63,7 +63,7 @@ export function EmailCodeSignInPage({
           <Link
             to="/sign-in"
             search={redirect ? { redirect } : {}}
-            className="text-primary underline underline-offset-4"
+            className="inline-flex items-center text-primary underline underline-offset-4 max-md:min-h-11"
           >
             {m.public_auth_back_to_sign_in()}
           </Link>

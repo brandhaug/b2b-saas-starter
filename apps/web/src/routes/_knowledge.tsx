@@ -1,4 +1,5 @@
 import { createFileRoute, Link, Outlet, useLocation } from '@tanstack/react-router'
+import { ChevronDownIcon } from 'lucide-react'
 import { PublicLayout } from '@/components/public-layout'
 import { DOC_CATEGORY_ORDER } from '@/lib/doc-categories'
 import { docCategoryName, getAllDocMeta, type DocMeta } from '@/lib/docs'
@@ -87,9 +88,15 @@ function KnowledgeLayout() {
         {/* Below md the sidebar is gone, which used to leave every phone
             reader with no in-page navigation at all — a disclosure carries
             the same nav instead. */}
-        <details className="w-full border border-border md:hidden">
-          <summary className="cursor-pointer px-3 py-2 text-sm font-medium select-none">
+        <details className="group w-full border border-border md:hidden">
+          {/* The native disclosure triangle belongs to no design system:
+              hide it and draw the same chevron the rest of the app uses. */}
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-sm font-medium select-none [&::-webkit-details-marker]:hidden">
             {m.public_knowledge_sections()}
+            <ChevronDownIcon
+              aria-hidden
+              className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+            />
           </summary>
           <div className="flex flex-col gap-4 px-3 pt-1 pb-3">
             <nav aria-label={m.public_knowledge_nav()}>
@@ -113,7 +120,7 @@ function KnowledgeLayout() {
           </div>
         </aside>
 
-        <main id="main-content" className="min-w-0 flex-1">
+        <main id="main-content" tabIndex={-1} className="min-w-0 flex-1 outline-none">
           <Outlet />
         </main>
       </div>

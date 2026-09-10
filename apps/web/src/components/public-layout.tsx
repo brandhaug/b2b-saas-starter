@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from 'react'
-import { Link } from '@tanstack/react-router'
+import { Link, useMatch } from '@tanstack/react-router'
 import { BoxesIcon, MenuIcon } from 'lucide-react'
 // The public layout is the one scope that still renders Newsreader (the
 // landing hero and section headings), so its latin variable woff2 preloads
@@ -21,8 +21,23 @@ import { publicLinks } from '@/lib/content'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { LanguageSwitcher } from '@/components/language-switcher'
 
+/**
+ * Whether this document was rendered for a signed-in visitor, from the root
+ * route's loader (see `lib/server/root-data.ts`). Read through `useMatch`
+ * rather than `useLoaderData` so a render without root loader data — a
+ * component test, a router that has not resolved yet — reports "signed out"
+ * instead of throwing.
+ */
+function useSignedIn(): boolean {
+  return useMatch({
+    from: '__root__',
+    select: (match) => match.loaderData?.signedIn === true
+  })
+}
+
 export function PublicLayout({ children }: { readonly children: ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const signedIn = useSignedIn()
   return (
     // prettier-ignore
     <CommandPaletteProvider>
@@ -44,8 +59,8 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
         {m.common_skip_to_content()}
       </a>
       <header className="sticky top-0 z-40 border-b border-border bg-background">
-        {/* Keep the narrow bar's fixed controls compact so Sign in remains
-            reachable at the smallest supported width. */}
+        {/* Keep the narrow bar's fixed controls compact so the account CTA
+            remains reachable at the smallest supported width. */}
         <div className="mx-auto flex h-16 min-w-0 max-w-7xl items-center gap-2 px-4 sm:px-6 md:gap-4">
           <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
             <SheetTrigger
@@ -85,13 +100,15 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
                   <SearchButton />
                 </div>
                 <LanguageSwitcher />
+                {/* A signed-in visitor reading the public site needs the way
+                    back into the app, not an invitation to sign in again. */}
                 <Button
                   nativeButton={false}
-                  render={<Link to="/sign-in" />}
+                  render={<Link to={signedIn ? '/workspaces' : '/sign-in'} />}
                   onClick={() => setMobileNavOpen(false)}
                   className="mt-2 shrink-0 max-md:ml-auto max-md:w-full"
                 >
-                  {m.form_sign_in()}
+                  {signedIn ? m.common_workspaces() : m.form_sign_in()}
                 </Button>
               </nav>
             </SheetContent>
@@ -128,10 +145,10 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
           </div>
           <Button
             nativeButton={false}
-            render={<Link to="/sign-in" />}
+            render={<Link to={signedIn ? '/workspaces' : '/sign-in'} />}
             className="shrink-0 max-md:ml-auto"
           >
-            {m.form_sign_in()}
+            {signedIn ? m.common_workspaces() : m.form_sign_in()}
           </Button>
         </div>
       </header>

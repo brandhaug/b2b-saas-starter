@@ -72,7 +72,7 @@ export function AuditEventSheet({
           return eventLink ?? document.getElementById('audit-actor-filter')
         }}
       >
-        <SheetHeader className="pr-16">
+        <SheetHeader>
           <SheetTitle>{m.audit_event()}</SheetTitle>
           <SheetDescription>{m.audit_event_description()}</SheetDescription>
         </SheetHeader>

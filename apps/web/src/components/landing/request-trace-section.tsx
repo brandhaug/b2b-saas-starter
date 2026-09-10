@@ -1,10 +1,17 @@
 import { type WorkspaceOverviewProjection } from '@b2b-saas-starter/capabilities/workspace-projections'
+import { seedWorkspaceRecord } from '@b2b-saas-starter/capabilities/governance/workspace-identity.seed'
 import { useEffect, useRef, useState } from 'react'
 import {
   ArchitectureSchematic,
   type SchematicNode
 } from '@/components/landing/architecture-schematic'
 import { SnippetPanel } from '@/components/landing/snippet-panel'
+import {
+  CALL_SITES,
+  CAPABILITY_SNIPPET,
+  CONTRACT_SNIPPET
+} from '@/components/landing/request-trace-snippets'
+import { DEMO_WORKSPACE_SLUG } from '@/lib/demo-workspace'
 import { DEPLOY_COMMAND } from '@/lib/toolchain'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
@@ -75,67 +82,7 @@ function responseSnippet(overview: WorkspaceOverviewProjection): string {
     : `${body}\n${m.public_request_more_notifications({ count: elided })}`
 }
 
-const REQUEST_SNIPPET = `curl -H "Authorization: Bearer bsk_live_xxx" \\\n  https://api.example.com/workspaces/starter-lab/overview`
-
-/** Verbatim from `packages/api/src/index.ts` (the group's first endpoint
- *  and the gate every endpoint in it rides; six sibling reads omitted). */
-const CONTRACT_SNIPPET = `export const WorkspaceApi = HttpApiGroup.make('workspace')
-  .add(
-    HttpApiEndpoint.get('overview', '/workspaces/:slug/overview', {
-      params: SlugParams,
-      success: WorkspaceOverviewDto,
-      error: WORKSPACE_ERRORS
-    })
-  )
-  .middleware(BearerAuth)`
-
-/** Verbatim from `packages/capabilities/src/workspace-projections.ts`. */
-const CAPABILITY_SNIPPET = `export const workspaceOverview: Effect.Effect<
-  WorkspaceOverviewProjection,
-  CapabilityUnavailable,
-  WorkspaceContext | NotificationFeed
-> = Effect.gen(function* () {
-  const ctx = yield* WorkspaceContext
-  const feed = yield* NotificationFeed
-  const notifications = yield* feed.list
-  return {
-    workspace: ctx.workspace,
-    notifications
-  }
-})`
-
-/**
- * The three call sites, each condensed to its deciding lines. `…` marks
- * elisions the same way the response snippet does; nothing is paraphrased.
- */
-const CALL_SITES: ReadonlyArray<{
-  readonly label: string
-  readonly path: string
-  readonly code: string
-}> = [
-  {
-    label: 'server fn',
-    path: 'apps/web/src/lib/server/demo-showcase.effects.ts',
-    code: `return runWorkspaceCapabilities(
-  DEMO_WORKSPACE_SLUG,
-  Effect.all({ overview: workspaceOverview, memberCount: … })
-)`
-  },
-  {
-    label: 'REST handler',
-    path: 'apps/api/src/handlers.ts',
-    code: `.handle('overview', ({ params, request }) =>
-  workspaceRead(READ_OPERATIONS.overview, params, undefined, request)
-)`
-  },
-  {
-    label: 'MCP tool',
-    path: 'apps/api/src/mcp.ts',
-    code: `const invoke = yield* decodeOperationInput(operation, payload)
-yield* requirePermission(yield* callerPrincipal(caller), operation.permission)
-return yield* invoke`
-  }
-]
+const REQUEST_SNIPPET = `curl -H "Authorization: Bearer $API_TOKEN" \\\n  https://api.example.com/workspaces/${DEMO_WORKSPACE_SLUG}/overview`
 
 /** The runtime the trace lands on, one row per lit schematic node. */
 function runtimeRows(): ReadonlyArray<{
@@ -215,10 +162,9 @@ function RequestTraceSection({
           </p>
         </div>
 
-        <figure
-          aria-label={m.public_architecture_aria()}
-          className="mx-auto mt-10 max-w-md lg:hidden"
-        >
+        {/* No aria-label here: the schematic SVG already sets the same name
+            and a <title>, so labelling the figure too announces it twice. */}
+        <figure className="mx-auto mt-10 max-w-md lg:hidden">
           <ArchitectureSchematic activeNodes={activeNodes} />
         </figure>
         <dl className="sr-only">
@@ -285,8 +231,8 @@ function RequestTraceSection({
               <div className="mt-6">
                 <SnippetPanel
                   label={m.shell_trace_workspace_group()}
-                  path="packages/api/src/index.ts"
-                  code={CONTRACT_SNIPPET}
+                  path={CONTRACT_SNIPPET.path}
+                  code={CONTRACT_SNIPPET.code}
                 />
               </div>
             </article>
@@ -305,15 +251,14 @@ function RequestTraceSection({
               <div className="mt-6">
                 <SnippetPanel
                   label={m.shell_trace_overview()}
-                  path="packages/capabilities/src/workspace-projections.ts"
-                  code={CAPABILITY_SNIPPET}
+                  path={CAPABILITY_SNIPPET.path}
+                  code={CAPABILITY_SNIPPET.code}
                 />
               </div>
-              {/* Three call sites, three deciding lines each: the same
+              {/* Three call sites, each cut to its deciding lines: the same
                   effect serving a server fn, a REST handler, and an MCP
                   tool. Stacked full-width of the column — the widest line
-                  (74 chars) fits unscrolled, so each reads as three lines,
-                  not a panning exercise. */}
+                  (76 chars) fits unscrolled, so no panel needs panning. */}
               <div className="mt-4 grid items-start gap-4">
                 {CALL_SITES.map((site) => (
                   <SnippetPanel
@@ -414,12 +359,7 @@ function StageMarker({
  * the panel shows the payload's shape without claiming live data.
  */
 const FALLBACK_OVERVIEW: WorkspaceOverviewProjection = {
-  workspace: {
-    id: 'wrk_starter',
-    slug: 'starter-lab',
-    name: 'Starter Lab',
-    planId: 'team'
-  },
+  workspace: seedWorkspaceRecord,
   notifications: []
 }
 

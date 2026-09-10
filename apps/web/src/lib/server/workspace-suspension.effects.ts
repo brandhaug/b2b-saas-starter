@@ -3,12 +3,17 @@ import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-conte
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { SsoConnections } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
 import { Billing } from '@b2b-saas-starter/billing/billing'
-import { authorize, memberPrincipal } from '@b2b-saas-starter/authz/client'
+import {
+  authorize,
+  memberPrincipal,
+  needsStrongAuthentication
+} from '@b2b-saas-starter/authz/client'
 import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { Effect } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
+import { strongAuthenticationStatusFor } from './strong-authentication.effects'
 import {
   type WorkspaceRecoveryPayload,
   type WorkspaceSuspensionGatePayload
@@ -31,26 +36,55 @@ export async function loadWorkspaceSuspensionHandler(input: {
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
     input.workspaceSlug,
-    Effect.gen(function* () {
-      const context = yield* WorkspaceContext
-      const service = yield* WorkspaceSuspensionService
-      const state = yield* service.get(context.workspace.id)
-      const actor = context.actor
-      if (actor === null) {
-        return yield* missingActor()
-      }
-      const privileged = may(actor.role, { organization: ['update'] })
-      return {
-        workspaceId: state.workspaceId,
-        status: state.status,
-        changedAt: state.changedAt,
-        customerExplanation: privileged ? state.customerExplanation : null,
-        workspaceName: context.workspace.name,
-        viewer: { role: actor.role }
-      }
-    }),
+    workspaceSuspensionGate(session.session.id),
     { userId: session.user.id }
   )
+}
+
+/**
+ * The gate the `/workspaces/$workspaceSlug` subtree reads before any page of
+ * it loads: the workspace's suspension state plus whether this session still
+ * owes privileged-authentication proof.
+ *
+ * The authentication question is *reported*, not enforced. Enforcement stays
+ * in `authorize.ts`, where every capability call meets it; asking it here as
+ * well is what lets the route redirect an unverified owner to
+ * /verify-authentication instead of letting the first page loader fail into
+ * an error boundary. Exported at the Effect seam so the policy is testable
+ * without a session, like the recovery projection below.
+ *
+ * The evidence read goes through `strongAuthenticationStatusFor`, the
+ * request-scoped memo slot, so asking here does not add a D1 round trip to a
+ * navigation whose page also asks.
+ */
+export function workspaceSuspensionGate(sessionId: string) {
+  return Effect.gen(function* () {
+    const context = yield* WorkspaceContext
+    const service = yield* WorkspaceSuspensionService
+    const state = yield* service.get(context.workspace.id)
+    const actor = context.actor
+    if (actor === null) {
+      return yield* missingActor()
+    }
+    const privileged = may(actor.role, { organization: ['update'] })
+    const strongAuthenticationRequired = needsStrongAuthentication({
+      systemRole: actor.systemRole,
+      workspaceRole: actor.role
+    })
+      ? !(yield* Effect.promise(() =>
+          strongAuthenticationStatusFor({ userId: actor.userId, sessionId })
+        )).qualified
+      : false
+    return {
+      workspaceId: state.workspaceId,
+      status: state.status,
+      changedAt: state.changedAt,
+      customerExplanation: privileged ? state.customerExplanation : null,
+      workspaceName: context.workspace.name,
+      viewer: { role: actor.role },
+      strongAuthenticationRequired
+    }
+  })
 }
 
 /** Reads only the narrow services explicitly usable during suspension. */

@@ -9,7 +9,7 @@ export function SupportDetails({
   workspaceId,
   appVersion
 }: {
-  readonly routeName: 'help' | 'workspace' | 'application' | 'audit'
+  readonly routeName: 'help' | 'workspace' | 'application'
   readonly workspaceId?: string | undefined
   readonly appVersion?: string | undefined
 }) {

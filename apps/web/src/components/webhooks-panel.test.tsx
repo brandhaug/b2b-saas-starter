@@ -85,6 +85,13 @@ describe('WebhooksPanel', () => {
     expect(screen.getByLabelText('Endpoint URL')).toBeTruthy()
   })
 
+  it('leaves naming the list to the page header', async () => {
+    await renderPanel({ role: 'owner' })
+    // The page's h1 already reads "Webhook endpoints"; the panel repeating
+    // it put the register action above a duplicate heading.
+    expect(screen.queryByRole('heading', { name: 'Webhook endpoints' })).toBeNull()
+  })
+
   it('replaces the form with its reason for a role that cannot register', async () => {
     await renderPanel({ role: 'member' })
     expect(screen.getByText('Your role cannot register endpoints.')).toBeTruthy()

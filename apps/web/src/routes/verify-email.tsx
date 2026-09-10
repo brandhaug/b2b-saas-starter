@@ -32,7 +32,8 @@ export function VerifyEmailPage({ error }: { readonly error?: string | undefined
     <PublicLayout>
       <main
         id="main-content"
-        className="mx-auto grid w-full max-w-md flex-1 gap-4 px-4 py-12"
+        tabIndex={-1}
+        className="mx-auto grid w-full max-w-md flex-1 gap-4 px-4 py-12 outline-none"
       >
         <Card className="w-full">
           <CardHeader>
@@ -44,7 +45,7 @@ export function VerifyEmailPage({ error }: { readonly error?: string | undefined
                 </span>
               ) : (
                 <span className="flex items-center gap-2">
-                  <CheckCircle2Icon className="size-5 text-primary" />
+                  <CheckCircle2Icon className="size-5 text-status-ok" />
                   {m.email_verified()}
                 </span>
               )}
@@ -68,7 +69,7 @@ export function VerifyEmailPage({ error }: { readonly error?: string | undefined
             <p className="text-center text-sm text-muted-foreground">
               <Link
                 to="/workspaces"
-                className="text-primary underline underline-offset-4"
+                className="inline-flex items-center text-primary underline underline-offset-4 max-md:min-h-11"
               >
                 {m.go_to_workspaces()}
               </Link>
