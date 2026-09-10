@@ -183,7 +183,12 @@ export function MembersPanel({
                   <RoleChangeButtons
                     currentRole={member.role}
                     offerRoles={offerRoles}
-                    labelFor={(role) => m.action_make_role({ role, name: member.name })}
+                    labelFor={(role) =>
+                      m.action_make_role({
+                        role: roleLabel(role),
+                        name: member.name
+                      })
+                    }
                     disabled={changing}
                     busy={changing}
                     onChange={(role) => void changeRoleOnRow(member.id, role)}

@@ -15,11 +15,13 @@ import { WorkspaceShell } from '@/components/workspace-shell'
 import { useState } from 'react'
 import {
   demoAuditDetails,
+  demoBillingPorts,
   demoFixtures,
   demoNotificationPorts,
   demoWebhookPorts,
   type DemoSection
 } from '@/lib/demo-fixtures'
+import { DEMO_WORKSPACE_SLUG } from '@/lib/demo-workspace'
 import { type WorkspaceAuditSearchUpdate } from '@/lib/audit-search'
 import { type WorkspaceAuditPayload } from '@/lib/server/workspace-audit'
 import { m } from '@b2b-saas-starter/i18n/messages'
@@ -32,7 +34,7 @@ async function previewAssistantAsk(
 }
 
 export function DemoRenderer({ section }: { readonly section: DemoSection }) {
-  const slug = 'starter-lab'
+  const slug = DEMO_WORKSPACE_SLUG
   switch (section) {
     case 'overview': {
       return (
@@ -75,7 +77,13 @@ export function DemoRenderer({ section }: { readonly section: DemoSection }) {
       return <DemoAudit />
     }
     case 'billing': {
-      return <WorkspaceBillingPage workspaceSlug={slug} data={demoFixtures.billing} />
+      return (
+        <WorkspaceBillingPage
+          workspaceSlug={slug}
+          data={demoFixtures.billing}
+          ports={demoBillingPorts}
+        />
+      )
     }
     case 'settings': {
       return <WorkspaceSettingsPage workspaceSlug={slug} data={demoFixtures.settings} />
@@ -102,13 +110,13 @@ function unreachable(value: never): never {
 function DemoNotifications() {
   return (
     <WorkspaceShell
-      workspaceSlug="starter-lab"
+      workspaceSlug={DEMO_WORKSPACE_SLUG}
       unreadCount={demoFixtures.dashboard.unreadCount}
       viewer={demoFixtures.dashboard.viewer}
     >
       <PageHeader title={m.notifications_title()} />
       <LiveNotifications
-        workspaceSlug="starter-lab"
+        workspaceSlug={DEMO_WORKSPACE_SLUG}
         fallback={demoFixtures.dashboard.notifications}
         listNotifications={demoNotificationPorts.list}
         markRead={demoNotificationPorts.markRead}
@@ -164,7 +172,7 @@ function DemoAudit() {
   }
   return (
     <WorkspaceAuditPage
-      workspaceSlug="starter-lab"
+      workspaceSlug={DEMO_WORKSPACE_SLUG}
       data={{ ...demoFixtures.audit, events, filters, selectedEvent }}
       applySearch={setSearch}
       selectedEventId={selectedEventId}

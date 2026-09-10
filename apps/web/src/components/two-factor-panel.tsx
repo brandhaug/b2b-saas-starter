@@ -38,7 +38,7 @@ export function TwoFactorPanel({
 
   if (enrollment !== null) {
     return (
-      <PanelFrame heading={m.setup_authenticator()} tone="primary">
+      <PanelFrame heading={m.setup_authenticator()} tone="enabled">
         <EnrollmentFlow
           enrollment={enrollment}
           onStart={clearStatus}
@@ -54,7 +54,7 @@ export function TwoFactorPanel({
 
   if (twoFactorEnabled) {
     return (
-      <PanelFrame heading={m.status()} tone="primary">
+      <PanelFrame heading={m.status()} tone="enabled">
         <p className="text-sm text-muted-foreground">
           {/* Status dot, from the status vocabulary: on = ok. */}
           <span
@@ -96,15 +96,20 @@ function PanelFrame({
   children
 }: {
   readonly heading: string
-  readonly tone: 'primary' | 'muted'
+  readonly tone: 'enabled' | 'muted'
   readonly children: ReactNode
 }) {
   return (
     <section className="grid gap-4" aria-label={m.panel_two_factor()}>
       <header className="flex items-center gap-2">
+        {/* `enabled` is an operational state, so it takes the status hue the
+            rest of the app's "done" marks use; mauve stays for links and
+            current/selected (DESIGN.md). */}
         <ShieldCheckIcon
           className={
-            tone === 'primary' ? 'size-4 text-primary' : 'size-4 text-muted-foreground'
+            tone === 'enabled'
+              ? 'size-4 text-status-ok'
+              : 'size-4 text-muted-foreground'
           }
         />
         <h3 className="text-sm font-semibold">{heading}</h3>

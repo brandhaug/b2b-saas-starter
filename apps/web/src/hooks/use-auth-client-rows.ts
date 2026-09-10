@@ -56,7 +56,14 @@ export function useAuthClientRows<Record, Row>({
       return toRows(result.data ?? [])
     },
     enabled: hydrated,
-    retry: false
+    retry: false,
+    // These reads are deliberately client-only, so they are stated here rather
+    // than left to the router's query defaults: a passkey, session or linked
+    // account list does not change while the tab sits in the background, and
+    // refetching all three on every window focus buys nothing. Mutations
+    // refetch through `useAuthClientAction`.
+    staleTime: 60_000,
+    refetchOnWindowFocus: false
   })
 
   return {

@@ -34,7 +34,7 @@ export function DemoStrip({ demo }: { readonly demo: DemoShowcase }) {
         </dl>
         <Link
           to="/demo"
-          className="inline-flex items-center gap-1.5 text-sm font-medium underline underline-offset-4 hover:no-underline"
+          className="inline-flex items-center gap-1.5 text-sm font-medium underline underline-offset-4 hover:no-underline max-md:min-h-11"
         >
           {m.public_demo_open()}
           <ArrowRightIcon aria-hidden className="size-3.5" />

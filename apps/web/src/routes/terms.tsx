@@ -24,7 +24,11 @@ export const Route = createFileRoute('/terms')({
 function TermsPage() {
   return (
     <PublicLayout>
-      <main id="main-content" className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6 outline-none"
+      >
         <h1 className="text-3xl font-semibold">{m.public_legal_terms_title()}</h1>
         <div className="prose prose-lg mt-6 max-w-none">
           <p>{m.public_legal_terms_intro()}</p>

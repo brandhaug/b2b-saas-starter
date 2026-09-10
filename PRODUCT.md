@@ -20,7 +20,7 @@ The Starter combines a Cloudflare-first deployment model with one shared applica
 
 ## Operating Context
 
-The Showcase Site supports evaluation through public pages, docs, blog, changelog, and a seeded Reference Application. Returning developers use the repository's setup guides and architecture decisions to run, extend, and deploy the Starter.
+The Showcase Site supports evaluation through public pages, docs, changelog, and a seeded Reference Application. Returning developers use the repository's setup guides and architecture decisions to run, extend, and deploy the Starter.
 
 Local development uses Vite+ and pnpm, with the web app at `http://localhost:3071`. Migrating and seeding local D1 enables credential sign-in and persisted workspace behavior without a Cloudflare account. Without that database, the development app uses the in-memory Seed adapter. [docs/setup.md](docs/setup.md) owns the commands and prerequisites.
 
@@ -39,7 +39,7 @@ In the Reference Application, Members work within a Workspace. Owners and admins
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) and [docs/adr](docs/adr) document the system and its decisions.
 - [packages/capabilities/src/seed-fixture.ts](packages/capabilities/src/seed-fixture.ts) supplies deterministic workspace evidence; [scripts/seed.ts](scripts/seed.ts) makes the authenticated local paths accessible.
-- [apps/web/content/docs](apps/web/content/docs) and [apps/web/content/blog](apps/web/content/blog) contain the public explanations and runnable examples.
+- [apps/web/content/docs](apps/web/content/docs) contains the public explanations and runnable examples.
 - [apps/web/e2e](apps/web/e2e) contains browser tests for the Reference Application. Test files describe intended coverage; passing claims require an observed run.
 - There are no production users to substantiate customer adoption claims. Do not invent customers, testimonials, usage metrics, or performance results. Provider-light billing examples must be identified as examples.
 

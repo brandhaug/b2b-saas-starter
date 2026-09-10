@@ -172,7 +172,10 @@ export function ForgotPasswordPage({
         footer={
           <p className="text-center text-sm text-muted-foreground">
             {m.remembered_it()}{' '}
-            <Link to="/sign-in" className="text-primary underline underline-offset-4">
+            <Link
+              to="/sign-in"
+              className="inline-flex items-center text-primary underline underline-offset-4 max-md:min-h-11"
+            >
               {m.form_sign_in()}
             </Link>
           </p>
@@ -221,7 +224,10 @@ export function ForgotPasswordPage({
       footer={
         <p className="text-center text-sm text-muted-foreground">
           {m.remembered_it()}{' '}
-          <Link to="/sign-in" className="text-primary underline underline-offset-4">
+          <Link
+            to="/sign-in"
+            className="inline-flex items-center text-primary underline underline-offset-4 max-md:min-h-11"
+          >
             {m.form_sign_in()}
           </Link>
         </p>
@@ -233,7 +239,7 @@ export function ForgotPasswordPage({
             name={field.name}
             label={m.form_email()}
             type="email"
-            placeholder="you@example.com"
+            placeholder={m.email_placeholder()}
             autoComplete="email"
             value={field.state.value}
             errors={field.state.meta.errors}

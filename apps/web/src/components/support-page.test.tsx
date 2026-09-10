@@ -61,6 +61,20 @@ describe('customer support acceptance', () => {
     expect(screen.getByRole('button', { name: 'Copy support details' })).toBeDefined()
   })
 
+  it('does not tell the visitor to choose when there is nothing to choose', async () => {
+    vi.stubEnv('DEV', false)
+    await renderWithRouter(<SupportPage config={{}} />)
+    expect(screen.queryByText(/choose a contact option/i)).toBeNull()
+    expect(
+      screen.getAllByText(/support contact information is unavailable/i)
+    ).toHaveLength(1)
+  })
+
+  it('leads with the contact options when the deployment configured them', async () => {
+    await renderWithRouter(<SupportPage config={{ email: 'help@example.test' }} />)
+    expect(screen.getByText(/choose a contact option/i)).toBeDefined()
+  })
+
   it('shows setup guidance only in development', async () => {
     vi.stubEnv('DEV', true)
     await renderWithRouter(<SupportPage config={{}} />)

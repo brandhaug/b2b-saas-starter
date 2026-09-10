@@ -1,4 +1,11 @@
+<!--
+  Catppuccin Mocha, like the app. An SVG asset cannot read the CSS custom
+  properties in apps/web/src/index.css, so each literal mirrors the token of
+  the same name there — change a token, change its mirror here.
+  #11111b = crust, the `--overlay`/`--primary-foreground` value.
+  #cba6f7 = mauve, `--primary`.
+-->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <rect width="64" height="64" rx="12" fill="#2563eb"/>
-  <path d="M16 20h32v6H16v-6Zm0 13h20v6H16v-6Zm0 13h28v6H16v-6Z" fill="white"/>
+  <rect width="64" height="64" rx="12" fill="#11111b" />
+  <path d="M16 20h32v6H16v-6Zm0 13h20v6H16v-6Zm0 13h28v6H16v-6Z" fill="#cba6f7" />
 </svg>

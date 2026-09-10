@@ -337,7 +337,7 @@ export function SignInPage({
                 name={field.name}
                 label={m.form_email()}
                 type="email"
-                placeholder="you@example.com"
+                placeholder={m.email_placeholder()}
                 autoComplete="email"
                 value={field.state.value}
                 errors={field.state.meta.errors}
@@ -401,7 +401,7 @@ export function SignInPage({
             recent: 'true',
             redirect: `/sign-in?redirect=${encodeURIComponent(safeRedirect(redirect))}`
           }}
-          className="text-sm underline underline-offset-4"
+          className="inline-flex items-center text-sm underline underline-offset-4 max-md:min-h-11"
         >
           {m.security_verify_continue()}
         </Link>
@@ -413,7 +413,7 @@ export function SignInPage({
             name={field.name}
             label={m.form_email()}
             type="email"
-            placeholder="you@example.com"
+            placeholder={m.email_placeholder()}
             // `webauthn` must be the LAST autocomplete token for the
             // browser's conditional UI to offer passkeys on this field.
             autoComplete="email webauthn"
@@ -476,7 +476,7 @@ function signInFooter({
               <Link
                 to="/sign-in/email-code"
                 search={redirect ? { redirect } : {}}
-                className="text-sm text-primary underline underline-offset-4"
+                className="inline-flex items-center text-sm text-primary underline underline-offset-4 max-md:min-h-11"
               >
                 {m.auth_email_code()}
               </Link>
@@ -491,7 +491,7 @@ function signInFooter({
             <Link
               to="/forgot-password"
               search={{}}
-              className="text-sm text-primary underline underline-offset-4"
+              className="inline-flex items-center text-sm text-primary underline underline-offset-4 max-md:min-h-11"
             >
               {m.forgot_password()}
             </Link>
@@ -504,7 +504,7 @@ function signInFooter({
         <Link
           to="/sign-up"
           search={{}}
-          className="text-primary underline underline-offset-4"
+          className="inline-flex items-center text-primary underline underline-offset-4 max-md:min-h-11"
         >
           {m.create_one()}
         </Link>

@@ -4,10 +4,10 @@ import { env as cloudflareEnv } from 'cloudflare:workers'
 import { type ClientTelemetryConfig } from './telemetry-config'
 
 /**
- * The telemetry config's server-only read, reached only through dynamic
- * `import()` inside the handler of `telemetry-config.ts` (see
- * apps/web/AGENTS.md). The `env/server` import pins the Effect graph, which
- * must never ship to the browser.
+ * The telemetry config's server-only read, reached only from the root data
+ * handler (`root-data.effects.ts`), which the root route loads through a
+ * dynamic `import()` (see apps/web/AGENTS.md). The `env/server` import pins
+ * the Effect graph, which must never ship to the browser.
  */
 
 /**

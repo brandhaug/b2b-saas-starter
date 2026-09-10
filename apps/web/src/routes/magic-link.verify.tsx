@@ -41,7 +41,8 @@ export function MagicLinkVerifyPage() {
     <PublicLayout>
       <main
         id="main-content"
-        className="mx-auto grid w-full max-w-md flex-1 place-items-center px-4 py-12"
+        tabIndex={-1}
+        className="mx-auto grid w-full max-w-md flex-1 place-items-center px-4 py-12 outline-none"
       >
         <Card className="w-full">
           <CardHeader>
@@ -63,7 +64,7 @@ export function MagicLinkVerifyPage() {
               <Link
                 to="/sign-in"
                 search={{}}
-                className="text-primary underline underline-offset-4"
+                className="inline-flex items-center text-primary underline underline-offset-4 max-md:min-h-11"
               >
                 {m.public_auth_magic_link_request()}
               </Link>

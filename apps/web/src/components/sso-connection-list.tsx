@@ -24,6 +24,7 @@ import {
   type SsoTestResult,
   type UpdateSsoConnectionInput
 } from '@/lib/server/workspace-sso'
+import { enabledVariant } from '@/lib/badge-variants'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
@@ -148,7 +149,7 @@ function ConnectionRow({
         )}
       </ItemContent>
       <ItemActions className="flex-wrap">
-        <Badge variant={connection.enabled ? 'ok' : 'neutral'}>
+        <Badge variant={enabledVariant(connection.enabled)}>
           {connection.enabled
             ? m.sso_connection_routing()
             : m.sso_connection_disabled()}

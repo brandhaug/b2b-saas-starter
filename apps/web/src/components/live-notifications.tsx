@@ -1,5 +1,6 @@
 import { type Notification as CapabilityNotification } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 import { BellIcon, RefreshCwIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { causeMessage } from '@/lib/cause-message'
@@ -62,10 +63,23 @@ export function LiveNotifications({
   readonly listNotifications?: ListNotifications
   readonly markRead?: MarkNotificationsRead
 }) {
+  // The loader already rendered this list, so the SSR payload is fresh as of
+  // the moment this panel first mounted. Dating it (rather than leaving the
+  // default epoch-zero timestamp, which reads as instantly stale) keeps the
+  // panel from refetching what it just rendered. Lazy state reads the clock
+  // once, so the timestamp survives re-renders.
+  // oxlint-disable-next-line react/hook-use-state -- a mount timestamp, never set again; lazy state is the cheapest way to read the clock once
+  const [fallbackFetchedAt] = useState(Date.now)
+
   const { data, error, isFetching, refetch } = useQuery({
     queryKey: notificationsQueryKey(workspaceSlug),
     queryFn: () => listNotifications({ data: { workspaceSlug } }),
-    initialData: fallback
+    initialData: fallback,
+    initialDataUpdatedAt: fallbackFetchedAt,
+    // Explicit rather than inherited from the router's client: the panel also
+    // mounts under plain clients (previews, tests), and the SSR payload must
+    // count as fresh there too.
+    staleTime: 30_000
   })
 
   // The unread ids of the loaded list, in one pass — marking read re-runs the
@@ -88,11 +102,7 @@ export function LiveNotifications({
       // disagrees with the panel.
       onSuccess: (_, ids) => {
         void refetch()
-        toast.success(
-          ids.length === 1
-            ? m.notification_marked_read()
-            : m.notifications_marked_count({ count: ids.length })
-        )
+        toast.success(m.notifications_marked_count({ count: ids.length }))
       }
     }
   )

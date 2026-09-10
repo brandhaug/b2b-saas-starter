@@ -63,7 +63,7 @@ function HomePage() {
   const { recentDocs, demo } = Route.useLoaderData()
   return (
     <PublicLayout>
-      <main id="main-content">
+      <main id="main-content" tabIndex={-1} className="outline-none">
         <HeroSection />
         {/* `null` means the showcase workspace is missing in this deployment:
             the page renders without the numbers instead of failing. */}

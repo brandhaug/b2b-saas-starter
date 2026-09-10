@@ -66,7 +66,9 @@ function DropdownMenuGroupLabel({
   return (
     <MenuPrimitive.GroupLabel
       data-slot="dropdown-menu-group-label"
-      className={cn('px-2 py-1.5 text-2xs text-muted-foreground', className)}
+      // Micro sizes are mono-only lettering (DESIGN.md typography): a 2xs sans
+      // label reads as shrunken body text next to the sans menu items.
+      className={cn('px-2 py-1.5 font-mono text-2xs text-muted-foreground', className)}
       {...props}
     />
   )

@@ -14,30 +14,57 @@ function ProvidersSection() {
             {m.landing_optional_providers_description()}
           </p>
         </div>
-        <div className="mt-12 grid gap-px border border-border bg-border sm:grid-cols-2 lg:grid-cols-5">
-          {providers.map((provider, index) => (
-            <div
-              key={provider.id}
-              className={`flex flex-col gap-6 bg-background p-5 ${
-                index === providers.length - 1 ? 'sm:col-span-2 lg:col-span-1' : ''
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <provider.icon className="size-4 text-muted-foreground" />
-                <p className="text-sm font-medium">{provider.name}</p>
-              </div>
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                {provider.role}
-              </p>
-              <p className="mt-auto inline-flex items-center gap-2">
-                <span className="size-2 rounded-full border border-signal-ink" />
-                <span className="font-mono text-xs text-signal-ink">
-                  {m.provider_env_gated()}
-                </span>
-              </p>
-            </div>
-          ))}
-        </div>
+        {/* Provider, role, state is tabular data, so it reads as the same
+            table the runtime bindings use rather than five identical
+            icon-plus-text cards padded out with a col-span. The dot repeats
+            what the status column already says in words, so it is decorative:
+            the state survives without color. */}
+        <table className="mt-12 w-full border-collapse text-left">
+          <caption className="sr-only">{m.landing_optional_providers()}</caption>
+          <thead>
+            <tr className="border-b border-border font-mono text-2xs text-muted-foreground">
+              <th scope="col" className="py-2 pr-4 font-medium">
+                {m.landing_optional_providers()}
+              </th>
+              <th scope="col" className="py-2 pr-4 font-medium">
+                {m.common_role()}
+              </th>
+              <th scope="col" className="py-2 font-medium">
+                {m.common_status()}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {providers.map((provider) => (
+              <tr key={provider.id} className="border-b border-border">
+                <th
+                  scope="row"
+                  className="py-3 pr-4 align-baseline text-sm font-medium"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <provider.icon
+                      aria-hidden
+                      className="size-4 shrink-0 text-muted-foreground"
+                    />
+                    {provider.name}
+                  </span>
+                </th>
+                <td className="py-3 pr-4 align-baseline text-sm text-muted-foreground">
+                  {provider.role}
+                </td>
+                <td className="py-3 align-baseline font-mono text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-2">
+                    <span
+                      aria-hidden
+                      className="size-2 shrink-0 rounded-full bg-status-warn"
+                    />
+                    {m.provider_env_gated()}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </section>
   )

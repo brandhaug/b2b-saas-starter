@@ -26,13 +26,20 @@ function AccordionItem({ className, ...props }: AccordionPrimitive.Item.Props) {
 function AccordionTrigger({
   className,
   children,
+  headingLevel: Heading = 'h3',
   ...props
-}: AccordionPrimitive.Trigger.Props) {
+}: AccordionPrimitive.Trigger.Props & {
+  /**
+   * The tag the header renders. Each trigger is a heading in the document
+   * outline, so it belongs one level under whatever heading introduces the
+   * accordion — `h3` under a section's `h2`, the common case.
+   */
+  headingLevel?: 'h2' | 'h3' | 'h4'
+}) {
   return (
-    // `render={<h2 />}`: the header defaults to h3, which skipped a level
-    // under the page's h1 (axe: heading-order) — FAQ is the only consumer.
-    // oxlint-disable-next-line jsx-a11y/heading-has-content -- the heading text is the trigger's children, rendered inside it
-    <AccordionPrimitive.Header className="flex" render={<h2 />}>
+    // The heading renders empty here; its text is the trigger's children,
+    // which base-ui nests inside it.
+    <AccordionPrimitive.Header className="flex" render={<Heading />}>
       <AccordionPrimitive.Trigger
         data-slot="accordion-trigger"
         className={cn(
@@ -63,7 +70,9 @@ function AccordionContent({
   return (
     <AccordionPrimitive.Panel
       data-slot="accordion-content"
-      className="data-open:animate-accordion-down data-closed:animate-accordion-up text-xs overflow-hidden"
+      // The height animation is `motion-safe:`-gated like every other
+      // primitive here; without it the panel simply appears.
+      className="data-open:motion-safe:animate-accordion-down data-closed:motion-safe:animate-accordion-up text-sm overflow-hidden"
       {...props}
     >
       <div

@@ -73,7 +73,8 @@ export function AuthCardForm({
           between the header and its `mt-auto` footer — no hardcoded chrome height. */}
       <main
         id="main-content"
-        className="mx-auto grid w-full max-w-md flex-1 place-items-center px-4 py-12"
+        tabIndex={-1}
+        className="mx-auto grid w-full max-w-md flex-1 place-items-center px-4 py-12 outline-none"
       >
         <Card className="w-full">
           <CardHeader>
@@ -118,7 +119,11 @@ export function AuthCardForm({
             )}
             {footer}
             <p className="text-center text-sm text-muted-foreground">
-              <Link to="/help" reloadDocument className="underline underline-offset-4">
+              <Link
+                to="/help"
+                reloadDocument
+                className="inline-flex items-center underline underline-offset-4 max-md:min-h-11"
+              >
                 {m.public_meta_support()}
               </Link>
             </p>

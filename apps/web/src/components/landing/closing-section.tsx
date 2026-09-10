@@ -60,14 +60,17 @@ function ClosingSection() {
               {m.landing_clone_commands()}
             </p>
             <div className="flex items-center gap-2">
-              {/* Always-mounted so the change is announced when it flips. */}
-              <output
-                aria-live="polite"
-                className={`text-xs text-status-ok transition-opacity duration-200 ${
-                  copied ? 'opacity-100' : 'opacity-0'
-                }`}
-              >
-                {m.action_copied()}
+              {/* Always mounted, content swapped: a region whose text never
+                  changes is never announced, and an opacity fade leaves the
+                  text in the accessibility tree the whole time. The reserved
+                  width keeps the row from reflowing when the word appears. */}
+              <output aria-live="polite" className="grid text-xs text-status-ok">
+                <span aria-hidden className="invisible col-start-1 row-start-1">
+                  {m.action_copied()}
+                </span>
+                <span className="col-start-1 row-start-1">
+                  {copied ? m.action_copied() : ''}
+                </span>
               </output>
               <Button
                 variant="outline"

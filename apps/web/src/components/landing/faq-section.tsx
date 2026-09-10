@@ -26,7 +26,8 @@ function FaqSection() {
         >
           {items.map((item) => (
             <AccordionItem key={item.question} value={item.question}>
-              <AccordionTrigger>{item.question}</AccordionTrigger>
+              {/* A question sits under this section's own h2, never beside it. */}
+              <AccordionTrigger headingLevel="h3">{item.question}</AccordionTrigger>
               <AccordionContent>{item.answer}</AccordionContent>
             </AccordionItem>
           ))}
