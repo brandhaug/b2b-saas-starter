@@ -44,8 +44,8 @@
     "@tanstack/react-table": "catalog:",
     "better-auth": "catalog:",
     "class-variance-authority": "catalog:",
-    "clsx": "catalog:",
     "cmdk": "catalog:",
+    "cn": "catalog:",
     "drizzle-orm": "catalog:",
     "effect": "catalog:",
     "effectful-better-auth": "catalog:",
@@ -55,7 +55,6 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "sonner": "catalog:",
-    "tailwind-merge": "catalog:",
     "tw-animate-css": "catalog:"
   },
   "devDependencies": {
