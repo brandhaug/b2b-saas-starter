@@ -1,20 +1,20 @@
-import { type ReactNode } from 'react'
+import { type ReactNode, useContext } from 'react'
 import { PublicLayout } from '@/components/public-layout'
+import { PublicLayoutContext } from './public-layout-context'
 
 /**
- * The shell the router's own fallback screens render into — "not found", the
- * application error, and any other state reached without a matched page.
- *
- * They are ordinary pages of the site, so they keep its landmarks (banner,
- * `<main>`, contentinfo) and the skip link `PublicLayout` owns, instead of
- * dropping the reader onto a bare centered heading. `PublicLayout` reads no
- * loader data, which is what lets a failed match still use it.
+ * Router fallbacks provide a public shell when no parent page survives.
+ * Nested failures reuse the parent's header, footer, main and skip link.
  *
  * `tabIndex={-1}` makes the `<main>` a programmatic focus target so the skip
  * link moves focus and not just the scroll position; the outline is suppressed
  * because the element is a destination, never an operable control.
  */
 export function FallbackPage({ children }: { readonly children: ReactNode }) {
+  const withinPublicLayout = useContext(PublicLayoutContext)
+  if (withinPublicLayout) {
+    return <div className="flex flex-col items-start gap-4 py-16">{children}</div>
+  }
   return (
     <PublicLayout>
       <main
