@@ -2,7 +2,7 @@ import { DateTime, Effect, Layer, Option } from 'effect'
 
 import { newCapabilityId } from '../internal/ids.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
-import { AuditEventLog, recordInWorkspace } from './audit-event-log.ts'
+import { AuditEventLog, recordCompletedMutationAudit } from './audit-event-log.ts'
 import {
   pickSignInTarget,
   requireProtocolMatch,
@@ -118,10 +118,11 @@ export function SeedSsoConnections(
             }
             rows.push(row)
             const dto = toDto(row)
-            yield* recordInWorkspace(audit, {
-              ...ssoAuditEvent('created', dto),
-              targetId: dto.id
-            })
+            yield* recordCompletedMutationAudit(
+              audit,
+              { ...ssoAuditEvent('created', dto), targetId: dto.id },
+              'workspace_sso.create'
+            )
             return dto
           }),
         update: (input) =>
@@ -145,10 +146,11 @@ export function SeedSsoConnections(
             }
             rows[rows.indexOf(row)] = updated
             const dto = toDto(updated)
-            yield* recordInWorkspace(audit, {
-              ...ssoAuditEvent('updated', dto),
-              targetId: dto.id
-            })
+            yield* recordCompletedMutationAudit(
+              audit,
+              { ...ssoAuditEvent('updated', dto), targetId: dto.id },
+              'workspace_sso.update'
+            )
             return Option.some(dto)
           }),
         remove: ({ providerId }) =>
@@ -158,10 +160,11 @@ export function SeedSsoConnections(
               return false
             }
             rows.splice(rows.indexOf(row), 1)
-            yield* recordInWorkspace(audit, {
-              ...ssoAuditEvent('removed', row),
-              targetId: row.id
-            })
+            yield* recordCompletedMutationAudit(
+              audit,
+              { ...ssoAuditEvent('removed', row), targetId: row.id },
+              'workspace_sso.remove'
+            )
             return true
           }),
         resolveRouting: (email) =>

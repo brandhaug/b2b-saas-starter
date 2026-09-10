@@ -6,11 +6,11 @@ import {
   retentionTargetKey,
   billingDeadLetterQueueName,
   billingConsumerSettings,
+  billingDlqConsumerSettings,
   billingQueueName,
   notificationDigestCron,
   notificationDigestRetryCron,
   emailEventsQueueName,
-  emailEventsDeadLetterQueueName,
   emailEventsConsumerSettings,
   notificationEmailConsumerSettings,
   notificationEmailQueueName,
@@ -48,7 +48,7 @@ const WORKSPACE_EXPORT_BUCKET_BINDING = 'WORKSPACE_EXPORT_BUCKET'
  * The export bucket, on every worker: the web worker reads it to decide whether
  * exports are available, the API worker streams downloads from it, and the
  * background worker writes the archives. Miniflare simulates R2 locally, so the
- * binding is unconditional here; alchemy gates it on `WORKSPACE_EXPORT_BUCKET`.
+ * binding is unconditional here; alchemy gates it on `WORKSPACE_EXPORTS_ENABLED`.
  */
 const workspaceExportBucket = {
   binding: WORKSPACE_EXPORT_BUCKET_BINDING,
@@ -228,7 +228,8 @@ export const wranglerConfigs: ReadonlyArray<{
       r2_buckets: [workspaceExportBucket],
       vars: {
         WORKERS_AI_ENABLED: 'false',
-        CLOUDFLARE_EMAIL_FROM: 'noreply@example.com',
+        // No CLOUDFLARE_EMAIL_FROM: the API worker wires no email dispatcher
+        // (apps/api/AGENTS.md), so the var had no reader here.
         // OAuth for `POST /mcp` (ADR 0068): trust tokens the local web dev
         // server issues for this worker's `/mcp`. Unset both and `/mcp` takes
         // API Tokens only.
@@ -273,14 +274,10 @@ export const wranglerConfigs: ReadonlyArray<{
             billingConsumerSettings,
             billingDeadLetterQueueName
           ),
-          consumer(billingDeadLetterQueueName, webhookDlqConsumerSettings),
+          consumer(billingDeadLetterQueueName, billingDlqConsumerSettings),
           // Sends one instant notification email per queue message.
           consumer(notificationEmailQueueName, notificationEmailConsumerSettings),
-          consumer(
-            emailEventsQueueName,
-            emailEventsConsumerSettings,
-            emailEventsDeadLetterQueueName
-          )
+          consumer(emailEventsQueueName, emailEventsConsumerSettings)
         ]
       },
       r2_buckets: [workspaceExportBucket],

@@ -20,19 +20,16 @@ import { hasValue } from '@b2b-saas-starter/env/server'
 import { DateTime, Effect, Metric, Result } from 'effect'
 import { type Env } from './queue-consumer.ts'
 
-export const retentionRunCount = Metric.counter('starter.retention.runs', {
+const retentionRunCount = Metric.counter('starter.retention.runs', {
   description: 'Retention runs by terminal outcome.',
   incremental: true
 })
-export const retentionBacklog = Metric.gauge('starter.retention.backlog', {
+const retentionBacklog = Metric.gauge('starter.retention.backlog', {
   description: 'Retention rules with remaining eligible or unchecked pages.'
 })
-export const retentionLastSuccess = Metric.gauge(
-  'starter.retention.last_success_unix_ms',
-  {
-    description: 'Unix milliseconds of the last successful retention run.'
-  }
-)
+const retentionLastSuccess = Metric.gauge('starter.retention.last_success_unix_ms', {
+  description: 'Unix milliseconds of the last successful retention run.'
+})
 
 function captureRetentionFailure(
   env: Env,

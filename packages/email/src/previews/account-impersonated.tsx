@@ -1,5 +1,11 @@
-import { AccountImpersonatedEmail } from '../notification-templates.tsx'
+import {
+  notificationEmailFor,
+  NOTIFICATION_PREVIEW_PROPS
+} from '../notification-emails.ts'
 
 export default function Preview() {
-  return <AccountImpersonatedEmail {...AccountImpersonatedEmail.PreviewProps} />
+  return notificationEmailFor(
+    'account.impersonated',
+    NOTIFICATION_PREVIEW_PROPS['account.impersonated']
+  )
 }

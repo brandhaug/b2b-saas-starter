@@ -26,7 +26,12 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           expired: {
             invitationId: 'inv_live_expired',
             email: 'expired@live-invite.test'
-          }
+          },
+          orderedNewestFirst: [
+            'inv_live_order_2',
+            'inv_live_order_1',
+            'inv_live_order_0'
+          ]
         },
         expect
       )

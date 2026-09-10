@@ -371,9 +371,6 @@ importers:
       '@b2b-saas-starter/authz':
         specifier: workspace:*
         version: link:../../packages/authz
-      '@b2b-saas-starter/billing':
-        specifier: workspace:*
-        version: link:../../packages/billing
       '@b2b-saas-starter/capabilities':
         specifier: workspace:*
         version: link:../../packages/capabilities
@@ -731,15 +728,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
-      vite:
-        specifier: 'catalog:'
-        version: '@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0)'
       vite-plus:
         specifier: 'catalog:'
         version: 0.3.0(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/coverage-v8@4.1.11)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@2.4.0))(typescript@7.0.2)(yaml@2.9.0)
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/browser-preview@4.1.11)(@vitest/coverage-v8@4.1.11)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(jsdom@30.0.1(@noble/hashes@2.4.0))
 
   packages/ai:
     dependencies:
@@ -777,9 +768,6 @@ importers:
       '@b2b-saas-starter/authz':
         specifier: workspace:*
         version: link:../authz
-      '@b2b-saas-starter/billing':
-        specifier: workspace:*
-        version: link:../billing
       '@b2b-saas-starter/capabilities':
         specifier: workspace:*
         version: link:../capabilities
@@ -796,15 +784,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
-      vite:
-        specifier: 'catalog:'
-        version: '@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0)'
       vite-plus:
         specifier: 'catalog:'
         version: 0.3.0(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/coverage-v8@4.1.11)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@2.4.0))(typescript@7.0.2)(yaml@2.9.0)
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/browser-preview@4.1.11)(@vitest/coverage-v8@4.1.11)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(jsdom@30.0.1(@noble/hashes@2.4.0))
 
   packages/auth:
     dependencies:
@@ -937,9 +919,6 @@ importers:
       '@b2b-saas-starter/email-delivery':
         specifier: workspace:*
         version: link:../email-delivery
-      '@b2b-saas-starter/env':
-        specifier: workspace:*
-        version: link:../env
       '@b2b-saas-starter/failure':
         specifier: workspace:*
         version: link:../failure
@@ -1103,15 +1082,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
-      vite:
-        specifier: 'catalog:'
-        version: '@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0)'
       vite-plus:
         specifier: 'catalog:'
         version: 0.3.0(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/coverage-v8@4.1.11)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@2.4.0))(typescript@7.0.2)(yaml@2.9.0)
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/browser-preview@4.1.11)(@vitest/coverage-v8@4.1.11)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(jsdom@30.0.1(@noble/hashes@2.4.0))
 
   packages/failure:
     dependencies:
@@ -1122,15 +1095,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
-      vite:
-        specifier: 'catalog:'
-        version: '@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0)'
       vite-plus:
         specifier: 'catalog:'
         version: 0.3.0(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/coverage-v8@4.1.11)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@2.4.0))(typescript@7.0.2)(yaml@2.9.0)
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/browser-preview@4.1.11)(@vitest/coverage-v8@4.1.11)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(jsdom@30.0.1(@noble/hashes@2.4.0))
 
   packages/i18n:
     dependencies:
@@ -1150,9 +1117,6 @@ importers:
       vite-plus:
         specifier: 'catalog:'
         version: 0.3.0(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/coverage-v8@4.1.11)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@2.4.0))(typescript@7.0.2)(yaml@2.9.0)
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/browser-preview@4.1.11)(@vitest/coverage-v8@4.1.11)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(jsdom@30.0.1(@noble/hashes@2.4.0))
 
   packages/logger:
     dependencies:
@@ -1200,15 +1164,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
-      vite:
-        specifier: 'catalog:'
-        version: '@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0)'
       vite-plus:
         specifier: 'catalog:'
         version: 0.3.0(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/coverage-v8@4.1.11)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@2.4.0))(typescript@7.0.2)(yaml@2.9.0)
-      vitest:
-        specifier: 'catalog:'
-        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/browser-preview@4.1.11)(@vitest/coverage-v8@4.1.11)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(jsdom@30.0.1(@noble/hashes@2.4.0))
 
   packages/rate-limit:
     dependencies:

@@ -19,7 +19,7 @@ import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/n
 import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { Effect, Layer } from 'effect'
 
-import { fixtureSession } from '@/test/fixture-session'
+import { fixtureAuthModule } from '@/test/fixture-session'
 import {
   createSsoConnectionHandler,
   notifyOwnersOfFailedTest,
@@ -43,10 +43,9 @@ import type * as AuthModule from './auth'
  */
 const actor = vi.hoisted(() => ({ userId: 'usr_demo' }))
 
-vi.mock('./auth', async (importOriginal) => ({
-  ...(await importOriginal<typeof AuthModule>()),
-  requireRequestSession: async () => fixtureSession(actor)
-}))
+vi.mock('./auth', async (importOriginal) =>
+  fixtureAuthModule(await importOriginal<typeof AuthModule>(), actor)
+)
 
 const OWNER = 'usr_demo'
 const ADMIN = 'usr_ops'

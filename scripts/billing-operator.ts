@@ -1,6 +1,7 @@
 import { parseArgs } from 'node:util'
 
 import { Effect, Option, Schema } from 'effect'
+import { requiredValue } from './internal/env.ts'
 
 type FetchImplementation = typeof globalThis.fetch
 type Environment = Readonly<Record<string, string | undefined>>
@@ -56,17 +57,17 @@ type OperatorRetryMessage = {
   }
 }
 
+/** The mutable draft of `recovery`: same shape, assignable one key at a time. */
+type RecoveryDraft = {
+  -readonly [K in keyof NonNullable<OperatorRetryMessage['recovery']>]: NonNullable<
+    OperatorRetryMessage['recovery']
+  >[K]
+}
+
 function envValue(name: string, environment: Environment): string | undefined {
   const value = environment[name]
   if (value === undefined || value.trim().length === 0) {
     return undefined
-  }
-  return value
-}
-
-function required(value: string | undefined, name: string): string {
-  if (value === undefined) {
-    throw new Error(`Missing ${name}`)
   }
   return value
 }
@@ -118,7 +119,10 @@ function parseCli(rawArgs: ReadonlyArray<string>): CliOptions {
   }
   return {
     command,
-    workspaceId: required(optionString(parsed.values.workspace), '--workspace <id>'),
+    workspaceId: requiredValue(
+      optionString(parsed.values.workspace),
+      '--workspace <id>'
+    ),
     operatorId,
     execute: optionBoolean(parsed.values.execute),
     databaseId: optionString(parsed.values.database),
@@ -142,13 +146,13 @@ function config(options: CliOptions, environment: Environment): OperatorConfig {
     billingQueueId
   }
   if (options.command === 'inspect') {
-    required(result.accountId, 'CLOUDFLARE_ACCOUNT_ID')
-    required(result.apiToken, 'CLOUDFLARE_API_TOKEN')
-    required(result.databaseId, 'CLOUDFLARE_DATABASE_ID or --database')
+    requiredValue(result.accountId, 'CLOUDFLARE_ACCOUNT_ID')
+    requiredValue(result.apiToken, 'CLOUDFLARE_API_TOKEN')
+    requiredValue(result.databaseId, 'CLOUDFLARE_DATABASE_ID or --database')
   }
   if (options.command === 'retry' && options.execute) {
-    required(result.accountId, 'CLOUDFLARE_ACCOUNT_ID')
-    required(result.apiToken, 'CLOUDFLARE_API_TOKEN')
+    requiredValue(result.accountId, 'CLOUDFLARE_ACCOUNT_ID')
+    requiredValue(result.apiToken, 'CLOUDFLARE_API_TOKEN')
   }
   return result
 }
@@ -160,7 +164,7 @@ function cloudflareRequest(input: {
   readonly body: unknown
   readonly fetchImpl: FetchImplementation
 }) {
-  const apiToken = required(input.config.apiToken, 'CLOUDFLARE_API_TOKEN')
+  const apiToken = requiredValue(input.config.apiToken, 'CLOUDFLARE_API_TOKEN')
   return Effect.tryPromise({
     try: (signal) =>
       input
@@ -204,8 +208,8 @@ function queryD1(
   params: ReadonlyArray<string>,
   fetchImpl: FetchImplementation
 ) {
-  const accountId = required(operatorConfig.accountId, 'CLOUDFLARE_ACCOUNT_ID')
-  const databaseId = required(
+  const accountId = requiredValue(operatorConfig.accountId, 'CLOUDFLARE_ACCOUNT_ID')
+  const databaseId = requiredValue(
     operatorConfig.databaseId,
     'CLOUDFLARE_DATABASE_ID or --database'
   )
@@ -282,8 +286,8 @@ function retry(
   operatorConfig: OperatorConfig,
   fetchImpl: FetchImplementation
 ) {
-  const operatorId = required(options.operatorId, '--operator <operator-id>')
-  const queueId = required(
+  const operatorId = requiredValue(options.operatorId, '--operator <operator-id>')
+  const queueId = requiredValue(
     operatorConfig.billingQueueId,
     'CLOUDFLARE_BILLING_QUEUE_ID or --queue'
   )
@@ -294,7 +298,9 @@ function retry(
     operatorId
   }
   if (options.customerId !== undefined || options.checkoutSessionId !== undefined) {
-    const recovery: NonNullable<OperatorRetryMessage['recovery']> = {}
+    // A mutable draft of the readonly `recovery` bag: a key is absent rather
+    // than `undefined`, so the queue message carries only what the operator gave.
+    const recovery: RecoveryDraft = {}
     if (options.customerId !== undefined) {
       recovery.customerId = options.customerId
     }
@@ -310,7 +316,7 @@ function retry(
       message
     })
   }
-  const accountId = required(operatorConfig.accountId, 'CLOUDFLARE_ACCOUNT_ID')
+  const accountId = requiredValue(operatorConfig.accountId, 'CLOUDFLARE_ACCOUNT_ID')
   return cloudflareRequest({
     config: operatorConfig,
     method: 'POST',

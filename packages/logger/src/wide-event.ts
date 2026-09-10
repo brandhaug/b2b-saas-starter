@@ -23,7 +23,11 @@ import {
   readTraceHeader,
   type TraceContinuation
 } from './trace.ts'
-import { diagnosticAnnotations, diagnosticLabel } from './sanitization.ts'
+import {
+  diagnosticAnnotations,
+  diagnosticErrorSummary,
+  diagnosticLabel
+} from './sanitization.ts'
 import { failureMessage } from '@b2b-saas-starter/failure'
 
 /** The mutable draft `withRequestScope` fills before the sinks read it. */
@@ -44,6 +48,8 @@ type WideEventFailure = {
   readonly errorKind: 'fail' | 'interrupt' | 'defect'
   readonly error?: string
   readonly errorTag?: string
+  /** Defects only: scrubbed error name and top frame (see `sanitization.ts`). */
+  readonly errorSummary?: string
 }
 
 function failureMetadata(head: unknown): WideEventFailure {
@@ -66,7 +72,13 @@ function causeMetadata(cause: Cause.Cause<unknown>): WideEventFailure {
   if (Cause.hasInterruptsOnly(cause)) {
     return { errorKind: 'interrupt' }
   }
-  return { errorKind: 'defect', error: Cause.pretty(cause) }
+  // A defect carries no `_tag` to group by, so the scrubbed name-and-frame
+  // summary is the only handle an error tracker gets on it.
+  const summary = diagnosticErrorSummary(Cause.pretty(cause))
+  if (summary === undefined) {
+    return { errorKind: 'defect' }
+  }
+  return { errorKind: 'defect', errorSummary: summary }
 }
 
 export type WideEventScopeOptions = TraceContinuation & {
@@ -84,9 +96,8 @@ type WideEventOutcome =
 
 /**
  * What one finished wide-event scope looks like to external sinks (Sentry,
- * PostHog — see `providers.ts`). `error` is the raw failure value, not a
- * stringified one, so error SDKs keep their stack traces; it is only present
- * on failures.
+ * PostHog — see `providers.ts`). Every field is already scrubbed: a sink is
+ * vendor glue, not a second sanitization boundary.
  */
 export type WideEventRecord = {
   readonly service: string
@@ -99,8 +110,9 @@ export type WideEventRecord = {
   readonly errorKind?: 'fail' | 'interrupt' | 'defect' | undefined
   /** The failure's `_tag`, when the failure carried one. */
   readonly errorTag?: string | undefined
+  /** Defects only: the scrubbed `Name-file.ts-line-column` handle. */
+  readonly errorSummary?: string | undefined
   readonly environment?: WideEventEnvironment | undefined
-  readonly error?: unknown
 }
 
 type WideEventSink = (record: WideEventRecord) => Promise<void> | void
@@ -114,11 +126,6 @@ const wideEventSinks: Array<WideEventSink> = []
  */
 export function addWideEventSink(sink: WideEventSink): void {
   wideEventSinks.push(sink)
-}
-
-// oxlint-disable-next-line anti-slop/no-unknown-returns -- the raw failure value goes to vendor SDKs that accept `unknown`; parsing it here would destroy the stack trace
-function failureValue(cause: Cause.Cause<unknown>): unknown {
-  return Option.getOrUndefined(Cause.findErrorOption(cause))
 }
 
 // Sink dispatch is promise-native vendor glue (see providers.ts); wrapping it
@@ -268,8 +275,8 @@ function emitWideEvent(
         if (outcome.errorTag !== undefined) {
           record.errorTag = outcome.errorTag
         }
-        if (Exit.isFailure(exit)) {
-          record.error = failureValue(exit.cause)
+        if (outcome.errorSummary !== undefined) {
+          record.errorSummary = outcome.errorSummary
         }
       }
       if (options.environment) {

@@ -13,17 +13,16 @@ import {
   TestDatabase,
   TestD1
 } from '@b2b-saas-starter/capabilities/testing/live-harness'
-import { fixtureSession } from '@/test/fixture-session'
+import { fixtureAuthModule } from '@/test/fixture-session'
 import type * as AuthModule from './auth'
 import type * as DashboardModule from './workspace-dashboard.effects'
 
 // Only session lookup and Worker bindings are substituted. The handlers resolve
 // membership and permissions through the production Live capabilities on local D1.
 const actor = vi.hoisted(() => ({ userId: 'usr_owner' }))
-vi.mock('./auth', async (importOriginal) => ({
-  ...(await importOriginal<typeof AuthModule>()),
-  requireRequestSession: async () => fixtureSession(actor)
-}))
+vi.mock('./auth', async (importOriginal) =>
+  fixtureAuthModule(await importOriginal<typeof AuthModule>(), actor)
+)
 let dashboard: typeof DashboardModule.loadWorkspaceDashboardHandler
 const database = ManagedRuntime.make(TestDatabase)
 function execute(sql: string, ...values: ReadonlyArray<string>) {

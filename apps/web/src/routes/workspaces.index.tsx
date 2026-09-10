@@ -7,6 +7,7 @@ import { pageTitle } from '@/components/page/page-title'
 import { Panel } from '@/components/page/panel'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { RoutePending } from '@/components/route-pending'
+import { getTurnstileSiteKey } from '@/lib/server/turnstile'
 import {
   Item,
   ItemActions,
@@ -23,7 +24,10 @@ import { m } from '@b2b-saas-starter/i18n/messages'
 
 export const Route = createFileRoute('/workspaces/')({
   // The list itself is the layout route's directory load — possibly empty,
-  // never a 404; an empty array renders the empty state below.
+  // never a 404; an empty array renders the empty state below. The one read
+  // here is the Turnstile site key the unverified-email banner's resend needs
+  // (env-gated: `null` renders no widget and sends no token).
+  loader: () => getTurnstileSiteKey(),
   pendingComponent: RoutePending,
   component: WorkspacesPage,
   head: () => ({ meta: [{ title: pageTitle(m.public_meta_workspaces()) }] })
@@ -32,6 +36,7 @@ export const Route = createFileRoute('/workspaces/')({
 function WorkspacesPage() {
   const workspaces: WorkspaceDirectory = useWorkspaceDirectory() ?? []
   const session = Route.useRouteContext().session
+  const turnstileSiteKey = Route.useLoaderData()
   const navigate = useNavigate()
 
   return (
@@ -43,7 +48,10 @@ function WorkspacesPage() {
       {/* The unverified state surfaces here rather than gating anything:
           verification is encouraged, not enforced (provider-light rule). */}
       {session.user.emailVerified ? null : (
-        <EmailVerificationBanner email={session.user.email} />
+        <EmailVerificationBanner
+          email={session.user.email}
+          turnstileSiteKey={turnstileSiteKey}
+        />
       )}
       <Panel title={m.page_workspaces()}>
         {workspaces.length === 0 ? (

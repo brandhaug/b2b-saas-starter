@@ -20,9 +20,11 @@ flow. Delivery history calls this `logged`.
    Restrict queue write credentials to operators who manage the subscription.
    Queue access is the authentication boundary; there is no public email-event
    webhook. The consumer additionally checks the event's sender and domain.
-5. Monitor the `email-events-dlq` queue. After repairing a consumer or database
-   failure, replay its events into the original queue using Cloudflare's queue
-   tooling. Do not publish arbitrary payloads from application endpoints.
+5. Monitor the `email-events` queue backlog and the `queue_exhausted` signal.
+   The queue has no dead-letter queue: a delivery event that exhausts its
+   twelve attempts expires on the primary queue, so repair the consumer or
+   database before the retry window closes. Do not publish arbitrary payloads
+   from application endpoints.
 
 The Email Sending Workers API returns `messageId` for lifecycle correlation. The documented send input has no application message
 ID field, so a lost response cannot reliably be correlated by recipient alone.

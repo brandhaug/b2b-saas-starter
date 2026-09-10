@@ -23,10 +23,14 @@ import type * as AuthModule from '@/lib/server/auth'
  */
 const actor = vi.hoisted(() => ({ userId: 'usr_demo' }))
 
-vi.mock('@/lib/server/auth', async (importOriginal) => ({
-  ...(await importOriginal<typeof AuthModule>()),
-  requireRequestSession: async () => fixtureSession(actor)
-}))
+vi.mock('@/lib/server/auth', async (importOriginal) => {
+  const { Effect } = await import('effect')
+  return {
+    ...(await importOriginal<typeof AuthModule>()),
+    requireRequestSession: async () => fixtureSession(actor),
+    requireRequestSessionEffect: () => Effect.succeed(fixtureSession(actor))
+  }
+})
 
 // Reset rather than restore-in-test-body: a failed assertion between the
 // `usr_dev` flip and a trailing restore must not leak the member identity

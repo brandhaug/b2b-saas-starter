@@ -1,0 +1,18 @@
+// The repo-root TypeScript that belongs to no workspace: the deploy
+// entrypoint, the operator CLIs, the CI scripts, and the root tool configs.
+// `vp run -r typecheck` walks workspaces, so without this project these files
+// were the only TypeScript in the repo nothing type-checked. Wired into
+// `pnpm run check` as `typecheck:repo`.
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": [
+    "alchemy.run.ts",
+    "lint.config.ts",
+    "vite.config.ts",
+    "scripts/**/*.ts",
+    ".github/scripts/**/*.ts"
+  ]
+}

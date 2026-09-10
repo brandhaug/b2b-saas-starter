@@ -13,6 +13,10 @@ import { newCapabilityId } from '../internal/ids.ts'
 import { seedKeysetPage } from '../internal/keyset-cursor.ts'
 import { publishWebhookEventWith, WebhookPublisher } from './webhook-publisher.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
+import {
+  recordSecurityEvidence,
+  type SecurityEvidenceSink
+} from '../governance/security-recovery-evidence.ts'
 import { seedApiTokenValue, seedWorkspaceRecord } from '../seed-fixture.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import {
@@ -37,7 +41,9 @@ type SeedTokenEntry = {
 }
 
 export function SeedApiTokenRegistry(
-  seed: ReadonlyArray<ApiToken>
+  seed: ReadonlyArray<ApiToken>,
+  /** The same optional sink the Live adapter takes; see `SeedWorkspaceMembership`. */
+  securityEvidence?: SecurityEvidenceSink
 ): Layer.Layer<
   ApiTokenRegistry,
   never,
@@ -259,6 +265,15 @@ export function SeedApiTokenRegistry(
             metadata: {}
           })
           entry.revokedAt = revokedAt
+          yield* recordSecurityEvidence(
+            {
+              kind: 'api_token_revoked',
+              subjectId: input.tokenId,
+              workspaceId: ctx.workspace.id
+            },
+            securityEvidence,
+            'seed'
+          )
           yield* publishWebhookEventWith(publisher, {
             eventType: 'api_token.revoked',
             payload: { tokenId: input.tokenId }

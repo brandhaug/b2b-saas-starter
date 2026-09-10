@@ -14,7 +14,6 @@
   "dependencies": {
     "@b2b-saas-starter/ai": "workspace:*",
     "@b2b-saas-starter/authz": "workspace:*",
-    "@b2b-saas-starter/billing": "workspace:*",
     "@b2b-saas-starter/capabilities": "workspace:*",
     "@b2b-saas-starter/failure": "workspace:*",
     "@b2b-saas-starter/rate-limit": "workspace:*",
@@ -22,8 +21,6 @@
   },
   "devDependencies": {
     "typescript": "catalog:",
-    "vite": "catalog:",
-    "vite-plus": "catalog:",
-    "vitest": "catalog:"
+    "vite-plus": "catalog:"
   }
 }

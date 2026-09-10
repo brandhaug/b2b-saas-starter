@@ -1,7 +1,9 @@
 /**
  * The package's single Web Crypto boundary. Consumers outside this package —
  * the background worker's webhook signature — import from here rather than
- * reaching for another crypto module.
+ * reaching for another crypto module. Random hex is the one exception: it is
+ * the same CSPRNG read everywhere, so it lives once in
+ * `@b2b-saas-starter/failure/crypto`.
  */
 function bytesToHex(bytes: ArrayBuffer): string {
   return Array.from(new Uint8Array(bytes), (byte) =>
@@ -33,13 +35,6 @@ export async function hmacSha256Hex(secret: string, payload: string): Promise<st
     new TextEncoder().encode(payload)
   )
   return bytesToHex(signed)
-}
-
-export function randomHex(byteLength: number): string {
-  const bytes = new Uint8Array(byteLength)
-  // oxlint-disable-next-line effect/noGlobals -- platform adapter: signing secrets and bearer tokens need a CSPRNG; Effect's Random is a seedable PRNG and must not back credential material.
-  crypto.getRandomValues(bytes)
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
 /** Standard Webhooks uses a base64-encoded 256-bit key with a whsec_ prefix. */

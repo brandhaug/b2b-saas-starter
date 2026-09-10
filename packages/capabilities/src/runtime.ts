@@ -37,7 +37,7 @@ type D1Binding = Parameters<typeof layerFromD1>[0]
 export type StarterEnv = {
   readonly DB?: D1Binding | undefined
   readonly WEBHOOK_QUEUE?: WebhookQueueBinding | undefined
-  /** Export job queue (ADR 0055). Absent with `WORKSPACE_EXPORT_BUCKET`, exports report unavailable. */
+  /** Export job queue (ADR 0055). Provisioned with the bucket by `WORKSPACE_EXPORTS_ENABLED`; absent, exports report unavailable. */
   readonly WORKSPACE_EXPORT_QUEUE?: WorkspaceExportQueueBinding | undefined
   /** Export artifact bucket (ADR 0055). Absent, exports report unavailable. */
   readonly WORKSPACE_EXPORT_BUCKET?: WorkspaceExportBucketBinding | undefined

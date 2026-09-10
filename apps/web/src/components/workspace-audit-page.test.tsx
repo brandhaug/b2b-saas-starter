@@ -51,7 +51,7 @@ describe('WorkspaceAuditPage', () => {
   it('shows credential provenance beside the actor name', async () => {
     await renderPage()
     const cell = screen.getByRole('cell', { name: 'Demo Owner API token' })
-    expect(cell).toBeTruthy()
+    expect(cell).not.toBeNull()
   })
 
   it('keeps the actor filter when turning to the next page', async () => {

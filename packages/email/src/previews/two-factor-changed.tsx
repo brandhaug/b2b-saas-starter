@@ -1,9 +1,11 @@
-import { TwoFactorChangedNotificationEmail } from '../notification-templates.tsx'
+import {
+  notificationEmailFor,
+  NOTIFICATION_PREVIEW_PROPS
+} from '../notification-emails.ts'
 
 export default function Preview() {
-  return (
-    <TwoFactorChangedNotificationEmail
-      {...TwoFactorChangedNotificationEmail.PreviewProps}
-    />
+  return notificationEmailFor(
+    'two_factor.changed',
+    NOTIFICATION_PREVIEW_PROPS['two_factor.changed']
   )
 }

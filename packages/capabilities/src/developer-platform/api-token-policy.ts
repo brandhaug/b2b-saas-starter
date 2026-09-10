@@ -1,7 +1,7 @@
 import { DateTime, Effect, Schema } from 'effect'
 
 import { ApiTokenNotRotatable, InvalidApiTokenInput } from '../errors.ts'
-import { randomHex } from '../crypto.ts'
+import { randomHex } from '@b2b-saas-starter/failure/crypto'
 import {
   CreateApiTokenPayload,
   ReplaceApiTokenPayload,

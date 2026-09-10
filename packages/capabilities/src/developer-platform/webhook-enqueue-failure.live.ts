@@ -1,4 +1,4 @@
-import { Database, RawD1 } from '@b2b-saas-starter/db/service'
+import { Database } from '@b2b-saas-starter/db/service'
 import {
   webhookDeliveries,
   webhookDeliveryAttempts,
@@ -8,7 +8,7 @@ import { and, eq, isNull, sql } from 'drizzle-orm'
 import { DateTime, Effect } from 'effect'
 
 import { AuditEventLog } from '../governance/audit-event-log.ts'
-import { commitAuditedTransition } from '../governance/audited-mutation.ts'
+import { auditedMutations } from '../governance/audited-mutation.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type WebhookQueueMessage } from './webhook-publisher.ts'
@@ -18,8 +18,11 @@ const unavailable = orUnavailable('webhook-publisher')
 /** Queue confirmation failure settles untouched reservations without blaming the receiver. */
 export const makeLiveWebhookEnqueueFailure = Effect.gen(function* () {
   const db = yield* Database
-  const d1 = yield* RawD1
   const audit = yield* AuditEventLog
+  const auditedMutation = yield* auditedMutations({
+    prepareAuditRecord: audit.prepareRecord,
+    unavailable
+  })
 
   return Effect.fn('WebhookPublisher.recordEnqueueFailure')(function* (
     messages: ReadonlyArray<{ readonly body: WebhookQueueMessage }>
@@ -34,8 +37,9 @@ export const makeLiveWebhookEnqueueFailure = Effect.gen(function* () {
       )
       const accepted = and(identity, eq(webhookDeliveries.lastAttemptToken, attemptId))
       const acceptedExists = sql`exists (select 1 from ${webhookDeliveries} where ${accepted})`
-      yield* unavailable(
-        commitAuditedTransition(
+      yield* auditedMutation({
+        matched: Effect.succeed(true),
+        write: () =>
           db
             .update(webhookDeliveries)
             .set({
@@ -52,7 +56,9 @@ export const makeLiveWebhookEnqueueFailure = Effect.gen(function* () {
                 isNull(webhookDeliveries.lastAttemptToken)
               )
             ),
-          [
+        transition: {
+          condition: acceptedExists,
+          alongside: [
             db.insert(webhookDeliveryAttempts).select(
               db
                 .select({
@@ -73,27 +79,24 @@ export const makeLiveWebhookEnqueueFailure = Effect.gen(function* () {
                 })
                 .from(webhookDeliveries)
                 .where(accepted)
-            ),
-            yield* audit.prepareRecord(
-              {
-                workspaceId: body.workspaceId,
-                actorType: 'system',
-                eventType: 'webhook.delivery_failed',
-                targetType: 'webhook_endpoint',
-                targetId: body.endpointId,
-                metadata: {
-                  deliveryId: body.deliveryId,
-                  eventType: body.eventType,
-                  reason: 'enqueue_confirmation_failed',
-                  acceptance: 'unknown',
-                  queueAttempts: 0
-                }
-              },
-              acceptedExists
             )
           ]
-        ).pipe(Effect.provideService(RawD1, d1))
-      )
+        },
+        auditEvent: {
+          workspaceId: body.workspaceId,
+          actorType: 'system',
+          eventType: 'webhook.delivery_failed',
+          targetType: 'webhook_endpoint',
+          targetId: body.endpointId,
+          metadata: {
+            deliveryId: body.deliveryId,
+            eventType: body.eventType,
+            reason: 'enqueue_confirmation_failed',
+            acceptance: 'unknown',
+            queueAttempts: 0
+          }
+        }
+      })
     }
   })
 })

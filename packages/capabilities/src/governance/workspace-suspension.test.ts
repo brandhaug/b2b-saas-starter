@@ -3,6 +3,7 @@ import { describe, expect, it } from '@effect/vitest'
 import { SeedWorkspaceSuspension } from './workspace-suspension.seed.ts'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { WorkspaceSuspensionService } from './workspace-suspension.ts'
+import { type Workspace } from './workspace-identity.ts'
 import { workspaceSuspensionContractCases } from './workspace-suspension.contract.ts'
 import { AuditEventLog } from './audit-event-log.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
@@ -34,16 +35,30 @@ const options = {
   ]
 } satisfies Parameters<typeof SeedWorkspaceSuspension>[0]
 
+// Declared out of name order on purpose: the ordering contract case only
+// proves the adapter sorts if the fixture it reads does not arrive sorted.
+const catalogWorkspaces = [
+  { id: 'wrk_zeta', slug: 'zeta-lab', name: 'Zeta Lab', planId: 'starter' },
+  options.workspace,
+  { id: 'wrk_alpha', slug: 'alpha-lab', name: 'Alpha Lab', planId: 'starter' }
+]
+
 function makeLayer(feed: Layer.Layer<NotificationFeed>) {
-  return SeedWorkspaceSuspension(options).pipe(
-    Layer.provide(Layer.mock(AuditEventLog, { record: () => Effect.void })),
-    Layer.provide(feed)
+  return Layer.unwrap(
+    Effect.gen(function* () {
+      const catalog = yield* Ref.make<ReadonlyArray<Workspace>>(catalogWorkspaces)
+      return SeedWorkspaceSuspension({ ...options, catalog }).pipe(
+        Layer.provide(Layer.mock(AuditEventLog, { record: () => Effect.void })),
+        Layer.provide(feed)
+      )
+    })
   )
 }
 
 const layer = makeLayer(
   Layer.mock(NotificationFeed, {
-    prepareWorkspaceOwners: () => Effect.succeed({ writes: [], publish: Effect.void })
+    prepareWorkspaceOwners: () =>
+      Effect.succeed({ writes: [], commit: Effect.void, publish: Effect.void })
   })
 )
 
@@ -65,6 +80,7 @@ describe('seed workspace suspension', () => {
               }
               return {
                 writes: [],
+                commit: Effect.void,
                 publish: Ref.update(published, (count) => count + 1)
               }
             })

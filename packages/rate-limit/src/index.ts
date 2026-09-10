@@ -142,8 +142,11 @@ export function clientKey(request: Request): string {
   if (ip) {
     return ip
   }
-  // Without a client IP (local dev) we can't bucket fairly. Use the request
-  // URL so a single misconfigured caller can't share the bucket with
-  // everyone else.
+  // Without the platform header (local dev, a non-Cloudflare front door)
+  // there is nothing that identifies a caller, so this is deliberately NOT a
+  // fair key: every caller of the path shares one bucket and one fate — the
+  // first flood throttles everybody on that path until the window rolls. That
+  // is the safe direction (no bypass) and it only happens where
+  // `cf-connecting-ip` is missing, which in production is nowhere.
   return `unkeyed:${new URL(request.url).pathname}`
 }

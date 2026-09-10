@@ -3,6 +3,7 @@ import { Effect, Result, Schema } from 'effect'
 import { billingLifecycleStatuses } from '@b2b-saas-starter/db/enums'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { hmacSha256Hex } from './crypto.ts'
+import { billableSeatQuantity } from './plan-catalog.ts'
 
 /**
  * The Stripe provider adapter: the hand-rolled REST client, the inbound event
@@ -400,7 +401,8 @@ export const updateStripeSubscriptionItemQuantity = Effect.fn(
   readonly idempotencyKey?: string | undefined
 }) {
   const params = new URLSearchParams()
-  params.set('quantity', String(input.quantity))
+  // Stripe refuses a zero quantity on a licensed per-unit price.
+  params.set('quantity', String(billableSeatQuantity(input.quantity)))
   params.set('proration_behavior', 'create_prorations')
   const response = yield* stripePost(
     `https://api.stripe.com/v1/subscription_items/${encodeURIComponent(input.subscriptionItemId)}`,
@@ -590,13 +592,14 @@ export const listStripeCustomerCheckoutSessions = Effect.fn(
   )
 })
 
-export type ValidatedStripeCustomer = {
-  readonly customer: StripeCustomerResponse
-  readonly subscriptions: ReadonlyArray<StripeSubscriptionResponse>
-  readonly activeSubscriptions: ReadonlyArray<StripeSubscriptionResponse>
-}
-
-function activeSubscriptionStatus(status: string): boolean {
+/**
+ * Whether a provider subscription still counts as the workspace's current
+ * one. Stripe keeps terminal subscriptions on the customer forever, so every
+ * read that asks "which subscription is this workspace on?" filters with this
+ * one predicate — a second copy is how a canceled subscription starts
+ * granting access again.
+ */
+export function isCurrentSubscriptionStatus(status: string): boolean {
   return status !== 'canceled' && status !== 'incomplete_expired'
 }
 
@@ -625,9 +628,8 @@ export const validateStripeCustomerForWorkspace = Effect.fn(
   if (listed.has_more) {
     return yield* Effect.fail(stripeUnavailable('multiple_subscriptions'))
   }
-  const activeSubscriptions = listed.data.filter(
-    (subscription) =>
-      subscription.status !== 'canceled' && subscription.status !== 'incomplete_expired'
+  const activeSubscriptions = listed.data.filter((subscription) =>
+    isCurrentSubscriptionStatus(subscription.status)
   )
   if (
     activeSubscriptions.some(
@@ -652,7 +654,7 @@ export const validateStripeCustomerForWorkspace = Effect.fn(
     ) {
       return yield* Effect.fail(stripeUnavailable('subscription_ownership_conflict'))
     }
-    if (activeSubscriptionStatus(known.status)) {
+    if (isCurrentSubscriptionStatus(known.status)) {
       return {
         customer,
         subscriptions: [...listed.data, known],

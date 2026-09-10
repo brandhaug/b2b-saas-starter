@@ -4,9 +4,12 @@ import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
 import { KeyRoundIcon, MailQuestionIcon } from 'lucide-react'
 import {
+  requestPasswordResetCodeWithAuthClient,
   requestPasswordResetWithAuthClient,
-  type RequestPasswordReset
+  type RequestPasswordReset,
+  type RequestPasswordResetCode
 } from '@/components/auth/auth-client-ports'
+import { useTurnstileChallenge } from '@/components/auth/turnstile-challenge'
 import { emailValidator, passwordValidator } from '@/components/auth/auth-validators'
 import { EmailCodeExchangePage } from '@/components/auth/email-code-exchange'
 import { AuthSubmitButton } from '@/components/auth/auth-submit-button'
@@ -15,17 +18,21 @@ import { Button } from '@/components/ui/button'
 import { AuthCardForm, AuthNoticeCard } from '@/components/auth/auth-card-form'
 import { authClient } from '@/lib/auth-client'
 import { authErrorCopy } from '@/lib/auth-error-copy'
+import { getTurnstileSiteKey } from '@/lib/server/turnstile'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 export type { RequestPasswordReset } from '@/components/auth/auth-client-ports'
 
 export const Route = createFileRoute('/forgot-password')({
+  // Server-only read, env-gated: with TURNSTILE unset the key is `null`, no
+  // widget renders and the auth route's gate stays inactive.
+  loader: () => getTurnstileSiteKey(),
   head: () => ({ meta: [{ title: pageTitle(m.public_meta_forgot_password()) }] }),
   component: ForgotPasswordRoute
 })
 
 function ForgotPasswordRoute() {
-  return <ForgotPasswordPage />
+  return <ForgotPasswordPage turnstileSiteKey={Route.useLoaderData()} />
 }
 
 // One message for every outcome, by design: the endpoint answers identically
@@ -49,10 +56,16 @@ function CODE_SENT_MESSAGE() {
  * URL. Neither path discloses whether the address is registered.
  */
 export function ForgotPasswordPage({
-  requestReset = requestPasswordResetWithAuthClient
+  requestReset = requestPasswordResetWithAuthClient,
+  requestResetCode = requestPasswordResetCodeWithAuthClient,
+  turnstileSiteKey = null
 }: {
   /** The link request, injectable because the adapter composes the redirect. */
   readonly requestReset?: RequestPasswordReset
+  /** The code request, injectable for the same reason as the link one. */
+  readonly requestResetCode?: RequestPasswordResetCode
+  /** Server-provided Turnstile site key; `null` renders no widget (provider-light). */
+  readonly turnstileSiteKey?: string | null | undefined
 }) {
   const router = useRouter()
   // `form` → the request form; `link-sent` → the link confirmation; `code` →
@@ -60,12 +73,22 @@ export function ForgotPasswordPage({
   const [stage, setStage] = useState<'form' | 'link-sent' | 'code'>('form')
   const [email, setEmail] = useState('')
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const challenge = useTurnstileChallenge(turnstileSiteKey)
 
   const form = useForm({
     defaultValues: { email: '' },
     onSubmit: async ({ value }) => {
       setSubmitError(null)
-      const result = await requestReset({ email: value.email })
+      if (challenge.missing) {
+        setSubmitError(challenge.missingMessage)
+        return
+      }
+      const result = await requestReset({
+        email: value.email,
+        turnstileToken: challenge.token
+      })
+      // Single-use: the code button below needs its own challenge.
+      challenge.consume()
       if (result.error) {
         setSubmitError(authErrorCopy(result.error, m.public_auth_request_failed()))
         return
@@ -83,7 +106,15 @@ export function ForgotPasswordPage({
       await form.handleSubmit()
       return
     }
-    const result = await authClient.emailOtp.requestPasswordReset({ email: address })
+    if (challenge.missing) {
+      setSubmitError(challenge.missingMessage)
+      return
+    }
+    const result = await requestResetCode({
+      email: address,
+      turnstileToken: challenge.token
+    })
+    challenge.consume()
     if (result.error) {
       setSubmitError(authErrorCopy(result.error, m.public_auth_send_code_failed()))
       return
@@ -97,16 +128,17 @@ export function ForgotPasswordPage({
       <EmailCodeExchangePage
         purpose="forget-password"
         email={email}
+        turnstileSiteKey={turnstileSiteKey}
         title={m.enter_your_code()}
         codeSentNotice={CODE_SENT_MESSAGE()}
         codeSubmitLabel={m.form_reset_password()}
         codeSubmittingLabel={m.resetting()}
         codeSubmitIcon={<KeyRoundIcon className="size-4" />}
         verifyErrorFallback={m.reset_failed()}
-        // The resend re-asks the code endpoint — it takes only the address,
-        // none of the shared send's purpose.
-        send={({ email: address }) =>
-          authClient.emailOtp.requestPasswordReset({ email: address })
+        // The resend re-asks the code endpoint — it takes only the address
+        // and the challenge, none of the shared send's purpose.
+        send={({ email: address, turnstileToken }) =>
+          requestResetCode({ email: address, turnstileToken })
         }
         verify={({ email: address, otp, password }) =>
           authClient.emailOtp.resetPassword({
@@ -250,6 +282,7 @@ export function ForgotPasswordPage({
           />
         )}
       </form.Field>
+      {challenge.widget}
     </AuthCardForm>
   )
 }

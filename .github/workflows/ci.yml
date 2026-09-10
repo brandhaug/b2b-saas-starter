@@ -236,12 +236,72 @@ jobs:
           # the same default to the prod stage; forwarding it here keeps the
           # documented path explicit.
           ENVIRONMENT: production
+          # Deployment identity, the way preview.yml stamps it: every wide
+          # event and span carries the commit that produced the worker.
+          GIT_COMMIT_SHA: ${{ github.sha }}
+          SERVICE_VERSION: ${{ vars.SERVICE_VERSION || github.sha }}
           # Optional — the SendEmail binding is skipped when unset (alchemy.run.ts).
           CLOUDFLARE_EMAIL_FROM: ${{ secrets.CLOUDFLARE_EMAIL_FROM }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           MAINTENANCE_MODE: ${{ vars.MAINTENANCE_MODE }}
           SECURITY_EVIDENCE_URL: ${{ vars.SECURITY_EVIDENCE_URL }}
           SECURITY_EVIDENCE_TOKEN: ${{ secrets.SECURITY_EVIDENCE_TOKEN }}
+          # Every remaining optional provider var packages/env/src/server.ts
+          # lists, split the way that file classifies them: secret keys come
+          # from `secrets`, plain keys from `vars`. An unset one resolves to
+          # the empty string, which alchemy.run.ts drops from the worker env
+          # entirely — the provider stays inactive instead of half-configured.
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          STRIPE_PRICE_ID_TEAM: ${{ vars.STRIPE_PRICE_ID_TEAM }}
+          STRIPE_PRICE_ID_ENTERPRISE: ${{ vars.STRIPE_PRICE_ID_ENTERPRISE }}
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL }}
+          OPENAI_MODEL_ID: ${{ vars.OPENAI_MODEL_ID }}
+          WORKERS_AI_ENABLED: ${{ vars.WORKERS_AI_ENABLED }}
+          # GitHub refuses to store a secret or variable whose name starts
+          # with `GITHUB_`, so the GitHub sign-in credentials live under an
+          # `OAUTH_` prefix and are mapped back to the names the worker reads.
+          GITHUB_CLIENT_ID: ${{ vars.OAUTH_GITHUB_CLIENT_ID }}
+          GITHUB_CLIENT_SECRET: ${{ secrets.OAUTH_GITHUB_CLIENT_SECRET }}
+          GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          POSTHOG_KEY: ${{ vars.POSTHOG_KEY }}
+          POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ vars.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+          MCP_RESOURCE_URL: ${{ vars.MCP_RESOURCE_URL }}
+          MCP_OAUTH_ISSUER: ${{ vars.MCP_OAUTH_ISSUER }}
+          API_PUBLIC_URL: ${{ vars.API_PUBLIC_URL }}
+          SUPPORT_EMAIL: ${{ vars.SUPPORT_EMAIL }}
+          SUPPORT_HELPDESK_URL: ${{ vars.SUPPORT_HELPDESK_URL }}
+          SUPPORT_HELP_CENTER_URL: ${{ vars.SUPPORT_HELP_CENTER_URL }}
+          # Workspace data export (ADR 0055): a deploy-time switch, not a
+          # bucket name — alchemy names the bucket per stage.
+          WORKSPACE_EXPORTS_ENABLED: ${{ vars.WORKSPACE_EXPORTS_ENABLED }}
+          # Retention (docs/retention.md): the `environment` object the
+          # approval artifact prints, applied as repository/environment
+          # variables. Without a matching approval the worker stays in preview
+          # mode, so an unset value cannot delete anything.
+          RETENTION_CLEANUP_ENABLED: ${{ vars.RETENTION_CLEANUP_ENABLED }}
+          RETENTION_RECOVERY_VERIFIED: ${{ vars.RETENTION_RECOVERY_VERIFIED }}
+          RETENTION_AUDIT_DAYS: ${{ vars.RETENTION_AUDIT_DAYS }}
+          RETENTION_NOTIFICATION_DAYS: ${{ vars.RETENTION_NOTIFICATION_DAYS }}
+          RETENTION_INVITATION_DAYS: ${{ vars.RETENTION_INVITATION_DAYS }}
+          RETENTION_TOKEN_DAYS: ${{ vars.RETENTION_TOKEN_DAYS }}
+          RETENTION_EXPORT_DAYS: ${{ vars.RETENTION_EXPORT_DAYS }}
+          RETENTION_BILLING_DAYS: ${{ vars.RETENTION_BILLING_DAYS }}
+          RETENTION_EMAIL_DAYS: ${{ vars.RETENTION_EMAIL_DAYS }}
+          RETENTION_UNRESOLVED_EMAIL_DAYS: ${{ vars.RETENTION_UNRESOLVED_EMAIL_DAYS }}
+          RETENTION_BATCH_SIZE: ${{ vars.RETENTION_BATCH_SIZE }}
+          RETENTION_WORK_BUDGET: ${{ vars.RETENTION_WORK_BUDGET }}
+          RETENTION_POLICY_APPROVAL_DIGEST: ${{ vars.RETENTION_POLICY_APPROVAL_DIGEST }}
+          RETENTION_PREVIEW_DIGEST: ${{ vars.RETENTION_PREVIEW_DIGEST }}
+          RETENTION_RECOVERY_EVIDENCE: ${{ vars.RETENTION_RECOVERY_EVIDENCE }}
+          RETENTION_POLICY_VERSION: ${{ vars.RETENTION_POLICY_VERSION }}
+          RETENTION_POLICY_TARGET: ${{ vars.RETENTION_POLICY_TARGET }}
       # The workers.dev URLs are not known until deploy time: the account's
       # subdomain comes from the Cloudflare API, and the worker names come from
       # stageResourceNames in infra/bindings.ts (`prod` keeps the historical

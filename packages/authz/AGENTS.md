@@ -15,6 +15,7 @@ Neither app calls the guard raw: `apps/api/src/request-guards.ts` (which also co
 
 - Don't check a role name by hand (`actor.role === 'owner'`); ask for the permission.
 - Don't grant a system admin anything here; that axis confers nothing in a workspace.
+- `needsStrongAuthentication` is the one sanctioned role-name read: "which humans must re-prove themselves" is a property of the role, not of any single permission, so it takes the stored `SystemRole` / `WorkspaceRole` unions. Plugin-supplied strings pass through `toSystemRole` at the boundary rather than widening the predicate.
 
 ## Pitfalls
 

@@ -17,7 +17,7 @@ import {
   type OperationPrincipal
 } from './operations.ts'
 
-export type MutationInvocation = Effect.Effect<
+type MutationInvocation = Effect.Effect<
   unknown,
   CapabilityMutationError,
   | CapabilityMutationServices

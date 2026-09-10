@@ -53,23 +53,23 @@ describe('PasskeysPanel', () => {
     })
     renderWithQueryClient(<PasskeysPanel />)
 
-    expect(await screen.findByText('MacBook Touch ID')).toBeDefined()
-    expect(screen.getByText('Passkey')).toBeDefined()
-    expect(screen.getByText(/Synced passkey/)).toBeDefined()
-    expect(screen.getByText(/Device passkey/)).toBeDefined()
+    expect(await screen.findByText('MacBook Touch ID')).not.toBeNull()
+    expect(screen.getByText('Passkey')).not.toBeNull()
+    expect(screen.getByText(/Synced passkey/)).not.toBeNull()
+    expect(screen.getByText(/Device passkey/)).not.toBeNull()
     expect(
       screen.getByRole('button', { name: 'Rename MacBook Touch ID passkey' })
-    ).toBeDefined()
+    ).not.toBeNull()
     expect(
       screen.getByRole('button', { name: 'Remove MacBook Touch ID passkey' })
-    ).toBeDefined()
+    ).not.toBeNull()
   })
 
   it('shows the empty state when no passkeys exist', async () => {
     listPasskeys.mockResolvedValue({ data: [] })
     renderWithQueryClient(<PasskeysPanel />)
 
-    expect(await screen.findByText(/No passkeys yet/)).toBeDefined()
+    expect(await screen.findByText(/No passkeys yet/)).not.toBeNull()
   })
 
   it('registers a passkey with the chosen name and refreshes the list', async () => {
@@ -84,7 +84,7 @@ describe('PasskeysPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add passkey' }))
 
     await waitFor(() => expect(addPasskey).toHaveBeenCalledWith({ name: 'Phone' }))
-    expect(await screen.findByText('Phone')).toBeDefined()
+    expect(await screen.findByText('Phone')).not.toBeNull()
   })
 
   it('omits the name when the field is left blank', async () => {
@@ -125,7 +125,7 @@ describe('PasskeysPanel', () => {
     await waitFor(() =>
       expect(updatePasskey).toHaveBeenCalledWith({ id: 'pk_mac', name: 'Tablet' })
     )
-    expect(await screen.findByText('Tablet')).toBeDefined()
+    expect(await screen.findByText('Tablet')).not.toBeNull()
   })
 
   it('removes a passkey behind a confirmation and refreshes the list', async () => {
@@ -140,7 +140,7 @@ describe('PasskeysPanel', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Remove passkey' }))
 
     await waitFor(() => expect(deletePasskey).toHaveBeenCalledWith({ id: 'pk_mac' }))
-    expect(await screen.findByText(/No passkeys yet/)).toBeDefined()
+    expect(await screen.findByText(/No passkeys yet/)).not.toBeNull()
   })
 
   it('surfaces removal failures', async () => {

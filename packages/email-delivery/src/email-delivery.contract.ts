@@ -1,4 +1,4 @@
-import { Clock, DateTime, Effect, Ref } from 'effect'
+import { Clock, DateTime, Effect, Predicate, Ref } from 'effect'
 import * as TestClock from 'effect/testing/TestClock'
 import { type expect as vitestExpect } from '@effect/vitest'
 import {
@@ -192,9 +192,10 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
       })
     },
     {
-      name: 'bounded retention resumes across evidence pages',
+      name: 'retention drains every expired page in one invocation',
       assert: Effect.gen(function* () {
         const delivery = yield* EmailDelivery
+        const planted: Array<string> = []
         for (let index = 0; index < 251; index++) {
           for (const purpose of ['normal', 'unresolved']) {
             const request = input(`retention-backlog-${purpose}-${index}`)
@@ -207,16 +208,21 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
               outcome = { status: 'failed', reason: 'provider_rejected' }
             }
             yield* delivery.recordOutcome(request.id, claim.token, outcome)
+            planted.push(request.id)
           }
         }
+        function stored() {
+          return Effect.forEach(planted, (id) => delivery.get(id), {
+            concurrency: 8
+          }).pipe(Effect.map((rows) => rows.filter(Predicate.isNotNull).length))
+        }
+        expect(yield* stored()).toBe(planted.length)
         yield* TestClock.adjust('90 days')
-        const first = yield* delivery.prune()
-        expect(first).toBe(500)
-        const second = yield* delivery.prune()
-        expect(second).toBeGreaterThanOrEqual(2)
-        expect(second).toBeLessThanOrEqual(500)
-        expect(yield* delivery.get('retention-backlog-normal-250')).toBeNull()
-        expect(yield* delivery.get('retention-backlog-unresolved-250')).toBeNull()
+        // Both categories hold more than one 250-row page. The oracle is the
+        // backlog planted here, not a row count: the live variant shares its
+        // database with the cases before it.
+        yield* delivery.prune()
+        expect(yield* stored()).toBe(0)
         expect(yield* delivery.prune()).toBe(0)
       })
     },

@@ -2,6 +2,7 @@
 // oxlint-disable effect/noNewPromise
 import { Schema } from 'effect'
 import { runWithSentryCronMonitor } from './d1-backup.ts'
+import { requiredEnv } from './internal/env.ts'
 
 const QueueTarget = Schema.Struct({
   id: Schema.String,
@@ -27,14 +28,6 @@ type QueueObservation = {
   readonly healthy: boolean
 }
 
-function required(environment: Environment, name: string): string {
-  const value = environment[name]
-  if (!value) {
-    throw new Error(`Missing ${name}`)
-  }
-  return value
-}
-
 /** Unknown age on a nonempty queue is not evidence that the queue is healthy. */
 export function queueIsHealthy(
   count: number,
@@ -57,9 +50,9 @@ export async function inspectQueues(
   request: typeof fetch = fetch,
   now: number = Date.now()
 ): Promise<ReadonlyArray<QueueObservation>> {
-  const account = required(environment, 'CLOUDFLARE_ACCOUNT_ID')
-  const token = required(environment, 'CLOUDFLARE_API_TOKEN')
-  const targets = decodeTargets(JSON.parse(required(environment, 'OPS_QUEUES')))
+  const account = requiredEnv(environment, 'CLOUDFLARE_ACCOUNT_ID')
+  const token = requiredEnv(environment, 'CLOUDFLARE_API_TOKEN')
+  const targets = decodeTargets(JSON.parse(requiredEnv(environment, 'OPS_QUEUES')))
   if (!/^[a-f0-9]{32}$/i.test(account) || targets.length === 0 || targets.length > 30) {
     throw new Error('Expected an account ID and one through thirty queue targets')
   }

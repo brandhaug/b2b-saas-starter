@@ -1,13 +1,28 @@
 import { DateTime } from 'effect'
-import { type SubscriptionState } from './billing.ts'
+import { type SubscriptionState, type SubscriptionStatus } from './billing.ts'
 import { PLANS, STARTER_PLAN } from './plan-catalog.ts'
-import { type StripeSubscriptionResponse } from './stripe.ts'
+import {
+  isCurrentSubscriptionStatus,
+  type StripeSubscriptionResponse
+} from './stripe.ts'
 
 export type PaymentEvidence = {
   readonly lastPaymentAt: string | null
   readonly firstFailedAt: string | null
-  readonly currentInvoicePaid: boolean
 }
+
+/**
+ * Statuses that end paid access outright, whatever a stored grace deadline
+ * says: the subscription is over, never started, or the provider stopped
+ * collecting (ADR 0076). Renewal grace covers the live statuses only.
+ */
+const ACCESS_ENDED_STATUSES: ReadonlySet<SubscriptionStatus> = new Set([
+  'canceled',
+  'incomplete',
+  'incomplete_expired',
+  'unpaid',
+  'paused'
+])
 
 export type BillingStateDecision =
   | { readonly kind: 'conflict'; readonly reason: string }
@@ -58,8 +73,12 @@ export function effectivePlanDecision(state: SubscriptionState, now: string) {
         reason = 'trial_expired'
       }
     }
+    // Renewal grace follows the evidence, not the reported status: Stripe can
+    // still call a subscription `active` while its renewal invoice is failing,
+    // and a workspace that has paid before keeps access until the deadline.
     if (
-      state.status === 'past_due' &&
+      !paid &&
+      !ACCESS_ENDED_STATUSES.has(state.status) &&
       state.lastPaymentAt !== null &&
       future(state.graceEndsAt)
     ) {
@@ -85,8 +104,8 @@ export function resolveBillingState(input: {
   readonly payment: PaymentEvidence
   readonly now: string
 }): BillingStateDecision {
-  const current = input.subscriptions.filter(
-    (s) => s.status !== 'canceled' && s.status !== 'incomplete_expired'
+  const current = input.subscriptions.filter((s) =>
+    isCurrentSubscriptionStatus(s.status)
   )
   if (input.hasMore || current.length > 1) {
     return { kind: 'conflict', reason: 'multiple_subscriptions' }

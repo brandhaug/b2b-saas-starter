@@ -11,6 +11,7 @@ import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/governance/wo
 // modules that own the `Schema.Literals` forms — those pin effect/Schema
 // into the route tree the browser preloads.
 export {
+  adminSystemRole as ADMIN_SYSTEM_ROLE,
   apiTokenScopes as API_TOKEN_SCOPES,
   workspaceRoles as WORKSPACE_ROLES
 } from '@b2b-saas-starter/db/enums'

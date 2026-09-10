@@ -205,7 +205,10 @@ async function captureSentryError(record: WideEventRecord): Promise<void> {
       service: diagnosticLabel(record.service),
       event: diagnosticLabel(record.event),
       errorKind: record.errorKind,
-      errorTag: diagnosticLabel(record.errorTag)
+      errorTag: diagnosticLabel(record.errorTag),
+      // A defect's only handle: the scrubbed error name and top frame. Without
+      // it every defect arrives as an indistinguishable `Application failure`.
+      errorSummary: record.errorSummary
     },
     // Joins the Sentry issue back to the OTel trace the wide event opened.
     contexts: {

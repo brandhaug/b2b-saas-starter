@@ -3,13 +3,13 @@ import { pageTitle } from '@/components/page/page-title'
 import { AuditRouteError } from '@/components/audit-route-error'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceAuditPage } from '@/components/workspace-audit-page'
-import { type ApplyWorkspaceAuditSearch } from '@/lib/audit-search'
+import {
+  auditFiltersFromSearch,
+  type ApplyWorkspaceAuditSearch
+} from '@/lib/audit-search'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { pickOptionalStrings } from '@/lib/utils'
-import {
-  loadWorkspaceAuditEventsServerFn,
-  type WorkspaceAuditFilters
-} from '@/lib/server/workspace-audit'
+import { loadWorkspaceAuditEventsServerFn } from '@/lib/server/workspace-audit'
 
 /**
  * The audit page is read-only, so its whole state lives in the URL: filters and
@@ -47,23 +47,6 @@ function decodeSearch(search: unknown): AuditSearch {
   return pickOptionalStrings(search, AUDIT_SEARCH_KEYS)
 }
 
-function filtersFromSearch(search: AuditSearch): WorkspaceAuditFilters {
-  const filters: WorkspaceAuditFilters = {}
-  if (search.actor !== undefined) {
-    filters.actorUserId = search.actor
-  }
-  if (search.eventType !== undefined) {
-    filters.eventType = search.eventType
-  }
-  if (search.since !== undefined) {
-    filters.since = search.since
-  }
-  if (search.until !== undefined) {
-    filters.until = search.until
-  }
-  return filters
-}
-
 export const Route = createFileRoute('/workspaces/$workspaceSlug/audit')({
   validateSearch: (search) => decodeSearch(search),
   loaderDeps: ({ search }) => ({ search: decodeSearch(search) }),
@@ -76,7 +59,7 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/audit')({
       loadWorkspaceAuditEventsServerFn({
         data: {
           workspaceSlug: params.workspaceSlug,
-          filters: filtersFromSearch(deps.search),
+          filters: auditFiltersFromSearch(deps.search),
           ...(deps.search.cursor !== undefined && { cursor: deps.search.cursor }),
           ...(deps.search.event && { event: deps.search.event })
         }

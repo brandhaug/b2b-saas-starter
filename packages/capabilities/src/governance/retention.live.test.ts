@@ -1,9 +1,9 @@
-import { provisionTestD1 } from '@b2b-saas-starter/db/testing'
 import { RawD1, type D1Binding } from '@b2b-saas-starter/db/service'
 import { it } from '@effect/vitest'
 import { DateTime, Effect, Layer, Schema } from 'effect'
 import { describe, expect } from 'vite-plus/test'
 
+import { withRawTestD1 } from '../testing/live-harness.ts'
 import { LiveRetention } from './retention.live.ts'
 import { Retention, type RetentionPolicy } from './retention.ts'
 import { retentionPolicyDigest, RETENTION_DEFAULTS } from './retention-policy.ts'
@@ -15,24 +15,23 @@ const isoNow = '2026-09-07T12:00:00.000Z'
 const epochNow = DateTime.toEpochMillis(now) / 1000
 
 function withDatabase<E>(test: (d1: D1Binding) => Effect.Effect<void, E, Retention>) {
-  return Effect.gen(function* () {
-    const database = yield* Effect.acquireRelease(
-      Effect.promise(provisionTestD1),
-      (db) => Effect.promise(() => db.dispose())
-    )
-    yield* Effect.promise(() =>
-      database.d1
-        .prepare(
-          "INSERT INTO workspaces (id, name, slug) VALUES ('retention-one', 'One', 'retention-one'), ('retention-two', 'Two', 'retention-two')"
-        )
-        .run()
-    )
-    yield* test(database.d1).pipe(
-      Effect.provide(
-        LiveRetention.pipe(Layer.provide(Layer.succeed(RawD1, database.d1)))
+  // The shared provisioning helper, minus the shared fixture rows: retention
+  // counts and deletes across every table, so any row it did not plant is a
+  // candidate it did not expect.
+  return withRawTestD1((d1) =>
+    Effect.gen(function* () {
+      yield* Effect.promise(() =>
+        d1
+          .prepare(
+            "INSERT INTO workspaces (id, name, slug) VALUES ('retention-one', 'One', 'retention-one'), ('retention-two', 'Two', 'retention-two')"
+          )
+          .run()
       )
-    )
-  })
+      yield* test(d1).pipe(
+        Effect.provide(LiveRetention.pipe(Layer.provide(Layer.succeed(RawD1, d1))))
+      )
+    })
+  )
 }
 
 function insert(

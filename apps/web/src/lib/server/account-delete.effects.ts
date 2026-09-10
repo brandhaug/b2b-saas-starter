@@ -3,7 +3,7 @@ import {
   type AccountDeletionPlan
 } from '@b2b-saas-starter/capabilities/governance/account-lifecycle'
 import { Effect } from 'effect'
-import { needsStrongAuthentication } from '@b2b-saas-starter/authz/client'
+import { needsStrongAuthentication, toSystemRole } from '@b2b-saas-starter/authz/client'
 import {
   StrongAuthentication,
   StrongAuthenticationRequired
@@ -43,7 +43,7 @@ export async function deleteAccountHandler(
       // Account deletion spans every membership, including workspaces that are
       // not active in this browser session.
       if (
-        needsStrongAuthentication({ systemRole: session.user.role }) ||
+        needsStrongAuthentication({ systemRole: toSystemRole(session.user.role) }) ||
         plan.steps.some((step) =>
           needsStrongAuthentication({ workspaceRole: step.role })
         )

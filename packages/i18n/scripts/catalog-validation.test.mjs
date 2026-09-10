@@ -3,10 +3,23 @@ import {
   flattenCatalog,
   inputNames,
   mergeInto,
-  validateCatalogs
+  validateCatalogs,
+  validateProjectLocales
 } from './catalog-validation.mjs'
+import { LOCALES } from '../src/locale.ts'
+import settings from '../project.inlang/settings.json' with { type: 'json' }
 
 describe('catalog validation', () => {
+  it('keeps the inlang project locales equal to the shipped locale set', () => {
+    expect(() => validateProjectLocales(settings, LOCALES)).not.toThrow()
+    expect(() =>
+      validateProjectLocales({ ...settings, locales: ['en'] }, LOCALES)
+    ).toThrow('Locale mismatch')
+    expect(() =>
+      validateProjectLocales({ ...settings, baseLocale: 'de' }, LOCALES)
+    ).toThrow('baseLocale de is not one of')
+  })
+
   it('rejects duplicate keys while merging domain catalogs', () => {
     const merged = mergeInto({}, { account: { title: 'Account' } })
     expect(() => mergeInto(merged, { account: { title: 'Profile' } })).toThrow(

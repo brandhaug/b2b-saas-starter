@@ -4,18 +4,30 @@ import type * as RateLimitModule from '@/lib/rate-limit'
 import type * as BetterAuthModule from 'effectful-better-auth'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 
+/**
+ * The catchall's own contract, and only that: the request reaches the plugin
+ * exactly once, a refusal skips every post-handler step, and the Turnstile
+ * gate holds for the paths that mail an address. The guard's own decisions
+ * (classification, refusal order, the session read) belong to
+ * `auth-request-guard.test.ts`, which drives the real refusal modules — so
+ * the guard is NOT mocked here either. Mocked below: the plugin boundary, the
+ * capability runtime, and the post-handler collaborators this file asserts
+ * were (or were not) reached.
+ */
 const state = vi.hoisted(() => ({
-  strong: vi.fn(),
-  suspension: vi.fn(),
-  impersonation: vi.fn(),
-  ssoRequired: vi.fn(),
-  disabledSso: vi.fn(),
   plugin: vi.fn(),
   twoFactor: vi.fn(),
   audit: vi.fn(),
   ssoAudit: vi.fn(),
   notification: vi.fn(),
-  evidence: vi.fn()
+  evidence: vi.fn(),
+  /**
+   * The Turnstile verdict the double answers with. Neither flag set is the
+   * unconfigured provider (`inactive`), which is what local development and
+   * these tests run with.
+   */
+  turnstile: { rejected: false, unavailable: false },
+  turnstileTokens: new Array<string>()
 }))
 
 const testAuth = vi.hoisted(async () => {
@@ -55,7 +67,8 @@ vi.mock('@/lib/auth-runtime', async () => {
   }
 })
 vi.mock('@/lib/observability', () => ({
-  withWebRequestScope: (_metadata: unknown, effect: Effect.Effect<unknown>) => effect
+  withWebRequestScope: (_metadata: unknown, effect: Effect.Effect<unknown>) => effect,
+  memoizePerRequest: <A>(_key: string, make: () => Promise<A>) => make()
 }))
 vi.mock('@/lib/rate-limit', async () => {
   const actual = await vi.importActual<typeof RateLimitModule>('@/lib/rate-limit')
@@ -68,22 +81,6 @@ vi.mock('@/lib/rate-limit', async () => {
   }
 })
 vi.mock('@/lib/capabilities', () => ({ runCapabilities: vi.fn() }))
-vi.mock('@/lib/server/strong-authentication-http', () => ({
-  strongAuthenticationHttpResponse: state.strong
-}))
-vi.mock('@/lib/server/auth-organization-suspension', () => ({
-  isOrganizationProductAction: (exchange: { pathname: string }) =>
-    exchange.pathname.includes('/organization/'),
-  suspendedOrganizationResponse: state.suspension
-}))
-vi.mock('@/lib/server/impersonation-guard', () => ({
-  impersonationForbiddenAction: () => null,
-  impersonationGuardResponse: state.impersonation
-}))
-vi.mock('@/lib/server/sso-sign-in-gate', () => ({
-  enforceSsoRequired: state.ssoRequired,
-  refuseDisabledConnection: state.disabledSso
-}))
 vi.mock('@/lib/server/auth-audit/record', () => ({
   recordAuthAudit: state.audit
 }))
@@ -106,9 +103,32 @@ vi.mock('@/lib/server/auth-emails', () => ({
   sendPasswordChangedEmail: vi.fn(),
   sendTwoFactorChangedEmail: vi.fn()
 }))
-vi.mock('@/lib/server/turnstile.effects', () => ({
-  makeTurnstileLayer: () => Layer.empty
-}))
+vi.mock('@/lib/server/turnstile.effects', async () => {
+  const effect = await import('effect')
+  const { TurnstileVerifier } =
+    await import('@b2b-saas-starter/capabilities/governance/turnstile-verification')
+  return {
+    makeTurnstileLayer: () =>
+      effect.Layer.succeed(TurnstileVerifier)({
+        // "Configured" is exactly "not the inactive verdict".
+        enabled: state.turnstile.rejected || state.turnstile.unavailable,
+        verify: (input: { readonly token: string }) => {
+          state.turnstileTokens.push(input.token)
+          // The verdict shape is the capability's: `rejected` names the
+          // siteverify error codes, the others carry nothing.
+          if (state.turnstile.rejected) {
+            return effect.Effect.succeed({
+              outcome: 'rejected',
+              codes: ['invalid-input-response']
+            })
+          }
+          return effect.Effect.succeed({
+            outcome: state.turnstile.unavailable ? 'unavailable' : 'inactive'
+          })
+        }
+      })
+  }
+})
 vi.mock('effectful-better-auth', async () => {
   const actual = await vi.importActual<typeof BetterAuthModule>('effectful-better-auth')
   return { ...actual, handleWebRequest: state.plugin }
@@ -116,35 +136,32 @@ vi.mock('effectful-better-auth', async () => {
 
 import { handleAuth } from './auth-http'
 
-function request(pathname: string) {
-  return new Request(`https://example.test${pathname}`, { method: 'POST' })
+function request(pathname: string, headers: Record<string, string> = {}) {
+  return new Request(`https://example.test${pathname}`, { method: 'POST', headers })
 }
 
 beforeEach(() => {
-  state.strong.mockResolvedValue(null)
-  state.suspension.mockResolvedValue(null)
-  state.impersonation.mockReturnValue(Effect.succeed(null))
-  state.ssoRequired.mockReturnValue(Effect.succeed(null))
-  state.disabledSso.mockReturnValue(Effect.succeed(null))
   state.plugin.mockReturnValue(Effect.succeed(new Response('plugin')))
   state.twoFactor.mockReturnValue(Effect.succeed(null))
   state.audit.mockReturnValue(Effect.succeed('skipped'))
   state.ssoAudit.mockReturnValue(Effect.succeed(undefined))
   state.notification.mockReturnValue(Effect.succeed(undefined))
   state.evidence.mockReturnValue(Effect.succeed(undefined))
+  state.turnstile.rejected = false
+  state.turnstile.unavailable = false
+  state.turnstileTokens = []
 })
 
 describe('auth HTTP handler', () => {
   it('returns a pre-handler refusal without running the plugin or post handlers', async () => {
-    state.suspension.mockResolvedValue(
-      new Response(JSON.stringify({ code: 'workspace_suspended' }), {
-        status: 403
-      })
-    )
+    // A workspace mutation on the plugin's own HTTP surface: the guard
+    // refuses it as a capability route.
     const response = await handleAuth(request('/api/auth/organization/update'))
 
     expect(response.status).toBe(403)
-    await expect(response.json()).resolves.toEqual({ code: 'workspace_suspended' })
+    await expect(response.json()).resolves.toEqual({
+      code: 'capability_route_required'
+    })
     expect(state.plugin).not.toHaveBeenCalled()
     expect(state.twoFactor).not.toHaveBeenCalled()
     expect(state.audit).not.toHaveBeenCalled()
@@ -163,5 +180,67 @@ describe('auth HTTP handler', () => {
     expect(state.ssoAudit).toHaveBeenCalledOnce()
     expect(state.notification).toHaveBeenCalledOnce()
     expect(state.evidence).toHaveBeenCalledWith('sessions_revoked', 'usr_actor')
+  })
+})
+
+describe('the Turnstile gate', () => {
+  const gated = [
+    '/api/auth/sign-up/email',
+    '/api/auth/sign-in/magic-link',
+    '/api/auth/email-otp/send-verification-otp',
+    '/api/auth/request-password-reset',
+    '/api/auth/email-otp/request-password-reset',
+    '/api/auth/send-verification-email'
+  ]
+
+  it('verifies every mail-an-address send and refuses a rejected challenge', async () => {
+    state.turnstile.rejected = true
+    for (const path of gated) {
+      state.plugin.mockClear()
+      const response = await handleAuth(request(path, { 'x-turnstile-token': 'tok' }))
+      expect(response.status).toBe(400)
+      await expect(response.json()).resolves.toEqual({ code: 'captcha_rejected' })
+      expect(state.plugin).not.toHaveBeenCalled()
+    }
+    expect(state.turnstileTokens).toEqual(gated.map(() => 'tok'))
+  })
+
+  it('refuses with 503 when siteverify itself is unreachable', async () => {
+    state.turnstile.unavailable = true
+    const response = await handleAuth(
+      request('/api/auth/request-password-reset', { 'x-turnstile-token': 'tok' })
+    )
+    expect(response.status).toBe(503)
+    await expect(response.json()).resolves.toEqual({ code: 'captcha_unavailable' })
+  })
+
+  it('stays inactive with the provider unconfigured, token or not', async () => {
+    for (const path of gated) {
+      state.plugin.mockClear()
+      const response = await handleAuth(request(path))
+      expect(response.status).toBe(200)
+      expect(state.plugin).toHaveBeenCalledOnce()
+    }
+    // The gate still asked — `inactive` is the verifier's answer, not a
+    // skipped check — with the empty token an unconfigured screen sends.
+    expect(state.turnstileTokens).toEqual(gated.map(() => ''))
+  })
+
+  it('leaves the sign-in and code-verification hops ungated', async () => {
+    // A challenge on the sign-in hop would break password managers and the
+    // programmatic clients; the rate limiter caps those instead.
+    state.turnstile.rejected = true
+    for (const path of [
+      '/api/auth/sign-in/email',
+      '/api/auth/sign-in/email-otp',
+      '/api/auth/email-otp/verify-email',
+      '/api/auth/email-otp/reset-password'
+    ]) {
+      state.plugin.mockClear()
+      const response = await handleAuth(request(path))
+      expect(response.status).toBe(200)
+      expect(state.plugin).toHaveBeenCalledOnce()
+    }
+    expect(state.turnstileTokens).toEqual([])
   })
 })

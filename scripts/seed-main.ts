@@ -646,7 +646,9 @@ const program = collectFixture.pipe(
     )
   ),
   Effect.flatMap(writeAndExecute),
-  Effect.provide(selectWorkspaceLayer({}, workspaceSlug))
+  // No DB binding and no signed-in actor: the seed runs as the system, and
+  // the fixture's own membership answers every workspace read.
+  Effect.provide(selectWorkspaceLayer({}, workspaceSlug, undefined, 'system'))
 )
 
 // Script entrypoint: the top-level await is what makes a failed seed reject

@@ -6,7 +6,7 @@ import * as TestClock from 'effect/testing/TestClock'
 import { selectWorkspaceLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { listInvitationEmailHistory } from '@b2b-saas-starter/capabilities/governance/invitation-email-history'
 import { EmailDispatcher, EmailSendError } from '@b2b-saas-starter/email'
-import { fixtureSession } from '@/test/fixture-session'
+import { fixtureAuthModule } from '@/test/fixture-session'
 import { sendInvitationHandler, resendInvitationHandler } from './invitations.effects'
 import type * as CapabilitiesModule from '../capabilities'
 
@@ -33,9 +33,7 @@ vi.mock('../capabilities', async (importOriginal) => ({
     effect: Parameters<typeof runtime.runPromise>[0]
   ) => runtime.runPromise(Effect.scoped(effect))
 }))
-vi.mock('./auth', () => ({
-  requireRequestSession: async () => fixtureSession({ userId: 'usr_demo' })
-}))
+vi.mock('./auth', () => fixtureAuthModule({}, { userId: 'usr_demo' }))
 vi.mock('./request-origin', () => ({ requestOrigin: () => 'https://app.test' }))
 vi.mock('./auth-emails', () => ({
   emailDispatcherLayer: () =>

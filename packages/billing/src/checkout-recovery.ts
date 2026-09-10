@@ -16,11 +16,10 @@ import {
   type StripeCheckoutSession
 } from './stripe.ts'
 
-export type BillingLeaseService = Effect.Success<ReturnType<typeof makeBillingLease>>
 export type CheckoutDependencies = {
   readonly db: EffectDatabase
   readonly audit: AuditEventLogInterface
-  readonly lease: BillingLeaseService
+  readonly lease: Effect.Success<ReturnType<typeof makeBillingLease>>
   readonly unavailable: typeof billingStoreUnavailable
 }
 
@@ -36,7 +35,7 @@ export function checkoutFailure(reason: string) {
   return new CapabilityUnavailable({ capability: 'billing', reason })
 }
 
-export const readCheckoutClaim = Effect.fn('Billing.readCheckoutClaim')(function* (
+const readCheckoutClaim = Effect.fn('Billing.readCheckoutClaim')(function* (
   deps: CheckoutDependencies,
   workspaceId: string
 ) {

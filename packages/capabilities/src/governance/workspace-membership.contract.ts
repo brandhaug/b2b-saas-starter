@@ -29,10 +29,27 @@ export type MembershipContractIds = {
    * only refuse, so every one of them can act as them without ordering.
    */
   readonly member: string
-  /** A user who exists but holds no membership. Each case adds them fresh. */
-  readonly newcomer: string
+  /**
+   * A plain member the roster already carries, spent by the removal case.
+   * The interface has no add-member verb — joining runs through an accepted
+   * invitation — so every case that consumes a member needs its own.
+   */
+  readonly removable: string
+  /** A plain member whose role the role-change case flips and restores. */
+  readonly mutable: string
+  /** A plain member the audit case changes and then removes. */
+  readonly auditable: string
   /** A user with no membership that no case ever creates. */
   readonly stranger: string
+  /**
+   * Everything the harness's security-evidence sink has been handed so far.
+   * The sink is a deployment binding, not a capability, so the harness owns
+   * it and the cases only read it back — which is the only way to catch an
+   * adapter that files the evidence from one half and not the other.
+   */
+  readonly recordedEvidence: Effect.Effect<
+    ReadonlyArray<{ readonly kind: string; readonly subjectId: string }>
+  >
 }
 
 export type MembershipContractCase = {
@@ -50,49 +67,37 @@ export function workspaceMembershipContractCases(
 ): ReadonlyArray<MembershipContractCase> {
   return [
     {
-      name: 'adds a member who then appears in listMembers',
-      assert: Effect.gen(function* () {
-        const membership = yield* WorkspaceMembership
-        const added = yield* membership.addMember({
-          userId: ids.newcomer,
-          role: 'member'
-        })
-        expect(added.id).toBe(ids.newcomer)
-        expect(added.role).toBe('member')
-
-        const members = yield* membership.listMembers
-        expect(members.some((each) => each.id === ids.newcomer)).toBe(true)
-
-        yield* membership.removeMember({ userId: ids.newcomer })
-      })
-    },
-    {
       name: 'removes a member who then disappears from listMembers',
       assert: Effect.gen(function* () {
         const membership = yield* WorkspaceMembership
-        yield* membership.addMember({ userId: ids.newcomer, role: 'member' })
-        yield* membership.removeMember({ userId: ids.newcomer })
+        expect(
+          (yield* membership.listMembers).some((each) => each.id === ids.removable)
+        ).toBe(true)
+        yield* membership.removeMember({ userId: ids.removable })
 
         const members = yield* membership.listMembers
-        expect(members.some((each) => each.id === ids.newcomer)).toBe(false)
+        expect(members.some((each) => each.id === ids.removable)).toBe(false)
       })
     },
     {
       name: 'changes a role and reports the new one from listMembers',
       assert: Effect.gen(function* () {
         const membership = yield* WorkspaceMembership
-        yield* membership.addMember({ userId: ids.newcomer, role: 'member' })
-
         const changed = yield* membership.changeRole({
-          userId: ids.newcomer,
+          userId: ids.mutable,
           role: 'admin'
         })
         expect(changed.role).toBe('admin')
 
         const members = yield* membership.listMembers
-        expect(members.find((each) => each.id === ids.newcomer)?.role).toBe('admin')
+        expect(members.find((each) => each.id === ids.mutable)?.role).toBe('admin')
 
-        yield* membership.removeMember({ userId: ids.newcomer })
+        // Restored, so the case leaves the roster as it found it however the
+        // runner orders the list.
+        yield* membership.changeRole({ userId: ids.mutable, role: 'member' })
+        expect(
+          (yield* membership.listMembers).find((each) => each.id === ids.mutable)?.role
+        ).toBe('member')
       })
     },
     {
@@ -169,23 +174,31 @@ export function workspaceMembershipContractCases(
         function countOf(eventType: string) {
           return Effect.map(log.list({ eventType }), (page) => page.items.length)
         }
-        const addedBefore = yield* countOf('workspace_member.added')
         const removedBefore = yield* countOf('workspace_member.removed')
         const roleBefore = yield* countOf('workspace_member.role_changed')
 
-        yield* membership.addMember({ userId: ids.newcomer, role: 'member' })
-        yield* membership.changeRole({ userId: ids.newcomer, role: 'admin' })
-        yield* membership.removeMember({ userId: ids.newcomer })
+        yield* membership.changeRole({ userId: ids.auditable, role: 'admin' })
+        yield* membership.removeMember({ userId: ids.auditable })
 
-        expect(yield* countOf('workspace_member.added')).toBe(addedBefore + 1)
         expect(yield* countOf('workspace_member.removed')).toBe(removedBefore + 1)
         expect(yield* countOf('workspace_member.role_changed')).toBe(roleBefore + 1)
+        // Security evidence is the restore-time replay log: a membership
+        // change that never reaches it survives a database restore as
+        // access nobody meant to grant back.
+        const filed: Array<string> = []
+        for (const record of yield* ids.recordedEvidence) {
+          if (record.subjectId === ids.auditable) {
+            filed.push(record.kind)
+          }
+        }
+        expect(filed).toEqual(['workspace_access_removed', 'workspace_access_removed'])
         // Each event names the member it is about, with the target type both
         // adapters write.
         expect(
-          (yield* log.list({ eventType: 'workspace_member.added' })).items.some(
+          (yield* log.list({ eventType: 'workspace_member.role_changed' })).items.some(
             (event) =>
-              event.targetId === ids.newcomer && event.targetType === 'workspace_member'
+              event.targetId === ids.auditable &&
+              event.targetType === 'workspace_member'
           )
         ).toBe(true)
       })

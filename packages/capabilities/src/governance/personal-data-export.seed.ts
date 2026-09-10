@@ -23,10 +23,42 @@ function iso(time: number): string {
   return DateTime.formatIso(DateTime.makeUnsafe(time))
 }
 
+/**
+ * One account's artifacts, as the five tables Live joins would hold them.
+ * The fixture states them per user so a Seed archive carries the same
+ * sections a Live one does; an account with no entry exports each section
+ * empty, exactly as Live does for a user with no rows.
+ */
+export type SeedPersonalAccountArtifacts = {
+  readonly userId: string
+  readonly sessions: PersonalDataExport['sessions']
+  readonly linkedAccounts: PersonalDataExport['linkedAccounts']
+  readonly oauthClients: PersonalDataExport['oauthClients']
+  readonly oauthConsents: PersonalDataExport['oauthConsents']
+  readonly passkeys: PersonalDataExport['passkeys']
+}
+
+const NO_ARTIFACTS = {
+  sessions: [],
+  linkedAccounts: [],
+  oauthClients: [],
+  oauthConsents: [],
+  passkeys: []
+} satisfies Omit<SeedPersonalAccountArtifacts, 'userId'>
+
 export function SeedPersonalDataExports(
   profiles: ReadonlyArray<PersonalDataExport['user']>,
-  seedNotifications: ReadonlyArray<SeedNotification>,
-  seedWorkspaceId: string
+  /**
+   * The fixture feed. A row states its own workspace when it belongs to one
+   * other than the fixture workspace — Live reads `notifications.workspaceId`
+   * per row, so stamping every row with one id would misreport where a
+   * cross-workspace notification came from.
+   */
+  seedNotifications: ReadonlyArray<
+    SeedNotification & { readonly workspaceId?: string }
+  >,
+  defaultWorkspaceId: string,
+  accountArtifacts: ReadonlyArray<SeedPersonalAccountArtifacts> = []
 ): Layer.Layer<
   PersonalDataExports,
   never,
@@ -56,6 +88,8 @@ export function SeedPersonalDataExports(
               reason: 'user_not_found'
             })
           }
+          const artifacts =
+            accountArtifacts.find((row) => row.userId === userId) ?? NO_ARTIFACTS
           const workspaces = yield* membership.listWorkspacesForUser(userId)
           const accountPreferences = yield* prefs.get(userId)
           const notificationPreferences = yield* notices.list(userId)
@@ -81,16 +115,16 @@ export function SeedPersonalDataExports(
                   message: row.message,
                   createdAt: row.createdAt,
                   read: row.read,
-                  workspaceId: seedWorkspaceId
+                  workspaceId: row.workspaceId ?? defaultWorkspaceId
                 })
               }
               return items
             }, []),
-            sessions: [],
-            linkedAccounts: [],
-            oauthClients: [],
-            oauthConsents: [],
-            passkeys: []
+            sessions: artifacts.sessions,
+            linkedAccounts: artifacts.linkedAccounts,
+            oauthClients: artifacts.oauthClients,
+            oauthConsents: artifacts.oauthConsents,
+            passkeys: artifacts.passkeys
           }
         })
       }

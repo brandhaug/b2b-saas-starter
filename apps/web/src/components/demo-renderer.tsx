@@ -20,8 +20,11 @@ import {
   demoWebhookPorts,
   type DemoSection
 } from '@/lib/demo-fixtures'
-import { type WorkspaceAuditSearchUpdate } from '@/lib/audit-search'
-import { type WorkspaceAuditPayload } from '@/lib/server/workspace-audit'
+import {
+  auditFiltersFromSearch,
+  type WorkspaceAuditSearchUpdate
+} from '@/lib/audit-search'
+import { DEMO_WORKSPACE_SLUG } from '@/lib/demo-workspace'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 // oxlint-disable-next-line typescript/require-await -- preview refusal implements the assistant's promise contract without I/O
@@ -32,7 +35,7 @@ async function previewAssistantAsk(
 }
 
 export function DemoRenderer({ section }: { readonly section: DemoSection }) {
-  const slug = 'starter-lab'
+  const slug = DEMO_WORKSPACE_SLUG
   switch (section) {
     case 'overview': {
       return (
@@ -102,13 +105,13 @@ function unreachable(value: never): never {
 function DemoNotifications() {
   return (
     <WorkspaceShell
-      workspaceSlug="starter-lab"
+      workspaceSlug={DEMO_WORKSPACE_SLUG}
       unreadCount={demoFixtures.dashboard.unreadCount}
       viewer={demoFixtures.dashboard.viewer}
     >
       <PageHeader title={m.notifications_title()} />
       <LiveNotifications
-        workspaceSlug="starter-lab"
+        workspaceSlug={DEMO_WORKSPACE_SLUG}
         fallback={demoFixtures.dashboard.notifications}
         listNotifications={demoNotificationPorts.list}
         markRead={demoNotificationPorts.markRead}
@@ -149,22 +152,10 @@ function DemoAudit() {
     selectedEventId === null
       ? null
       : (demoAuditDetails.find((event) => event.id === selectedEventId) ?? null)
-  const filters: WorkspaceAuditPayload['filters'] = {}
-  if (search.actor !== undefined) {
-    filters.actorUserId = search.actor
-  }
-  if (search.eventType !== undefined) {
-    filters.eventType = search.eventType
-  }
-  if (search.since !== undefined) {
-    filters.since = search.since
-  }
-  if (search.until !== undefined) {
-    filters.until = search.until
-  }
+  const filters = auditFiltersFromSearch(search)
   return (
     <WorkspaceAuditPage
-      workspaceSlug="starter-lab"
+      workspaceSlug={DEMO_WORKSPACE_SLUG}
       data={{ ...demoFixtures.audit, events, filters, selectedEvent }}
       applySearch={setSearch}
       selectedEventId={selectedEventId}

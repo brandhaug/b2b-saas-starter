@@ -33,7 +33,7 @@ Adding a capability:
 
 Place new capabilities in the owning context. Keep one module until contract and adapters need separate consumers. Add an adjacent intent node and wire both adapters in `layers.ts`. Consumers use curated package exports, without barrels or re-export shims.
 
-Mutating capabilities that write to D1 wrap the write in `governance/audited-mutation.ts` so mutation and audit row commit together. Contract cases (`<capability>.contract.ts`) take `expect` as an argument and run once against Seed and once against Live from the `.live.test.ts`.
+Mutating capabilities that write to D1 wrap the write in `governance/audited-mutation.ts` so mutation and audit row commit together. Contract cases (`<capability>.contract.ts`) take `expect` as an argument and run twice: the Live pass from `<capability>.live.test.ts`, the Seed pass from `index.test.ts` or the capability's own `*.test.ts`.
 
 ## Boundaries
 
@@ -51,8 +51,8 @@ Mutating capabilities that write to D1 wrap the write in `governance/audited-mut
 ## Pitfalls
 
 - Provider selection uses typed env bags and `select*Layer`, not Effect Config: invocation bindings select Seed/Live (`runtime.ts`) and leave unconfigured optional providers inactive.
-- Every Live D1 or queue failure surfaces as `CapabilityUnavailable` (503) via `internal/unavailable.ts`, never as a defect.
+- Every Live D1 or queue failure surfaces as `CapabilityUnavailable` (503) via `orUnavailable` from `@b2b-saas-starter/failure/capability`, never as a defect.
 - Paged list reads share `internal/keyset-cursor.ts` and the `Page<T>` shape (ADR 0057). Timestamped collections page newest-first on `(createdAt, id)`; untimestamped ones forward on `id`. Unpaged reads stay for the web app's own small pages.
 - Seed plugin-backed adapters read `AuditEventLog` ambiently with `Effect.serviceOption`. A harness that provides none gets no records; that is expected, not a bug.
-- `auditedMutations(deps)` requires `RawD1` at layer construction; the mutations it returns carry no requirement. Zero-match mutations record no audit event.
+- `auditedMutations(deps)` requires `RawD1` at layer construction; the mutations it returns carry no requirement. Zero-match mutations record no audit event. A mutation that can lose a race passes a `transition` (a SQL predicate plus the statements it gates), and resolves `false` from the write's own change count.
 - D1 rejects explicit `BEGIN`, so `db.transaction()` does not work. Atomicity is `batch()` only.

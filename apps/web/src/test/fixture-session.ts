@@ -1,4 +1,5 @@
 import { type Session } from '@b2b-saas-starter/auth'
+import { Effect } from 'effect'
 
 /**
  * A Better Auth session stand-in for server-fn handler tests. The handlers
@@ -13,11 +14,16 @@ import { type Session } from '@b2b-saas-starter/auth'
  *
  * ```ts
  * const actor = vi.hoisted(() => ({ userId: 'usr_demo' }))
- * vi.mock('./auth', async (importOriginal) => ({
- *   ...(await importOriginal<typeof AuthModule>()),
- *   requireRequestSession: async () => fixtureSession(actor)
- * }))
+ * vi.mock('./auth', async (importOriginal) =>
+ *   fixtureAuthModule(await importOriginal<typeof AuthModule>(), actor)
+ * )
  * ```
+ *
+ * `fixtureAuthModule` answers BOTH session gates — the Promise-returning
+ * `requireRequestSession` a handler awaits and the Effect-returning
+ * `requireRequestSessionEffect` the authorization enforcement point yields —
+ * so a test cannot answer one and leave the other reading the real cookie
+ * jar (which has none, making every permission check an expired session).
  *
  * Tests re-point `actor.userId` between fixture identities (`usr_demo` owns
  * the seed workspace, `usr_dev` is its plain member) — a `beforeEach` reset,
@@ -65,4 +71,27 @@ export function fixtureSession(overrides: FixtureSession): Session {
       impersonatedBy: overrides.impersonatedBy ?? null
     }
   } as Session
+}
+
+/**
+ * The `./auth` module a handler test mocks: the real module's other exports
+ * (`toRouteSession`, `UnauthorizedError`, the route gates), with both session
+ * gates answering the fixture identity `actor` currently names. Pass the
+ * mutable hoisted actor, not a session: the id is read per call, so a test
+ * flips `actor.userId` between cases.
+ *
+ * Pass `{}` as `actual` for a test that needs nothing else from the module.
+ */
+export function fixtureAuthModule<Actual extends object>(
+  actual: Actual,
+  actor: FixtureSession
+): Actual & {
+  readonly requireRequestSession: () => Promise<Session>
+  readonly requireRequestSessionEffect: () => Effect.Effect<Session>
+} {
+  return {
+    ...actual,
+    requireRequestSession: async () => fixtureSession(actor),
+    requireRequestSessionEffect: () => Effect.succeed(fixtureSession(actor))
+  }
 }

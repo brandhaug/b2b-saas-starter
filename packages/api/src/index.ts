@@ -54,12 +54,7 @@ import {
   OpenApi
 } from 'effect/unstable/httpapi'
 
-import {
-  InternalError,
-  RateLimited,
-  Unauthorized,
-  WorkspaceExportNotDownloadable
-} from './errors.ts'
+import { RateLimited, Unauthorized, WorkspaceExportNotDownloadable } from './errors.ts'
 
 // The contract's error schemas and their HTTP encoding live in `./errors.ts`
 // (subpath `@b2b-saas-starter/api/errors`) — not re-exported here, so the
@@ -81,7 +76,7 @@ export class RateLimiter extends Context.Service<
 >()('@b2b-saas-starter/api/RateLimiter') {}
 
 /** The groups behind the bearer gate. `health` is the contract's only public group. */
-export type GatedGroup =
+type GatedGroup =
   | 'workspace'
   | 'api-token-registry'
   | 'webhook-endpoints'
@@ -156,10 +151,11 @@ export class BearerAuth extends HttpApiMiddleware.Service<
 }) {}
 
 // HttpApi reads these tuple element types to build each endpoint's error union.
+// Every member is a failure some handler actually constructs: an error no
+// handler can answer with is a documented status no client will ever see.
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const WORKSPACE_ERRORS = [
   WorkspaceNotFound,
-  InternalError,
   Unauthorized,
   AuthorizationDenied,
   WorkspaceSuspended,
@@ -169,7 +165,6 @@ const WORKSPACE_ERRORS = [
 
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const PROTECTED_ERRORS = [
-  InternalError,
   Unauthorized,
   AuthorizationDenied,
   WorkspaceSuspended,
@@ -454,12 +449,11 @@ export const AssistantApi = HttpApiGroup.make('assistant')
   )
   .middleware(BearerAuth)
 
-export const McpToolDescriptor = Schema.Struct({
+const McpToolDescriptor = Schema.Struct({
   name: Schema.String,
   description: Schema.String,
   inputSchema: Schema.Record(Schema.String, Schema.Unknown)
 })
-export type McpToolDescriptor = typeof McpToolDescriptor.Type
 
 export const McpDiscovery = Schema.Struct({
   name: Schema.String,

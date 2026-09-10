@@ -28,4 +28,4 @@ authority.
 
 > TODO(intent): severity field, per-actor read state, producers for tokens, role changes, plan changes.
 
-- `prepareWorkspaceOwners` prepares conditional notification statements for a producer-owned D1 batch. The producer calls `publish` only after a successful commit. Workspace suspension uses it so a failed notification insert cannot leave an unannounced state change. Seed prepares in-memory rows and publishes them inside the successful transition.
+- `prepareWorkspaceOwners` prepares conditional notification statements for a producer-owned D1 batch. The condition is a `PreparedNotificationCondition`: a SQL predicate for Live's `WHERE`, and the same question as an effect for Seed. The producer runs `commit` where its own write commits and `publish` only after that; `publish` is email-only on both adapters. Workspace suspension uses it so a failed notification insert cannot leave an unannounced state change.

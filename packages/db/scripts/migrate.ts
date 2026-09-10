@@ -18,7 +18,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { parseArgs } from 'node:util'
 import { listMigrations } from '../src/migrations-fs.ts'
-import { decodeNames } from './alchemy-bookkeeping.ts'
+import { decodeNames, sqlLiteral } from './alchemy-bookkeeping.ts'
 import { wranglerD1Execute } from './wrangler-d1.ts'
 
 const { values } = parseArgs({ options: { remote: { type: 'boolean' } } })
@@ -72,7 +72,7 @@ for (const { name, sql } of pending) {
   const file = join(tmp, `${name}.sql`)
   await writeFile(
     file,
-    `${sql}\nINSERT INTO d1_migrations(name) VALUES ('${name}');\n`,
+    `${sql}\nINSERT INTO d1_migrations(name) VALUES (${sqlLiteral(name)});\n`,
     'utf8'
   )
   await wranglerExecute([`--file=${file}`], false)

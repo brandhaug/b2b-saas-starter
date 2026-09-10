@@ -19,7 +19,6 @@ import {
   type HttpClientRequest
 } from 'effect/unstable/http'
 
-import { computeWebhookSignature } from './webhook-signing.ts'
 import { processDeadLetterMessage, processWebhookMessage } from './webhook-consumer.ts'
 import { readDelivery } from './queue-consumer.ts'
 
@@ -168,7 +167,8 @@ function stubFeed(
           read: false
         }
       }),
-    prepareWorkspaceOwners: () => Effect.succeed({ writes: [], publish: Effect.void }),
+    prepareWorkspaceOwners: () =>
+      Effect.succeed({ writes: [], commit: Effect.void, publish: Effect.void }),
     notifyWorkspaceOwners: (input) =>
       Effect.sync(() => {
         ownerNotices.push(input)
@@ -287,31 +287,25 @@ describe('processWebhookMessage', () => {
       const headers: Record<string, string | undefined> =
         captured.request?.headers ?? {}
       const header = headers['webhook-signature'] ?? ''
-      // Two entries: the current secret signs first, the replaced one second.
-      const entries = header.split(' ')
-      expect(entries).toHaveLength(2)
-      // Recompute both signatures over the exact bytes the request carried.
+      // The test clock stands still at the epoch, so the signed material is
+      // fully determined: `"<deliveryId>.<unix>.<body>"` over each active
+      // secret. Both entries are fixed vectors — an independent HMAC-SHA256 of
+      // that string with `new_secret` / `old_secret`, base64 — the way
+      // `webhook-signing.test.ts` pins its own material. Current secret first.
+      expect(headers['webhook-id']).toBe('whd_qmsg_1')
+      expect(headers['webhook-timestamp']).toBe('0')
       const requestBody = captured.request?.body
       expect(requestBody?._tag).toBe('Uint8Array')
       let bodyText = ''
       if (requestBody?._tag === 'Uint8Array') {
         bodyText = new TextDecoder().decode(requestBody.body)
       }
-      const timestamp = Number(headers['webhook-timestamp'])
-      const expectedFirst = yield* computeWebhookSignature(
-        'whsec_bmV3X3NlY3JldA==',
-        headers['webhook-id'] ?? '',
-        timestamp,
-        bodyText
+      expect(bodyText).toBe(
+        '{"deliveryId":"whd_qmsg_1","eventType":"api_token.created","payload":{"hello":"world"}}'
       )
-      const expectedSecond = yield* computeWebhookSignature(
-        'whsec_b2xkX3NlY3JldA==',
-        headers['webhook-id'] ?? '',
-        timestamp,
-        bodyText
+      expect(header).toBe(
+        'v1,o/Uj7Y3NbcfeD1J76eepCo8SWNyr+IjNC8IR2pRCMQo= v1,nFGwbAN6lx9Nd9/3CLJzIO8QaYaSH3PG7A0UpnY2eiM='
       )
-      expect(entries[0]).toBe(`v1,${expectedFirst}`)
-      expect(entries[1]).toBe(`v1,${expectedSecond}`)
       // The recorded evidence carries the same dual-signature header.
       expect(recorded[0]?.requestHeaders?.['webhook-signature']).toBe(header)
     })
@@ -327,7 +321,9 @@ describe('processWebhookMessage', () => {
         failureReason: 'Receiver returned HTTP 500'
       })
       expect(recorded[0]?.durationMs).toBeGreaterThanOrEqual(0)
-      expect(recorded[0]?.nextAttemptAt).toBeTruthy()
+      // Attempt 2 on a stopped test clock: 30 seconds per attempt off the
+      // epoch, so the persisted schedule is the queue's own next delivery.
+      expect(recorded[0]?.nextAttemptAt).toBe('1970-01-01T00:01:00.000Z')
     })
   )
 

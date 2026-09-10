@@ -3,6 +3,7 @@ import {
   LOCAL_D1_UNAVAILABLE_ERROR_CODE,
   localD1UnavailableMessage
 } from '../auth-error-copy'
+import { authRefusal } from './auth-refusal'
 
 /**
  * The local-D1-absent vocabulary, server half. `lib/auth-error-copy.ts`
@@ -18,9 +19,10 @@ import {
 
 /**
  * Defect raised when something reaches for an Auth surface the degraded
- * service does not provide (the catchall's session pre-read catching it as
- * "no session" is the one production reader). Tagged so the wide-event
- * logger reports `errorTag` instead of an opaque message.
+ * service does not provide. The degraded `getSession` resolves `null` rather
+ * than throwing, so a reader never sees this for a session read; it is the
+ * signal for everything that reaches past the handler. Tagged so the
+ * wide-event logger reports `errorTag` instead of an opaque message.
  */
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
 export class MissingD1Binding extends Schema.TaggedError<MissingD1Binding>()(
@@ -34,7 +36,7 @@ export class MissingD1Binding extends Schema.TaggedError<MissingD1Binding>()(
  * `instanceof` across module boundaries, never message text.
  */
 // oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof -- a rejected promise's value is `unknown` by construction; this probe is the parse step
-export function isMissingD1Binding(thrown: unknown): boolean {
+function isMissingD1Binding(thrown: unknown): boolean {
   return (
     typeof thrown === 'object' &&
     thrown !== null &&
@@ -50,13 +52,9 @@ export function isMissingD1Binding(thrown: unknown): boolean {
  * same `{ code, message }` body shape the auth catchall's own gates use.
  */
 export function localD1UnavailableResponse(): Response {
-  return new Response(
-    JSON.stringify({
-      code: LOCAL_D1_UNAVAILABLE_ERROR_CODE,
-      message: localD1UnavailableMessage()
-    }),
-    { status: 503, headers: { 'content-type': 'application/json; charset=utf-8' } }
-  )
+  return authRefusal(503, LOCAL_D1_UNAVAILABLE_ERROR_CODE, {
+    message: localD1UnavailableMessage()
+  })
 }
 
 /**

@@ -99,7 +99,7 @@ export function enforceRateLimitKey(
  * those scopes cover what was asked is a separate `requirePermission` call —
  * see `enforcePermission`.
  */
-export function verifyToken(
+function verifyToken(
   token: string | null
 ): Effect.Effect<
   ApiPrincipalValue,

@@ -35,8 +35,8 @@ describe('TwoFactorPanel', () => {
   it('offers to enable when two-factor is off', () => {
     renderWithQueryClient(<TwoFactorPanel twoFactorEnabled={false} />)
     screen.getByText(/Off\. Add an authenticator-app code to sign-in/)
-    expect(screen.getByLabelText('Password')).toBeDefined()
-    expect(screen.getByRole('button', { name: 'Start setup' })).toBeDefined()
+    expect(screen.getByLabelText('Password')).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Start setup' })).not.toBeNull()
   })
 
   it('reveals the QR and secret once, then verifies the first code', async () => {
@@ -104,7 +104,7 @@ describe('TwoFactorPanel', () => {
     // Still on the setup step — the QR is still shown for another try.
     expect(
       screen.getByRole('figure', { name: 'Two-factor secret QR code' })
-    ).toBeDefined()
+    ).not.toBeNull()
   })
 
   it('asks for the password to turn two-factor off when enabled', async () => {
@@ -133,7 +133,7 @@ describe('TwoFactorPanel', () => {
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toBe('That password is incorrect. Try again.')
     // Still on.
-    expect(screen.getByText(/On\. Codes are required at sign-in/)).toBeDefined()
+    expect(screen.getByText(/On\. Codes are required at sign-in/)).not.toBeNull()
   })
 
   it('regenerates backup codes behind a password confirmation', async () => {

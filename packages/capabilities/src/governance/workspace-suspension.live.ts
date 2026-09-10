@@ -1,11 +1,11 @@
 import { user, workspaces } from '@b2b-saas-starter/db/schema'
-import { Database, RawD1 } from '@b2b-saas-starter/db/service'
+import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { and, eq, sql } from 'drizzle-orm'
 import { DateTime, Effect, Layer, Match } from 'effect'
 import { orUnavailable } from '@b2b-saas-starter/failure/capability'
 import { newCapabilityId } from '../internal/ids.ts'
 import { AuditEventLog } from './audit-event-log.ts'
-import { commitAuditedTransition } from './audited-mutation.ts'
+import { auditedMutations } from './audited-mutation.ts'
 import { NotificationFeed } from '../notifications/notification-feed.ts'
 import {
   WorkspaceSuspended,
@@ -37,9 +37,12 @@ export const LiveWorkspaceSuspension: Layer.Layer<
 > = Layer.effect(WorkspaceSuspensionService)(
   Effect.gen(function* () {
     const db = yield* Database
-    const d1 = yield* RawD1
     const audit = yield* AuditEventLog
     const feed = yield* NotificationFeed
+    const auditedMutation = yield* auditedMutations({
+      prepareAuditRecord: audit.prepareRecord,
+      unavailable
+    })
 
     const get = Effect.fn('WorkspaceSuspension.get')(function* (workspaceId: string) {
       const rows = yield* unavailable(
@@ -124,12 +127,16 @@ export const LiveWorkspaceSuspension: Layer.Layer<
             )
           )
         const wonTransition = sql`EXISTS (SELECT 1 FROM workspaces WHERE id = ${input.workspaceId} AND suspensionTransitionId = ${transitionId})`
-        const notice = yield* feed.prepareWorkspaceOwners(
-          suspensionNotice(next),
-          wonTransition
-        )
-        const auditStatement = yield* audit.prepareRecord(
-          {
+        const notice = yield* feed.prepareWorkspaceOwners(suspensionNotice(next), {
+          sql: wonTransition,
+          holds: Effect.succeed(true)
+        })
+        // The state change, its audit row, and the owners' notifications
+        // commit in one batch, each conditional on this request being the one
+        // that won the transition.
+        const changed = yield* auditedMutation({
+          matched: Effect.succeed(true),
+          auditEvent: {
             workspaceId: input.workspaceId,
             actorUserId: input.actor.userId,
             actorType: 'user',
@@ -144,18 +151,13 @@ export const LiveWorkspaceSuspension: Layer.Layer<
             targetId: input.workspaceId,
             metadata: { customerExplanation: next.customerExplanation }
           },
-          wonTransition
-        )
-
-        // The conditional audit and state change commit together. Read the
-        // batch's change count before another transition can replace this one.
-        const changed = yield* commitAuditedTransition(write, [
-          auditStatement,
-          ...notice.writes
-        ]).pipe(Effect.provideService(RawD1, d1), unavailable)
+          write: () => write,
+          transition: { condition: wonTransition, alongside: notice.writes }
+        })
         if (!changed) {
           return yield* get(input.workspaceId)
         }
+        yield* notice.commit
         yield* notice.publish
         return next
       })

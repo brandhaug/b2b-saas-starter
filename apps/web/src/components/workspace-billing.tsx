@@ -613,19 +613,21 @@ function DowngradeResourceSelector({
     readonly webhookEndpoints: ResourceEntitlementSummary
   }
 }) {
+  // The comparable projection of the server's selection, not its arrays: the
+  // page polls `router.invalidate()`, so every poll hands down fresh array
+  // identities for unchanged data and an identity-keyed resync below would
+  // discard an unsaved draft mid-edit.
+  const serverTokenKey = selectionKey(resourceSelection?.apiTokenIds, apiTokens, 2)
+  const serverWebhookKey = selectionKey(
+    resourceSelection?.webhookEndpointIds,
+    webhookEndpoints,
+    1
+  )
   const [tokenIds, setTokenIds] = useState<ReadonlyArray<string>>(() =>
-    reconcileSelection(
-      resourceSelection?.apiTokenIds ?? EMPTY_RESOURCE_IDS,
-      apiTokens.map(({ id }) => id),
-      2
-    )
+    selectionFromKey(serverTokenKey)
   )
   const [webhookIds, setWebhookIds] = useState<ReadonlyArray<string>>(() =>
-    reconcileSelection(
-      resourceSelection?.webhookEndpointIds ?? EMPTY_RESOURCE_IDS,
-      webhookEndpoints.map(({ id }) => id),
-      1
-    )
+    selectionFromKey(serverWebhookKey)
   )
   const selection = useServerAction(
     (input: Parameters<SelectBillingResources>[0]) => selectBillingResources(input),
@@ -635,24 +637,12 @@ function DowngradeResourceSelector({
     }
   )
   useEffect(() => {
-    // The loader is the external source of truth after invalidation; reset the
-    // local editable draft to its normalized projection.
-    // oxlint-disable-next-line react-hooks/set-state-in-effect -- synchronizes the local draft with a successful loader invalidation
-    setTokenIds(
-      reconcileSelection(
-        resourceSelection?.apiTokenIds ?? EMPTY_RESOURCE_IDS,
-        apiTokens.map(({ id }) => id),
-        2
-      )
-    )
-    setWebhookIds(
-      reconcileSelection(
-        resourceSelection?.webhookEndpointIds ?? EMPTY_RESOURCE_IDS,
-        webhookEndpoints.map(({ id }) => id),
-        1
-      )
-    )
-  }, [resourceSelection, apiTokens, webhookEndpoints])
+    // The loader is the external source of truth once its selection actually
+    // changes; a refresh that returns the same selection leaves the draft be.
+    // oxlint-disable-next-line react-hooks/set-state-in-effect -- synchronizes the local draft with a changed server selection
+    setTokenIds(selectionFromKey(serverTokenKey))
+    setWebhookIds(selectionFromKey(serverWebhookKey))
+  }, [serverTokenKey, serverWebhookKey])
   const overLimit = [
     resourceEntitlements.apiTokens,
     resourceEntitlements.webhookEndpoints
@@ -706,6 +696,28 @@ function reconcileSelection(
 ): ReadonlyArray<string> {
   const availableIds = new Set(available)
   return selected.filter((id) => availableIds.has(id)).slice(0, limit)
+}
+
+const RESOURCE_ID_SEPARATOR = ','
+
+/**
+ * The server's normalized selection as one value that compares by content.
+ * Resource ids carry no comma, so joining them round-trips exactly.
+ */
+function selectionKey(
+  selected: ReadonlyArray<string> | undefined,
+  available: ReadonlyArray<{ readonly id: string }>,
+  limit: number
+): string {
+  return reconcileSelection(
+    selected ?? EMPTY_RESOURCE_IDS,
+    available.map(({ id }) => id),
+    limit
+  ).join(RESOURCE_ID_SEPARATOR)
+}
+
+function selectionFromKey(key: string): ReadonlyArray<string> {
+  return key === '' ? EMPTY_RESOURCE_IDS : key.split(RESOURCE_ID_SEPARATOR)
 }
 
 function ResourceChoices({

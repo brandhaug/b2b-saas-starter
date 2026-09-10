@@ -81,6 +81,28 @@ describe('makeAuthOptions', () => {
     expect(twoFactorOptions.options?.skipVerificationOnEnable).toBe(false)
   })
 
+  it('never lets an impersonation reach another admin', () => {
+    // `allowImpersonatingAdmins: false` is the whole reason an impersonation
+    // cannot escalate (ADR 0054): an admin session carries `/admin`, so
+    // impersonating one would hand out exactly the authority the audited
+    // one-hour session exists to avoid. Better Auth's default is already
+    // false; the pin is here so a default change is a failing test.
+    expect(pluginOptions(makeAuthOptions(baseConfig).plugins, 'admin')).toMatchObject({
+      allowImpersonatingAdmins: false
+    })
+  })
+
+  it('reads every session from the database, never from a signed cookie', () => {
+    // No `session.cookieCache`: the app's own gates (impersonation, ban,
+    // revocation, the strong-authentication evidence on the session row) read
+    // the stored session, and a cached copy would keep answering for its TTL
+    // after the row changed — a revoked or impersonated session that still
+    // passes. The absence is the decision, so the test states it.
+    const session: { readonly cookieCache?: { readonly enabled?: boolean } } =
+      makeAuthOptions(baseConfig).session
+    expect(session.cookieCache?.enabled ?? false).toBe(false)
+  })
+
   it('tightens the fresh-session window to one hour', () => {
     // Better Auth defaults `freshAge` to 24 hours; the starter states one.
     expect(makeAuthOptions(baseConfig).session).toMatchObject({

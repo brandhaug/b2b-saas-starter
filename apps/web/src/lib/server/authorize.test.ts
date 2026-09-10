@@ -1,7 +1,6 @@
 // oxlint-disable-next-line import/no-unassigned-import -- Installs the explicit authenticated-session test fixture.
 import '@/test/qualified-session'
 import { vi } from 'vite-plus/test'
-import { fixtureSession } from '@/test/fixture-session'
 import { SeedStrongAuthentication } from '@b2b-saas-starter/capabilities/governance/strong-authentication'
 import {
   testWorkspaceContext,
@@ -20,9 +19,30 @@ import { describe, expect, it } from '@effect/vitest'
 
 import { permitted, requireWorkspacePermission } from './authorize'
 
-vi.mock('./auth', () => ({
-  requireRequestSession: async () => fixtureSession({ userId: 'usr_owner' })
-}))
+// The enforcement point reads the session through the Effect-shaped gate, so
+// the mock answers on the error channel too: `session.expired` drives the
+// expiry case below.
+const session = vi.hoisted(() => ({ expired: false }))
+vi.mock('./auth', async () => {
+  const effect = await import('effect')
+  const { UiError } = await import('@/lib/ui-error')
+  const { fixtureSession: makeSession } = await import('@/test/fixture-session')
+  class TestUnauthorizedError extends UiError {
+    readonly _tag = 'UnauthorizedError'
+    constructor() {
+      super('unauthorized', {}, 'Your session has expired. Sign in again and retry.')
+      this.name = 'UnauthorizedError'
+    }
+  }
+  return {
+    UnauthorizedError: TestUnauthorizedError,
+    requireRequestSession: async () => makeSession({ userId: 'usr_owner' }),
+    requireRequestSessionEffect: () =>
+      session.expired
+        ? effect.Effect.fail(new TestUnauthorizedError())
+        : effect.Effect.succeed(makeSession({ userId: 'usr_owner' }))
+  }
+})
 
 const workspace: Workspace = {
   id: 'wrk_test',

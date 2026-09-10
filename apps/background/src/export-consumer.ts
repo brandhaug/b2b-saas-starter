@@ -13,7 +13,9 @@ import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability
 import { Effect, Layer, type Scope } from 'effect'
 
 import { workspaceExportConsumerSettings } from '../../../infra/bindings.ts'
+import { finalQueueAttempt } from './monitoring.ts'
 import {
+  annotateMalformed,
   consumerInvocation,
   type DeliveryOutcome,
   type Env,
@@ -37,10 +39,7 @@ export function processWorkspaceExportMessage(
 ): Effect.Effect<DeliveryOutcome, CapabilityUnavailable, Scope.Scope> {
   const program = Effect.gen(function* () {
     if (delivery.kind === 'malformed') {
-      yield* Effect.annotateLogsScoped({
-        outcome: 'failed',
-        skipReason: 'malformed_message'
-      })
+      yield* annotateMalformed('failed')
       return 'ack' satisfies DeliveryOutcome
     }
 
@@ -53,7 +52,10 @@ export function processWorkspaceExportMessage(
     const generation = yield* WorkspaceExportGeneration
     const result = yield* generation.generate({
       message,
-      finalAttempt: delivery.attempts >= workspaceExportConsumerSettings.maxRetries
+      finalAttempt: finalQueueAttempt(
+        delivery.attempts,
+        workspaceExportConsumerSettings
+      )
     })
     yield* annotateGenerationResult(result)
     if (result._tag === 'retry') {

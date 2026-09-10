@@ -6,6 +6,7 @@ import * as Redacted from 'effect/Redacted'
 import {
   apiRateLimits,
   billingConsumerSettings,
+  billingDlqConsumerSettings,
   isPreviewStage,
   notificationDigestCron,
   notificationDigestRetryCron,
@@ -31,6 +32,7 @@ import {
   optionalModuleEnvPlainKeys,
   optionalModuleEnvSecretKeys
 } from './packages/env/src/server.ts'
+import { requiredEnv } from './scripts/internal/env.ts'
 
 /**
  * The EMAIL binding, spread into every worker. Built as its own object so the
@@ -43,7 +45,7 @@ type OptionalEmailBinding = { EMAIL?: Cloudflare.Email.SendEmail }
 /**
  * The workspace export bindings (ADR 0055), spread into every worker on the
  * same terms as EMAIL: both keys are absent — not `undefined` — when
- * `WORKSPACE_EXPORT_BUCKET` was not set, and the capability then reports
+ * `WORKSPACE_EXPORTS_ENABLED` is off, and the capability then reports
  * unavailable instead of failing a request.
  */
 type OptionalWorkspaceExportBindings = {
@@ -73,14 +75,6 @@ function rateLimitBindings(specs: ReadonlyArray<RateLimitBindingSpec>) {
 // goes through here so the platform-global escape hatch has exactly one site.
 function readEnv(name: string): string | undefined {
   return process.env[name]
-}
-
-function requiredEnv(name: string): string {
-  const value = readEnv(name)
-  if (!value) {
-    throw new Error(`Missing required deploy environment variable: ${name}`)
-  }
-  return value
 }
 
 function optionalSecret(name: string): Redacted.Redacted<string> | undefined {
@@ -115,7 +109,7 @@ function presentEntries<A>(
 // `deploy:stage`/`destroy:stage` scripts pass `$ALCHEMY_STAGE` through as the
 // flag). It is read inside the Stack below via the `Stage` service, so the
 // module scope only resolves the values that do not depend on it.
-const BETTER_AUTH_SECRET = Redacted.make(requiredEnv('BETTER_AUTH_SECRET'))
+const BETTER_AUTH_SECRET = Redacted.make(requiredEnv(process.env, 'BETTER_AUTH_SECRET'))
 // Preview stages (ADR 0054) can derive their URL from the account's
 // `workers.dev` subdomain instead of requiring a per-PR `BETTER_AUTH_URL`.
 const CLOUDFLARE_WORKERS_SUBDOMAIN = readEnv('CLOUDFLARE_WORKERS_SUBDOMAIN')
@@ -128,17 +122,21 @@ function resolveBetterAuthUrl(stage: string, webWorkerName: string): string {
   if (isPreviewStage(stage) && CLOUDFLARE_WORKERS_SUBDOMAIN) {
     return workersDevUrl(webWorkerName, CLOUDFLARE_WORKERS_SUBDOMAIN)
   }
-  return requiredEnv('BETTER_AUTH_URL')
+  return requiredEnv(process.env, 'BETTER_AUTH_URL')
 }
 // Optional: when unset, the SendEmail binding is skipped and the email
 // module degrades to inactive (see ARCHITECTURE.md secret matrix). Workers
 // read the same `CLOUDFLARE_EMAIL_FROM` name via `optionalProviderEnv` below —
 // there is no second email var name.
 const CLOUDFLARE_EMAIL_FROM = readEnv('CLOUDFLARE_EMAIL_FROM')
-// Optional: when unset, no export bucket or queue is provisioned and the
-// `WorkspaceExports` capability reports unavailable (ADR 0055). The value is
-// the bucket name; `infra/bindings.ts` carries the local-dev default.
-const WORKSPACE_EXPORT_BUCKET = readEnv('WORKSPACE_EXPORT_BUCKET')
+// Optional: off by default, and then no export bucket or queue is provisioned
+// and the `WorkspaceExports` capability reports unavailable (ADR 0055). A
+// switch, not a name — the bucket is named per stage below, so two stages can
+// never share one physical bucket. Explicit `true` only, because the sibling
+// `*_ENABLED` vars are documented with a `false` value that a truthiness test
+// would read as on.
+const workspaceExportsEnabled =
+  readEnv('WORKSPACE_EXPORTS_ENABLED')?.trim().toLowerCase() === 'true'
 
 // Optional provider env, forwarded to the web, API, and background workers so
 // a deployed worker receives its provider configuration. Unset values are
@@ -270,12 +268,6 @@ export const Stack = Alchemy.Stack(
     const emailEventsQueue = yield* Cloudflare.Queues.Queue('email-events-queue', {
       name: names.emailEventsQueue
     })
-    const emailEventsDeadLetterQueue = yield* Cloudflare.Queues.Queue(
-      'email-events-dlq',
-      {
-        name: names.emailEventsDeadLetterQueue
-      }
-    )
 
     // Only provision the SendEmail binding when a verified sender is
     // configured — without it the email module stays inactive instead of
@@ -302,14 +294,15 @@ export const Stack = Alchemy.Stack(
     }
 
     // Workspace export (ADR 0055): one queue for the jobs, one R2 bucket for
-    // the archives, both only when an operator named the bucket. The lifecycle
-    // rule deletes every artifact after the retention window — the same
-    // horizon `WorkspaceExports` stamps onto `expiresAt`.
+    // the archives, both only when `WORKSPACE_EXPORTS_ENABLED` is on, and both
+    // named per stage by `infra/bindings.ts`. The lifecycle rule deletes every
+    // artifact after the retention window — the same horizon
+    // `WorkspaceExports` stamps onto `expiresAt`.
     const workspaceExportBindings: OptionalWorkspaceExportBindings = {}
     let workspaceExportQueue: Cloudflare.Queues.Queue | undefined
-    if (WORKSPACE_EXPORT_BUCKET) {
+    if (workspaceExportsEnabled) {
       const bucket = yield* Cloudflare.R2.Bucket('workspace-export-bucket', {
-        name: WORKSPACE_EXPORT_BUCKET || names.workspaceExportBucket,
+        name: names.workspaceExportBucket,
         // Every object is a disposable, re-creatable export — safe to empty on destroy.
         forceDestroy: true,
         lifecycleRules: [
@@ -411,7 +404,7 @@ export const Stack = Alchemy.Stack(
     yield* Cloudflare.Queues.Consumer('billing-dlq-consumer', {
       queueId: billingDeadLetterQueue.queueId,
       scriptName: background.workerName,
-      settings: webhookDlqConsumerSettings
+      settings: billingDlqConsumerSettings
     })
 
     // Dead-letter consumer: the background worker records terminal
@@ -431,7 +424,6 @@ export const Stack = Alchemy.Stack(
     yield* Cloudflare.Queues.Consumer('email-events-consumer', {
       queueId: emailEventsQueue.queueId,
       scriptName: background.workerName,
-      deadLetterQueue: emailEventsDeadLetterQueue.queueName,
       settings: emailEventsConsumerSettings
     })
 

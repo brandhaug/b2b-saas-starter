@@ -99,24 +99,27 @@ describe('dispatchTrackedEmail', () => {
     () => {
       const cases = [
         {
+          id: 'email_permanent',
           failureKind: 'permanent',
           status: 'failed',
           reason: 'provider_rejected'
         },
         {
+          id: 'email_suppressed',
           failureKind: 'suppressed',
           status: 'suppressed',
           reason: 'provider_suppressed'
         }
       ] satisfies ReadonlyArray<{
+        readonly id: string
         readonly failureKind: 'permanent' | 'suppressed'
         readonly status: 'failed' | 'suppressed'
         readonly reason: 'provider_rejected' | 'provider_suppressed'
       }>
 
-      function runCase(current: (typeof cases)[number], id: string) {
+      function runCase(current: (typeof cases)[number]) {
         return Effect.gen(function* () {
-          const currentInput = { ...input, id }
+          const currentInput = { ...input, id: current.id }
           yield* Effect.result(dispatchTrackedEmail(currentInput, message))
           const record = yield* (yield* EmailDelivery).get(currentInput.id)
           expect(record).toMatchObject({
@@ -143,10 +146,7 @@ describe('dispatchTrackedEmail', () => {
         )
       }
 
-      return Effect.all([
-        runCase(cases[0]!, 'email_permanent'),
-        runCase(cases[1]!, 'email_suppressed')
-      ])
+      return Effect.all(cases.map(runCase))
     }
   )
 })

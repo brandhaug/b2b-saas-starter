@@ -61,10 +61,13 @@ describe('checkout claim decisions', () => {
       }),
       '2026-09-07T12:00:00.000Z'
     )
-    expect(created).toMatchObject({
-      outcome: 'reuse',
-      url: 'https://checkout.stripe.com/c/pay/1'
-    })
+    // The decision hands back the stored claim; the caller pairs it with the
+    // session it retrieved to produce a URL.
+    expect(created.outcome).toBe('reuse')
+    if (created.outcome === 'reuse') {
+      expect(created.claim.stripeSessionId).toBe('cs_1')
+      expect(created.claim.id).toBe('claim_1')
+    }
 
     expect(
       decideCheckoutClaim(

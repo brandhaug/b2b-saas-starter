@@ -1,5 +1,5 @@
 import { type JsonObject } from '@b2b-saas-starter/db/schema'
-import { auditActorTypes, type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
+import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { type SQL } from 'drizzle-orm'
 import { type BatchStatement } from '@b2b-saas-starter/db/service'
 import { Context, DateTime, Effect, Layer, Schema } from 'effect'
@@ -117,21 +117,6 @@ export type RecordAuditEventInput = {
   readonly metadata?: JsonObject
 }
 
-/**
- * Reject missing or invalid provenance even for untyped callers. Event names
- * do not constrain who can perform an action.
- */
-const decodeAuditActorType = Schema.decodeUnknownEffect(
-  Schema.Literals(auditActorTypes)
-)
-
-export function assertAuditActorType(
-  input: RecordAuditEventInput
-): Effect.Effect<void> {
-  // oxlint-disable-next-line no-restricted-properties -- missing internal invocation provenance is a caller defect, not a retryable store failure
-  return decodeAuditActorType(input.actorType).pipe(Effect.orDie, Effect.asVoid)
-}
-
 export type AuditEventLogInterface = {
   readonly get: (
     id: string
@@ -139,6 +124,11 @@ export type AuditEventLogInterface = {
   readonly list: (
     input?: ListAuditEventsInput
   ) => Effect.Effect<Page<AuditEvent>, CapabilityUnavailable, WorkspaceContext>
+  /**
+   * Every workspace's events, newest first on `(createdAt, id)` and capped at
+   * {@link AUDIT_EVENT_PAGE_SIZE} rows — `/admin`'s unpaged cross-workspace
+   * read. Both adapters order and cap identically.
+   */
   readonly listGlobal: Effect.Effect<ReadonlyArray<AuditEvent>, CapabilityUnavailable>
   readonly record: (
     input: RecordAuditEventInput
@@ -149,12 +139,28 @@ export type AuditEventLogInterface = {
    * their own write via `batch` from `@b2b-saas-starter/db`. Effectful because
    * the id and `createdAt` are read from `Clock`, not from the ambient wall
    * clock — yield it, then pass the statement to `batch`.
+   *
+   * Fails `CapabilityUnavailable` rather than resolving a statement the batch
+   * would happily commit: see {@link AUDIT_ACTOR_TYPE_INVALID}.
    */
   readonly prepareRecord: (
     input: RecordAuditEventInput,
     condition?: SQL
-  ) => Effect.Effect<BatchStatement>
+  ) => Effect.Effect<BatchStatement, CapabilityUnavailable>
 }
+
+/**
+ * The Live insert refuses an actor type the taxonomy does not name.
+ *
+ * `audit_events.actor_type` has no CHECK constraint, and provenance is the
+ * part of an audit row a reader trusts most: who did this. TypeScript keeps
+ * every in-repo caller honest, but the insert is the last boundary before a
+ * value becomes evidence, and an untyped caller (a decoded payload, a
+ * `satisfies`-less object from a future consumer) must not be able to write
+ * one. A refusal, not a defect: the mutation the audit row belongs to is
+ * still to come, and the caller can see a 503 and retry.
+ */
+export const AUDIT_ACTOR_TYPE_INVALID = 'audit_actor_type_invalid'
 
 export class AuditEventLog extends Context.Service<
   AuditEventLog,
@@ -359,10 +365,17 @@ export function SeedAuditEventLog(
         const ctx = yield* WorkspaceContext
         return pagedSeedRows(rows, ctx.workspace.id, input)
       }),
-    listGlobal: Effect.sync(() => rows.map(toSeedWire)),
+    // Same order and cap as Live: newest first on `(createdAt, id)`, at most
+    // one page of rows. `/admin` reads this unpaged, so the cap is the whole
+    // answer rather than a first page.
+    listGlobal: Effect.sync(
+      () =>
+        seedKeysetPage(rows.map(toSeedWire), 'desc', auditEventPosition, {
+          limit: AUDIT_EVENT_PAGE_SIZE
+        }).items
+    ),
     record: (input) =>
       Effect.gen(function* () {
-        yield* assertAuditActorType(input)
         // Appends into this instance's store so recorded events read back
         // through `list`/`listGlobal` exactly as Live's inserts do —
         // mutating-capability Seeds depend on this to satisfy the same
@@ -381,6 +394,6 @@ export function SeedAuditEventLog(
         }
         rows.push(row)
       }),
-    prepareRecord: (input) => assertAuditActorType(input).pipe(Effect.as(noopStatement))
+    prepareRecord: () => Effect.succeed(noopStatement)
   })
 }

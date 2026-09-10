@@ -4,6 +4,7 @@ This module owns creation counts and execution eligibility against Billing's req
 
 ## Contracts and ownership
 
+- The category summary reports the stored count as `used`, the same count creation admission makes, so a workspace refused a create always sees the over-limit banner. `eligibleIds` and `activeIds` stay the execution set: a disabled endpoint is counted, never dispatched.
 - Selection reads decode persisted rows and project current eligible IDs. Unknown or foreign mutation inputs fail with `ResourceSelectionRejected`; known unavailable IDs disappear from editable selections. A stale token parent in a pending save resolves to its current replacement. Deleted IDs disappear from reads and are rejected if submitted again.
 - Owner selection writes batch with `billing.resource_selection_updated` and invocation provenance. Token rotation's selected-slot statement belongs to this module and commits with the token claim and replacement audit. Never compute a replacement array from a pre-batch read: independent rotations and selection saves must compose against current database state.
 - The named Seed inventory layer shares current adapter inventories, workspace-keyed selection state, and the token/selection mutation semaphore. Reuse that exact layer value; copying fixtures into an entitlement adapter freezes eligibility and breaks resources created later. Inventory registration happens during adapter acquisition, avoiding a selection-to-registry layer cycle.

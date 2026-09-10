@@ -51,6 +51,10 @@ describe('authRateLimitBucket', () => {
     ['POST', '/api/auth/request-password-reset', 'auth_sign_in'],
     ['POST', '/api/auth/email-otp/request-password-reset', 'auth_sign_in'],
     ['POST', '/api/auth/email-otp/reset-password', 'auth_sign_in'],
+    // The second factor is a six-digit guessable secret, so its verification
+    // hops share the sign-in budget with the password hop before them.
+    ['POST', '/api/auth/two-factor/verify-totp', 'auth_sign_in'],
+    ['POST', '/api/auth/two-factor/verify-backup-code', 'auth_sign_in'],
     // Session-management and other POSTs keep the generic write bucket.
     ['POST', '/api/auth/list-sessions', 'auth_write'],
     ['POST', '/api/auth/two-factor/enable', 'auth_write'],

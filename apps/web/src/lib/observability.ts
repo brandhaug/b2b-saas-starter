@@ -169,6 +169,11 @@ export function memoizePerRequest<A>(
   }
   const pending = make()
   telemetry.memo.set(key, pending)
+  // A rejected read must not be the answer for the rest of the request: the
+  // slot is dropped so the next caller retries instead of inheriting the
+  // failure. The handler returns nothing, so it cannot mask the rejection the
+  // caller below still sees.
+  void pending.catch(() => telemetry.memo.delete(key))
   return pending
 }
 

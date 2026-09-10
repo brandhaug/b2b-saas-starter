@@ -1,5 +1,6 @@
+import { Cause, Effect, Exit } from 'effect'
 import { describe, expect, it } from 'vite-plus/test'
-import { toRouteSession } from './auth'
+import { requireRequestSessionEffect, toRouteSession, UnauthorizedError } from './auth'
 
 /**
  * The projection is what every gated route serializes into its client
@@ -80,5 +81,37 @@ describe('toRouteSession', () => {
 
     expect(routeSession.impersonatedBy).toBe('usr_admin')
     expect(routeSession.user.role).toBe('')
+  })
+})
+
+/**
+ * The server-fn gate on the Effect error channel. Without an ambient request
+ * there is no cookie jar to read, which is the expired-session case as far as
+ * every caller is concerned: the gate must FAIL, not die — a defect would
+ * skip `catchTag`, and the request's wide event would report a crash instead
+ * of a session that ran out.
+ */
+/** The gate under its own runtime: the assertion is about the Exit's channel. */
+function runExit() {
+  // oxlint-disable-next-line starter/no-run-promise-in-tests -- the Exit is the assertion; `it.effect` would hide the channel this test is about
+  return Effect.runPromiseExit(requireRequestSessionEffect())
+}
+
+describe('requireRequestSessionEffect', () => {
+  it('fails with the typed unauthorized error rather than a defect', async () => {
+    const exit = await runExit()
+    if (!Exit.isFailure(exit)) {
+      throw new Error('a session-less request must not resolve a session')
+    }
+    const caught = await runExit().then((settled) =>
+      Exit.isFailure(settled) ? Cause.squash(settled.cause) : settled.value
+    )
+    if (!(caught instanceof UnauthorizedError)) {
+      throw new Error('the gate must answer its own typed failure')
+    }
+    expect(caught.code).toBe('unauthorized')
+    // The message is a server-side diagnostic; the client rebuilds the error
+    // from `code` and `details` (`lib/ui-error.ts`), so those are the contract.
+    expect(caught.details).toEqual({})
   })
 })

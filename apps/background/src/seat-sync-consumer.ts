@@ -4,19 +4,17 @@ import {
 } from '@b2b-saas-starter/billing/billing'
 import {
   BillingQueueMessage,
-  type SeatSyncQueueReason
+  type SeatSyncQueueReason,
+  type SeatSyncRecoveryEvidence
 } from '@b2b-saas-starter/billing/seat-sync'
 import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
-import { billingOptionsFromEnv } from '@b2b-saas-starter/billing/billing-config'
-import {
-  selectCapabilitiesLayer,
-  starterEnv,
-  type StarterEnv
-} from '@b2b-saas-starter/capabilities/runtime'
+import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { Effect, type Scope } from 'effect'
 
+import { applyProviderEvent, billingCapabilitiesEnv } from './billing-runtime.ts'
 import {
+  annotateMalformed,
   consumerInvocation,
   type DeliveryOutcome,
   type Env,
@@ -30,6 +28,29 @@ type OperatorRetryAuditMetadata = {
   reason: string
   customerId?: string
   checkoutSessionId?: string
+}
+
+/**
+ * The audited evidence of one operator-requested retry. Assembled key by key
+ * rather than spread: `exactOptionalPropertyTypes` makes an absent key differ
+ * from an explicit `undefined`, and only the evidence the operator supplied
+ * belongs on the row.
+ */
+function operatorRetryMetadata(
+  operatorId: string,
+  recovery: SeatSyncRecoveryEvidence | undefined
+): OperatorRetryAuditMetadata {
+  const metadata: OperatorRetryAuditMetadata = {
+    operatorId,
+    reason: 'operator_retry'
+  }
+  if (recovery?.customerId !== undefined) {
+    metadata.customerId = recovery.customerId
+  }
+  if (recovery?.checkoutSessionId !== undefined) {
+    metadata.checkoutSessionId = recovery.checkoutSessionId
+  }
+  return metadata
 }
 
 /**
@@ -61,27 +82,12 @@ export function processSeatSyncMessage(
   return Effect.as(
     Effect.gen(function* () {
       if (delivery.kind === 'malformed') {
-        yield* Effect.annotateLogsScoped({
-          outcome: 'skipped',
-          skipReason: 'malformed_message'
-        })
+        yield* annotateMalformed('skipped')
         return
       }
       const message = delivery.message
       if (message.kind === 'billing.provider_event') {
-        const billing = yield* Billing
-        const result = yield* billing.processProviderEvent({
-          providerEventId: message.providerEventId,
-          eventType: message.eventType,
-          providerCreatedAt: message.providerCreatedAt,
-          workspaceId: message.workspaceId,
-          subscription: message.subscription,
-          detail: {
-            source: message.eventType,
-            providerEventId: message.providerEventId,
-            providerCreatedAt: message.providerCreatedAt ?? ''
-          }
-        })
+        const result = yield* applyProviderEvent(message)
         yield* Effect.annotateLogsScoped({
           outcome: result.outcome,
           providerEventId: message.providerEventId
@@ -92,37 +98,16 @@ export function processSeatSyncMessage(
         workspaceId: message.workspaceId,
         reason: message.reason satisfies SeatSyncQueueReason
       })
+      const billing = yield* Billing
       if (message.reason === 'operator_retry') {
-        if (message.operatorId === undefined) {
+        const { operatorId } = message
+        if (operatorId === undefined) {
           yield* Effect.annotateLogsScoped({
             outcome: 'skipped',
             skipReason: 'operator_identity_missing'
           })
           return
         }
-        const audit = yield* AuditEventLog
-        const metadata: OperatorRetryAuditMetadata = {
-          operatorId: message.operatorId,
-          reason: message.reason
-        }
-        if (message.recovery?.customerId !== undefined) {
-          metadata.customerId = message.recovery.customerId
-        }
-        if (message.recovery?.checkoutSessionId !== undefined) {
-          metadata.checkoutSessionId = message.recovery.checkoutSessionId
-        }
-        yield* audit.record({
-          workspaceId: message.workspaceId,
-          actorUserId: null,
-          actorType: 'system',
-          eventType: 'billing.sync_retry_requested',
-          targetType: 'workspace',
-          targetId: message.workspaceId,
-          metadata
-        })
-      }
-      const billing = yield* Billing
-      if (message.reason === 'operator_retry') {
         let recoveryInput: ReconcileWorkspaceInput = {
           workspaceId: message.workspaceId,
           reason: message.reason
@@ -131,6 +116,20 @@ export function processSeatSyncMessage(
           recoveryInput = { ...recoveryInput, recovery: message.recovery }
         }
         const result = yield* billing.reconcileWorkspace(recoveryInput)
+        // The retry-requested row goes in only once the reconcile settled: a
+        // provider failure retries this message, and an event written before
+        // the call would append a second row per redelivery.
+        yield* Effect.flatMap(AuditEventLog, (audit) =>
+          audit.record({
+            workspaceId: message.workspaceId,
+            actorUserId: null,
+            actorType: 'system',
+            eventType: 'billing.sync_retry_requested',
+            targetType: 'workspace',
+            targetId: message.workspaceId,
+            metadata: operatorRetryMetadata(operatorId, message.recovery)
+          })
+        )
         yield* Effect.annotateLogsScoped({
           outcome: 'reconciled',
           recovery: result.outcome,
@@ -154,19 +153,6 @@ export function processSeatSyncMessage(
 }
 
 /**
- * The env the seat path builds its capabilities layer from: the projected
- * bindings plus the Stripe bag, mapped through the shared
- * `billingOptionsFromEnv`. Absent, `syncSeats` answers
- * `provider_not_configured` instead of failing — the honest no-op.
- */
-function seatSyncEnv(env: Env): StarterEnv {
-  return {
-    ...starterEnv(env),
-    billing: billingOptionsFromEnv(env)
-  }
-}
-
-/**
  * Consumer entry: wraps `processSeatSyncMessage` with the real capabilities
  * layer and a wide event, continuing the trace the membership mutation
  * stamped onto the message. A provider failure reaches the entry's
@@ -184,7 +170,7 @@ export function deliverSeatSync(
     program: processSeatSyncMessage(delivery).pipe(
       // The layer needs the billing env only — the seat path reads D1 and,
       // when configured, talks to Stripe directly (no HTTP client service).
-      Effect.provide(selectCapabilitiesLayer(seatSyncEnv(env)))
+      Effect.provide(selectCapabilitiesLayer(billingCapabilitiesEnv(env)))
     )
   })
 }

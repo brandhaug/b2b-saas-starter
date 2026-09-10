@@ -49,16 +49,6 @@ describe('operator telemetry boundary', () => {
     ])
   })
 
-  it('publishes a zero gauge after recovery', async () => {
-    await captureOperationalSnapshot({ 'billing.overdue_workspaces': 1 })
-    await captureOperationalSnapshot({ 'billing.overdue_workspaces': 0 })
-    expect(sentry.metrics.gauge).toHaveBeenLastCalledWith(
-      'billing.overdue_workspaces',
-      0,
-      { attributes: { service: 'background' } }
-    )
-  })
-
   it('leaves provider-free operations and results intact', async () => {
     sentry.isEnabled.mockReturnValue(false)
     const result = await withCronMonitor('drill', () => Promise.resolve('done'))

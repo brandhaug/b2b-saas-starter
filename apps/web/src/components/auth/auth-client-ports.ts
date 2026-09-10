@@ -21,6 +21,26 @@ import {
  */
 export type AuthPort<I = void, D = unknown> = (input: I) => Promise<AuthResult<D>>
 
+/**
+ * The Turnstile header on a Better Auth client call, or the payload untouched
+ * when no challenge was answered. One helper rather than the same two-branch
+ * `fetchOptions` spread at every gated send: the header name and the
+ * "unconfigured means no header at all" rule live here (ADR 0031).
+ */
+function withTurnstile<Payload extends object>(
+  payload: Payload,
+  token: string | undefined
+): Payload | (Payload & { readonly fetchOptions: TurnstileFetchOptions }) {
+  if (token === undefined) {
+    return payload
+  }
+  return { ...payload, fetchOptions: { headers: { 'x-turnstile-token': token } } }
+}
+
+type TurnstileFetchOptions = {
+  readonly headers: { readonly 'x-turnstile-token': string }
+}
+
 export type SignUpWithEmail = AuthPort<{
   readonly name: string
   readonly email: string
@@ -39,19 +59,17 @@ export type SignUpWithEmail = AuthPort<{
 export function signUpWithAuthClient(
   input: Parameters<SignUpWithEmail>[0]
 ): ReturnType<SignUpWithEmail> {
-  const payload = {
-    name: input.name,
-    email: input.email,
-    password: input.password,
-    callbackURL: `${window.location.origin}/verify-email`
-  }
-  if (input.turnstileToken === undefined) {
-    return authClient.signUp.email(payload)
-  }
-  return authClient.signUp.email({
-    ...payload,
-    fetchOptions: { headers: { 'x-turnstile-token': input.turnstileToken } }
-  })
+  return authClient.signUp.email(
+    withTurnstile(
+      {
+        name: input.name,
+        email: input.email,
+        password: input.password,
+        callbackURL: `${window.location.origin}/verify-email`
+      },
+      input.turnstileToken
+    )
+  )
 }
 
 /**
@@ -74,50 +92,115 @@ export type SendMagicLink = AuthPort<{
 export function sendMagicLinkWithAuthClient(
   input: Parameters<SendMagicLink>[0]
 ): ReturnType<SendMagicLink> {
-  const payload = {
-    email: input.email,
-    callbackURL: `${window.location.origin}/magic-link/verify`,
-    newUserCallbackURL: `${window.location.origin}/magic-link/verify`,
-    errorCallbackURL: `${window.location.origin}/magic-link/verify`
-  }
-  if (input.turnstileToken === undefined) {
-    return authClient.signIn.magicLink(payload)
-  }
-  return authClient.signIn.magicLink({
-    ...payload,
-    fetchOptions: { headers: { 'x-turnstile-token': input.turnstileToken } }
-  })
+  return authClient.signIn.magicLink(
+    withTurnstile(
+      {
+        email: input.email,
+        callbackURL: `${window.location.origin}/magic-link/verify`,
+        newUserCallbackURL: `${window.location.origin}/magic-link/verify`,
+        errorCallbackURL: `${window.location.origin}/magic-link/verify`
+      },
+      input.turnstileToken
+    )
+  )
 }
 
-export type RequestPasswordReset = AuthPort<{ readonly email: string }>
+export type RequestPasswordReset = AuthPort<{
+  readonly email: string
+  /** The Turnstile widget's token — present only when Turnstile is configured. */
+  readonly turnstileToken?: string | undefined
+}>
 
 /**
  * `redirectTo` is where Better Auth's token-exchange redirect lands once the
  * emailed link is clicked: the handler validates the token, then forwards it
- * to `/reset-password?token=…` (or `?error=INVALID_TOKEN`).
+ * to `/reset-password?token=…` (or `?error=INVALID_TOKEN`). The reset send
+ * mails an address the caller names, so it rides the same Turnstile header as
+ * sign-up and the magic link.
  */
 export function requestPasswordResetWithAuthClient(
   input: Parameters<RequestPasswordReset>[0]
 ): ReturnType<RequestPasswordReset> {
-  return authClient.requestPasswordReset({
-    email: input.email,
-    redirectTo: `${window.location.origin}/reset-password`
-  })
+  return authClient.requestPasswordReset(
+    withTurnstile(
+      {
+        email: input.email,
+        redirectTo: `${window.location.origin}/reset-password`
+      },
+      input.turnstileToken
+    )
+  )
 }
 
 /**
  * `callbackURL` is where Better Auth's verification redirect lands after the
  * emailed token is exchanged — without it the user would be dropped on '/'.
+ * Anonymous callers can point this endpoint at any inbox, so it carries the
+ * Turnstile header too.
  */
-export type SendVerificationEmail = AuthPort<{ readonly email: string }>
+export type SendVerificationEmail = AuthPort<{
+  readonly email: string
+  /**
+   * Where the verification redirect lands, as an app path. Defaults to the
+   * `/verify-email` landing; the account page asks for `/account`, so the
+   * visitor returns to the screen they pressed the button on.
+   */
+  readonly callbackPath?: string | undefined
+  /** The Turnstile widget's token — present only when Turnstile is configured. */
+  readonly turnstileToken?: string | undefined
+}>
 
 export function sendVerificationEmailWithAuthClient(
   input: Parameters<SendVerificationEmail>[0]
 ): ReturnType<SendVerificationEmail> {
-  return authClient.sendVerificationEmail({
-    email: input.email,
-    callbackURL: `${window.location.origin}/verify-email`
-  })
+  return authClient.sendVerificationEmail(
+    withTurnstile(
+      {
+        email: input.email,
+        callbackURL: `${window.location.origin}${input.callbackPath ?? '/verify-email'}`
+      },
+      input.turnstileToken
+    )
+  )
+}
+
+/**
+ * The email one-time-code send, as a port: the address, the flow's purpose,
+ * and the Turnstile token the gate wants — this endpoint mails a code to any
+ * address a caller names, exactly like the magic link.
+ */
+export type SendEmailOneTimeCode = AuthPort<{
+  readonly email: string
+  readonly purpose: EmailCodePurpose
+  /** The Turnstile widget's token — present only when Turnstile is configured. */
+  readonly turnstileToken?: string | undefined
+}>
+
+export function sendEmailCodeWithAuthClient(
+  input: Parameters<SendEmailOneTimeCode>[0]
+): ReturnType<SendEmailOneTimeCode> {
+  return authClient.emailOtp.sendVerificationOtp(
+    withTurnstile({ email: input.email, type: input.purpose }, input.turnstileToken)
+  )
+}
+
+/**
+ * The password-reset code send, as a port: the `/email-otp` sibling of the
+ * reset link, gated the same way (the auth route matches
+ * `/request-password-reset` by suffix, so both spellings are covered).
+ */
+export type RequestPasswordResetCode = AuthPort<{
+  readonly email: string
+  /** The Turnstile widget's token — present only when Turnstile is configured. */
+  readonly turnstileToken?: string | undefined
+}>
+
+export function requestPasswordResetCodeWithAuthClient(
+  input: Parameters<RequestPasswordResetCode>[0]
+): ReturnType<RequestPasswordResetCode> {
+  return authClient.emailOtp.requestPasswordReset(
+    withTurnstile({ email: input.email }, input.turnstileToken)
+  )
 }
 
 /**

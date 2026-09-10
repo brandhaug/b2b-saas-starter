@@ -21,8 +21,8 @@ import { Schema, type Types } from 'effect'
 
 /**
  * Server-side filters for the audit page, straight from the route's search
- * params. Dates arrive as `YYYY-MM-DD` and are widened to inclusive UTC
- * instant bounds in the effects handler — the only place that knows the
+ * params. Dates arrive as `YYYY-MM-DD` and are widened to inclusive
+ * instant bounds in the request's presentation zone by the effects handler — the only place that knows the
  * wire contract is ISO timestamps (see `AuditEventLog.list`). Widened
  * mutable because the route stages a filter onto an empty record key by key.
  */

@@ -648,6 +648,7 @@
   "audit_webhook_delivery_replayed": "Webhook-levering sendt på nytt",
   "add_sign_in_method_before_removing": "Legg til en annen innloggingsmetode før du fjerner denne.",
   "audit_workspace_export_downloaded": "Eksport av arbeidsområde lastet ned",
+  "audit_workspace_export_failed": "Eksport av arbeidsområde mislyktes",
   "audit_impersonation_started": "Opptreden som annen bruker startet",
   "command_search_label": "Søk i kommandoer",
   "actor_label": "Aktør",

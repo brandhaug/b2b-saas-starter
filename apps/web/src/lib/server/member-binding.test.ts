@@ -22,10 +22,6 @@ import { webMemberBinding } from './member-binding'
  *
  * Under Vitest there is no TanStack request storage, so `currentRequest()`
  * answers `undefined` and every headered call below takes that branch.
- *
- * `addMember` is deliberately absent from this file: the plugin's add-member
- * route runs headerless by design (`serverOnly`, no session middleware), so it
- * has no no-request branch to assert.
  */
 
 const TaggedRejection = Schema.Struct({ _tag: Schema.String })

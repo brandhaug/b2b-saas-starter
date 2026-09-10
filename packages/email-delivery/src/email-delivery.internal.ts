@@ -1,6 +1,6 @@
 import { Clock, DateTime, Effect, Metric } from 'effect'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
-import { randomHex } from './crypto.ts'
+import { randomHex } from '@b2b-saas-starter/failure/crypto'
 import {
   EmailDelivery,
   type ClaimEmail,
@@ -44,6 +44,15 @@ export type DeliveryStore = {
 }
 const hour = 3_600_000
 const lease = 5 * 60_000
+/** One retention read; the store's own page size for expired evidence. */
+const retentionPage = 250
+/**
+ * How many expired rows one retention pass may delete. The pass drains its
+ * pages in one invocation, and this bound is what keeps that invocation
+ * inside a scheduled worker's wall clock: the next run resumes at the oldest
+ * page still stored.
+ */
+const retentionRowBudget = 2000
 const outcomes = Metric.counter('starter.email.send.outcomes')
 function iso(time: number) {
   return DateTime.formatIso(DateTime.makeUnsafe(time))
@@ -310,10 +319,20 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
       if (reasonRank(old.reason) > reasonRank(reason)) {
         reason = old.reason
       }
+      // Only evidence that the provider took the message marks acceptance. A
+      // bounce or a suppression must not backfill an acceptance that never
+      // happened, and `terminal` reads that marker as proof of submission.
+      let acceptedAt = old.acceptedAt
+      if (
+        acceptedAt === null &&
+        (event.status === 'delivered' || event.status === 'delayed')
+      ) {
+        acceptedAt = iso(now)
+      }
       const row: StoredDelivery = {
         ...old,
         status: event.status,
-        acceptedAt: old.acceptedAt ?? iso(now),
+        acceptedAt,
         updatedAt: iso(now),
         lastEventId: event.eventId,
         lastEventAt: event.occurredAt,
@@ -408,30 +427,47 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
   })
   const prune = Effect.fn('EmailDelivery.prune')(function* () {
     const now = yield* Clock.currentTimeMillis
-    const normal = yield* store.list({
-      statuses: ['queued', 'accepted', 'delivered', 'logged'],
-      createdBefore: iso(now - 30 * 24 * hour),
-      limit: 250
-    })
-    const unresolved = yield* store.list({
-      statuses: ['failed', 'suppressed', 'ambiguous', 'temporary_failure', 'delayed'],
-      createdBefore: iso(now - 90 * 24 * hour),
-      limit: 250
-    })
-    const expired = [...normal, ...unresolved]
-    if (expired.length === 0) {
-      return 0
+    const categories: ReadonlyArray<{
+      readonly statuses: ReadonlyArray<EmailDeliveryRecord['status']>
+      readonly createdBefore: string
+    }> = [
+      {
+        statuses: ['queued', 'accepted', 'delivered', 'logged'],
+        createdBefore: iso(now - 30 * 24 * hour)
+      },
+      {
+        statuses: ['failed', 'suppressed', 'ambiguous', 'temporary_failure', 'delayed'],
+        createdBefore: iso(now - 90 * 24 * hour)
+      }
+    ]
+    let removed = 0
+    let budget = retentionRowBudget
+    for (const category of categories) {
+      // Drain oldest-first pages until the category is clear: a single-page cap
+      // would leave a backlog of expired evidence stored indefinitely.
+      while (budget > 0) {
+        const limit = Math.min(retentionPage, budget)
+        const expired = yield* store.list({ ...category, limit })
+        if (expired.length === 0) {
+          break
+        }
+        const changed = yield* store.remove(expired)
+        if (changed === 0) {
+          return yield* Effect.fail(
+            new CapabilityUnavailable({
+              capability: 'EmailDelivery',
+              reason: 'Concurrent delivery updates prevented retention progress'
+            })
+          )
+        }
+        removed += changed
+        budget -= expired.length
+        if (expired.length < limit) {
+          break
+        }
+      }
     }
-    const changed = yield* store.remove(expired)
-    if (changed === 0) {
-      return yield* Effect.fail(
-        new CapabilityUnavailable({
-          capability: 'EmailDelivery',
-          reason: 'Concurrent delivery updates prevented retention progress'
-        })
-      )
-    }
-    return changed
+    return removed
   })
   const trackedAttempt: EmailDelivery['Service']['trackedAttempt'] = Effect.fn(
     'EmailDelivery.trackedAttempt'

@@ -100,11 +100,33 @@ export type NotifyWorkspaceOwnersInput = {
   readonly event?: NotificationEvent | undefined
 }
 
-/** Notification rows join the producer's D1 batch; publish runs only after commit.
- * Seed publishes its prepared in-memory rows in that same successful transition.
+/**
+ * The guard a prepared notification is conditional on, stated once in both
+ * dialects: Live folds `sql` into the insert's `WHERE` so the rows commit
+ * only alongside the transition that won, and Seed asks `holds` the same
+ * question against its fixture. One type, so a producer cannot state the
+ * condition for one adapter and forget the other.
+ */
+export type PreparedNotificationCondition = {
+  readonly sql: SQL
+  readonly holds: Effect.Effect<boolean>
+}
+
+/**
+ * A workspace-owner notification, prepared but not yet committed.
+ *
+ * `writes` are D1 statements the producer puts in its own batch, so the rows
+ * land with the transition or not at all. Seed has no batch to join, so it
+ * carries the same write as `commit` — an effect the producer runs at the
+ * same point, after its own state change and before `publish`. `commit` is
+ * where the condition is honoured on both sides.
+ *
+ * `publish` is the email fan-out and nothing else. It runs only after the
+ * write has committed, and never writes a row itself.
  */
 export type PreparedWorkspaceOwnerNotifications = {
   readonly writes: ReadonlyArray<BatchStatement>
+  readonly commit: Effect.Effect<void>
   readonly publish: Effect.Effect<void>
 }
 
@@ -231,7 +253,7 @@ export type NotificationFeedInterface = {
 
   readonly prepareWorkspaceOwners: (
     input: NotifyWorkspaceOwnersInput,
-    condition?: SQL
+    condition?: PreparedNotificationCondition
   ) => Effect.Effect<PreparedWorkspaceOwnerNotifications, CapabilityUnavailable>
 
   /** The instant-email consumer's read. */

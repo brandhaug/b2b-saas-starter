@@ -1,4 +1,4 @@
-export const DOC_CATEGORIES = {
+const DOC_CATEGORIES = {
   'getting-started': 'Getting started',
   architecture: 'Architecture',
   'capability-interfaces': 'Capability interfaces',

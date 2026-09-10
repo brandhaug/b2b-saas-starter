@@ -4,6 +4,7 @@ import {
   sendVerificationEmailWithAuthClient,
   type SendVerificationEmail
 } from '@/components/auth/auth-client-ports'
+import { useTurnstileChallenge } from '@/components/auth/turnstile-challenge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { authErrorCopy } from '@/lib/auth-error-copy'
@@ -19,13 +20,22 @@ export { type SendVerificationEmail }
  */
 export function EmailVerificationBanner({
   email,
-  sendVerificationEmail = sendVerificationEmailWithAuthClient
+  sendVerificationEmail = sendVerificationEmailWithAuthClient,
+  turnstileSiteKey = null
 }: {
   readonly email: string
   readonly sendVerificationEmail?: SendVerificationEmail
+  /**
+   * Server-provided Turnstile site key, from the loader of the route that
+   * renders this banner. The send it drives (`/send-verification-email`) is a
+   * mail-any-address endpoint the auth route gates when Turnstile is
+   * configured; `null` renders no widget and sends no token.
+   */
+  readonly turnstileSiteKey?: string | null | undefined
 }) {
   const [sent, setSent] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
+  const challenge = useTurnstileChallenge(turnstileSiteKey)
 
   if (sent) {
     return (
@@ -41,7 +51,15 @@ export function EmailVerificationBanner({
 
   async function resend() {
     setSendError(null)
-    const result = await sendVerificationEmail({ email })
+    if (challenge.missing) {
+      setSendError(challenge.missingMessage)
+      return
+    }
+    const result = await sendVerificationEmail({
+      email,
+      turnstileToken: challenge.token
+    })
+    challenge.consume()
     if (result.error) {
       setSendError(authErrorCopy(result.error, m.public_auth_send_email_failed()))
       return
@@ -64,6 +82,7 @@ export function EmailVerificationBanner({
             </span>
           ) : null}
         </span>
+        {challenge.widget}
         <Button type="button" variant="outline" onClick={() => void resend()}>
           {m.workspace_resend_verification()}
         </Button>

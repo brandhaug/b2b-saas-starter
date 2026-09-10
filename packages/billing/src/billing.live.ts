@@ -15,7 +15,7 @@ import { makeBillingSynchronization } from './billing-sync.live.ts'
 import { makeBillingSyncStore } from './billing-sync-store.ts'
 import { makeDurableCheckout, makeValidatedPortalSession } from './checkout.live.ts'
 import { billingConfigured, type BillingOptions } from './billing-config.ts'
-import { planById } from './plan-catalog.ts'
+import { billableSeatQuantity, planById } from './plan-catalog.ts'
 import { displayedBillingPlans, validatedStripePrice } from './stripe-pricing.ts'
 import { decodeSubscriptionRow } from './subscription-row.ts'
 import { effectivePlanDecision } from './billing-state.ts'
@@ -191,7 +191,7 @@ export function LiveBilling(
           yield* validatedStripePrice(secretKey, priceId)
           let quantity = 1
           if (plan.pricing === 'per_seat') {
-            quantity = yield* countMembers(ctx.workspace.id)
+            quantity = billableSeatQuantity(yield* countMembers(ctx.workspace.id))
           }
           return yield* checkout({
             secretKey,

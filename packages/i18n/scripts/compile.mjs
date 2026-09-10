@@ -4,7 +4,13 @@ import { join, relative, resolve } from 'node:path'
 import { compile } from '@inlang/paraglide-js'
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { flattenCatalog, mergeInto, validateCatalogs } from './catalog-validation.mjs'
+import {
+  flattenCatalog,
+  mergeInto,
+  validateCatalogs,
+  validateProjectLocales
+} from './catalog-validation.mjs'
+import { LOCALES } from '../src/locale.ts'
 
 const packageRoot = resolve(import.meta.dirname, '..')
 // The SDK evaluates local project modules from a data URL, so the bridge
@@ -14,7 +20,14 @@ process.chdir(packageRoot)
 const sourceRoot = join(packageRoot, 'messages')
 const generatedMessagesRoot = join(packageRoot, '.generated', 'messages')
 
-const locales = ['en', 'nb']
+// `src/locale.ts` owns the closed locale set; the inlang project is checked
+// against it below rather than restating it.
+const locales = LOCALES
+const settingsRaw = await readFile(
+  join(packageRoot, 'project.inlang/settings.json'),
+  'utf8'
+)
+validateProjectLocales(JSON.parse(settingsRaw), locales)
 const routeConfig = JSON.parse(await readFile(join(packageRoot, 'routes.json'), 'utf8'))
 
 async function filesUnder(directory) {
@@ -72,10 +85,11 @@ validateCatalogs(catalogs)
 // regenerating identical modules and triggering hundreds of unnecessary HMR events.
 const compilerInputs = await Promise.all([
   readFile(import.meta.filename, 'utf8'),
-  readFile(join(packageRoot, 'project.inlang/settings.json'), 'utf8'),
+  Promise.resolve(settingsRaw),
   readFile(join(packageRoot, 'package.json'), 'utf8'),
   readFile(join(packageRoot, 'plugin-message-format.js'), 'utf8'),
   readFile(join(packageRoot, 'scripts/catalog-validation.mjs'), 'utf8'),
+  readFile(join(packageRoot, 'src/locale.ts'), 'utf8'),
   readFile(join(packageRoot, 'routes.json'), 'utf8')
 ])
 const fingerprint = createHash('sha256')

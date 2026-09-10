@@ -171,36 +171,6 @@ export function LiveWorkspaceMembership(
               )
             )
         ),
-        addMember: Effect.fn('WorkspaceMembership.addMember')(function* (
-          input: MemberRoleInput
-        ) {
-          const ctx = yield* WorkspaceContext
-          yield* callBinding(binding, (bound) =>
-            bound.addMember({
-              workspaceId: ctx.workspace.id,
-              userId: input.userId,
-              role: input.role
-            })
-          )
-          const member = yield* readMember(ctx.workspace.id, input.userId)
-          yield* recordCompletedMutationAudit(
-            audit,
-            {
-              eventType: 'workspace_member.added',
-              targetType: 'workspace_member',
-              targetId: input.userId,
-              metadata: { role: input.role }
-            },
-            'workspace_membership.add'
-          )
-          // Seat sync rides a queue the background worker consumes, so this
-          // mutation never awaits Stripe — best-effort, after the audit.
-          yield* publishSeatSyncWith(seatSync, {
-            workspaceId: ctx.workspace.id,
-            reason: 'member_added'
-          })
-          return member
-        }),
         removeMember: Effect.fn('WorkspaceMembership.removeMember')(function* (
           input: MemberRef
         ) {

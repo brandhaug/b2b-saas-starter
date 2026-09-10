@@ -1,7 +1,6 @@
 import { roleLabel } from '@/lib/value-labels'
 import { type AcceptedInvitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import { pageTitle } from '@/components/page/page-title'
-import { useState } from 'react'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { MailCheckIcon } from 'lucide-react'
 import { PublicLayout } from '@/components/public-layout'
@@ -16,7 +15,7 @@ import {
   invitationPreviewServerFn,
   type InvitationPreview
 } from '@/lib/server/invitations'
-import { callServerFn } from '@/lib/server-call'
+import { useServerAction } from '@/hooks/use-server-action'
 import { pickOptionalStrings } from '@/lib/utils'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
@@ -132,30 +131,21 @@ function PendingInvitation({
   readonly accept: AcceptInvitation
 }) {
   const router = useRouter()
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  async function accept() {
-    setSubmitting(true)
-    setError(null)
-    // oxlint-disable-next-line effect/noTryCatch -- an event handler resetting a loading flag, not Effect control flow: `finally` clears the flag on rejection too, so a failed accept never leaves the button disabled forever.
-    try {
-      const outcome = await callServerFn(
-        () => acceptInvitation({ data: { invitationId: preview.invitationId } }),
-        m.accept_invitation_failed()
-      )
-      if (!outcome.ok) {
-        setError(outcome.message)
-        return
+  // The shared call boundary, not a hand-rolled busy flag: it also carries the
+  // strong-authentication redirect every other mutation on the app gets.
+  const accept = useServerAction(
+    () => acceptInvitation({ data: { invitationId: preview.invitationId } }),
+    {
+      failureMessage: m.accept_invitation_failed(),
+      invalidate: false,
+      onSuccess: async (joined) => {
+        await router.navigate({
+          to: '/workspaces/$workspaceSlug',
+          params: { workspaceSlug: joined.workspaceSlug }
+        })
       }
-      await router.navigate({
-        to: '/workspaces/$workspaceSlug',
-        params: { workspaceSlug: outcome.value.workspaceSlug }
-      })
-    } finally {
-      setSubmitting(false)
     }
-  }
+  )
 
   return (
     <PublicLayout>
@@ -177,14 +167,14 @@ function PendingInvitation({
                 role: roleLabel(preview.role)
               })}
             </p>
-            {error ? (
+            {accept.error ? (
               <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
+                <AlertDescription>{accept.error}</AlertDescription>
               </Alert>
             ) : null}
             <div className="flex items-center gap-3">
-              <Button onClick={() => void accept()} disabled={submitting}>
-                {submitting ? <Spinner data-icon="inline-start" /> : null}
+              <Button onClick={() => accept.run(undefined)} disabled={accept.pending}>
+                {accept.pending ? <Spinner data-icon="inline-start" /> : null}
                 {m.accept_invitation_action()}
               </Button>
               <Button render={<Link to="/workspaces" />} variant="ghost">

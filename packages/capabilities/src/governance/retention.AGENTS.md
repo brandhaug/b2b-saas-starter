@@ -25,5 +25,9 @@ call the same implementation; they do not carry their own cleanup SQL.
   triggers because plugin transitions must keep ownership of the mutation.
 - OAuth refresh families and independent recovery evidence are outside generic
   cleanup. Sessions referenced by OAuth evidence must also survive.
-- Provider-free Seed maintenance reports inactive. Keep user-visible credential
-  and download expiry equivalent in the owning Seed and Live capabilities.
+- Provider-free Seed maintenance reports inactive, pinned by `retention.seed.test.ts`.
+  Keep user-visible credential and download expiry equivalent in the owning Seed and
+  Live capabilities.
+- `retention.live.test.ts` provisions through `withRawTestD1`, not `TestDatabase`:
+  retention counts every table, so the shared fixture rows would be candidates it
+  never planted.

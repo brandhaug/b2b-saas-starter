@@ -129,6 +129,7 @@ import {
   seedApiTokens,
   seedAccountPreferences,
   seedAccountProfiles,
+  seedPersonalAccountArtifacts,
   seedAuditEvents,
   seedDeliveries,
   seedDeliveryAttempts,
@@ -311,7 +312,8 @@ const SeedExports = SeedWorkspaceExports({
 const SeedPersonalExports = SeedPersonalDataExports(
   seedAccountProfiles,
   seedNotifications,
-  seedWorkspaceRecord.id
+  seedWorkspaceRecord.id,
+  seedPersonalAccountArtifacts
 ).pipe(Layer.provide(SeedCore))
 
 const SeedEmailEligibility = NotificationEmailEligibilityLayer.pipe(

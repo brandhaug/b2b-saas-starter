@@ -7,7 +7,16 @@ Cloudflare Worker for queued, scheduled and inbound-provider work: webhook fan-o
 ## Entry Points & Contracts
 
 - Every entry wires wide-event providers before running work.
-- `src/queue-consumer.ts` is the shared boundary; never hand-roll around it. `consumerInvocation` is the one consumer entry: trace continuation, `withTriggerScope` with the attempt count, capability layers, one named fold to `'retry' | 'ack'`.
+- `src/queue-consumer.ts` is the shared boundary; never hand-roll around it. `consumerInvocation` is the one consumer entry: trace continuation, `withTriggerScope` with the attempt count, capability layers, one named fold to `'retry' | 'ack'`. `onFailure` also takes an `(attempts) => outcome` function, which is how the dead-letter entries bound a defect instead of acking it on first delivery.
+- `src/queue-routing.ts` owns queue name → consumer. Physical names are
+  `stageResourceNames`, so every stage but `prod` prefixes them: match the
+  stage-invariant suffix, dead letters first, and never add a fallback branch.
+  An unmatched name is an annotated `queue_unrouted` ack, not a webhook.
+  `src/scheduled-routing.ts` is the same shape for cron: one `scheduledRun`
+  match yields both the work and the monitor slug, and an unknown expression
+  exits as `scheduled_unrouted` (`unknownCronEvent`, exported so a test reads
+  the event) with no monitor check-in, instead of reporting under another
+  trigger's slug.
 
 ## Usage Patterns
 
@@ -26,9 +35,16 @@ Per queue the outcome table is the contract; the non-obvious parts:
   `export-consumer.test.ts` fails if they diverge.
 - Seat sync uses the billing queue and its dead-letter queue. The primary queue
   retries six times; the dead-letter consumer calls `Billing.reconcileWorkspace`
-  so recovery does not require a later mutation. Its Stripe env is
-  `starterEnv(env)` plus `billingOptionsFromEnv(env)`, because `starterEnv`
-  projects bindings only.
+  so recovery does not require a later mutation. A failed recovery takes the
+  webhook DLQ's shape: `boundedRecoveryOutcome` retries while the platform will
+  redeliver, then acks with the loss annotated. `onFailure` is that same
+  bounded arm, so a defect cannot ack a dead letter on its first delivery.
+  Both billing entries and the Stripe endpoint build their env with
+  `billingCapabilitiesEnv` (`billing-runtime.ts`), which adds the Stripe bag
+  because `starterEnv` projects bindings only, and share one
+  `applyProviderEvent` for a queued provider event. The operator-retry audit
+  row is written after the reconcile settles, so a redelivery cannot append a
+  second one.
 - Notification email messages carry ids only, so re-read notification and preferences before claiming. Email delivery owns retry timing; use its completion decision even when an active lease skips sending. Digest sends are never fatal, and failed reads retry the run.
 
 ## Anti-patterns
@@ -46,8 +62,12 @@ Per queue the outcome table is the contract; the non-obvious parts:
 
 ## Patterns & Pitfalls
 
-- One decode per delivery: `readDelivery(schema, envelope)` folds the platform fields and the message-schema decode into one `QueueDelivery`, so malformed is a named `kind` rather than an absent value, and terminal (no trusted `endpointId` to attach a row to).
-- The fold sits outside `withTriggerScope`, so the wide event exits carrying the failure cause before it becomes a queue outcome. `onFailure: 'retry'` except the DLQ entry.
+- One decode per delivery: `readDelivery(schema, envelope)` folds the platform fields and the message-schema decode into one `QueueDelivery`, so malformed is a named `kind` rather than an absent value, and terminal (no trusted `endpointId` to attach a row to). Report it with `annotateMalformed(outcome)` beside it; no consumer spells that arm itself.
+- Cloudflare counts `attempts` from 1, so the platform's last delivery is
+  `maxRetries + 1`. `finalQueueAttempt(attempts, settings)` in `monitoring.ts`
+  is the only predicate for it: the export consumer's `finalAttempt`, both DLQ
+  retry bounds, and `exhaustedQueueDelivery` read it.
+- The fold sits outside `withTriggerScope`, so the wide event exits carrying the failure cause before it becomes a queue outcome. `onFailure: 'retry'` except the dead-letter entries, which bound it by attempt.
 - The publisher persists a delivery before enqueueing its `deliveryId`. Both consumers bind that delivery to its endpoint and current workspace; stored contents supply dispatch and terminal evidence. Each observation is unique by delivery, attempt ordinal, and phase. Completion prevents repeated warnings ([ADR 0062](../../docs/adr/0062-webhook-protocol-and-operator-tooling.md)). Requester authorization stays at scheduling; execution checks current workspace suspension and resource availability.
 - `signatureHeaderValue` owns the signature format: Standard Webhooks HMAC-SHA256 over `"<deliveryId>.<unix>.<rawBody>"`, one space-separated `v1,<base64>` per active secret, current first, two only inside a rotation's grace window (ADR 0062).
 - The SSRF guard runs at endpoint creation _and again at dispatch_; DNS rebinding is out of scope.

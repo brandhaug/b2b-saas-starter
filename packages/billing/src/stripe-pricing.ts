@@ -5,7 +5,7 @@ import { PLANS } from './plan-catalog.ts'
 import { readStripeObject, StripePriceResponse } from './stripe.ts'
 
 /** Stripe uses hundredths for ISK/UGX charges despite their currency display exponent. */
-export function stripeUnitAmount(amount: number, currency: string): number {
+function stripeUnitAmount(amount: number, currency: string): number {
   const code = currency.toUpperCase()
   const zero = new Set([
     'BIF',

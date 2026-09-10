@@ -46,8 +46,8 @@ describe('command palette permissions', () => {
     fireEvent.click(searchButton)
     expect(
       await screen.findByRole('option', { name: 'API tokens' }, { timeout: 10_000 })
-    ).toBeTruthy()
-    expect(screen.getByRole('option', { name: 'System admin' })).toBeTruthy()
+    ).not.toBeNull()
+    expect(screen.getByRole('option', { name: 'System admin' })).not.toBeNull()
   }, 15_000)
 
   it('limits a member keyboard search to permitted destinations', async () => {
@@ -61,7 +61,7 @@ describe('command palette permissions', () => {
       }
     )
     fireEvent.keyDown(document, { key: 'k', ctrlKey: true })
-    expect(await screen.findByRole('option', { name: 'Overview' })).toBeTruthy()
+    expect(await screen.findByRole('option', { name: 'Overview' })).not.toBeNull()
     expect(screen.queryByRole('option', { name: 'API tokens' })).toBeNull()
     expect(screen.queryByRole('option', { name: 'System admin' })).toBeNull()
   })

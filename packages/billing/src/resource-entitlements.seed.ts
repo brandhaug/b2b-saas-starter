@@ -1,7 +1,12 @@
 import { DateTime, Effect, Layer } from 'effect'
 import { Billing } from './billing.ts'
 import { AuditEventLog, WorkspaceContext } from './ports.ts'
-import { EMPTY_RESOURCE_SELECTION, resourceEntitlementSummary } from './plan-catalog.ts'
+import {
+  EMPTY_RESOURCE_SELECTION,
+  resourceEntitlementSummary,
+  type EntitlementResource,
+  type Plan
+} from './plan-catalog.ts'
 import {
   normalizeSelection,
   validateSelection,
@@ -40,6 +45,24 @@ export function SeedResourceEntitlements() {
           inventory.selections.get(workspaceId) ?? EMPTY_RESOURCE_SELECTION,
           inventory.available(workspaceId, DateTime.toEpochMillis(yield* DateTime.now))
         )
+      })
+      // Admission counts every stored endpoint, including disabled ones, so the
+      // fixture refuses and warns on the same ceiling the Live adapter does.
+      const summarizeWith = Effect.fn('ResourceEntitlements.summarizeWith')(function* (
+        plan: Plan,
+        workspaceId: string,
+        resource: EntitlementResource,
+        selection: ResourceSelectionInput
+      ) {
+        const eligible = resourceIds(
+          inventory.available(workspaceId, DateTime.toEpochMillis(yield* DateTime.now)),
+          resource
+        )
+        let stored = eligible
+        if (resource === 'webhook_endpoint') {
+          stored = resourceIds(inventory.known(workspaceId), resource)
+        }
+        return resourceEntitlementSummary(plan, resource, eligible, selection, stored)
       })
       const service: ResourceEntitlementsInterface = {
         getSelectionForWorkspace,
@@ -81,16 +104,10 @@ export function SeedResourceEntitlements() {
           return yield* getSelectionForWorkspace(ctx.workspace.id)
         }, lock.withPermits(1)),
         summarize: Effect.fn('ResourceEntitlements.summarize')(function* (input) {
-          return resourceEntitlementSummary(
+          return yield* summarizeWith(
             yield* billing.currentPlan,
+            (yield* WorkspaceContext).workspace.id,
             input.resource,
-            resourceIds(
-              inventory.available(
-                (yield* WorkspaceContext).workspace.id,
-                DateTime.toEpochMillis(yield* DateTime.now)
-              ),
-              input.resource
-            ),
             yield* service.getSelection()
           )
         }),
@@ -99,18 +116,12 @@ export function SeedResourceEntitlements() {
         }),
         isActiveForWorkspace: Effect.fn('ResourceEntitlements.isActiveForWorkspace')(
           function* (input) {
-            return resourceEntitlementSummary(
+            return (yield* summarizeWith(
               yield* billing.currentPlanForWorkspace(input.workspaceId),
+              input.workspaceId,
               input.resource,
-              resourceIds(
-                inventory.available(
-                  input.workspaceId,
-                  DateTime.toEpochMillis(yield* DateTime.now)
-                ),
-                input.resource
-              ),
               yield* getSelectionForWorkspace(input.workspaceId)
-            ).activeIds.includes(input.resourceId)
+            )).activeIds.includes(input.resourceId)
           }
         )
       }

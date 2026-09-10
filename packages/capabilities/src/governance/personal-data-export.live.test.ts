@@ -4,7 +4,7 @@ import {
 } from '@b2b-saas-starter/email-delivery/email-delivery'
 import * as TestClock from 'effect/testing/TestClock'
 import { AccountLifecycle } from './account-lifecycle.ts'
-import { expect, layer } from '@effect/vitest'
+import { describe, expect, layer } from '@effect/vitest'
 import { DateTime, Effect, Result, Schema } from 'effect'
 import {
   account,
@@ -20,6 +20,7 @@ import { Database } from '@b2b-saas-starter/db/service'
 import { eq } from 'drizzle-orm'
 import { PersonalDataExports } from './personal-data-export.ts'
 import { PersonalDataExport } from './personal-data-export-archive.ts'
+import { personalDataExportContractCases } from './personal-data-export.contract.ts'
 import { AuditEventLog } from './audit-event-log.ts'
 import {
   inWorkspace,
@@ -55,6 +56,128 @@ const addSession = Effect.fn('test.addExportSession')(function* (
 layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
   'personal data export Live',
   (it) => {
+    // The Seed half of this same list runs in
+    // `personal-data-export.seed.test.ts`. Its subject is planted here
+    // rather than by the shared harness: only this suite needs the five
+    // account tables filled, and a row in `oauth_client` or `passkey` would
+    // otherwise show up in every other live suite's reads.
+    describe('live personal data export contract', () => {
+      const plantContractSubject = Effect.gen(function* () {
+        const db = yield* Database
+        yield* db
+          .insert(user)
+          .values({
+            id: 'usr_pde',
+            name: 'Export Subject',
+            email: 'subject@live-export.test'
+          })
+          .onConflictDoNothing()
+        yield* db
+          .insert(workspaceMembers)
+          .values({
+            id: 'mem_pde',
+            workspaceId: 'wrk_live',
+            userId: 'usr_pde',
+            role: 'member'
+          })
+          .onConflictDoNothing()
+        yield* db
+          .insert(notifications)
+          .values({
+            id: 'not_pde',
+            workspaceId: 'wrk_live',
+            userId: 'usr_pde',
+            kind: 'announcement',
+            createdAt: '2026-09-01T00:00:00.000Z',
+            title: 'Subject notice',
+            message: 'For the export subject'
+          })
+          .onConflictDoNothing()
+        yield* db
+          .insert(oauthClient)
+          .values({
+            id: 'oac_pde',
+            clientId: 'pde-client',
+            userId: 'usr_pde',
+            clientSecret: 'pde-private-client-secret',
+            name: 'Subject MCP client',
+            redirectUris: ['http://localhost/callback'],
+            scopes: ['openid']
+          })
+          .onConflictDoNothing()
+        yield* db
+          .insert(oauthConsent)
+          .values({
+            id: 'con_pde',
+            userId: 'usr_pde',
+            clientId: 'pde-client',
+            referenceId: 'wrk_live',
+            scopes: ['openid']
+          })
+          .onConflictDoNothing()
+        yield* db
+          .insert(account)
+          .values({
+            id: 'acc_pde',
+            userId: 'usr_pde',
+            accountId: 'pde-provider-account',
+            providerId: 'test-provider',
+            issuer: 'https://provider.example',
+            password: 'pde-private-password-hash'
+          })
+          .onConflictDoNothing()
+        yield* db
+          .insert(passkey)
+          .values({
+            id: 'pky_pde',
+            userId: 'usr_pde',
+            publicKey: 'pde-private-public-key',
+            credentialID: 'pde-credential',
+            deviceType: 'singleDevice',
+            backedUp: false,
+            counter: 1
+          })
+          .onConflictDoNothing()
+        for (const id of ['pde-session', 'pde-other-session']) {
+          yield* Effect.ignore(addSession('usr_pde', id))
+        }
+        yield* Effect.ignore(addSession('usr_owner', 'pde-owner-session'))
+      })
+
+      const cases = personalDataExportContractCases(
+        {
+          userId: 'usr_pde',
+          sessionId: 'pde-session',
+          otherSessionId: 'pde-other-session',
+          otherUser: { userId: 'usr_owner', sessionId: 'pde-owner-session' },
+          unknownUserId: 'usr_never_existed',
+          expected: {
+            workspaceIds: ['wrk_live'],
+            notifications: [{ id: 'not_pde', workspaceId: 'wrk_live' }],
+            sessionIds: ['pde-session', 'pde-other-session'],
+            linkedAccountIds: ['acc_pde'],
+            oauthClientIds: ['pde-client'],
+            oauthConsentIds: ['con_pde'],
+            passkeyIds: ['pky_pde']
+          },
+          secrets: [
+            'pde-private-client-secret',
+            'pde-private-password-hash',
+            'pde-private-public-key',
+            'secret-pde-session'
+          ]
+        },
+        expect
+      )
+      for (const contractCase of cases) {
+        it.effect(contractCase.name, () =>
+          Effect.flatMap(plantContractSubject, () =>
+            inWorkspace('live-lab', contractCase.assert)
+          )
+        )
+      }
+    })
+
     it.effect(
       'includes all personal email evidence beyond the history page without send credentials',
       () =>

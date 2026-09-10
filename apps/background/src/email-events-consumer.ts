@@ -11,6 +11,7 @@ import { type ServerEnv } from '@b2b-saas-starter/env/server'
 import { Effect, Metric, Schema, type Scope } from 'effect'
 
 import {
+  annotateMalformed,
   consumerInvocation,
   type DeliveryOutcome,
   type Env,
@@ -141,10 +142,7 @@ export function processEmailEventMessage(
 ): Effect.Effect<DeliveryOutcome, CapabilityUnavailable, EmailDelivery | Scope.Scope> {
   return Effect.gen(function* () {
     if (delivery.kind === 'malformed') {
-      yield* Effect.annotateLogsScoped({
-        outcome: 'skipped',
-        skipReason: 'malformed_message'
-      })
+      yield* annotateMalformed('skipped')
       yield* recordEventMetric('malformed')
       return 'ack' satisfies DeliveryOutcome
     }

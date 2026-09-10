@@ -1,12 +1,13 @@
 // oxlint-disable effect/noGlobals -- D1 SQL parameters require serialized typed JSON at this adapter boundary.
 import { auditEvents, user } from '@b2b-saas-starter/db/schema'
+import { auditActorTypes } from '@b2b-saas-starter/db/enums'
 import { Database } from '@b2b-saas-starter/db/service'
-import { DateTime, Effect, Layer } from 'effect'
+import { DateTime, Effect, Layer, Schema } from 'effect'
 import { and, desc, eq, gte, lte, sql, type SQL } from 'drizzle-orm'
 
 import {
+  AUDIT_ACTOR_TYPE_INVALID,
   auditEventPosition,
-  assertAuditActorType,
   AuditEventLog,
   type AuditEvent,
   AUDIT_EVENT_PAGE_SIZE,
@@ -16,9 +17,17 @@ import {
 import { clampPageLimit, cutKeysetPage, type Page } from '../internal/keyset-cursor.ts'
 import { keysetResume } from '../internal/keyset-query.ts'
 import { newCapabilityId } from '../internal/ids.ts'
-import { orUnavailable } from '@b2b-saas-starter/failure/capability'
+import {
+  CapabilityUnavailable,
+  orUnavailable
+} from '@b2b-saas-starter/failure/capability'
 import { decodeAuditEventMetadata } from './audit-event-metadata.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
+
+/** Provenance the taxonomy names; anything else never reaches the insert. */
+const decodeAuditActorType = Schema.decodeUnknownEffect(
+  Schema.Literals(auditActorTypes)
+)
 
 function pageLimit(input: ListAuditEventsInput | undefined): number {
   if (input?.limit === undefined) {
@@ -107,21 +116,36 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
         return orUnavailable('audit-event-log')(query)
       }
 
-      /** Every workspace's events, newest first — `/admin`'s cross-workspace read. */
+      /**
+       * Every workspace's events, newest first — `/admin`'s cross-workspace
+       * read. `id` breaks `createdAt` ties so the order is total and the Seed
+       * adapter can reproduce it row for row.
+       */
       const globalRows = orUnavailable('audit-event-log')(
         db
           .select({ event: auditEvents, actor: user })
           .from(auditEvents)
           .leftJoin(user, eq(user.id, auditEvents.actorUserId))
-          .orderBy(desc(auditEvents.createdAt))
-          .limit(100)
+          .orderBy(desc(auditEvents.createdAt), desc(auditEvents.id))
+          .limit(AUDIT_EVENT_PAGE_SIZE)
       ).pipe(Effect.map((rows) => rows.map(toWireRow)))
 
       const insertFor = Effect.fnUntraced(function* (
         input: RecordAuditEventInput,
         condition?: SQL
       ) {
-        yield* assertAuditActorType(input)
+        // The last boundary before provenance becomes evidence. The column
+        // has no CHECK constraint, so a caller the type system did not reach
+        // would otherwise write an actor type nobody can interpret.
+        yield* decodeAuditActorType(input.actorType).pipe(
+          Effect.mapError(
+            () =>
+              new CapabilityUnavailable({
+                capability: 'audit-event-log',
+                reason: AUDIT_ACTOR_TYPE_INVALID
+              })
+          )
+        )
         const id = yield* newCapabilityId('aud')
         const createdAt = yield* DateTime.now
         return db.insert(auditEvents).select(

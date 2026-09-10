@@ -75,7 +75,7 @@ describe('Stripe provider adapter', () => {
       })
       const checkoutBody = requests[0]?.init.body
       if (checkoutBody === undefined) {
-        return
+        return expect.fail('the checkout request must carry a form body')
       }
       expect(checkoutBody).toContain('metadata%5BworkspaceId%5D=wrk_1')
       expect(checkoutBody).toContain('metadata%5BclaimId%5D=claim_1')

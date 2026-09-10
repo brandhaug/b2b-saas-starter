@@ -1,4 +1,5 @@
 import { setTimeout as delay } from 'node:timers/promises'
+import { requiredEnv } from '../../scripts/internal/env.ts'
 
 type FetchLike = (input: string) => Promise<Response>
 type Sleep = (milliseconds: number) => Promise<void>
@@ -6,14 +7,6 @@ type Sleep = (milliseconds: number) => Promise<void>
 const RETRIES = 5
 const RETRY_DELAY_MS = 3000
 const RESPONSE_PREVIEW_LENGTH = 4000
-
-function requiredEnv(name: string, env: NodeJS.ProcessEnv): string {
-  const value = env[name]
-  if (!value) {
-    throw new Error(`missing required environment variable ${name}`)
-  }
-  return value
-}
 
 function responseIsSuccessful(response: Response): boolean {
   return response.status >= 200 && response.status < 400
@@ -60,8 +53,8 @@ export async function main(
   fetchImpl: FetchLike = fetch,
   sleep: Sleep = delay
 ): Promise<void> {
-  await probe('api', `${requiredEnv('API_URL', env)}/health`, fetchImpl, sleep)
-  await probe('web', `${requiredEnv('WEB_URL', env)}/`, fetchImpl, sleep)
+  await probe('api', `${requiredEnv(env, 'API_URL')}/health`, fetchImpl, sleep)
+  await probe('web', `${requiredEnv(env, 'WEB_URL')}/`, fetchImpl, sleep)
 }
 
 if (process.argv[1] === import.meta.filename) {

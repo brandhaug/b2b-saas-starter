@@ -132,7 +132,8 @@ it.effect(
         null,
         '2026-09-04T00:00:00.000Z'
       )
-      expect(paid.currentInvoicePaid).toBe(true)
+      // A settled zero-due renewal keeps the established paying history.
+      expect(paid.firstFailedAt).toBeNull()
       expect(paid.lastPaymentAt).toBe('2026-09-02T00:00:00.000Z')
       history = false
       const trial = yield* retrievePaymentEvidence(

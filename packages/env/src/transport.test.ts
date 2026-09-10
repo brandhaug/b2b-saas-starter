@@ -135,6 +135,42 @@ describe('transport security gates', () => {
     ).toEqual([{ key: 'BETTER_AUTH_TRUSTED_ORIGINS', reason: 'insecure' }])
   })
 
+  it("accepts Better Auth's scheme-less wildcard trusted origin in production", () => {
+    const source = {
+      BETTER_AUTH_TRUSTED_ORIGINS: '*.example.test, https://admin.example.test',
+      ENVIRONMENT: 'production'
+    }
+    expect(auditSecureEndpoints(source, 'production')).toEqual([])
+    expect(() => enforceSecureEndpoints(source)).not.toThrow()
+    // A second `*` is not a form Better Auth accepts, so it stays malformed.
+    expect(
+      auditSecureEndpoints(
+        { BETTER_AUTH_TRUSTED_ORIGINS: '*.*.example.test' },
+        'production'
+      )
+    ).toEqual([{ key: 'BETTER_AUTH_TRUSTED_ORIGINS', reason: 'malformed' }])
+  })
+
+  it('refuses a trusted origin carrying embedded credentials', () => {
+    for (const origins of [
+      'https://user:pass@app.example.test',
+      'https://token@app.example.test',
+      'https://app.example.test, https://user:pass@admin.example.test'
+    ]) {
+      const source = {
+        BETTER_AUTH_TRUSTED_ORIGINS: origins,
+        ENVIRONMENT: 'production'
+      }
+      expect(auditSecureEndpoints(source, 'production')).toEqual([
+        { key: 'BETTER_AUTH_TRUSTED_ORIGINS', reason: 'insecure' }
+      ])
+      expect(() => enforceSecureEndpoints(source)).toThrow(
+        'BETTER_AUTH_TRUSTED_ORIGINS (insecure)'
+      )
+      expect(() => enforceSecureEndpoints(source)).not.toThrow('pass')
+    }
+  })
+
   it('preserves configured local HTTP endpoints and unset production providers', () => {
     expect(
       auditSecureEndpoints({ OPENAI_BASE_URL: 'http://ai.example' }, 'production')

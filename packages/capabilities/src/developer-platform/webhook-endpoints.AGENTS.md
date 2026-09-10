@@ -6,7 +6,7 @@ Webhook destinations and tooling; background dispatch uses [`webhook-publisher`]
 
 ## Entry Points & Contracts
 
-- [Resource entitlements](../billing/resource-entitlements.AGENTS.md) owns creation admission; creation publishes a best-effort projection without the secret.
+- [Resource entitlements](../../../billing/src/resource-entitlements.AGENTS.md) owns creation admission; creation publishes a best-effort projection without the secret.
 - Replay creates an audited `pending` copy linked by `replayedFrom`; the source stays untouched (ADR 0062). Test sends use their delivery row as the record.
 - `/admin` calls `listGlobalDeliveries` and `replayDeliveryAsAdmin` without `WorkspaceContext`. Its boundary rechecks the system-admin session; replay resolves the workspace internally and audits the actual actor with `scope: system_admin`. Never fabricate membership. Workspace replay keeps its membership and permission gates.
 - Background lookups require `(deliveryId, endpointId, workspaceId)` and bind the persisted delivery to the endpoint's current workspace. Dispatch targets return all active signing secrets and the stored event and payload. Terminal audits and dead-letter notifications also use stored contents; unknown or mismatched deliveries create no evidence.
@@ -25,6 +25,6 @@ Webhook destinations and tooling; background dispatch uses [`webhook-publisher`]
 - No dispatch from a request path, no in-place delivery mutation to replay, no `successRate` recomputed in a route.
 - Every mutation's where clause carries `workspaceId`, never the endpoint id alone.
 
-> TODO(intent): keyset paging for delivery summaries, `lastDeliveryAt` on the list projection.
+Delivery summaries page on a keyset cursor (`internal/keyset-cursor.ts`) in both adapters. The list projection carries no `lastDeliveryAt`: callers that need the latest attempt time read the delivery page.
 
-- `listDeliveryAttempts` joins through the delivery and endpoint to enforce workspace ownership. `cleanupDeliveryHistory` removes a bounded expired-summary batch; attempts cascade. Seed mirrors both.
+- `listDeliveryAttempts` joins through the delivery and endpoint to enforce workspace ownership. `cleanupDeliveryHistory` removes a bounded expired-summary batch; attempts cascade. Seed mirrors both, and its `delete` cascades the same two hops the foreign keys do: deliveries with the endpoint, attempts with their delivery.

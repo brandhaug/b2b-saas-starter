@@ -1,4 +1,5 @@
 import { requireRecentAuthentication } from './strong-authentication.effects'
+import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { MCP_CONSENT_PAGE, MCP_WORKSPACE_SELECTED_HEADER } from '@b2b-saas-starter/auth'
 import { McpClientConnections } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
 import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
@@ -120,7 +121,13 @@ export async function grantOAuthConsentHandler(
     Effect.gen(function* () {
       const workspaces = yield* listWorkspacesForUser(session.user.id)
       if (!workspaces.some(({ workspace }) => workspace.id === input.workspaceId)) {
-        return
+        // A workspace this user is no member of. Refusing here is the point:
+        // returning early would skip the suspension check below and hand the
+        // pick to the provider, which grants a consent scoped to a workspace
+        // the app never authorized.
+        return yield* Effect.fail(
+          new AuthorizationDenied({ reason: 'insufficient_permission' })
+        )
       }
       const suspension = yield* WorkspaceSuspensionService
       yield* suspension.requireAllowed(input.workspaceId, 'product')

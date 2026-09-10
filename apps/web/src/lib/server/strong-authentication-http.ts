@@ -2,13 +2,11 @@ import { type Session } from '@b2b-saas-starter/auth'
 import { StrongAuthentication } from '@b2b-saas-starter/capabilities/governance/strong-authentication'
 import { Effect } from 'effect'
 import { runCapabilities } from '../capabilities'
+import { authRefusal } from './auth-refusal'
 import { type StrongAuthenticationAction } from './auth-request-guard'
 
 function deny(code = 'strong_authentication_required') {
-  return new Response(JSON.stringify({ code }), {
-    status: 403,
-    headers: { 'content-type': 'application/json; charset=utf-8' }
-  })
+  return authRefusal(403, code)
 }
 
 /** The HTTP organization plugin has no capability audit/authorization context. */
@@ -22,7 +20,9 @@ export async function strongAuthenticationHttpResponse(
   if (action.kind === 'none' || !session) {
     return null
   }
-  if (action.kind === 'admin' && action.urgent) {
+  if (action.kind === 'admin' && action.requirement === 'none') {
+    // The impersonation exit only: no impersonation session is qualified, and
+    // ending one grants nothing (see the classification's own note).
     return null
   }
   const status = await runCapabilities(
@@ -46,11 +46,11 @@ export async function strongAuthenticationHttpResponse(
     return deny()
   }
   if (action.kind === 'admin') {
-    return (
-      action.method === 'POST' ? status.recent && status.qualified : status.qualified
-    )
-      ? null
-      : deny()
+    if (!status.qualified) {
+      return deny()
+    }
+    // A containment action waives only the five-minute step aside.
+    return action.requirement === 'qualified' || status.recent ? null : deny()
   }
   if (session.session.impersonatedBy) {
     return deny()
@@ -61,10 +61,8 @@ export async function strongAuthenticationHttpResponse(
   if (status.hasFactors) {
     return deny()
   }
-  if (action.kind === 'passkey') {
-    return status.passwordVerified ? null : deny()
-  }
-  // Initial TOTP enrollment and password management retain Better Auth's own
-  // credential verification; an unqualified session still has no privileged access.
-  return null
+  // The remaining kind is the passkey enrollment ceremony's options request
+  // for an account with no factors yet: a freshly verified password is the
+  // only evidence left that the session's holder owns the account.
+  return status.passwordVerified ? null : deny()
 }

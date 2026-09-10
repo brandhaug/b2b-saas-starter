@@ -1,5 +1,7 @@
 import { type BillingSynchronizationStatus } from '@b2b-saas-starter/billing/billing'
 import { fireEvent, screen } from '@testing-library/react'
+import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import {
   PLANS,
@@ -125,6 +127,64 @@ async function renderPlans(options?: {
   )
 }
 
+/**
+ * `BillingPlans` under a loader that re-delivers the same payload with new
+ * object identities, which is exactly what the page's polling invalidation
+ * produces.
+ */
+function PollingBillingPlans() {
+  const [refreshes, setRefreshes] = useState(0)
+  const apiTokens = [
+    { id: 'tok_1', name: 'First token' },
+    { id: 'tok_2', name: 'Second token' },
+    { id: 'tok_3', name: 'Third token' }
+  ]
+  const webhookEndpoints = [{ id: 'wh_1', url: 'https://example.test/hook-one' }]
+  const resourceSelection = { apiTokenIds: ['tok_1'], webhookEndpointIds: [] }
+  return (
+    <div>
+      <Button onClick={() => setRefreshes(refreshes + 1)}>refresh loader</Button>
+      <BillingPlans
+        workspaceSlug="starter-lab"
+        currentPlanId="starter"
+        plans={PLANS}
+        pricingUnavailable={false}
+        lifecycle={{
+          status: 'incomplete',
+          planId: 'starter',
+          currentPeriodEnd: null,
+          cancelAtPeriodEnd: false,
+          trialEnd: null,
+          graceEndsAt: null
+        }}
+        synchronization={{ status: 'current', lastSyncedAt: null }}
+        stripeConfigured
+        canManageBilling
+        apiTokens={apiTokens}
+        webhookEndpoints={webhookEndpoints}
+        resourceSelection={resourceSelection}
+        resourceEntitlements={{
+          apiTokens: resourceEntitlementSummary(
+            planById('starter'),
+            'api_token',
+            apiTokens.map(({ id }) => id),
+            resourceSelection
+          ),
+          webhookEndpoints: resourceEntitlementSummary(
+            planById('starter'),
+            'webhook_endpoint',
+            webhookEndpoints.map(({ id }) => id),
+            resourceSelection
+          )
+        }}
+        selectBillingResources={selectResources}
+        startCheckout={checkout}
+        startPortalSession={portal}
+      />
+    </div>
+  )
+}
+
 describe('BillingPlans', () => {
   it('shows delayed updates without presenting an unverified upgrade', async () => {
     await renderPlans({ currentPlanId: 'starter', status: 'delayed' })
@@ -138,7 +198,7 @@ describe('BillingPlans', () => {
       cancelAtPeriodEnd: true,
       currentPeriodEnd: '2027-01-31T00:00:00.000Z'
     })
-    expect(screen.getByText(/Cancellation is scheduled/)).toBeTruthy()
+    expect(screen.getByText(/Cancellation is scheduled/)).not.toBeNull()
   })
 
   it('explains pending updates and conflicts', async () => {
@@ -201,7 +261,7 @@ describe('BillingPlans', () => {
         { id: 'wh_2', url: 'https://example.test/hook-two' }
       ]
     })
-    expect(screen.getByText(/Choose resources to keep active/)).toBeTruthy()
+    expect(screen.getByText(/Choose resources to keep active/)).not.toBeNull()
     fireEvent.click(screen.getByRole('checkbox', { name: 'First token' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Second token' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Third token' }))
@@ -236,13 +296,13 @@ describe('BillingPlans', () => {
       ]
     })
     expect(screen.queryByText(/Choose resources to keep active/)).toBeNull()
-    expect(screen.getByText(/Some workspace features are restricted/)).toBeTruthy()
+    expect(screen.getByText(/Some workspace features are restricted/)).not.toBeNull()
   })
 
   it('preserves configured currency precision in plan prices', async () => {
     const plans: ReadonlyArray<BillingPlan> = PLANS.map(withProviderPrice)
     await renderPlans({ plans })
-    expect(screen.getByText('$12.50/seat/mo')).toBeTruthy()
+    expect(screen.getByText('$12.50/seat/mo')).not.toBeNull()
   })
 
   it('does not show workspace access copy on public pricing', async () => {
@@ -264,8 +324,8 @@ describe('BillingPlans', () => {
       plans: [],
       currentPlanId: 'starter'
     })
-    expect(screen.getByText(/Plan pricing is temporarily unavailable/)).toBeTruthy()
-    expect(screen.getByRole('button', { name: /manage billing/i })).toBeTruthy()
+    expect(screen.getByText(/Plan pricing is temporarily unavailable/)).not.toBeNull()
+    expect(screen.getByRole('button', { name: /manage billing/i })).not.toBeNull()
   })
 
   it('drops selected resources that are no longer visible', async () => {
@@ -297,13 +357,36 @@ describe('BillingPlans', () => {
     ).toBe('false')
   })
 
+  it('keeps an unsaved selection across a loader refresh that changed nothing', async () => {
+    // The page polls `router.invalidate()` every 10-30s, so the loader hands
+    // down fresh array identities for unchanged data. A draft resync keyed on
+    // those identities would discard the selection the user is still editing.
+    await renderWithRouter(<PollingBillingPlans />, {
+      path: '/workspaces/starter-lab/billing'
+    })
+    const second = screen.getByRole('checkbox', { name: 'Second token' })
+    expect(second.getAttribute('aria-checked')).toBe('false')
+    fireEvent.click(second)
+    expect(
+      screen
+        .getByRole('checkbox', { name: 'Second token' })
+        .getAttribute('aria-checked')
+    ).toBe('true')
+    fireEvent.click(screen.getByRole('button', { name: 'refresh loader' }))
+    expect(
+      screen
+        .getByRole('checkbox', { name: 'Second token' })
+        .getAttribute('aria-checked')
+    ).toBe('true')
+  })
+
   it('prioritizes ended unpaid access over a retained grace deadline', async () => {
     await renderPlans({
       currentPlanId: 'starter',
       lifecycleStatus: 'unpaid',
       graceEndsAt: '2027-01-31T00:00:00.000Z'
     })
-    expect(screen.getByText(/marked this subscription unpaid/)).toBeTruthy()
+    expect(screen.getByText(/marked this subscription unpaid/)).not.toBeNull()
     expect(screen.queryByText(/Paid access remains available until/)).toBeNull()
   })
 
@@ -314,7 +397,7 @@ describe('BillingPlans', () => {
       lifecycleStatus: 'active',
       subscribedPlanId: 'team'
     })
-    expect(screen.getByText(/Some workspace features are restricted/)).toBeTruthy()
+    expect(screen.getByText(/Some workspace features are restricted/)).not.toBeNull()
   })
 
   it('restricts members when terminal cancellation leaves excess resources partially active', async () => {
@@ -345,7 +428,7 @@ describe('BillingPlans', () => {
         }
       }
     })
-    expect(screen.getByText(/Contact an owner or admin/)).toBeTruthy()
+    expect(screen.getByText(/Contact an owner or admin/)).not.toBeNull()
   })
 
   it('does not restrict a valid paid trial', async () => {

@@ -13,10 +13,26 @@ import {
   billingConsumerSettings,
   emailEventsConsumerSettings,
   notificationEmailConsumerSettings,
+  type QueueConsumerSettings,
   webhookConsumerSettings,
   workspaceExportConsumerSettings
 } from '../../../infra/bindings.ts'
 import { type DeliveryOutcome, type Env } from './queue-consumer.ts'
+
+/**
+ * Whether this delivery is the platform's last attempt under the given
+ * consumer settings. Cloudflare counts `attempts` from 1, so `maxRetries: 3`
+ * delivers a message at most four times — the first attempt plus three
+ * retries. One predicate for every reader: the export consumer's
+ * `finalAttempt` flag, the dead-letter consumers' retry bound, and
+ * `exhaustedQueueDelivery` below.
+ */
+export function finalQueueAttempt(
+  attempts: number,
+  settings: QueueConsumerSettings
+): boolean {
+  return attempts >= settings.maxRetries + 1
+}
 
 /** Exported policy uses the same retry settings as the deployed consumers. */
 export function exhaustedQueueDelivery(
@@ -39,7 +55,7 @@ export function exhaustedQueueDelivery(
     ['-webhooks', webhookConsumerSettings]
   ] as const
   const policy = policies.find(([suffix]) => queue.endsWith(suffix))?.[1]
-  return attempts >= (policy ?? webhookConsumerSettings).maxRetries + 1
+  return finalQueueAttempt(attempts, policy ?? webhookConsumerSettings)
 }
 
 export function monitorQueueOutcome(

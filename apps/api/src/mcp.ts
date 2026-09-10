@@ -118,7 +118,7 @@ import {
  * membership table on every call.
  */
 
-export const MCP_SERVER_NAME = 'b2b-saas-starter-mcp'
+const MCP_SERVER_NAME = 'b2b-saas-starter-mcp'
 const OVERVIEW_RESOURCE_URI = 'workspace://overview'
 
 /**
@@ -129,7 +129,7 @@ const OVERVIEW_RESOURCE_URI = 'workspace://overview'
  * caller) is the honest answer, and every handler turns it into an internal
  * error rather than a silent wrong-workspace read.
  */
-export const CurrentMcpCaller = Context.Reference<McpCaller | undefined>(
+const CurrentMcpCaller = Context.Reference<McpCaller | undefined>(
   '@b2b-saas-starter/api/mcp/current-caller',
   { defaultValue: () => undefined }
 )
@@ -256,7 +256,7 @@ export function mcpDiscoveryDocument(): McpDiscovery {
  * Generic failure body shared by both defect seams (tool and resource);
  * internals never leak into the client's transcript.
  */
-export const TOOL_FAILED_MESSAGE = 'tool failed; see the API worker logs'
+const TOOL_FAILED_MESSAGE = 'tool failed; see the API worker logs'
 
 /** What a settled tool invocation hands the wire encoder. */
 type ToolFailure =

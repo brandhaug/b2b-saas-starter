@@ -648,6 +648,7 @@
   "audit_webhook_delivery_replayed": "Webhook delivery replayed",
   "add_sign_in_method_before_removing": "Add another sign-in method before removing this one.",
   "audit_workspace_export_downloaded": "Workspace export downloaded",
+  "audit_workspace_export_failed": "Workspace export failed",
   "audit_impersonation_started": "Impersonation started",
   "command_search_label": "Search commands",
   "actor_label": "Actor",

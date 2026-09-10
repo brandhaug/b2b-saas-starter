@@ -9,8 +9,8 @@ import { failureTag } from '../internal/failure-tag.ts'
 import { Billing, type SubscriptionState } from '@b2b-saas-starter/billing/billing'
 import { ResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements'
 
-export const RESOURCE_TRIAL_END = '2026-09-02T00:00:00.000Z'
-export const RESOURCE_BEFORE_EXPIRY = '2026-09-01T00:00:00.000Z'
+const RESOURCE_TRIAL_END = '2026-09-02T00:00:00.000Z'
+const RESOURCE_BEFORE_EXPIRY = '2026-09-01T00:00:00.000Z'
 
 export const resourceDeadlineCases = [
   { name: 'trial expiry', state: { status: 'trialing', trialEnd: RESOURCE_TRIAL_END } },

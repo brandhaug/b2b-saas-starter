@@ -151,7 +151,13 @@ export const EMPTY_RESOURCE_SELECTION: ResourceSelection = {
 export type ResourceEntitlement = {
   readonly resource: EntitlementResource
   readonly limit: number | null
+  /**
+   * How many stored resources the plan ceiling is measured against — the
+   * same count creation admission makes, so a workspace refused a create is
+   * always a workspace the billing page shows over its limit.
+   */
   readonly used: number
+  /** The resources that may execute today, before the selection narrows them. */
   readonly eligibleIds: ReadonlyArray<string>
   readonly selectedIds: ReadonlyArray<string>
   readonly activeIds: ReadonlyArray<string>
@@ -169,7 +175,14 @@ export function resourceEntitlement(
   plan: Plan,
   resource: EntitlementResource,
   ids: ReadonlyArray<string>,
-  selection: ResourceSelection = EMPTY_RESOURCE_SELECTION
+  selection: ResourceSelection = EMPTY_RESOURCE_SELECTION,
+  /**
+   * Every stored resource of the category, when admission counts more of
+   * them than execution does: webhook admission counts disabled endpoints,
+   * dispatch eligibility does not. Defaults to `ids`, which is the api-token
+   * case — a revoked or expired token is neither counted nor eligible.
+   */
+  storedIds: ReadonlyArray<string> = ids
 ): ResourceEntitlement {
   const limit = limitFor(plan, resource)
   let selectedIds: ReadonlyArray<string>
@@ -178,7 +191,7 @@ export function resourceEntitlement(
   } else {
     selectedIds = selection.webhookEndpointIds
   }
-  const overLimit = limit !== null && ids.length > limit
+  const overLimit = limit !== null && storedIds.length > limit
   const availableIds = new Set(ids)
   const validSelection = [...new Set(selectedIds)].filter((id) => availableIds.has(id))
   let activeIds: ReadonlyArray<string>
@@ -190,20 +203,12 @@ export function resourceEntitlement(
   return {
     resource,
     limit,
-    used: ids.length,
+    used: storedIds.length,
     eligibleIds: [...ids],
     selectedIds: validSelection,
     activeIds,
     paused: overLimit && activeIds.length === 0
   }
-}
-
-/** Whether one stored resource may execute under the effective entitlement. */
-export function resourceIsActive(
-  entitlement: ResourceEntitlement,
-  resourceId: string
-): boolean {
-  return entitlement.activeIds.includes(resourceId)
 }
 
 /** The UI/API contract for a downgrade that needs an explicit selection. */
@@ -215,10 +220,21 @@ export function resourceEntitlementSummary(
   plan: Plan,
   resource: EntitlementResource,
   ids: ReadonlyArray<string>,
-  selection?: ResourceSelection
+  selection?: ResourceSelection,
+  storedIds?: ReadonlyArray<string>
 ): ResourceEntitlementSummary {
-  const entitlement = resourceEntitlement(plan, resource, ids, selection)
+  const entitlement = resourceEntitlement(plan, resource, ids, selection, storedIds)
   return { ...entitlement, requiresSelection: entitlement.paused }
+}
+
+/**
+ * The subscription-item quantity one member count bills. Stripe rejects a
+ * zero quantity on a licensed per-unit price, and a workspace always has at
+ * least the member who owns it, so an empty roster reads as one seat rather
+ * than as a checkout or seat sync the provider refuses.
+ */
+export function billableSeatQuantity(memberCount: number): number {
+  return Math.max(1, memberCount)
 }
 
 export function limitFor(plan: Plan, resource: EntitlementResource): number | null {

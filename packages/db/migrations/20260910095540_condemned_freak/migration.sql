@@ -1,0 +1,1 @@
+CREATE INDEX `workspaces_suspension_changed_by_idx` ON `workspaces` (`suspensionChangedByUserId`);

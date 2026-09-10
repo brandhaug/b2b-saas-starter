@@ -7,7 +7,7 @@ import { type WorkspaceViewer } from '@/lib/permissions'
 import { type WorkspaceSuspension } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 
 const WorkspaceSlugInput = Schema.Struct({ workspaceSlug: Schema.NonEmptyString })
-export type WorkspaceSuspensionPayload = Pick<
+type WorkspaceSuspensionPayload = Pick<
   WorkspaceSuspension,
   'workspaceId' | 'status' | 'customerExplanation' | 'changedAt'
 >

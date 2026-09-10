@@ -2,7 +2,7 @@
 import '@/test/qualified-session'
 import { describe, expect, it, vi, beforeEach } from 'vite-plus/test'
 
-import { fixtureSession } from '@/test/fixture-session'
+import { fixtureAuthModule } from '@/test/fixture-session'
 import {
   changeMemberRoleHandler,
   leaveWorkspaceHandler,
@@ -31,10 +31,9 @@ import type * as AuthModule from './auth'
  */
 const actor = vi.hoisted(() => ({ userId: 'usr_demo' }))
 
-vi.mock('./auth', async (importOriginal) => ({
-  ...(await importOriginal<typeof AuthModule>()),
-  requireRequestSession: async () => fixtureSession(actor)
-}))
+vi.mock('./auth', async (importOriginal) =>
+  fixtureAuthModule(await importOriginal<typeof AuthModule>(), actor)
+)
 
 function actingAs(userId: string): void {
   actor.userId = userId

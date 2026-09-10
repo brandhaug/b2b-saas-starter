@@ -1,7 +1,7 @@
 import { SupportDetails } from '@/components/support-details'
 import { type ComponentProps, type ReactNode, useEffect, useState } from 'react'
 import { Link, useRouter } from '@tanstack/react-router'
-import { BellIcon, LogOutIcon, MenuIcon, ShieldIcon, UserRoundIcon } from 'lucide-react'
+import { BellIcon, LogOutIcon, ShieldIcon, UserRoundIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -14,21 +14,13 @@ import {
   DropdownMenuSubmenuTrigger,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger
-} from '@/components/ui/sheet'
 import { useServerAction } from '@/hooks/use-server-action'
 import { authClient } from '@/lib/auth-client'
 import { SearchButton, CommandPaletteProvider } from '@/components/command-palette'
 import { ImpersonationBanner } from '@/components/impersonation-banner'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { useImpersonation, type StopImpersonating } from '@/lib/impersonation'
-import { type Viewer } from '@/lib/permissions'
+import { ADMIN_SYSTEM_ROLE, type Viewer } from '@/lib/permissions'
 import {
   findWorkspace,
   lastVisitedWorkspace,
@@ -38,6 +30,7 @@ import {
 } from '@/lib/workspace-directory'
 import { WorkspaceNav } from '@/components/workspace-nav'
 import { PreviewShell } from '@/components/preview-shell'
+import { MobileNavSheet } from '@/components/mobile-nav-sheet'
 import { usePreview } from '@/lib/preview-context'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { LanguageSwitcher } from '@/components/language-switcher'
@@ -161,41 +154,13 @@ function AuthenticatedWorkspaceShell({
         )}
         <div>
           <header className="flex min-h-16 items-center gap-4 border-b border-border px-4 sm:px-6">
-            <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-              <SheetTrigger
-                render={
-                  <Button variant="ghost" size="icon" className="lg:hidden">
-                    <MenuIcon className="size-5" />
-                    <span className="sr-only">{m.common_open_navigation()}</span>
-                  </Button>
-                }
-              />
-              <SheetContent
-                side="left"
-                className="flex min-h-0 flex-col gap-0 overflow-hidden bg-sidebar text-sidebar-foreground border-sidebar-border"
-              >
-                <SheetHeader>
-                  <SheetTitle className="sr-only">
-                    {m.common_workspace_navigation()}
-                  </SheetTitle>
-                  <SheetDescription className="sr-only">
-                    {m.switch_workspace_sections()}
-                  </SheetDescription>
-                </SheetHeader>
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
-                  <WorkspaceNav
-                    workspace={sidebarWorkspace}
-                    viewer={viewer}
-                    systemRole={systemRole}
-                    onNavigate={() => setMobileNavOpen(false)}
-                  />
-                  <div className="mt-6 grid gap-4 border-t border-sidebar-border pt-4">
-                    <SearchButton />
-                    <LanguageSwitcher />
-                  </div>
-                </div>
-              </SheetContent>
-            </Sheet>
+            <MobileNavSheet
+              open={mobileNavOpen}
+              onOpenChange={setMobileNavOpen}
+              workspace={sidebarWorkspace}
+              viewer={viewer}
+              systemRole={systemRole}
+            />
             {workspaceSlug === null ? (
               <div className="min-w-0 flex-1" />
             ) : (
@@ -292,7 +257,7 @@ function UserMenu({
   const session = authClient.useSession()
   const router = useRouter()
   const directory = useWorkspaceDirectory()
-  const admin = systemRole === 'admin'
+  const admin = systemRole === ADMIN_SYSTEM_ROLE
   return (
     <DropdownMenu>
       <DropdownMenuTrigger

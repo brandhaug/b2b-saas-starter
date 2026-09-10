@@ -3,8 +3,10 @@ import { render } from 'react-email'
 import { Effect } from 'effect'
 import { type ReactElement } from 'react'
 import { describe, expect, it } from '@effect/vitest'
+import * as m from '@b2b-saas-starter/i18n/messages'
 import {
-  NOTIFICATION_EMAIL_TEMPLATES,
+  NOTIFICATION_EMAIL_COPY,
+  NOTIFICATION_PREVIEW_PROPS,
   NotificationDigestEmail,
   notificationEmailFor
 } from './notification-emails.ts'
@@ -28,13 +30,30 @@ function rendered(element: ReactElement) {
 }
 
 describe('notification email templates', () => {
-  it('has one template per stored kind, and every one carries preview props', () => {
+  it('has copy and preview props for every stored kind', () => {
     for (const kind of notificationKinds) {
-      const template = NOTIFICATION_EMAIL_TEMPLATES[kind]
-      expect(template).toBeTypeOf('function')
-      expect('PreviewProps' in template).toBe(true)
+      expect(NOTIFICATION_EMAIL_COPY[kind]).toBeTypeOf('function')
+      expect(NOTIFICATION_PREVIEW_PROPS[kind].kindLabel.length).toBeGreaterThan(0)
     }
   })
+
+  it.effect('gives every kind its own lead sentence', () =>
+    Effect.gen(function* () {
+      const announcement = m.backend_email_notification_announcement_lead(
+        {},
+        { locale: 'en' }
+      )
+      for (const kind of notificationKinds) {
+        // Plain text, not HTML: the renderer escapes apostrophes in markup.
+        const { text } = yield* rendered(notificationEmailFor(kind, props))
+        expect(text).toContain(NOTIFICATION_EMAIL_COPY[kind]('en').lead)
+        if (kind !== 'announcement') {
+          // A missing entry used to fall through to the announcement wording.
+          expect(text).not.toContain(announcement)
+        }
+      }
+    })
+  )
 
   it.effect(
     'gives every kind a representative destination and rendered fixture copy',
@@ -53,8 +72,7 @@ describe('notification email templates', () => {
         } satisfies Record<NotificationKind, string>
 
         for (const kind of notificationKinds) {
-          const template = NOTIFICATION_EMAIL_TEMPLATES[kind]
-          const preview = template.PreviewProps
+          const preview = NOTIFICATION_PREVIEW_PROPS[kind]
           expect(new URL(preview.openUrl).pathname).toBe(expected[kind])
           expect(preview.preferencesUrl).toContain(`kind=${kind}`)
           if (kind !== 'api_token.created') {

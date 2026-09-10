@@ -46,7 +46,7 @@ describe('customer support acceptance', () => {
   ])('supports either contact destination alone: %j', async (config) => {
     await renderWithRouter(<SupportPage config={config} />)
     expect(screen.queryByText(/support contact information is unavailable/i)).toBeNull()
-    expect(screen.getByRole('button', { name: 'Copy support details' })).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Copy support details' })).not.toBeNull()
   })
 
   it('unconfigured production remains honest even with a help center', async () => {
@@ -56,15 +56,15 @@ describe('customer support acceptance', () => {
     )
     expect(
       screen.getByText(/support contact information is unavailable/i)
-    ).toBeDefined()
+    ).not.toBeNull()
     expect(screen.queryByText(/SUPPORT_EMAIL/)).toBeNull()
-    expect(screen.getByRole('button', { name: 'Copy support details' })).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Copy support details' })).not.toBeNull()
   })
 
   it('shows setup guidance only in development', async () => {
     vi.stubEnv('DEV', true)
     await renderWithRouter(<SupportPage config={{}} />)
-    expect(screen.getByText(/SUPPORT_EMAIL/)).toBeDefined()
+    expect(screen.getByText(/SUPPORT_EMAIL/)).not.toBeNull()
   })
 
   it('copies only explicit safe fields and omits missing IDs and secret URL input', async () => {

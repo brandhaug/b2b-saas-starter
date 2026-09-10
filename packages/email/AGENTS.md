@@ -4,9 +4,9 @@
 
 ## Contracts
 
-- `selectEmailDispatcherLayer(env)` is the only reader of `EMAIL` and `CLOUDFLARE_EMAIL_FROM`, returning the Cloudflare layer only when both are present. A binding without a sender address means log mode, not an error.
-- `NOTIFICATION_EMAIL_TEMPLATES` is `satisfies`-pinned to `NotificationKind`: a new DB enum kind is a type error until a template exists. Never loosen it to an index signature.
-- Every template needs a `PreviewProps` static: the tests and react-email's preview server (`pnpm -C packages/email dev`) read it.
+- `selectEmailDispatcherLayer(env)` is the only reader of `EMAIL` and `CLOUDFLARE_EMAIL_FROM`, returning the Cloudflare layer only when both are present. A binding without a sender address means log mode, not an error: the Cloudflare layer itself renders and logs when no sender resolves.
+- Every notification kind renders the same `NotificationBody`; only its lead and action sentences differ. `NOTIFICATION_EMAIL_COPY` and `NOTIFICATION_PREVIEW_PROPS` are `satisfies`-pinned to `NotificationKind`, so a new DB enum kind is a type error until it has copy. Never loosen either to an index signature, and never give the copy lookup a default arm — that is what silently sends announcement wording.
+- Every template in `./templates` needs a `PreviewProps` static, and every notification kind needs a `NOTIFICATION_PREVIEW_PROPS` entry: the tests and react-email's preview server (`pnpm -C packages/email dev`) read them.
 - `./tracked` adapts dispatcher results and errors into sanitized outcomes for [`EmailDelivery.trackedAttempt`](../email-delivery/AGENTS.md). The email-delivery package owns claims, persisted outcomes and metrics; keep that sequencing out of transport adapters.
 
 ## Changes
@@ -22,4 +22,4 @@
 
 ## Pitfalls
 
-- `WorkspaceInvitationEmail` is also `./templates`'s `default` export, the only one. Import the named export; leave the default in place.
+- The account-security notices (two-factor, passkey, password, backup codes, recovery) share one `SecurityNoticeEmail`: no action link, ever. A button in an email the true owner never asked for is a phishing assist.

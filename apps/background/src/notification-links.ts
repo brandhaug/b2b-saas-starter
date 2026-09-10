@@ -2,7 +2,7 @@ import { type NotificationEmailContext } from '@b2b-saas-starter/capabilities/no
 import { type NotificationKind } from '@b2b-saas-starter/capabilities/notifications/notification-kinds'
 
 /** Where a notification email sends the reader when no base URL is configured. */
-export const DEFAULT_APP_URL = 'http://localhost:3071'
+const DEFAULT_APP_URL = 'http://localhost:3071'
 
 /**
  * The app's public origin for links in outbound email. The web worker's

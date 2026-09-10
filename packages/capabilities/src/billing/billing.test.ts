@@ -87,8 +87,7 @@ function billingFixture(options?: {
             ...provider,
             payment: provider.payment ?? {
               lastPaymentAt: '2026-08-01T00:00:00.000Z',
-              firstFailedAt: null,
-              currentInvoicePaid: true
+              firstFailedAt: null
             }
           })),
           workspacePlans: { wrk_billing: options?.planId ?? 'team' },
@@ -435,8 +434,7 @@ describe('seed billing reconciliation and checkout claims', () => {
             status: 'active',
             payment: {
               lastPaymentAt: '2026-08-01T00:00:00.000Z',
-              firstFailedAt: null,
-              currentInvoicePaid: true
+              firstFailedAt: null
             }
           }
           const providerState = yield* Ref.make<

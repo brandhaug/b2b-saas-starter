@@ -12,7 +12,12 @@ import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/n
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { Effect, Option, Result } from 'effect'
 
+import { env as cloudflareEnv } from 'cloudflare:workers'
+
 import { causeMessage } from '../cause-message'
+import { webRuntime, withWebRequestScope } from '../observability'
+import { clientKey, makeRateLimiterLayer, RateLimiter } from '../rate-limit'
+import { currentRequest } from '../request-context'
 
 import { runCapabilities, runWorkspaceCapabilities } from '../capabilities'
 import { requestOrigin } from './request-origin'
@@ -287,14 +292,46 @@ export function notifyOwnersOfFailedTest(
 }
 
 /**
+ * The routing ask's budget. The ask is session-free, so the client key is the
+ * only thing there is to meter it on: it lands in the tight `auth_sign_in`
+ * bucket of the sign-in attempt it precedes (ADR 0030), keyed on
+ * `cf-connecting-ip` alone like every other auth surface. Without an ambient
+ * request (unit tests, scripts) there is no key and nothing to meter.
+ */
+function routingAllowance(): Promise<boolean> {
+  const request = currentRequest()
+  if (request === undefined) {
+    // oxlint-disable-next-line effect/noNewPromise -- the handler's contract is a Promise and there is no client key to meter without a request
+    return Promise.resolve(true)
+  }
+  return webRuntime.runPromise(
+    withWebRequestScope(
+      { event: 'sso.routing' },
+      Effect.gen(function* () {
+        const limiter = yield* RateLimiter
+        return yield* limiter.take({ bucket: 'auth_sign_in', key: clientKey(request) })
+      }).pipe(Effect.provide(makeRateLimiterLayer(cloudflareEnv)))
+    )
+  )
+}
+
+/**
  * The sign-in page's routing ask: does this email's domain belong to an
  * enabled connection? Deliberately **not** session-gated — the asker is on
  * the public sign-in page — and it discloses nothing beyond the fact that the
  * domain routes, which the IdP redirect discloses anyway.
+ *
+ * Metered all the same: a session-free server function that reads a table per
+ * ask is a free domain-enumeration oracle otherwise. A throttled ask answers
+ * `null`, which is also the answer for a domain that does not route, so the
+ * flood learns nothing from being throttled.
  */
 export async function resolveSsoRoutingHandler(
   input: RoutingInput
 ): Promise<SsoRoutingDecision | null> {
+  if (!(await routingAllowance())) {
+    return null
+  }
   const decision = await runCapabilities(
     Effect.flatMap(SsoConnections, (sso) => sso.resolveRouting(input.email))
   )

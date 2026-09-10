@@ -6,10 +6,11 @@ import {
 } from '@b2b-saas-starter/capabilities/governance/workspace-export-generation'
 import {
   WORKSPACE_EXPORT_RETENTION_DAYS as CAPABILITY_RETENTION_DAYS,
+  workspaceExportExpiresAt,
   WorkspaceExportQueueMessage
 } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { describe, expect, it } from '@effect/vitest'
-import { Effect, Layer } from 'effect'
+import { DateTime, Effect, Layer } from 'effect'
 
 import {
   WORKSPACE_EXPORT_RETENTION_DAYS,
@@ -86,13 +87,30 @@ describe('processWorkspaceExportMessage', () => {
     })
   )
 
-  it.effect('marks the queue delivery final attempt for generation', () =>
+  it.effect('withholds the final-attempt flag while the platform still retries', () =>
+    Effect.gen(function* () {
+      // Cloudflare counts attempts from 1, so `maxRetries: 3` delivers a
+      // message four times: attempt 3 is not the last one.
+      expect(workspaceExportConsumerSettings.maxRetries).toBe(3)
+      const seen: Array<WorkspaceExportGenerationInput> = []
+      const result = yield* run(
+        message,
+        { _tag: 'retry', reason: 'unavailable: d1 down' },
+        3,
+        seen
+      )
+      expect(result.outcome).toBe('retry')
+      expect(seen[0]?.finalAttempt).toBe(false)
+    })
+  )
+
+  it.effect('marks the fourth delivery the final attempt for generation', () =>
     Effect.gen(function* () {
       const seen: Array<WorkspaceExportGenerationInput> = []
       const result = yield* run(
         message,
         { _tag: 'skipped', reason: 'unavailable: d1 down' },
-        workspaceExportConsumerSettings.maxRetries,
+        4,
         seen
       )
       expect(result.outcome).toBe('ack')
@@ -141,7 +159,18 @@ describe('readDelivery', () => {
 describe('retention horizon', () => {
   it('keeps the bucket lifecycle rule and the row expiry on one number', () => {
     // `infra/bindings.ts` drives the R2 lifecycle rule; the capability stamps
-    // `expiresAt`. Neither imports the other, so this is where they meet.
+    // `expiresAt`. Neither imports the other, so this is where they meet — and
+    // the horizon itself is pinned, so moving both declarations together still
+    // fails this test.
     expect(CAPABILITY_RETENTION_DAYS).toBe(WORKSPACE_EXPORT_RETENTION_DAYS)
+    expect(WORKSPACE_EXPORT_RETENTION_DAYS).toBe(7)
+  })
+
+  it('expires a ready export seven days after it completed', () => {
+    // The horizon the capability stamps, against a literal date rather than a
+    // second copy of its own arithmetic.
+    expect(
+      workspaceExportExpiresAt(DateTime.makeUnsafe('2026-09-03T08:00:00.000Z'))
+    ).toBe('2026-09-10T08:00:00.000Z')
   })
 })

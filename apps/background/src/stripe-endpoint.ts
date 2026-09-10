@@ -13,10 +13,8 @@ import {
 } from '@b2b-saas-starter/billing/billing-config'
 import { withTriggerScope } from '@b2b-saas-starter/logger'
 import { Effect, Result, Schema } from 'effect'
-import {
-  selectCapabilitiesLayer,
-  starterEnv
-} from '@b2b-saas-starter/capabilities/runtime'
+import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
+import { billingCapabilitiesEnv } from './billing-runtime.ts'
 import { runInvocation, type Env } from './queue-consumer.ts'
 
 /**
@@ -26,7 +24,7 @@ import { runInvocation, type Env } from './queue-consumer.ts'
  * subscription's line items; the starter bills exactly one (the seat price),
  * so the policy reads only its first entry.
  */
-export const StripeEventBody = Schema.Struct({
+const StripeEventBody = Schema.Struct({
   // Keep Stripe's delivery identity and provider timestamp at the boundary.
   // They are required for idempotent processing and for operators to join a
   // durable provider-event row back to Stripe's dashboard.
@@ -187,14 +185,7 @@ export async function handleStripeRequest(
     const billingService = yield* Billing
     yield* billingService.recordProviderEvent(input)
     yield* publishProviderEvent(billingQueue, input)
-  }).pipe(
-    Effect.provide(
-      selectCapabilitiesLayer({
-        ...starterEnv(env),
-        billing
-      })
-    )
-  )
+  }).pipe(Effect.provide(selectCapabilitiesLayer(billingCapabilitiesEnv(env, billing))))
   return runInvocation(
     env,
     withTriggerScope(

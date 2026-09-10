@@ -6,10 +6,14 @@ export type Locale = (typeof LOCALES)[number]
 
 export const DEFAULT_LOCALE: Locale = 'en'
 
+// Typed `unknown` so the membership test needs no string guard, and derived
+// from LOCALES so adding a locale cannot leave the parser behind.
+const LOCALE_VALUES: ReadonlySet<unknown> = new Set<unknown>(LOCALES)
+
 /** True when a value is one of the locales supported by the starter. */
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- this is the parser at the untrusted input boundary
 export function isLocale(value: unknown): value is Locale {
-  return value === 'en' || value === 'nb'
+  return LOCALE_VALUES.has(value)
 }
 
 /** The BCP 47 tag used by Intl for a starter locale. */

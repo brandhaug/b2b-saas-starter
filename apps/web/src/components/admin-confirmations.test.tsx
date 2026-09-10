@@ -40,8 +40,8 @@ describe('admin confirmations', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Ban dev@starter.local' }))
     fireEvent.click(screen.getByRole('button', { name: /^Ban$/ }))
 
-    expect(await screen.findByText('Ban failed')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Cancel' })).toBeTruthy()
+    expect(await screen.findByText('Ban failed')).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Cancel' })).not.toBeNull()
   })
 
   it('closes the ban confirmation after a successful request', async () => {
@@ -65,8 +65,8 @@ describe('admin confirmations', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: /^Impersonate$/ }))
 
-    expect(await screen.findByText('Impersonation failed')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Cancel' })).toBeTruthy()
+    expect(await screen.findByText('Impersonation failed')).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Cancel' })).not.toBeNull()
   })
 
   it('navigates away after a successful impersonation request', async () => {

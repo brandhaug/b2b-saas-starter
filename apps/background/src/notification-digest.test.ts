@@ -81,6 +81,8 @@ describe('buildDigests', () => {
 describe('runNotificationDigest', () => {
   /** The frozen "now" the cron would fire at: 08:00 UTC. */
   const FROZEN_NOW = Date.UTC(2026, 8, 3, 8, 0, 0)
+  /** The window end the scheduled handler passes for that tick. */
+  const WINDOW_END = '2026-09-03T08:00:00.000Z'
 
   function stubFeed(
     seen: Array<DigestWindow>,
@@ -93,7 +95,7 @@ describe('runNotificationDigest', () => {
       markRead: () => Effect.die('unused in digest tests'),
       notifyUser: () => Effect.die('unused in digest tests'),
       prepareWorkspaceOwners: () =>
-        Effect.succeed({ writes: [], publish: Effect.void }),
+        Effect.succeed({ writes: [], commit: Effect.void, publish: Effect.void }),
       notifyWorkspaceOwners: () => Effect.die('unused in digest tests'),
       create: () => Effect.die('unused in digest tests'),
       loadForEmail: () => Effect.die('unused in digest tests'),
@@ -183,9 +185,9 @@ describe('runNotificationDigest', () => {
       ]
       return Effect.gen(function* () {
         yield* TestClock.setTime(FROZEN_NOW)
-        const first = yield* runNotificationDigest('https://app.test')
+        const first = yield* runNotificationDigest('https://app.test', WINDOW_END)
         suspended = false
-        const second = yield* runNotificationDigest('https://app.test')
+        const second = yield* runNotificationDigest('https://app.test', WINDOW_END)
         expect(first.sent).toBe(0)
         expect(second.sent).toBe(0)
       }).pipe(
@@ -215,7 +217,7 @@ describe('runNotificationDigest', () => {
         candidate(owner, 'sec', 'api_token.created', '2026-09-03T01:00:00.000Z')
       ]
       const summary = yield* Effect.scoped(
-        runNotificationDigest('https://app.test').pipe(
+        runNotificationDigest('https://app.test', WINDOW_END).pipe(
           Effect.provide(layersFor(stubFeed(seen, rows), stubDispatcher(sent)))
         )
       )
@@ -253,7 +255,7 @@ describe('runNotificationDigest', () => {
       yield* TestClock.setTime(FROZEN_NOW)
       const sent: Array<EmailMessage> = []
       const summary = yield* Effect.scoped(
-        runNotificationDigest('https://app.test').pipe(
+        runNotificationDigest('https://app.test', WINDOW_END).pipe(
           Effect.provide(
             layersFor(
               stubFeed(
@@ -284,8 +286,8 @@ describe('runNotificationDigest', () => {
     return Effect.scoped(
       Effect.gen(function* () {
         yield* TestClock.setTime(FROZEN_NOW)
-        const first = yield* runNotificationDigest('https://app.test')
-        const second = yield* runNotificationDigest('https://app.test')
+        const first = yield* runNotificationDigest('https://app.test', WINDOW_END)
+        const second = yield* runNotificationDigest('https://app.test', WINDOW_END)
         expect(first).toMatchObject({ sent: 1, failed: 0 })
         expect(second).toMatchObject({ sent: 0, failed: 0 })
         expect(sent).toHaveLength(1)
@@ -325,9 +327,9 @@ describe('runNotificationDigest', () => {
     return Effect.scoped(
       Effect.gen(function* () {
         yield* TestClock.setTime(FROZEN_NOW)
-        const first = yield* runNotificationDigest('https://app.test')
+        const first = yield* runNotificationDigest('https://app.test', WINDOW_END)
         yield* TestClock.adjust(Duration.minutes(3))
-        const second = yield* runNotificationDigest('https://app.test')
+        const second = yield* runNotificationDigest('https://app.test', WINDOW_END)
         expect(first).toMatchObject({ sent: 0, failed: 1 })
         expect(second).toMatchObject({ sent: 1, failed: 0 })
         expect(attempts).toBe(2)

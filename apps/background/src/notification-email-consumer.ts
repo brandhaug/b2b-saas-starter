@@ -20,6 +20,7 @@ import { Effect, Layer, type Scope } from 'effect'
 
 import { appUrlFrom, openUrlFor, preferencesUrl } from './notification-links.ts'
 import {
+  annotateMalformed,
   consumerInvocation,
   type DeliveryOutcome,
   type Env,
@@ -51,10 +52,7 @@ export function processNotificationEmailMessage(
 > {
   return Effect.gen(function* () {
     if (delivery.kind === 'malformed') {
-      yield* Effect.annotateLogsScoped({
-        outcome: 'skipped',
-        skipReason: 'malformed_message'
-      })
+      yield* annotateMalformed('skipped')
       return ack
     }
     const { notificationId, recipientUserId } = delivery.message

@@ -7,7 +7,7 @@ import { type WebhookQueueBinding } from '@b2b-saas-starter/capabilities/develop
 import { type SendEmailBinding } from '@b2b-saas-starter/email'
 import { type ServerEnv } from '@b2b-saas-starter/env/server'
 import { type BackgroundBindingName } from '@b2b-saas-starter/infra'
-import { describe, expect, it } from 'vite-plus/test'
+import { describe, expectTypeOf, it } from 'vite-plus/test'
 import { type Env } from './queue-consumer.ts'
 
 /**
@@ -25,7 +25,7 @@ import { type Env } from './queue-consumer.ts'
 
 // The pre-parity hand-written env shape, re-spelled here as the oracle:
 // `Env` must keep matching it key for key and type for type.
-type HandWrittenEnv = Partial<Omit<ServerEnv, 'WORKSPACE_EXPORT_BUCKET'>> & {
+type HandWrittenEnv = Partial<ServerEnv> & {
   readonly DB?: D1Database
   readonly WEBHOOK_QUEUE?: WebhookQueueBinding
   readonly WORKSPACE_EXPORT_QUEUE?: WorkspaceExportQueueBinding
@@ -34,31 +34,27 @@ type HandWrittenEnv = Partial<Omit<ServerEnv, 'WORKSPACE_EXPORT_BUCKET'>> & {
   readonly EMAIL?: SendEmailBinding
 }
 
+/** The binding names the deploy binds, re-spelled here as the oracle. */
+type DeclaredBindingName =
+  | 'DB'
+  | 'WEBHOOK_QUEUE'
+  | 'BILLING_QUEUE'
+  | 'WORKSPACE_EXPORT_QUEUE'
+  | 'WORKSPACE_EXPORT_BUCKET'
+  | 'NOTIFICATION_EMAIL_QUEUE'
+  | 'EMAIL'
+
 describe('background Env binding parity', () => {
+  // Type-level, not runtime: nothing here can be observed at runtime, so the
+  // assertions are the ones `tsc` checks. A row dropped, renamed or added in
+  // `infra/bindings.ts` fails the first; a mistyped binding row in
+  // `queue-consumer.ts` fails the second, in whichever direction drifted.
   it('derives exactly the binding names the deploy binds', () => {
-    // Every literal must be a member of the infra-derived union: drop or
-    // rename a row in `infra/bindings.ts` and this array stops compiling.
-    const names: ReadonlyArray<BackgroundBindingName> = [
-      'DB',
-      'WEBHOOK_QUEUE',
-      'WORKSPACE_EXPORT_QUEUE',
-      'WORKSPACE_EXPORT_BUCKET',
-      'NOTIFICATION_EMAIL_QUEUE',
-      'EMAIL'
-    ]
-    expect(new Set(names).size).toBe(names.length)
+    expectTypeOf<BackgroundBindingName>().toEqualTypeOf<DeclaredBindingName>()
   })
 
   it('satisfies the hand-written env shape it replaced, both directions', () => {
-    // Each declaration typechecks only while its parameter env is assignable
-    // to the other shape — a mistyped binding row in `queue-consumer.ts`
-    // fails here.
-    function handWrittenIntoModern(env: HandWrittenEnv): Env {
-      return env
-    }
-    function modernIntoHandWritten(env: Env): HandWrittenEnv {
-      return env
-    }
-    expect([handWrittenIntoModern, modernIntoHandWritten]).toHaveLength(2)
+    expectTypeOf<HandWrittenEnv>().toExtend<Env>()
+    expectTypeOf<Env>().toExtend<HandWrittenEnv>()
   })
 })

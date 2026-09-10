@@ -1,5 +1,11 @@
-import { ApiTokenCreatedEmail } from '../notification-templates.tsx'
+import {
+  notificationEmailFor,
+  NOTIFICATION_PREVIEW_PROPS
+} from '../notification-emails.ts'
 
 export default function Preview() {
-  return <ApiTokenCreatedEmail {...ApiTokenCreatedEmail.PreviewProps} />
+  return notificationEmailFor(
+    'api_token.created',
+    NOTIFICATION_PREVIEW_PROPS['api_token.created']
+  )
 }

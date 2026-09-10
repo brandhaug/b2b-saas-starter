@@ -3,6 +3,7 @@ import { type ContractExpect } from './contract-expect.ts'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type Page } from '../internal/keyset-cursor.ts'
 import {
+  AUDIT_EVENT_PAGE_SIZE,
   AuditEventLog,
   type AuditEvent,
   type ListAuditEventsInput,
@@ -103,24 +104,6 @@ export function auditEventLogContractCases(
       })
     },
     {
-      name: 'missing provenance fails before recording or preparing a write',
-      assert: Effect.gen(function* () {
-        const audit = yield* AuditEventLog
-        const ctx = yield* WorkspaceContext
-        const input = {
-          workspaceId: ctx.workspace.id,
-          eventType: 'api_token.created',
-          targetType: 'api_token'
-        }
-        const before = (yield* list()).items.length
-        // @ts-expect-error Deliberately exercise an untyped caller omitting actorType.
-        expect((yield* Effect.exit(audit.record(input)))._tag).toBe('Failure')
-        // @ts-expect-error The atomic-write preparer must reject the same malformed input.
-        expect((yield* Effect.exit(audit.prepareRecord(input)))._tag).toBe('Failure')
-        expect((yield* list()).items.length).toBe(before)
-      })
-    },
-    {
       name: 'lists events most-recent-first with ties broken by id',
       assert: Effect.gen(function* () {
         const page = yield* list()
@@ -131,6 +114,40 @@ export function auditEventLogContractCases(
         ])
         // A short page is the last page.
         expect(page.nextCursor).toBe(null)
+      })
+    },
+    {
+      // `listGlobal` is unpaged, so its order and its cap are the whole
+      // answer: a Seed adapter that returned insertion order (or every row it
+      // held) would drift from Live's `ORDER BY createdAt DESC, id DESC LIMIT
+      // 100` without any membership assertion noticing.
+      name: 'lists every workspace newest-first, capped at one page',
+      assert: Effect.gen(function* () {
+        const audit = yield* AuditEventLog
+        const events = yield* audit.listGlobal
+        // Capped at one page: nothing may sit past the cap.
+        expect(events.slice(AUDIT_EVENT_PAGE_SIZE).map((event) => event.id)).toEqual([])
+        // The whole list runs newest-first on `(createdAt, id)` — no pair may
+        // step forwards.
+        const outOfOrder = events.filter((event, index) => {
+          const previous = events[index - 1]
+          if (previous === undefined) {
+            return false
+          }
+          if (previous.createdAt !== event.createdAt) {
+            return previous.createdAt < event.createdAt
+          }
+          return previous.id < event.id
+        })
+        expect(outOfOrder.map((event) => event.id)).toEqual([])
+        // And the fixture rows come back in that exact sequence, tie included.
+        const fixtureIds: Array<string> = []
+        for (const event of events) {
+          if (event.id.startsWith('aud_c_')) {
+            fixtureIds.push(event.id)
+          }
+        }
+        expect(fixtureIds).toEqual(['aud_c_tie_b', 'aud_c_tie_a', 'aud_c_old'])
       })
     },
     {

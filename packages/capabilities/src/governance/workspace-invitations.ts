@@ -181,13 +181,27 @@ export function requirePending(
   return Effect.void
 }
 
+/**
+ * The one canonical form of an invited address, applied on every write and
+ * every lookup by both adapters.
+ *
+ * An address is the invitation's identity: `requireRecipient` compares case
+ * insensitively, so `Ada@example.test` may accept an invitation addressed to
+ * `ada@example.test`. Anything that decides *whether* an address already has
+ * a pending invitation has to agree with that, or one person ends up holding
+ * two — and D1's default TEXT collation is BINARY, which does not.
+ */
+export function normalizeInvitationEmail(email: string): string {
+  return email.trim().toLowerCase()
+}
+
 export function requireRecipient(
   invitation: Invitation,
   email: string
 ): Effect.Effect<void, MembershipChangeRejected> {
   // The plugin lower-cases both sides before comparing; matching that keeps a
   // mixed-case sign-up from being refused its own invitation.
-  if (invitation.email.toLowerCase() !== email.toLowerCase()) {
+  if (normalizeInvitationEmail(invitation.email) !== normalizeInvitationEmail(email)) {
     return Effect.fail(new MembershipChangeRejected({ reason: 'not_the_recipient' }))
   }
   return Effect.void

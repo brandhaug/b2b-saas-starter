@@ -1,4 +1,3 @@
-import { backoffSeconds } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { type WebhookQueueMessage } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
 import {
   webhookDeadLetterQueueName,
@@ -156,19 +155,20 @@ function seedEndpoint(): Promise<void> {
 
 /**
  * The retry delay the batch loop handed the queue, read off the row the
- * attempt wrote: `next_attempt_at` derives from the same `backoffSeconds`
- * `message.retry` was called with, so it lands one backoff away from now.
- * (`getQueueResult` does not surface the per-message delay itself.)
+ * attempt wrote: `next_attempt_at` lands one backoff away from now, and the
+ * expected delay is spelled by the caller rather than recomputed from the
+ * production ladder. (`getQueueResult` does not surface the per-message delay
+ * itself.)
  */
 function assertBackoffAligned(
   attempt: PoolRow | null,
-  attempts: number
+  expectedDelaySeconds: number
 ): Effect.Effect<void> {
   const nextAttemptAt = Date.parse(String(attempt?.next_attempt_at))
   return Effect.gen(function* () {
     const now = DateTime.toEpochMillis(yield* DateTime.now)
-    expect(nextAttemptAt).toBeGreaterThan(now + (backoffSeconds(attempts) - 5) * 1000)
-    expect(nextAttemptAt).toBeLessThan(now + (backoffSeconds(attempts) + 5) * 1000)
+    expect(nextAttemptAt).toBeGreaterThan(now + (expectedDelaySeconds - 5) * 1000)
+    expect(nextAttemptAt).toBeLessThan(now + (expectedDelaySeconds + 5) * 1000)
   })
 }
 
@@ -315,7 +315,8 @@ describe('webhook consumer (workers pool)', () => {
         expect(delivery?.status).toBe('failed')
         expect(delivery?.attempts).toBe(2)
         expect(delivery?.response_status).toBe(500)
-        yield* assertBackoffAligned(delivery, 2)
+        // Second attempt: 30s per attempt, so 60s.
+        yield* assertBackoffAligned(delivery, 60)
         // Retryable is not terminal: no audit event yet.
         expect(
           yield* Effect.promise(() => rows('select * from audit_events'))
@@ -341,7 +342,8 @@ describe('webhook consumer (workers pool)', () => {
         expect(delivery?.attempts).toBe(1)
         // No HTTP response happened, so none is persisted.
         expect(delivery?.response_status).toBeNull()
-        yield* assertBackoffAligned(delivery, 1)
+        // First attempt: 30s.
+        yield* assertBackoffAligned(delivery, 30)
       })
     ))
 

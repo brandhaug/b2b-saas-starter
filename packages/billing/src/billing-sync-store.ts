@@ -22,6 +22,15 @@ import {
 } from './billing.ts'
 import { type BillingStateDecision } from './billing-state.ts'
 
+/**
+ * Provider events a successful synchronization settles. A `conflict` event is
+ * deliberately absent: it is the operator's evidence that one event could not
+ * be applied, and a later unrelated commit for the same customer must not
+ * rewrite it into a reconciled success.
+ */
+// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+const SETTLED_EVENT_STATUSES = ['processing', 'failed'] as const
+
 /** The atomic storage boundary shared by webhook, queue, and scheduled work. */
 export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function* () {
   const db = yield* Database
@@ -149,9 +158,11 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
     )
     let status: 'conflict' | 'delayed' = 'delayed'
     let eventStatus: 'conflict' | 'failed' = 'failed'
+    let conflictReason: string | null = null
     if (conflict) {
       status = 'conflict'
       eventStatus = 'conflict'
+      conflictReason = reason
     }
     const statements: Array<BatchStatement> = [
       db
@@ -159,7 +170,7 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
         .set({
           status,
           failureReason: reason,
-          conflictReason: null,
+          conflictReason,
           failureCount,
           nextAttemptAt,
           unresolvedSince: sql`coalesce(${billingSynchronization.unresolvedSince}, ${now})`,
@@ -168,14 +179,6 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
         })
         .where(eq(billingSynchronization.workspaceId, lease.workspaceId))
     ]
-    if (conflict) {
-      statements.push(
-        db
-          .update(billingSynchronization)
-          .set({ conflictReason: reason })
-          .where(eq(billingSynchronization.workspaceId, lease.workspaceId))
-      )
-    }
     if (input !== undefined) {
       statements.push(
         db
@@ -348,7 +351,7 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
         .where(
           and(
             eq(billingProviderEvents.workspaceId, lease.workspaceId),
-            inArray(billingProviderEvents.status, ['processing', 'failed', 'conflict']),
+            inArray(billingProviderEvents.status, [...SETTLED_EVENT_STATUSES]),
             sql`(${billingProviderEvents.stripeCustomerId} IS NULL OR ${billingProviderEvents.stripeCustomerId} = ${next.customerId})`
           )
         )

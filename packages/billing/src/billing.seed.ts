@@ -7,10 +7,13 @@ import {
 import { lifecycleNotices } from './billing-notices.ts'
 import { DateTime, Effect, Layer, Ref, Semaphore } from 'effect'
 
-import { type StripeSubscriptionResponse } from './stripe.ts'
+import {
+  isCurrentSubscriptionStatus,
+  type StripeSubscriptionResponse
+} from './stripe.ts'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 
-import { planById, PLANS } from './plan-catalog.ts'
+import { billableSeatQuantity, planById, PLANS } from './plan-catalog.ts'
 import {
   effectivePlanDecision,
   emptySubscription,
@@ -168,6 +171,24 @@ export function SeedBilling(options?: {
       const providerLock = yield* Semaphore.make(1)
       const withProviderLock = providerLock.withPermits(1)
 
+      /**
+       * Records that synchronization did not finish, keeping the last verified
+       * sync time: an unfinished pass never claims to have synced.
+       */
+      const markUnresolved = Effect.fn('Billing.markUnresolved')(function* (
+        workspaceId: string,
+        status: 'delayed' | 'conflict'
+      ) {
+        yield* Ref.update(synchronization, (map) => {
+          const next = new Map(map)
+          next.set(workspaceId, {
+            status,
+            lastSyncedAt: map.get(workspaceId)?.lastSyncedAt ?? null
+          })
+          return next
+        })
+      })
+
       const reconcileWorkspaceUnsafe = Effect.fn('Billing.reconcileWorkspaceUnsafe')(
         function* (input: ReconcileWorkspaceInput) {
           const stored = (yield* Ref.get(subscriptions)).get(input.workspaceId)
@@ -182,14 +203,7 @@ export function SeedBilling(options?: {
             } satisfies ReconcileResult
           }
           if (!configured) {
-            yield* Ref.update(synchronization, (map) => {
-              const next = new Map(map)
-              next.set(input.workspaceId, {
-                status: 'delayed',
-                lastSyncedAt: map.get(input.workspaceId)?.lastSyncedAt ?? null
-              })
-              return next
-            })
+            yield* markUnresolved(input.workspaceId, 'delayed')
             return {
               workspaceId: input.workspaceId,
               outcome: 'delayed',
@@ -197,14 +211,7 @@ export function SeedBilling(options?: {
             } satisfies ReconcileResult
           }
           if (stored !== undefined && stored.customerId !== provider.customerId) {
-            yield* Ref.update(synchronization, (map) => {
-              const next = new Map(map)
-              next.set(input.workspaceId, {
-                status: 'conflict',
-                lastSyncedAt: map.get(input.workspaceId)?.lastSyncedAt ?? null
-              })
-              return next
-            })
+            yield* markUnresolved(input.workspaceId, 'conflict')
             return {
               workspaceId: input.workspaceId,
               outcome: 'conflict',
@@ -221,10 +228,7 @@ export function SeedBilling(options?: {
             trialEnd = Date.parse(provider.trialEnd) / 1000
           }
           let providerSnapshot: ReadonlyArray<StripeSubscriptionResponse> = []
-          if (
-            provider.status !== 'canceled' &&
-            provider.status !== 'incomplete_expired'
-          ) {
+          if (isCurrentSubscriptionStatus(provider.status ?? 'active')) {
             providerSnapshot = [
               {
                 id: provider.subscriptionId ?? `seed_${input.workspaceId}`,
@@ -272,19 +276,11 @@ export function SeedBilling(options?: {
             now,
             payment: provider.payment ?? {
               lastPaymentAt: null,
-              firstFailedAt: null,
-              currentInvoicePaid: false
+              firstFailedAt: null
             }
           })
           if (decision.kind === 'conflict') {
-            yield* Ref.update(synchronization, (map) => {
-              const next = new Map(map)
-              next.set(input.workspaceId, {
-                status: 'conflict',
-                lastSyncedAt: map.get(input.workspaceId)?.lastSyncedAt ?? null
-              })
-              return next
-            })
+            yield* markUnresolved(input.workspaceId, 'conflict')
             return {
               workspaceId: input.workspaceId,
               outcome: 'conflict',
@@ -294,7 +290,7 @@ export function SeedBilling(options?: {
           const providerPlan = planById(decision.planId)
           let desiredQuantity = decision.subscription.seatQuantity
           if (decision.subscription.subscriptionItemId !== null) {
-            desiredQuantity = yield* memberCount
+            desiredQuantity = billableSeatQuantity(yield* memberCount)
           }
           const planChanged = currentPlanId !== decision.planId
           const quantityChanged = stored?.seatQuantity !== desiredQuantity
@@ -654,8 +650,7 @@ export function SeedBilling(options?: {
                   existingSubscription?.subscriptionId !== null &&
                   existingSubscription !== undefined &&
                   provider !== undefined &&
-                  provider.status !== 'canceled' &&
-                  provider.status !== 'incomplete_expired'
+                  isCurrentSubscriptionStatus(provider.status ?? 'active')
                 ) {
                   yield* audit.record({
                     workspaceId: ctx.workspace.id,
@@ -684,7 +679,7 @@ export function SeedBilling(options?: {
                 }
                 let quantity = 1
                 if (planById(input.planId).pricing === 'per_seat') {
-                  quantity = yield* memberCount
+                  quantity = billableSeatQuantity(yield* memberCount)
                 }
                 const claim: CheckoutClaim = {
                   planId: input.planId,
@@ -758,7 +753,7 @@ export function SeedBilling(options?: {
                 // Workspace state is checked before the provider gate, so a
                 // workspace that never checked out answers `no_subscription`
                 // whether or not Stripe is configured on this deployment.
-                const members = yield* memberCount
+                const members = billableSeatQuantity(yield* memberCount)
                 const current = (yield* Ref.get(subscriptions)).get(input.workspaceId)
                 if (current === undefined) {
                   return {
@@ -810,14 +805,7 @@ export function SeedBilling(options?: {
                   } satisfies SeatSyncResult
                 }
                 if (!configured) {
-                  yield* Ref.update(synchronization, (map) => {
-                    const nextMap = new Map(map)
-                    nextMap.set(input.workspaceId, {
-                      status: 'delayed',
-                      lastSyncedAt: map.get(input.workspaceId)?.lastSyncedAt ?? null
-                    })
-                    return nextMap
-                  })
+                  yield* markUnresolved(input.workspaceId, 'delayed')
                   return {
                     outcome: 'provider_not_configured',
                     quantity: null

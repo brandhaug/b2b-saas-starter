@@ -9,7 +9,7 @@ import {
   createMiddleware,
   createStart
 } from '@tanstack/react-start'
-import { runWebRequestScope } from '@/lib/observability'
+import { runWebRequestScope, webRuntime } from '@/lib/observability'
 import { enforceRequiredEnvOnce } from '@/lib/server/env-gate'
 import { maintenanceResponse } from '@/lib/maintenance'
 import { env as cloudflareEnv } from 'cloudflare:workers'
@@ -53,7 +53,11 @@ const configGateMiddleware = createMiddleware({ type: 'request' }).server(
 const maintenanceMiddleware = createMiddleware({ type: 'request' }).server(
   ({ request, next }) => {
     if (new URL(request.url).pathname === '/ready') {
-      return Effect.runPromise(
+      // The probe runs on the app's runtime like every other server-side
+      // effect (ADR 0050): a bare `Effect.runPromise` would build and tear
+      // down its own, so the readiness check would be the one request whose
+      // failures never reach the loggers.
+      return webRuntime.runPromise(
         databaseIsReady(cloudflareEnv.DB).pipe(
           Effect.map((available) => {
             const ready =

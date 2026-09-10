@@ -1,16 +1,9 @@
 import { type ReactNode, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { BellIcon, MenuIcon } from 'lucide-react'
+import { BellIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetTrigger
-} from '@/components/ui/sheet'
+import { MobileNavSheet } from '@/components/mobile-nav-sheet'
 import { WorkspaceNav } from '@/components/workspace-nav'
 import { CommandPaletteProvider, SearchButton } from '@/components/command-palette'
 import { LanguageSwitcher } from '@/components/language-switcher'
@@ -43,40 +36,12 @@ export function PreviewShell({
         </aside>
         <div className="min-w-0">
           <header className="flex min-h-16 items-center gap-4 border-b border-border px-4 sm:px-6">
-            <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-              <SheetTrigger
-                render={
-                  <Button variant="ghost" size="icon" className="lg:hidden">
-                    <MenuIcon className="size-5" />
-                    <span className="sr-only">{m.common_open_navigation()}</span>
-                  </Button>
-                }
-              />
-              <SheetContent
-                side="left"
-                className="flex min-h-0 flex-col gap-0 overflow-hidden bg-sidebar text-sidebar-foreground border-sidebar-border"
-              >
-                <SheetHeader>
-                  <SheetTitle className="sr-only">
-                    {m.common_workspace_navigation()}
-                  </SheetTitle>
-                  <SheetDescription className="sr-only">
-                    {m.switch_workspace_sections()}
-                  </SheetDescription>
-                </SheetHeader>
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4">
-                  <WorkspaceNav
-                    workspace={workspace}
-                    viewer={viewer}
-                    onNavigate={() => setMobileNavOpen(false)}
-                  />
-                  <div className="mt-6 grid gap-4 border-t border-sidebar-border pt-4">
-                    <SearchButton />
-                    <LanguageSwitcher />
-                  </div>
-                </div>
-              </SheetContent>
-            </Sheet>
+            <MobileNavSheet
+              open={mobileNavOpen}
+              onOpenChange={setMobileNavOpen}
+              workspace={workspace}
+              viewer={viewer}
+            />
             <Link
               to="/demo"
               className="min-w-0 flex-1 truncate text-sm font-medium hover:underline underline-offset-2"

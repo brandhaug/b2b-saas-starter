@@ -17,7 +17,7 @@ describe('mcp ↔ rest operation mirror', () => {
   it('discovery advertises exactly the shared read operations, in order', () => {
     expect(
       mcpDiscoveryDocument()
-        .tools.slice(0, 8)
+        .tools.slice(0, readOperations().length)
         .map((tool) => tool.name)
     ).toEqual(readOperations().map((op) => op.toolName))
   })

@@ -52,6 +52,21 @@ describe('starter/prefer-effect-predicate', () => {
   )
 
   rule.invalid(
+    'names the un-negated helpers for an equality predicate',
+    `
+			import { Predicate } from 'effect'
+
+			export const isAbsent = (value: string | null) => value === null
+
+			export const kept = Predicate.isNotNullable
+		`,
+    (messages) => {
+      assert.match(messages, /Predicate\.isNull or Predicate\.isNullable/)
+      assert.notMatch(messages, /isNotNull/)
+    }
+  )
+
+  rule.invalid(
     'reports an inline predicate in filter',
     `
 			import { Predicate } from 'effect'

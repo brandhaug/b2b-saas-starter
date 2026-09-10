@@ -109,7 +109,7 @@ type OperationParam = {
  * `endpoint` references the contract's canonical path and schemas. The catalog
  * adds capability behavior and permission policy, not a second wire contract.
  */
-export type CollectionReadOperation = {
+type CollectionReadOperation = {
   readonly mcpTool: true
   readonly endpoint: HttpApiEndpoint.Top
   readonly permission: PermissionRequest
@@ -129,7 +129,7 @@ export type CollectionReadOperation = {
   readonly toolDescription: string
 }
 
-export type ParameterizedReadOperation<
+type ParameterizedReadOperation<
   Key extends 'endpointId' | 'deliveryId' = 'endpointId'
 > = {
   readonly input: Key
@@ -574,14 +574,21 @@ export const MUTATION_OPERATIONS = {
   }
 } satisfies Record<string, WorkspaceMutationOperation>
 
-/** The mutation rows in contract order — what the permission matrix and tests derive from. */
+/**
+ * The mutation rows in contract order. Exported for the tests only — the
+ * permission matrix and the suspension sweep enumerate every gated operation
+ * from here; the handlers reach their row through the catalog itself.
+ */
 export function mutationOperations(): ReadonlyArray<
   Omit<WorkspaceMutationOperation, 'run'>
 > {
   return Object.values(MUTATION_OPERATIONS)
 }
 
-/** `notification:read`-style label, used by the permission matrix output. */
+/**
+ * `notification:read`-style label. Exported for the tests only: the permission
+ * matrix prints it, no handler reads it.
+ */
 export function permissionLabel(permission: PermissionRequest): string {
   const entry = Object.entries(permission)[0]
   if (entry === undefined) {

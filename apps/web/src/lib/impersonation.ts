@@ -77,7 +77,7 @@ function decodeRouteContext(context: unknown): Option.Option<ImpersonatedRouteCo
 // oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, anti-slop/no-unsafe-dictionary-type
 
 /** Pure half of {@link useImpersonation}: the banner state for a decoded route context. */
-export function impersonationOf(
+function impersonationOf(
   routeContext: Option.Option<ImpersonatedRouteContext>
 ): ImpersonationState | null {
   if (

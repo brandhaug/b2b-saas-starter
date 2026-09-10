@@ -10,6 +10,10 @@ import {
   type MembershipForDeletion
 } from './account-lifecycle.ts'
 import { AuditEventLog } from './audit-event-log.ts'
+import {
+  recordSecurityEvidence,
+  type SecurityEvidenceSink
+} from './security-recovery-evidence.ts'
 import { type Workspace } from './workspace-identity.ts'
 import { type SeedRoster } from './workspace-membership.ts'
 import { WorkspaceSuspensionService } from './workspace-suspension.ts'
@@ -30,6 +34,8 @@ import { WorkspaceSuspensionService } from './workspace-suspension.ts'
 export function SeedAccountLifecycle(options: {
   readonly roster: SeedRoster
   readonly workspace: Workspace
+  /** The same optional sink the Live adapter takes; see `SeedWorkspaceMembership`. */
+  readonly securityEvidence?: SecurityEvidenceSink | undefined
 }): Layer.Layer<AccountLifecycle, never, AuditEventLog | WorkspaceSuspensionService> {
   return Layer.effect(AccountLifecycle)(
     Effect.gen(function* () {
@@ -77,24 +83,39 @@ export function SeedAccountLifecycle(options: {
           )
         }
         for (const step of plan.steps) {
+          const stepWorkspaceId = step.workspace.id
           if (step.action === 'delete_workspace') {
-            yield* Ref.update(deletedWorkspaces, (ids) => [...ids, step.workspace.id])
+            yield* Ref.update(deletedWorkspaces, (ids) => [...ids, stepWorkspaceId])
             yield* Ref.set(options.roster, [])
+            yield* recordSecurityEvidence(
+              { kind: 'workspace_deleted', subjectId: stepWorkspaceId },
+              options.securityEvidence,
+              'seed'
+            )
             yield* audit.record({
               workspaceId: null,
               actorUserId: userId,
               actorType: 'user',
               eventType: 'workspace.deleted',
               targetType: 'workspace',
-              targetId: step.workspace.id,
+              targetId: stepWorkspaceId,
               metadata: {}
             })
           } else {
             yield* Ref.update(options.roster, (members) =>
               members.filter((candidate) => candidate.id !== userId)
             )
+            yield* recordSecurityEvidence(
+              {
+                kind: 'workspace_access_removed',
+                subjectId: userId,
+                workspaceId: stepWorkspaceId
+              },
+              options.securityEvidence,
+              'seed'
+            )
             yield* audit.record({
-              workspaceId: step.workspace.id,
+              workspaceId: stepWorkspaceId,
               actorUserId: userId,
               actorType: 'user',
               eventType: 'workspace_member.removed',
@@ -111,15 +132,22 @@ export function SeedAccountLifecycle(options: {
         readonly userId: string
         readonly plan: AccountDeletionPlan
       }) {
-        return audit.record({
-          workspaceId: null,
-          actorUserId: null,
-          actorType: 'user',
-          eventType: 'account.deleted',
-          targetType: 'user',
-          targetId: input.userId,
-          metadata: deletionMetadata(input.plan)
-        })
+        return Effect.andThen(
+          recordSecurityEvidence(
+            { kind: 'account_deleted', subjectId: input.userId },
+            options.securityEvidence,
+            'seed'
+          ),
+          audit.record({
+            workspaceId: null,
+            actorUserId: null,
+            actorType: 'user',
+            eventType: 'account.deleted',
+            targetType: 'user',
+            targetId: input.userId,
+            metadata: deletionMetadata(input.plan)
+          })
+        )
       }
 
       return {

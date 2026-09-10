@@ -2,6 +2,11 @@ import { Effect, Layer } from 'effect'
 
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import {
+  recordSecurityEvidence,
+  type SecurityEvidenceSink
+} from '../governance/security-recovery-evidence.ts'
+import { demoUserIdentity } from '../seed-fixture.ts'
+import {
   consentGrantedAuditEvent,
   consentRevokedAuditEvent,
   McpClientConnections,
@@ -10,24 +15,62 @@ import {
 } from './mcp-client-connections.ts'
 
 /**
+ * A fixture client, plus the registration column the wire shape does not
+ * carry: Live's `getGrant` joins `oauth_client` and refuses a grant whose
+ * client has been disabled, so the fixture has to be able to say that too.
+ */
+export type SeedMcpClient = McpClientSummary & {
+  /** Defaults to an enabled registration, which is what a fixture usually means. */
+  readonly disabled?: boolean
+}
+
+/**
+ * A fixture consent, plus the storage column the wire shape does not carry.
+ * Live's grant binding is `<consentId>:<grantVersion>`; the version is what a
+ * re-consent bumps, so a fixture that pinned it to `0` would let a stale
+ * binding keep passing.
+ */
+export type SeedMcpConnection = McpClientConnection & {
+  /** Defaults to `0`, the version a never-re-consented grant carries. */
+  readonly grantVersion?: number
+}
+
+/**
  * In-memory adapter: the fixture connections, mutable so a revoke disappears
  * from the next list and cannot be revoked twice, mirroring Live's
  * post-conditions. Audit events land in the shared fixture log.
  */
-export function SeedMcpClientConnections(seed: {
-  readonly clients: ReadonlyArray<McpClientSummary>
-  readonly connections: ReadonlyArray<McpClientConnection>
-}): Layer.Layer<McpClientConnections, never, AuditEventLog> {
+export function SeedMcpClientConnections(
+  seed: {
+    readonly clients: ReadonlyArray<SeedMcpClient>
+    readonly connections: ReadonlyArray<SeedMcpConnection>
+  },
+  /** The same optional sink the Live adapter takes; see `SeedWorkspaceMembership`. */
+  securityEvidence?: SecurityEvidenceSink
+): Layer.Layer<McpClientConnections, never, AuditEventLog> {
   return Layer.effect(McpClientConnections)(
     Effect.gen(function* () {
       const audit = yield* AuditEventLog
-      const connections: Array<McpClientConnection & { readonly userId: string }> =
-        seed.connections.map((connection) => ({
-          ...connection,
-          // Every fixture consent belongs to the demo user: the account page is
-          // signed in as them in local development.
-          userId: 'usr_demo'
-        }))
+      const connections: Array<
+        McpClientConnection & {
+          readonly userId: string
+          readonly grantVersion: number
+        }
+      > = seed.connections.map((connection) => ({
+        ...connection,
+        // Every fixture consent belongs to the demo owner: the account page is
+        // signed in as them in local development. Named from the fixture
+        // module that owns the demo identity, never spelled out here.
+        userId: demoUserIdentity.id,
+        grantVersion: connection.grantVersion ?? 0
+      }))
+
+      /** Live joins `oauth_client`; here the fixture's own client list is the join. */
+      function isDisabled(clientId: string): boolean {
+        return seed.clients.some(
+          (client) => client.clientId === clientId && client.disabled === true
+        )
+      }
 
       return {
         getGrant: Effect.fn('McpClientConnections.getGrant')((input) =>
@@ -38,10 +81,15 @@ export function SeedMcpClientConnections(seed: {
                 connection.client.clientId === input.clientId &&
                 connection.workspace?.id === input.workspaceId
             )
-            if (!grant) {
+            // Same two refusals as Live: no grant, or a grant whose client
+            // registration has been disabled since it was made.
+            if (!grant || isDisabled(grant.client.clientId)) {
               return null
             }
-            return { binding: `${grant.id}:0`, scopes: grant.scopes }
+            return {
+              binding: `${grant.id}:${String(grant.grantVersion)}`,
+              scopes: grant.scopes
+            }
           })
         ),
         describeClient: (clientId) =>
@@ -88,6 +136,15 @@ export function SeedMcpClientConnections(seed: {
               return false
             }
             connections.splice(index, 1)
+            yield* recordSecurityEvidence(
+              {
+                kind: 'oauth_grant_revoked',
+                subjectId: connection.id,
+                workspaceId: connection.workspace?.id ?? undefined
+              },
+              securityEvidence,
+              'seed'
+            )
             yield* audit.record(
               consentRevokedAuditEvent({
                 userId: input.userId,

@@ -79,15 +79,15 @@ describe('WebhooksPanel', () => {
 
   it('offers the create form and the row controls to a role that holds them', async () => {
     await renderPanel({ role: 'owner' })
-    expect(screen.getByRole('button', { name: 'Disable' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Rotate secret' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Disable' })).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Rotate secret' })).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Register an endpoint' }))
-    expect(screen.getByLabelText('Endpoint URL')).toBeTruthy()
+    expect(screen.getByLabelText('Endpoint URL')).not.toBeNull()
   })
 
   it('replaces the form with its reason for a role that cannot register', async () => {
     await renderPanel({ role: 'member' })
-    expect(screen.getByText('Your role cannot register endpoints.')).toBeTruthy()
+    expect(screen.getByText('Your role cannot register endpoints.')).not.toBeNull()
     expect(screen.queryByLabelText('Endpoint URL')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Disable' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Rotate secret' })).toBeNull()
@@ -95,12 +95,12 @@ describe('WebhooksPanel', () => {
 
   it('shows the empty state with no endpoints', async () => {
     await renderPanel({ role: 'owner', endpoints: [] })
-    expect(screen.getByText('No endpoints registered')).toBeTruthy()
+    expect(screen.getByText('No endpoints registered')).not.toBeNull()
   })
 
   it('renders the delivery timestamp in UTC', async () => {
     await renderPanel({ role: 'owner' })
-    expect(screen.getByText(/5\/16\/2026, 9:00:00 AM/)).toBeTruthy()
+    expect(screen.getByText(/5\/16\/2026, 9:00:00 AM/)).not.toBeNull()
   })
 
   it('reveals the rotated secret once', async () => {
@@ -118,7 +118,7 @@ describe('WebhooksPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Disable' }))
     fireEvent.click(screen.getByRole('button', { name: 'Confirm disable' }))
     await waitFor(() => {
-      expect(screen.getByText('Could not disable endpoint.')).toBeTruthy()
+      expect(screen.getByText('Could not disable endpoint.')).not.toBeNull()
     })
     // The failure renders inside the endpoint's row, not at the panel foot.
     const row = screen
@@ -140,7 +140,7 @@ describe('WebhookDeliveriesDrawer', () => {
     await screen.findByRole('dialog')
     // The timeline lists both attempts with the recorded response status...
     expect(screen.getAllByText('failed').length).toBeGreaterThan(0)
-    expect(screen.getByText('HTTP 500')).toBeTruthy()
+    expect(screen.getByText('HTTP 500')).not.toBeNull()
     // ...and the recorded evidence for the failed row.
     expect(screen.queryByText('upstream connect error')).toBeNull()
     expect(

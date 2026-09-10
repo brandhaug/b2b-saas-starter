@@ -3,7 +3,11 @@ import '@/test/qualified-session'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 
 import { fixtureSession } from '@/test/fixture-session'
-import { loadWorkspaceAuditEventsHandler } from './workspace-audit.effects'
+import {
+  loadWorkspaceAuditEventsHandler,
+  zonedDayBoundary
+} from './workspace-audit.effects'
+import { withPresentation } from './i18n-context'
 import { type WorkspaceAuditFilters } from './workspace-audit'
 import type * as AuthModule from './auth'
 
@@ -16,10 +20,14 @@ import type * as AuthModule from './auth'
  */
 const actor = vi.hoisted(() => ({ userId: 'usr_demo' }))
 
-vi.mock('./auth', async (importOriginal) => ({
-  ...(await importOriginal<typeof AuthModule>()),
-  requireRequestSession: async () => fixtureSession(actor)
-}))
+vi.mock('./auth', async (importOriginal) => {
+  const { Effect } = await import('effect')
+  return {
+    ...(await importOriginal<typeof AuthModule>()),
+    requireRequestSession: async () => fixtureSession(actor),
+    requireRequestSessionEffect: () => Effect.succeed(fixtureSession(actor))
+  }
+})
 
 function load(overrides?: {
   readonly filters?: WorkspaceAuditFilters
@@ -137,5 +145,64 @@ describe('loadWorkspaceAuditEventsHandler', () => {
     expect(payload.filters.until).toBe('2026-05-31')
     // The fixture's token event falls inside May 2026.
     expect(payload.events.map((event) => event.id)).toContain('aud_token')
+  })
+
+  it('reads a day filter as the account zone, not as UTC', async () => {
+    // `aud_token` is 2026-05-14T08:20Z, which is the 13th at 22:20 in
+    // Honolulu. Widening to UTC bounds would drop it from the day the page
+    // renders it on.
+    const payload = await withPresentation(
+      { timeZone: 'Pacific/Honolulu', authenticated: true, needsTimeZone: false },
+      () => load({ filters: { since: '2026-05-13', until: '2026-05-13' } })
+    )
+    expect(payload.events.map((event) => event.id)).toContain('aud_token')
+  })
+
+  it('keeps the same event on its Oslo day', async () => {
+    const payload = await withPresentation(
+      { timeZone: 'Europe/Oslo', authenticated: true, needsTimeZone: false },
+      () => load({ filters: { since: '2026-05-14', until: '2026-05-14' } })
+    )
+    expect(payload.events.map((event) => event.id)).toContain('aud_token')
+  })
+})
+
+/**
+ * The wire contract is instants, the controls speak calendar days, and the
+ * page renders in the request's presentation zone. The boundary conversion is
+ * where those three meet.
+ */
+describe('zonedDayBoundary', () => {
+  it('widens a day to the zone offset in force that day', () => {
+    expect(zonedDayBoundary('2026-05-14', 'start', 'Europe/Oslo')).toBe(
+      '2026-05-13T22:00:00.000Z'
+    )
+    expect(zonedDayBoundary('2026-05-14', 'end', 'Europe/Oslo')).toBe(
+      '2026-05-14T21:59:59.999Z'
+    )
+    // Winter is one hour east of summer in the same zone.
+    expect(zonedDayBoundary('2026-01-14', 'start', 'Europe/Oslo')).toBe(
+      '2026-01-13T23:00:00.000Z'
+    )
+    expect(zonedDayBoundary('2026-05-14', 'start', 'UTC')).toBe(
+      '2026-05-14T00:00:00.000Z'
+    )
+  })
+
+  it('settles a day that contains a DST transition', () => {
+    // Oslo springs forward on 2026-03-29 and falls back on 2026-10-25, so
+    // each of those days starts and ends at a different offset.
+    expect(zonedDayBoundary('2026-03-29', 'start', 'Europe/Oslo')).toBe(
+      '2026-03-28T23:00:00.000Z'
+    )
+    expect(zonedDayBoundary('2026-03-29', 'end', 'Europe/Oslo')).toBe(
+      '2026-03-29T21:59:59.999Z'
+    )
+    expect(zonedDayBoundary('2026-10-25', 'start', 'Europe/Oslo')).toBe(
+      '2026-10-24T22:00:00.000Z'
+    )
+    expect(zonedDayBoundary('2026-10-25', 'end', 'Europe/Oslo')).toBe(
+      '2026-10-25T22:59:59.999Z'
+    )
   })
 })

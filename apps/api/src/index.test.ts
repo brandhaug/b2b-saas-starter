@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from '@effect/vitest'
 import { DateTime, Effect, Schema } from 'effect'
 import { type ApiEnv } from './env.ts'
 import { buildWebHandler } from './http.ts'
+import { jsonBody } from './test-utils.ts'
 
 // Response bodies are decoded at the boundary rather than cast: a contract
 // shape change fails the decode, which is exactly what these tests assert.
@@ -105,12 +106,6 @@ function post(
 /** Drives the worker's web handler; the fetch boundary is the promise edge. */
 function send(request: Request, env: ApiEnv = {}): Effect.Effect<Response> {
   return Effect.promise(() => handlerFor(env)(request))
-}
-
-function jsonBody<S extends Schema.Top>(response: Response, schema: S) {
-  return Effect.promise(() => response.json()).pipe(
-    Effect.flatMap((body) => Schema.decodeUnknownEffect(schema)(body))
-  )
 }
 
 describe('contract-served routes', () => {
@@ -693,8 +688,9 @@ describe('workspace exports (ADR 0055)', () => {
         const res = yield* send(post('/workspaces/starter-lab/exports', {}, bearer))
         expect(res.status).toBe(202)
         const body = yield* jsonBody(res, ExportBody)
-        // The Seed adapter has no queue: the row lands ready inline.
-        expect(body.status).toBe('ready')
+        // 202 with a `pending` row: the request commits the row and leaves the
+        // archive to the background worker, the Seed adapter included.
+        expect(body.status).toBe('pending')
       })
   )
 

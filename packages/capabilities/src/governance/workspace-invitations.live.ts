@@ -1,7 +1,7 @@
 import { Database, type EffectDatabase } from '@b2b-saas-starter/db/service'
 import { workspaceInvitations, workspaces } from '@b2b-saas-starter/db/schema'
 import { Effect, Layer, Option } from 'effect'
-import { and, eq } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 
 import { MembershipChangeRejected } from '../errors.ts'
 import { orUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -17,6 +17,7 @@ import {
 } from './audit-event-log.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
 import {
+  normalizeInvitationEmail,
   requirePending,
   requireRecipient,
   requireUnexpired,
@@ -141,6 +142,14 @@ export function LiveWorkspaceInvitations(
               .select()
               .from(workspaceInvitations)
               .where(eq(workspaceInvitations.workspaceId, ctx.workspace.id))
+              // Newest first, as the interface promises. `id` breaks
+              // `createdAt` ties (the plugin stamps whole seconds, so a burst
+              // of invitations shares one) — without it SQLite's row order is
+              // whatever the scan produced and the Seed adapter cannot match.
+              .orderBy(
+                desc(workspaceInvitations.createdAt),
+                desc(workspaceInvitations.id)
+              )
           )
           return rows.map(toInvitation)
         })(),
@@ -160,21 +169,36 @@ export function LiveWorkspaceInvitations(
           input: CreateInvitationInput
         ) {
           const ctx = yield* WorkspaceContext
+          // Canonical on the way in, so the row the plugin writes is the one
+          // `pendingByEmail` and `requireRecipient` will both recognise.
+          const email = normalizeInvitationEmail(input.email)
+          // One pending invitation per address, refused here with the machine
+          // reason both adapters share. The plugin refuses it too, but only
+          // with message text a caller would have to match on — and the
+          // fixture adapter has no plugin to ask at all.
+          const existing = yield* unavailable(
+            pendingByEmail(db, ctx.workspace.id, email).limit(1)
+          )
+          if (existing[0]) {
+            return yield* Effect.fail(
+              new MembershipChangeRejected({ reason: 'already_invited' })
+            )
+          }
           yield* callBinding(binding, (bound) =>
             bound.create({
               workspaceId: ctx.workspace.id,
-              email: input.email,
+              email,
               role: input.role
             })
           )
-          const created = yield* readPending(ctx.workspace.id, input.email)
+          const created = yield* readPending(ctx.workspace.id, email)
           yield* recordCompletedMutationAudit(
             audit,
             {
               eventType: 'workspace_invitation.sent',
               targetType: 'workspace_invitation',
               targetId: created.id,
-              metadata: { email: input.email, role: input.role }
+              metadata: { email, role: input.role }
             },
             'workspace_invitations.create'
           )
@@ -256,7 +280,15 @@ export function LiveWorkspaceInvitations(
   )
 }
 
-/** The pending invitation for one address in one workspace, if there is one. */
+/**
+ * The pending invitation for one address in one workspace, if there is one.
+ *
+ * Compared in the canonical form, not with a bare `eq`: D1's default TEXT
+ * collation is BINARY, so `Ada@example.test` and `ada@example.test` are two
+ * different rows to SQLite and one and the same recipient to
+ * `requireRecipient`. `lower()` on the column is what makes the lookup agree
+ * with the acceptance rule (and with the Seed adapter).
+ */
 function pendingByEmail(db: EffectDatabase, workspaceId: string, email: string) {
   return db
     .select()
@@ -264,7 +296,7 @@ function pendingByEmail(db: EffectDatabase, workspaceId: string, email: string) 
     .where(
       and(
         eq(workspaceInvitations.workspaceId, workspaceId),
-        eq(workspaceInvitations.email, email),
+        sql`lower(${workspaceInvitations.email}) = ${normalizeInvitationEmail(email)}`,
         eq(workspaceInvitations.status, 'pending')
       )
     )

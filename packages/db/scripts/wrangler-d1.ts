@@ -113,22 +113,37 @@ const DatabasesJson = Schema.fromJsonString(
 )
 const decodeDatabases = Schema.decodeUnknownSync(DatabasesJson)
 
-type RemoteDatabase = { readonly name: string; readonly uuid: string }
-
 // The account's database list, fetched at most once per process: baseline
 // issues one execute per unrecorded migration, and re-listing the account for
 // each would only add latency. A CLI script's process is too short for the
-// cache to go stale.
-let databasesFetched: Promise<ReadonlyArray<RemoteDatabase>> | undefined
+// cache to go stale. The raw JSON is what is cached, so the one decoder below
+// stays the only reader of wrangler's shape.
+let databaseListJson: Promise<string> | undefined
 
-function fetchDatabases(): Promise<ReadonlyArray<RemoteDatabase>> {
-  databasesFetched ??= runWrangler(['list', '--json'], true).then((run) => {
+function fetchDatabaseListJson(): Promise<string> {
+  databaseListJson ??= runWrangler(['list', '--json'], true).then((run) => {
     if (!run.ok) {
       throw new Error(`wrangler d1 list failed (exit ${run.code}):\n${run.output}`)
     }
-    return decodeDatabases(run.stdout)
+    return run.stdout
   })
-  return databasesFetched
+  return databaseListJson
+}
+
+/**
+ * The uuid of one database in `wrangler d1 list --json` output, by name.
+ *
+ * Exported because `scripts/d1-backup.ts` resolves the same uuid from its own
+ * wrangler spawn (a different bin, config, and retry wrapper), and the decode,
+ * the lookup, and the "which database" error message are the part that must
+ * not drift between the two.
+ */
+export function remoteDatabaseIdFromList(listJson: string, database: string): string {
+  const found = decodeDatabases(listJson).find((entry) => entry.name === database)
+  if (found === undefined) {
+    throw new Error(`no D1 database named '${database}' exists in the account`)
+  }
+  return found.uuid
 }
 
 /**
@@ -141,12 +156,7 @@ function fetchDatabases(): Promise<ReadonlyArray<RemoteDatabase>> {
  * its local state by the binding's placeholder id and never calls the API.
  */
 async function remoteDatabaseId(database: string): Promise<string> {
-  const databases = await fetchDatabases()
-  const found = databases.find((entry) => entry.name === database)
-  if (found === undefined) {
-    throw new Error(`no D1 database named '${database}' exists in the account`)
-  }
-  return found.uuid
+  return remoteDatabaseIdFromList(await fetchDatabaseListJson(), database)
 }
 
 /**
@@ -158,6 +168,6 @@ async function remoteDatabaseId(database: string): Promise<string> {
  * `CREATE TABLE`, not silently skip schema.
  */
 export async function listRemoteDatabases(): Promise<ReadonlyArray<string>> {
-  const databases = await fetchDatabases()
+  const databases = decodeDatabases(await fetchDatabaseListJson())
   return databases.map((database) => database.name)
 }

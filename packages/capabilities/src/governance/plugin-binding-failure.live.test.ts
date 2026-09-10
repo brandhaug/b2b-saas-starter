@@ -33,7 +33,6 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           return Promise.reject(cause)
         }
         return {
-          addMember: reject,
           removeMember: reject,
           leave: reject,
           changeRole: reject
@@ -43,11 +42,11 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
       it.effect('reads a 4xx rejection as a refusal the caller must not retry', () =>
         Effect.gen(function* () {
           const error = yield* inWorkspace(
-            'live-lab',
+            'member-contract-lab',
             Effect.gen(function* () {
               const membership = yield* WorkspaceMembership
               return yield* Effect.flip(
-                membership.addMember({ userId: 'usr_joiner', role: 'member' })
+                membership.changeRole({ userId: 'usr_mover', role: 'admin' })
               )
             }),
             { userId: 'usr_owner' },
@@ -66,11 +65,11 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
       it.effect('reads a 5xx rejection as the store failing, not a refusal', () =>
         Effect.gen(function* () {
           const error = yield* inWorkspace(
-            'live-lab',
+            'member-contract-lab',
             Effect.gen(function* () {
               const membership = yield* WorkspaceMembership
               return yield* Effect.flip(
-                membership.addMember({ userId: 'usr_joiner', role: 'member' })
+                membership.changeRole({ userId: 'usr_mover', role: 'admin' })
               )
             }),
             { userId: 'usr_owner' },
@@ -94,11 +93,11 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
       it.effect('reads a rejection carrying no status as the store failing', () =>
         Effect.gen(function* () {
           const error = yield* inWorkspace(
-            'live-lab',
+            'member-contract-lab',
             Effect.gen(function* () {
               const membership = yield* WorkspaceMembership
               return yield* Effect.flip(
-                membership.addMember({ userId: 'usr_joiner', role: 'member' })
+                membership.changeRole({ userId: 'usr_mover', role: 'admin' })
               )
             }),
             { userId: 'usr_owner' },

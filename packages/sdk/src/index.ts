@@ -140,7 +140,16 @@ type MutablePageQuery = {
  * and response shapes are all derived from `StarterApi`; rejections carry
  * the contract's tagged error classes (a missing or unknown token rejects
  * with the `Unauthorized` error the contract declares, and so on).
+ *
+ * One method per contract operation, group for group: an operation the
+ * contract serves and this type omits is an operation a non-Effect caller
+ * cannot reach at all.
  */
+/** One contract operation's payload type, read off the derived client. */
+type Payload<
+  Method extends (...args: never) => Effect.Effect<unknown, unknown, unknown>
+> = Parameters<Method>[0] extends { readonly payload: infer P } ? P : never
+
 export type StarterClient = {
   readonly health: {
     readonly check: () => Promise<Success<StarterApiClient['health']['check']>>
@@ -148,17 +157,61 @@ export type StarterClient = {
   readonly apiTokens: {
     readonly create: (
       slug: string,
-      payload: Parameters<
-        StarterApiClient['api-token-registry']['create']
-      >[0]['payload']
+      payload: Payload<StarterApiClient['api-token-registry']['create']>
     ) => Promise<Success<StarterApiClient['api-token-registry']['create']>>
     readonly replace: (
       slug: string,
       tokenId: string,
-      payload: Parameters<
-        StarterApiClient['api-token-registry']['replace']
-      >[0]['payload']
+      payload: Payload<StarterApiClient['api-token-registry']['replace']>
     ) => Promise<Success<StarterApiClient['api-token-registry']['replace']>>
+    readonly delete: (
+      slug: string,
+      tokenId: string
+    ) => Promise<Success<StarterApiClient['api-token-registry']['delete']>>
+  }
+  readonly webhooks: {
+    readonly create: (
+      slug: string,
+      payload: Payload<StarterApiClient['webhook-endpoints']['create']>
+    ) => Promise<Success<StarterApiClient['webhook-endpoints']['create']>>
+    readonly update: (
+      slug: string,
+      endpointId: string,
+      payload: Payload<StarterApiClient['webhook-endpoints']['update']>
+    ) => Promise<Success<StarterApiClient['webhook-endpoints']['update']>>
+    readonly delete: (
+      slug: string,
+      endpointId: string
+    ) => Promise<Success<StarterApiClient['webhook-endpoints']['delete']>>
+    readonly rotateSecret: (
+      slug: string,
+      endpointId: string
+    ) => Promise<Success<StarterApiClient['webhook-endpoints']['rotate-secret']>>
+    readonly testEvent: (
+      slug: string,
+      endpointId: string
+    ) => Promise<Success<StarterApiClient['webhook-endpoints']['test-event']>>
+    readonly replayDelivery: (
+      slug: string,
+      deliveryId: string
+    ) => Promise<Success<StarterApiClient['webhook-endpoints']['replay-delivery']>>
+  }
+  readonly exports: {
+    readonly request: (
+      slug: string
+    ) => Promise<Success<StarterApiClient['workspace-exports']['request']>>
+    readonly downloadLink: (
+      slug: string,
+      exportId: string
+    ) => Promise<Success<StarterApiClient['workspace-exports']['download-link']>>
+  }
+  readonly assistant: {
+    readonly answer: (
+      payload: Payload<StarterApiClient['assistant']['answer']>
+    ) => Promise<Success<StarterApiClient['assistant']['answer']>>
+  }
+  readonly mcp: {
+    readonly discover: () => Promise<Success<StarterApiClient['mcp']['discover']>>
   }
   readonly workspace: {
     readonly overview: (
@@ -169,6 +222,14 @@ export type StarterClient = {
     readonly apiTokens: PagedListFn<ApiTokenItem>
     readonly webhooks: PagedListFn<WebhookEndpointItem>
     readonly auditEvents: PagedListFn<AuditEventItem>
+    readonly webhookDeliveries: (
+      slug: string,
+      endpointId: string
+    ) => Promise<Success<StarterApiClient['workspace']['webhook-deliveries']>>
+    readonly webhookDeliveryAttempts: (
+      slug: string,
+      deliveryId: string
+    ) => Promise<Success<StarterApiClient['workspace']['webhook-delivery-attempts']>>
   }
 }
 
@@ -285,7 +346,62 @@ export function createStarterClient(
       replace: (slug, tokenId, payload) =>
         run((resolved) =>
           resolved['api-token-registry'].replace({ params: { slug, tokenId }, payload })
+        ),
+      delete: (slug, tokenId) =>
+        run((resolved) =>
+          resolved['api-token-registry'].delete({ params: { slug, tokenId } })
         )
+    },
+    webhooks: {
+      create: (slug, payload) =>
+        run((resolved) =>
+          resolved['webhook-endpoints'].create({ params: { slug }, payload })
+        ),
+      update: (slug, endpointId, payload) =>
+        run((resolved) =>
+          resolved['webhook-endpoints'].update({
+            params: { slug, endpointId },
+            payload
+          })
+        ),
+      delete: (slug, endpointId) =>
+        run((resolved) =>
+          resolved['webhook-endpoints'].delete({ params: { slug, endpointId } })
+        ),
+      rotateSecret: (slug, endpointId) =>
+        run((resolved) =>
+          resolved['webhook-endpoints']['rotate-secret']({
+            params: { slug, endpointId }
+          })
+        ),
+      testEvent: (slug, endpointId) =>
+        run((resolved) =>
+          resolved['webhook-endpoints']['test-event']({
+            params: { slug, endpointId }
+          })
+        ),
+      replayDelivery: (slug, deliveryId) =>
+        run((resolved) =>
+          resolved['webhook-endpoints']['replay-delivery']({
+            params: { slug, deliveryId }
+          })
+        )
+    },
+    exports: {
+      request: (slug) =>
+        run((resolved) => resolved['workspace-exports'].request({ params: { slug } })),
+      downloadLink: (slug, exportId) =>
+        run((resolved) =>
+          resolved['workspace-exports']['download-link']({
+            params: { slug, exportId }
+          })
+        )
+    },
+    assistant: {
+      answer: (payload) => run((resolved) => resolved.assistant.answer({ payload }))
+    },
+    mcp: {
+      discover: () => run((resolved) => resolved.mcp.discover())
     },
     workspace: {
       overview: (slug) =>
@@ -294,7 +410,17 @@ export function createStarterClient(
       notifications: pagedListFn((resolved) => resolved.workspace.notifications),
       apiTokens: pagedListFn((resolved) => resolved.workspace['api-tokens']),
       webhooks: pagedListFn((resolved) => resolved.workspace.webhooks),
-      auditEvents: pagedListFn((resolved) => resolved.workspace['audit-events'])
+      auditEvents: pagedListFn((resolved) => resolved.workspace['audit-events']),
+      webhookDeliveries: (slug, endpointId) =>
+        run((resolved) =>
+          resolved.workspace['webhook-deliveries']({ params: { slug, endpointId } })
+        ),
+      webhookDeliveryAttempts: (slug, deliveryId) =>
+        run((resolved) =>
+          resolved.workspace['webhook-delivery-attempts']({
+            params: { slug, deliveryId }
+          })
+        )
     }
   }
 }

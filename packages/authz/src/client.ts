@@ -26,7 +26,7 @@ export {
   type StarterRole,
   type WorkspaceRole
 } from './roles.ts'
-export { needsStrongAuthentication } from './roles.ts'
+export { needsStrongAuthentication, toSystemRole, type SystemRole } from './roles.ts'
 export {
   accessControl,
   starterResources,

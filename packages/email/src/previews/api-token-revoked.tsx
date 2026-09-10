@@ -1,5 +1,11 @@
-import { ApiTokenRevokedEmail } from '../notification-templates.tsx'
+import {
+  notificationEmailFor,
+  NOTIFICATION_PREVIEW_PROPS
+} from '../notification-emails.ts'
 
 export default function Preview() {
-  return <ApiTokenRevokedEmail {...ApiTokenRevokedEmail.PreviewProps} />
+  return notificationEmailFor(
+    'api_token.revoked',
+    NOTIFICATION_PREVIEW_PROPS['api_token.revoked']
+  )
 }

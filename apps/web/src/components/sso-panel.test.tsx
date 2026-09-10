@@ -102,10 +102,10 @@ describe('SsoPanel', () => {
   it('shows the connection with its write-only credential echo', async () => {
     await renderPanel()
     // The provider id renders too — owners copy it into their IdP config.
-    expect(screen.getByText('sso_example_oidc')).toBeTruthy()
-    expect(screen.getByText('OIDC')).toBeTruthy()
-    expect(screen.getByText(/client …7f2a/)).toBeTruthy()
-    expect(screen.getByText(/joins as member/)).toBeTruthy()
+    expect(screen.getByText('sso_example_oidc')).not.toBeNull()
+    expect(screen.getByText('OIDC')).not.toBeNull()
+    expect(screen.getByText(/client …7f2a/)).not.toBeNull()
+    expect(screen.getByText(/joins as member/)).not.toBeNull()
     screen.getByRole('button', { name: 'Test' })
     screen.getByRole('button', { name: 'Enable' })
     screen.getByRole('button', { name: 'Remove acme-corp.example' })
@@ -115,8 +115,8 @@ describe('SsoPanel', () => {
   it('reports a failed test inline', async () => {
     await renderPanel()
     fireEvent.click(screen.getByRole('button', { name: 'Test' }))
-    expect(await screen.findByText('Connection test failed.')).toBeTruthy()
-    expect(await screen.findByText('no such issuer')).toBeTruthy()
+    expect(await screen.findByText('Connection test failed.')).not.toBeNull()
+    expect(await screen.findByText('no such issuer')).not.toBeNull()
   })
 
   it('reports a passed test without a failure message', async () => {
@@ -124,7 +124,7 @@ describe('SsoPanel', () => {
       testResult: { outcome: 'passed' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Test' }))
-    expect(await screen.findByText('Connection test passed.')).toBeTruthy()
+    expect(await screen.findByText('Connection test passed.')).not.toBeNull()
     expect(screen.queryByText('Connection test failed.')).toBeNull()
   })
 
@@ -219,7 +219,7 @@ describe('SsoPanel', () => {
     })
     expect(
       await screen.findByText('Add the metadata URL or paste the metadata XML')
-    ).toBeTruthy()
+    ).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Add connection' }))
     // One macrotask so a wrongly-fired submit would have reached the port.
     await new Promise((resolve) => {
@@ -243,7 +243,7 @@ describe('SsoPanel', () => {
       target: { value: 'sekrit' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Add connection' }))
-    expect(await screen.findByText('Failed to add the connection')).toBeTruthy()
+    expect(await screen.findByText('Failed to add the connection')).not.toBeNull()
     expect(screen.getByLabelText('Email domain')).toHaveProperty(
       'value',
       'northwind.test'

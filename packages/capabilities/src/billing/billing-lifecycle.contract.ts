@@ -13,6 +13,13 @@ export type LifecycleSnapshot = {
   readonly cancelAtPeriodEnd: boolean
   readonly currentPeriodEnd: string
   readonly payment: PaymentEvidence
+  /**
+   * Whether the subscription's current invoice is settled. Not part of
+   * `PaymentEvidence` — the provider adapter derives it from the invoice it
+   * fetches — so the fixture carries it beside the evidence and the stub
+   * provider answers from it.
+   */
+  readonly currentInvoicePaid: boolean
 }
 export const initialSnapshot: LifecycleSnapshot = {
   status: 'incomplete',
@@ -20,7 +27,8 @@ export const initialSnapshot: LifecycleSnapshot = {
   trialEnd: null,
   cancelAtPeriodEnd: false,
   currentPeriodEnd: '2026-10-01T00:00:00.000Z',
-  payment: { lastPaymentAt: null, firstFailedAt: null, currentInvoicePaid: false }
+  payment: { lastPaymentAt: null, firstFailedAt: null },
+  currentInvoicePaid: false
 }
 export type LifecycleDriver<R> = {
   readonly set: (snapshot: LifecycleSnapshot) => Effect.Effect<void, never, R>
@@ -63,9 +71,9 @@ export function lifecycleContract<R>(
       status: 'past_due',
       payment: {
         lastPaymentAt: null,
-        firstFailedAt: '2026-09-02T00:00:00.000Z',
-        currentInvoicePaid: false
-      }
+        firstFailedAt: '2026-09-02T00:00:00.000Z'
+      },
+      currentInvoicePaid: false
     })
     yield* driver.sync('trial_conversion_failed')
     assert(yield* driver.plan).toBe('starter')
@@ -75,9 +83,9 @@ export function lifecycleContract<R>(
       status: 'active',
       payment: {
         lastPaymentAt: '2026-09-02T01:00:00.000Z',
-        firstFailedAt: null,
-        currentInvoicePaid: true
-      }
+        firstFailedAt: null
+      },
+      currentInvoicePaid: true
     } satisfies LifecycleSnapshot
     yield* TestClock.setTime(Date.parse('2026-09-02T01:00:00.000Z'))
     yield* driver.set(paying)
@@ -91,7 +99,7 @@ export function lifecycleContract<R>(
     assert(yield* driver.plan).toBe('team')
     yield* driver.set({
       ...paying,
-      payment: { ...paying.payment, currentInvoicePaid: false }
+      currentInvoicePaid: false
     })
     yield* driver.sync('draft_renewal')
     assert(yield* driver.plan).toBe('team')
@@ -101,7 +109,7 @@ export function lifecycleContract<R>(
     assert(yield* driver.plan).toBe('team')
     yield* driver.set({
       ...paying,
-      payment: { ...paying.payment, currentInvoicePaid: false }
+      currentInvoicePaid: false
     })
     yield* driver.sync('next_draft_renewal')
     assert(yield* driver.plan).toBe('team')
@@ -110,9 +118,9 @@ export function lifecycleContract<R>(
       status: 'past_due',
       payment: {
         ...paying.payment,
-        firstFailedAt: '2026-09-03T00:00:00.000Z',
-        currentInvoicePaid: false
-      }
+        firstFailedAt: '2026-09-03T00:00:00.000Z'
+      },
+      currentInvoicePaid: false
     } satisfies LifecycleSnapshot
     yield* TestClock.setTime(Date.parse('2026-09-03T00:00:00.000Z'))
     yield* driver.set(failed)
@@ -159,9 +167,9 @@ export function lifecycleContract<R>(
       ...failed,
       payment: {
         lastPaymentAt: '2026-09-12T00:00:00.000Z',
-        firstFailedAt: '2026-09-13T00:00:00.000Z',
-        currentInvoicePaid: false
-      }
+        firstFailedAt: '2026-09-13T00:00:00.000Z'
+      },
+      currentInvoicePaid: false
     })
     yield* driver.sync('missed_settlement_new_failure')
     assert(yield* driver.grace).toBe('2026-09-20T00:00:00.000Z')

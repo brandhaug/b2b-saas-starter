@@ -1,5 +1,11 @@
-import { WebhookDeliveryFailedEmail } from '../notification-templates.tsx'
+import {
+  notificationEmailFor,
+  NOTIFICATION_PREVIEW_PROPS
+} from '../notification-emails.ts'
 
 export default function Preview() {
-  return <WebhookDeliveryFailedEmail {...WebhookDeliveryFailedEmail.PreviewProps} />
+  return notificationEmailFor(
+    'webhook.delivery_failed',
+    NOTIFICATION_PREVIEW_PROPS['webhook.delivery_failed']
+  )
 }

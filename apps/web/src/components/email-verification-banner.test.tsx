@@ -5,8 +5,24 @@ import {
   type SendVerificationEmail
 } from './email-verification-banner'
 
-// The component's own `sendVerificationEmail` port, handed in as a prop.
+// The component's own `sendVerificationEmail` port, handed in as a prop. No
+// `turnstileSiteKey`: the unconfigured provider is what local development and
+// these tests run with — no widget, no token, nothing about the banner
+// changes.
 const sendVerificationEmail = vi.fn<SendVerificationEmail>()
+
+function banner() {
+  return (
+    <EmailVerificationBanner
+      email="demo@starter.local"
+      sendVerificationEmail={sendVerificationEmail}
+    />
+  )
+}
+
+function resendButton(): HTMLElement {
+  return screen.getByRole('button', { name: 'Resend verification email' })
+}
 
 describe('EmailVerificationBanner', () => {
   beforeEach(() => {
@@ -15,29 +31,19 @@ describe('EmailVerificationBanner', () => {
   })
 
   it('nudges with the address and a resend button', () => {
-    render(
-      <EmailVerificationBanner
-        email="demo@starter.local"
-        sendVerificationEmail={sendVerificationEmail}
-      />
-    )
+    render(banner())
     screen.getByText(/Your email address is not verified yet/)
-    expect(
-      screen.getByRole('button', { name: 'Resend verification email' })
-    ).toBeDefined()
+    expect(resendButton()).not.toBeNull()
   })
 
   it('sends to the signed-in address and confirms', async () => {
-    render(
-      <EmailVerificationBanner
-        email="demo@starter.local"
-        sendVerificationEmail={sendVerificationEmail}
-      />
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Resend verification email' }))
+    render(banner())
+    fireEvent.click(resendButton())
     await waitFor(() => expect(sendVerificationEmail).toHaveBeenCalledTimes(1))
     expect(sendVerificationEmail).toHaveBeenCalledWith({
-      email: 'demo@starter.local'
+      email: 'demo@starter.local',
+      // No configured challenge, so no token rides the header.
+      turnstileToken: undefined
     })
     // The sent confirmation is a polite live region (`role="status"`), not an
     // assertive alert — it reports an action the user just took.
@@ -52,13 +58,8 @@ describe('EmailVerificationBanner', () => {
     sendVerificationEmail.mockResolvedValueOnce({
       error: { code: 'rate_limited' }
     })
-    render(
-      <EmailVerificationBanner
-        email="demo@starter.local"
-        sendVerificationEmail={sendVerificationEmail}
-      />
-    )
-    fireEvent.click(screen.getByRole('button', { name: 'Resend verification email' }))
+    render(banner())
+    fireEvent.click(resendButton())
     const alert = await screen.findByRole('alert')
     // The banner carries the error inline after its own sentence, so the
     // match is on the mapped copy, not the whole text content.
@@ -67,6 +68,6 @@ describe('EmailVerificationBanner', () => {
     )
     expect(
       screen.getByRole('button', { name: 'Resend verification email' })
-    ).toBeDefined()
+    ).not.toBeNull()
   })
 })

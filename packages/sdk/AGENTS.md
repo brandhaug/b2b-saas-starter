@@ -6,6 +6,7 @@ The Typed SDK (CONTEXT.md) for the REST Capability Interface. Derived, not gener
 
 - `makeStarterApiClient` needs an `HttpClient` the caller composes. The API Token rides every request through a `transformClient` bearer header: the contract's `BearerAuth` middleware declares the scheme, the credential stays the caller's.
 - `createStarterClient` is the promise client for non-Effect callers. Paged lists return one `Page<T>` and carry `.iterate(slug)`, walking `nextCursor` to exhaustion (ADR 0057). It accepts an injected `fetch`; that is how tests drive the worker's web handler with no network.
+- `StarterClient` carries one method per contract operation, grouped as the contract groups it (`apiTokens`, `webhooks`, `exports`, `assistant`, `mcp`, `workspace`). Add a contract operation, add its method: an operation missing here is one a non-Effect caller cannot reach. Payload and success types are read off the derived client (`Payload<…>` / `Success<…>`), never restated.
 
 ## Boundaries
 

@@ -199,6 +199,6 @@ export const retrievePaymentEvidence = Effect.fn('Stripe.retrievePaymentEvidence
         }
       }
     }
-    return { lastPaymentAt, firstFailedAt, currentInvoicePaid }
+    return { lastPaymentAt, firstFailedAt }
   }
 )

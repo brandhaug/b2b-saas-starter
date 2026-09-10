@@ -7,7 +7,7 @@ import {
   CapabilityUnavailable,
   orUnavailable
 } from '@b2b-saas-starter/failure/capability'
-import { randomHex } from '../crypto.ts'
+import { randomHex } from '@b2b-saas-starter/failure/crypto'
 import { newCapabilityId } from '../internal/ids.ts'
 import { makeQueuePublisher } from '../internal/queue-publisher.ts'
 import { NotificationFeed } from '../notifications/notification-feed.ts'
@@ -62,8 +62,8 @@ function objectKeyFor(workspaceId: string, exportId: string): string {
 
 /**
  * The provider-light gate. Both bindings are provisioned together by alchemy
- * when `WORKSPACE_EXPORT_BUCKET` is set, so a worker with one and not the other
- * is a deployment mistake worth naming.
+ * when `WORKSPACE_EXPORTS_ENABLED` is set, so a worker with one and not the
+ * other is a deployment mistake worth naming.
  */
 function availabilityOf(
   options: LiveWorkspaceExportsOptions
@@ -80,7 +80,7 @@ function availabilityOf(
   }
   return {
     available: false,
-    reason: `Workspace exports need an R2 bucket and a queue: set WORKSPACE_EXPORT_BUCKET at deploy time (this worker is missing ${missing.join(' and ')}).`
+    reason: `Workspace exports need an R2 bucket and a queue: set WORKSPACE_EXPORTS_ENABLED at deploy time (this worker is missing ${missing.join(' and ')}).`
   }
 }
 
@@ -149,19 +149,37 @@ export function LiveWorkspaceExports(
         ).pipe(Effect.map((rows) => rows[0]))
       }
 
+      /**
+       * Settles a pending export as failed. The transition and its audit row
+       * commit as one batch, like every other export state change — a
+       * failure is the outcome an operator most needs a trail for, and two
+       * loose statements could leave the row settled with no record of why.
+       * Resolves `false` when the export was already settled.
+       */
       function markFailed(exportId: string, workspaceId: string, reason: string) {
         return Effect.gen(function* () {
           const completedAt = yield* DateTime.now
-          yield* unavailable(
-            db
-              .update(workspaceExports)
-              .set({
-                status: 'failed',
-                failureReason: reason,
-                completedAt: DateTime.formatIso(completedAt)
-              })
-              .where(pendingWhere(exportId, workspaceId))
-          )
+          return yield* auditedMutation({
+            matched: pendingMatched(exportId, workspaceId),
+            auditEvent: {
+              workspaceId,
+              actorUserId: null,
+              actorType: 'system',
+              eventType: 'workspace.export_failed',
+              targetType: 'workspace_export',
+              targetId: exportId,
+              metadata: { reason }
+            },
+            write: () =>
+              db
+                .update(workspaceExports)
+                .set({
+                  status: 'failed',
+                  failureReason: reason,
+                  completedAt: DateTime.formatIso(completedAt)
+                })
+                .where(pendingWhere(exportId, workspaceId))
+          })
         })
       }
 
@@ -329,12 +347,7 @@ export function LiveWorkspaceExports(
         fail: Effect.fn('WorkspaceExports.fail')(function* (
           input: FailWorkspaceExportInput
         ) {
-          const matched = yield* pendingMatched(input.exportId, input.workspaceId)
-          if (!matched) {
-            return false
-          }
-          yield* markFailed(input.exportId, input.workspaceId, input.reason)
-          return true
+          return yield* markFailed(input.exportId, input.workspaceId, input.reason)
         }),
         openDownload: Effect.fn('WorkspaceExports.openDownload')(function* (
           input: OpenWorkspaceExportDownloadInput

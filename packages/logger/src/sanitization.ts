@@ -19,6 +19,7 @@ const allowedFields = new Set([
   'outcome',
   'errorKind',
   'errorTag',
+  'errorSummary',
   'environment',
   'region',
   'serviceVersion',
@@ -49,6 +50,7 @@ const allowedFields = new Set([
   'evidenceId',
   'evidenceKind',
   'queue',
+  'skipReason',
   'messageId',
   'attempts',
   'ageMs',
@@ -80,6 +82,51 @@ const allowedFields = new Set([
   'status.interrupted',
   'fiberId'
 ])
+
+const SUMMARY_MAX_LENGTH = 120
+// `at <fn> (<file>:<line>:<col>)`, or the bare `at <file>:<line>:<col>` form.
+const STACK_FRAME = /^at (?:.*\()?([^()\s]+):(\d+):(\d+)\)?$/
+// A source file name, after the directories are dropped. No query strings, no
+// data URLs, nothing that could carry a value.
+const SAFE_FRAME_FILE = /^[a-zA-Z0-9_.-]{1,80}$/
+
+function topFrame(line: string): string | undefined {
+  const match = STACK_FRAME.exec(line.trim())
+  if (match === null) {
+    return undefined
+  }
+  const file = match[1]?.split(/[/\\]/).at(-1) ?? ''
+  if (!SAFE_FRAME_FILE.test(file)) {
+    return undefined
+  }
+  return `${file}-${match[2]}-${match[3]}`
+}
+
+/**
+ * What a defect is allowed to tell an error tracker: the thrown value's name
+ * and the top stack frame, as `TypeError-queue-consumer.ts-118-9`.
+ *
+ * Deliberately NOT the message. A defect is any thrown value — including a
+ * provider error whose text quotes the request that produced it — and no
+ * syntactic rule separates `x is not a function` from a message carrying a
+ * credential, so the message stays off the wire (ADR 0007). Name plus location
+ * is what makes a defect findable, and it cannot carry customer data.
+ *
+ * The separator set is the one {@link diagnosticFields} accepts, so the
+ * summary survives the scalar allowlist instead of being dropped by it.
+ */
+export function diagnosticErrorSummary(pretty: string): string | undefined {
+  const lines = pretty.split('\n')
+  const name = diagnosticLabel(lines[0]?.split(':')[0]?.trim())
+  const frame = lines.map(topFrame).find((value) => value !== undefined)
+  if (name === OMITTED && frame === undefined) {
+    return undefined
+  }
+  if (frame === undefined) {
+    return name.slice(0, SUMMARY_MAX_LENGTH)
+  }
+  return `${name}-${frame}`.slice(0, SUMMARY_MAX_LENGTH)
+}
 
 /** No recursion into arbitrary annotations: nested errors, headers and customer data are omitted. */
 export function diagnosticFields(fields: object) {

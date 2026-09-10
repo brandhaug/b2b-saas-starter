@@ -1,15 +1,8 @@
 import { appendFile } from 'node:fs/promises'
+import { requiredEnv } from '../../scripts/internal/env.ts'
 
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
 type EnvWriter = (content: string) => Promise<void>
-
-function requiredEnv(name: string, env: NodeJS.ProcessEnv): string {
-  const value = env[name]
-  if (!value) {
-    throw new Error(`missing required environment variable ${name}`)
-  }
-  return value
-}
 
 export async function resolveSubdomain(
   accountId: string,
@@ -59,9 +52,9 @@ export async function main(
     await appendFile(env.GITHUB_ENV ?? '/dev/stdout', `${content}\n`)
   }
 ): Promise<void> {
-  const stage = requiredEnv('ALCHEMY_STAGE', env)
-  const accountId = requiredEnv('CLOUDFLARE_ACCOUNT_ID', env)
-  const token = requiredEnv('CLOUDFLARE_API_TOKEN', env)
+  const stage = requiredEnv(env, 'ALCHEMY_STAGE')
+  const accountId = requiredEnv(env, 'CLOUDFLARE_ACCOUNT_ID')
+  const token = requiredEnv(env, 'CLOUDFLARE_API_TOKEN')
   const subdomain = await resolveSubdomain(accountId, token, fetchImpl)
   await writeEnv(previewEnv(subdomain, stage))
 }

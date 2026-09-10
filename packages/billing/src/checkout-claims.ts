@@ -1,7 +1,7 @@
 import { Schema } from 'effect'
 
 /** The durable checkout states owned by `billing_checkout_claims`. */
-export const CheckoutClaimStatus = Schema.Union([
+const CheckoutClaimStatus = Schema.Union([
   Schema.Literal('pending'),
   Schema.Literal('created'),
   Schema.Literal('completed'),
@@ -46,9 +46,13 @@ export type CheckoutClaimDecision =
       readonly claim: CheckoutClaim
     }
   | {
+      /**
+       * The claim already holds a provider session. The caller re-derives the
+       * hosted URL from the session it just retrieved: a stored URL can be
+       * stale, and only the provider read proves the session is still open.
+       */
       readonly outcome: 'reuse'
       readonly claim: CheckoutClaim
-      readonly url: string | null
     }
   | {
       readonly outcome: 'conflict'
@@ -76,7 +80,7 @@ export function decideCheckoutClaim(
     return { outcome: 'conflict', reason: 'checkout_in_progress' }
   }
   if (existing.status === 'created' && existing.stripeSessionId !== null) {
-    return { outcome: 'reuse', claim: existing, url: existing.checkoutUrl }
+    return { outcome: 'reuse', claim: existing }
   }
   if (existing.status === 'pending') {
     if (Date.parse(now) - Date.parse(existing.createdAt) > 23 * 60 * 60 * 1000) {

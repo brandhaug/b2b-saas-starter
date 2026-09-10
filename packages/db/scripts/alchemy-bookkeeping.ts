@@ -24,8 +24,9 @@ export function sqlLiteral(value: string): string {
 }
 
 // Mirrors alchemy's timestampPrefixMillis: `YYYYMMDDHHMMSS` folder prefix →
-// epoch millis, null when the folder name carries no such prefix.
-export function timestampPrefixMillis(name: string): number | null {
+// epoch millis, null when the folder name carries no such prefix. Internal:
+// `bookkeepingRecord` is the only caller and the only shape a script needs.
+function timestampPrefixMillis(name: string): number | null {
   const prefix = name.slice(0, 14)
   if (!/^\d{14}$/.test(prefix)) {
     return null

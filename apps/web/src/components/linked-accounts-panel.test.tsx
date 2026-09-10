@@ -43,12 +43,12 @@ describe('LinkedAccountsPanel', () => {
     })
     renderWithQueryClient(<LinkedAccountsPanel />)
 
-    expect(await screen.findByText('GitHub')).toBeDefined()
-    expect(screen.getByText('email and password')).toBeDefined()
-    expect(screen.getByRole('button', { name: 'Unlink GitHub' })).toBeDefined()
+    expect(await screen.findByText('GitHub')).not.toBeNull()
+    expect(screen.getByText('email and password')).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Unlink GitHub' })).not.toBeNull()
     expect(
       screen.getByRole('button', { name: 'Unlink email and password' })
-    ).toBeDefined()
+    ).not.toBeNull()
   })
 
   it('refuses the only remaining sign-in method with a reason, not a control', async () => {
@@ -59,7 +59,7 @@ describe('LinkedAccountsPanel', () => {
 
     await screen.findByText('email and password')
     expect(screen.queryByRole('button', { name: /Unlink/ })).toBeNull()
-    expect(screen.getByText(m.add_sign_in_method_before_removing())).toBeDefined()
+    expect(screen.getByText(m.add_sign_in_method_before_removing())).not.toBeNull()
     expect(unlinkAccount).not.toHaveBeenCalled()
   })
 

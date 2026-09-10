@@ -22,6 +22,7 @@ import { type AccountLifecycleBinding } from '../governance/account-lifecycle.ts
 import { type PlatformUserAdminBinding } from '../governance/platform-user-admin.ts'
 import {
   CONTRACT_EXPIRED_AT,
+  CONTRACT_ORDER_CREATED_AT,
   CONTRACT_UNEXPIRED_AT
 } from '../governance/workspace-invitations.contract.ts'
 import { type WorkspaceInvitationBinding } from '../governance/workspace-invitations.ts'
@@ -57,10 +58,21 @@ const insertFixtureRows = Effect.gen(function* () {
   yield* db.insert(user).values([
     { id: 'usr_owner', email: 'owner@live.test', name: 'Owner One' },
     { id: 'usr_outsider', email: 'outsider@live.test', name: 'Outsider' },
-    // Exists as a user but holds no membership — the membership-mutation suite
-    // adds and removes them.
+    // Exists as a user but holds no membership anywhere — the mutation
+    // suites name them as the stranger every change must refuse.
     { id: 'usr_joiner', email: 'joiner@live.test', name: 'Joiner' },
+    // A plain member of `wrk_member_contract` the mutation suites promote,
+    // demote, and remove. Membership has no add verb, so every member a case
+    // spends is seeded here.
     { id: 'usr_mover', email: 'mover@live.test', name: 'Mover' },
+    // The membership contract's spendable roster: one member per case that
+    // consumes one.
+    { id: 'usr_removable', email: 'removable@live.test', name: 'Removable' },
+    { id: 'usr_mutable', email: 'mutable@live.test', name: 'Mutable' },
+    { id: 'usr_auditable', email: 'auditable@live.test', name: 'Auditable' },
+    // A plain member no case ever spends: the mutation suite needs a
+    // non-owner to act *as* after it has removed the one it acts *on*.
+    { id: 'usr_bystander', email: 'bystander@live.test', name: 'Bystander' },
     { id: 'usr_audited', email: 'audited@live.test', name: 'Audited' },
     // The invitation contract invites this address and then accepts as this
     // user — a real row, because accepting joins `workspace_members` to `user`.
@@ -135,6 +147,56 @@ const insertFixtureRows = Effect.gen(function* () {
     userId: 'usr_owner',
     role: 'owner'
   })
+  // Home of the membership contract: an isolated workspace whose sole owner
+  // is the runner's actor and whose plain members the cases spend one apiece.
+  yield* db.insert(workspaces).values({
+    id: 'wrk_member_contract',
+    slug: 'member-contract-lab',
+    name: 'Member Contract Lab'
+  })
+  yield* db.insert(workspaceMembers).values([
+    {
+      id: 'mem_mc_owner',
+      workspaceId: 'wrk_member_contract',
+      userId: 'usr_owner',
+      role: 'owner'
+    },
+    {
+      id: 'mem_mc_removable',
+      workspaceId: 'wrk_member_contract',
+      userId: 'usr_removable',
+      role: 'member'
+    },
+    {
+      id: 'mem_mc_mutable',
+      workspaceId: 'wrk_member_contract',
+      userId: 'usr_mutable',
+      role: 'member'
+    },
+    {
+      id: 'mem_mc_auditable',
+      workspaceId: 'wrk_member_contract',
+      userId: 'usr_auditable',
+      role: 'member'
+    },
+    // A plain member the mutation suite promotes and removes; the binding
+    // failure suite drives its rejecting binding through this row's role
+    // change, the only mutation that reaches the plugin unrefused. It lives
+    // here rather than in `wrk_live`, whose member count is a billing
+    // fixture's seat quantity.
+    {
+      id: 'mem_mc_mover',
+      workspaceId: 'wrk_member_contract',
+      userId: 'usr_mover',
+      role: 'member'
+    },
+    {
+      id: 'mem_mc_bystander',
+      workspaceId: 'wrk_member_contract',
+      userId: 'usr_bystander',
+      role: 'member'
+    }
+  ])
   // Home of the platform-user-admin contract: an isolated workspace where
   // `usr_owner` holds a membership the role-change case mutates.
   yield* db.insert(workspaces).values({
@@ -163,6 +225,26 @@ const insertFixtureRows = Effect.gen(function* () {
     expiresAt: new Date(CONTRACT_EXPIRED_AT),
     inviterId: 'usr_owner'
   })
+  // Three invitations with distinct, ascending creation stamps: the ordering
+  // contract case reads their relative order back out of `list`. No case
+  // settles them, so their addresses are theirs alone.
+  yield* db.insert(workspaceInvitations).values(
+    CONTRACT_ORDER_CREATED_AT.map(
+      (createdAt, index) =>
+        ({
+          id: `inv_live_order_${String(index)}`,
+          workspaceId: 'wrk_live',
+          email: `order-${String(index)}@live-invite.test`,
+          role: 'member',
+          status: 'pending',
+          // oxlint-disable-next-line effect/noGlobals -- fixed literal dates, not clock reads; drizzle's timestamp mode requires Date instances
+          expiresAt: new Date(CONTRACT_UNEXPIRED_AT),
+          // oxlint-disable-next-line effect/noGlobals -- fixed literal dates, not clock reads; drizzle's timestamp mode requires Date instances
+          createdAt: new Date(createdAt),
+          inviterId: 'usr_owner'
+        }) satisfies typeof workspaceInvitations.$inferInsert
+    )
+  )
   // The endpoint the webhook delivery-attempt suite records attempts against.
   yield* db.insert(webhookEndpoints).values({
     id: 'wh_live',
@@ -278,6 +360,25 @@ export const TestDatabase = Layer.unwrap(
   })
 )
 
+/**
+ * A provisioned D1 with the migrations applied and *no* fixture rows, for the
+ * one live suite that counts and deletes rows across every table: retention.
+ * {@link TestDatabase}'s fixture would land in its candidate counts. What it
+ * shares with the rest is the provisioning and disposal — a suite does not
+ * hand-roll `acquireRelease` around `provisionTestD1`.
+ */
+export function withRawTestD1<A, E, R>(
+  use: (d1: NonNullable<StarterEnv['DB']>) => Effect.Effect<A, E, R>
+): Effect.Effect<A, E, R> {
+  return Effect.gen(function* () {
+    const provisioned = yield* Effect.acquireRelease(
+      Effect.promise(() => provisionTestD1()),
+      (testD1) => Effect.promise(() => testD1.dispose())
+    )
+    return yield* use(provisioned.d1)
+  }).pipe(Effect.scoped)
+}
+
 /** How long a live suite may take, D1 provisioning included. */
 export const LIVE_SUITE_TIMEOUT = '120 seconds'
 
@@ -309,7 +410,8 @@ export function inWorkspace<A, E>(
 
 /**
  * A stand-in for the organization plugin's member endpoints. The plugin's own
- * behaviour is covered in packages/auth/src/live-auth.test.ts; what the live
+ * behaviour is covered in the auth package's live suites
+ * (packages/auth/src/live-organization.test.ts and its siblings); what the live
  * suites own is the capability's half of the contract — that it calls the
  * binding with the resolved workspace, reads the result back, and audits it.
  *
@@ -321,19 +423,6 @@ export function fakeMemberBinding(db: EffectDatabase) {
   const sessionUser = 'usr_owner'
   const calls: Array<unknown> = []
   const binding: WorkspaceMemberBinding = {
-    addMember: (input) => {
-      calls.push(input)
-      return Effect.runPromise(
-        Effect.asVoid(
-          db.insert(workspaceMembers).values({
-            id: `mem_${input.userId}`,
-            workspaceId: input.workspaceId,
-            userId: input.userId,
-            role: input.role
-          })
-        )
-      )
-    },
     removeMember: (input) => {
       calls.push(input)
       return Effect.runPromise(

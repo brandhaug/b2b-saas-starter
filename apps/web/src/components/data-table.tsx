@@ -63,7 +63,7 @@ const dataTableFeatures = tableFeatures({
   columnVisibilityFeature
 })
 
-export type DataTableFeatures = typeof dataTableFeatures
+type DataTableFeatures = typeof dataTableFeatures
 export type DataTableColumnDef<TData extends RowData> = ColumnDef<
   DataTableFeatures,
   TData,

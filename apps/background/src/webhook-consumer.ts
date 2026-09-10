@@ -18,7 +18,9 @@ import { DateTime, Effect, Result, Schema, type Scope } from 'effect'
 import { HttpBody, HttpClient } from 'effect/unstable/http'
 
 import { webhookDlqConsumerSettings } from '../../../infra/bindings.ts'
+import { finalQueueAttempt } from './monitoring.ts'
 import {
+  annotateMalformed,
   consumerInvocation,
   type DeliveryOutcome,
   type Env,
@@ -38,15 +40,6 @@ const WebhookDeliveryBody = Schema.Struct({
   payload: WebhookQueueMessage.fields.payload
 })
 const encodeDeliveryBody = Schema.encodeSync(Schema.fromJsonString(WebhookDeliveryBody))
-
-/**
- * How a malformed body is reported: the consumer's own terminal outcome plus
- * the reason, on the wide event the scope is already holding. Nothing else is
- * recorded — there is no trusted endpointId for a delivery row.
- */
-function annotateMalformed(outcome: string): Effect.Effect<void, never, Scope.Scope> {
-  return Effect.annotateLogsScoped({ outcome, skipReason: 'malformed_message' })
-}
 
 /** Fields every consumer stamps onto its wide event once decoded. */
 function annotateMessageFields(message: WebhookQueueMessage) {
@@ -356,7 +349,7 @@ function recordDeadLetter(
       Effect.catchTag(
         'CapabilityUnavailable',
         (): Effect.Effect<DeliveryOutcome, never, Scope.Scope> => {
-          if (delivery.attempts < webhookDlqConsumerSettings.maxRetries) {
+          if (!finalQueueAttempt(delivery.attempts, webhookDlqConsumerSettings)) {
             return Effect.annotateLogsScoped({
               outcome: 'retry',
               skipReason: 'terminal_write_failed'

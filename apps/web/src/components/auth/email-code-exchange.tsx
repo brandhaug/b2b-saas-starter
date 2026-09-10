@@ -7,9 +7,11 @@ import {
 } from '@tanstack/react-form'
 import { MailIcon, ShieldCheckIcon } from 'lucide-react'
 import {
+  sendEmailCodeWithAuthClient,
   sixDigitCodeValidator,
   type EmailCodePurpose
 } from '@/components/auth/auth-client-ports'
+import { useTurnstileChallenge } from '@/components/auth/turnstile-challenge'
 import { emailValidator } from '@/components/auth/auth-validators'
 import { AuthCardForm } from '@/components/auth/auth-card-form'
 import { OtpCodeInput } from '@/components/auth/otp-code-input'
@@ -19,7 +21,6 @@ import { ResendCodeButton } from '@/components/auth/resend-code-button'
 import { FormTextField } from '@/components/form-text-field'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { authClient } from '@/lib/auth-client'
 import { type AuthResult } from '@/lib/auth-result'
 import { authErrorCopy } from '@/lib/auth-error-copy'
 import { m } from '@b2b-saas-starter/i18n/messages'
@@ -33,18 +34,9 @@ import { m } from '@b2b-saas-starter/i18n/messages'
 export type SendEmailCode = (input: {
   readonly email: string
   readonly purpose: EmailCodePurpose
+  /** The Turnstile widget's token — present only when Turnstile is configured. */
+  readonly turnstileToken?: string | undefined
 }) => Promise<AuthResult<unknown>>
-
-/** The exchange's own send: the client's one-time-code endpoint. */
-function sendEmailCodeWithAuthClient(input: {
-  readonly email: string
-  readonly purpose: EmailCodePurpose
-}): Promise<AuthResult<unknown>> {
-  return authClient.emailOtp.sendVerificationOtp({
-    email: input.email,
-    type: input.purpose
-  })
-}
 
 /**
  * The second hop of the exchange, as the flow drives it: the address a code
@@ -105,6 +97,12 @@ type EmailCodeExchangeProps = {
   readonly onVerified: () => void
   /** A code was already sent here — start on the code step. */
   readonly email?: string
+  /**
+   * Server-provided Turnstile site key; `null` renders no widget and sends no
+   * token (provider-light). The code send is a mail-any-address primitive, so
+   * the auth route gates it when Turnstile is configured.
+   */
+  readonly turnstileSiteKey?: string | null | undefined
   /** The code step's heading. */
   readonly title: string
   readonly emailTitle?: string
@@ -133,6 +131,7 @@ function useEmailCodeExchange({
   verify,
   onVerified,
   email,
+  turnstileSiteKey,
   codeSentNotice,
   codeSentNoticeFor,
   verifyErrorFallback = m.public_auth_verification_failed(),
@@ -145,12 +144,24 @@ function useEmailCodeExchange({
   const [sentEmail, setSentEmail] = useState<string | null>(email ?? null)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const cooldown = useResendCooldown()
+  const challenge = useTurnstileChallenge(turnstileSiteKey)
 
   const emailForm = useForm({
     defaultValues: { email: '' },
     onSubmit: async ({ value }) => {
       setSubmitError(null)
-      const result = await send({ email: value.email, purpose })
+      if (challenge.missing) {
+        setSubmitError(challenge.missingMessage)
+        return
+      }
+      const result = await send({
+        email: value.email,
+        purpose,
+        turnstileToken: challenge.token
+      })
+      // The token is single-use: the resend below needs a fresh challenge
+      // whether this send landed or not.
+      challenge.consume()
       if (result.error) {
         setSubmitError(authErrorCopy(result.error, m.public_auth_send_code_failed()))
         return
@@ -186,7 +197,16 @@ function useEmailCodeExchange({
       return
     }
     setSubmitError(null)
-    const result = await send({ email: sentEmail, purpose })
+    if (challenge.missing) {
+      setSubmitError(challenge.missingMessage)
+      return
+    }
+    const result = await send({
+      email: sentEmail,
+      purpose,
+      turnstileToken: challenge.token
+    })
+    challenge.consume()
     if (result.error) {
       setSubmitError(authErrorCopy(result.error, m.public_auth_resend_code_failed()))
       return
@@ -228,7 +248,15 @@ function useEmailCodeExchange({
     </div>
   )
 
-  return { step, emailForm, codeForm, submitError, sentNotice, resendRow }
+  return {
+    step,
+    emailForm,
+    codeForm,
+    submitError,
+    sentNotice,
+    resendRow,
+    challengeWidget: challenge.widget
+  }
 }
 
 function EmailStepField({
@@ -311,6 +339,7 @@ export function EmailCodeExchangePage(props: EmailCodeExchangeProps) {
         footer={emailFooter}
       >
         <EmailStepField form={exchange.emailForm} />
+        {exchange.challengeWidget}
       </AuthCardForm>
     )
   }
@@ -336,6 +365,8 @@ export function EmailCodeExchangePage(props: EmailCodeExchangeProps) {
       }
     >
       <CodeStepFields form={exchange.codeForm} renderExtraFields={renderExtraFields} />
+      {/* The resend needs a fresh challenge, so the widget stays mounted. */}
+      {exchange.challengeWidget}
     </AuthCardForm>
   )
 }
@@ -394,6 +425,7 @@ export function EmailCodeExchangeCard(props: EmailCodeExchangeProps) {
               {exchange.resendRow}
             </>
           )}
+          {exchange.challengeWidget}
           {submit}
           {exchange.submitError ? (
             <p role="alert" className="text-sm text-destructive">

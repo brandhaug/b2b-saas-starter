@@ -7,6 +7,7 @@ import { requireEmailVerification } from '@b2b-saas-starter/env/server'
 import { env } from 'cloudflare:workers'
 import { Effect } from 'effect'
 
+import { UnverifiedEmailError } from '../capability-error'
 import { runCapabilities, runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
@@ -25,18 +26,6 @@ import {
  * build, so this graph ships to the server alone. `workspace-lifecycle.ts`
  * holds the client-safe half and the reason for the split.
  */
-
-/**
- * Typed failure for the creation gate below. Same shape and reason as
- * `UnauthorizedError`: server functions serialize thrown errors with
- * `name`/`message` intact, and the calling form shows `message`.
- */
-export class UnverifiedEmailError extends Error {
-  constructor() {
-    super('Verify your email address before creating a workspace.')
-    this.name = 'UnverifiedEmailError'
-  }
-}
 
 /**
  * The creation gate's refusal decision, in one place so the branch the tests

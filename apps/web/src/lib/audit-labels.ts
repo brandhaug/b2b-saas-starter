@@ -20,6 +20,7 @@ const EVENT_LABELS: Readonly<Record<string, () => string>> = Object.freeze({
   'workspace.export_requested': () => m.audit_workspace_export_requested(),
   'workspace.export_completed': () => m.audit_workspace_export_ready(),
   'workspace.export_downloaded': () => m.audit_workspace_export_downloaded(),
+  'workspace.export_failed': () => m.audit_workspace_export_failed(),
   'workspace_member.added': () => m.audit_member_added(),
   'workspace_member.removed': () => m.audit_member_removed(),
   'workspace_member.role_changed': () => m.audit_member_role_changed(),

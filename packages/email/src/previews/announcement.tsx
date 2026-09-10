@@ -1,5 +1,11 @@
-import { AnnouncementEmail } from '../notification-templates.tsx'
+import {
+  notificationEmailFor,
+  NOTIFICATION_PREVIEW_PROPS
+} from '../notification-emails.ts'
 
 export default function Preview() {
-  return <AnnouncementEmail {...AnnouncementEmail.PreviewProps} />
+  return notificationEmailFor(
+    'announcement',
+    NOTIFICATION_PREVIEW_PROPS['announcement']
+  )
 }

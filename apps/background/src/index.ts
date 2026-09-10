@@ -1,3 +1,4 @@
+import { withTriggerScope } from '@b2b-saas-starter/logger'
 import {
   makeSentryOptions,
   wireWideEventProviders,
@@ -5,38 +6,47 @@ import {
 } from '@b2b-saas-starter/logger/providers'
 import * as Sentry from '@sentry/cloudflare'
 import { Effect, Result } from 'effect'
-// The queue names are single-sourced in `infra/bindings.ts`, which alchemy and
-// the wrangler generator read too — the consumer branch must key off the same
-// literal the consumer is bound to.
-import {
-  billingQueueName,
-  billingDeadLetterQueueName,
-  billingReconciliationCron,
-  retentionCleanupCron,
-  notificationDigestCron,
-  notificationDigestRetryCron,
-  emailEventsQueueName,
-  notificationEmailQueueName,
-  webhookDeadLetterQueueName,
-  workspaceExportQueueName
-} from '../../../infra/bindings.ts'
 import { isMaintenanceMode } from '@b2b-saas-starter/env/server'
 import {
   enforceSecureEndpoints,
   minimumTlsResponse
 } from '@b2b-saas-starter/env/transport'
-import { buildWorkspaceExport } from './export-consumer.ts'
-import { sendDailyDigest } from './notification-digest.ts'
-import { reconcileBillingEffect } from './billing-reconciliation.ts'
-import { sendNotificationEmail } from './notification-email-consumer.ts'
-import { consumeEmailEvent } from './email-events-consumer.ts'
-import { monitorOperationalHealth } from './monitoring.ts'
 import { handleStripeRequest } from './stripe-endpoint.ts'
-import { deliverSeatSync } from './seat-sync-consumer.ts'
-import { recoverBillingDeadLetter } from './billing-dead-letter-consumer.ts'
-import { deliverWebhook, recordDeadLetter } from './webhook-consumer.ts'
-import { cleanRetention } from './retention.ts'
 import { consumeBatch, runInvocation, type Env } from './queue-consumer.ts'
+import { queueConsumerFor } from './queue-routing.ts'
+import { scheduledRun, skipUnknownCron } from './scheduled-routing.ts'
+
+/**
+ * A batch from an unrecognized queue. Acking through the webhook consumer
+ * would report every message as a malformed webhook, so the batch exits as one
+ * annotated wide event instead: the messages ack (redelivery cannot conjure a
+ * handler) and the queue name is on the event for the operator who bound it.
+ */
+function ackUnroutableBatch(env: Env, batch: MessageBatch<unknown>): Promise<void> {
+  return runInvocation(
+    env,
+    withTriggerScope(
+      {
+        service: 'background',
+        event: 'queue_unrouted',
+        spanKind: 'consumer',
+        env,
+        metadata: { queue: batch.queue, messages: batch.messages.length }
+      },
+      Effect.gen(function* () {
+        yield* Effect.annotateLogsScoped({
+          outcome: 'failed',
+          skipReason: 'unknown_queue'
+        })
+        yield* Effect.sync(() => {
+          for (const message of batch.messages) {
+            message.ack()
+          }
+        })
+      })
+    )
+  )
+}
 
 function makeBackgroundSentryOptions(env: Env) {
   enforceSecureEndpoints(env)
@@ -70,31 +80,11 @@ export default Sentry.withSentry(makeBackgroundSentryOptions, {
   queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
     enforceSecureEndpoints(env)
     wireWideEventProviders(env)
-    if (
-      batch.queue === emailEventsQueueName ||
-      /^b2b-saas-starter-[a-z0-9_-]+-email-events$/.test(batch.queue)
-    ) {
-      return consumeBatch(env, batch, (message) => consumeEmailEvent(message, env))
+    const consume = queueConsumerFor(batch.queue)
+    if (consume === undefined) {
+      return ackUnroutableBatch(env, batch)
     }
-    if (batch.queue === webhookDeadLetterQueueName) {
-      return consumeBatch(env, batch, (message) => recordDeadLetter(message, env))
-    }
-    // Workspace export jobs (ADR 0055): build the archive into R2.
-    if (batch.queue === workspaceExportQueueName) {
-      return consumeBatch(env, batch, (message) => buildWorkspaceExport(message, env))
-    }
-    if (batch.queue === billingQueueName) {
-      return consumeBatch(env, batch, (message) => deliverSeatSync(message, env))
-    }
-    if (batch.queue === billingDeadLetterQueueName) {
-      return consumeBatch(env, batch, (message) =>
-        recoverBillingDeadLetter(message, env)
-      )
-    }
-    if (batch.queue === notificationEmailQueueName) {
-      return consumeBatch(env, batch, (message) => sendNotificationEmail(message, env))
-    }
-    return consumeBatch(env, batch, (message) => deliverWebhook(message, env))
+    return consumeBatch(env, batch, (message) => consume(message, env))
   },
 
   // The digest and billing-reconciliation cron triggers are declared in
@@ -108,41 +98,14 @@ export default Sentry.withSentry(makeBackgroundSentryOptions, {
     if (isMaintenanceMode(env.MAINTENANCE_MODE)) {
       return Effect.runPromise(Effect.void)
     }
-    const daily = controller.cron === notificationDigestCron
-    const reconciliation = controller.cron === billingReconciliationCron
-    const retention = controller.cron === retentionCleanupCron
-    let effects: Array<Effect.Effect<void, unknown, never>> = []
-    if (daily) {
-      effects = [Effect.asVoid(sendDailyDigest(env, controller.scheduledTime))]
+    const run = scheduledRun(controller.cron, env, controller.scheduledTime)
+    if (run === undefined) {
+      return skipUnknownCron(env, controller)
     }
-    if (retention) {
-      effects = [cleanRetention(env, controller.scheduledTime)]
-    }
-    if (controller.cron === notificationDigestRetryCron) {
-      effects = [
-        ...effects,
-        Effect.asVoid(sendDailyDigest(env, controller.scheduledTime))
-      ]
-    }
-    if (reconciliation) {
-      effects = [
-        ...effects,
-        reconcileBillingEffect(env, controller.scheduledTime),
-        monitorOperationalHealth(env, controller.scheduledTime)
-      ]
-    }
-    let monitorSlug = 'b2b-saas-starter-background-digest-retry'
-    if (daily) {
-      monitorSlug = 'b2b-saas-starter-background-digest'
-    } else if (reconciliation) {
-      monitorSlug = 'b2b-saas-starter-background-billing-reconciliation'
-    } else if (retention) {
-      monitorSlug = 'b2b-saas-starter-background-retention'
-    }
-    return withCronMonitor(monitorSlug, () =>
+    return withCronMonitor(run.monitorSlug, () =>
       runInvocation(
         env,
-        Effect.all(effects, { concurrency: 'unbounded', mode: 'result' }).pipe(
+        Effect.all(run.effects, { concurrency: 'unbounded', mode: 'result' }).pipe(
           Effect.flatMap((results) => {
             const failed = results.find(Result.isFailure)
             if (failed) {

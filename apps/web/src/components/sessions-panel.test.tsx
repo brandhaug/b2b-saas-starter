@@ -57,10 +57,10 @@ describe('SessionsPanel', () => {
     renderWithQueryClient(<SessionsPanel currentSessionToken="tok_current" />)
 
     await screen.findByText('· This device')
-    expect(screen.getByText(/Mobile browser/)).toBeDefined()
+    expect(screen.getByText(/Mobile browser/)).not.toBeNull()
     expect(
       screen.getByRole('button', { name: m.auth_sign_out_everywhere() })
-    ).toBeDefined()
+    ).not.toBeNull()
     // The current session has no per-row revoke button.
     expect(
       screen.queryByRole('button', { name: m.revoke_session_named({ name: 'Mac' }) })
@@ -69,7 +69,7 @@ describe('SessionsPanel', () => {
       screen.getByRole('button', {
         name: m.revoke_session_named({ name: m.mobile_browser() })
       })
-    ).toBeDefined()
+    ).not.toBeNull()
   })
 
   it('revokes a single other session and refreshes the list', async () => {

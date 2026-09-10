@@ -21,6 +21,7 @@ import { RawD1, type D1Binding } from '@b2b-saas-starter/db/service'
 import { Effect, Layer, Option, Schema } from 'effect'
 import { getPlatformProxy } from 'wrangler'
 import { retentionTargetKey, stageResourceNames } from '../infra/bindings.ts'
+import { requiredValue } from './internal/env.ts'
 
 type Environment = Readonly<Record<string, string | undefined>>
 
@@ -100,13 +101,6 @@ function value(input: string | boolean | undefined): string | undefined {
   return normalized
 }
 
-function required(input: string | undefined, label: string): string {
-  if (input === undefined) {
-    throw new Error(`Missing ${label}`)
-  }
-  return input
-}
-
 function parseCli(rawArgs: ReadonlyArray<string>): Options {
   const separator = rawArgs.indexOf('--')
   const args = separator === -1 ? rawArgs : rawArgs.slice(separator + 1)
@@ -155,8 +149,11 @@ function parseCli(rawArgs: ReadonlyArray<string>): Options {
         }
       }
     }
-    const database = required(value(parsed.values.database), '--database <D1 UUID>')
-    const deployment = required(
+    const database = requiredValue(
+      value(parsed.values.database),
+      '--database <D1 UUID>'
+    )
+    const deployment = requiredValue(
       value(parsed.values.deployment),
       '--deployment <Alchemy stage>'
     )
@@ -175,13 +172,19 @@ function parseCli(rawArgs: ReadonlyArray<string>): Options {
   if (command === 'approve') {
     return {
       command,
-      artifact: required(value(parsed.values.artifact), '--artifact <preview.json>'),
-      confirmation: required(value(parsed.values.confirm), '--confirm <policy digest>'),
-      targetConfirmation: required(
+      artifact: requiredValue(
+        value(parsed.values.artifact),
+        '--artifact <preview.json>'
+      ),
+      confirmation: requiredValue(
+        value(parsed.values.confirm),
+        '--confirm <policy digest>'
+      ),
+      targetConfirmation: requiredValue(
         value(parsed.values['confirm-target']),
         '--confirm-target <target key>'
       ),
-      recoveryEvidence: required(
+      recoveryEvidence: requiredValue(
         value(parsed.values['recovery-evidence']),
         '--recovery-evidence <reference>'
       ),
@@ -225,8 +228,8 @@ function previewPolicy(environment: Environment, target: Target) {
 }
 
 function remoteEnvironment(environment: Environment): void {
-  required(value(environment.CLOUDFLARE_ACCOUNT_ID), 'CLOUDFLARE_ACCOUNT_ID')
-  required(value(environment.CLOUDFLARE_API_TOKEN), 'CLOUDFLARE_API_TOKEN')
+  requiredValue(value(environment.CLOUDFLARE_ACCOUNT_ID), 'CLOUDFLARE_ACCOUNT_ID')
+  requiredValue(value(environment.CLOUDFLARE_API_TOKEN), 'CLOUDFLARE_API_TOKEN')
 }
 
 async function openDatabase(
@@ -349,12 +352,12 @@ function environmentForPolicy(policy: RetentionPolicyType) {
     RETENTION_WORK_BUDGET: String(policy.workBudget),
     RETENTION_CLEANUP_ENABLED: String(policy.destructiveEnabled),
     RETENTION_RECOVERY_VERIFIED: String(policy.recoveryVerified),
-    RETENTION_POLICY_APPROVAL_DIGEST: required(
+    RETENTION_POLICY_APPROVAL_DIGEST: requiredValue(
       policy.policyApprovalDigest,
       'approved policy digest'
     ),
-    RETENTION_PREVIEW_DIGEST: required(policy.previewDigest, 'preview digest'),
-    RETENTION_RECOVERY_EVIDENCE: required(
+    RETENTION_PREVIEW_DIGEST: requiredValue(policy.previewDigest, 'preview digest'),
+    RETENTION_RECOVERY_EVIDENCE: requiredValue(
       policy.recoveryEvidenceRef,
       'recovery evidence reference'
     )

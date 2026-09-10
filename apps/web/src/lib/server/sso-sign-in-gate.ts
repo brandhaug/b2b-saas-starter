@@ -5,6 +5,7 @@ import {
 import { Effect, Option, Schema } from 'effect'
 
 import { runCapabilities } from '../capabilities'
+import { authRefusal } from './auth-refusal'
 
 /**
  * The server-side half of the domain-routing rule (ADR 0069), enforced at the
@@ -27,6 +28,12 @@ import { runCapabilities } from '../capabilities'
  * The decisions are pure functions over the sign-in resolution; the
  * request-shaped wrappers add only the body parse and the capability lookup.
  * That split is what keeps them testable without an auth runtime.
+ *
+ * The two halves disagree about a failed lookup on purpose: the require-SSO
+ * refusal fails **open** (a password sign-in the routing rule would have
+ * redirected is the worst case), the disabled-connection refusal fails
+ * **closed** (starting the IdP flow for a connection nobody could read is
+ * exactly what "a disabled connection never intercepts sign-ins" forbids).
  */
 
 /** Whether an auth-catchall exchange is the credential sign-in this gates. */
@@ -47,10 +54,7 @@ export function isSsoSignIn(exchange: {
 
 /** Better Auth's error-body convention, at the one status both gates use. */
 function refusal(code: string, message: string): Response {
-  return new Response(JSON.stringify({ code, message }), {
-    status: 403,
-    headers: { 'content-type': 'application/json; charset=utf-8' }
-  })
+  return authRefusal(403, code, { message })
 }
 
 /**
@@ -75,11 +79,16 @@ export function ssoRequiredResponse(
  * plugin would start the flow for it anyway, and this is what makes a
  * retired or not-yet-tested connection inert for sign-ins, matching the
  * page-level routing rule.
+ *
+ * Unlike the require-SSO half this decision has no "no decision" input: an
+ * unresolved connection is a refusal (`unresolvedConnectionResponse`), because
+ * letting the flow start would hand the sign-in to the very connection this
+ * gate exists to keep inert.
  */
 export function disabledConnectionResponse(
-  target: Option.Option<SsoSignInTarget> | null
+  target: Option.Option<SsoSignInTarget>
 ): Response | null {
-  if (target === null || Option.isNone(target) || target.value.enabled) {
+  if (Option.isNone(target) || target.value.enabled) {
     return null
   }
   return refusal(
@@ -117,25 +126,46 @@ function readBody(request: Request): Effect.Effect<SignInBody | null> {
   )
 }
 
-/**
- * The sign-in resolution both wrappers read, via the capability's
- * identity-keyed `resolveSignInTarget`. An unavailable capability folds to
- * `null` ("no decision") rather than locking every sign-in behind one table
- * read.
- */
-function resolveTarget(body: {
+/** The routing keys the capability resolves a connection from. */
+type RoutingKeys = {
   readonly email?: string | undefined
   readonly domain?: string | undefined
   readonly providerId?: string | undefined
-}): Effect.Effect<Option.Option<SsoSignInTarget> | null> {
-  return Effect.promise(() =>
-    runCapabilities(
-      Effect.flatMap(SsoConnections, (sso) => sso.resolveSignInTarget(body))
-    ).then(
-      (value) => value,
-      () => null
-    )
-  )
+}
+
+/**
+ * The resolution the capability answers, or the read's own failure — which the
+ * two wrappers below treat differently on purpose.
+ */
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+export class SsoResolutionUnavailable extends Schema.TaggedError<SsoResolutionUnavailable>()(
+  'SsoResolutionUnavailable',
+  {}
+) {}
+
+function resolveTarget(
+  body: RoutingKeys
+): Effect.Effect<Option.Option<SsoSignInTarget>, SsoResolutionUnavailable> {
+  return Effect.tryPromise({
+    try: () =>
+      runCapabilities(
+        Effect.flatMap(SsoConnections, (sso) => sso.resolveSignInTarget(body))
+      ),
+    catch: () => new SsoResolutionUnavailable()
+  })
+}
+
+/**
+ * The require-SSO half's read: an unavailable capability folds to `null` ("no
+ * decision") rather than locking every credential sign-in behind one table
+ * read. Fail-open is the deliberate choice here — the worst case is a
+ * password sign-in the routing rule would have redirected, and the IdP path
+ * stays available either way.
+ */
+function resolveTargetOrNull(
+  body: RoutingKeys
+): Effect.Effect<Option.Option<SsoSignInTarget> | null> {
+  return resolveTarget(body).pipe(Effect.catch(() => Effect.succeed(null)))
 }
 
 /** The credential half: refuse `POST /sign-in/email` for a require-SSO domain. */
@@ -153,7 +183,7 @@ export function enforceSsoRequired(
       // here needs to duplicate it.
       return null
     }
-    return ssoRequiredResponse(yield* resolveTarget({ email: body.email }))
+    return ssoRequiredResponse(yield* resolveTargetOrNull({ email: body.email }))
   })
 }
 
@@ -181,5 +211,16 @@ export function refuseDisabledConnection(
       return null
     }
     return disabledConnectionResponse(yield* resolveTarget(body))
+  }).pipe(
+    // Fail closed: an SSO sign-in whose connection could not be read must not
+    // start the IdP flow on the chance that the connection is enabled.
+    Effect.catch(() => Effect.succeed(unresolvedConnectionResponse()))
+  )
+}
+
+/** The 503 the SSO half answers when the connection could not be resolved. */
+export function unresolvedConnectionResponse(): Response {
+  return authRefusal(503, 'sso_connection_unavailable', {
+    message: 'Single sign-on is unavailable right now. Try again in a moment.'
   })
 }

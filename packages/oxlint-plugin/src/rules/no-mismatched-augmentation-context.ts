@@ -8,14 +8,18 @@ import { defineRule } from '@oxlint/plugins'
  * - `declare module 'specifier'` augments the real module only inside a module. In a
  *   global script it declares a brand new ambient module instead, so the intended
  *   members never reach the real one.
- * - `declare global` and `declare namespace X` reach the global scope only from a
- *   global script. Inside a module they apply to that module, so the global type
- *   never appears. `apps/web/src/worker-env.d.ts` documents this and uses inline
- *   `import()` types for exactly this reason.
+ * - `declare namespace X` reaches the global scope only from a global script. Inside
+ *   a module it declares a module-local namespace, so the global type never appears.
+ *   `apps/web/src/worker-env.d.ts` documents this and uses inline `import()` types
+ *   for exactly this reason.
+ * - `declare global` is the opposite: TypeScript accepts it only inside a module
+ *   (TS2669, "augmentations for the global scope can only be directly nested in
+ *   external modules"). In a global script every declaration is already global, so
+ *   the block is redundant at best and an error at worst.
  *
- * Both mistakes typecheck. Nothing errors, the augmented member is simply absent,
- * and the symptom shows up far away as a missing property. This rule turns the
- * silent version into a lint error, which is the load-bearing half of CLAUDE.md
+ * The first two mistakes typecheck. Nothing errors, the augmented member is simply
+ * absent, and the symptom shows up far away as a missing property. This rule turns
+ * the silent version into a lint error, which is the load-bearing half of CLAUDE.md
  * rule 7 ("give that file a top-level import so it stays a module").
  */
 
@@ -33,7 +37,7 @@ export default defineRule({
     type: 'problem',
     docs: {
       description:
-        'Require a .d.ts augmentation to match its file module context: module augmentation needs a top-level import, global and namespace declarations need none.'
+        'Require a .d.ts augmentation to match its file module context: module augmentation and `declare global` need a top-level import, a global `declare namespace` needs none.'
     }
   },
   create(context) {
@@ -48,24 +52,36 @@ export default defineRule({
         isModule = node.body.some((statement) => MODULE_MARKERS.has(statement.type))
       },
       TSModuleDeclaration(node) {
-        // A string id means `declare module 'specifier'`, which is augmentation. An
-        // identifier id is `declare namespace X`, and `declare global` sets `global`.
-        const augmentsModule = node.id.type === 'Literal'
-
-        if (augmentsModule && !isModule) {
-          context.report({
-            node,
-            message:
-              'This file has no top-level import or export, so it is a global script and `declare module` declares a new ambient module instead of augmenting the real one. Add a top-level import to make the file a module.'
-          })
+        // A string id means `declare module 'specifier'`, which is augmentation;
+        // `declare global` carries kind `global`; anything else is `declare
+        // namespace X`. The three want three different file contexts.
+        if (node.id.type === 'Literal') {
+          if (!isModule) {
+            context.report({
+              node,
+              message:
+                'This file has no top-level import or export, so it is a global script and `declare module` declares a new ambient module instead of augmenting the real one. Add a top-level import to make the file a module.'
+            })
+          }
           return
         }
 
-        if (!augmentsModule && isModule) {
+        if (node.kind === 'global') {
+          if (!isModule) {
+            context.report({
+              node,
+              message:
+                'This file has no top-level import or export, so it is a global script and TypeScript rejects `declare global` here (TS2669). Add a top-level import to make the file a module, or drop the `global` block because its declarations are already global.'
+            })
+          }
+          return
+        }
+
+        if (isModule) {
           context.report({
             node,
             message:
-              'This file has a top-level import or export, so it is a module and this global declaration never reaches the global scope. Drop the top-level import and use inline `import()` types instead, as `worker-env.d.ts` does.'
+              'This file has a top-level import or export, so it is a module and `declare namespace` never reaches the global scope. Drop the top-level import and use inline `import()` types instead, as `worker-env.d.ts` does.'
           })
         }
       }

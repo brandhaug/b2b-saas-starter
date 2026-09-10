@@ -23,11 +23,11 @@ describe('AuditEventSheet', () => {
         }}
       />
     )
-    expect(screen.getByText('<script>private</script>')).toBeTruthy()
-    expect(screen.getByText('wh_operations')).toBeTruthy()
-    expect(screen.getByText('2026-06-02T10:00:00.000Z')).toBeTruthy()
-    expect(screen.getByText(/"attempts": 3/)).toBeTruthy()
-    expect(screen.getByText(/"responseStatus": 503/)).toBeTruthy()
+    expect(screen.getByText('<script>private</script>')).not.toBeNull()
+    expect(screen.getByText('wh_operations')).not.toBeNull()
+    expect(screen.getByText('2026-06-02T10:00:00.000Z')).not.toBeNull()
+    expect(screen.getByText(/"attempts": 3/)).not.toBeNull()
+    expect(screen.getByText(/"responseStatus": 503/)).not.toBeNull()
     expect(document.querySelector('script')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     expect(close).toHaveBeenCalledOnce()
@@ -43,7 +43,7 @@ describe('AuditEventSheet', () => {
         <AuditEventSheet eventId="aud_1" event={null} onClose={close} />
       </>
     )
-    await waitFor(() => expect(screen.getByRole('dialog')).toBeTruthy())
+    await waitFor(() => expect(screen.getByRole('dialog')).not.toBeNull())
 
     first.rerender(
       <>
@@ -54,7 +54,7 @@ describe('AuditEventSheet', () => {
       </>
     )
     const replacement = document.getElementById('audit-event-aud_1')
-    expect(replacement).toBeTruthy()
+    expect(replacement).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     first.rerender(
       <>
