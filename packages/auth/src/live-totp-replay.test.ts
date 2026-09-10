@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, it } from '@effect/vitest'
 import { Effect, Result, type Layer } from 'effect'
 import { cookieHeader, cookiePairs, mergeCookiePairs } from 'effectful-better-auth'
 import { Auth } from './index.ts'
-import { decodeUriSecret, withNextTotpWindow } from './test-totp.ts'
+import { decodeUriSecret, nextTotpCode } from './test-totp.ts'
 import {
   buildAuthLayer,
   provisionAuthD1,
@@ -73,14 +73,7 @@ it.live(
         auth.api.verifyTOTP({ body: { code }, headers: challengeHeaders })
       )
       expect(Result.isFailure(anotherSession)).toBe(true)
-      const next = yield* Effect.promise(() =>
-        withNextTotpWindow(() =>
-          // oxlint-disable-next-line starter/no-run-promise-in-tests -- generate an authenticator code with the native library clock
-          Effect.runPromise(
-            auth.api.generateTOTP({ body: { secret: decodeUriSecret(secret) } })
-          )
-        )
-      )
+      const next = yield* nextTotpCode(decodeUriSecret(secret))
       const attempts = yield* Effect.all(
         [0, 1].map(() => Effect.result(auth.api.verifyTOTP({ body: next, headers }))),
         { concurrency: 'unbounded' }

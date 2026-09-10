@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm'
 import { cookieHeader, cookiePairs, mergeCookiePairs } from 'effectful-better-auth'
 import { vi } from 'vite-plus/test'
 import { Auth } from './index.ts'
-import { decodeUriSecret, withNextTotpWindow } from './test-totp.ts'
+import { decodeUriSecret, nextTotpCode } from './test-totp.ts'
 import {
   buildAuthLayer,
   enableTotp,
@@ -170,14 +170,7 @@ describe('session evidence lifecycle', () => {
           expect((yield* readSession(headers)).recoveryUntil).toEqual(
             original.recoveryUntil
           )
-          const { code } = yield* Effect.promise(() =>
-            withNextTotpWindow(() =>
-              // oxlint-disable-next-line starter/no-run-promise-in-tests -- bridge the Auth service effect into the native clock shim
-              Effect.runPromise(
-                auth.api.generateTOTP({ body: { secret: decodeUriSecret(secret) } })
-              )
-            )
-          )
+          const { code } = yield* nextTotpCode(decodeUriSecret(secret))
           yield* auth.api.verifyTOTP({ body: { code }, headers })
           const completed = yield* readSession(headers)
           expect(completed.recoveryUntil).toBeNull()
@@ -315,14 +308,7 @@ describe('session evidence lifecycle', () => {
           if (!secret) {
             return yield* Effect.die('Expected secret')
           }
-          const { code } = yield* Effect.promise(() =>
-            withNextTotpWindow(() =>
-              // oxlint-disable-next-line starter/no-run-promise-in-tests -- bridge the Auth service effect into the native clock shim
-              Effect.runPromise(
-                auth.api.generateTOTP({ body: { secret: decodeUriSecret(secret) } })
-              )
-            )
-          )
+          const { code } = yield* nextTotpCode(decodeUriSecret(secret))
           const verified = yield* auth.full.verifyTOTP({
             body: { code },
             headers: headersOf(challenge.headers)
