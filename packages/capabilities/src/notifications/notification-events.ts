@@ -87,7 +87,6 @@ export const NotificationEventSchema = Schema.Union([
   WorkspaceSuspensionChangedEvent
 ])
 export type SystemNotificationEvent = typeof NotificationEventSchema.Type
-export type NotificationEvent = SystemNotificationEvent
 
 export type RenderedNotificationEvent = {
   readonly title: string
@@ -108,12 +107,6 @@ export function renderNotificationCopy(
 ): RenderedNotificationEvent {
   if (notification.event === undefined) {
     return { title: notification.title, message: notification.message }
-  }
-  // Recovery notices carry a marker for suspension policy, while their copy
-  // is supplied by the transition capability and should remain localized by
-  // that caller rather than being replaced here.
-  if (notification.event.type === 'workspace.suspension_changed') {
-    return renderNotificationEvent(notification.event, locale, timeZone)
   }
   return renderNotificationEvent(notification.event, locale, timeZone)
 }

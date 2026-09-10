@@ -101,23 +101,12 @@ function withInvocationExporters<A, E, R>(
   return Effect.provide(effect, makeOtlpLayer('web', cloudflareEnv), { local: true })
 }
 
-/**
- * How this module finds the in-flight request, as a port. Injected rather than
- * imported at the call site so a test drives the join with a real lookup of this
- * shape instead of replacing `./request-context` — the ambient request is the
- * one input these functions read from outside their arguments.
- */
-export type CurrentRequest = () => Request | undefined
-
-function currentTelemetry(lookupRequest: CurrentRequest): RequestTelemetry | undefined {
-  const request = lookupRequest()
-  if (!request) {
-    return undefined
-  }
-  return registry.get(request)
+function currentTelemetry(): RequestTelemetry | undefined {
+  const request = currentRequest()
+  return request === undefined ? undefined : registry.get(request)
 }
 
-export type WebRequestScopeOptions = {
+type WebRequestScopeOptions = {
   readonly request: Request
   /** Which Start handler is serving this request — a router page or a server fn. */
   readonly handlerType: string
@@ -149,13 +138,8 @@ type WebRequestMetadata = {
  * This is the sanctioned home for request-scoped memoization in this app; new
  * call sites join it instead of adding another module-level WeakMap.
  */
-export function memoizePerRequest<A>(
-  key: string,
-  make: () => Promise<A>,
-  lookupRequest: CurrentRequest = currentRequest
-): Promise<A> {
-  const request = lookupRequest()
-  const telemetry = request === undefined ? undefined : registry.get(request)
+export function memoizePerRequest<A>(key: string, make: () => Promise<A>): Promise<A> {
+  const telemetry = currentTelemetry()
   if (!telemetry) {
     return make()
   }
@@ -182,8 +166,7 @@ export function memoizePerRequest<A>(
  */
 export function runWebRequestScope(
   options: WebRequestScopeOptions,
-  next: () => Promise<Response>,
-  lookupRequest: CurrentRequest = currentRequest
+  next: () => Promise<Response>
 ): Promise<Response> {
   const metadata: WebRequestMetadata = { handlerType: options.handlerType }
   if (options.serverFnId) {
@@ -199,7 +182,7 @@ export function runWebRequestScope(
           env: cloudflareEnv,
           metadata
         },
-        registerAndRun(options.request, next, lookupRequest)
+        registerAndRun(options.request, next)
       )
     )
     .then(settle)
@@ -207,8 +190,7 @@ export function runWebRequestScope(
 
 function registerAndRun(
   request: Request,
-  next: () => Promise<Response>,
-  lookupRequest: CurrentRequest
+  next: () => Promise<Response>
 ): Effect.Effect<Response, unknown, Scope.Scope> {
   return Effect.gen(function* () {
     const span = yield* Effect.currentParentSpan
@@ -227,7 +209,7 @@ function registerAndRun(
     // The middleware and the loaders may see different `Request` instances
     // (Start re-wraps the request as it flows through the handler chain), so
     // register the ambient one too when it differs.
-    const ambient = lookupRequest()
+    const ambient = currentRequest()
     if (ambient && ambient !== request) {
       registry.set(ambient, telemetry)
     }
@@ -262,7 +244,7 @@ function settle(exit: Exit.Exit<Response, unknown>): Response {
   )
 }
 
-export type NestedScopeOptions = {
+type NestedScopeOptions = {
   readonly event: string
   readonly metadata?: Record<string, unknown> | undefined
 }
@@ -278,11 +260,10 @@ export type NestedScopeOptions = {
  */
 export function withWebRequestScope<A, E, R>(
   options: NestedScopeOptions,
-  effect: Effect.Effect<A, E, R>,
-  lookupRequest: CurrentRequest = currentRequest
+  effect: Effect.Effect<A, E, R>
 ): Effect.Effect<A, E, Exclude<R, Scope.Scope>> {
   return Effect.suspend(() => {
-    const telemetry = currentTelemetry(lookupRequest)
+    const telemetry = currentTelemetry()
     if (!telemetry) {
       return standalone(options, effect)
     }

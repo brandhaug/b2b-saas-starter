@@ -76,25 +76,27 @@ describe('webhook response evidence', () => {
     })
   )
 
-  it.effect('keeps an exact 2048-byte response without a truncation marker', () =>
-    Effect.gen(function* () {
-      const text = 'é'.repeat(1024)
-      const response = HttpClientResponse.fromWeb(
-        HttpClientRequest.get('https://receiver.example/hook'),
-        new Response(text)
-      )
-      expect(yield* readWebhookResponse(response)).toBe(text)
-    })
+  it.effect(
+    'keeps an exactly 2048-character response without a truncation marker',
+    () =>
+      Effect.gen(function* () {
+        const text = 'é'.repeat(2048)
+        const response = HttpClientResponse.fromWeb(
+          HttpClientRequest.get('https://receiver.example/hook'),
+          new Response(text)
+        )
+        expect(yield* readWebhookResponse(response)).toBe(text)
+      })
   )
 
-  it.effect('marks a UTF-8 character cut by the byte limit as truncated evidence', () =>
+  it.effect('marks a response past the character limit as truncated evidence', () =>
     Effect.gen(function* () {
       const response = HttpClientResponse.fromWeb(
         HttpClientRequest.get('https://receiver.example/hook'),
-        new Response(`${'a'.repeat(2047)}🌍 trailing receiver text`)
+        new Response(`${'a'.repeat(2048)}🌍 trailing receiver text`)
       )
       expect(yield* readWebhookResponse(response)).toBe(
-        `${'a'.repeat(2047)}�… [truncated]`
+        `${'a'.repeat(2048)}… [truncated]`
       )
     })
   )

@@ -26,9 +26,9 @@ Per queue the outcome table is the contract; the non-obvious parts:
   `export-consumer.test.ts` fails if they diverge.
 - Seat sync uses the billing queue and its dead-letter queue. The primary queue
   retries six times; the dead-letter consumer calls `Billing.reconcileWorkspace`
-  so recovery does not require a later mutation. Its Stripe env is
-  `starterEnv(env)` plus `billingOptionsFromEnv(env)`, because `starterEnv`
-  projects bindings only.
+  so recovery does not require a later mutation. Its Stripe env is the worker
+  `env` spread plus `billingOptionsFromEnv(env)`, because the env carries
+  bindings only.
 - Notification email messages carry ids only, so re-read notification and preferences before claiming. Email delivery owns retry timing; use its completion decision even when an active lease skips sending. Digest sends are never fatal, and failed reads retry the run.
 
 ## Anti-patterns
@@ -42,7 +42,7 @@ Per queue the outcome table is the contract; the non-obvious parts:
 ## Dependencies & Edges
 
 - `apps/api` and `apps/web` produce onto the queues this worker consumes; it also produces onto `NOTIFICATION_EMAIL_QUEUE`. Absent optional bindings degrade to a no-op. Observability: [`logger`](../../packages/logger/AGENTS.md).
-- Queue names, consumer settings and the digest cron are single-sourced in `infra/bindings.ts` (change it, then `pnpm run infra:wrangler`); alchemy reads the same records.
+- Queue names, consumer settings and the digest cron are single-sourced in `infra/bindings.ts`, imported as `@b2b-saas-starter/infra` and never by relative path (change it, then `pnpm run infra:wrangler`); alchemy reads the same records.
 
 ## Patterns & Pitfalls
 

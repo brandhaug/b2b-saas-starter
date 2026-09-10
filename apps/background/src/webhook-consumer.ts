@@ -1,7 +1,4 @@
-import {
-  selectCapabilitiesLayer,
-  starterEnv
-} from '@b2b-saas-starter/capabilities/runtime'
+import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { WEBHOOK_USER_AGENT } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import {
@@ -17,7 +14,7 @@ import { currentTraceId, TRACE_HEADER } from '@b2b-saas-starter/logger'
 import { DateTime, Effect, Result, Schema, type Scope } from 'effect'
 import { HttpBody, HttpClient } from 'effect/unstable/http'
 
-import { webhookDlqConsumerSettings } from '../../../infra/bindings.ts'
+import { webhookDlqConsumerSettings } from '@b2b-saas-starter/infra'
 import {
   consumerInvocation,
   type DeliveryOutcome,
@@ -287,7 +284,7 @@ function deliverWebhook(
     program: Effect.gen(function* () {
       const traceId = yield* currentTraceId
       return yield* processWebhookMessage(delivery, traceId)
-    }).pipe(Effect.provide(selectCapabilitiesLayer(starterEnv(env))))
+    }).pipe(Effect.provide(selectCapabilitiesLayer(env)))
   })
 }
 
@@ -349,7 +346,7 @@ function recordDeadLetter(
   const delivery = readDelivery(WebhookQueueMessage, envelope)
   const program: Effect.Effect<DeliveryOutcome, never, Scope.Scope> =
     processDeadLetterMessage(delivery).pipe(
-      Effect.provide(selectCapabilitiesLayer(starterEnv(env))),
+      Effect.provide(selectCapabilitiesLayer(env)),
       // `as<'ack'>(...)`, not `satisfies`: under pipe inference the naked type
       // parameter widens the satisfies-checked literal to `string`.
       Effect.as<'ack'>('ack'),

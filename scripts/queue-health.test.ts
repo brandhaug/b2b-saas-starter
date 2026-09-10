@@ -1,7 +1,6 @@
 // Node CLI protocol tests use the real HTTP decoder and a controlled fetch response.
-// oxlint-disable vitest/no-import-node-test
 import { strict as assert } from 'node:assert'
-import { test } from 'node:test'
+import { test } from 'vite-plus/test'
 import { inspectQueues, queueIsHealthy } from './queue-health.ts'
 
 const now = 1_800_000
@@ -15,14 +14,15 @@ const environment = {
   ])
 }
 
-await test('a stalled, nonempty queue trips the age policy and draining it recovers', () => {
+test('a stalled, nonempty queue trips the age policy and draining it recovers', () => {
   assert.equal(queueIsHealthy(1, now - 900_000, false, now), false)
   assert.equal(queueIsHealthy(1, now - 899_999, false, now), true)
   assert.equal(queueIsHealthy(0, 0, false, now), true)
   assert.equal(queueIsHealthy(1, 0, false, now), false)
   assert.equal(queueIsHealthy(1, now, true, now), false)
 })
-await test('reads provider metrics without consuming any messages', async () => {
+
+test('reads provider metrics without consuming any messages', async () => {
   const observations = await inspectQueues(
     environment,
     (url, init) => {
@@ -42,7 +42,8 @@ await test('reads provider metrics without consuming any messages', async () => 
   )
   assert.equal(observations[0]?.healthy, true)
 })
-await test('provider failure and malformed success cannot produce healthy evidence', async () => {
+
+test('provider failure and malformed success cannot produce healthy evidence', async () => {
   await assert.rejects(
     inspectQueues(
       environment,

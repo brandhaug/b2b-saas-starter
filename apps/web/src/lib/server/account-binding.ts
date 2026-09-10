@@ -2,41 +2,28 @@ import { type AccountLifecycleBinding } from '@b2b-saas-starter/capabilities/gov
 import { makeAdminAccountLifecycleBinding } from '@b2b-saas-starter/capabilities/governance/account-lifecycle-admin.live'
 import { env } from 'cloudflare:workers'
 
+import { webMemberBinding } from './member-binding'
 import { sessionCall } from './plugin-call'
+import { webWorkspaceLifecycleBinding } from './workspace-binding'
 
 /**
  * The web app's adapter onto the three session-bound endpoints the account
  * lifecycle drives — the app half of the `AccountLifecycleBinding` port that
  * `@b2b-saas-starter/capabilities` declares. All three run under the
- * deleting user's own session: leave and delete through the organization
- * plugin's endpoints (the same ones `member-binding.ts` and
- * `workspace-binding.ts` wrap), and the account delete through Better Auth's
+ * deleting user's own session: leave and delete reuse the organization
+ * plugin adapters in `member-binding.ts` and `workspace-binding.ts`, and the
+ * account delete goes through Better Auth's
  * core `/delete-user`, which verifies the password before any hook runs.
  * See `./plugin-call.ts`.
  */
 export const webAccountLifecycleBinding: AccountLifecycleBinding = {
-  // The plugin's leave endpoint resolves the member from the deleting user's
-  // session — unlike `removeMember`, no `member:delete` permission applies,
-  // so a plain member can leave their workspaces as part of deleting the
-  // account. `input.memberId` is redundant here (the session is the member)
-  // but stays on the port for the Seed adapter, which resolves by row id.
-  leaveWorkspace: async (input) => {
-    void input.memberId
-    await sessionCall((api, headers) =>
-      api.leaveOrganization({
-        body: { organizationId: input.workspaceId },
-        headers
-      })
-    )
-  },
-  deleteWorkspace: async (input) => {
-    await sessionCall((api, headers) =>
-      api.deleteOrganization({
-        body: { organizationId: input.workspaceId },
-        headers
-      })
-    )
-  },
+  // Both writes are the same plugin endpoints the membership and workspace
+  // bindings already wrap, called under the deleting user's own session.
+  // `input.memberId` is redundant here (the session is the member) but stays
+  // on the port for the Seed adapter, which resolves by row id.
+  leaveWorkspace: (input) => webMemberBinding.leave({ workspaceId: input.workspaceId }),
+  deleteWorkspace: (input) =>
+    webWorkspaceLifecycleBinding.remove({ workspaceId: input.workspaceId }),
   deleteUser: async (input) => {
     await sessionCall((api, headers) =>
       api.deleteUser({ body: { password: input.password }, headers })

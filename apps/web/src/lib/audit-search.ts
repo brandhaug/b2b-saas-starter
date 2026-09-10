@@ -21,9 +21,9 @@ export type ApplyWorkspaceAuditSearch = (search: WorkspaceAuditSearchUpdate) => 
  * of the URL vocabulary fails to compile here instead of being stripped by the
  * route's search schema at runtime.
  */
-export function compact(
-  search: WorkspaceAuditSearchUpdate
-): WorkspaceAuditSearchUpdate {
+export function compact(search: {
+  readonly [K in keyof WorkspaceAuditSearchUpdate]?: string | undefined
+}): WorkspaceAuditSearchUpdate {
   // Mutable build type — the search update's properties are readonly on the
   // wire shape, but the compaction assembles the kept values into a new one.
   const next: {
@@ -56,20 +56,10 @@ export function compact(
 export function auditSearchFromFilters(
   filters: WorkspaceAuditPayload['filters']
 ): WorkspaceAuditSearchUpdate {
-  const search: {
-    -readonly [K in keyof WorkspaceAuditSearchUpdate]: WorkspaceAuditSearchUpdate[K]
-  } = {}
-  if (filters.actorUserId !== undefined) {
-    search.actor = filters.actorUserId
-  }
-  if (filters.eventType !== undefined) {
-    search.eventType = filters.eventType
-  }
-  if (filters.since !== undefined) {
-    search.since = filters.since
-  }
-  if (filters.until !== undefined) {
-    search.until = filters.until
-  }
-  return compact(search)
+  return compact({
+    actor: filters.actorUserId,
+    eventType: filters.eventType,
+    since: filters.since,
+    until: filters.until
+  })
 }

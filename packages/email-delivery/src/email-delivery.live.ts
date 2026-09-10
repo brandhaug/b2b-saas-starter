@@ -1,6 +1,6 @@
 import { emailDeliveries, user } from '@b2b-saas-starter/db/schema'
 import { Database } from '@b2b-saas-starter/db/service'
-import { and, asc, desc, eq, inArray, lte, or, sql, type SQL } from 'drizzle-orm'
+import { and, desc, eq, sql, type SQL } from 'drizzle-orm'
 import { Effect, Layer } from 'effect'
 import { orUnavailable } from '@b2b-saas-starter/failure/capability'
 import { EmailDelivery } from './email-delivery.ts'
@@ -41,21 +41,11 @@ export const LiveEmailDelivery = Layer.effect(
         if (filter.purpose !== undefined) {
           conditions.push(eq(emailDeliveries.purpose, filter.purpose))
         }
-        if (filter.createdBefore !== undefined) {
-          conditions.push(lte(emailDeliveries.createdAt, filter.createdBefore))
-        }
-        if (filter.statuses !== undefined) {
-          conditions.push(inArray(emailDeliveries.status, [...filter.statuses]))
-        }
-        let order = [desc(emailDeliveries.createdAt), desc(emailDeliveries.id)]
-        if (filter.createdBefore !== undefined) {
-          order = [asc(emailDeliveries.createdAt), asc(emailDeliveries.id)]
-        }
         const query = db
           .select()
           .from(emailDeliveries)
           .where(and(...conditions))
-          .orderBy(...order)
+          .orderBy(desc(emailDeliveries.createdAt), desc(emailDeliveries.id))
         if (filter.limit === null) {
           return yield* query.pipe(unavailable)
         }
@@ -80,29 +70,6 @@ export const LiveEmailDelivery = Layer.effect(
           .returning({ id: emailDeliveries.id })
           .pipe(unavailable)
         return changed.length === 1
-      }),
-      remove: Effect.fn('LiveEmailDelivery.remove')(function* (expired) {
-        let count = 0
-        // Two bound parameters per row, below D1's 100-parameter statement cap.
-        for (let start = 0; start < expired.length; start += 45) {
-          const chunk = expired.slice(start, start + 45)
-          const changed = yield* db
-            .delete(emailDeliveries)
-            .where(
-              or(
-                ...chunk.map((row) =>
-                  and(
-                    eq(emailDeliveries.id, row.id),
-                    eq(emailDeliveries.revision, row.revision)
-                  )
-                )
-              )
-            )
-            .returning({ id: emailDeliveries.id })
-            .pipe(unavailable)
-          count += changed.length
-        }
-        return count
       }),
       resolveUserId: Effect.fn('LiveEmailDelivery.resolveUserId')(function* (email) {
         const rows = yield* db

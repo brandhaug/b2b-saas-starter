@@ -1,10 +1,7 @@
-import {
-  selectCapabilitiesLayer,
-  starterEnv
-} from '@b2b-saas-starter/capabilities/runtime'
+import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import {
-  type DigestCandidate,
+  type NotificationEmailContext,
   type NotificationRecipient
 } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { NotificationEmailEligibility } from '@b2b-saas-starter/capabilities/notifications/notification-email-eligibility'
@@ -62,7 +59,7 @@ export function formatDigestTimestamp(
  * deterministic.
  */
 export function buildDigests(
-  candidates: ReadonlyArray<DigestCandidate>
+  candidates: ReadonlyArray<NotificationEmailContext>
 ): ReadonlyArray<RecipientDigest> {
   const byRecipient = new Map<
     string,
@@ -218,10 +215,7 @@ export function sendDailyDigest(
       `${DateTime.formatIso(DateTime.makeUnsafe(scheduledTime)).slice(0, 10)}T08:00:00.000Z`
     ).pipe(
       Effect.provide(
-        Layer.merge(
-          selectCapabilitiesLayer(starterEnv(env)),
-          selectEmailDispatcherLayer(env)
-        )
+        Layer.merge(selectCapabilitiesLayer(env), selectEmailDispatcherLayer(env))
       ),
       Effect.retry(
         Schedule.upTo({ times: 2 })(

@@ -1,12 +1,7 @@
 import { apiTokenScopeAccess, type ApiTokenScope } from './roles.ts'
 import { Effect, type Scope } from 'effect'
 import { AUTHORIZATION_DENIED_REASONS, AuthorizationDenied } from './errors.ts'
-import {
-  authorize,
-  type PermissionRequest,
-  type Principal,
-  type RequestedActions
-} from './principal.ts'
+import { authorize, type PermissionRequest, type Principal } from './principal.ts'
 
 /**
  * The enforcement point. Handlers compose it beside `enforceRateLimit` and
@@ -21,18 +16,11 @@ import {
  * `tokenPrincipal`.
  */
 
-function actionsOf(requested: RequestedActions): ReadonlyArray<string> {
-  if ('actions' in requested) {
-    return requested.actions
-  }
-  return requested
-}
-
 /** `apiToken:list+create webhook:create` — one field on the wide event. */
 function describe(request: PermissionRequest): string {
   const parts: Array<string> = []
   for (const [resource, requested] of Object.entries(request)) {
-    parts.push(`${resource}:${actionsOf(requested).join('+')}`)
+    parts.push(`${resource}:${requested.join('+')}`)
   }
   return parts.join(' ')
 }

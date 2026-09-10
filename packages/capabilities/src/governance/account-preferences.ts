@@ -14,7 +14,6 @@ import { AuditEventLog, type RecordAuditEventInput } from './audit-event-log.ts'
 import { auditedMutations } from './audited-mutation.ts'
 
 export const AccountLocale = Schema.Literals(accountLocales)
-export type AccountLocale = Locale
 
 export const AccountPreferences = Schema.Struct({
   locale: Schema.NullOr(AccountLocale),
@@ -29,7 +28,7 @@ type AccountPreferencesUpdate = {
 
 export type SetAccountPreferencesInput = {
   readonly userId: string
-  readonly locale?: AccountLocale | null | undefined
+  readonly locale?: Locale | null | undefined
   readonly timeZone?: string | null | undefined
   /** Set the browser supplied timezone only when the account has none yet. */
   readonly initializeTimeZone?: boolean | undefined
@@ -331,7 +330,7 @@ export const LiveAccountPreferences: Layer.Layer<
                   values.timeZone = timeZone
                 }
               }
-              return db.update(user).set(values).where(eq(user.id, input.userId))
+              return [db.update(user).set(values).where(eq(user.id, input.userId))]
             }
           })
           // The conditional update above is intentionally followed by a read;

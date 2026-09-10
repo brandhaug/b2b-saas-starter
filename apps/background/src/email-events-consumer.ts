@@ -1,7 +1,4 @@
-import {
-  selectCapabilitiesLayer,
-  starterEnv
-} from '@b2b-saas-starter/capabilities/runtime'
+import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import {
   EmailDelivery,
   type EmailProviderEvent
@@ -213,7 +210,7 @@ export function consumeEmailEvent(
     delivery,
     onFailure: 'retry',
     program: processEmailEventMessage(delivery, env).pipe(
-      Effect.provide(selectCapabilitiesLayer(starterEnv(env)))
+      Effect.provide(selectCapabilitiesLayer(env))
     )
   })
 }

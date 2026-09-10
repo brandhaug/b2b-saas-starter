@@ -15,12 +15,10 @@ import { DEFAULT_LOCALE, type Locale } from '@b2b-saas-starter/i18n/locale'
  * queue messages decode against the same list the column stores. The stored
  * tuples are the source; this module only lifts them.
  */
-export const NOTIFICATION_KINDS = notificationKinds
-export const NotificationKind = Schema.Literals(NOTIFICATION_KINDS)
+export const NotificationKind = Schema.Literals(notificationKinds)
 export type NotificationKind = StoredNotificationKind
 
-const NOTIFICATION_CHANNELS = notificationChannels
-export const NotificationChannel = Schema.Literals(NOTIFICATION_CHANNELS)
+export const NotificationChannel = Schema.Literals(notificationChannels)
 export type NotificationChannel = StoredNotificationChannel
 
 const securityKinds: ReadonlySet<string> = new Set(securityNotificationKinds)

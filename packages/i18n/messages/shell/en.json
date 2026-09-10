@@ -100,14 +100,10 @@
   "shell_table_sort_desc": "Sort by {column}, currently descending",
   "shell_table_sort": "Sort by {column}",
   "shell_table_empty": "No results.",
-  "shell_table_filter": "Filter…",
-  "shell_table_filter_rows": "Filter rows",
   "shell_table_previous": "Previous",
   "shell_table_next": "Next",
   "shell_chart_empty": "No webhook endpoints configured yet.",
   "shell_chart_delivered": "{percent} delivered",
-  "shell_chart_success_rate": "{endpoint}: {percent} success rate",
-  "shell_chart_success": "Success",
   "shell_table_page": [
     {
       "declarations": [

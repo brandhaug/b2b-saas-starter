@@ -21,6 +21,7 @@ import { RawD1, type D1Binding } from '@b2b-saas-starter/db/service'
 import { Effect, Layer, Option, Schema } from 'effect'
 import { getPlatformProxy } from 'wrangler'
 import { retentionTargetKey, stageResourceNames } from '../infra/bindings.ts'
+import { required } from './lib/env.ts'
 
 type Environment = Readonly<Record<string, string | undefined>>
 
@@ -98,13 +99,6 @@ function value(input: string | boolean | undefined): string | undefined {
     return undefined
   }
   return normalized
-}
-
-function required(input: string | undefined, label: string): string {
-  if (input === undefined) {
-    throw new Error(`Missing ${label}`)
-  }
-  return input
 }
 
 function parseCli(rawArgs: ReadonlyArray<string>): Options {

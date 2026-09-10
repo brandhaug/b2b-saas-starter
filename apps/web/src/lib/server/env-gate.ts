@@ -71,18 +71,18 @@ export function enforceRequiredEnvOnce(): void {
   }
   verdict = 'warned'
   // Standalone scope, not nested in the triggering request: this is a
-  // boot-time config event, one per isolate, not traffic telemetry. The
-  // missing-request lookup forces the standalone branch of
-  // `withWebRequestScope` (its `scope: 'standalone'` tag reads as "not part
-  // of any request", which is the truth here).
+  // boot-time config event, one per isolate, not traffic telemetry. The gate
+  // runs before the observability middleware registers the request, so
+  // `withWebRequestScope` takes its standalone branch here (its
+  // `scope: 'standalone'` tag reads as "not part of any request", which is
+  // the truth).
   void webRuntime.runPromiseExit(
     withWebRequestScope(
       {
         event: 'config.insecure',
         metadata: { environment: audit.mode, problems: audit.problems }
       },
-      Effect.void,
-      () => undefined
+      Effect.void
     )
   )
 }

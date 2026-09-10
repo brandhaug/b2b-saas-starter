@@ -14,7 +14,7 @@ Owns Better Auth configuration and plugin-to-schema mapping. Apps supply configu
 
 Workspace mutations go through server functions and `CapabilityBindings` (ADR 0051). Adding `organizationClient` bypasses capability auditing. Auth and capabilities communicate through structural ports and must not import each other.
 
-Enable `deleteUser` only with the app's `userDeleteHooks`, which protect sole-owner workspaces and restrictive foreign keys. Preserve password verification → `beforeDelete` → user deletion → `afterDelete` (ADR 0059).
+`AuthConfig` requires the app's `userDeleteHooks`, which protect sole-owner workspaces and restrictive foreign keys, alongside `recoveryHooks` and `hasRecentAuthentication`; `deleteUser` is enabled from that pair. Preserve password verification → `beforeDelete` → user deletion → `afterDelete` (ADR 0059).
 
 SSO provisioning can assign `member` or `admin`, never `owner`. The app enforces the connection's `enabled` flag; Better Auth does not know it (ADR 0069).
 

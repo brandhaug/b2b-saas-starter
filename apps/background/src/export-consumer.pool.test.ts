@@ -1,5 +1,5 @@
 import { type WorkspaceExportQueueMessage } from '@b2b-saas-starter/capabilities/governance/workspace-export'
-import { workspaceExportQueueName } from '../../../infra/bindings.ts'
+import { workspaceExportQueueName } from '@b2b-saas-starter/infra'
 import { env } from 'cloudflare:workers'
 import { Effect } from 'effect'
 import { beforeAll, beforeEach, describe, expect, it } from 'vite-plus/test'

@@ -16,13 +16,12 @@ export const WorkspaceSuspension = Schema.Struct({
 })
 export type WorkspaceSuspension = typeof WorkspaceSuspension.Type
 
-export const WorkspaceSuspensionSummary = Schema.Struct({
-  id: Schema.String,
-  slug: Schema.String,
-  name: Schema.String,
-  suspension: WorkspaceSuspension
-})
-export type WorkspaceSuspensionSummary = typeof WorkspaceSuspensionSummary.Type
+export type WorkspaceSuspensionSummary = {
+  readonly id: string
+  readonly slug: string
+  readonly name: string
+  readonly suspension: WorkspaceSuspension
+}
 
 /** Operations that remain usable during suspension. Everything else is product work. */
 export const workspaceSuspensionOperations = Schema.Literals([
@@ -46,14 +45,7 @@ export function workspaceSuspensionOperationForPermission(
     return 'product'
   }
   function actions(resource: keyof PermissionRequest): ReadonlyArray<string> {
-    const value = request[resource]
-    if (Array.isArray(value)) {
-      return value
-    }
-    if (value !== undefined && 'actions' in value) {
-      return value.actions
-    }
-    return []
+    return request[resource] ?? []
   }
   const tokenActions = actions('apiToken')
   if (

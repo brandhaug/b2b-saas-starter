@@ -11,14 +11,13 @@ const STRONG_AUTH_MAX_AGE_MS = 12 * 60 * 60 * 1000
 const RECENT_AUTH_MAX_AGE_MS = 5 * 60 * 1000
 const PASSWORD_VERIFICATION_MAX_AGE_MS = 5 * 60 * 1000
 
-export const StrongAuthenticationStatus = Schema.Struct({
-  qualified: Schema.Boolean,
-  recent: Schema.Boolean,
-  recovering: Schema.Boolean,
-  hasFactors: Schema.Boolean,
-  passwordVerified: Schema.Boolean
-})
-export type StrongAuthenticationStatus = typeof StrongAuthenticationStatus.Type
+export type StrongAuthenticationStatus = {
+  readonly qualified: boolean
+  readonly recent: boolean
+  readonly recovering: boolean
+  readonly hasFactors: boolean
+  readonly passwordVerified: boolean
+}
 
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call
 export class StrongAuthenticationRequired extends Schema.TaggedError<StrongAuthenticationRequired>()(
@@ -118,8 +117,8 @@ function evaluate(
   }
 }
 
-export function SeedStrongAuthentication(): Layer.Layer<StrongAuthentication> {
-  return Layer.succeed(StrongAuthentication)({
+export const SeedStrongAuthentication: Layer.Layer<StrongAuthentication> =
+  Layer.succeed(StrongAuthentication)({
     status: () =>
       Effect.succeed({
         qualified: false,
@@ -131,7 +130,6 @@ export function SeedStrongAuthentication(): Layer.Layer<StrongAuthentication> {
     require: () => Effect.fail(new StrongAuthenticationRequired()),
     requireRecent: () => Effect.fail(new StrongAuthenticationRequired())
   })
-}
 
 export const LiveStrongAuthentication: Layer.Layer<
   StrongAuthentication,

@@ -13,10 +13,7 @@ import {
 } from '@b2b-saas-starter/billing/billing-config'
 import { withTriggerScope } from '@b2b-saas-starter/logger'
 import { Effect, Result, Schema } from 'effect'
-import {
-  selectCapabilitiesLayer,
-  starterEnv
-} from '@b2b-saas-starter/capabilities/runtime'
+import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { runInvocation, type Env } from './queue-consumer.ts'
 
 /**
@@ -190,7 +187,7 @@ export async function handleStripeRequest(
   }).pipe(
     Effect.provide(
       selectCapabilitiesLayer({
-        ...starterEnv(env),
+        ...env,
         billing
       })
     )

@@ -2,6 +2,8 @@ import { parseArgs } from 'node:util'
 
 import { Effect, Option, Schema } from 'effect'
 
+import { required } from './lib/env.ts'
+
 type FetchImplementation = typeof globalThis.fetch
 type Environment = Readonly<Record<string, string | undefined>>
 
@@ -60,13 +62,6 @@ function envValue(name: string, environment: Environment): string | undefined {
   const value = environment[name]
   if (value === undefined || value.trim().length === 0) {
     return undefined
-  }
-  return value
-}
-
-function required(value: string | undefined, name: string): string {
-  if (value === undefined) {
-    throw new Error(`Missing ${name}`)
   }
   return value
 }
@@ -287,21 +282,24 @@ function retry(
     operatorConfig.billingQueueId,
     'CLOUDFLARE_BILLING_QUEUE_ID or --queue'
   )
-  const message: OperatorRetryMessage = {
+  let message: OperatorRetryMessage = {
     kind: 'billing.seat_sync',
     workspaceId: options.workspaceId,
     reason: 'operator_retry',
     operatorId
   }
-  if (options.customerId !== undefined || options.checkoutSessionId !== undefined) {
-    const recovery: NonNullable<OperatorRetryMessage['recovery']> = {}
-    if (options.customerId !== undefined) {
-      recovery.customerId = options.customerId
+  if (options.customerId !== undefined && options.checkoutSessionId !== undefined) {
+    message = {
+      ...message,
+      recovery: {
+        customerId: options.customerId,
+        checkoutSessionId: options.checkoutSessionId
+      }
     }
-    if (options.checkoutSessionId !== undefined) {
-      recovery.checkoutSessionId = options.checkoutSessionId
-    }
-    message.recovery = recovery
+  } else if (options.customerId !== undefined) {
+    message = { ...message, recovery: { customerId: options.customerId } }
+  } else if (options.checkoutSessionId !== undefined) {
+    message = { ...message, recovery: { checkoutSessionId: options.checkoutSessionId } }
   }
   if (!options.execute) {
     return Effect.succeed({
@@ -348,10 +346,7 @@ export function runOperator(
   return Effect.runPromise(main(rawArgs, environment, fetchImpl, write))
 }
 
-if (
-  process.argv[1] !== undefined &&
-  process.argv[1] === new URL(import.meta.url).pathname
-) {
+if (import.meta.main) {
   runOperator(process.argv.slice(2), process.env, globalThis.fetch, (text) =>
     process.stdout.write(text)
   ).catch((error: unknown) => {

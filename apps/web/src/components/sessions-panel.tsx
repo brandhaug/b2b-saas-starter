@@ -36,7 +36,7 @@ type SessionRecord = {
  * expiry label, which is formatted inside the query function (client-side
  * only) so server rendering never formats dates.
  */
-export type SessionRowView = {
+type SessionRowView = {
   readonly token: string
   readonly deviceLabel: string
   readonly expiresLabel: string

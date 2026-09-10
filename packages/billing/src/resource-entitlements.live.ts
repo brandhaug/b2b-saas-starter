@@ -12,7 +12,7 @@ import { orUnavailable } from '@b2b-saas-starter/failure/capability'
 import {
   EMPTY_RESOURCE_SELECTION,
   ResourceSelection,
-  resourceEntitlementSummary
+  resourceEntitlement
 } from './plan-catalog.ts'
 import {
   normalizeSelection,
@@ -118,7 +118,7 @@ export const LiveResourceEntitlements: Layer.Layer<
       const selected = yield* readSelection(workspaceId).pipe(
         Effect.provideService(Database, db)
       )
-      return resourceEntitlementSummary(
+      return resourceEntitlement(
         yield* billing.currentPlanForWorkspace(workspaceId),
         resource,
         resourceIds(inventory, resource),
@@ -194,9 +194,6 @@ export const LiveResourceEntitlements: Layer.Layer<
           Effect.provideService(RawD1, d1)
         )
         return yield* getSelectionForWorkspace(ctx.workspace.id)
-      }),
-      isActive: Effect.fn('ResourceEntitlements.isActive')(function* (input) {
-        return (yield* summarize(input)).activeIds.includes(input.resourceId)
       }),
       isActiveForWorkspace: Effect.fn('ResourceEntitlements.isActiveForWorkspace')(
         function* (input) {

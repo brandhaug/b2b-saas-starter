@@ -10,9 +10,9 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import {
   type Plan,
-  type ResourceEntitlementSummary
+  type ResourceEntitlement,
+  type ResourceSelection
 } from '@b2b-saas-starter/billing/plan-catalog'
-import { type ResourceSelectionInput } from '@b2b-saas-starter/billing/resource-entitlements'
 import { CAPABILITY_UNAVAILABLE_ERROR_NAME } from '@/lib/capability-error'
 import { causeMessage } from '@/lib/cause-message'
 import { useServerAction } from '@/hooks/use-server-action'
@@ -28,15 +28,6 @@ import { Spinner } from '@/components/ui/spinner'
 import { formatCurrency, formatDate, formatNumber } from '@b2b-saas-starter/i18n/format'
 import { getLocale } from '@b2b-saas-starter/i18n/runtime'
 import { m } from '@b2b-saas-starter/i18n/messages'
-function CHECKOUT_FAILED() {
-  return m.checkout_failed()
-}
-function PORTAL_FAILED() {
-  return m.portal_failed()
-}
-function PORTAL_UNAVAILABLE() {
-  return m.portal_unavailable()
-}
 
 /** The server function the Upgrade button calls; a test supplies its own. */ export type StartCheckout =
   (input: {
@@ -54,7 +45,7 @@ export type SelectBillingResources = (input: {
     readonly apiTokenIds: ReadonlyArray<string>
     readonly webhookEndpointIds: ReadonlyArray<string>
   }
-}) => Promise<ResourceSelectionInput>
+}) => Promise<ResourceSelection>
 
 const EMPTY_RESOURCE_IDS: ReadonlyArray<string> = []
 const EMPTY_RESOURCES: ReadonlyArray<{ readonly id: string; readonly name: string }> =
@@ -111,16 +102,16 @@ function portalErrorText(thrown: unknown): string {
     'name' in thrown &&
     thrown.name === CAPABILITY_UNAVAILABLE_ERROR_NAME
   ) {
-    return PORTAL_UNAVAILABLE()
+    return m.portal_unavailable()
   }
-  return causeMessage(thrown, PORTAL_FAILED())
+  return causeMessage(thrown, m.portal_failed())
 }
 // oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof
 
 /** Checkout conflicts and provider outages share the translated availability response. */
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- rejected promises are untrusted input at the UI boundary
 function checkoutErrorText(thrown: unknown): string {
-  return causeMessage(thrown, CHECKOUT_FAILED())
+  return causeMessage(thrown, m.checkout_failed())
 }
 
 /**
@@ -163,8 +154,8 @@ export function BillingPlans({
     readonly url: string
   }>
   readonly resourceEntitlements: {
-    readonly apiTokens: ResourceEntitlementSummary
-    readonly webhookEndpoints: ResourceEntitlementSummary
+    readonly apiTokens: ResourceEntitlement
+    readonly webhookEndpoints: ResourceEntitlement
   }
   /** Whether the viewer may change the plan (`organization:update`). */
   readonly canManageBilling: boolean
@@ -178,7 +169,7 @@ export function BillingPlans({
   const upgrade = useServerAction(
     (planId: string) => startCheckout({ data: { workspaceSlug, planId } }),
     {
-      failureMessage: CHECKOUT_FAILED(),
+      failureMessage: m.checkout_failed(),
       describeFailure: checkoutErrorText,
       invalidate: false,
       onSuccess: (session) => window.location.assign(session.url)
@@ -191,7 +182,7 @@ export function BillingPlans({
   const portal = useServerAction<undefined, { url: string }>(
     () => startPortalSession({ data: { workspaceSlug } }),
     {
-      failureMessage: PORTAL_FAILED(),
+      failureMessage: m.portal_failed(),
       describeFailure: portalErrorText,
       invalidate: false,
       onSuccess: (session) => window.location.assign(session.url)
@@ -546,8 +537,8 @@ function BillingResourceAccess({
   readonly currentPlanId: string
   readonly lifecycle: BillingLifecycle
   readonly resourceEntitlements: {
-    readonly apiTokens: ResourceEntitlementSummary
-    readonly webhookEndpoints: ResourceEntitlementSummary
+    readonly apiTokens: ResourceEntitlement
+    readonly webhookEndpoints: ResourceEntitlement
   }
   readonly workspaceSlug: string
   readonly resourceSelection: {
@@ -609,8 +600,8 @@ function DowngradeResourceSelector({
   }>
   readonly selectBillingResources: SelectBillingResources
   readonly resourceEntitlements: {
-    readonly apiTokens: ResourceEntitlementSummary
-    readonly webhookEndpoints: ResourceEntitlementSummary
+    readonly apiTokens: ResourceEntitlement
+    readonly webhookEndpoints: ResourceEntitlement
   }
 }) {
   const [tokenIds, setTokenIds] = useState<ReadonlyArray<string>>(() =>

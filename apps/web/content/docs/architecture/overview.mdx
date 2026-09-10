@@ -10,19 +10,7 @@ The web, API, and background Workers share D1 and the Effect services in
 `packages/capabilities`. HTTP contracts live in `packages/api`; request logging
 lives in `packages/logger`.
 
-```mermaid
-flowchart LR
-  Browser -->|SSR and server functions| Web[apps/web]
-  Client[External clients] -->|REST and MCP| API[apps/api]
-  Web --> D1[(D1)]
-  API --> D1
-  Web --> Queues
-  API --> Queues
-  Queues --> BG[apps/background]
-  BG --> D1
-  BG --> Providers[Email, Stripe, webhook receivers]
-  BG --> R2[Optional export bucket]
-```
+<ArchitectureSchematic />
 
 The web Worker calls capabilities in-process. External clients use the API
 Worker. Both enforce the shared permission rules in `packages/authz`.

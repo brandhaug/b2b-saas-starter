@@ -16,11 +16,8 @@
   "type": "module",
   "scripts": {
     "skills:setup": "node scripts/setup-agent-skills.ts",
-    "skills:eval": "node scripts/evaluate-agent-workflow.ts",
-    "skills:smoke": "node scripts/smoke-agent-workflow.ts",
-    "test:scripts": "tsc -p scripts/tsconfig.agent-workflow.json && node --test scripts/setup-agent-skills.test.ts scripts/evaluate-agent-workflow.test.ts .github/scripts/*.test.ts",
+    "test:scripts": "tsc -p scripts/tsconfig.json && vp test run scripts/ .github/scripts/",
     "dev": "pnpm -C packages/i18n generate && vp run -r --parallel dev",
-    "dev:web": "pnpm -C apps/web dev",
     "build": "pnpm -C packages/i18n generate && vp run -r build",
     "validate": "pnpm run check && pnpm run build && pnpm run infra:wrangler && git diff --exit-code -- apps/*/wrangler.jsonc && pnpm run db:migrate:local && pnpm run db:seed && CI=1 E2E_PORT=${E2E_PORT:-3097} pnpm run test:e2e",
     "typecheck": "pnpm -C packages/i18n generate && vp run -r typecheck",
@@ -31,7 +28,7 @@
     "dead-code": "fallow dead-code --fail-on-regression",
     "format": "vp fmt --write",
     "format:check": "vp fmt --check",
-    "check": "pnpm run typecheck && pnpm run lint && pnpm run format:check && pnpm run dead-code && pnpm run test && pnpm run test:scripts && pnpm run test:operations",
+    "check": "pnpm run typecheck && pnpm run lint && pnpm run format:check && pnpm run dead-code && pnpm run test && pnpm run test:scripts",
     "check:fix": "pnpm run lint:fix && pnpm run format",
     "db:generate": "pnpm -C packages/db db:generate",
     "db:migrate:local": "pnpm -C packages/db db:migrate:local",
@@ -52,11 +49,7 @@
     "backup:d1:prune": "node scripts/d1-backup.ts prune",
     "backup:d1:freshness": "node scripts/d1-backup.ts freshness",
     "restore:d1": "node scripts/d1-backup.ts restore",
-    "restore:d1:drill": "node scripts/d1-backup.ts restore --drill",
-    "restore:d1:pitr-drill": "node scripts/d1-backup.ts pitr-drill",
-    "recovery:security": "node scripts/recovery-security.ts apply",
-    "monitor:queues": "node scripts/queue-health.ts",
-    "test:operations": "tsc -p scripts/tsconfig.operations.json && vp test run scripts/d1-backup.test.ts scripts/recovery-security.test.ts scripts/retention-operator.test.ts && node --test scripts/queue-health.test.ts"
+    "restore:d1:drill": "node scripts/d1-backup.ts restore --drill"
   },
   "dependencies": {
     "@b2b-saas-starter/capabilities": "workspace:*",
@@ -67,7 +60,6 @@
   "devDependencies": {
     "@cloudflare/workers-types": "catalog:",
     "@effect/platform-node": "catalog:",
-    "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "alchemy": "catalog:",
     "effect": "catalog:",

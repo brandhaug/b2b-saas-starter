@@ -1,7 +1,5 @@
-import {
-  SEED_API_TOKEN,
-  hashApiToken
-} from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+import { hashSha256 } from '@b2b-saas-starter/capabilities/crypto'
+import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import {
   LIVE_SUITE_TIMEOUT,
   TestDatabase,
@@ -74,13 +72,13 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('MCP live boundaries', (it)
           TOKEN_INSERT,
           'tok_live_own',
           'wrk_live',
-          yield* Effect.promise(() => hashApiToken(own))
+          yield* Effect.promise(() => hashSha256(own))
         )
         yield* execute(
           TOKEN_INSERT,
           'tok_live_foreign',
           'wrk_other',
-          yield* Effect.promise(() => hashApiToken(foreign))
+          yield* Effect.promise(() => hashSha256(foreign))
         )
         const { handler } = buildWebHandler({ DB, ...rateBindings })
         const client = mcpClient(handler, `Bearer ${own}`)
@@ -140,7 +138,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('MCP live boundaries', (it)
           TOKEN_INSERT,
           'tok_queue_test',
           'wrk_dev_contract',
-          yield* Effect.promise(() => hashApiToken(SEED_API_TOKEN))
+          yield* Effect.promise(() => hashSha256(SEED_API_TOKEN))
         )
         const missing = mcpClient(
           buildWebHandler({ DB, ...rateBindings }).handler,
@@ -300,7 +298,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('MCP live boundaries', (it)
           TOKEN_INSERT,
           'tok_exports_live',
           'wrk_dev_contract',
-          yield* Effect.promise(() => hashApiToken(token))
+          yield* Effect.promise(() => hashSha256(token))
         )
         const client = mcpClient(
           buildWebHandler({ DB, ...rateBindings }).handler,

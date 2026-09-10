@@ -32,7 +32,7 @@ type LinkedAccountRecord = {
 }
 
 /** One row of the panel's view model; dates formatted client-side only. */
-export type LinkedAccountRowView = {
+type LinkedAccountRowView = {
   readonly accountId: string
   readonly methodLabel: string
   readonly linkedLabel: string

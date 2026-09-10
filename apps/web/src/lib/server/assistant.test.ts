@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { type Layer } from 'effect'
 
 import { fixtureSession } from '@/test/fixture-session'
-import { assistantUnconfiguredMessage } from '../assistant-copy'
+import { m } from '@b2b-saas-starter/i18n/messages'
 import { askAssistantHandler, loadAssistantPageHandler } from './assistant.effects'
 import type * as AiModule from '@b2b-saas-starter/ai'
 import type * as AuthModule from './auth'
@@ -79,7 +79,7 @@ describe('assistant handlers', () => {
     expect(outcome).toEqual({
       ok: false,
       reason: 'unconfigured',
-      message: assistantUnconfiguredMessage()
+      message: m.server_assistant_unconfigured()
     })
   })
 

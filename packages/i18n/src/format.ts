@@ -78,22 +78,3 @@ export function formatCurrency(
     currency
   }).format(value)
 }
-
-/** Select the locale-aware plural category for a count. */
-export function pluralCategory(
-  value: number,
-  locale: Locale,
-  type: Intl.PluralRulesOptions['type'] = 'cardinal'
-): Intl.LDMLPluralRule {
-  return new Intl.PluralRules(intlLocale(locale), { type }).select(value)
-}
-
-/** Format relative time (for example, “in 2 days”) with an explicit locale. */
-export function formatRelativeTime(
-  value: number,
-  unit: Intl.RelativeTimeFormatUnit,
-  locale: Locale,
-  options: Intl.RelativeTimeFormatOptions = {}
-): string {
-  return new Intl.RelativeTimeFormat(intlLocale(locale), options).format(value, unit)
-}

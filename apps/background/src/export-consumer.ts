@@ -1,7 +1,6 @@
 import {
   selectCapabilitiesLayer,
-  selectWorkspaceContextLayer,
-  starterEnv
+  selectWorkspaceContextLayer
 } from '@b2b-saas-starter/capabilities/runtime'
 import {
   WorkspaceExportGeneration,
@@ -12,7 +11,7 @@ import { WorkspaceExportQueueMessage } from '@b2b-saas-starter/capabilities/gove
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { Effect, Layer, type Scope } from 'effect'
 
-import { workspaceExportConsumerSettings } from '../../../infra/bindings.ts'
+import { workspaceExportConsumerSettings } from '@b2b-saas-starter/infra'
 import {
   consumerInvocation,
   type DeliveryOutcome,
@@ -89,10 +88,9 @@ export function buildWorkspaceExport(
   env: Env
 ): Effect.Effect<DeliveryOutcome> {
   const delivery = readDelivery(WorkspaceExportQueueMessage, envelope)
-  const capabilitiesEnv = starterEnv(env)
   const generationLayer = WorkspaceExportGenerationLayer((slug) =>
-    selectWorkspaceContextLayer(capabilitiesEnv, slug, undefined, 'system')
-  ).pipe(Layer.provide(selectCapabilitiesLayer(capabilitiesEnv)))
+    selectWorkspaceContextLayer(env, slug, undefined, 'system')
+  ).pipe(Layer.provide(selectCapabilitiesLayer(env)))
 
   return consumerInvocation(env, {
     event: 'workspace_export',

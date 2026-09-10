@@ -246,7 +246,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
         yield* auditedMutation({
           matched: Effect.succeed(true),
           auditEvent: input.auditEvent,
-          write: () => insert
+          write: () => [insert]
         })
       })
     }
@@ -341,7 +341,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
               targetId: endpoint.id,
               metadata: { url: input.url, events: input.events }
             },
-            write: () => db.insert(webhookEndpoints).values(endpoint)
+            write: () => [db.insert(webhookEndpoints).values(endpoint)]
           })
           // Fan-out sits beside the audit write, below the interface: the
           // projection only — never the signing secret.
@@ -490,11 +490,12 @@ export const LiveWebhookEndpoints: Layer.Layer<
               targetId: input.endpointId,
               metadata: updateMetadata(input)
             },
-            write: () =>
+            write: () => [
               db
                 .update(webhookEndpoints)
                 .set(patch)
                 .where(scopedEndpointWhere(input.endpointId, ctx.workspace.id))
+            ]
           })
           if (!applied) {
             return yield* Effect.fail(
@@ -537,10 +538,11 @@ export const LiveWebhookEndpoints: Layer.Layer<
               targetId: input.endpointId,
               metadata: { url: endpoint.url }
             },
-            write: () =>
+            write: () => [
               db
                 .delete(webhookEndpoints)
                 .where(scopedEndpointWhere(input.endpointId, ctx.workspace.id))
+            ]
           })
         }),
       replayDeliveryAsAdmin: Effect.fn('WebhookEndpoints.replayDeliveryAsAdmin')(
@@ -726,14 +728,16 @@ export const LiveWebhookEndpoints: Layer.Layer<
             },
             write: () => {
               signingSecret = randomWebhookSecret()
-              return db
-                .update(webhookEndpoints)
-                .set({
-                  signingSecret,
-                  previousSigningSecret: endpoint.signingSecret,
-                  previousSecretExpiresAt: expiresAt
-                })
-                .where(scopedEndpointWhere(input.endpointId, ctx.workspace.id))
+              return [
+                db
+                  .update(webhookEndpoints)
+                  .set({
+                    signingSecret,
+                    previousSigningSecret: endpoint.signingSecret,
+                    previousSecretExpiresAt: expiresAt
+                  })
+                  .where(scopedEndpointWhere(input.endpointId, ctx.workspace.id))
+              ]
             }
           })
           return { signingSecret }

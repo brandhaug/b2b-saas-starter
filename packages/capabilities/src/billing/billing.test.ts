@@ -24,7 +24,6 @@ import {
   planById,
   PLANS,
   resourceEntitlement,
-  resourceEntitlementSummary,
   EMPTY_RESOURCE_SELECTION,
   seatUsage,
   STARTER_PLAN
@@ -232,10 +231,10 @@ describe('seat pricing catalog', () => {
     expect(selected.paused).toBe(false)
     expect(selected.activeIds).toEqual(['tok_3', 'tok_1'])
     expect(
-      resourceEntitlementSummary(STARTER_PLAN, 'api_token', ids, {
+      resourceEntitlement(STARTER_PLAN, 'api_token', ids, {
         apiTokenIds: ['tok_1', 'tok_2'],
         webhookEndpointIds: []
-      }).requiresSelection
+      }).paused
     ).toBe(false)
   })
 

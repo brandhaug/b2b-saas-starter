@@ -2,7 +2,10 @@ import { deliveryAttemptPhases } from '@b2b-saas-starter/db/enums'
 import { DateTime, Duration, Option, Schema } from 'effect'
 
 import { type AuditEventType } from '../governance/audit-event-taxonomy.ts'
-import { type NotificationEvent } from '../notifications/notification-events.ts'
+import {
+  renderNotificationEvent,
+  type SystemNotificationEvent
+} from '../notifications/notification-events.ts'
 
 /** The JSON value type `Schema.Json` decodes — the payload column's contract. */
 export type Json = typeof Schema.Json.Type
@@ -442,13 +445,13 @@ export const terminalDeliveryAuditEventType = new Map<
 /**
  * The workspace notification a dead-lettered delivery raises: broadcast (no
  * target user), naming the endpoint URL and attempt count so the message is
- * actionable without a query. Owned here so the Seed and Live adapters emit
- * byte-identical copy.
+ * actionable without a query. The durable event is built here; the title and
+ * message are the event's own localized rendering.
  */
 type NotificationCopy = {
   readonly title: string
   readonly message: string
-  readonly event: NotificationEvent
+  readonly event: SystemNotificationEvent
 }
 
 export function deadLetterNotification(input: {
@@ -456,23 +459,19 @@ export function deadLetterNotification(input: {
   readonly url: string
   readonly attempts: number
 }): NotificationCopy {
-  return {
-    title: 'Webhook delivery dead-lettered',
-    message: `${input.eventType} to ${input.url} failed ${input.attempts} attempts and was moved to the dead-letter queue. Replay it from the workspace webhooks page.`,
-    event: {
-      type: 'webhook.dead_letter',
-      eventType: input.eventType,
-      endpointUrl: input.url,
-      attempts: input.attempts
-    }
-  }
+  const event = {
+    type: 'webhook.dead_letter',
+    eventType: input.eventType,
+    endpointUrl: input.url,
+    attempts: input.attempts
+  } satisfies SystemNotificationEvent
+  return { ...renderNotificationEvent(event), event }
 }
 
 /**
- * The workspace-owner notice a ladder rung raises, owned here so the
- * consumer's in-app copy stays identical across environments. A rung notice
- * names the streak and what is coming; the threshold notice names what
- * already happened and the one way back (`update { enabled: true }`).
+ * The workspace-owner notice a ladder rung raises. A rung notice names the
+ * streak and what is coming; the threshold notice names what already happened
+ * and the one way back (`update { enabled: true }`).
  */
 export function failureLadderNotification(input: {
   readonly url: string | null
@@ -480,24 +479,18 @@ export function failureLadderNotification(input: {
 }): NotificationCopy {
   const target = input.url ?? 'A webhook endpoint'
   if (reachedWebhookFailureThreshold(input.consecutiveFailures)) {
-    return {
-      title: 'Webhook endpoint auto-disabled',
-      message: `${target} was disabled after ${input.consecutiveFailures} consecutive failed deliveries. Re-enable it from the workspace webhooks page once the receiver is fixed.`,
-      event: {
-        type: 'webhook.ladder_threshold',
-        target,
-        consecutiveFailures: input.consecutiveFailures
-      }
-    }
-  }
-  return {
-    title: 'Webhook endpoint failing',
-    message: `${target} has failed ${input.consecutiveFailures} deliveries in a row and will be disabled automatically after ${WEBHOOK_FAILURE_AUTO_DISABLE_AT} consecutive failures.`,
-    event: {
-      type: 'webhook.ladder_warning',
+    const event = {
+      type: 'webhook.ladder_threshold',
       target,
-      consecutiveFailures: input.consecutiveFailures,
-      disableAt: WEBHOOK_FAILURE_AUTO_DISABLE_AT
-    }
+      consecutiveFailures: input.consecutiveFailures
+    } satisfies SystemNotificationEvent
+    return { ...renderNotificationEvent(event), event }
   }
+  const event = {
+    type: 'webhook.ladder_warning',
+    target,
+    consecutiveFailures: input.consecutiveFailures,
+    disableAt: WEBHOOK_FAILURE_AUTO_DISABLE_AT
+  } satisfies SystemNotificationEvent
+  return { ...renderNotificationEvent(event), event }
 }

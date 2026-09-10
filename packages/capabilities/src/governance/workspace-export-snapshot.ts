@@ -24,38 +24,15 @@ export type WorkspaceExportSnapshotServices =
   | WorkspaceInvitations
   | WorkspaceMembership
 
-export type WorkspaceExportSnapshotServiceValues = {
-  readonly apiTokenRegistry: typeof ApiTokenRegistry.Service
-  readonly auditEventLog: typeof AuditEventLog.Service
-  readonly notificationFeed: typeof NotificationFeed.Service
-  readonly webhookEndpoints: typeof WebhookEndpoints.Service
-  readonly workspaceInvitations: typeof WorkspaceInvitations.Service
-  readonly workspaceMembership: typeof WorkspaceMembership.Service
-}
-
-/**
- * Keeps a snapshot's captured dependencies to the read services it declares.
- * In particular, do not use `Effect.context` here: it retains every service
- * in the ambient context, including a caller's `WorkspaceContext`, which can
- * defeat a queue resolver supplied later.
- */
-export function workspaceExportSnapshotContext(
-  services: WorkspaceExportSnapshotServiceValues
-): Context.Context<WorkspaceExportSnapshotServices> {
-  return Context.mergeAll(
-    Context.make(ApiTokenRegistry, services.apiTokenRegistry),
-    Context.make(AuditEventLog, services.auditEventLog),
-    Context.make(NotificationFeed, services.notificationFeed),
-    Context.make(WebhookEndpoints, services.webhookEndpoints),
-    Context.make(WorkspaceInvitations, services.workspaceInvitations),
-    Context.make(WorkspaceMembership, services.workspaceMembership)
-  )
-}
-
 /**
  * Acquires the snapshot's explicit read allowlist once for an adapter. Keeping
  * this recipe here makes Seed and queued generation agree when a snapshot
- * service is added, without capturing ambient context such as WorkspaceContext.
+ * service is added.
+ *
+ * The context is built service by service rather than with `Effect.context`:
+ * the latter retains every service in the ambient context, including a
+ * caller's `WorkspaceContext`, which can defeat a queue resolver supplied
+ * later.
  */
 export function workspaceExportSnapshotContextEffect(): Effect.Effect<
   Context.Context<WorkspaceExportSnapshotServices>,
@@ -63,14 +40,14 @@ export function workspaceExportSnapshotContextEffect(): Effect.Effect<
   WorkspaceExportSnapshotServices
 > {
   return Effect.gen(function* () {
-    return workspaceExportSnapshotContext({
-      apiTokenRegistry: yield* ApiTokenRegistry,
-      auditEventLog: yield* AuditEventLog,
-      notificationFeed: yield* NotificationFeed,
-      webhookEndpoints: yield* WebhookEndpoints,
-      workspaceInvitations: yield* WorkspaceInvitations,
-      workspaceMembership: yield* WorkspaceMembership
-    })
+    return Context.mergeAll(
+      Context.make(ApiTokenRegistry, yield* ApiTokenRegistry),
+      Context.make(AuditEventLog, yield* AuditEventLog),
+      Context.make(NotificationFeed, yield* NotificationFeed),
+      Context.make(WebhookEndpoints, yield* WebhookEndpoints),
+      Context.make(WorkspaceInvitations, yield* WorkspaceInvitations),
+      Context.make(WorkspaceMembership, yield* WorkspaceMembership)
+    )
   })
 }
 

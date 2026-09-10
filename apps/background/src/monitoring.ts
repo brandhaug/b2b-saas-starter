@@ -15,7 +15,7 @@ import {
   notificationEmailConsumerSettings,
   webhookConsumerSettings,
   workspaceExportConsumerSettings
-} from '../../../infra/bindings.ts'
+} from '@b2b-saas-starter/infra'
 import { type DeliveryOutcome, type Env } from './queue-consumer.ts'
 
 /** Exported policy uses the same retry settings as the deployed consumers. */

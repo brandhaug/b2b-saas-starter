@@ -2,7 +2,7 @@ import {
   type ApiTokenScope,
   type CreatedApiToken
 } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
-import { API_TOKEN_SCOPES } from '@/lib/permissions'
+import { apiTokenScopes } from '@/lib/permissions'
 import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 
@@ -140,7 +140,7 @@ export function ApiTokenForm({
           <CheckboxSetField
             name={field.name}
             legend={m.scopes()}
-            options={API_TOKEN_SCOPES}
+            options={apiTokenScopes}
             value={field.state.value}
             errors={field.state.meta.errors}
             onChange={field.handleChange}

@@ -24,7 +24,7 @@ import { Identifier } from '@/components/page/identifier'
 import { CreateAction, ListSection, Panel } from '@/components/page/panel'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Spinner } from '@/components/ui/spinner'
-import { viewerCan, WORKSPACE_ROLES, type Viewer } from '@/lib/permissions'
+import { viewerCan, workspaceRoles, type Viewer } from '@/lib/permissions'
 import {
   cancelInvitationServerFn,
   sendInvitationServerFn,
@@ -192,7 +192,7 @@ export function InvitationPanel({
                   onValueChange={(role) => field.handleChange(role)}
                   className="flex flex-wrap gap-3"
                 >
-                  {WORKSPACE_ROLES.map((role) => (
+                  {workspaceRoles.map((role) => (
                     <FieldLabel key={role}>
                       <RadioGroupItem value={role} />
                       <span>{roleLabel(role)}</span>

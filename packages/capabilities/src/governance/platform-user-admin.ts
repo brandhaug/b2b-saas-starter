@@ -3,7 +3,7 @@ import { Context, Effect, Schema } from 'effect'
 import { ImpersonationForbidden, UserAdminRejected } from '../errors.ts'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type NotificationKind } from '../notifications/notification-kinds.ts'
-import { type NotificationEvent } from '../notifications/notification-events.ts'
+import { type SystemNotificationEvent } from '../notifications/notification-events.ts'
 import { SystemRole, type Member, type WorkspaceRole } from './workspace-identity.ts'
 
 /**
@@ -188,7 +188,7 @@ export function impersonationNotice(adminName: string) {
     kind: NotificationKind
     title: string
     message: string
-    event: NotificationEvent
+    event: SystemNotificationEvent
   }
 }
 

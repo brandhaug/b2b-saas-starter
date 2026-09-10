@@ -43,31 +43,6 @@ const OpenAIChatResponse = Schema.Struct({
 
 const decodeOpenAIChatResponse = Schema.decodeUnknownOption(OpenAIChatResponse)
 
-/**
- * The whole outbound boundary of this package is this one call, wrapped by
- * `Effect.tryPromise` with a typed `AiError` failure at every caller.
- * `packages/ai` deliberately depends on `effect` only, so there is no
- * `@effect/platform` HttpClient to route through; the global `fetch` is
- * confined to this one function.
- */
-function postJson(
-  url: string,
-  headers: Record<string, string>,
-  body: string,
-  signal: AbortSignal
-) {
-  // oxlint-disable-next-line effect/noGlobals -- raw fetch is the platform transport here
-  return fetch(url, {
-    method: 'POST',
-    headers,
-    body,
-    signal,
-    // Cloudflare Workers supports manual redirects; treating the 3xx response
-    // as an ordinary provider failure prevents following it or leaking auth.
-    redirect: 'manual'
-  })
-}
-
 /** One `AiError` for this adapter's `generateText` hook, with the module stamped. */
 function openAiError(reason: AiError.AiErrorReason) {
   return AiError.make({ module: PROVIDER, method: 'generateText', reason })
@@ -94,15 +69,24 @@ export function makeOpenAIModel(config: OpenAIConfig) {
       if ('reason' in plain) {
         return yield* openAiError(plain.reason)
       }
+      // The whole outbound boundary of this package is this one call.
+      // `packages/ai` deliberately depends on `effect` only, so there is no
+      // `@effect/platform` HttpClient to route through; the global `fetch` is
+      // confined to here.
       const response = yield* Effect.tryPromise({
         try: (signal) =>
-          postJson(
-            chatUrl,
+          // oxlint-disable-next-line effect/noGlobals -- raw fetch is the platform transport here
+          fetch(chatUrl, {
+            method: 'POST',
             headers,
             // oxlint-disable-next-line effect/noGlobals -- outbound request body, deliberately unvalidated: the wire shape is exactly these two fields, and a codec would decode what we just built
-            JSON.stringify({ model: modelId, messages: plain.messages }),
-            signal
-          ),
+            body: JSON.stringify({ model: modelId, messages: plain.messages }),
+            signal,
+            // Cloudflare Workers supports manual redirects; treating the 3xx
+            // response as an ordinary provider failure prevents following it
+            // or leaking auth.
+            redirect: 'manual'
+          }),
         catch: (cause) =>
           openAiError(
             new AiError.NetworkError({

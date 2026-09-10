@@ -352,50 +352,72 @@ MagicLinkEmail.PreviewProps = {
   url: 'http://localhost:3071/api/auth/magic-link/verify?token=example&callbackURL=http%3A%2F%2Flocalhost%3A3071%2Fmagic-link%2Fverify'
 } satisfies MagicLinkEmailProps
 
+type SecurityNoticeMessage = (
+  inputs?: Record<string, never>,
+  options?: { readonly locale?: Locale }
+) => string
+
+/** The three sentences a security notice differs by: what, headline, body. */
+type SecurityNoticeCopy = {
+  readonly preview: SecurityNoticeMessage
+  readonly heading: SecurityNoticeMessage
+  readonly body: SecurityNoticeMessage
+}
+
+type SecurityNoticeEmailProps = SecurityNoticeCopy & {
+  /** Defaults to the shared "if this wasn't you" line. */
+  readonly warning?: SecurityNoticeMessage | undefined
+  readonly locale?: Locale | undefined
+}
+
+/**
+ * Every account-security notification: state copy plus the warning line, and
+ * no action link on purpose. The recipient secures their account from the
+ * app's `/account` page; a button in an email the true owner did not ask for
+ * is a phishing assist.
+ */
+function SecurityNoticeEmail({
+  preview,
+  heading,
+  body,
+  warning = m.backend_email_auth_security_warning,
+  locale = DEFAULT_LOCALE
+}: SecurityNoticeEmailProps) {
+  const options = { locale }
+  return (
+    <EmailLayout
+      preview={preview({}, options)}
+      heading={heading({}, options)}
+      locale={locale}
+    >
+      <Text className="text-base text-foreground mt-4">{body({}, options)}</Text>
+      <Text className="text-sm text-muted-foreground mt-4">{warning({}, options)}</Text>
+    </EmailLayout>
+  )
+}
+
 type TwoFactorChangedEmailProps = {
   readonly enabled: boolean
   readonly locale?: Locale | undefined
 }
 
-/**
- * Security notification for a two-factor state change (enable or disable). No
- * action link on purpose: the recipient secures their account from the app's
- * `/account` page, and the email must not become a clickable attack surface.
- */
+/** Security notification for a two-factor state change (enable or disable). */
 export function TwoFactorChangedEmail({ enabled, locale }: TwoFactorChangedEmailProps) {
   // The rule against ternaries applies here too; plain branches keep the
   // two wordings next to each other.
-  const activeLocale = locale ?? DEFAULT_LOCALE
-  let preview = m.backend_email_auth_two_factor_enabled_preview(
-    {},
-    { locale: activeLocale }
-  )
-  if (!enabled) {
-    preview = m.backend_email_auth_two_factor_disabled_preview(
-      {},
-      { locale: activeLocale }
-    )
+  let copy: SecurityNoticeCopy = {
+    preview: m.backend_email_auth_two_factor_enabled_preview,
+    heading: m.backend_email_auth_two_factor_enabled_heading,
+    body: m.backend_email_auth_two_factor_enabled
   }
-  let stateCopy = m.backend_email_auth_two_factor_enabled({}, { locale: activeLocale })
-  let heading = m.backend_email_auth_two_factor_enabled_heading(
-    {},
-    { locale: activeLocale }
-  )
   if (!enabled) {
-    stateCopy = m.backend_email_auth_two_factor_disabled({}, { locale: activeLocale })
-    heading = m.backend_email_auth_two_factor_disabled_heading(
-      {},
-      { locale: activeLocale }
-    )
+    copy = {
+      preview: m.backend_email_auth_two_factor_disabled_preview,
+      heading: m.backend_email_auth_two_factor_disabled_heading,
+      body: m.backend_email_auth_two_factor_disabled
+    }
   }
-  return (
-    <EmailLayout preview={preview} heading={heading} locale={activeLocale}>
-      <Text className="text-base text-foreground mt-4">{stateCopy}</Text>
-      <Text className="text-sm text-muted-foreground mt-4">
-        {m.backend_email_auth_security_warning({}, { locale: activeLocale })}
-      </Text>
-    </EmailLayout>
-  )
+  return <SecurityNoticeEmail {...copy} locale={locale} />
 }
 
 TwoFactorChangedEmail.PreviewProps = {
@@ -407,34 +429,21 @@ type PasskeyChangedEmailProps = {
   readonly locale?: Locale | undefined
 }
 
-/**
- * Security notification for a passkey change (added or removed). Same shape
- * as the two-factor notification: no action link on purpose — the recipient
- * manages passkeys from the app's `/account` page, and the email must not
- * become a clickable attack surface.
- */
+/** Security notification for a passkey change (added or removed). */
 export function PasskeyChangedEmail({ added, locale }: PasskeyChangedEmailProps) {
-  // The rule against ternaries applies here too; plain branches keep the
-  // two wordings next to each other.
-  const activeLocale = locale ?? DEFAULT_LOCALE
-  let preview = m.backend_email_auth_passkey_added_preview({}, { locale: activeLocale })
-  if (!added) {
-    preview = m.backend_email_auth_passkey_removed_preview({}, { locale: activeLocale })
+  let copy: SecurityNoticeCopy = {
+    preview: m.backend_email_auth_passkey_added_preview,
+    heading: m.backend_email_auth_passkey_added_heading,
+    body: m.backend_email_auth_passkey_added
   }
-  let stateCopy = m.backend_email_auth_passkey_added({}, { locale: activeLocale })
-  let heading = m.backend_email_auth_passkey_added_heading({}, { locale: activeLocale })
   if (!added) {
-    stateCopy = m.backend_email_auth_passkey_removed({}, { locale: activeLocale })
-    heading = m.backend_email_auth_passkey_removed_heading({}, { locale: activeLocale })
+    copy = {
+      preview: m.backend_email_auth_passkey_removed_preview,
+      heading: m.backend_email_auth_passkey_removed_heading,
+      body: m.backend_email_auth_passkey_removed
+    }
   }
-  return (
-    <EmailLayout preview={preview} heading={heading} locale={activeLocale}>
-      <Text className="text-base text-foreground mt-4">{stateCopy}</Text>
-      <Text className="text-sm text-muted-foreground mt-4">
-        {m.backend_email_auth_security_warning({}, { locale: activeLocale })}
-      </Text>
-    </EmailLayout>
-  )
+  return <SecurityNoticeEmail {...copy} locale={locale} />
 }
 
 PasskeyChangedEmail.PreviewProps = {
@@ -455,47 +464,26 @@ type PasswordChangedEmailProps = {
 /**
  * Security notification that the password was replaced — sent for both flows
  * that can do it without the old password in hand afterwards (the reset's
- * confirmation, and the signed-in change). No action link on purpose, same
- * rule as the two-factor and passkey notifications: a "sign in" button in an
- * email the true owner did not ask for is a phishing assist, and the copy
- * only needs to say what happened and what to do about it.
+ * confirmation, and the signed-in change).
  */
 export function PasswordChangedEmail({ via, locale }: PasswordChangedEmailProps) {
-  // Plain branches keep the two wordings next to each other, per the rule
-  // TwoFactorChangedEmail follows.
-  const activeLocale = locale ?? DEFAULT_LOCALE
-  let flow = m.backend_email_auth_password_reset_via({}, { locale: activeLocale })
-  let preview = m.backend_email_auth_password_reset_preview(
-    {},
-    { locale: activeLocale }
-  )
-  let heading = m.backend_email_auth_password_reset_heading(
-    {},
-    { locale: activeLocale }
-  )
+  let preview = m.backend_email_auth_password_reset_preview
+  let heading = m.backend_email_auth_password_reset_heading
+  let flow = m.backend_email_auth_password_reset_via
   if (via === 'password-change') {
-    flow = m.backend_email_auth_password_changed_via({}, { locale: activeLocale })
-    preview = m.backend_email_auth_password_changed_preview(
-      {},
-      { locale: activeLocale }
-    )
-    heading = m.backend_email_auth_password_changed_heading(
-      {},
-      { locale: activeLocale }
-    )
+    preview = m.backend_email_auth_password_changed_preview
+    heading = m.backend_email_auth_password_changed_heading
+    flow = m.backend_email_auth_password_changed_via
   }
   return (
-    <EmailLayout preview={preview} heading={heading} locale={locale}>
-      <Text className="text-base text-foreground mt-4">
-        {m.backend_email_auth_password_changed_body(
-          { via: flow },
-          { locale: activeLocale }
-        )}
-      </Text>
-      <Text className="text-sm text-muted-foreground mt-4">
-        {m.backend_email_auth_security_warning({}, { locale: activeLocale })}
-      </Text>
-    </EmailLayout>
+    <SecurityNoticeEmail
+      preview={preview}
+      heading={heading}
+      body={(_inputs, options) =>
+        m.backend_email_auth_password_changed_body({ via: flow({}, options) }, options)
+      }
+      locale={locale}
+    />
   )
 }
 
@@ -508,27 +496,20 @@ PasswordChangedEmail.PreviewProps = {
  * Rotation invalidates the codes the account holder saved at enrollment, so
  * the email is the only honest warning that those no longer work — the new
  * codes travel in the endpoint response the account page shows, never here.
- * No action link on purpose, same rule as the other security notifications,
- * and no props: like its siblings, everything it says is flow state, not
+ * No props: like its siblings, everything it says is flow state, not
  * per-recipient data (the address rides the envelope, not the template).
  */
 export function BackupCodesRotatedEmail({
   locale
 }: { readonly locale?: Locale | undefined } = {}) {
-  const activeLocale = locale ?? DEFAULT_LOCALE
   return (
-    <EmailLayout
-      preview={m.backend_email_auth_backup_codes_preview({}, { locale: activeLocale })}
-      heading={m.backend_email_auth_backup_codes_heading({}, { locale: activeLocale })}
+    <SecurityNoticeEmail
+      preview={m.backend_email_auth_backup_codes_preview}
+      heading={m.backend_email_auth_backup_codes_heading}
+      body={m.backend_email_auth_backup_codes}
+      warning={m.backend_email_auth_backup_codes_warning}
       locale={locale}
-    >
-      <Text className="text-base text-foreground mt-4">
-        {m.backend_email_auth_backup_codes({}, { locale: activeLocale })}
-      </Text>
-      <Text className="text-sm text-muted-foreground mt-4">
-        {m.backend_email_auth_backup_codes_warning({}, { locale: activeLocale })}
-      </Text>
-    </EmailLayout>
+    />
   )
 }
 
@@ -537,20 +518,14 @@ BackupCodesRotatedEmail.PreviewProps = {}
 export function RecoveryStartedEmail({
   locale
 }: { readonly locale?: Locale | undefined } = {}) {
-  const options = { locale: locale ?? DEFAULT_LOCALE }
   return (
-    <EmailLayout
-      preview={m.security_recovery_email_subject({}, options)}
-      heading={m.security_recovery_email_subject({}, options)}
+    <SecurityNoticeEmail
+      preview={m.security_recovery_email_subject}
+      heading={m.security_recovery_email_subject}
+      body={m.security_recovery_email_body}
+      warning={m.security_recovery_email_warning}
       locale={locale}
-    >
-      <Text className="text-base text-foreground mt-4">
-        {m.security_recovery_email_body({}, options)}
-      </Text>
-      <Text className="text-sm text-muted-foreground mt-4">
-        {m.security_recovery_email_warning({}, options)}
-      </Text>
-    </EmailLayout>
+    />
   )
 }
 

@@ -192,35 +192,6 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
       })
     },
     {
-      name: 'bounded retention resumes across evidence pages',
-      assert: Effect.gen(function* () {
-        const delivery = yield* EmailDelivery
-        for (let index = 0; index < 251; index++) {
-          for (const purpose of ['normal', 'unresolved']) {
-            const request = input(`retention-backlog-${purpose}-${index}`)
-            const claim = yield* delivery.claim(request)
-            if (!claim) {
-              expect.fail('expected retention fixture claim')
-            }
-            let outcome: SendOutcome = { status: 'logged' }
-            if (purpose === 'unresolved') {
-              outcome = { status: 'failed', reason: 'provider_rejected' }
-            }
-            yield* delivery.recordOutcome(request.id, claim.token, outcome)
-          }
-        }
-        yield* TestClock.adjust('90 days')
-        const first = yield* delivery.prune()
-        expect(first).toBe(500)
-        const second = yield* delivery.prune()
-        expect(second).toBeGreaterThanOrEqual(2)
-        expect(second).toBeLessThanOrEqual(500)
-        expect(yield* delivery.get('retention-backlog-normal-250')).toBeNull()
-        expect(yield* delivery.get('retention-backlog-unresolved-250')).toBeNull()
-        expect(yield* delivery.prune()).toBe(0)
-      })
-    },
-    {
       name: 'invitation reads exclude personal recovery and another workspace, with safe resend policy',
       assert: Effect.gen(function* () {
         const delivery = yield* EmailDelivery
@@ -427,15 +398,15 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
       })
     },
     {
-      name: 'personal evidence is isolated and resolved evidence expires at 30 days, unresolved at 90',
+      name: 'personal evidence is isolated to its own user',
       assert: Effect.gen(function* () {
         const delivery = yield* EmailDelivery
-        for (const id of ['retention-normal', 'retention-failed']) {
+        for (const id of ['history-logged', 'history-failed']) {
           const claim = yield* delivery.claim(input(id))
           if (!claim) {
             expect.fail('expected a send claim')
           }
-          if (id === 'retention-normal') {
+          if (id === 'history-logged') {
             yield* delivery.recordOutcome(id, claim.token, { status: 'logged' })
           } else {
             yield* delivery.recordOutcome(id, claim.token, {
@@ -447,16 +418,12 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
         expect(yield* delivery.listForUser('usr_outsider')).toEqual([])
         expect(
           (yield* delivery.listForUser('usr_owner')).some(
-            (row) => row.id === 'retention-failed'
+            (row) => row.id === 'history-failed'
           )
         ).toBe(true)
-        yield* TestClock.adjust('30 days')
-        yield* delivery.prune()
-        expect(yield* delivery.get('retention-normal')).toBeNull()
-        expect(yield* delivery.get('retention-failed')).not.toBeNull()
-        yield* TestClock.adjust('60 days')
-        yield* delivery.prune()
-        expect(yield* delivery.get('retention-failed')).toBeNull()
+        expect(
+          (yield* delivery.listForUser('usr_owner', { complete: true })).length
+        ).toBeGreaterThanOrEqual(2)
       })
     }
   ]

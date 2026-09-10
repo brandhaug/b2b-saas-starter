@@ -173,52 +173,44 @@ function readStripeResponse(response: Response): Promise<StripeHttpResponse> {
   return response.text().then((responseBody) => ({ status, ok, body: responseBody }))
 }
 
-function stripePost(
+/** The idempotency header a provider-state POST carries, or no header at all. */
+function idempotencyHeader(key: string | undefined) {
+  if (key === undefined) {
+    return {}
+  }
+  return { 'idempotency-key': key }
+}
+
+/**
+ * One Stripe REST call. `body` is the form-encoded payload of a POST; a GET
+ * passes none. The idempotency key rides POSTs that create provider state.
+ */
+function stripeRequest(
+  method: 'GET' | 'POST',
   url: string,
   headers: Record<string, string>,
-  body: string,
+  body?: string,
   idempotencyKey?: string
 ) {
-  const requestHeaders = { ...headers }
-  requestHeaders['stripe-version'] = STRIPE_API_VERSION
-  if (idempotencyKey !== undefined) {
-    requestHeaders['idempotency-key'] = idempotencyKey
+  const requestHeaders = {
+    ...headers,
+    ...idempotencyHeader(idempotencyKey),
+    'stripe-version': STRIPE_API_VERSION
   }
   return Effect.tryPromise({
     try: (signal) => {
+      const init: RequestInit = { method, headers: requestHeaders, signal }
+      if (body !== undefined) {
+        init.body = body
+      }
       // oxlint-disable-next-line effect/noGlobals -- see docstring above
-      const responsePromise = fetch(url, {
-        method: 'POST',
-        headers: requestHeaders,
-        body,
-        signal
-      })
-      return responsePromise.then(readStripeResponse)
+      return fetch(url, init).then(readStripeResponse)
     },
     catch: () => stripeUnavailable('stripe request failed')
   }).pipe(
     Effect.timeout(PROVIDER_TIMEOUT),
     // The deadline is the same "provider unreachable" failure the transport
     // path reports — never leak `TimeoutError` into the interface channel.
-    Effect.catchTag('TimeoutError', () =>
-      Effect.fail(stripeUnavailable('stripe request timed out'))
-    )
-  )
-}
-
-function stripeGet(url: string, headers: Record<string, string>) {
-  return Effect.tryPromise({
-    try: (signal) => {
-      // oxlint-disable-next-line effect/noGlobals
-      return fetch(url, {
-        method: 'GET',
-        headers: { ...headers, 'stripe-version': STRIPE_API_VERSION },
-        signal
-      }).then(readStripeResponse)
-    },
-    catch: () => stripeUnavailable('stripe request failed')
-  }).pipe(
-    Effect.timeout(PROVIDER_TIMEOUT),
     Effect.catchTag('TimeoutError', () =>
       Effect.fail(stripeUnavailable('stripe request timed out'))
     )
@@ -338,7 +330,8 @@ export const createStripeCheckoutSession = Effect.fn('Stripe.createCheckoutSessi
     /** Stable for a logical checkout attempt and reused after transport failure. */
     readonly idempotencyKey?: string | undefined
   }) {
-    const response = yield* stripePost(
+    const response = yield* stripeRequest(
+      'POST',
       'https://api.stripe.com/v1/checkout/sessions',
       {
         authorization: `Bearer ${input.secretKey}`,
@@ -372,7 +365,8 @@ export const createStripeBillingPortalSession = Effect.fn(
   const params = new URLSearchParams()
   params.set('customer', input.customerId)
   params.set('return_url', input.returnUrl)
-  const response = yield* stripePost(
+  const response = yield* stripeRequest(
+    'POST',
     'https://api.stripe.com/v1/billing_portal/sessions',
     {
       authorization: `Bearer ${input.secretKey}`,
@@ -402,7 +396,8 @@ export const updateStripeSubscriptionItemQuantity = Effect.fn(
   const params = new URLSearchParams()
   params.set('quantity', String(input.quantity))
   params.set('proration_behavior', 'create_prorations')
-  const response = yield* stripePost(
+  const response = yield* stripeRequest(
+    'POST',
     `https://api.stripe.com/v1/subscription_items/${encodeURIComponent(input.subscriptionItemId)}`,
     {
       authorization: `Bearer ${input.secretKey}`,
@@ -458,7 +453,8 @@ export const createStripeCustomer = Effect.fn('Stripe.createCustomer')(
     if (input.name !== undefined) {
       params.set('name', input.name)
     }
-    const response = yield* stripePost(
+    const response = yield* stripeRequest(
+      'POST',
       'https://api.stripe.com/v1/customers',
       {
         ...stripeAuth(input.secretKey),
@@ -479,7 +475,8 @@ export const createStripeCustomer = Effect.fn('Stripe.createCustomer')(
 /** Retrieves one customer and validates the response before exposing it. */
 export const retrieveStripeCustomer = Effect.fn('Stripe.retrieveCustomer')(
   function* (input: { readonly secretKey: string; readonly customerId: string }) {
-    const response = yield* stripeGet(
+    const response = yield* stripeRequest(
+      'GET',
       `https://api.stripe.com/v1/customers/${encodeURIComponent(input.customerId)}`,
       stripeAuth(input.secretKey)
     )
@@ -500,7 +497,8 @@ export const searchStripeCustomersByWorkspace = Effect.fn(
     .replaceAll(String.fromCharCode(92), String.fromCharCode(92, 92))
     .replaceAll("'", `${String.fromCharCode(92)}'`)
   const query = encodeURIComponent(`metadata['workspaceId']:'${escapedWorkspaceId}'`)
-  const response = yield* stripeGet(
+  const response = yield* stripeRequest(
+    'GET',
     `https://api.stripe.com/v1/customers/search?query=${query}&limit=100`,
     stripeAuth(input.secretKey)
   )
@@ -515,7 +513,8 @@ export const searchStripeCustomersByWorkspace = Effect.fn(
 /** A complete bounded list can prove absence when customer search is inconclusive. */
 export const listStripeCustomersSince = Effect.fn('Stripe.listCustomersSince')(
   function* (input: { readonly secretKey: string; readonly createdAfter: number }) {
-    const response = yield* stripeGet(
+    const response = yield* stripeRequest(
+      'GET',
       `https://api.stripe.com/v1/customers?limit=100&created[gte]=${
         input.createdAfter
       }`,
@@ -533,7 +532,8 @@ export const listStripeCustomersSince = Effect.fn('Stripe.listCustomersSince')(
 /** Retrieves a subscription with its first price and seat item expanded. */
 export const retrieveStripeSubscription = Effect.fn('Stripe.retrieveSubscription')(
   function* (input: { readonly secretKey: string; readonly subscriptionId: string }) {
-    const response = yield* stripeGet(
+    const response = yield* stripeRequest(
+      'GET',
       `https://api.stripe.com/v1/subscriptions/${encodeURIComponent(input.subscriptionId)}?expand[]=items.data.price`,
       stripeAuth(input.secretKey)
     )
@@ -551,7 +551,8 @@ export const listStripeCustomerSubscriptions = Effect.fn(
   'Stripe.listCustomerSubscriptions'
 )(function* (input: { readonly secretKey: string; readonly customerId: string }) {
   const customer = encodeURIComponent(input.customerId)
-  const response = yield* stripeGet(
+  const response = yield* stripeRequest(
+    'GET',
     `https://api.stripe.com/v1/subscriptions?customer=${customer}&status=all&limit=100&expand[]=data.items.data.price`,
     stripeAuth(input.secretKey)
   )
@@ -576,7 +577,8 @@ export const listStripeCustomerCheckoutSessions = Effect.fn(
   'Stripe.listCustomerCheckoutSessions'
 )(function* (input: { readonly secretKey: string; readonly customerId: string }) {
   const customer = encodeURIComponent(input.customerId)
-  const response = yield* stripeGet(
+  const response = yield* stripeRequest(
+    'GET',
     `https://api.stripe.com/v1/checkout/sessions?customer=${customer}&limit=100`,
     stripeAuth(input.secretKey)
   )
@@ -667,7 +669,8 @@ export const validateStripeCustomerForWorkspace = Effect.fn(
 export const retrieveStripeCheckoutSession = Effect.fn(
   'Stripe.retrieveCheckoutSession'
 )(function* (input: { readonly secretKey: string; readonly sessionId: string }) {
-  const response = yield* stripeGet(
+  const response = yield* stripeRequest(
+    'GET',
     `https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(input.sessionId)}`,
     stripeAuth(input.secretKey)
   )
@@ -860,7 +863,8 @@ export const readStripeObject = Effect.fn('Stripe.readObject')(function* <A>(
   path: string,
   schema: Schema.Codec<A>
 ) {
-  const response = yield* stripeGet(
+  const response = yield* stripeRequest(
+    'GET',
     `https://api.stripe.com/v1/${path}`,
     stripeAuth(secretKey)
   )

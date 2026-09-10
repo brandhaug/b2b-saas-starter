@@ -1,6 +1,5 @@
 import {
   NotificationFeed,
-  type DigestCandidate,
   type NotificationEmailContext,
   type SeedNotification
 } from './notification-feed.ts'
@@ -49,7 +48,7 @@ const context: NotificationEmailContext = {
 
 function stubFeed(
   instant: NotificationEmailContext | null,
-  digest: ReadonlyArray<DigestCandidate> = []
+  digest: ReadonlyArray<NotificationEmailContext> = []
 ): Layer.Layer<NotificationFeed> {
   return Layer.succeed(NotificationFeed)({
     list: Effect.die('unused'),

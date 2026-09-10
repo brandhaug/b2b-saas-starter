@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vite-plus/test'
-import { formatCurrency, formatDate, formatNumber, pluralCategory } from './format.ts'
+import { formatCurrency, formatDate, formatNumber } from './format.ts'
 
 describe('format helpers', () => {
   it('formats dates with the supplied locale and timezone', () => {
@@ -17,11 +17,5 @@ describe('format helpers', () => {
     expect(formatNumber(1234.5, 'en')).toBe('1,234.5')
     expect(formatNumber(1234.5, 'nb')).toBe('1 234,5')
     expect(formatCurrency(1234.5, 'EUR', 'nb')).toContain('1 234,50')
-  })
-
-  it('selects plural categories through Intl', () => {
-    expect(pluralCategory(1, 'en')).toBe('one')
-    expect(pluralCategory(2, 'en')).toBe('other')
-    expect(pluralCategory(1, 'nb')).toBe('one')
   })
 })

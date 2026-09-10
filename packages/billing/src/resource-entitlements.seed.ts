@@ -1,7 +1,11 @@
 import { DateTime, Effect, Layer } from 'effect'
 import { Billing } from './billing.ts'
 import { AuditEventLog, WorkspaceContext } from './ports.ts'
-import { EMPTY_RESOURCE_SELECTION, resourceEntitlementSummary } from './plan-catalog.ts'
+import {
+  EMPTY_RESOURCE_SELECTION,
+  resourceEntitlement,
+  type ResourceSelection
+} from './plan-catalog.ts'
 import {
   normalizeSelection,
   validateSelection,
@@ -13,7 +17,6 @@ import {
 } from './resource-inventory.seed.ts'
 import {
   ResourceEntitlements,
-  type ResourceSelectionInput,
   type ResourceEntitlementsInterface
 } from './resource-entitlements.ts'
 
@@ -25,7 +28,7 @@ export function SeedResourceEntitlements() {
       const audit = yield* AuditEventLog
       const inventory = yield* SeedResourceInventory
       const lock = inventory.lock
-      function resolveSelection(workspaceId: string, input: ResourceSelectionInput) {
+      function resolveSelection(workspaceId: string, input: ResourceSelection) {
         return {
           ...input,
           apiTokenIds: input.apiTokenIds.map((id) =>
@@ -81,7 +84,7 @@ export function SeedResourceEntitlements() {
           return yield* getSelectionForWorkspace(ctx.workspace.id)
         }, lock.withPermits(1)),
         summarize: Effect.fn('ResourceEntitlements.summarize')(function* (input) {
-          return resourceEntitlementSummary(
+          return resourceEntitlement(
             yield* billing.currentPlan,
             input.resource,
             resourceIds(
@@ -94,12 +97,9 @@ export function SeedResourceEntitlements() {
             yield* service.getSelection()
           )
         }),
-        isActive: Effect.fn('ResourceEntitlements.isActive')(function* (input) {
-          return (yield* service.summarize(input)).activeIds.includes(input.resourceId)
-        }),
         isActiveForWorkspace: Effect.fn('ResourceEntitlements.isActiveForWorkspace')(
           function* (input) {
-            return resourceEntitlementSummary(
+            return resourceEntitlement(
               yield* billing.currentPlanForWorkspace(input.workspaceId),
               input.resource,
               resourceIds(

@@ -1,18 +1,17 @@
-// Shared `wrangler d1` spawn for the package's CLI scripts
+// Shared `wrangler d1` run for the package's CLI scripts
 // (scripts/migrate.ts, scripts/baseline.ts).
 //
-// Like those scripts, this is a Node CLI helper, not application code: it
-// runs outside any Effect runtime, so the child-process wait is an ordinary
-// Promise — the one place `new Promise` appears, carrying the
-// effect/noNewPromise waiver for every caller (see migrate.ts's header).
+// Like those scripts, this is a Node CLI helper, not application code: it runs
+// outside any Effect runtime, so the child-process wait is a plain promise.
 //
 // Failures are returned to the caller, not exited on here: in `--json` mode
 // wrangler writes its error to *stdout*, which a captured run must surface
 // — exiting on the bare code alone (the original shape) turned
 // missing-database failures into a silent exit 1.
-import { spawn } from 'node:child_process'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { join } from 'node:path'
-import { Schema } from 'effect'
+import { Option, Schema } from 'effect'
 import { errorMessage } from '@b2b-saas-starter/failure'
 
 const packageDir = join(import.meta.dirname, '..')
@@ -31,51 +30,49 @@ export type Target = {
   readonly flag: '--local' | '--remote'
 }
 
-function runWrangler(
+const execWrangler = promisify(execFile)
+
+/**
+ * A wrangler run that exited non-zero: Node attaches the captured streams and
+ * the exit code to the rejection. A spawn failure (no wrangler bin) carries a
+ * string `errno` code and neither stream instead, so it fails this decode and
+ * falls back to the error message.
+ */
+const ExecFileFailure = Schema.Struct({
+  code: Schema.optionalKey(Schema.Number),
+  stdout: Schema.optionalKey(Schema.String),
+  stderr: Schema.optionalKey(Schema.String)
+})
+const decodeExecFileFailure = Schema.decodeUnknownOption(ExecFileFailure)
+
+async function runWrangler(
   args: ReadonlyArray<string>,
   capture: boolean
 ): Promise<WranglerRun> {
-  // Plain Node CLI helper, not Effect code (see the header) — the
-  // child-process wait is an ordinary Promise, which is why
-  // effect/noNewPromise is waived.
-  // oxlint-disable-next-line effect/noNewPromise -- see above
-  return new Promise((resolve) => {
-    const child = spawn(wranglerBin, ['d1', ...args], {
-      stdio: ['ignore', capture ? 'pipe' : 'inherit', capture ? 'pipe' : 'inherit']
+  try {
+    const { stdout, stderr } = await execWrangler(wranglerBin, ['d1', ...args], {
+      // Migration and export output far exceeds the 1 MiB default.
+      maxBuffer: 64 * 1024 * 1024
     })
-    let stdoutText = ''
-    let stderrText = ''
-    if (capture && child.stdout) {
-      child.stdout.setEncoding('utf8')
-      child.stdout.on('data', (chunk: string) => {
-        stdoutText += chunk
-      })
+    if (!capture) {
+      // An uncaptured run is the caller's console output; nothing parses it.
+      process.stdout.write(stdout)
+      process.stderr.write(stderr)
+      return { ok: true, stdout: '' }
     }
-    if (capture && child.stderr) {
-      child.stderr.setEncoding('utf8')
-      child.stderr.on('data', (chunk: string) => {
-        stderrText += chunk
-      })
-    }
-    child.on('exit', (code) => {
-      if (code === 0) {
-        resolve({ ok: true, stdout: stdoutText })
-      } else {
-        resolve({
-          ok: false,
-          code: code ?? 1,
-          output: [stderrText, stdoutText].filter(Boolean).join('\n')
-        })
-      }
-    })
-    child.on('error', (error) => {
-      resolve({
+    return { ok: true, stdout }
+  } catch (error) {
+    const spawned = Option.getOrUndefined(decodeExecFileFailure(error))
+    const output = [spawned?.stderr, spawned?.stdout].filter(Boolean).join('\n')
+    if (output === '') {
+      return {
         ok: false,
-        code: 1,
+        code: spawned?.code ?? 1,
         output: errorMessage(error) ?? 'wrangler failed to spawn'
-      })
-    })
-  })
+      }
+    }
+    return { ok: false, code: spawned?.code ?? 1, output }
+  }
 }
 
 /**

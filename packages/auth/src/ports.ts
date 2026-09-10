@@ -178,8 +178,8 @@ export type AuthConfigInterface = {
    * the credential sign-up path already has its own audit row.
    */
   readonly accountHooks: AuthAccountHooks
-  /** Social linking fails closed unless the app verifies this exact session's recent proof. */
-  readonly hasRecentAuthentication?: (input: {
+  /** Social linking requires the app's proof that this exact session authenticated recently. */
+  readonly hasRecentAuthentication: (input: {
     readonly userId: string
     readonly sessionId: string
   }) => Promise<boolean>
@@ -218,13 +218,12 @@ export type AuthConfigInterface = {
    * carries them. The endpoint's own sequencing is why they exist: it verifies
    * the password FIRST, then runs `beforeDelete` (where the workspace
    * teardown must happen, while every FK the delete touches is still
-   * satisfiable), then removes the user row, then runs `afterDelete`. Optional
-   * as a pair — and `deleteUser` stays DISABLED unless they are supplied, so
-   * the endpoint can never be enabled without its teardown half.
+   * satisfiable), then removes the user row, then runs `afterDelete`. Required
+   * as a pair, so the endpoint can never be enabled without its teardown half.
    */
-  readonly userDeleteHooks?: UserDeleteHooks
-  /** Recovery is disabled unless the app supplies its audit and notification port. */
-  readonly recoveryHooks?: {
+  readonly userDeleteHooks: UserDeleteHooks
+  /** Recovery's audit and notification port, supplied by the app. */
+  readonly recoveryHooks: {
     readonly onRecoveryStarted: (event: {
       readonly userId: string
       readonly sessionId: string

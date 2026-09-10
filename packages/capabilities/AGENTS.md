@@ -51,7 +51,7 @@ Mutating capabilities that write to D1 wrap the write in `governance/audited-mut
 ## Pitfalls
 
 - Provider selection uses typed env bags and `select*Layer`, not Effect Config: invocation bindings select Seed/Live (`runtime.ts`) and leave unconfigured optional providers inactive.
-- Every Live D1 or queue failure surfaces as `CapabilityUnavailable` (503) via `internal/unavailable.ts`, never as a defect.
+- Every Live D1 or queue failure surfaces as `CapabilityUnavailable` (503) via `@b2b-saas-starter/failure/capability`, never as a defect.
 - Paged list reads share `internal/keyset-cursor.ts` and the `Page<T>` shape (ADR 0057). Timestamped collections page newest-first on `(createdAt, id)`; untimestamped ones forward on `id`. Unpaged reads stay for the web app's own small pages.
 - Seed plugin-backed adapters read `AuditEventLog` ambiently with `Effect.serviceOption`. A harness that provides none gets no records; that is expected, not a bug.
 - `auditedMutations(deps)` requires `RawD1` at layer construction; the mutations it returns carry no requirement. Zero-match mutations record no audit event.

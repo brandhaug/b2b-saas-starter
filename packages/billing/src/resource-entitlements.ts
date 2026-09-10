@@ -3,14 +3,11 @@ import { Context, type Effect } from 'effect'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type ResourceSelectionRejected } from './errors.ts'
 import {
-  ResourceSelection,
+  type ResourceSelection,
   type EntitlementResource,
-  type ResourceEntitlementSummary
+  type ResourceEntitlement
 } from './plan-catalog.ts'
 import { type WorkspaceContext } from './ports.ts'
-
-export const ResourceSelectionInput = ResourceSelection
-export type ResourceSelectionInput = typeof ResourceSelectionInput.Type
 
 export type ResourceEntitlementInput = {
   readonly resource: EntitlementResource
@@ -18,30 +15,23 @@ export type ResourceEntitlementInput = {
 
 export type ResourceEntitlementsInterface = {
   readonly getSelection: () => Effect.Effect<
-    ResourceSelectionInput,
+    ResourceSelection,
     CapabilityUnavailable,
     WorkspaceContext
   >
   readonly getSelectionForWorkspace: (
     workspaceId: string
-  ) => Effect.Effect<ResourceSelectionInput, CapabilityUnavailable>
+  ) => Effect.Effect<ResourceSelection, CapabilityUnavailable>
   readonly select: (
-    input: ResourceSelectionInput
+    input: ResourceSelection
   ) => Effect.Effect<
-    ResourceSelectionInput,
+    ResourceSelection,
     CapabilityUnavailable | ResourceSelectionRejected,
     WorkspaceContext
   >
   readonly summarize: (
     input: ResourceEntitlementInput
-  ) => Effect.Effect<
-    ResourceEntitlementSummary,
-    CapabilityUnavailable,
-    WorkspaceContext
-  >
-  readonly isActive: (
-    input: ResourceEntitlementInput & { readonly resourceId: string }
-  ) => Effect.Effect<boolean, CapabilityUnavailable, WorkspaceContext>
+  ) => Effect.Effect<ResourceEntitlement, CapabilityUnavailable, WorkspaceContext>
   readonly isActiveForWorkspace: (
     input: ResourceEntitlementInput & {
       readonly resourceId: string

@@ -7,7 +7,6 @@ import { WorkspaceSwitcher } from '@/components/workspace-switcher'
 import {
   shellNav,
   isWorkspaceNavTarget,
-  type WorkspaceNavGroup,
   type WorkspaceNavTarget,
   type YouNavTarget
 } from '@/lib/workspace-nav'
@@ -22,6 +21,11 @@ import { m } from '@b2b-saas-starter/i18n/messages'
  * `activeProps`). Sidebar tokens, not body tokens — the sidebar separates
  * from the body independently (DESIGN.md).
  */
+/** The active marker, typed here so no call site needs an assertion. */
+const activeLinkProps = { 'aria-current': 'page' } satisfies {
+  readonly 'aria-current': 'page'
+}
+
 const navLinkClasses =
   'flex min-h-9 items-center gap-2 rounded-md px-3 py-2 text-sm text-sidebar-foreground/80 outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring data-[status=active]:bg-sidebar-accent data-[status=active]:text-sidebar-accent-foreground max-md:min-h-11'
 
@@ -45,8 +49,8 @@ export function WorkspaceNav({
   // same table, so they render under their own "You" label and can never
   // inherit the group printed before them.
   const navRows: Array<ReactNode> = []
-  let lastGroup: WorkspaceNavGroup | undefined
-  function sectionLabel(group: WorkspaceNavGroup | undefined) {
+  let lastGroup: string | undefined
+  function sectionLabel(group: string | undefined) {
     if (group === lastGroup) {
       return
     }
@@ -90,7 +94,7 @@ export function WorkspaceNav({
     } else {
       sectionLabel(row.group)
       navRows.push(
-        <YouNavLink
+        <NavLink
           key={row.to}
           to={row.to}
           label={row.label}
@@ -134,63 +138,49 @@ export function WorkspaceNav({
   )
 }
 
-function NavLink({
-  to,
-  workspaceSlug,
-  label,
-  icon,
-  exact = false,
-  onNavigate
-}: {
-  readonly to: WorkspaceNavTarget
-  readonly workspaceSlug: string
-  readonly label: string
-  readonly icon: ReactNode
-  readonly exact?: boolean
-  readonly onNavigate?: (() => void) | undefined
-}) {
-  const preview = usePreview()
-  const location = preview
-    ? previewWorkspaceLocation(to)
-    : { to, params: { workspaceSlug } }
-  return (
-    <Link
-      {...location}
-      onClick={onNavigate}
-      className={navLinkClasses}
-      activeOptions={{ exact }}
-      activeProps={{ 'aria-current': 'page' }}
-    >
-      {icon}
-      {label}
-    </Link>
+/**
+ * One nav row. A workspace row threads the slug (and follows the preview
+ * shell's synthetic locations); a user-level row has no slug and, in the
+ * preview, sends Account to sign-in instead.
+ */
+function NavLink(
+  props: {
+    readonly label: string
+    readonly icon: ReactNode
+    readonly exact?: boolean
+    readonly onNavigate?: (() => void) | undefined
+  } & (
+    | { readonly to: WorkspaceNavTarget; readonly workspaceSlug: string }
+    | { readonly to: YouNavTarget; readonly workspaceSlug?: undefined }
   )
-}
-
-/** The user-level twin of {@link NavLink}: same treatments, no slug to thread. */
-function YouNavLink({
-  to,
-  label,
-  icon,
-  exact = false,
-  onNavigate
-}: {
-  readonly to: YouNavTarget
-  readonly label: string
-  readonly icon: ReactNode
-  readonly exact?: boolean
-  readonly onNavigate?: (() => void) | undefined
-}) {
+) {
+  const { label, icon, exact = false, onNavigate } = props
   const preview = usePreview()
-  const accountExit = preview && to === '/account'
+  const treatment = {
+    onClick: onNavigate,
+    className: navLinkClasses,
+    activeOptions: { exact },
+    activeProps: activeLinkProps
+  }
+
+  if (props.workspaceSlug !== undefined) {
+    const location = preview
+      ? previewWorkspaceLocation(props.to)
+      : { to: props.to, params: { workspaceSlug: props.workspaceSlug } }
+    return (
+      <Link {...location} {...treatment}>
+        {icon}
+        {label}
+      </Link>
+    )
+  }
+
+  const accountExit = preview && props.to === '/account'
   return (
     <Link
-      to={accountExit ? '/sign-in' : to}
-      reloadDocument={to === '/help'}
-      onClick={onNavigate}
-      className={navLinkClasses}
-      activeOptions={{ exact }}
-      activeProps={{ 'aria-current': 'page' }}
+      to={accountExit ? '/sign-in' : props.to}
+      reloadDocument={props.to === '/help'}
+      {...treatment}
     >
       {icon}
       {accountExit ? m.demo_try_sign_in() : label}

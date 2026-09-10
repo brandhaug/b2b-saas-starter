@@ -1,10 +1,7 @@
 import { BillingQueueMessage } from '@b2b-saas-starter/billing/seat-sync'
 import { Billing } from '@b2b-saas-starter/billing/billing'
 import { billingOptionsFromEnv } from '@b2b-saas-starter/billing/billing-config'
-import {
-  selectCapabilitiesLayer,
-  starterEnv
-} from '@b2b-saas-starter/capabilities/runtime'
+import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { Effect, type Scope } from 'effect'
 
 import {
@@ -83,7 +80,7 @@ export function recoverBillingDeadLetter(
     program: processBillingDeadLetterMessage(delivery).pipe(
       Effect.provide(
         selectCapabilitiesLayer({
-          ...starterEnv(env),
+          ...env,
           billing: billingOptionsFromEnv(env)
         })
       )

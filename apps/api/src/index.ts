@@ -9,7 +9,6 @@ import {
   enforceSecureEndpoints,
   minimumTlsResponse
 } from '@b2b-saas-starter/env/transport'
-import { Effect } from 'effect'
 
 import { type ApiEnv } from './env.ts'
 import { getWebHandler } from './http.ts'
@@ -28,7 +27,8 @@ const worker = {
     enforceSecureEndpoints(env)
     const tlsResponse = minimumTlsResponse(request, env.ENVIRONMENT)
     if (tlsResponse !== undefined) {
-      return Effect.runPromise(Effect.succeed(tlsResponse))
+      // oxlint-disable-next-line effect/noNewPromise -- the fetch entry point returns a promise; there is no Effect left to run
+      return Promise.resolve(tlsResponse)
     }
     // Point the wide-event sinks (Sentry/PostHog) at this invocation's env;
     // unset vars keep both providers fully inert. See
@@ -42,8 +42,9 @@ const worker = {
       new URL(request.url).pathname !== '/health' &&
       new URL(request.url).pathname !== '/ready'
     ) {
-      return Effect.runPromise(
-        Effect.succeed(Response.json({ error: 'maintenance_mode' }, { status: 503 }))
+      // oxlint-disable-next-line effect/noNewPromise -- the fetch entry point returns a promise; there is no Effect left to run
+      return Promise.resolve(
+        Response.json({ error: 'maintenance_mode' }, { status: 503 })
       )
     }
     return withHttpMonitor('api', () => getWebHandler(env)(request))

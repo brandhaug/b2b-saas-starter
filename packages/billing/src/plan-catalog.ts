@@ -198,29 +198,6 @@ export function resourceEntitlement(
   }
 }
 
-/** Whether one stored resource may execute under the effective entitlement. */
-export function resourceIsActive(
-  entitlement: ResourceEntitlement,
-  resourceId: string
-): boolean {
-  return entitlement.activeIds.includes(resourceId)
-}
-
-/** The UI/API contract for a downgrade that needs an explicit selection. */
-export type ResourceEntitlementSummary = ResourceEntitlement & {
-  readonly requiresSelection: boolean
-}
-
-export function resourceEntitlementSummary(
-  plan: Plan,
-  resource: EntitlementResource,
-  ids: ReadonlyArray<string>,
-  selection?: ResourceSelection
-): ResourceEntitlementSummary {
-  const entitlement = resourceEntitlement(plan, resource, ids, selection)
-  return { ...entitlement, requiresSelection: entitlement.paused }
-}
-
 export function limitFor(plan: Plan, resource: EntitlementResource): number | null {
   if (resource === 'api_token') {
     return plan.limits.apiTokens

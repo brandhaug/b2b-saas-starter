@@ -59,7 +59,6 @@ import {
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 
 import {
-  authenticateMcpCaller,
   authorizeMcpOperation,
   enforceRateLimitKey,
   bearerToken,
@@ -112,7 +111,7 @@ import {
  *
  * Two credentials open the route (ADR 0068): a workspace API Token, or an
  * OAuth access token the web worker minted for a signed-in Member after the
- * consent page bound it to one workspace. `authenticateMcpCaller` tells them
+ * consent page bound it to one workspace. `verifyMcpCredential` tells them
  * apart; from there the only difference is who a tool authorizes as — the
  * token's scopes, or the Member's role in the workspace, re-resolved from the
  * membership table on every call.
@@ -755,13 +754,14 @@ function makeGate(
             {},
             Effect.gen(function* () {
               yield* enforceRateLimit(request, 'mcp')
-              const caller = yield* authenticateMcpCaller(request)
+              const bearer = bearerToken(request)
+              const caller = yield* verifyMcpCredential(bearer)
               return yield* httpEffect.pipe(
                 Effect.provideService(CurrentMcpCaller, caller),
                 Effect.provideService(CurrentMcpInvocation, {
                   origin: new URL(webRequest(request).url).origin,
                   rateKey: clientKey(webRequest(request)),
-                  bearer: bearerToken(request)
+                  bearer
                 })
               )
             })

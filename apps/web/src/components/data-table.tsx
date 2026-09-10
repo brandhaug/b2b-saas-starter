@@ -63,7 +63,7 @@ const dataTableFeatures = tableFeatures({
   columnVisibilityFeature
 })
 
-export type DataTableFeatures = typeof dataTableFeatures
+type DataTableFeatures = typeof dataTableFeatures
 export type DataTableColumnDef<TData extends RowData> = ColumnDef<
   DataTableFeatures,
   TData,
@@ -184,46 +184,53 @@ function DataTableTable<TData extends RowData>({
   )
 }
 
-export function DataTableFilter({ placeholder }: { readonly placeholder?: string }) {
-  const { state, actions } = useDataTableContext()
-  const label = placeholder ?? m.shell_table_filter()
+export function DataTableFilter({ placeholder }: { readonly placeholder: string }) {
+  const { globalFilter, setGlobalFilter } = useDataTableContext()
   return (
     <Input
-      value={state.globalFilter}
-      onChange={(event) => actions.setGlobalFilter(event.target.value)}
-      placeholder={label}
+      value={globalFilter}
+      onChange={(event) => setGlobalFilter(event.target.value)}
+      placeholder={placeholder}
       className="max-w-xs"
-      aria-label={placeholder ?? m.shell_table_filter_rows()}
+      aria-label={placeholder}
     />
   )
 }
 
 export function DataTablePagination() {
-  const { state, actions, meta } = useDataTableContext()
+  const {
+    pagination,
+    filteredCount,
+    pageCount,
+    canPreviousPage,
+    canNextPage,
+    previousPage,
+    nextPage
+  } = useDataTableContext()
   return (
     <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
       <span aria-live="polite">
         {m.shell_table_page({
-          count: meta.filteredCount,
-          rows: formatNumber(meta.filteredCount, getLocale()),
-          page: formatNumber(state.pagination.pageIndex + 1, getLocale()),
-          pages: formatNumber(meta.pageCount, getLocale())
+          count: filteredCount,
+          rows: formatNumber(filteredCount, getLocale()),
+          page: formatNumber(pagination.pageIndex + 1, getLocale()),
+          pages: formatNumber(pageCount, getLocale())
         })}
       </span>
       <div className="flex gap-2">
         <Button
           type="button"
           variant="outline"
-          onClick={actions.previousPage}
-          disabled={!meta.canPreviousPage}
+          onClick={previousPage}
+          disabled={!canPreviousPage}
         >
           {m.shell_table_previous()}
         </Button>
         <Button
           type="button"
           variant="outline"
-          onClick={actions.nextPage}
-          disabled={!meta.canNextPage}
+          onClick={nextPage}
+          disabled={!canNextPage}
         >
           {m.shell_table_next()}
         </Button>
@@ -233,7 +240,7 @@ export function DataTablePagination() {
 }
 
 export function DataTableContent() {
-  return useDataTableContext().meta.content
+  return useDataTableContext().content
 }
 
 export function DataTable<TData extends RowData>({
@@ -262,29 +269,26 @@ export function DataTable<TData extends RowData>({
   return (
     <DataTableContext
       value={{
-        state: { sorting, globalFilter, pagination: table.state.pagination },
-        actions: {
-          setGlobalFilter: (filterValue: string) => {
-            setGlobalFilter(filterValue)
-            table.setPageIndex(0)
-          },
-          previousPage: () => table.previousPage(),
-          nextPage: () => table.nextPage()
+        globalFilter,
+        pagination: table.state.pagination,
+        setGlobalFilter: (filterValue: string) => {
+          setGlobalFilter(filterValue)
+          table.setPageIndex(0)
         },
-        meta: {
-          filteredCount,
-          pageCount: table.getPageCount(),
-          canPreviousPage: table.getCanPreviousPage(),
-          canNextPage: table.getCanNextPage(),
-          content: (
-            <DataTableTable
-              columns={columns}
-              emptyMessage={emptyMessage}
-              tableLabel={tableLabel}
-              table={table}
-            />
-          )
-        }
+        previousPage: () => table.previousPage(),
+        nextPage: () => table.nextPage(),
+        filteredCount,
+        pageCount: table.getPageCount(),
+        canPreviousPage: table.getCanPreviousPage(),
+        canNextPage: table.getCanNextPage(),
+        content: (
+          <DataTableTable
+            columns={columns}
+            emptyMessage={emptyMessage}
+            tableLabel={tableLabel}
+            table={table}
+          />
+        )
       }}
     >
       <div className="grid gap-3">{children}</div>

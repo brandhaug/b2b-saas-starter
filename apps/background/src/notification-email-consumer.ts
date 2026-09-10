@@ -1,7 +1,4 @@
-import {
-  selectCapabilitiesLayer,
-  starterEnv
-} from '@b2b-saas-starter/capabilities/runtime'
+import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { NotificationEmailQueueMessage } from '@b2b-saas-starter/capabilities/notifications/notification-email-queue'
 import { NotificationEmailEligibility } from '@b2b-saas-starter/capabilities/notifications/notification-email-eligibility'
@@ -153,10 +150,7 @@ export function sendNotificationEmail(
     onFailure: 'retry',
     program: processNotificationEmailMessage(delivery, appUrlFrom(env)).pipe(
       Effect.provide(
-        Layer.merge(
-          selectCapabilitiesLayer(starterEnv(env)),
-          selectEmailDispatcherLayer(env)
-        )
+        Layer.merge(selectCapabilitiesLayer(env), selectEmailDispatcherLayer(env))
       )
     )
   }).pipe(

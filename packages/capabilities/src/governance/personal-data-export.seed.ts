@@ -18,10 +18,7 @@ import {
 } from '../notifications/notification-feed.ts'
 import { AuditEventLog } from './audit-event-log.ts'
 import { newCapabilityId } from '../internal/ids.ts'
-
-function iso(time: number): string {
-  return DateTime.formatIso(DateTime.makeUnsafe(time))
-}
+import { iso } from '../internal/timestamps.ts'
 
 export function SeedPersonalDataExports(
   profiles: ReadonlyArray<PersonalDataExport['user']>,
@@ -69,7 +66,7 @@ export function SeedPersonalDataExports(
             workspaces,
             accountPreferences,
             notificationPreferences,
-            emailDeliveries: yield* delivery.exportForUser(userId),
+            emailDeliveries: yield* delivery.listForUser(userId, { complete: true }),
             notifications: seedNotifications.reduce<
               Array<Notification & { workspaceId: string | null }>
             >((items, row) => {

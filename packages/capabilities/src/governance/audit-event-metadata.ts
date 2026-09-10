@@ -21,11 +21,13 @@ export const AuditEventMetadata = Schema.Struct({
   )
 })
 
+export type AuditEventMetadata = typeof AuditEventMetadata.Type
+
 const decodePermittedMetadata = Schema.decodeUnknownOption(AuditEventMetadata)
 
 export function decodeAuditEventMetadata(
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- this decoder is the boundary for untrusted persisted JSON, including malformed non-object values
   metadata: unknown
-): typeof AuditEventMetadata.Type {
+): AuditEventMetadata {
   return Option.getOrElse(decodePermittedMetadata(metadata), () => ({}))
 }

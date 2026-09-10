@@ -50,12 +50,9 @@
     "effect": "catalog:",
     "effectful-better-auth": "catalog:",
     "lucide-react": "catalog:",
-    "mermaid": "catalog:",
-    "posthog-js": "catalog:",
     "qrcode.react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "recharts": "catalog:",
     "sonner": "catalog:",
     "tailwind-merge": "catalog:",
     "tw-animate-css": "catalog:"

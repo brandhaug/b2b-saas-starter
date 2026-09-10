@@ -43,12 +43,9 @@ export function attentionItems({
   const items: Array<AttentionItem> = []
 
   if (invitations !== null) {
-    let pending = 0
-    for (const invitation of invitations) {
-      if (invitation.status === 'pending') {
-        pending += 1
-      }
-    }
+    const pending = invitations.filter(
+      (invitation) => invitation.status === 'pending'
+    ).length
     if (pending > 0) {
       items.push({
         id: 'pending-invitations',
@@ -62,12 +59,7 @@ export function attentionItems({
   }
 
   if (apiTokens !== null) {
-    let neverUsed = 0
-    for (const token of apiTokens) {
-      if (token.lastUsedAt === null) {
-        neverUsed += 1
-      }
-    }
+    const neverUsed = apiTokens.filter((token) => token.lastUsedAt === null).length
     if (neverUsed > 0) {
       items.push({
         id: 'unused-tokens',

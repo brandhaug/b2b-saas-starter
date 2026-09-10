@@ -3,16 +3,10 @@ import { execFile } from 'node:child_process'
 import { join } from 'node:path'
 import { parseArgs, promisify } from 'node:util'
 
+import { requiredEnv } from './lib/env.ts'
+
 const exec = promisify(execFile)
 const ROOT = join(import.meta.dirname, '..')
-
-function required(name: string): string {
-  const value = process.env[name]
-  if (value === undefined || value.trim().length === 0) {
-    throw new Error(`missing required environment variable ${name}`)
-  }
-  return value
-}
 
 export async function destroyStage(
   stage: string,
@@ -21,7 +15,7 @@ export async function destroyStage(
   if (stage.trim().length === 0) {
     throw new Error('stage must not be empty')
   }
-  const expected = `${required('CLOUDFLARE_ACCOUNT_ID')}/${stage}`
+  const expected = `${requiredEnv('CLOUDFLARE_ACCOUNT_ID')}/${stage}`
   if (confirmation !== expected) {
     throw new Error(`destructive teardown requires --confirm-target=${expected}`)
   }

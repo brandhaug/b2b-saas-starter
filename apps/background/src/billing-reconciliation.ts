@@ -6,7 +6,6 @@ import {
 } from '@b2b-saas-starter/billing/billing-config'
 import {
   selectCapabilitiesLayer,
-  starterEnv,
   type StarterEnv
 } from '@b2b-saas-starter/capabilities/runtime'
 import { Effect } from 'effect'
@@ -17,7 +16,7 @@ const RECONCILIATION_LIMIT = 25
 
 function billingEnv(env: Env, billing: BillingOptions): StarterEnv {
   return {
-    ...starterEnv(env),
+    ...env,
     billing
   }
 }

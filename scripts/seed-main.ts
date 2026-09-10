@@ -1,3 +1,4 @@
+import { hashSha256, randomWebhookSecret } from '@b2b-saas-starter/capabilities/crypto'
 import {
   account,
   apiTokens,
@@ -15,10 +16,7 @@ import {
   workspaceSubscriptions,
   workspaces
 } from '@b2b-saas-starter/db/schema'
-import {
-  ApiTokenRegistry,
-  hashApiToken
-} from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import {
   demoMemberIdentity,
   demoUserIdentity,
@@ -38,8 +36,6 @@ import { selectWorkspaceLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
-
-import { randomWebhookSecret } from '@b2b-saas-starter/capabilities/crypto'
 
 import { getColumns, getTableName, type Table } from 'drizzle-orm'
 import { Effect, Option, Schema } from 'effect'
@@ -168,9 +164,9 @@ type Fixture = Effect.Success<typeof collectFixture>
 function resolveHashes(fixture: Fixture) {
   return Effect.all({
     demoPassword: Effect.promise(() => hashPassword(DEMO_USER_PASSWORD)),
-    // `hashApiToken` is the registry's own hashing scheme.
+    // `hashSha256` is the registry's own hashing scheme.
     tokens: Effect.forEach(fixture.tokens, (token) =>
-      Effect.promise(() => hashApiToken(seedApiTokenValue(token)))
+      Effect.promise(() => hashSha256(seedApiTokenValue(token)))
     )
   })
 }
@@ -646,7 +642,8 @@ const program = collectFixture.pipe(
     )
   ),
   Effect.flatMap(writeAndExecute),
-  Effect.provide(selectWorkspaceLayer({}, workspaceSlug))
+  // The seed is the platform writing fixture data; no human actor initiates it.
+  Effect.provide(selectWorkspaceLayer({}, workspaceSlug, undefined, 'system'))
 )
 
 // Script entrypoint: the top-level await is what makes a failed seed reject

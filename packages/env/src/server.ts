@@ -268,23 +268,16 @@ export type SocialProviderCredentials = {
 }
 
 /**
- * The mutable accumulator {@link activeSocialProviders} fills — the same
- * keys as {@link ActiveSocialProviders}, assignable to it. A key is set only
- * when the provider resolved as active; a missing key is the only absent
- * state.
- */
-type ActiveSocialProvidersBag = {
-  github?: SocialProviderCredentials
-  google?: SocialProviderCredentials
-}
-
-/**
  * The providers that are active for one env bag. Keys are stated explicitly
  * (never `Partial<Record<…>>`): which providers exist is a closed set this
  * type owns, and a caller reading `providers.github` learns `undefined`
- * means unconfigured — not "some provider key we don't know about".
+ * means unconfigured — not "some provider key we don't know about". A key is
+ * present only when the provider resolved as active.
  */
-export type ActiveSocialProviders = Readonly<ActiveSocialProvidersBag>
+export type ActiveSocialProviders = {
+  readonly github?: SocialProviderCredentials
+  readonly google?: SocialProviderCredentials
+}
 
 /**
  * The pure decision of which social providers are active: a provider counts
@@ -295,20 +288,22 @@ export type ActiveSocialProviders = Readonly<ActiveSocialProvidersBag>
  * (`packages/auth`), which never reads env itself.
  */
 export function activeSocialProviders(source: RawEnvSource): ActiveSocialProviders {
-  const providers: ActiveSocialProvidersBag = {}
-  if (hasValue(source.GITHUB_CLIENT_ID) && hasValue(source.GITHUB_CLIENT_SECRET)) {
-    providers.github = {
-      clientId: source.GITHUB_CLIENT_ID,
-      clientSecret: source.GITHUB_CLIENT_SECRET
-    }
+  return {
+    ...(hasValue(source.GITHUB_CLIENT_ID) &&
+      hasValue(source.GITHUB_CLIENT_SECRET) && {
+        github: {
+          clientId: source.GITHUB_CLIENT_ID,
+          clientSecret: source.GITHUB_CLIENT_SECRET
+        }
+      }),
+    ...(hasValue(source.GOOGLE_CLIENT_ID) &&
+      hasValue(source.GOOGLE_CLIENT_SECRET) && {
+        google: {
+          clientId: source.GOOGLE_CLIENT_ID,
+          clientSecret: source.GOOGLE_CLIENT_SECRET
+        }
+      })
   }
-  if (hasValue(source.GOOGLE_CLIENT_ID) && hasValue(source.GOOGLE_CLIENT_SECRET)) {
-    providers.google = {
-      clientId: source.GOOGLE_CLIENT_ID,
-      clientSecret: source.GOOGLE_CLIENT_SECRET
-    }
-  }
-  return providers
 }
 
 function requiredEnvMode(source: RawEnvSource): RequiredEnvAudit['mode'] {

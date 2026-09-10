@@ -20,7 +20,7 @@ import { ActionFeedback } from '@/components/page/action-feedback'
 import { Panel } from '@/components/page/panel'
 import { ConfirmButton } from '@/components/confirm-button'
 import { RoleChangeButtons } from '@/components/role-change-buttons'
-import { viewerCan, WORKSPACE_ROLES, type Viewer } from '@/lib/permissions'
+import { viewerCan, workspaceRoles, type Viewer } from '@/lib/permissions'
 import { roleVariant } from '@/lib/badge-variants'
 import {
   changeMemberRoleServerFn,
@@ -58,8 +58,8 @@ export function MembersPanel({
   // is not offered a button the workspace can only refuse.
   const offerRoles =
     viewer?.role === 'owner'
-      ? WORKSPACE_ROLES
-      : WORKSPACE_ROLES.filter((role) => role !== 'owner')
+      ? workspaceRoles
+      : workspaceRoles.filter((role) => role !== 'owner')
 
   // One armed confirm at a time, keyed to the row it belongs to — the same
   // shape the API tokens panel's revoke uses.

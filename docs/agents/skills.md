@@ -20,14 +20,6 @@ Existing personal installations are left alone; the command reports conflicts.
 Start a new agent session after installation. This command is never run by
 `pnpm install`.
 
-The Impeccable installation also runs its pinned launcher with `engine-probe`
-before publishing the skill. The launcher may download its versioned engine
-cache under the selected home. The launcher keeps its upstream checksum
-verification for downloaded engines. A failed probe fails setup and leaves an
-existing managed installation unchanged. A later setup run repairs a missing
-engine cache when the managed skill has not been edited. Setup needs network
-access and write permission for that cache directory.
-
 Claude Code gives personal skills precedence over project skills with matching
 names. If you have a global `implement`, remove that conflicting installation or
 explicitly direct the agent to this repo's skill.
@@ -36,10 +28,6 @@ In any host, ask: "Use `.agents/skills/implement/SKILL.md` to implement an agree
 The workflow uses the session's provider and available tools, selecting a
 configured cheaper worker when possible. It falls back to the session model or
 local execution when necessary.
-
-When changing delegation, review ownership, or model routing, use the
-[workflow evaluations](./evals/README.md) to compare decisions and inspect native
-host dispatches. These paid evaluations run only when explicitly requested.
 
 ## Updates
 

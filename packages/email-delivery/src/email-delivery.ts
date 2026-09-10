@@ -91,9 +91,11 @@ export type EmailDeliveryInterface = {
     event: EmailProviderEvent
   ) => Result<'updated' | 'ignored' | 'unmatched'>
   readonly get: (id: string) => Result<EmailDeliveryRecord | null>
-  /** Complete sanitized personal evidence, without the history page limit. */
-  readonly exportForUser: (userId: string) => Result<ReadonlyArray<EmailDeliveryRecord>>
-  readonly listForUser: (userId: string) => Result<ReadonlyArray<EmailDeliveryRecord>>
+  /** `complete` reads the whole sanitized personal archive, unpaged. */
+  readonly listForUser: (
+    userId: string,
+    options?: { readonly complete?: boolean }
+  ) => Result<ReadonlyArray<EmailDeliveryRecord>>
   readonly listInvitations: (
     workspaceId: string
   ) => Result<ReadonlyArray<EmailDeliveryRecord>>
@@ -103,7 +105,6 @@ export type EmailDeliveryInterface = {
   ) => Result<EmailDeliveryRecord | null>
   /** Caller must require System Admin. */
   readonly listSystem: () => Result<ReadonlyArray<EmailDeliveryRecord>>
-  readonly prune: () => Result<number>
   readonly resolveUserId: (email: string) => Result<string | null>
 }
 export class EmailDelivery extends Context.Service<

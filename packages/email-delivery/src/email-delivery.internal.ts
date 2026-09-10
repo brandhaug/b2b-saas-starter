@@ -1,4 +1,4 @@
-import { Clock, DateTime, Effect, Metric } from 'effect'
+import { Clock, DateTime, Effect, Metric, Schedule, Schema } from 'effect'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { randomHex } from './crypto.ts'
 import {
@@ -26,8 +26,6 @@ export type DeliveryStore = {
     readonly recipient?: string
     readonly referenceId?: string
     readonly purpose?: ClaimEmail['purpose']
-    readonly statuses?: ReadonlyArray<EmailDeliveryRecord['status']>
-    readonly createdBefore?: string
     /** null reads the complete personal archive; omitted keeps the history limit. */
     readonly limit?: number | null
   }) => Effect.Effect<ReadonlyArray<StoredDelivery>, CapabilityUnavailable>
@@ -35,9 +33,6 @@ export type DeliveryStore = {
     row: StoredDelivery,
     previousRevision: number | null
   ) => Effect.Effect<boolean, CapabilityUnavailable>
-  readonly remove: (
-    rows: ReadonlyArray<StoredDelivery>
-  ) => Effect.Effect<number, CapabilityUnavailable>
   readonly resolveUserId: (
     email: string
   ) => Effect.Effect<string | null, CapabilityUnavailable>
@@ -84,6 +79,33 @@ function reasonRank(reason: string | null): number {
     return 1
   }
   return 0
+}
+
+/**
+ * A lost compare-and-swap. Private to `casRetry`: a mutation that sees it
+ * re-reads the row and decides again, so it never reaches a caller.
+ */
+// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
+class Contended extends Schema.TaggedError<Contended>()('Contended', {}) {}
+
+/**
+ * The read-decide-write loop every mutation runs. `step` re-reads the row and
+ * fails with `Contended` when its `put` lost the revision race. Eight attempts
+ * without a win is a capability failure: the decision was never applied.
+ */
+function casRetry<A, R>(
+  reason: string,
+  step: Effect.Effect<A, Contended | CapabilityUnavailable, R>
+): Effect.Effect<A, CapabilityUnavailable, R> {
+  return step.pipe(
+    Effect.retry({
+      while: (error) => error._tag === 'Contended',
+      schedule: Schedule.recurs(7)
+    }),
+    Effect.catchTag('Contended', () =>
+      Effect.fail(new CapabilityUnavailable({ capability: 'EmailDelivery', reason }))
+    )
+  )
 }
 
 export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'] {
@@ -179,62 +201,60 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
     outcome: SendOutcome
   ) {
     // A competing event wins the CAS; retry against that event without regressing it.
-    for (let attempt = 0; attempt < 8; attempt++) {
-      const old = yield* store.get(id)
-      if (!old) {
-        return
-      }
-      if (old.acceptedAt !== null || old.status === 'logged') {
-        return
-      }
-      // A late transport receipt proves submission even after another claim took
-      // the lease. Only failed/ambiguous outcomes remain fenced to their attempt.
-      const confirmed = outcome.status === 'accepted' || outcome.status === 'logged'
-      if (!confirmed && (old.token !== token || terminal(old))) {
-        return
-      }
-      const now = yield* Clock.currentTimeMillis
-      let status = outcome.status
-      if (status === 'temporary_failure' && retryDuration(old.purpose) === 0) {
-        status = 'failed'
-      }
-      let acceptedAt: string | null = old.acceptedAt
-      let providerMessageId = old.providerMessageId
-      let reason: string | null = null
-      let delay = Math.min(hour, 60_000 * 2 ** Math.min(old.attemptCount - 1, 6))
-      if (outcome.status === 'accepted') {
-        acceptedAt = iso(now)
-        providerMessageId = outcome.providerMessageId
-      }
-      if ('reason' in outcome) {
-        reason = outcome.reason
-      }
-      if (outcome.status === 'ambiguous') {
-        delay = lease
-      }
-      const row: StoredDelivery = {
-        ...old,
-        token: null,
-        revision: old.revision + 1,
-        status,
-        updatedAt: iso(now),
-        acceptedAt,
-        providerMessageId,
-        reason,
-        uncertain:
-          old.uncertain ||
-          outcome.status === 'ambiguous' ||
-          (confirmed && old.token !== token),
-        nextAttemptAt: iso(now + delay)
-      }
-      if (yield* store.put(row, old.revision)) {
-        return
-      }
-    }
-    return yield* Effect.fail(
-      new CapabilityUnavailable({
-        capability: 'EmailDelivery',
-        reason: 'Concurrent delivery updates exhausted the persistence attempt limit'
+    return yield* casRetry(
+      'Concurrent delivery updates exhausted the persistence attempt limit',
+      Effect.gen(function* () {
+        const old = yield* store.get(id)
+        if (!old) {
+          return
+        }
+        if (old.acceptedAt !== null || old.status === 'logged') {
+          return
+        }
+        // A late transport receipt proves submission even after another claim took
+        // the lease. Only failed/ambiguous outcomes remain fenced to their attempt.
+        const confirmed = outcome.status === 'accepted' || outcome.status === 'logged'
+        if (!confirmed && (old.token !== token || terminal(old))) {
+          return
+        }
+        const now = yield* Clock.currentTimeMillis
+        let status = outcome.status
+        if (status === 'temporary_failure' && retryDuration(old.purpose) === 0) {
+          status = 'failed'
+        }
+        let acceptedAt: string | null = old.acceptedAt
+        let providerMessageId = old.providerMessageId
+        let reason: string | null = null
+        let delay = Math.min(hour, 60_000 * 2 ** Math.min(old.attemptCount - 1, 6))
+        if (outcome.status === 'accepted') {
+          acceptedAt = iso(now)
+          providerMessageId = outcome.providerMessageId
+        }
+        if ('reason' in outcome) {
+          reason = outcome.reason
+        }
+        if (outcome.status === 'ambiguous') {
+          delay = lease
+        }
+        const row: StoredDelivery = {
+          ...old,
+          token: null,
+          revision: old.revision + 1,
+          status,
+          updatedAt: iso(now),
+          acceptedAt,
+          providerMessageId,
+          reason,
+          uncertain:
+            old.uncertain ||
+            outcome.status === 'ambiguous' ||
+            (confirmed && old.token !== token),
+          nextAttemptAt: iso(now + delay)
+        }
+        if (yield* store.put(row, old.revision)) {
+          return
+        }
+        return yield* Effect.fail(new Contended())
       })
     )
   })
@@ -273,61 +293,59 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
     if (!match) {
       return 'unmatched'
     }
-    for (let attempt = 0; attempt < 8; attempt++) {
-      const old = yield* store.get(match.id)
-      if (!old || old.lastEventId === event.eventId) {
-        return 'ignored'
-      }
-      // Complaints/suppression may follow delivery. Lesser evidence cannot erase them.
-      const rank = {
-        queued: 0,
-        ambiguous: 0,
-        temporary_failure: 0,
-        accepted: 1,
-        logged: 1,
-        delayed: 2,
-        delivered: 3,
-        failed: 4,
-        suppressed: 5
-      }
-      if (rank[event.status] < rank[old.status]) {
-        return 'ignored'
-      }
-      const now = yield* Clock.currentTimeMillis
-      let reason: string | null = event.reason ?? null
-      if (reason === null && event.status === 'failed') {
-        reason = 'provider_rejected'
-      }
-      if (reason === null && event.status === 'suppressed') {
-        reason = 'provider_suppressed'
-      }
-      if (
-        rank[event.status] === rank[old.status] &&
-        reasonRank(reason) <= reasonRank(old.reason)
-      ) {
-        return 'ignored'
-      }
-      if (reasonRank(old.reason) > reasonRank(reason)) {
-        reason = old.reason
-      }
-      const row: StoredDelivery = {
-        ...old,
-        status: event.status,
-        acceptedAt: old.acceptedAt ?? iso(now),
-        updatedAt: iso(now),
-        lastEventId: event.eventId,
-        lastEventAt: event.occurredAt,
-        revision: old.revision + 1,
-        reason
-      }
-      if (yield* store.put(row, old.revision)) {
-        return 'updated'
-      }
-    }
-    return yield* Effect.fail(
-      new CapabilityUnavailable({
-        capability: 'EmailDelivery',
-        reason: 'Concurrent delivery events exhausted the persistence attempt limit'
+    return yield* casRetry(
+      'Concurrent delivery events exhausted the persistence attempt limit',
+      Effect.gen(function* () {
+        const old = yield* store.get(match.id)
+        if (!old || old.lastEventId === event.eventId) {
+          return 'ignored'
+        }
+        // Complaints/suppression may follow delivery. Lesser evidence cannot erase them.
+        const rank = {
+          queued: 0,
+          ambiguous: 0,
+          temporary_failure: 0,
+          accepted: 1,
+          logged: 1,
+          delayed: 2,
+          delivered: 3,
+          failed: 4,
+          suppressed: 5
+        }
+        if (rank[event.status] < rank[old.status]) {
+          return 'ignored'
+        }
+        const now = yield* Clock.currentTimeMillis
+        let reason: string | null = event.reason ?? null
+        if (reason === null && event.status === 'failed') {
+          reason = 'provider_rejected'
+        }
+        if (reason === null && event.status === 'suppressed') {
+          reason = 'provider_suppressed'
+        }
+        if (
+          rank[event.status] === rank[old.status] &&
+          reasonRank(reason) <= reasonRank(old.reason)
+        ) {
+          return 'ignored'
+        }
+        if (reasonRank(old.reason) > reasonRank(reason)) {
+          reason = old.reason
+        }
+        const row: StoredDelivery = {
+          ...old,
+          status: event.status,
+          acceptedAt: old.acceptedAt ?? iso(now),
+          updatedAt: iso(now),
+          lastEventId: event.eventId,
+          lastEventAt: event.occurredAt,
+          revision: old.revision + 1,
+          reason
+        }
+        if (yield* store.put(row, old.revision)) {
+          return 'updated'
+        }
+        return yield* Effect.fail(new Contended())
       })
     )
   })
@@ -335,43 +353,42 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
     id: string,
     reason = 'no_longer_relevant'
   ) {
-    for (let attempt = 0; attempt < 8; attempt++) {
-      const old = yield* store.get(id)
-      if (!old || terminal(old)) {
-        return
-      }
-      const now = yield* Clock.currentTimeMillis
-      if (
-        yield* store.put(
-          {
-            ...old,
-            status: 'failed',
-            reason,
-            revision: old.revision + 1,
-            updatedAt: iso(now)
-          },
-          old.revision
-        )
-      ) {
-        return
-      }
-    }
-    return yield* Effect.fail(
-      new CapabilityUnavailable({
-        capability: 'EmailDelivery',
-        reason: 'Concurrent delivery updates prevented cancellation'
+    return yield* casRetry(
+      'Concurrent delivery updates prevented cancellation',
+      Effect.gen(function* () {
+        const old = yield* store.get(id)
+        if (!old || terminal(old)) {
+          return
+        }
+        const now = yield* Clock.currentTimeMillis
+        if (
+          yield* store.put(
+            {
+              ...old,
+              status: 'failed',
+              reason,
+              revision: old.revision + 1,
+              updatedAt: iso(now)
+            },
+            old.revision
+          )
+        ) {
+          return
+        }
+        return yield* Effect.fail(new Contended())
       })
     )
   })
   const listForUser = Effect.fn('EmailDelivery.listForUser')(function* (
-    userId: string
+    userId: string,
+    options?: { readonly complete?: boolean }
   ) {
+    // The complete personal archive drops the history page limit; the account
+    // history page keeps it.
+    if (options?.complete === true) {
+      return (yield* store.list({ userId, limit: null })).map(evidence)
+    }
     return (yield* store.list({ userId })).map(evidence)
-  })
-  const exportForUser = Effect.fn('EmailDelivery.exportForUser')(function* (
-    userId: string
-  ) {
-    return (yield* store.list({ userId, limit: null })).map(evidence)
   })
   const listInvitations = Effect.fn('EmailDelivery.listInvitations')(function* (
     workspaceId: string
@@ -405,33 +422,6 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
       return evidence(row)
     }
     return null
-  })
-  const prune = Effect.fn('EmailDelivery.prune')(function* () {
-    const now = yield* Clock.currentTimeMillis
-    const normal = yield* store.list({
-      statuses: ['queued', 'accepted', 'delivered', 'logged'],
-      createdBefore: iso(now - 30 * 24 * hour),
-      limit: 250
-    })
-    const unresolved = yield* store.list({
-      statuses: ['failed', 'suppressed', 'ambiguous', 'temporary_failure', 'delayed'],
-      createdBefore: iso(now - 90 * 24 * hour),
-      limit: 250
-    })
-    const expired = [...normal, ...unresolved]
-    if (expired.length === 0) {
-      return 0
-    }
-    const changed = yield* store.remove(expired)
-    if (changed === 0) {
-      return yield* Effect.fail(
-        new CapabilityUnavailable({
-          capability: 'EmailDelivery',
-          reason: 'Concurrent delivery updates prevented retention progress'
-        })
-      )
-    }
-    return changed
   })
   const trackedAttempt: EmailDelivery['Service']['trackedAttempt'] = Effect.fn(
     'EmailDelivery.trackedAttempt'
@@ -473,11 +463,9 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
     applyProviderEvent,
     get,
     listForUser,
-    exportForUser,
     listInvitations,
     latestInvitation,
     listSystem,
-    prune,
     resolveUserId: store.resolveUserId
   })
 }

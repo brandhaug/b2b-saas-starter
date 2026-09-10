@@ -1,3 +1,4 @@
+import { requiredEnv } from './scripts/lib/env.ts'
 import * as Alchemy from 'alchemy'
 import * as Output from 'alchemy/Output'
 import * as Cloudflare from 'alchemy/Cloudflare'
@@ -66,21 +67,13 @@ function rateLimitBindings(specs: ReadonlyArray<RateLimitBindingSpec>) {
   )
 }
 
-// Single `process.env` reader for the whole deploy entrypoint. This file runs
-// on Node at deploy time (CI or a developer machine), not inside a Worker, and
-// the values below are read at module scope where no Effect runtime — and so
-// no `Config`/`ConfigProvider` — exists yet. Every other env read in this file
-// goes through here so the platform-global escape hatch has exactly one site.
+// Single optional-env reader for the whole deploy entrypoint; required reads go
+// through `requiredEnv` in scripts/lib/env.ts. This file runs on Node at deploy
+// time (CI or a developer machine), not inside a Worker, and the values below
+// are read at module scope where no Effect runtime — and so no
+// `Config`/`ConfigProvider` — exists yet.
 function readEnv(name: string): string | undefined {
   return process.env[name]
-}
-
-function requiredEnv(name: string): string {
-  const value = readEnv(name)
-  if (!value) {
-    throw new Error(`Missing required deploy environment variable: ${name}`)
-  }
-  return value
 }
 
 function optionalSecret(name: string): Redacted.Redacted<string> | undefined {

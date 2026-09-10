@@ -1,4 +1,4 @@
-import { hashApiToken } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+import { hashSha256 } from '@b2b-saas-starter/capabilities/crypto'
 import {
   LIVE_SUITE_TIMEOUT,
   TestDatabase,
@@ -32,7 +32,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             ['tok_isolation_foreign', 'wrk_other', foreign, '["admin"]'],
             ['tok_isolation_reader', 'wrk_dev_contract', reader, '["read"]']
           ] satisfies ReadonlyArray<readonly [string, string, string, string]>) {
-            const hash = yield* Effect.promise(() => hashApiToken(token))
+            const hash = yield* Effect.promise(() => hashSha256(token))
             yield* Effect.promise(() =>
               DB.prepare(
                 `INSERT INTO api_tokens (id,workspace_id,name,token_prefix,token_hash,scopes,created_at) VALUES (?, ?, 'Isolation', 'bsk_test', ?, ?, '2026-01-01T00:00:00Z')`

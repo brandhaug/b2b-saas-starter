@@ -53,7 +53,7 @@ export type KeysetCursorPosition = {
   readonly id: string
 }
 
-export function encodeKeysetCursor(position: KeysetCursorPosition): string {
+function encodeKeysetCursor(position: KeysetCursorPosition): string {
   return Encoding.encodeBase64(`${position.key} ${position.id}`)
 }
 
@@ -87,7 +87,7 @@ export function decodeKeysetCursor(cursor: string): KeysetCursorPosition | null 
 export type KeysetOrder = 'desc' | 'asc'
 
 /** Whether `(key, id)` sits strictly after `position` in `order`. */
-export function keysetIsAfter(
+function keysetIsAfter(
   order: KeysetOrder,
   position: KeysetCursorPosition,
   key: string,
@@ -135,7 +135,7 @@ export function seedKeysetPage<T>(
 }
 
 /** `(key, id)` comparison in the list's order — the sort behind every page. */
-export function keysetComparator<T>(
+function keysetComparator<T>(
   order: KeysetOrder,
   positionOf: (row: T) => KeysetCursorPosition
 ): (a: T, b: T) => number {

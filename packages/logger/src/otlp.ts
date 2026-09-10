@@ -20,47 +20,33 @@ function otlpHeaders(value: string | undefined): Record<string, string> | undefi
   if (!hasValue(value)) {
     return undefined
   }
-  const entries = value.split(',').flatMap((entry) => {
-    const separator = entry.indexOf('=')
-    if (separator <= 0) {
-      return []
-    }
-    const key = entry.slice(0, separator).trim()
-    const headerValue = entry.slice(separator + 1).trim()
-    if (key.length === 0 || headerValue.length === 0) {
-      return []
-    }
-    return [[key, headerValue]]
-  })
-  if (entries.length === 0) {
+  const headers = Object.fromEntries(
+    value
+      .split(',')
+      .map((entry) => entry.split('=', 2).map((part) => part.trim()))
+      .filter(([key, headerValue]) => key && headerValue)
+  )
+  if (Object.keys(headers).length === 0) {
     return undefined
   }
-  return Object.fromEntries(entries)
-}
-
-/**
- * The three OTel resource attributes this starter sets, by their semantic-
- * convention names. A closed shape rather than an attribute bag: the deployment
- * identity the wide event carries is a fixed set, and the two optional keys are
- * assigned only when their env var is present.
- */
-type OtelResourceAttributes = {
-  'cloud.provider': string
-  'deployment.environment.name'?: string
-  'vcs.ref.head.revision'?: string
+  return headers
 }
 
 /** OTel resource attributes, from the same env fields the wide event reads. */
-function resourceAttributes(env: ObservabilityEnv): OtelResourceAttributes {
+function resourceAttributes(env: ObservabilityEnv) {
+  // A closed shape rather than an attribute bag: the deployment identity the
+  // wide event carries is a fixed set, and the two optional keys are present
+  // only when their env var is.
   const environment = readWideEventEnvironment(env)
-  const attributes: OtelResourceAttributes = { 'cloud.provider': 'cloudflare' }
-  if (environment.environment) {
-    attributes['deployment.environment.name'] = environment.environment
+  return {
+    'cloud.provider': 'cloudflare',
+    ...(environment.environment && {
+      'deployment.environment.name': environment.environment
+    }),
+    ...(environment.commitHash && {
+      'vcs.ref.head.revision': environment.commitHash
+    })
   }
-  if (environment.commitHash) {
-    attributes['vcs.ref.head.revision'] = environment.commitHash
-  }
-  return attributes
 }
 
 /**

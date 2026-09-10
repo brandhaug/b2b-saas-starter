@@ -2,7 +2,7 @@ import { type SeatUsage } from '@b2b-saas-starter/billing/plan-catalog'
 import { type Member } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { type Invitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import { type EmailDeliveryRow } from './email-delivery'
-import { WORKSPACE_ROLES, type WorkspaceViewer } from '@/lib/permissions'
+import { workspaceRoles, type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
 
@@ -53,7 +53,7 @@ const LoadWorkspaceMembersInput = Schema.Struct({
 const ChangeMemberRoleInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
   userId: Schema.NonEmptyString,
-  role: Schema.Literals(WORKSPACE_ROLES)
+  role: Schema.Literals(workspaceRoles)
 })
 
 const RemoveMemberInput = Schema.Struct({
