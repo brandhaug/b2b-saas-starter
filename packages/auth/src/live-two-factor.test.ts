@@ -18,7 +18,7 @@ import {
   type AuthService,
   type ProvisionedAuthD1
 } from './test-auth-layer.ts'
-import { decodeUriSecret, withNextTotpWindow } from './test-totp.ts'
+import { decodeUriSecret, nextTotpCode } from './test-totp.ts'
 
 // The two-factor challenge hop is only observable end to end: whether a
 // credential sign-in leaves a working session or a pending challenge is
@@ -137,18 +137,6 @@ function totpUser(email: string) {
   })
 }
 
-/** A code the server itself generated for a stored secret. */
-function freshCode(secret: string) {
-  return Effect.flatMap(Auth.Tag, (auth) =>
-    Effect.promise(() =>
-      withNextTotpWindow(() =>
-        // oxlint-disable-next-line starter/no-run-promise-in-tests -- bridge the Auth service effect into the native clock shim
-        Effect.runPromise(auth.api.generateTOTP({ body: { secret } }))
-      )
-    )
-  )
-}
-
 /** The code the send endpoint generated for one email, most recent first. */
 function codeFor(email: string): string {
   const sent = sentCodes.toReversed().find((entry) => entry.email === email)
@@ -239,7 +227,7 @@ describe('the two-factor challenge hop', () => {
           const secondCookie = yield* weakEmailSession(email)
           const firstHeaders = new Headers({ cookie: firstCookie })
           const secondHeaders = new Headers({ cookie: secondCookie })
-          const { code } = yield* freshCode(secret)
+          const { code } = yield* nextTotpCode(secret)
           yield* auth.api.verifyTOTP({ body: { code }, headers: secondHeaders })
           expect((yield* storedSession(secondCookie)).strongAuthAt).toBeNull()
           yield* auth.api.verifyPassword({
@@ -281,7 +269,7 @@ describe('the two-factor challenge hop', () => {
           const { secret } = yield* totpUser(email)
           const auth = yield* Auth.Tag
           const challenge = yield* signInWithEmail(email)
-          const { code } = yield* freshCode(secret)
+          const { code } = yield* nextTotpCode(secret)
           const verified = yield* auth.full.verifyTOTP({
             body: { code, trustDevice: true },
             headers: new Headers({
@@ -343,7 +331,7 @@ describe('the two-factor challenge hop', () => {
             body: { password: PASSWORD },
             headers: new Headers({ cookie: recoveryCookie })
           })
-          const { code: oldFactorCode } = yield* freshCode(secret)
+          const { code: oldFactorCode } = yield* nextTotpCode(secret)
           yield* auth.api.verifyTOTP({
             body: { code: oldFactorCode },
             headers: new Headers({ cookie: recoveryCookie })
@@ -368,7 +356,7 @@ describe('the two-factor challenge hop', () => {
           if (enabled.response.method !== 'totp') {
             return yield* Effect.die('Expected TOTP')
           }
-          const { code: replacementCode } = yield* freshCode(
+          const { code: replacementCode } = yield* nextTotpCode(
             secretOf(enabled.response.totpURI)
           )
           const verified = yield* auth.full.verifyTOTP({
@@ -427,7 +415,7 @@ describe('the two-factor challenge hop', () => {
           // The challenge cookie the diverted sign-in set is the only thing
           // the verify step needs — no session exists yet at all.
           const signIn = yield* signInWithEmail(email)
-          const { code } = yield* freshCode(secret)
+          const { code } = yield* nextTotpCode(secret)
           const auth = yield* Auth.Tag
           const verified = yield* auth.full.verifyTOTP({
             body: { code },

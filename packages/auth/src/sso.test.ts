@@ -1,9 +1,11 @@
 import { type DrizzleDatabase } from './ports.ts'
 import { account, user, workspaceMembers } from '@b2b-saas-starter/db/schema'
-import { Effect, type Layer } from 'effect'
+import { Clock, Effect, type Layer } from 'effect'
+import { TestClock } from 'effect/testing'
 import { cookieHeader, cookiePairs } from 'effectful-better-auth'
 import { eq } from 'drizzle-orm'
 import { createSign, generateKeyPairSync } from 'node:crypto'
+import { decodeJwt, jwtVerify } from 'jose'
 import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest'
 import { Auth } from './index.ts'
 import {
@@ -47,16 +49,12 @@ function base64Url(value: Buffer | string): string {
   return Buffer.from(value).toString('base64url')
 }
 
-/**
- * Signs an RS256 ID token the plugin's `jose` verifier will accept. `exp` is
- * fixed relative to the real clock — the verifier reads the wall clock, so
- * `Clock` cannot control it.
- */
-// oxlint-disable-next-line effect/noGlobals -- jose verifies against the wall clock; the token's lifetime is a fixed offset from it, not a Clock read
-const issuedAt = Math.floor(Date.now() / 1000)
-
 // oxlint-disable effect/noGlobals -- this suite IS the JSON/serialization boundary: a fake IdP, not an app write path
-function signIdToken(claims: Record<string, unknown>): string {
+/** Read issuance time for each token, including exchanges after a delayed setup. */
+const signIdToken = Effect.fn('Test.signIdToken')(function* (
+  claims: Record<string, unknown>
+) {
+  const issuedAt = Math.floor((yield* Clock.currentTimeMillis) / 1000)
   const header = { alg: 'RS256', typ: 'JWT', kid: publicJwk.kid }
   const payload = { iat: issuedAt, exp: issuedAt + 600, ...claims }
   const signingInput = `${base64Url(JSON.stringify(header))}.${base64Url(
@@ -64,7 +62,7 @@ function signIdToken(claims: Record<string, unknown>): string {
   )}`
   const signature = createSign('RSA-SHA256').update(signingInput).sign(privateKey)
   return `${signingInput}.${base64Url(signature)}`
-}
+})
 
 let idTokenSubject = 'idp-user-1'
 let idTokenEmail = 'provisioned@roundtrip.test'
@@ -84,8 +82,7 @@ function requestUrl(input: RequestInfo | URL): string {
   return new Request(input).url
 }
 
-// The one async boundary this suite owns: the fetch seam itself, replaced on
-// globalThis. Effect wrappers would only re-wrap the same promise.
+// The native fetch stub runs the Effect signer with the live clock used by jose.
 // oxlint-disable-next-line effect/noAsyncFunction -- the global fetch seam is async by contract
 async function stubbedFetch(
   input: RequestInfo | URL,
@@ -97,14 +94,17 @@ async function stubbedFetch(
       access_token: 'rt-access-token',
       token_type: 'Bearer',
       scope: 'openid email profile',
-      id_token: signIdToken({
-        iss: ISSUER,
-        aud: 'rt-client',
-        sub: idTokenSubject,
-        email: idTokenEmail,
-        email_verified: true,
-        name: idTokenName
-      })
+      // oxlint-disable-next-line effect/noAsyncFunction, starter/no-run-promise-in-tests -- the native fetch callback is the boundary into the Effect token signer
+      id_token: await Effect.runPromise(
+        signIdToken({
+          iss: ISSUER,
+          aud: 'rt-client',
+          sub: idTokenSubject,
+          email: idTokenEmail,
+          email_verified: true,
+          name: idTokenName
+        })
+      )
     })
   }
   if (url === `${ISSUER}/jwks`) {
@@ -149,6 +149,24 @@ function run<A, E>(effect: Effect.Effect<A, E, AuthService>) {
 }
 
 describe('workspace SSO over the sso plugin', () => {
+  it.effect('issues a fresh token after an earlier token has expired', () =>
+    Effect.gen(function* () {
+      const earlier = yield* signIdToken({ sub: 'clock-test' })
+      expect(decodeJwt(earlier).exp).toBe(600)
+
+      yield* TestClock.adjust('11 minutes')
+      const current = yield* signIdToken({ sub: 'clock-test' })
+      const verified = yield* Effect.promise(() =>
+        jwtVerify(current, publicKey, { currentDate: new Date(660_000) })
+      )
+      expect(verified.payload).toMatchObject({
+        sub: 'clock-test',
+        iat: 660,
+        exp: 1260
+      })
+    })
+  )
+
   it.live(
     'round-trips a mocked OIDC connection and provisions the member with the connection’s role',
     () =>
