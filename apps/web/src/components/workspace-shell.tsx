@@ -20,7 +20,7 @@ import { SearchButton, CommandPaletteProvider } from '@/components/command-palet
 import { ImpersonationBanner } from '@/components/impersonation-banner'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { useImpersonation, type StopImpersonating } from '@/lib/impersonation'
-import { ADMIN_SYSTEM_ROLE, type Viewer } from '@/lib/permissions'
+import { adminSystemRole, type Viewer } from '@/lib/permissions'
 import {
   findWorkspace,
   lastVisitedWorkspace,
@@ -257,7 +257,7 @@ function UserMenu({
   const session = authClient.useSession()
   const router = useRouter()
   const directory = useWorkspaceDirectory()
-  const admin = systemRole === ADMIN_SYSTEM_ROLE
+  const admin = systemRole === adminSystemRole
   return (
     <DropdownMenu>
       <DropdownMenuTrigger

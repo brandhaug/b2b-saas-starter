@@ -2,7 +2,7 @@ import { Effect } from 'effect'
 import { type NotifyWorkspaceOwnersInput } from '../notifications/notification-feed.ts'
 import {
   renderNotificationEvent,
-  type NotificationEvent
+  type SystemNotificationEvent
 } from '../notifications/notification-events.ts'
 import {
   WorkspaceSuspensionUnauthorized,
@@ -32,7 +32,7 @@ export function suspensionNotice(
     type: 'workspace.suspension_changed',
     status: state.status,
     customerExplanation: state.customerExplanation
-  } satisfies NotificationEvent
+  } satisfies SystemNotificationEvent
   return {
     workspaceId: state.workspaceId,
     audience: 'owners_and_admins',

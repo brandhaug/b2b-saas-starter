@@ -1,7 +1,7 @@
 /**
  * Vendor provider glue for the wide-event seam: Sentry (`@sentry/cloudflare`)
- * for failed scopes, PostHog (`posthog-node`, the officially documented
- * Cloudflare Workers integration) for analytics. Both stay fully inactive
+ * for failed scopes, PostHog (a `fetch` POST to its capture endpoint) for
+ * analytics. Both stay fully inactive
  * until their env vars exist — no DSN/key means no network traffic, matching
  * the starter's provider-light promise (see ARCHITECTURE.md secret matrix).
  *
@@ -10,18 +10,17 @@
  * 1. **Init** — `makeSentryOptions(service, env)` feeds `Sentry.withSentry` at
  *    the worker entry. Without `SENTRY_DSN` it returns empty options and the
  *    SDK initializes a disabled client.
- * 2. **Wide-event sinks** — `wireWideEventProviders(env)` (call once per
+ * 2. **Wide-event sink** — `wireWideEventProviders(env)` (call once per
  *    isolate, at worker init) connects the scope's exit event
  *    to both vendors. Failed scopes become Sentry exceptions tagged with the
  *    service/event/trace id; every scope becomes one PostHog event keyed by
  *    the trace id.
  *
- * Like `makeOtlpLayer`, the PostHog half respects ADR 0050: a fresh client
- * per invocation with `flushAt: 1` / `flushInterval: 0`, awaited inside the
- * invocation so no I/O outlives the request that produced it. Both SDKs are
- * imported lazily: this module is reachable from the web app's client graph
- * (through observability.ts), and vendor code has no business in the browser
- * bundle.
+ * Like `makeOtlpLayer`, the PostHog half respects ADR 0050: one capture POST
+ * awaited inside the invocation, so no I/O outlives the request that produced
+ * it. Sentry is imported lazily: this module is reachable from the web app's
+ * client graph (through observability.ts), and vendor code has no business in
+ * the browser bundle.
  */
 // The vendor SDKs are Promise-native; wrapping their calls in Effect would
 // only re-wrap the same awaits one layer down.
@@ -36,7 +35,7 @@ import {
   sentryPrivacyOptions
 } from './sanitization.ts'
 
-import { addWideEventSink, type WideEventRecord } from './wide-event.ts'
+import { setWideEventSink, type WideEventRecord } from './wide-event.ts'
 
 /** Env fields the vendor glue reads. All optional; absence disables the vendor. */
 export type ProviderGlueEnv = ProviderEnvOf<
@@ -76,17 +75,17 @@ export function makeSentryOptions(
   return options
 }
 
-// The env the sinks read, pinned by the first `wireWideEventProviders` call
-// in the isolate. One binding means an in-flight emit can never observe a mix
+// The env the sink reads, pinned by `wireWideEventProviders` in the isolate.
+// One binding means an in-flight emit can never observe a mix
 // of two invocations' envs — it sees either the old object or the new one,
 // never a half-updated view.
 let wiredEnv: ProviderGlueEnv | undefined
 
 /**
- * Point the wide-event sinks at this isolate's env.
+ * Point the wide-event sink at this isolate's env.
  *
- * **Call-once-per-isolate protocol:** the first call registers the sinks and
- * pins the env they read; every later call must pass the *same* env bag (the
+ * **Call-once-per-isolate protocol:** the first call installs the sink and
+ * pins the env it reads; every later call must pass the *same* env bag (the
  * normal Workers behavior — one env object per isolate). A later call with an
  * equal-by-identity env is a no-op; a different env object replaces the pinned
  * one atomically, with the caveat that an emit already in flight finishes
@@ -94,9 +93,7 @@ let wiredEnv: ProviderGlueEnv | undefined
  * requests should restart the isolate instead of re-wiring mid-flight.
  */
 export function wireWideEventProviders(env: ProviderGlueEnv): void {
-  if (wiredEnv === undefined) {
-    addWideEventSink((record) => dispatch(record))
-  }
+  setWideEventSink((record) => dispatch(record))
   wiredEnv = env
 }
 
@@ -218,42 +215,37 @@ async function captureSentryError(record: WideEventRecord): Promise<void> {
 }
 
 /**
- * One PostHog event per wide-event scope, following PostHog's documented
- * Cloudflare Workers pattern: a fresh client per invocation, immediate flush,
- * shutdown before the invocation ends.
+ * One PostHog event per wide-event scope, posted to the capture endpoint
+ * inside the invocation (ADR 0050): no client, no batching, no work outliving
+ * the request that produced it.
  */
 async function capturePostHogEvent(record: WideEventRecord): Promise<void> {
   const env = wiredEnv
   if (!hasValue(env?.POSTHOG_KEY)) {
     return
   }
-  const { PostHog } = await import('posthog-node')
   const host = env.POSTHOG_HOST || DEFAULT_POSTHOG_HOST
-  const client = new PostHog(env.POSTHOG_KEY, {
-    host,
-    // Send immediately: batched writes are async and Workers may terminate
-    // before they land (PostHog's own Workers guidance).
-    flushAt: 1,
-    flushInterval: 0,
-    requestTimeout: 3000
-  })
-  try {
-    const properties = {
-      service: diagnosticLabel(record.service),
-      status: record.status,
-      durationMs: record.durationMs,
-      // Undefined values are dropped by JSON serialization.
-      traceId: diagnosticFields({ traceId: record.traceId })['traceId'],
-      environment: diagnosticLabel(env.ENVIRONMENT)
-    }
-    await client.captureImmediate({
-      distinctId: String(
-        diagnosticFields({ traceId: record.traceId })['traceId'] ?? 'anonymous'
-      ),
+  const traceId = diagnosticFields({ traceId: record.traceId })['traceId']
+  // oxlint-disable-next-line effect/noGlobals -- vendor HTTP boundary: this module is provider glue, deliberately outside the Effect HttpClient
+  await fetch(`${host.replace(/\/+$/u, '')}/i/v0/e/`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    // Undefined values are dropped by JSON serialization.
+    // oxlint-disable-next-line effect/noGlobals -- PostHog's capture body, built here and never decoded back
+    body: JSON.stringify({
+      api_key: env.POSTHOG_KEY,
       event: diagnosticLabel(record.event),
-      properties
-    })
-  } finally {
-    await client.shutdown()
-  }
+      distinct_id: String(traceId ?? 'anonymous'),
+      properties: {
+        service: diagnosticLabel(record.service),
+        status: record.status,
+        durationMs: record.durationMs,
+        traceId,
+        environment: diagnosticLabel(env.ENVIRONMENT)
+      },
+      // oxlint-disable-next-line effect/noGlobals -- one wall-clock stamp for the vendor payload, outside any Effect
+      timestamp: new Date().toISOString()
+    }),
+    signal: AbortSignal.timeout(3000)
+  })
 }

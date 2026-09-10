@@ -175,24 +175,14 @@ export function mcpCallerActorType(caller: McpCaller): AuditActorTypeValue {
 }
 
 /**
- * The MCP protocol route's authentication: one `Authorization: Bearer` header,
- * two credential shapes. A JWT (three segments) goes to the OAuth verifier —
+ * The MCP protocol route's authentication: one `Authorization: Bearer`
+ * credential, two shapes. A JWT (three segments) goes to the OAuth verifier —
  * signature against the issuer's JWKS, issuer, audience, expiry, then the
  * starter's own claims; anything else is an API Token and takes exactly the
- * path {@link verifyToken} always took. The REST groups do not call this: OAuth
- * is for interactive clients, and the contract's `BearerAuth` stays token-only.
+ * path {@link verifyToken} always took. The REST groups do not call this:
+ * OAuth is for interactive clients, and the contract's `BearerAuth` stays
+ * token-only. Resolved again for each write, including batched tool calls.
  */
-export function authenticateMcpCaller(
-  request: HttpServerRequest.HttpServerRequest
-): Effect.Effect<
-  McpCaller,
-  Unauthorized | CapabilityUnavailable,
-  ApiTokenRegistry | OAuthTokenVerifier | Scope.Scope
-> {
-  return verifyMcpCredential(bearerToken(request))
-}
-
-/** Resolve the credential again for each write, including batched tool calls. */
 export function verifyMcpCredential(
   bearer: string | null
 ): Effect.Effect<
@@ -308,19 +298,11 @@ export function observed<A, E, R>(
  * platform's `Request` (the same conversion `mcp.ts` uses). That is what lets
  * the envelope read `request.cf.colo` and stamp the colo onto the wide event.
  *
- * It fails only for a source with no derivable URL. Such a request carries no
- * `cf` object either, so the fallback rebuilds exactly the two things the
- * envelope still reads — the URL and the headers — against a synthetic origin.
+ * It fails only for a source with no derivable URL, which this worker never
+ * serves.
  */
 export function webRequest(request: HttpServerRequest.HttpServerRequest): Request {
-  const web = HttpServerRequest.toWebResult(request)
-  if (Result.isSuccess(web)) {
-    return web.success
-  }
-  return new Request(new URL(request.url, 'http://request.invalid'), {
-    method: request.method,
-    headers: { ...request.headers }
-  })
+  return Result.getOrThrow(HttpServerRequest.toWebResult(request))
 }
 
 /**

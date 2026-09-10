@@ -8,11 +8,10 @@ export const PersonalDataExportReceipt = Schema.Struct({
   expiresAt: Schema.String
 })
 export type PersonalDataExportReceipt = typeof PersonalDataExportReceipt.Type
-export const PersonalDataExportDownload = Schema.Struct({
-  fileName: Schema.String,
-  json: Schema.String
-})
-export type PersonalDataExportDownload = typeof PersonalDataExportDownload.Type
+export type PersonalDataExportDownload = {
+  readonly fileName: string
+  readonly json: string
+}
 export type PersonalDataExportInterface = {
   readonly request: (
     userId: string,

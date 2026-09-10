@@ -53,10 +53,11 @@ type AuditedMutationInput = {
    * The mutation statement(s), built lazily so a zero-match mutation never
    * pays for them. Laziness is load-bearing: `rotateSecret` mints its
    * replacement secret here, and the interface promises no secret is minted on
-   * no match. An array batches several statements beside the one audit insert
-   * (a revoke that must also retire the tokens it mints).
+   * no match. The list batches beside the one audit insert, so a mutation
+   * that needs several statements (a revoke that must also retire the tokens
+   * it mints) adds them here.
    */
-  readonly write: () => BatchStatement | ReadonlyArray<BatchStatement>
+  readonly write: () => ReadonlyArray<BatchStatement>
   /**
    * Present when the write is a conditional single-row transition that a
    * concurrent request can win instead. See {@link AuditedTransition}.
@@ -93,23 +94,6 @@ type AuditedMutation = (
   input: AuditedMutationInput
 ) => Effect.Effect<boolean, CapabilityUnavailable>
 
-/** A single write statement wrapped for the batch, or the batch's whole write list. */
-function asStatements(
-  written: BatchStatement | ReadonlyArray<BatchStatement>
-): ReadonlyArray<BatchStatement> {
-  if (isStatementList(written)) {
-    return written
-  }
-  return [written]
-}
-
-/** A predicate rather than a bare `Array.isArray`, so the negative branch narrows to one statement. */
-function isStatementList(
-  written: BatchStatement | ReadonlyArray<BatchStatement>
-): written is ReadonlyArray<BatchStatement> {
-  return Array.isArray(written)
-}
-
 /**
  * Builds the audited-mutation combinator for one Live layer. Effectful because
  * it resolves the `RawD1` binding `batch` needs once, at layer construction,
@@ -130,9 +114,8 @@ export function auditedMutations(
           input.auditEvent,
           input.transition?.condition
         )
-        const written = input.write()
         const statements: Array<BatchStatement> = [
-          ...asStatements(written),
+          ...input.write(),
           ...(input.transition?.alongside ?? []),
           auditStatement
         ]

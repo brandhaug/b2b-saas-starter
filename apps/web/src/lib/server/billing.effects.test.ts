@@ -102,8 +102,7 @@ vi.mock('../capabilities', () => ({
           eligibleIds: [],
           selectedIds: [],
           activeIds: [],
-          paused: false,
-          requiresSelection: false
+          paused: false
         })
     })
     const tokens = Layer.mock(ApiTokenRegistry, { list: Effect.succeed([]) })

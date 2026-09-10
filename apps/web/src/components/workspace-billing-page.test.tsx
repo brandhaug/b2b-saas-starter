@@ -9,10 +9,10 @@ import {
 } from '@tanstack/react-router'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import {
-  resourceEntitlementSummary,
+  resourceEntitlement,
+  type ResourceSelection,
   STARTER_PLAN
 } from '@b2b-saas-starter/billing/plan-catalog'
-import { type ResourceSelectionInput } from '@b2b-saas-starter/billing/resource-entitlements'
 import { type BillingLifecycle } from '@b2b-saas-starter/billing/billing'
 import { WorkspaceBillingPage } from './workspace-billing-page'
 import {
@@ -30,19 +30,19 @@ vi.mock('@/lib/server/billing', async (importOriginal) => ({
 
 function withSelection(
   data: WorkspaceBillingPayload,
-  selected: ResourceSelectionInput
+  selected: ResourceSelection
 ): WorkspaceBillingPayload {
   return {
     ...data,
     resourceSelection: selected,
     resourceEntitlements: {
-      apiTokens: resourceEntitlementSummary(
+      apiTokens: resourceEntitlement(
         STARTER_PLAN,
         'api_token',
         data.apiTokens.map(({ id }) => id),
         selected
       ),
-      webhookEndpoints: resourceEntitlementSummary(
+      webhookEndpoints: resourceEntitlement(
         STARTER_PLAN,
         'webhook_endpoint',
         data.webhookEndpoints.map(({ id }) => id),
@@ -78,13 +78,8 @@ function fixture(): WorkspaceBillingPayload {
     },
     resourceSelection: selection,
     resourceEntitlements: {
-      apiTokens: resourceEntitlementSummary(
-        STARTER_PLAN,
-        'api_token',
-        tokens,
-        selection
-      ),
-      webhookEndpoints: resourceEntitlementSummary(
+      apiTokens: resourceEntitlement(STARTER_PLAN, 'api_token', tokens, selection),
+      webhookEndpoints: resourceEntitlement(
         STARTER_PLAN,
         'webhook_endpoint',
         hooks,
@@ -306,7 +301,7 @@ describe('WorkspaceBillingPage route', () => {
 
   it('reloads the current replacement and deleted webhook after an in-flight save finishes', async () => {
     const view = await renderBilling()
-    const pending = deferred<ResourceSelectionInput>()
+    const pending = deferred<ResourceSelection>()
     save.mockImplementation(() => pending.promise)
     fireEvent.click(checkbox('Token B'))
     fireEvent.click(screen.getByRole('button', { name: /save selection/i }))

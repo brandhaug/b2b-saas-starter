@@ -3,12 +3,6 @@ import { env } from 'cloudflare:workers'
 import { type SupportConfig } from './support-config'
 
 const EMAIL = /^[^\s@?&#]+@[^\s@?&#]+\.[^\s@?&#]+$/
-type MutableSupportConfig = {
-  email?: string
-  helpdeskUrl?: string
-  helpCenterUrl?: string
-  appVersion?: string
-}
 
 export function safeSupportEmail(value: string | null | undefined): string | undefined {
   return hasValue(value) && EMAIL.test(value) ? value : undefined
@@ -26,28 +20,20 @@ export function safeSupportUrl(value: string | null | undefined): string | undef
     : undefined
 }
 
-export function readSupportConfig(): SupportConfig {
-  const email = safeSupportEmail(env.SUPPORT_EMAIL)
-  const helpdeskUrl = safeSupportUrl(env.SUPPORT_HELPDESK_URL)
-  const helpCenterUrl = safeSupportUrl(env.SUPPORT_HELP_CENTER_URL)
-  let appVersion: string | undefined
+/** The deployed release, named by whichever binding the platform set. */
+function releaseVersion(): string | undefined {
   if (hasValue(env.SERVICE_VERSION)) {
-    appVersion = env.SERVICE_VERSION
-  } else if (hasValue(env.GIT_COMMIT_SHA)) {
-    appVersion = env.GIT_COMMIT_SHA
+    return env.SERVICE_VERSION
   }
-  const result: MutableSupportConfig = {}
-  if (email !== undefined) {
-    result.email = email
+  return hasValue(env.GIT_COMMIT_SHA) ? env.GIT_COMMIT_SHA : undefined
+}
+
+export function readSupportConfig(): SupportConfig {
+  // Unset and unsafe values stay `undefined`, which the JSON response drops.
+  return {
+    email: safeSupportEmail(env.SUPPORT_EMAIL),
+    helpdeskUrl: safeSupportUrl(env.SUPPORT_HELPDESK_URL),
+    helpCenterUrl: safeSupportUrl(env.SUPPORT_HELP_CENTER_URL),
+    appVersion: releaseVersion()
   }
-  if (helpdeskUrl !== undefined) {
-    result.helpdeskUrl = helpdeskUrl
-  }
-  if (helpCenterUrl !== undefined) {
-    result.helpCenterUrl = helpCenterUrl
-  }
-  if (appVersion !== undefined) {
-    result.appVersion = appVersion
-  }
-  return result
 }

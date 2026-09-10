@@ -103,14 +103,10 @@
   "shell_table_sort_desc": "Sorter etter {column}, nå synkende",
   "shell_table_sort": "Sorter etter {column}",
   "shell_table_empty": "Ingen resultater.",
-  "shell_table_filter": "Filtrer …",
-  "shell_table_filter_rows": "Filtrer rader",
   "shell_table_previous": "Forrige",
   "shell_table_next": "Neste",
   "shell_chart_empty": "Ingen webhook-endepunkter er konfigurert ennå.",
   "shell_chart_delivered": "{percent} levert",
-  "shell_chart_success_rate": "{endpoint}: {percent} vellykket levering",
-  "shell_chart_success": "Vellykket",
   "shell_table_page": [
     {
       "declarations": [

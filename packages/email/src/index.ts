@@ -105,68 +105,44 @@ function renderMessage(
   })
 }
 
-const ProviderFailure = Schema.Struct({
-  code: Schema.Literals([
-    'E_RECIPIENT_SUPPRESSED',
-    'E_VALIDATION_ERROR',
-    'E_FIELD_MISSING',
-    'E_TOO_MANY_RECIPIENTS',
-    'E_TOO_MANY_ATTACHMENTS',
-    'E_SENDER_NOT_VERIFIED',
-    'E_RECIPIENT_NOT_ALLOWED',
-    'E_SENDER_DOMAIN_NOT_AVAILABLE',
-    'E_CONTENT_TOO_LARGE',
-    'E_HEADER_NOT_ALLOWED',
-    'E_HEADER_USE_API_FIELD',
-    'E_HEADER_VALUE_INVALID',
-    'E_HEADER_VALUE_TOO_LONG',
-    'E_HEADER_NAME_INVALID',
-    'E_HEADERS_TOO_LARGE',
-    'E_HEADERS_TOO_MANY',
-    'E_RATE_LIMIT_EXCEEDED',
-    'E_DAILY_LIMIT_EXCEEDED',
-    'E_DELIVERY_FAILED',
-    'E_INTERNAL_SERVER_ERROR'
-  ])
-})
+/**
+ * Cloudflare Email's documented failure codes, and what each means for a
+ * retry. `E_INTERNAL_SERVER_ERROR` is ambiguous rather than transient: a
+ * rejected request may still have reached the provider.
+ */
+const PROVIDER_FAILURE_KINDS = new Map<string, EmailSendFailureKind>([
+  ['E_RECIPIENT_SUPPRESSED', 'suppressed'],
+  ['E_VALIDATION_ERROR', 'permanent'],
+  ['E_FIELD_MISSING', 'permanent'],
+  ['E_TOO_MANY_RECIPIENTS', 'permanent'],
+  ['E_TOO_MANY_ATTACHMENTS', 'permanent'],
+  ['E_SENDER_NOT_VERIFIED', 'permanent'],
+  ['E_RECIPIENT_NOT_ALLOWED', 'permanent'],
+  ['E_SENDER_DOMAIN_NOT_AVAILABLE', 'permanent'],
+  ['E_CONTENT_TOO_LARGE', 'permanent'],
+  ['E_HEADER_NOT_ALLOWED', 'permanent'],
+  ['E_HEADER_USE_API_FIELD', 'permanent'],
+  ['E_HEADER_VALUE_INVALID', 'permanent'],
+  ['E_HEADER_VALUE_TOO_LONG', 'permanent'],
+  ['E_HEADER_NAME_INVALID', 'permanent'],
+  ['E_HEADERS_TOO_LARGE', 'permanent'],
+  ['E_HEADERS_TOO_MANY', 'permanent'],
+  ['E_RATE_LIMIT_EXCEEDED', 'transient'],
+  ['E_DAILY_LIMIT_EXCEEDED', 'transient'],
+  ['E_DELIVERY_FAILED', 'transient'],
+  ['E_INTERNAL_SERVER_ERROR', 'ambiguous']
+])
+
+const ProviderFailure = Schema.Struct({ code: Schema.String })
 const decodeProviderFailure = Schema.decodeUnknownOption(ProviderFailure)
 
-function classifyProviderFailure(
-  code: typeof ProviderFailure.Type.code | undefined
-): EmailSendFailureKind {
-  switch (code) {
-    case 'E_RECIPIENT_SUPPRESSED': {
-      return 'suppressed'
-    }
-    case 'E_VALIDATION_ERROR':
-    case 'E_FIELD_MISSING':
-    case 'E_TOO_MANY_RECIPIENTS':
-    case 'E_TOO_MANY_ATTACHMENTS':
-    case 'E_SENDER_NOT_VERIFIED':
-    case 'E_RECIPIENT_NOT_ALLOWED':
-    case 'E_SENDER_DOMAIN_NOT_AVAILABLE':
-    case 'E_CONTENT_TOO_LARGE':
-    case 'E_HEADER_NOT_ALLOWED':
-    case 'E_HEADER_USE_API_FIELD':
-    case 'E_HEADER_VALUE_INVALID':
-    case 'E_HEADER_VALUE_TOO_LONG':
-    case 'E_HEADER_NAME_INVALID':
-    case 'E_HEADERS_TOO_LARGE':
-    case 'E_HEADERS_TOO_MANY': {
-      return 'permanent'
-    }
-    case 'E_RATE_LIMIT_EXCEEDED':
-    case 'E_DAILY_LIMIT_EXCEEDED':
-    case 'E_DELIVERY_FAILED': {
-      return 'transient'
-    }
-    case 'E_INTERNAL_SERVER_ERROR':
-    case undefined: {
-      // A rejected request may have reached the provider. Retrying an
-      // unknown failure is therefore an explicitly ambiguous send.
-      return 'ambiguous'
-    }
+function classifyProviderFailure(code: string | undefined): EmailSendFailureKind {
+  // A failure the provider did not label, or labelled with a code this
+  // starter does not know, may still have reached it: an ambiguous send.
+  if (code === undefined) {
+    return 'ambiguous'
   }
+  return PROVIDER_FAILURE_KINDS.get(code) ?? 'ambiguous'
 }
 
 function sendFailure(cause: unknown, to: string, subject: string): EmailSendError {

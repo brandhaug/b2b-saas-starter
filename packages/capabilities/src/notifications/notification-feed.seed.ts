@@ -17,10 +17,9 @@ import {
   NotificationFeed,
   visibleToActor,
   type CreateNotificationInput,
-  type DigestCandidate,
-  type Notification,
   type NotificationEmailContext,
   type PreparedNotificationCondition,
+  type Notification,
   type PreparedWorkspaceOwnerNotifications,
   type NotificationFeedOptions,
   type NotifyUserInput,
@@ -389,7 +388,7 @@ export function SeedNotificationFeed(
         listDigestCandidates: (window) =>
           Effect.gen(function* () {
             const all = yield* Ref.get(rows)
-            const candidates: Array<DigestCandidate> = []
+            const candidates: Array<NotificationEmailContext> = []
             for (const row of all) {
               if (row.read || !inDigestWindow(row.createdAt, window)) {
                 continue

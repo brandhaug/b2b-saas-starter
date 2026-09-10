@@ -5,7 +5,6 @@ import { type ReactElement } from 'react'
 import { describe, expect, it } from '@effect/vitest'
 import * as m from '@b2b-saas-starter/i18n/messages'
 import {
-  NOTIFICATION_EMAIL_COPY,
   NOTIFICATION_PREVIEW_PROPS,
   NotificationDigestEmail,
   notificationEmailFor
@@ -30,28 +29,26 @@ function rendered(element: ReactElement) {
 }
 
 describe('notification email templates', () => {
-  it('has copy and preview props for every stored kind', () => {
-    for (const kind of notificationKinds) {
-      expect(NOTIFICATION_EMAIL_COPY[kind]).toBeTypeOf('function')
-      expect(NOTIFICATION_PREVIEW_PROPS[kind].kindLabel.length).toBeGreaterThan(0)
-    }
-  })
-
   it.effect('gives every kind its own lead sentence', () =>
     Effect.gen(function* () {
       const announcement = m.backend_email_notification_announcement_lead(
         {},
         { locale: 'en' }
       )
+      // The same Notification rendered under every kind: the only text that
+      // may differ between two renderings is the kind's own lead and action
+      // copy, so two identical renderings mean two kinds share one entry.
+      const texts = new Map<NotificationKind, string>()
       for (const kind of notificationKinds) {
         // Plain text, not HTML: the renderer escapes apostrophes in markup.
         const { text } = yield* rendered(notificationEmailFor(kind, props))
-        expect(text).toContain(NOTIFICATION_EMAIL_COPY[kind]('en').lead)
+        texts.set(kind, text)
         if (kind !== 'announcement') {
           // A missing entry used to fall through to the announcement wording.
           expect(text).not.toContain(announcement)
         }
       }
+      expect(new Set(texts.values()).size).toBe(notificationKinds.length)
     })
   )
 

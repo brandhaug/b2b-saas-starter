@@ -1,10 +1,7 @@
 import { type NotificationKind } from '@b2b-saas-starter/db/enums'
-import { DEFAULT_LOCALE } from '@b2b-saas-starter/i18n/locale'
-import * as m from '@b2b-saas-starter/i18n/messages'
 import { type ReactElement } from 'react'
 import {
-  NotificationBody,
-  type NotificationCopy,
+  NotificationEmail,
   type NotificationEmailProps
 } from './notification-templates.tsx'
 
@@ -16,51 +13,16 @@ export type {
 export { NotificationDigestEmail } from './notification-templates.tsx'
 
 /**
- * The copy that separates one kind of notification email from another: every
- * kind renders the same body, and only these two sentences differ. Consumers
- * pick by the Notification's stored `kind`; `satisfies` pins the record to
- * the stored enum, so adding a kind is a type error here until it has copy.
- * Never loosen it to an index signature — that is what turns a missing kind
- * into a silent fallback to the announcement wording.
+ * The element a consumer sends for a Notification. One template covers every
+ * kind; `NOTIFICATION_COPY` in the template file is the `satisfies`-pinned
+ * per-kind copy, so a new stored kind is a type error until it has copy.
  */
-export const NOTIFICATION_EMAIL_COPY = {
-  'api_token.created': (locale) => ({
-    lead: m.backend_email_notification_api_token_created_lead({}, { locale }),
-    action: m.backend_email_notification_api_token_created_action({}, { locale })
-  }),
-  'api_token.revoked': (locale) => ({
-    lead: m.backend_email_notification_api_token_revoked_lead({}, { locale }),
-    action: m.backend_email_notification_api_token_revoked_action({}, { locale })
-  }),
-  'workspace_member.role_changed': (locale) => ({
-    lead: m.backend_email_notification_role_changed_lead({}, { locale }),
-    action: m.backend_email_notification_role_changed_action({}, { locale })
-  }),
-  'two_factor.changed': (locale) => ({
-    lead: m.backend_email_notification_two_factor_changed_lead({}, { locale }),
-    action: m.backend_email_notification_two_factor_changed_action({}, { locale })
-  }),
-  'webhook.delivery_failed': (locale) => ({
-    lead: m.backend_email_notification_webhook_failed_lead({}, { locale }),
-    action: m.backend_email_notification_webhook_failed_action({}, { locale })
-  }),
-  'workspace_member.joined': (locale) => ({
-    lead: m.backend_email_notification_member_joined_lead({}, { locale }),
-    action: m.backend_email_notification_member_joined_action({}, { locale })
-  }),
-  'billing.plan_changed': (locale) => ({
-    lead: m.backend_email_notification_plan_changed_lead({}, { locale }),
-    action: m.backend_email_notification_plan_changed_action({}, { locale })
-  }),
-  'account.impersonated': (locale) => ({
-    lead: m.backend_email_notification_impersonated_lead({}, { locale }),
-    action: m.backend_email_notification_impersonated_action({}, { locale })
-  }),
-  announcement: (locale) => ({
-    lead: m.backend_email_notification_announcement_lead({}, { locale }),
-    action: m.backend_email_notification_announcement_action({}, { locale })
-  })
-} satisfies Record<NotificationKind, NotificationCopy>
+export function notificationEmailFor(
+  kind: NotificationKind,
+  props: NotificationEmailProps
+): ReactElement {
+  return NotificationEmail({ kind, ...props })
+}
 
 const previewBase = {
   kindLabel: 'API token created',
@@ -72,10 +34,8 @@ const previewBase = {
 } satisfies NotificationEmailProps
 
 /**
- * One fixture per stored kind: react-email's preview server, the tests, and
- * the AGENTS-documented "every template has preview props" rule all read
- * this. `satisfies` pins it to `NotificationKind`, so a new kind in the
- * database enum is a type error here until it has copy to render.
+ * Representative props per kind: the react-email preview server's entries
+ * (`src/previews`) and the template tests both render from these.
  */
 export const NOTIFICATION_PREVIEW_PROPS = {
   'api_token.created': previewBase,
@@ -154,12 +114,4 @@ export const NOTIFICATION_PREVIEW_PROPS = {
     openUrl: 'http://localhost:3071/workspaces/starter-lab',
     preferencesUrl: 'http://localhost:3071/account/notifications?kind=announcement'
   }
-} satisfies Record<NotificationKind, NotificationEmailProps>
-
-export function notificationEmailFor(
-  kind: NotificationKind,
-  props: NotificationEmailProps
-): ReactElement {
-  const copy = NOTIFICATION_EMAIL_COPY[kind](props.locale ?? DEFAULT_LOCALE)
-  return NotificationBody({ ...props, lead: copy.lead, action: copy.action })
-}
+} satisfies Readonly<Record<NotificationKind, NotificationEmailProps>>

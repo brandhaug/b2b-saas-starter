@@ -31,7 +31,6 @@ For issue/spec implementation, follow the [implement skill](.agents/skills/imple
 | Failures          | [packages/failure/AGENTS.md](packages/failure/AGENTS.md)               |
 | Rate limiting     | [packages/rate-limit/AGENTS.md](packages/rate-limit/AGENTS.md)         |
 | Localization      | [packages/i18n/AGENTS.md](packages/i18n/AGENTS.md)                     |
-| Typed SDK         | [packages/sdk/AGENTS.md](packages/sdk/AGENTS.md)                       |
 | Lint rules        | [packages/oxlint-plugin/AGENTS.md](packages/oxlint-plugin/AGENTS.md)   |
 
 ## Setup

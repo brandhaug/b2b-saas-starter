@@ -1,13 +1,14 @@
 import { UiError } from './ui-error'
 
-// Diagnostic messages stay on the server. uiErrorAdapter carries codes and
-// allowlisted details so causeMessage can translate at the receiving locale.
+// Diagnostic copy stays out of these errors entirely: uiErrorAdapter
+// serializes code, allowlisted details and name, and `causeMessage`
+// translates at the receiving locale. The message slot carries the code so a
+// server log line still names the failure.
 //
 // Each refusal discriminant states its reasons once, as a `const` tuple with
 // the fallback reason last. The tuple narrows an untrusted reason string for
-// the details allowlist, keys the English diagnostic copy below, and is the
-// type `cause-message.ts` keys its translated copy off — a reason added here
-// without a translation there is a type error.
+// the details allowlist and is the type `cause-message.ts` keys its translated
+// copy off — a reason added here without a translation there is a type error.
 
 /** Narrows an untrusted reason to the discriminant's vocabulary. */
 function narrowReason<Reason extends string>(
@@ -22,12 +23,7 @@ export const CAPABILITY_UNAVAILABLE_ERROR_NAME = 'CapabilityUnavailableError'
 
 export class CapabilityUnavailableError extends UiError {
   constructor(capability: string, reason: string) {
-    super(
-      'unavailable',
-      {},
-      `This area is temporarily unavailable because the "${capability}" capability cannot reach its backing service (${reason}). ` +
-        'The rest of the app keeps working. Check the database configuration and try again.'
-    )
+    super('unavailable', {}, `unavailable: ${capability} (${reason})`)
     this.name = CAPABILITY_UNAVAILABLE_ERROR_NAME
   }
 }
@@ -39,36 +35,25 @@ const forbiddenReasons = ['no_principal', 'denied'] as const
 
 export type ForbiddenReason = (typeof forbiddenReasons)[number]
 
-const FORBIDDEN_COPY = {
-  no_principal: 'You are not signed in to this workspace. Sign in again and retry.',
-  denied:
-    'You do not have permission to do this in this workspace. Ask a workspace owner or admin.'
-} satisfies Readonly<Record<ForbiddenReason, string>>
-
 export class ForbiddenError extends UiError {
   constructor(reason: string) {
-    const narrowed = narrowReason(forbiddenReasons, 'denied', reason)
-    super('forbidden', { reason: narrowed }, FORBIDDEN_COPY[narrowed])
+    super(
+      'forbidden',
+      { reason: narrowReason(forbiddenReasons, 'denied', reason) },
+      'forbidden'
+    )
     this.name = FORBIDDEN_ERROR_NAME
   }
 }
 
-const PLAN_LIMIT_ERROR_NAME = 'PlanLimitError'
-
 export class PlanLimitError extends UiError {
   constructor(planId: string, limit: number) {
-    super(
-      'plan_limit',
-      { planId, limit },
-      `Your workspace's ${planId} plan allows at most ${limit} of this resource. ` +
-        'Upgrade the plan on the Billing page to create more.'
-    )
-    this.name = PLAN_LIMIT_ERROR_NAME
+    super('plan_limit', { planId, limit }, 'plan_limit')
+    this.name = 'PlanLimitError'
   }
 }
 
-const MEMBERSHIP_REFUSED_ERROR_NAME = 'MembershipRefusedError'
-
+/** The membership refusals the browser is allowed to distinguish. */
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const membershipRefusalReasons = [
   'not_a_member',
@@ -79,24 +64,18 @@ const membershipRefusalReasons = [
 
 export type MembershipRefusalReason = (typeof membershipRefusalReasons)[number]
 
-const MEMBERSHIP_REFUSAL_COPY = {
-  not_a_member: 'That person is not a member of this workspace.',
-  sole_owner:
-    'The workspace must keep an owner: transfer ownership to another member first.',
-  owner_requires_owner: "Only a workspace owner can grant or change an owner's role.",
-  refused: 'The workspace refused this membership change.'
-} satisfies Readonly<Record<MembershipRefusalReason, string>>
-
 export class MembershipRefusedError extends UiError {
   constructor(reason: string) {
-    const narrowed = narrowReason(membershipRefusalReasons, 'refused', reason)
-    super('membership_refused', { reason: narrowed }, MEMBERSHIP_REFUSAL_COPY[narrowed])
-    this.name = MEMBERSHIP_REFUSED_ERROR_NAME
+    super(
+      'membership_refused',
+      { reason: narrowReason(membershipRefusalReasons, 'refused', reason) },
+      'membership_refused'
+    )
+    this.name = 'MembershipRefusedError'
   }
 }
 
-const USER_ADMIN_REFUSED_ERROR_NAME = 'UserAdminRefusedError'
-
+/** The user-admin refusals the browser is allowed to distinguish. */
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const userAdminRefusalReasons = [
   'unknown_user',
@@ -110,28 +89,16 @@ const userAdminRefusalReasons = [
 
 export type UserAdminRefusalReason = (typeof userAdminRefusalReasons)[number]
 
-const SYSTEM_AXIS_COPY =
-  'The workspace refused this change: a System Admin can only change a membership in a workspace where they are also an admin or owner. The system role confers nothing inside a workspace.'
-
-const USER_ADMIN_REFUSAL_COPY = {
-  unknown_user: 'That account does not exist.',
-  not_a_member: 'That person is not a member of the named workspace.',
-  not_a_member_after_write: 'That person is not a member of the named workspace.',
-  cannot_impersonate_self: 'A System Admin cannot impersonate themself.',
-  cannot_impersonate_admin: 'A System Admin cannot impersonate another admin.',
-  not_impersonating: 'This session is not impersonating anyone.',
-  refused: SYSTEM_AXIS_COPY
-} satisfies Readonly<Record<UserAdminRefusalReason, string>>
-
 export class UserAdminRefusedError extends UiError {
   constructor(reason: string) {
-    const narrowed = narrowReason(userAdminRefusalReasons, 'refused', reason)
-    super('user_admin_refused', { reason: narrowed }, USER_ADMIN_REFUSAL_COPY[narrowed])
-    this.name = USER_ADMIN_REFUSED_ERROR_NAME
+    super(
+      'user_admin_refused',
+      { reason: narrowReason(userAdminRefusalReasons, 'refused', reason) },
+      'user_admin_refused'
+    )
+    this.name = 'UserAdminRefusedError'
   }
 }
-
-const IMPERSONATION_STATE_ERROR_NAME = 'ImpersonationStateError'
 
 /**
  * The request's session is not what an impersonation action needs: starting
@@ -148,29 +115,17 @@ const impersonationStateReasons = [
 
 export type ImpersonationStateReason = (typeof impersonationStateReasons)[number]
 
-const IMPERSONATION_STATE_COPY = {
-  nested: 'Stop the current impersonation first.',
-  replay_blocked: 'Stop impersonating before replaying deliveries.',
-  not_impersonating: 'This session is not impersonating anyone.'
-} satisfies Readonly<Record<ImpersonationStateReason, string>>
-
 export class ImpersonationStateError extends UiError {
   constructor(reason: ImpersonationStateReason) {
-    super('impersonation_state', { reason }, IMPERSONATION_STATE_COPY[reason])
-    this.name = IMPERSONATION_STATE_ERROR_NAME
+    super('impersonation_state', { reason }, 'impersonation_state')
+    this.name = 'ImpersonationStateError'
   }
 }
-
-const UNVERIFIED_EMAIL_ERROR_NAME = 'UnverifiedEmailError'
 
 /** The workspace-creation gate's refusal for an unverified mailbox. */
 export class UnverifiedEmailError extends UiError {
   constructor() {
-    super(
-      'unverified_email',
-      {},
-      'Verify your email address before creating a workspace.'
-    )
-    this.name = UNVERIFIED_EMAIL_ERROR_NAME
+    super('unverified_email', {}, 'unverified_email')
+    this.name = 'UnverifiedEmailError'
   }
 }

@@ -3,18 +3,13 @@ description: >-
   Install the Vite+ toolchain (pinned VP_VERSION — it provides the managed
   Node runtime and the package manager pinned in package.json), restore the
   pnpm store cache, install dependencies with a frozen lockfile, and optionally
-  restore the Vite Task cache.
+  cache the Vite Task results.
 
 inputs:
   cache-task:
-    description: Restore the Vite Task cache after dependencies are installed.
+    description: Cache the Vite Task results across runs of this job.
     required: false
     default: 'false'
-
-outputs:
-  vite-task-cache-primary-key:
-    description: The immutable key to use when saving the restored Vite Task cache.
-    value: ${{ steps.vite-task-cache-restore.outputs.cache-primary-key }}
 
 runs:
   using: composite
@@ -45,10 +40,11 @@ runs:
           ${{ runner.os }}-pnpm-
     - run: vp install --frozen-lockfile
       shell: bash
-    - name: Restore Vite Task cache
-      id: vite-task-cache-restore
+    # `actions/cache` restores here and saves in its own post step, so no job
+    # needs a matching save step.
+    - name: Cache Vite Task results
       if: ${{ inputs.cache-task == 'true' }}
-      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
       with:
         # Vite Task reads Vitest's result metadata. Restore it too so a fresh
         # runner does not invalidate test tasks because that metadata is missing.

@@ -2,7 +2,7 @@
 // oxlint-disable effect/noNewPromise
 import { Schema } from 'effect'
 import { runWithSentryCronMonitor } from './d1-backup.ts'
-import { requiredEnv } from './internal/env.ts'
+import { requiredEnv } from './lib/env.ts'
 
 const QueueTarget = Schema.Struct({
   id: Schema.String,
@@ -50,9 +50,9 @@ export async function inspectQueues(
   request: typeof fetch = fetch,
   now: number = Date.now()
 ): Promise<ReadonlyArray<QueueObservation>> {
-  const account = requiredEnv(environment, 'CLOUDFLARE_ACCOUNT_ID')
-  const token = requiredEnv(environment, 'CLOUDFLARE_API_TOKEN')
-  const targets = decodeTargets(JSON.parse(requiredEnv(environment, 'OPS_QUEUES')))
+  const account = requiredEnv('CLOUDFLARE_ACCOUNT_ID', environment)
+  const token = requiredEnv('CLOUDFLARE_API_TOKEN', environment)
+  const targets = decodeTargets(JSON.parse(requiredEnv('OPS_QUEUES', environment)))
   if (!/^[a-f0-9]{32}$/i.test(account) || targets.length === 0 || targets.length > 30) {
     throw new Error('Expected an account ID and one through thirty queue targets')
   }

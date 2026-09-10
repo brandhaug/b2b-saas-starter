@@ -35,20 +35,6 @@ function ForgotPasswordRoute() {
   return <ForgotPasswordPage turnstileSiteKey={Route.useLoaderData()} />
 }
 
-// One message for every outcome, by design: the endpoint answers identically
-// whether or not the email exists (account enumeration defense), and the
-// screen must not know more than the endpoint does. Thirty minutes is the
-// window the auth config pins (`resetPasswordTokenExpiresIn: 60 * 30`).
-function SENT_MESSAGE() {
-  return m.reset_link_sent_notice()
-}
-
-// The code request endpoint holds the same non-disclosure contract, so the
-// code step echoes no address either.
-function CODE_SENT_MESSAGE() {
-  return m.reset_code_sent_notice()
-}
-
 /**
  * The reset surface: the emailed link (primary) or a one-time code
  * (alternative). The two paths share the email field; the code path finishes
@@ -130,7 +116,9 @@ export function ForgotPasswordPage({
         email={email}
         turnstileSiteKey={turnstileSiteKey}
         title={m.enter_your_code()}
-        codeSentNotice={CODE_SENT_MESSAGE()}
+        // The code request endpoint holds the same non-disclosure contract
+        // as the emailed link, so the code step echoes no address either.
+        codeSentNotice={m.reset_code_sent_notice()}
         codeSubmitLabel={m.form_reset_password()}
         codeSubmittingLabel={m.resetting()}
         codeSubmitIcon={<KeyRoundIcon className="size-4" />}
@@ -222,8 +210,13 @@ export function ForgotPasswordPage({
           </p>
         }
       >
+        {/* One message for every outcome, by design: the endpoint answers
+            identically whether or not the email exists (account enumeration
+            defense), and the screen must not know more than the endpoint
+            does. Thirty minutes is the window the auth config pins
+            (`resetPasswordTokenExpiresIn: 60 * 30`). */}
         <p role="alert" className="text-sm text-muted-foreground">
-          {SENT_MESSAGE()}
+          {m.reset_link_sent_notice()}
         </p>
       </AuthNoticeCard>
     )

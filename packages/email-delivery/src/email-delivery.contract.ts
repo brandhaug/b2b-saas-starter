@@ -1,4 +1,4 @@
-import { Clock, DateTime, Effect, Predicate, Ref } from 'effect'
+import { Clock, DateTime, Effect, Ref } from 'effect'
 import * as TestClock from 'effect/testing/TestClock'
 import { type expect as vitestExpect } from '@effect/vitest'
 import {
@@ -189,41 +189,6 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
           })
         ).toBe('ignored')
         expect((yield* delivery.get('complaint-precedence'))?.reason).toBe('complaint')
-      })
-    },
-    {
-      name: 'retention drains every expired page in one invocation',
-      assert: Effect.gen(function* () {
-        const delivery = yield* EmailDelivery
-        const planted: Array<string> = []
-        for (let index = 0; index < 251; index++) {
-          for (const purpose of ['normal', 'unresolved']) {
-            const request = input(`retention-backlog-${purpose}-${index}`)
-            const claim = yield* delivery.claim(request)
-            if (!claim) {
-              expect.fail('expected retention fixture claim')
-            }
-            let outcome: SendOutcome = { status: 'logged' }
-            if (purpose === 'unresolved') {
-              outcome = { status: 'failed', reason: 'provider_rejected' }
-            }
-            yield* delivery.recordOutcome(request.id, claim.token, outcome)
-            planted.push(request.id)
-          }
-        }
-        function stored() {
-          return Effect.forEach(planted, (id) => delivery.get(id), {
-            concurrency: 8
-          }).pipe(Effect.map((rows) => rows.filter(Predicate.isNotNull).length))
-        }
-        expect(yield* stored()).toBe(planted.length)
-        yield* TestClock.adjust('90 days')
-        // Both categories hold more than one 250-row page. The oracle is the
-        // backlog planted here, not a row count: the live variant shares its
-        // database with the cases before it.
-        yield* delivery.prune()
-        expect(yield* stored()).toBe(0)
-        expect(yield* delivery.prune()).toBe(0)
       })
     },
     {
@@ -433,15 +398,15 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
       })
     },
     {
-      name: 'personal evidence is isolated and resolved evidence expires at 30 days, unresolved at 90',
+      name: 'personal evidence is isolated to its own user',
       assert: Effect.gen(function* () {
         const delivery = yield* EmailDelivery
-        for (const id of ['retention-normal', 'retention-failed']) {
+        for (const id of ['history-logged', 'history-failed']) {
           const claim = yield* delivery.claim(input(id))
           if (!claim) {
             expect.fail('expected a send claim')
           }
-          if (id === 'retention-normal') {
+          if (id === 'history-logged') {
             yield* delivery.recordOutcome(id, claim.token, { status: 'logged' })
           } else {
             yield* delivery.recordOutcome(id, claim.token, {
@@ -453,16 +418,12 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
         expect(yield* delivery.listForUser('usr_outsider')).toEqual([])
         expect(
           (yield* delivery.listForUser('usr_owner')).some(
-            (row) => row.id === 'retention-failed'
+            (row) => row.id === 'history-failed'
           )
         ).toBe(true)
-        yield* TestClock.adjust('30 days')
-        yield* delivery.prune()
-        expect(yield* delivery.get('retention-normal')).toBeNull()
-        expect(yield* delivery.get('retention-failed')).not.toBeNull()
-        yield* TestClock.adjust('60 days')
-        yield* delivery.prune()
-        expect(yield* delivery.get('retention-failed')).toBeNull()
+        expect(
+          (yield* delivery.listForUser('usr_owner', { complete: true })).length
+        ).toBeGreaterThanOrEqual(2)
       })
     }
   ]

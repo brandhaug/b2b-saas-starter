@@ -9,7 +9,7 @@ import {
   notificationDigestCron,
   notificationDigestRetryCron,
   retentionCleanupCron
-} from '../../../infra/bindings.ts'
+} from '@b2b-saas-starter/infra'
 import { reconcileBillingEffect } from './billing-reconciliation.ts'
 import { monitorOperationalHealth } from './monitoring.ts'
 import { sendDailyDigest } from './notification-digest.ts'

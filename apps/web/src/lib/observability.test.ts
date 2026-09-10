@@ -10,18 +10,17 @@ import {
 
 /**
  * The ambient request is the one input these functions read from outside their
- * arguments, so it is the one thing the tests set. Both entry points take the
- * lookup as their last argument (`CurrentRequest`), so this is a real function
- * of the shape they expect and everything else — the real runtime, the real
- * loggers, the real spans — stays in play.
+ * arguments, so it is the one thing the tests set. Only the lookup is
+ * replaced; everything else — the real runtime, the real loggers, the real
+ * spans — stays in play.
  */
-type AmbientRequest = { request: Request | undefined }
+const ambient: { request: Request | undefined } = vi.hoisted(() => ({
+  request: undefined
+}))
 
-const ambient: AmbientRequest = { request: undefined }
-
-function lookupRequest(): Request | undefined {
-  return ambient.request
-}
+vi.mock('./request-context', () => ({
+  currentRequest: () => ambient.request
+}))
 
 // The captured line is decoded rather than cast: the assertions below are about
 // the shape `Logger.consoleJson` actually prints, so a shape change should fail
@@ -89,21 +88,15 @@ describe('runWebRequestScope', () => {
               event: 'capability.workspace',
               metadata: { workspaceSlug: 'customer-sensitive-canary' }
             },
-            Effect.annotateLogsScoped({ unreadCount: 42 }),
-            lookupRequest
+            Effect.annotateLogsScoped({ unreadCount: 42 })
           )
         )
         // oxlint-disable-next-line starter/no-run-promise-in-tests -- a bare runtime inside the promise callback is the interop under test, the documented shape loaders and server fns use
         await Effect.runPromiseExit(
-          withWebRequestScope(
-            { event: 'capability.global' },
-            Effect.fail('nope'),
-            lookupRequest
-          )
+          withWebRequestScope({ event: 'capability.global' }, Effect.fail('nope'))
         )
         return new Response('ok', { status: 201 })
-      },
-      lookupRequest
+      }
     )
 
     expect(response.status).toBe(201)
@@ -144,15 +137,10 @@ describe('runWebRequestScope', () => {
       async () => {
         // oxlint-disable-next-line starter/no-run-promise-in-tests -- a bare runtime inside the promise callback is the interop under test, the documented shape loaders and server fns use
         await Effect.runPromise(
-          withWebRequestScope(
-            { event: 'capability.global' },
-            Effect.void,
-            lookupRequest
-          )
+          withWebRequestScope({ event: 'capability.global' }, Effect.void)
         )
         return new Response(null, { status: 204 })
-      },
-      lookupRequest
+      }
     )
 
     const record = only()
@@ -177,25 +165,15 @@ describe('memoizePerRequest', () => {
       return `value-${reads}`
     }
 
-    await runWebRequestScope(
-      { request, handlerType: 'router' },
-      async () => {
-        // Two callers in the same request — the beforeLoad gate and a server
-        // function — must share one read.
-        expect(await memoizePerRequest('auth.session', make, lookupRequest)).toBe(
-          'value-1'
-        )
-        expect(await memoizePerRequest('auth.session', make, lookupRequest)).toBe(
-          'value-1'
-        )
-        // A different key is its own slot.
-        expect(await memoizePerRequest('other.key', make, lookupRequest)).toBe(
-          'value-2'
-        )
-        return new Response(null, { status: 204 })
-      },
-      lookupRequest
-    )
+    await runWebRequestScope({ request, handlerType: 'router' }, async () => {
+      // Two callers in the same request — the beforeLoad gate and a server
+      // function — must share one read.
+      expect(await memoizePerRequest('auth.session', make)).toBe('value-1')
+      expect(await memoizePerRequest('auth.session', make)).toBe('value-1')
+      // A different key is its own slot.
+      expect(await memoizePerRequest('other.key', make)).toBe('value-2')
+      return new Response(null, { status: 204 })
+    })
 
     expect(reads).toBe(2)
   })
@@ -208,23 +186,14 @@ describe('memoizePerRequest', () => {
     await runWebRequestScope(
       { request: registered, handlerType: 'router' },
       async () => {
-        await memoizePerRequest(
-          'auth.session',
-          async () => {
-            reads += 1
-          },
-          lookupRequest
-        )
-        await memoizePerRequest(
-          'auth.session',
-          async () => {
-            reads += 1
-          },
-          lookupRequest
-        )
+        await memoizePerRequest('auth.session', async () => {
+          reads += 1
+        })
+        await memoizePerRequest('auth.session', async () => {
+          reads += 1
+        })
         return new Response(null, { status: 204 })
-      },
-      lookupRequest
+      }
     )
 
     expect(reads).toBe(1)
@@ -235,31 +204,25 @@ describe('memoizePerRequest', () => {
     ambient.request = request
     let reads = 0
 
-    await runWebRequestScope(
-      { request, handlerType: 'router' },
-      async () => {
-        async function failingRead() {
-          reads += 1
-          throw new Error('the session read failed')
-        }
-        // A failure must not become the request's cached answer: a gate that
-        // asked while the database blinked would otherwise poison every
-        // later read in the same request.
-        await expect(
-          memoizePerRequest('auth.session', failingRead, lookupRequest)
-        ).rejects.toThrow('the session read failed')
-        await expect(
-          memoizePerRequest('auth.session', failingRead, lookupRequest)
-        ).rejects.toThrow('the session read failed')
-        expect(reads).toBe(2)
-        // And the slot is free for a read that works.
-        expect(
-          await memoizePerRequest('auth.session', async () => 'value', lookupRequest)
-        ).toBe('value')
-        return new Response(null, { status: 204 })
-      },
-      lookupRequest
-    )
+    await runWebRequestScope({ request, handlerType: 'router' }, async () => {
+      async function failingRead() {
+        reads += 1
+        throw new Error('the session read failed')
+      }
+      // A failure must not become the request's cached answer: a gate that
+      // asked while the database blinked would otherwise poison every
+      // later read in the same request.
+      await expect(memoizePerRequest('auth.session', failingRead)).rejects.toThrow(
+        'the session read failed'
+      )
+      await expect(memoizePerRequest('auth.session', failingRead)).rejects.toThrow(
+        'the session read failed'
+      )
+      expect(reads).toBe(2)
+      // And the slot is free for a read that works.
+      expect(await memoizePerRequest('auth.session', async () => 'value')).toBe('value')
+      return new Response(null, { status: 204 })
+    })
   })
 
   it('falls back to calling make on every call outside a request scope', async () => {
@@ -269,8 +232,8 @@ describe('memoizePerRequest', () => {
       return reads
     }
 
-    expect(await memoizePerRequest('k', make, lookupRequest)).toBe(1)
-    expect(await memoizePerRequest('k', make, lookupRequest)).toBe(2)
+    expect(await memoizePerRequest('k', make)).toBe(1)
+    expect(await memoizePerRequest('k', make)).toBe(2)
   })
 
   it('does not leak memoized values into a later request', async () => {
@@ -282,14 +245,10 @@ describe('memoizePerRequest', () => {
       return `read-${reads}`
     }
     async function run(request: Request): Promise<Response> {
-      return runWebRequestScope(
-        { request, handlerType: 'router' },
-        async () => {
-          await memoizePerRequest('k', make, lookupRequest)
-          return new Response(null, { status: 204 })
-        },
-        lookupRequest
-      )
+      return runWebRequestScope({ request, handlerType: 'router' }, async () => {
+        await memoizePerRequest('k', make)
+        return new Response(null, { status: 204 })
+      })
     }
 
     ambient.request = first
@@ -310,7 +269,7 @@ describe('withWebRequestScope', () => {
     ambient.request = undefined
 
     await webRuntime.runPromise(
-      withWebRequestScope({ event: 'capability.global' }, Effect.void, lookupRequest)
+      withWebRequestScope({ event: 'capability.global' }, Effect.void)
     )
 
     const record = only()
@@ -328,8 +287,7 @@ describe('withWebRequestScope', () => {
           event: 'capability.global',
           metadata: { workspaceSlug: 'customer-sensitive-canary' }
         },
-        Effect.void,
-        lookupRequest
+        Effect.void
       )
     )
 

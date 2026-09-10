@@ -5,6 +5,11 @@
   },
   "entry": [
     "alchemy.run.ts",
+    // `pnpm run test:scripts` runs these by directory, and the runbooks in
+    // docs/ invoke the operator CLIs by path rather than through an npm alias.
+    "scripts/*.test.ts",
+    "scripts/recovery-security.ts",
+    ".github/scripts/*.test.ts",
     "packages/i18n/scripts/catalog-validation.test.mjs",
     "packages/email/src/previews/*.tsx"
   ],

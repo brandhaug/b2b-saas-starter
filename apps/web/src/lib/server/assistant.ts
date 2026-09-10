@@ -15,10 +15,6 @@ import { Schema } from 'effect'
  * (`assistant.test.ts` imports `assistant.effects.ts` directly).
  */
 
-// `assistantUnconfiguredMessage` moved to `lib/assistant-copy.ts`: both the
-// effects half and the page need it as a value, and owning it here would make
-// `assistant.effects.ts` import one from its client-safe twin (a cycle).
-
 /**
  * The assistant page payload: who is viewing and whether a real provider is
  * configured. `assistant: ['read']` is the page's own read permission and a

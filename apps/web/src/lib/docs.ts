@@ -6,8 +6,6 @@ import { contentJsonLd } from '@/lib/json-ld'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { isDocCategory } from './doc-categories'
 
-export { DOC_CATEGORY_ORDER } from './doc-categories'
-
 type DocFrontmatter = {
   readonly title: string
   readonly description: string

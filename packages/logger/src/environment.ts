@@ -17,9 +17,6 @@ export type WideEventEnvironment = {
   readonly environment?: string | undefined
 }
 
-/** The write-side view of a readonly type: same shape, mutable properties. */
-type Writable<T> = { -readonly [K in keyof T]: T[K] }
-
 /**
  * Read one own property of an untyped env bag as a non-empty string. The
  * descriptor lookup keeps the own-property semantics without asserting a
@@ -59,22 +56,14 @@ export function readWideEventEnvironment(
   const version = pickString(source, 'SERVICE_VERSION', 'WORKERS_CI_BUILD_UUID')
   const region = hints?.colo ?? hints?.region ?? pickString(source, 'CF_REGION')
   const environment = pickString(source, 'ENVIRONMENT', 'NODE_ENV')
-  // Built by assignment so absent fields stay absent (no `key: undefined`),
-  // which keeps the emitted wide event free of empty columns.
-  const resolved: Writable<WideEventEnvironment> = {}
-  if (commit) {
-    resolved.commitHash = commit
+  // Absent fields stay absent (no `key: undefined`), which keeps the emitted
+  // wide event free of empty columns.
+  return {
+    ...(commit && { commitHash: commit }),
+    ...(version && { serviceVersion: version }),
+    ...(region && { region }),
+    ...(environment && { environment })
   }
-  if (version) {
-    resolved.serviceVersion = version
-  }
-  if (region) {
-    resolved.region = region
-  }
-  if (environment) {
-    resolved.environment = environment
-  }
-  return resolved
 }
 
 /** Cloudflare colo hint from an incoming request's `cf` object, if present. */

@@ -170,7 +170,7 @@ export function LiveWorkspaceExports(
               targetId: exportId,
               metadata: { reason }
             },
-            write: () =>
+            write: () => [
               db
                 .update(workspaceExports)
                 .set({
@@ -179,6 +179,7 @@ export function LiveWorkspaceExports(
                   completedAt: DateTime.formatIso(completedAt)
                 })
                 .where(pendingWhere(exportId, workspaceId))
+            ]
           })
         })
       }
@@ -237,7 +238,7 @@ export function LiveWorkspaceExports(
               targetId: id,
               metadata: {}
             },
-            write: () => db.insert(workspaceExports).values(row)
+            write: () => [db.insert(workspaceExports).values(row)]
           })
           const enqueued = yield* Effect.result(
             enqueueExport({
@@ -315,7 +316,7 @@ export function LiveWorkspaceExports(
               targetId: input.exportId,
               metadata: { sizeBytes: input.archive.length }
             },
-            write: () =>
+            write: () => [
               db
                 .update(workspaceExports)
                 .set({
@@ -326,6 +327,7 @@ export function LiveWorkspaceExports(
                   expiresAt
                 })
                 .where(pendingWhere(input.exportId, input.workspaceId))
+            ]
           })
           if (!applied) {
             return false

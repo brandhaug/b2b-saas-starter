@@ -1,6 +1,6 @@
 import {
   NotificationFeed,
-  type DigestCandidate,
+  type NotificationEmailContext,
   type DigestWindow
 } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { layerWithoutDependencies as NotificationEmailEligibilityLayer } from '@b2b-saas-starter/capabilities/notifications/notification-email-eligibility'
@@ -31,9 +31,9 @@ const workspace = { id: 'wrk_1', slug: 'starter-lab', name: 'Starter Lab' }
 function candidate(
   recipient: typeof owner,
   id: string,
-  kind: DigestCandidate['notification']['kind'],
+  kind: NotificationEmailContext['notification']['kind'],
   createdAt: string
-): DigestCandidate {
+): NotificationEmailContext {
   return {
     notification: {
       id,
@@ -86,7 +86,7 @@ describe('runNotificationDigest', () => {
 
   function stubFeed(
     seen: Array<DigestWindow>,
-    rows: ReadonlyArray<DigestCandidate>
+    rows: ReadonlyArray<NotificationEmailContext>
   ): Layer.Layer<NotificationFeed> {
     return Layer.succeed(NotificationFeed)({
       list: Effect.die('unused in digest tests'),

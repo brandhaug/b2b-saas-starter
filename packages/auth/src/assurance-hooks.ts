@@ -164,11 +164,6 @@ export function makeAssuranceHooks(options: AuthConfigInterface) {
       }
     },
     before: createAuthMiddleware(async (ctx) => {
-      if (ctx.path === '/two-factor/verify-backup-code' && !options.recoveryHooks) {
-        throw new APIError('FORBIDDEN', {
-          message: 'Account recovery is not configured.'
-        })
-      }
       if (ctx.path === '/two-factor/verify-totp') {
         const current = await getSessionFromCtx(ctx)
         if (!current) {
@@ -310,7 +305,7 @@ export function makeAssuranceHooks(options: AuthConfigInterface) {
             locale = target.user.locale
           }
           try {
-            await options.recoveryHooks?.onRecoveryStarted({
+            await options.recoveryHooks.onRecoveryStarted({
               userId,
               sessionId,
               expiresAt,

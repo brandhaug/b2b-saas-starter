@@ -1,7 +1,7 @@
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { roleLabel } from '@/lib/value-labels'
 import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
-import { WORKSPACE_ROLES } from '@/lib/permissions'
+import { workspaceRoles } from '@/lib/permissions'
 
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
@@ -31,7 +31,7 @@ function offeredRolesExcept(
  */
 export function RoleChangeButtons({
   currentRole,
-  offerRoles = WORKSPACE_ROLES,
+  offerRoles = workspaceRoles,
   labelFor,
   disabled,
   busy = false,

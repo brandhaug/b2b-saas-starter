@@ -6,8 +6,8 @@ import { describe, expect, it, vi } from 'vite-plus/test'
 import {
   PLANS,
   planById,
-  resourceEntitlementSummary,
-  type ResourceEntitlementSummary
+  resourceEntitlement,
+  type ResourceEntitlement
 } from '@b2b-saas-starter/billing/plan-catalog'
 import { type WorkspaceViewer } from '@/lib/permissions'
 import { renderWithRouter } from '@/test/router-harness'
@@ -77,8 +77,8 @@ async function renderPlans(options?: {
     readonly webhookEndpointIds: ReadonlyArray<string>
   } | null
   readonly resourceEntitlements?: {
-    readonly apiTokens: ResourceEntitlementSummary
-    readonly webhookEndpoints: ResourceEntitlementSummary
+    readonly apiTokens: ResourceEntitlement
+    readonly webhookEndpoints: ResourceEntitlement
   }
   readonly cancelAtPeriodEnd?: boolean
   readonly currentPeriodEnd?: string | null
@@ -105,13 +105,13 @@ async function renderPlans(options?: {
       resourceSelection={options?.resourceSelection ?? null}
       resourceEntitlements={
         options?.resourceEntitlements ?? {
-          apiTokens: resourceEntitlementSummary(
+          apiTokens: resourceEntitlement(
             planById(options?.currentPlanId ?? 'team'),
             'api_token',
             (options?.apiTokens ?? []).map(({ id }) => id),
             options?.resourceSelection ?? undefined
           ),
-          webhookEndpoints: resourceEntitlementSummary(
+          webhookEndpoints: resourceEntitlement(
             planById(options?.currentPlanId ?? 'team'),
             'webhook_endpoint',
             (options?.webhookEndpoints ?? []).map(({ id }) => id),
@@ -164,13 +164,13 @@ function PollingBillingPlans() {
         webhookEndpoints={webhookEndpoints}
         resourceSelection={resourceSelection}
         resourceEntitlements={{
-          apiTokens: resourceEntitlementSummary(
+          apiTokens: resourceEntitlement(
             planById('starter'),
             'api_token',
             apiTokens.map(({ id }) => id),
             resourceSelection
           ),
-          webhookEndpoints: resourceEntitlementSummary(
+          webhookEndpoints: resourceEntitlement(
             planById('starter'),
             'webhook_endpoint',
             webhookEndpoints.map(({ id }) => id),
@@ -413,8 +413,7 @@ describe('BillingPlans', () => {
           eligibleIds: ['tok_1', 'tok_2', 'tok_3'],
           selectedIds: ['tok_1', 'tok_2'],
           activeIds: ['tok_1', 'tok_2'],
-          paused: false,
-          requiresSelection: false
+          paused: false
         },
         webhookEndpoints: {
           resource: 'webhook_endpoint',
@@ -423,8 +422,7 @@ describe('BillingPlans', () => {
           eligibleIds: [],
           selectedIds: [],
           activeIds: [],
-          paused: false,
-          requiresSelection: false
+          paused: false
         }
       }
     })

@@ -8,7 +8,6 @@ import {
 } from '../errors.ts'
 import { type PlanLimitExceeded } from '@b2b-saas-starter/billing/errors'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
-import { hashSha256 } from '../crypto.ts'
 import { type ListPageInput, type Page } from '../internal/keyset-cursor.ts'
 import { type WorkspaceContext } from '../workspace-context.ts'
 
@@ -25,8 +24,7 @@ import { type WorkspaceContext } from '../workspace-context.ts'
  * layer that happens to accept them.
  */
 
-export const API_TOKEN_SCOPES = apiTokenScopes
-export const ApiTokenScope = Schema.Literals(API_TOKEN_SCOPES)
+export const ApiTokenScope = Schema.Literals(apiTokenScopes)
 export type ApiTokenScope = typeof ApiTokenScope.Type
 
 export const ApiToken = Schema.Struct({
@@ -68,7 +66,7 @@ const ApiTokenExpiry = Schema.String.check(
 
 const TokenScopes = Schema.Array(ApiTokenScope).check(
   Schema.isMinLength(1),
-  Schema.isMaxLength(API_TOKEN_SCOPES.length),
+  Schema.isMaxLength(apiTokenScopes.length),
   Schema.makeFilter((scopes) => new Set(scopes).size === scopes.length)
 )
 
@@ -78,7 +76,6 @@ export const CreateApiTokenPayload = Schema.Struct({
   expiresAt: Schema.optionalKey(ApiTokenExpiry)
 })
 export type CreateApiTokenPayload = typeof CreateApiTokenPayload.Type
-export type CreateApiTokenInput = CreateApiTokenPayload
 
 export const MAX_TOKEN_OVERLAP_SECONDS = 86_400
 export const ReplaceApiTokenPayload = Schema.Struct({
@@ -124,7 +121,7 @@ type ApiTokenRegistryInterface = {
   ) => Effect.Effect<Page<ApiToken>, CapabilityUnavailable, WorkspaceContext>
 
   readonly create: (
-    input: CreateApiTokenInput
+    input: CreateApiTokenPayload
   ) => Effect.Effect<
     CreatedApiToken,
     CapabilityUnavailable | PlanLimitExceeded | InvalidApiTokenInput,
@@ -192,10 +189,3 @@ export function shouldBumpLastUsedAt(lastUsedAt: string | null, now: number): bo
   }
   return now - parsed >= LAST_USED_WRITE_INTERVAL_MS
 }
-
-/**
- * Hashing scheme for stored bearer-token hashes. The D1 seed script
- * (`scripts/seed.ts`) shares this export so seeded token rows verify against
- * `verifyBearerToken` — changing the scheme here changes both sides together.
- */
-export const hashApiToken = hashSha256

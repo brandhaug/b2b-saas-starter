@@ -17,10 +17,6 @@ import { dismissOnboardingChecklistServerFn } from '@/lib/server/workspace-onboa
 import { type WorkspaceNavTarget } from '@/lib/workspace-nav'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
-function dismissFailedMessage() {
-  return m.dismiss_checklist_failed()
-}
-
 /**
  * Dismissing, as a port. Injected so a test drives the card with a real
  * function of this shape instead of replacing the module it lives in; every
@@ -126,7 +122,7 @@ export function OnboardingChecklist({
   // The loader owns `dismissedAt`; the hook re-runs it on success. The local
   // flag only bridges the moment between the click and the refreshed payload.
   const dismissal = useServerAction(() => dismiss({ data: { workspaceSlug } }), {
-    failureMessage: dismissFailedMessage(),
+    failureMessage: m.dismiss_checklist_failed(),
     onSuccess: () => setJustDismissed(true)
   })
 

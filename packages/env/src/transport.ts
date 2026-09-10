@@ -2,7 +2,7 @@ import { hasValue, type ProviderEnvOf, type ServerEnv } from './server.ts'
 import { classifyTrustedOrigin, trustedOriginEntries } from './trusted-origin.ts'
 
 /** Minimum transport security accepted at a Cloudflare Worker boundary. */
-export const MINIMUM_TLS_VERSION = 'TLSv1.2'
+const MINIMUM_TLS_VERSION = 'TLSv1.2'
 
 /**
  * Cloudflare supplies `request.cf.tlsVersion` for requests that arrived via
@@ -16,7 +16,7 @@ export function tlsVersionIsAllowed(version: string | undefined): boolean {
   return version === 'TLSv1.2' || version === 'TLSv1.3'
 }
 
-export function requestTlsVersion(request: Request): string | undefined {
+function requestTlsVersion(request: Request): string | undefined {
   // SAFETY: Cloudflare augments Request with an optional `cf` object; local
   // workerd and standard Requests omit it, which is why the field is optional.
   // oxlint-disable-next-line effect/noAs -- SAFETY: Cloudflare augments Request with the optional cf object; local workerd and standard Requests omit it.
@@ -56,18 +56,29 @@ export function minimumTlsResponse(
   )
 }
 
+/**
+ * HTTPS with no credentials in the URL. Sentry DSNs are the one exception:
+ * they carry the public key in userinfo, so `dsn` allows a username while a
+ * password stays forbidden everywhere.
+ */
+function isSecureUrl(parsed: URL, dsn: boolean): boolean {
+  return (
+    parsed.protocol === 'https:' &&
+    parsed.password === '' &&
+    (dsn || parsed.username === '')
+  )
+}
+
 /** Absolute HTTPS endpoint validation for configured outbound services. */
 export function isSecureEndpoint(value: string): boolean {
   const parsed = URL.parse(value)
-  return (
-    parsed?.protocol === 'https:' && parsed.username === '' && parsed.password === ''
-  )
+  return parsed !== null && isSecureUrl(parsed, false)
 }
 
 /** Sentry DSNs carry the public key in URL userinfo; passwords remain forbidden. */
 export function isSecureDsn(value: string): boolean {
   const parsed = URL.parse(value)
-  return parsed?.protocol === 'https:' && parsed.password === ''
+  return parsed !== null && isSecureUrl(parsed, true)
 }
 
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
@@ -119,11 +130,7 @@ export function auditSecureEndpoints(
       problems.push({ key, reason: 'malformed' })
       return
     }
-    let valid = isSecureEndpoint(value)
-    if (dsn) {
-      valid = isSecureDsn(value)
-    }
-    if (!valid) {
+    if (!isSecureUrl(parsed, dsn)) {
       problems.push({ key, reason: 'insecure' })
     }
   }

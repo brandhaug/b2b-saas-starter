@@ -17,7 +17,7 @@ import { currentTraceId, TRACE_HEADER } from '@b2b-saas-starter/logger'
 import { DateTime, Effect, Result, Schema, type Scope } from 'effect'
 import { HttpBody, HttpClient } from 'effect/unstable/http'
 
-import { webhookDlqConsumerSettings } from '../../../infra/bindings.ts'
+import { webhookDlqConsumerSettings } from '@b2b-saas-starter/infra'
 import { finalQueueAttempt } from './monitoring.ts'
 import {
   annotateMalformed,

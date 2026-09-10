@@ -2,10 +2,6 @@ import { type SOCIAL_PROVIDER_IDS } from '@b2b-saas-starter/env/social'
 import { authClient } from '@/lib/auth-client'
 import { type AuthResult } from '@/lib/auth-result'
 import { m } from '@b2b-saas-starter/i18n/messages'
-import {
-  TWO_FACTOR_REQUIRED_ERROR_CODE,
-  twoFactorRequiredMessage
-} from '@/lib/two-factor-refusal'
 
 /**
  * One Better Auth client endpoint, as a port: the input it takes, and the
@@ -19,7 +15,7 @@ import {
  * nothing but indirection. The kept adapters are hoisted to module scope so
  * a component's default prop is one stable function value.
  */
-export type AuthPort<I = void, D = unknown> = (input: I) => Promise<AuthResult<D>>
+type AuthPort<I = void, D = unknown> = (input: I) => Promise<AuthResult<D>>
 
 /**
  * The Turnstile header on a Better Auth client call, or the payload untouched
@@ -238,16 +234,3 @@ export function sixDigitCodeValidator({
 export function backupCodeValidator({ value }: { value: string }): string | undefined {
   return value.trim().length > 0 ? undefined : m.public_auth_backup_code_required()
 }
-
-/**
- * The TOTP gate's refusal vocabulary, re-exported from
- * `lib/two-factor-refusal.ts` — the one module the server gate and this
- * side both read, so the gate's refusal and the page's notice cannot drift.
- * The server-side gate refuses magic-link and email-code sign-in for a
- * two-factor-enabled account (those hops cannot carry a second factor) and
- * redirects the browser to `/sign-in?error=two_factor_required`; the
- * message names the path that still works. The shared code table
- * (`lib/auth-error-copy.ts`) maps the code to that same sentence, so no
- * screen needs its own probe for it.
- */
-export { TWO_FACTOR_REQUIRED_ERROR_CODE, twoFactorRequiredMessage }

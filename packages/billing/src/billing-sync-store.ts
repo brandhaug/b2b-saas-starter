@@ -49,16 +49,8 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
           subscriptionId: workspaceSubscriptions.stripeSubscriptionId,
           itemId: workspaceSubscriptions.stripeSubscriptionItemId,
           quantity: workspaceSubscriptions.seatQuantity,
-          lifecycleStatus: workspaceSubscriptions.status,
-          priceId: workspaceSubscriptions.stripePriceId,
-          currentPeriodStart: workspaceSubscriptions.currentPeriodStart,
-          currentPeriodEnd: workspaceSubscriptions.currentPeriodEnd,
-          cancelAtPeriodEnd: workspaceSubscriptions.cancelAtPeriodEnd,
-          trialEnd: workspaceSubscriptions.trialEnd,
-          firstFailedAt: workspaceSubscriptions.firstFailedAt,
-          graceEndsAt: workspaceSubscriptions.graceEndsAt,
-          lastPaymentAt: workspaceSubscriptions.lastPaymentAt,
-          paymentVerified: workspaceSubscriptions.paymentVerified,
+          // The whole subscription row rides along above; these are the
+          // routing columns the workflow compares directly.
           unresolvedSince: billingSynchronization.unresolvedSince,
           failureCount: billingSynchronization.failureCount
         })

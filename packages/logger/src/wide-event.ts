@@ -7,7 +7,7 @@ import {
   Logger,
   Metric,
   Option,
-  Schema,
+  Predicate,
   type Layer,
   type Scope,
   type Tracer
@@ -35,10 +35,6 @@ type WideEventRecordDraft = {
   -readonly [K in keyof WideEventRecord]: WideEventRecord[K]
 }
 
-const TaggedFailure = Schema.Struct({ _tag: Schema.String })
-
-const decodeTaggedFailure = Schema.decodeUnknownOption(TaggedFailure)
-
 /**
  * The failure half of a wide event's outcome, classified from the `Cause`.
  * Fields the cause cannot supply stay absent rather than `undefined`, so a
@@ -57,11 +53,11 @@ function failureMetadata(head: unknown): WideEventFailure {
     errorKind: 'fail',
     error: failureMessage(head)
   }
-  const tagged = decodeTaggedFailure(head)
-  if (Option.isNone(tagged)) {
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- one `_tag` read off an arbitrary failure value; there is no contract to parse it against
+  if (!Predicate.hasProperty(head, '_tag') || typeof head._tag !== 'string') {
     return base
   }
-  return { ...base, errorTag: tagged.value._tag }
+  return { ...base, errorTag: head._tag }
 }
 
 function causeMetadata(cause: Cause.Cause<unknown>): WideEventFailure {
@@ -117,29 +113,30 @@ export type WideEventRecord = {
 
 type WideEventSink = (record: WideEventRecord) => Promise<void> | void
 
-const wideEventSinks: Array<WideEventSink> = []
+/** The one sink, set by `wireWideEventProviders` (providers.ts). */
+let wideEventSink: WideEventSink | undefined
 
 /**
- * Register a sink invoked once per completed wide-event scope. Sinks must not
- * throw (rejections are swallowed) and must finish within the invocation —
+ * Install the sink invoked once per completed wide-event scope. The sink must
+ * not throw (rejections are swallowed) and must finish within the invocation —
  * the same ADR 0050 rule the OTLP exporters follow.
  */
-export function addWideEventSink(sink: WideEventSink): void {
-  wideEventSinks.push(sink)
+export function setWideEventSink(sink: WideEventSink): void {
+  wideEventSink = sink
 }
 
 // Sink dispatch is promise-native vendor glue (see providers.ts); wrapping it
-// in Effect would only re-wrap the same awaits one layer down. Each sink runs
-// behind its own catch: a failing vendor must never fail the request it
-// reported on.
-// oxlint-disable effect/noAsyncFunction, effect/noTryCatch, eslint/no-await-in-loop, react-doctor/async-await-in-loop
-async function runWideEventSinks(record: WideEventRecord): Promise<void> {
-  for (const sink of wideEventSinks) {
-    try {
-      await sink(record)
-    } catch {
-      // ignored by contract above
-    }
+// in Effect would only re-wrap the same awaits one layer down. The sink runs
+// behind a catch: a failing vendor must never fail the request it reported on.
+// oxlint-disable effect/noAsyncFunction, effect/noTryCatch
+async function runWideEventSink(
+  sink: WideEventSink,
+  record: WideEventRecord
+): Promise<void> {
+  try {
+    await sink(record)
+  } catch {
+    // ignored by contract above
   }
 }
 
@@ -261,7 +258,8 @@ function emitWideEvent(
     } else {
       yield* Effect.log(options.event).pipe(annotated)
     }
-    if (wideEventSinks.length > 0) {
+    const sink = wideEventSink
+    if (sink !== undefined) {
       const record: WideEventRecordDraft = {
         service: options.service,
         event: options.event,
@@ -282,7 +280,7 @@ function emitWideEvent(
       if (options.environment) {
         record.environment = options.environment
       }
-      yield* Effect.promise(() => runWideEventSinks(record))
+      yield* Effect.promise(() => runWideEventSink(sink, record))
     }
   })
 }
@@ -381,10 +379,7 @@ export const WideEventLoggerLive: Layer.Layer<never> = Logger.layer([
         fiberId: record.fiberId,
         message: diagnosticLabel(record.annotations['event']),
         annotations: diagnosticAnnotations(record.annotations),
-        cause: Option.fromUndefinedOr(record.cause).pipe(
-          Option.map(() => '[omitted]'),
-          Option.getOrUndefined
-        )
+        ...(record.cause !== undefined && { cause: '[omitted]' })
       })
     )
   ),

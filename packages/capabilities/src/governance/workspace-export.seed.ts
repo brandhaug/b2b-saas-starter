@@ -7,7 +7,7 @@ import {
   NotificationFeed,
   type NotificationFeedInterface
 } from '../notifications/notification-feed.ts'
-import { type NotificationEvent } from '../notifications/notification-events.ts'
+import { type SystemNotificationEvent } from '../notifications/notification-events.ts'
 import { testWorkspaceContext, WorkspaceContext } from '../workspace-context.ts'
 import { AuditEventLog, type AuditEventLogInterface } from './audit-event-log.ts'
 import { workspaceExportFileName } from './workspace-export-archive.ts'
@@ -97,7 +97,7 @@ function readyNotification(workspaceName: string, expiresAt: string) {
       workspaceName,
       expiresAt
     }
-  } satisfies { title: string; message: string; event: NotificationEvent }
+  } satisfies { title: string; message: string; event: SystemNotificationEvent }
 }
 
 /**

@@ -1,44 +1,29 @@
-import { appendFile, mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { execFile } from 'node:child_process'
-import { join } from 'node:path'
-import { tmpdir } from 'node:os'
-import { promisify } from 'node:util'
-import { requiredEnv } from '../../scripts/internal/env.ts'
+import { appendFile } from 'node:fs/promises'
+import { execFileSync } from 'node:child_process'
 
-type CommandResult = { readonly stdout: string; readonly stderr: string }
+import { requiredEnv } from '../../scripts/lib/env.ts'
+
+// The real runner is synchronous; the test double is not, so callers await it.
 type CommandRunner = (
   args: ReadonlyArray<string>,
   input?: string
-) => Promise<CommandResult>
-const execGh = promisify(execFile)
+) => string | Promise<string>
 
-function runGh(args: ReadonlyArray<string>, input?: string): Promise<CommandResult> {
-  if (input === undefined) {
-    return execGh('gh', args, { encoding: 'utf8' })
-  }
-  return (async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'preview-status-'))
-    const inputPath = join(directory, 'request.json')
-    await writeFile(inputPath, input)
-    try {
-      const resolvedArgs = args.map((arg) => (arg === '-' ? inputPath : arg))
-      return await execGh('gh', resolvedArgs, { encoding: 'utf8' })
-    } finally {
-      await rm(directory, { recursive: true, force: true })
-    }
-  })()
+function runGh(args: ReadonlyArray<string>, input?: string): string {
+  // `gh api --input -` reads the request body from stdin.
+  return execFileSync('gh', [...args], { encoding: 'utf8', input })
 }
 
 function deploymentBase(env: NodeJS.ProcessEnv): string {
-  return `repos/${requiredEnv(env, 'GITHUB_REPOSITORY')}/deployments`
+  return `repos/${requiredEnv('GITHUB_REPOSITORY', env)}/deployments`
 }
 
 export function previewSummary(env: NodeJS.ProcessEnv): string {
-  const stage = requiredEnv(env, 'ALCHEMY_STAGE')
-  const commit = requiredEnv(env, 'GIT_COMMIT_SHA')
-  const webUrl = requiredEnv(env, 'WEB_URL')
-  const apiUrl = requiredEnv(env, 'API_URL')
-  const backgroundUrl = requiredEnv(env, 'BACKGROUND_URL')
+  const stage = requiredEnv('ALCHEMY_STAGE', env)
+  const commit = requiredEnv('GIT_COMMIT_SHA', env)
+  const webUrl = requiredEnv('WEB_URL', env)
+  const apiUrl = requiredEnv('API_URL', env)
+  const backgroundUrl = requiredEnv('BACKGROUND_URL', env)
   return [
     `### Preview stage \`${stage}\``,
     '',
@@ -58,12 +43,12 @@ async function reportDeployed(
   run: CommandRunner
 ): Promise<void> {
   const base = deploymentBase(env)
-  const stage = requiredEnv(env, 'ALCHEMY_STAGE')
-  const commit = requiredEnv(env, 'GIT_COMMIT_SHA')
-  const server = requiredEnv(env, 'GITHUB_SERVER_URL')
-  const repository = requiredEnv(env, 'GITHUB_REPOSITORY')
-  requiredEnv(env, 'GH_TOKEN')
-  const webUrl = requiredEnv(env, 'WEB_URL')
+  const stage = requiredEnv('ALCHEMY_STAGE', env)
+  const commit = requiredEnv('GIT_COMMIT_SHA', env)
+  const server = requiredEnv('GITHUB_SERVER_URL', env)
+  const repository = requiredEnv('GITHUB_REPOSITORY', env)
+  requiredEnv('GH_TOKEN', env)
+  const webUrl = requiredEnv('WEB_URL', env)
   const payload = JSON.stringify({
     ref: commit,
     environment: stage,
@@ -76,7 +61,7 @@ async function reportDeployed(
     ['api', '--method', 'POST', base, '--input', '-', '--jq', '.id'],
     payload
   )
-  const deploymentId = deployment.stdout.trim()
+  const deploymentId = deployment.trim()
   if (!deploymentId) {
     throw new Error('GitHub returned no deployment id')
   }
@@ -90,7 +75,7 @@ async function reportDeployed(
     '-f',
     `environment_url=${webUrl}`,
     '-f',
-    `log_url=${server}/${repository}/actions/runs/${requiredEnv(env, 'GITHUB_RUN_ID')}`,
+    `log_url=${server}/${repository}/actions/runs/${requiredEnv('GITHUB_RUN_ID', env)}`,
     '-f',
     'description=Preview stage deployed'
   ])
@@ -106,8 +91,8 @@ async function reportDestroyed(
   run: CommandRunner
 ): Promise<void> {
   const base = deploymentBase(env)
-  const stage = requiredEnv(env, 'ALCHEMY_STAGE')
-  requiredEnv(env, 'GH_TOKEN')
+  const stage = requiredEnv('ALCHEMY_STAGE', env)
+  requiredEnv('GH_TOKEN', env)
   const result = await run([
     'api',
     '--paginate',
@@ -115,7 +100,7 @@ async function reportDestroyed(
     '--jq',
     '.[].id'
   ])
-  const deploymentIds = result.stdout
+  const deploymentIds = result
     .split(/\r?\n/)
     .map((value) => value.trim())
     .filter(Boolean)
@@ -153,7 +138,7 @@ export async function main(
   }
 }
 
-if (process.argv[1] === import.meta.filename) {
+if (import.meta.main) {
   main().catch(() => {
     console.error('preview status reporting failed')
     process.exitCode = 1

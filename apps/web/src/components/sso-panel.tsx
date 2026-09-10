@@ -38,19 +38,6 @@ import { m } from '@b2b-saas-starter/i18n/messages'
  * OIDC and SAML fields, with the protocol deciding which middle third shows.
  */
 
-function createFailedMessage() {
-  return m.sso_create_failed()
-}
-function updateFailedMessage() {
-  return m.sso_update_failed()
-}
-function removeFailedMessage() {
-  return m.sso_remove_failed()
-}
-function testFailedMessage() {
-  return m.sso_test_failed()
-}
-
 type SsoFormValues = {
   protocol: 'oidc' | 'saml'
   domain: string
@@ -243,23 +230,23 @@ export function SsoPanel({
 
   const create = useServerAction(
     (value: SsoFormValues) => ports.create(toCreatePayload(workspaceSlug, value)),
-    { failureMessage: createFailedMessage() }
+    { failureMessage: m.sso_create_failed() }
   )
 
   const update = useServerAction(
     (input: UpdateSsoConnectionInput) => ports.update(input),
-    { failureMessage: updateFailedMessage() }
+    { failureMessage: m.sso_update_failed() }
   )
 
   const remove = useServerAction(
     (providerId: string) => ports.remove({ workspaceSlug, providerId }),
-    { failureMessage: removeFailedMessage() }
+    { failureMessage: m.sso_remove_failed() }
   )
 
   const test = useServerAction(
     (providerId: string) => ports.test({ workspaceSlug, providerId }),
     {
-      failureMessage: testFailedMessage(),
+      failureMessage: m.sso_test_failed(),
       onSuccess: (result, providerId) => setTestResult({ providerId, ...result })
     }
   )

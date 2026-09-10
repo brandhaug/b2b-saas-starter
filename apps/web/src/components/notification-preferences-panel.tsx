@@ -13,10 +13,6 @@ import {
 import { cn } from '@/lib/utils'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
-function saveFailedMessage() {
-  return m.notification_preference_save_failed()
-}
-
 /** The one server call this panel makes, as a port a test can replace. */
 export type SetNotificationPreference = (input: {
   readonly data: {
@@ -63,7 +59,7 @@ export function NotificationPreferencesPanel({
       kind: NotificationPreferenceRow['kind']
       channel: NotificationChannel
     }) => setPreference({ data: input }),
-    { failureMessage: saveFailedMessage() }
+    { failureMessage: m.notification_preference_save_failed() }
   )
 
   function select(row: NotificationPreferenceRow, channel: NotificationChannel) {

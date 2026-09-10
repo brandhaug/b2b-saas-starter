@@ -27,12 +27,9 @@ import { NotificationPreferences } from '../notifications/notification-preferenc
 import { AuditEventLog } from './audit-event-log.ts'
 import { auditedMutations } from './audited-mutation.ts'
 import { newCapabilityId } from '../internal/ids.ts'
+import { iso } from '../internal/timestamps.ts'
 
 const unavailable = orUnavailable('personal-data-export')
-
-function iso(time: number): string {
-  return DateTime.formatIso(DateTime.makeUnsafe(time))
-}
 
 export const LivePersonalDataExports: Layer.Layer<
   PersonalDataExports,
@@ -77,7 +74,7 @@ export const LivePersonalDataExports: Layer.Layer<
           membership.listWorkspacesForUser(userId),
           prefs.get(userId),
           notices.list(userId),
-          delivery.exportForUser(userId),
+          delivery.listForUser(userId, { complete: true }),
           unavailable(
             db
               .select({
@@ -292,7 +289,7 @@ export const LivePersonalDataExports: Layer.Layer<
           targetId: userId,
           metadata: { exportId: id, action: 'requested' }
         },
-        write: () =>
+        write: () => [
           db.insert(personalDataExports).values({
             id,
             userId,
@@ -301,6 +298,7 @@ export const LivePersonalDataExports: Layer.Layer<
             createdAt: iso(now),
             expiresAt
           })
+        ]
       })
       return { id, expiresAt }
     })

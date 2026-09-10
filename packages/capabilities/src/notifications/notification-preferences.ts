@@ -1,4 +1,5 @@
 import { notificationPreferences } from '@b2b-saas-starter/db/schema'
+import { notificationKinds } from '@b2b-saas-starter/db/enums'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { Context, DateTime, Effect, Layer, Ref, Schema } from 'effect'
 import { eq } from 'drizzle-orm'
@@ -15,7 +16,6 @@ import { auditedMutations } from '../governance/audited-mutation.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 
 import {
-  NOTIFICATION_KINDS,
   NotificationChannel,
   NotificationKind,
   defaultChannelFor,
@@ -88,7 +88,7 @@ export class NotificationPreferences extends Context.Service<
 export function resolvePreferences(
   stored: ReadonlyMap<NotificationKind, NotificationChannel>
 ): ReadonlyArray<NotificationPreference> {
-  return NOTIFICATION_KINDS.map((kind) => {
+  return notificationKinds.map((kind) => {
     const explicit = stored.get(kind)
     return {
       kind,
@@ -219,7 +219,7 @@ export const LiveNotificationPreferences: Layer.Layer<
           yield* auditedMutation({
             matched: Effect.succeed(true),
             auditEvent: preferenceChangeEvent(input),
-            write: () =>
+            write: () => [
               db
                 .insert(notificationPreferences)
                 .values({
@@ -236,6 +236,7 @@ export const LiveNotificationPreferences: Layer.Layer<
                   ],
                   set: { channel: input.channel, updatedAt }
                 })
+            ]
           })
           return { kind: input.kind, channel: input.channel, isDefault: false }
         })

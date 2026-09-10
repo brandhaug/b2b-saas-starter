@@ -1,8 +1,5 @@
 import { type WebhookQueueMessage } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
-import {
-  webhookDeadLetterQueueName,
-  webhookQueueName
-} from '../../../infra/bindings.ts'
+import { webhookDeadLetterQueueName, webhookQueueName } from '@b2b-saas-starter/infra'
 import { DateTime, Effect, Schema } from 'effect'
 import { Webhook } from 'standardwebhooks'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vite-plus/test'

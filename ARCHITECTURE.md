@@ -24,7 +24,6 @@ All three Workers ──> packages/capabilities ────┤
 | [Email](packages/email/AGENTS.md)                   | Templates and the outbound sending boundary.                                                                                        |
 | [Email delivery](packages/email-delivery/AGENTS.md) | Send claims and sanitized delivery evidence for auth, invitations, and notifications.                                               |
 | [HTTP contract](packages/api/AGENTS.md)             | The `StarterApi` Effect HTTP contract every REST and MCP surface derives from.                                                      |
-| [Typed SDK](packages/sdk/AGENTS.md)                 | The Effect and promise clients derived from that contract; no codegen, no hand-written paths.                                       |
 | [Environment](packages/env/AGENTS.md)               | `ServerEnv` as the one env schema, plus the pure required-env and transport-security audits.                                        |
 | [Observability](packages/logger/AGENTS.md)          | Wide events, traces, RED metrics, and per-invocation OTLP export for all three Workers.                                             |
 | [Localization](packages/i18n/AGENTS.md)             | Message catalogs, Paraglide compilation, and locale resolution for the web app and emails.                                          |

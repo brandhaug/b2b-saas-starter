@@ -97,7 +97,7 @@ and [pnpm scanning coverage](https://trivy.dev/docs/latest/coverage/language/nod
 ## Regression evidence
 
 ```bash
-TRIVY_BINARY=trivy node --test .github/scripts/trivy.test.ts
+TRIVY_BINARY=trivy pnpm exec vp test run .github/scripts/trivy.test.ts
 pnpm run test:scripts
 ```
 

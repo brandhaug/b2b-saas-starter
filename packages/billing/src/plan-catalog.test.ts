@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vite-plus/test'
 
 import {
   billableSeatQuantity,
-  resourceEntitlementSummary,
+  resourceEntitlement,
   STARTER_PLAN
 } from './plan-catalog.ts'
 
@@ -19,7 +19,7 @@ describe('webhook entitlement counting', () => {
   const enabled = ['wh_enabled']
 
   it('counts every stored endpoint, the way creation admission does', () => {
-    const summary = resourceEntitlementSummary(
+    const summary = resourceEntitlement(
       STARTER_PLAN,
       'webhook_endpoint',
       enabled,
@@ -31,13 +31,13 @@ describe('webhook entitlement counting', () => {
     // billing page has to show the same over-limit state.
     expect(summary.used).toBe(3)
     expect(summary.limit).toBe(1)
-    expect(summary.requiresSelection).toBe(true)
+    expect(summary.paused).toBe(true)
     expect(summary.paused).toBe(true)
     expect(summary.activeIds).toEqual([])
   })
 
   it('dispatches the selected endpoint while the disabled ones stay counted', () => {
-    const summary = resourceEntitlementSummary(
+    const summary = resourceEntitlement(
       STARTER_PLAN,
       'webhook_endpoint',
       enabled,
@@ -52,7 +52,7 @@ describe('webhook entitlement counting', () => {
   })
 
   it('leaves a within-limit category unpaused and fully active', () => {
-    const summary = resourceEntitlementSummary(
+    const summary = resourceEntitlement(
       STARTER_PLAN,
       'webhook_endpoint',
       enabled,
@@ -62,6 +62,6 @@ describe('webhook entitlement counting', () => {
 
     expect(summary.used).toBe(1)
     expect(summary.activeIds).toEqual(enabled)
-    expect(summary.requiresSelection).toBe(false)
+    expect(summary.paused).toBe(false)
   })
 })

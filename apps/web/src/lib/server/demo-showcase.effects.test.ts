@@ -1,5 +1,5 @@
 import { AUDIT_EVENT_TYPES } from '@b2b-saas-starter/capabilities/governance/audit-event-taxonomy'
-import { WORKSPACE_ROLES } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { workspaceRoles } from '@b2b-saas-starter/db/enums'
 import { seedMembers } from '@b2b-saas-starter/capabilities/seed-fixture'
 import { describe, expect, it } from 'vite-plus/test'
 
@@ -27,7 +27,7 @@ describe('loadDemoShowcase', () => {
       expect(notification).not.toHaveProperty('userId')
     }
     expect(demo!.notificationCount).toBe(demo!.overview.notifications.length)
-    expect(demo!.roleCount).toBe(WORKSPACE_ROLES.length)
+    expect(demo!.roleCount).toBe(workspaceRoles.length)
     expect(demo!.auditEventTypeCount).toBe(AUDIT_EVENT_TYPES.length)
   })
 })

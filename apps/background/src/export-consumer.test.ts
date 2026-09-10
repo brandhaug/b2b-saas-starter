@@ -15,7 +15,7 @@ import { DateTime, Effect, Layer } from 'effect'
 import {
   WORKSPACE_EXPORT_RETENTION_DAYS,
   workspaceExportConsumerSettings
-} from '../../../infra/bindings.ts'
+} from '@b2b-saas-starter/infra'
 import { processWorkspaceExportMessage } from './export-consumer.ts'
 import { readDelivery } from './queue-consumer.ts'
 

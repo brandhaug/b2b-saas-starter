@@ -4,7 +4,7 @@ import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { Effect, type Scope } from 'effect'
 
-import { billingDlqConsumerSettings } from '../../../infra/bindings.ts'
+import { billingDlqConsumerSettings } from '@b2b-saas-starter/infra'
 import { applyProviderEvent, billingCapabilitiesEnv } from './billing-runtime.ts'
 import { finalQueueAttempt } from './monitoring.ts'
 import {

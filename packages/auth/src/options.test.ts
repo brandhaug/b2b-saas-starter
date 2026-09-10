@@ -48,6 +48,12 @@ const baseConfig: AuthConfigInterface = {
   runBackground: (promise) => {
     void promise.catch(() => undefined)
   },
+  userDeleteHooks: {
+    beforeDelete: () => Promise.resolve(),
+    afterDelete: () => Promise.resolve()
+  },
+  recoveryHooks: { onRecoveryStarted: () => Promise.resolve() },
+  hasRecentAuthentication: () => Promise.resolve(false),
   mcp: testMcpConfig()
 }
 

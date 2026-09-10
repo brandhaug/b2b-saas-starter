@@ -12,7 +12,7 @@ import { orUnavailable } from '@b2b-saas-starter/failure/capability'
 import {
   EMPTY_RESOURCE_SELECTION,
   ResourceSelection,
-  resourceEntitlementSummary
+  resourceEntitlement
 } from './plan-catalog.ts'
 import {
   normalizeSelection,
@@ -135,7 +135,7 @@ export const LiveResourceEntitlements: Layer.Layer<
       if (resource === 'webhook_endpoint') {
         storedIds = yield* storedWebhookIds(workspaceId)
       }
-      return resourceEntitlementSummary(
+      return resourceEntitlement(
         yield* billing.currentPlanForWorkspace(workspaceId),
         resource,
         eligibleIds,
@@ -212,9 +212,6 @@ export const LiveResourceEntitlements: Layer.Layer<
           Effect.provideService(RawD1, d1)
         )
         return yield* getSelectionForWorkspace(ctx.workspace.id)
-      }),
-      isActive: Effect.fn('ResourceEntitlements.isActive')(function* (input) {
-        return (yield* summarize(input)).activeIds.includes(input.resourceId)
       }),
       isActiveForWorkspace: Effect.fn('ResourceEntitlements.isActiveForWorkspace')(
         function* (input) {

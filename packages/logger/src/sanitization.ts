@@ -174,7 +174,7 @@ export function diagnosticAnnotations(fields: Readonly<Record<string, unknown>>)
 }
 
 /** Rebuild the event so new SDK fields cannot silently expand data collection. */
-export function sanitizeSentryEvent(event: ErrorEvent): ErrorEvent {
+function sanitizeSentryEvent(event: ErrorEvent): ErrorEvent {
   const trace = event.contexts?.trace
   const sanitized: ErrorEvent = {
     type: undefined,

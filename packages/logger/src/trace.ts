@@ -1,10 +1,6 @@
 import { Effect, Option, type Tracer } from 'effect'
 import { Headers, HttpTraceContext } from 'effect/unstable/http'
 
-function newTraceId(): string {
-  return globalThis.crypto.randomUUID()
-}
-
 export const TRACE_HEADER = 'x-trace-id'
 
 export function readTraceHeader(request: Request): string | undefined {
@@ -46,7 +42,7 @@ export const currentTraceparent: Effect.Effect<string | undefined> = Effect.map(
 export const currentTraceId: Effect.Effect<string> = Effect.map(
   Effect.option(Effect.currentParentSpan),
   Option.match({
-    onNone: () => newTraceId(),
+    onNone: () => globalThis.crypto.randomUUID(),
     onSome: (span) => span.traceId
   })
 )

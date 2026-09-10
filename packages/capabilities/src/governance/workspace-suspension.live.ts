@@ -151,7 +151,7 @@ export const LiveWorkspaceSuspension: Layer.Layer<
             targetId: input.workspaceId,
             metadata: { customerExplanation: next.customerExplanation }
           },
-          write: () => write,
+          write: () => [write],
           transition: { condition: wonTransition, alongside: notice.writes }
         })
         if (!changed) {

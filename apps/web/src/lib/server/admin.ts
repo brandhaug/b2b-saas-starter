@@ -6,7 +6,7 @@ import {
   type WorkspaceSuspension,
   type WorkspaceSuspensionSummary
 } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
-import { WORKSPACE_ROLES } from '@/lib/permissions'
+import { workspaceRoles } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
 
@@ -45,7 +45,7 @@ const SystemUserInput = Schema.Struct({ userId: Schema.NonEmptyString })
 const ChangeWorkspaceRoleInput = Schema.Struct({
   userId: Schema.NonEmptyString,
   workspaceId: Schema.NonEmptyString,
-  role: Schema.Literals(WORKSPACE_ROLES)
+  role: Schema.Literals(workspaceRoles)
 })
 
 /**

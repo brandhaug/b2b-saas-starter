@@ -130,19 +130,15 @@ export function listWorkspacesForUser(
 }
 
 /**
- * The onboarding checklist steps, in display order. Labels and links are the
- * UI's — this is the vocabulary, the way the audit taxonomy is.
+ * The onboarding checklist steps. Labels and links are the UI's — this is the
+ * vocabulary, the way the audit taxonomy is.
  */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
-const WORKSPACE_PROGRESS_STEPS = [
-  'invite_member',
-  'create_api_token',
-  'add_webhook_endpoint',
-  'enable_two_factor',
-  'choose_plan'
-] as const
-
-export type WorkspaceProgressStepId = (typeof WORKSPACE_PROGRESS_STEPS)[number]
+export type WorkspaceProgressStepId =
+  | 'invite_member'
+  | 'create_api_token'
+  | 'add_webhook_endpoint'
+  | 'enable_two_factor'
+  | 'choose_plan'
 
 type WorkspaceProgressStep = {
   readonly id: WorkspaceProgressStepId

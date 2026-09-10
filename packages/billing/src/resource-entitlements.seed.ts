@@ -3,9 +3,10 @@ import { Billing } from './billing.ts'
 import { AuditEventLog, WorkspaceContext } from './ports.ts'
 import {
   EMPTY_RESOURCE_SELECTION,
-  resourceEntitlementSummary,
+  resourceEntitlement,
   type EntitlementResource,
-  type Plan
+  type Plan,
+  type ResourceSelection
 } from './plan-catalog.ts'
 import {
   normalizeSelection,
@@ -18,7 +19,6 @@ import {
 } from './resource-inventory.seed.ts'
 import {
   ResourceEntitlements,
-  type ResourceSelectionInput,
   type ResourceEntitlementsInterface
 } from './resource-entitlements.ts'
 
@@ -30,7 +30,7 @@ export function SeedResourceEntitlements() {
       const audit = yield* AuditEventLog
       const inventory = yield* SeedResourceInventory
       const lock = inventory.lock
-      function resolveSelection(workspaceId: string, input: ResourceSelectionInput) {
+      function resolveSelection(workspaceId: string, input: ResourceSelection) {
         return {
           ...input,
           apiTokenIds: input.apiTokenIds.map((id) =>
@@ -52,7 +52,7 @@ export function SeedResourceEntitlements() {
         plan: Plan,
         workspaceId: string,
         resource: EntitlementResource,
-        selection: ResourceSelectionInput
+        selection: ResourceSelection
       ) {
         const eligible = resourceIds(
           inventory.available(workspaceId, DateTime.toEpochMillis(yield* DateTime.now)),
@@ -62,7 +62,7 @@ export function SeedResourceEntitlements() {
         if (resource === 'webhook_endpoint') {
           stored = resourceIds(inventory.known(workspaceId), resource)
         }
-        return resourceEntitlementSummary(plan, resource, eligible, selection, stored)
+        return resourceEntitlement(plan, resource, eligible, selection, stored)
       })
       const service: ResourceEntitlementsInterface = {
         getSelectionForWorkspace,
@@ -110,9 +110,6 @@ export function SeedResourceEntitlements() {
             input.resource,
             yield* service.getSelection()
           )
-        }),
-        isActive: Effect.fn('ResourceEntitlements.isActive')(function* (input) {
-          return (yield* service.summarize(input)).activeIds.includes(input.resourceId)
         }),
         isActiveForWorkspace: Effect.fn('ResourceEntitlements.isActiveForWorkspace')(
           function* (input) {

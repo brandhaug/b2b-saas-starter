@@ -39,7 +39,7 @@ export const makeLiveWebhookEnqueueFailure = Effect.gen(function* () {
       const acceptedExists = sql`exists (select 1 from ${webhookDeliveries} where ${accepted})`
       yield* auditedMutation({
         matched: Effect.succeed(true),
-        write: () =>
+        write: () => [
           db
             .update(webhookDeliveries)
             .set({
@@ -55,7 +55,8 @@ export const makeLiveWebhookEnqueueFailure = Effect.gen(function* () {
                 eq(webhookDeliveries.attempts, 0),
                 isNull(webhookDeliveries.lastAttemptToken)
               )
-            ),
+            )
+        ],
         transition: {
           condition: acceptedExists,
           alongside: [

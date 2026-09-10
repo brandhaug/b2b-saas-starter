@@ -23,7 +23,6 @@ export {
   WideEventLoggerLive,
   withRequestScope,
   withTriggerScope,
-  type HttpRequestScopeOptions,
   type TriggerScopeOptions,
   type WideEventScopeOptions
 } from './wide-event.ts'

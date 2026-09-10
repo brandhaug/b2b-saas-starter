@@ -322,6 +322,6 @@ function writeAll(): void {
   }
 }
 
-if (process.argv[1] === import.meta.filename) {
+if (import.meta.main) {
   writeAll()
 }

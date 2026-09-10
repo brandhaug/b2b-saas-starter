@@ -46,14 +46,6 @@ export type SendTestEvent = (input: {
   }
 }) => Promise<{ readonly deliveryId: string }>
 
-function replayFailedMessage() {
-  return m.replay_queue_failed()
-}
-
-function testFailedMessage() {
-  return m.test_event_queue_failed()
-}
-
 export function WebhookDeliveriesDrawer({
   workspaceSlug,
   endpoint,
@@ -80,11 +72,11 @@ export function WebhookDeliveriesDrawer({
 
   const replay = useServerAction(
     (deliveryId: string) => replayDelivery({ data: { workspaceSlug, deliveryId } }),
-    { failureMessage: replayFailedMessage() }
+    { failureMessage: m.replay_queue_failed() }
   )
   const sendTest = useServerAction(
     () => sendTestEvent({ data: { workspaceSlug, endpointId: endpoint.id } }),
-    { failureMessage: testFailedMessage() }
+    { failureMessage: m.test_event_queue_failed() }
   )
 
   return (

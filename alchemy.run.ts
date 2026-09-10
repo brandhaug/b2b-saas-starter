@@ -1,3 +1,4 @@
+import { requiredEnv } from './scripts/lib/env.ts'
 import * as Alchemy from 'alchemy'
 import * as Output from 'alchemy/Output'
 import * as Cloudflare from 'alchemy/Cloudflare'
@@ -32,7 +33,6 @@ import {
   optionalModuleEnvPlainKeys,
   optionalModuleEnvSecretKeys
 } from './packages/env/src/server.ts'
-import { requiredEnv } from './scripts/internal/env.ts'
 
 /**
  * The EMAIL binding, spread into every worker. Built as its own object so the
@@ -68,11 +68,11 @@ function rateLimitBindings(specs: ReadonlyArray<RateLimitBindingSpec>) {
   )
 }
 
-// Single `process.env` reader for the whole deploy entrypoint. This file runs
-// on Node at deploy time (CI or a developer machine), not inside a Worker, and
-// the values below are read at module scope where no Effect runtime — and so
-// no `Config`/`ConfigProvider` — exists yet. Every other env read in this file
-// goes through here so the platform-global escape hatch has exactly one site.
+// Single optional-env reader for the whole deploy entrypoint; required reads go
+// through `requiredEnv` in scripts/lib/env.ts. This file runs on Node at deploy
+// time (CI or a developer machine), not inside a Worker, and the values below
+// are read at module scope where no Effect runtime — and so no
+// `Config`/`ConfigProvider` — exists yet.
 function readEnv(name: string): string | undefined {
   return process.env[name]
 }
@@ -109,7 +109,7 @@ function presentEntries<A>(
 // `deploy:stage`/`destroy:stage` scripts pass `$ALCHEMY_STAGE` through as the
 // flag). It is read inside the Stack below via the `Stage` service, so the
 // module scope only resolves the values that do not depend on it.
-const BETTER_AUTH_SECRET = Redacted.make(requiredEnv(process.env, 'BETTER_AUTH_SECRET'))
+const BETTER_AUTH_SECRET = Redacted.make(requiredEnv('BETTER_AUTH_SECRET'))
 // Preview stages (ADR 0054) can derive their URL from the account's
 // `workers.dev` subdomain instead of requiring a per-PR `BETTER_AUTH_URL`.
 const CLOUDFLARE_WORKERS_SUBDOMAIN = readEnv('CLOUDFLARE_WORKERS_SUBDOMAIN')
@@ -122,7 +122,7 @@ function resolveBetterAuthUrl(stage: string, webWorkerName: string): string {
   if (isPreviewStage(stage) && CLOUDFLARE_WORKERS_SUBDOMAIN) {
     return workersDevUrl(webWorkerName, CLOUDFLARE_WORKERS_SUBDOMAIN)
   }
-  return requiredEnv(process.env, 'BETTER_AUTH_URL')
+  return requiredEnv('BETTER_AUTH_URL')
 }
 // Optional: when unset, the SendEmail binding is skipped and the email
 // module degrades to inactive (see ARCHITECTURE.md secret matrix). Workers

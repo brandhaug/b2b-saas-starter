@@ -31,17 +31,11 @@ validateProjectLocales(JSON.parse(settingsRaw), locales)
 const routeConfig = JSON.parse(await readFile(join(packageRoot, 'routes.json'), 'utf8'))
 
 async function filesUnder(directory) {
-  const entries = await readdir(directory, { withFileTypes: true })
-  const files = await Promise.all(
-    entries.map((entry) => {
-      const path = join(directory, entry.name)
-      if (entry.isDirectory()) {
-        return filesUnder(path)
-      }
-      return entry.isFile() ? [path] : []
-    })
-  )
-  return files.flat().toSorted((left, right) => left.localeCompare(right))
+  const entries = await readdir(directory, { recursive: true, withFileTypes: true })
+  return entries
+    .filter((entry) => entry.isFile())
+    .map((entry) => join(entry.parentPath, entry.name))
+    .toSorted((left, right) => left.localeCompare(right))
 }
 
 async function loadLocale(locale) {

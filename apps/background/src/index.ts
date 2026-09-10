@@ -96,7 +96,8 @@ export default Sentry.withSentry(makeBackgroundSentryOptions, {
     enforceSecureEndpoints(env)
     wireWideEventProviders(env)
     if (isMaintenanceMode(env.MAINTENANCE_MODE)) {
-      return Effect.runPromise(Effect.void)
+      // oxlint-disable-next-line effect/noNewPromise -- the scheduled entry point returns a promise; there is no Effect left to run
+      return Promise.resolve()
     }
     const run = scheduledRun(controller.cron, env, controller.scheduledTime)
     if (run === undefined) {

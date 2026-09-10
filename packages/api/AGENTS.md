@@ -1,6 +1,6 @@
 # @b2b-saas-starter/api
 
-The HTTP contract and nothing that serves it: paths, payloads, statuses, error unions (ADR 0039). [`apps/api`](../../apps/api/AGENTS.md) implements one handler group per contract group; [`packages/sdk`](../sdk/AGENTS.md) derives its client from the same definition (ADR 0058).
+The HTTP contract and nothing that serves it: paths, payloads, statuses, error unions (ADR 0039). [`apps/api`](../../apps/api/AGENTS.md) implements one handler group per contract group, and any typed client derives from the same definition through Effect's `HttpApiClient`.
 
 ## Contracts
 

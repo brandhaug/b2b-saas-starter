@@ -1,7 +1,8 @@
 import { parseArgs } from 'node:util'
 
 import { Effect, Option, Schema } from 'effect'
-import { requiredValue } from './internal/env.ts'
+
+import { required } from './lib/env.ts'
 
 type FetchImplementation = typeof globalThis.fetch
 type Environment = Readonly<Record<string, string | undefined>>
@@ -55,13 +56,6 @@ type OperatorRetryMessage = {
     readonly customerId?: string | undefined
     readonly checkoutSessionId?: string | undefined
   }
-}
-
-/** The mutable draft of `recovery`: same shape, assignable one key at a time. */
-type RecoveryDraft = {
-  -readonly [K in keyof NonNullable<OperatorRetryMessage['recovery']>]: NonNullable<
-    OperatorRetryMessage['recovery']
-  >[K]
 }
 
 function envValue(name: string, environment: Environment): string | undefined {
@@ -119,10 +113,7 @@ function parseCli(rawArgs: ReadonlyArray<string>): CliOptions {
   }
   return {
     command,
-    workspaceId: requiredValue(
-      optionString(parsed.values.workspace),
-      '--workspace <id>'
-    ),
+    workspaceId: required(optionString(parsed.values.workspace), '--workspace <id>'),
     operatorId,
     execute: optionBoolean(parsed.values.execute),
     databaseId: optionString(parsed.values.database),
@@ -146,13 +137,13 @@ function config(options: CliOptions, environment: Environment): OperatorConfig {
     billingQueueId
   }
   if (options.command === 'inspect') {
-    requiredValue(result.accountId, 'CLOUDFLARE_ACCOUNT_ID')
-    requiredValue(result.apiToken, 'CLOUDFLARE_API_TOKEN')
-    requiredValue(result.databaseId, 'CLOUDFLARE_DATABASE_ID or --database')
+    required(result.accountId, 'CLOUDFLARE_ACCOUNT_ID')
+    required(result.apiToken, 'CLOUDFLARE_API_TOKEN')
+    required(result.databaseId, 'CLOUDFLARE_DATABASE_ID or --database')
   }
   if (options.command === 'retry' && options.execute) {
-    requiredValue(result.accountId, 'CLOUDFLARE_ACCOUNT_ID')
-    requiredValue(result.apiToken, 'CLOUDFLARE_API_TOKEN')
+    required(result.accountId, 'CLOUDFLARE_ACCOUNT_ID')
+    required(result.apiToken, 'CLOUDFLARE_API_TOKEN')
   }
   return result
 }
@@ -164,7 +155,7 @@ function cloudflareRequest(input: {
   readonly body: unknown
   readonly fetchImpl: FetchImplementation
 }) {
-  const apiToken = requiredValue(input.config.apiToken, 'CLOUDFLARE_API_TOKEN')
+  const apiToken = required(input.config.apiToken, 'CLOUDFLARE_API_TOKEN')
   return Effect.tryPromise({
     try: (signal) =>
       input
@@ -208,8 +199,8 @@ function queryD1(
   params: ReadonlyArray<string>,
   fetchImpl: FetchImplementation
 ) {
-  const accountId = requiredValue(operatorConfig.accountId, 'CLOUDFLARE_ACCOUNT_ID')
-  const databaseId = requiredValue(
+  const accountId = required(operatorConfig.accountId, 'CLOUDFLARE_ACCOUNT_ID')
+  const databaseId = required(
     operatorConfig.databaseId,
     'CLOUDFLARE_DATABASE_ID or --database'
   )
@@ -286,28 +277,29 @@ function retry(
   operatorConfig: OperatorConfig,
   fetchImpl: FetchImplementation
 ) {
-  const operatorId = requiredValue(options.operatorId, '--operator <operator-id>')
-  const queueId = requiredValue(
+  const operatorId = required(options.operatorId, '--operator <operator-id>')
+  const queueId = required(
     operatorConfig.billingQueueId,
     'CLOUDFLARE_BILLING_QUEUE_ID or --queue'
   )
-  const message: OperatorRetryMessage = {
+  let message: OperatorRetryMessage = {
     kind: 'billing.seat_sync',
     workspaceId: options.workspaceId,
     reason: 'operator_retry',
     operatorId
   }
-  if (options.customerId !== undefined || options.checkoutSessionId !== undefined) {
-    // A mutable draft of the readonly `recovery` bag: a key is absent rather
-    // than `undefined`, so the queue message carries only what the operator gave.
-    const recovery: RecoveryDraft = {}
-    if (options.customerId !== undefined) {
-      recovery.customerId = options.customerId
+  if (options.customerId !== undefined && options.checkoutSessionId !== undefined) {
+    message = {
+      ...message,
+      recovery: {
+        customerId: options.customerId,
+        checkoutSessionId: options.checkoutSessionId
+      }
     }
-    if (options.checkoutSessionId !== undefined) {
-      recovery.checkoutSessionId = options.checkoutSessionId
-    }
-    message.recovery = recovery
+  } else if (options.customerId !== undefined) {
+    message = { ...message, recovery: { customerId: options.customerId } }
+  } else if (options.checkoutSessionId !== undefined) {
+    message = { ...message, recovery: { checkoutSessionId: options.checkoutSessionId } }
   }
   if (!options.execute) {
     return Effect.succeed({
@@ -316,7 +308,7 @@ function retry(
       message
     })
   }
-  const accountId = requiredValue(operatorConfig.accountId, 'CLOUDFLARE_ACCOUNT_ID')
+  const accountId = required(operatorConfig.accountId, 'CLOUDFLARE_ACCOUNT_ID')
   return cloudflareRequest({
     config: operatorConfig,
     method: 'POST',
@@ -354,10 +346,7 @@ export function runOperator(
   return Effect.runPromise(main(rawArgs, environment, fetchImpl, write))
 }
 
-if (
-  process.argv[1] !== undefined &&
-  process.argv[1] === new URL(import.meta.url).pathname
-) {
+if (import.meta.main) {
   runOperator(process.argv.slice(2), process.env, globalThis.fetch, (text) =>
     process.stdout.write(text)
   ).catch((error: unknown) => {

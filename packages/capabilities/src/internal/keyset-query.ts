@@ -11,7 +11,7 @@ import { decodeKeysetCursor, type KeysetOrder } from './keyset-cursor.ts'
  */
 
 /** The column pair a paged read orders and resumes on. */
-export type KeysetColumns = {
+type KeysetColumns = {
   /** The sort key — `createdAt` for timestamped lists, `id` otherwise. */
   readonly key: Column | SQL
   /** The tie-break — always the row id. */
@@ -28,7 +28,7 @@ export type KeysetColumns = {
  * - `empty` — an undecodable cursor addresses no position; the caller serves
  *   an empty page rather than failing, exactly as the Seed adapters do.
  */
-export type KeysetResume =
+type KeysetResume =
   | { readonly kind: 'first' }
   | { readonly kind: 'resume'; readonly condition: SQL }
   | { readonly kind: 'empty' }

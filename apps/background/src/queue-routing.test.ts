@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vite-plus/test'
 
-import { productionStage, stageResourceNames } from '../../../infra/bindings.ts'
+import { productionStage, stageResourceNames } from '@b2b-saas-starter/infra'
 import { buildWorkspaceExport } from './export-consumer.ts'
 import { sendNotificationEmail } from './notification-email-consumer.ts'
 import { consumeEmailEvent } from './email-events-consumer.ts'

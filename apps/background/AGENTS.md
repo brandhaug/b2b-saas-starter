@@ -58,7 +58,7 @@ Per queue the outcome table is the contract; the non-obvious parts:
 ## Dependencies & Edges
 
 - `apps/api` and `apps/web` produce onto the queues this worker consumes; it also produces onto `NOTIFICATION_EMAIL_QUEUE`. Absent optional bindings degrade to a no-op. Observability: [`logger`](../../packages/logger/AGENTS.md).
-- Queue names, consumer settings and the digest cron are single-sourced in `infra/bindings.ts` (change it, then `pnpm run infra:wrangler`); alchemy reads the same records.
+- Queue names, consumer settings and the digest cron are single-sourced in `infra/bindings.ts`, imported as `@b2b-saas-starter/infra` and never by relative path (change it, then `pnpm run infra:wrangler`); alchemy reads the same records.
 
 ## Patterns & Pitfalls
 

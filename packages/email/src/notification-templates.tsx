@@ -1,5 +1,5 @@
 import { Link, Section, Text } from 'react-email'
-import { type ReactNode } from 'react'
+import { type NotificationKind } from '@b2b-saas-starter/db/enums'
 import * as m from '@b2b-saas-starter/i18n/messages'
 import { DEFAULT_LOCALE, type Locale } from '@b2b-saas-starter/i18n/locale'
 import { ActionLink, EmailLayout } from './templates.tsx'
@@ -26,21 +26,60 @@ export type NotificationEmailProps = {
   readonly locale?: Locale | undefined
 }
 
-type NotificationBodyProps = NotificationEmailProps & {
+type NotificationCopyMessage = (
+  inputs?: Record<string, never>,
+  options?: { readonly locale?: Locale }
+) => string
+
+type NotificationCopy = {
   /** One sentence naming the event class, before the Notification's own copy. */
-  readonly lead: ReactNode
-  readonly action: string
+  readonly lead: NotificationCopyMessage
+  readonly action: NotificationCopyMessage
 }
 
 /**
- * The per-kind sentences a notification email adds around the Notification's
- * own title and message: why this email exists, and what the link does.
- * Resolved in the recipient's locale by the sender.
+ * The copy each kind adds around the Notification's own title and message.
+ * `satisfies`-pinned to `NotificationKind`: a new stored kind is a type error
+ * until it has copy here. Never loosen it to an index signature.
  */
-export type NotificationCopy = (locale: Locale) => {
-  readonly lead: string
-  readonly action: string
-}
+const NOTIFICATION_COPY = {
+  'api_token.created': {
+    lead: m.backend_email_notification_api_token_created_lead,
+    action: m.backend_email_notification_api_token_created_action
+  },
+  'api_token.revoked': {
+    lead: m.backend_email_notification_api_token_revoked_lead,
+    action: m.backend_email_notification_api_token_revoked_action
+  },
+  'workspace_member.role_changed': {
+    lead: m.backend_email_notification_role_changed_lead,
+    action: m.backend_email_notification_role_changed_action
+  },
+  'two_factor.changed': {
+    lead: m.backend_email_notification_two_factor_changed_lead,
+    action: m.backend_email_notification_two_factor_changed_action
+  },
+  'webhook.delivery_failed': {
+    lead: m.backend_email_notification_webhook_failed_lead,
+    action: m.backend_email_notification_webhook_failed_action
+  },
+  'workspace_member.joined': {
+    lead: m.backend_email_notification_member_joined_lead,
+    action: m.backend_email_notification_member_joined_action
+  },
+  'billing.plan_changed': {
+    lead: m.backend_email_notification_plan_changed_lead,
+    action: m.backend_email_notification_plan_changed_action
+  },
+  'account.impersonated': {
+    lead: m.backend_email_notification_impersonated_lead,
+    action: m.backend_email_notification_impersonated_action
+  },
+  announcement: {
+    lead: m.backend_email_notification_announcement_lead,
+    action: m.backend_email_notification_announcement_action
+  }
+} satisfies Readonly<Record<NotificationKind, NotificationCopy>>
 
 /**
  * The shared footer of every notification email: why it arrived and how to
@@ -83,27 +122,33 @@ function WorkspaceLine({
   )
 }
 
-export function NotificationBody({
+/**
+ * The notification email, for every kind. The kind picks the lead sentence and
+ * the action label; everything else is the Notification's own copy.
+ */
+export function NotificationEmail({
+  kind,
   kindLabel,
-  lead,
-  action,
   title,
   message,
   workspaceName,
   openUrl,
   preferencesUrl,
   locale: requestedLocale
-}: NotificationBodyProps) {
+}: NotificationEmailProps & { readonly kind: NotificationKind }) {
   const locale = requestedLocale ?? DEFAULT_LOCALE
+  const copy = NOTIFICATION_COPY[kind]
   return (
     <EmailLayout preview={title} heading={kindLabel} locale={locale}>
-      <Text className="text-base text-foreground mt-4">{lead}</Text>
+      <Text className="text-base text-foreground mt-4">
+        {copy.lead({}, { locale })}
+      </Text>
       <Section className="bg-muted px-4 py-3 mt-4">
         <Text className="text-base font-medium text-foreground m-0">{title}</Text>
         <Text className="text-sm text-foreground mt-1 mb-0">{message}</Text>
         <WorkspaceLine workspaceName={workspaceName} locale={locale} />
       </Section>
-      <ActionLink href={openUrl} label={action} locale={locale} />
+      <ActionLink href={openUrl} label={copy.action({}, { locale })} locale={locale} />
       <NotificationFooter preferencesUrl={preferencesUrl} locale={locale} />
     </EmailLayout>
   )

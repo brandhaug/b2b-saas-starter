@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'vite-plus/test'
 
 import { main, probe } from './smoke-deployment.ts'
 
@@ -7,7 +7,7 @@ function response(status: number, body: string): Response {
   return new Response(body, { status })
 }
 
-await test('probe retries failed HTTP responses and succeeds after propagation', async () => {
+test('probe retries failed HTTP responses and succeeds after propagation', async () => {
   let attempts = 0
   const sleeps: Array<number> = []
   await probe(
@@ -25,7 +25,7 @@ await test('probe retries failed HTTP responses and succeeds after propagation',
   assert.deepEqual(sleeps, [3000, 3000])
 })
 
-await test('probe includes the final status and response body in its failure', async () => {
+test('probe includes the final status and response body in its failure', async () => {
   await assert.rejects(
     () =>
       probe(
@@ -38,7 +38,7 @@ await test('probe includes the final status and response body in its failure', a
   )
 })
 
-await test('main probes the API health endpoint before the web root', async () => {
+test('main probes the API health endpoint before the web root', async () => {
   const urls: Array<string> = []
   await main(
     { API_URL: 'https://api.example', WEB_URL: 'https://web.example' },

@@ -6,7 +6,6 @@ import {
   CreateApiTokenPayload,
   ReplaceApiTokenPayload,
   type ApiToken,
-  type CreateApiTokenInput,
   type ReplaceApiTokenInput
 } from './api-token-registry.ts'
 
@@ -19,7 +18,7 @@ export function tokenIsExpired(expiresAt: string | null, now: number): boolean {
 }
 
 export const validateTokenCreation = Effect.fn('ApiTokenRegistry.validateCreation')(
-  function* (input: CreateApiTokenInput, now: number) {
+  function* (input: CreateApiTokenPayload, now: number) {
     const decoded = yield* decodeCreation(input).pipe(
       Effect.mapError(
         () =>

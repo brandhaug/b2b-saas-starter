@@ -211,22 +211,6 @@ export function resourceEntitlement(
   }
 }
 
-/** The UI/API contract for a downgrade that needs an explicit selection. */
-export type ResourceEntitlementSummary = ResourceEntitlement & {
-  readonly requiresSelection: boolean
-}
-
-export function resourceEntitlementSummary(
-  plan: Plan,
-  resource: EntitlementResource,
-  ids: ReadonlyArray<string>,
-  selection?: ResourceSelection,
-  storedIds?: ReadonlyArray<string>
-): ResourceEntitlementSummary {
-  const entitlement = resourceEntitlement(plan, resource, ids, selection, storedIds)
-  return { ...entitlement, requiresSelection: entitlement.paused }
-}
-
 /**
  * The subscription-item quantity one member count bills. Stripe rejects a
  * zero quantity on a licensed per-unit price, and a workspace always has at

@@ -9,7 +9,7 @@ import { NotificationKind } from './notification-kinds.ts'
 import { type Locale } from '@b2b-saas-starter/i18n/locale'
 import {
   NotificationEventSchema,
-  type NotificationEvent
+  type SystemNotificationEvent
 } from './notification-events.ts'
 
 export const Notification = Schema.Struct({
@@ -23,7 +23,7 @@ export const Notification = Schema.Struct({
 })
 type NotificationSchemaType = typeof Notification.Type
 export type Notification = Omit<NotificationSchemaType, 'event'> & {
-  readonly event?: NotificationEvent | undefined
+  readonly event?: SystemNotificationEvent | undefined
 }
 
 /** The wire input of `markRead`: the unread ids the actor is marking read. */
@@ -38,7 +38,7 @@ export type MarkNotificationsReadInput = typeof MarkNotificationsReadInput.Type
  */
 export type SeedNotification = Notification & {
   readonly userId?: string | null
-  readonly event?: NotificationEvent | undefined
+  readonly event?: SystemNotificationEvent | undefined
 }
 
 /**
@@ -57,14 +57,14 @@ export type CreateNotificationInput = {
   readonly kind: NotificationKind
   readonly title: string
   readonly message: string
-  readonly event?: NotificationEvent | undefined
+  readonly event?: SystemNotificationEvent | undefined
 }
 
 /** What a producer hands `record` — the feed-only workspace message. */
 type RecordNotificationInput = {
   readonly title: string
   readonly message: string
-  readonly event?: NotificationEvent | undefined
+  readonly event?: SystemNotificationEvent | undefined
   /** The member the message is for. */
   readonly userId: string
 }
@@ -83,7 +83,7 @@ export type NotifyUserInput = {
   readonly kind: NotificationKind
   readonly title: string
   readonly message: string
-  readonly event?: NotificationEvent | undefined
+  readonly event?: SystemNotificationEvent | undefined
 }
 
 /**
@@ -97,7 +97,7 @@ export type NotifyWorkspaceOwnersInput = {
   readonly kind: NotificationKind
   readonly title: string
   readonly message: string
-  readonly event?: NotificationEvent | undefined
+  readonly event?: SystemNotificationEvent | undefined
 }
 
 /**
@@ -147,23 +147,18 @@ export type NotificationWorkspace = {
 }
 
 /**
- * Everything the instant-email consumer needs to render one message, looked
- * up from the two ids the queue message carries. `null` when the Notification
- * is gone, was read in the meantime, or the recipient can no longer see it.
+ * Everything an email about one Notification needs to render, looked up from
+ * the two ids the queue message carries. The digest reuses it per (Notification,
+ * recipient) pair it may include: unread, created inside the window, and
+ * visible to the recipient — a broadcast row appears once per member. Whether
+ * the recipient actually wants it in the digest is the preference's call,
+ * resolved by the digest job, not here.
  */
 export type NotificationEmailContext = {
   readonly notification: Notification
   readonly recipient: NotificationRecipient
   readonly workspace: NotificationWorkspace | null
 }
-
-/**
- * One (Notification, recipient) pair the digest may include: unread, created
- * inside the window, and visible to the recipient — a broadcast row appears
- * once per member. Whether the recipient actually wants it in the digest is
- * the preference's call, resolved by the digest job, not here.
- */
-export type DigestCandidate = NotificationEmailContext
 
 export type DigestWindow = {
   /** ISO timestamp, inclusive. */
@@ -265,7 +260,7 @@ export type NotificationFeedInterface = {
   /** The digest job's read: every unread pair inside the window. */
   readonly listDigestCandidates: (
     window: DigestWindow
-  ) => Effect.Effect<ReadonlyArray<DigestCandidate>, CapabilityUnavailable>
+  ) => Effect.Effect<ReadonlyArray<NotificationEmailContext>, CapabilityUnavailable>
 }
 
 export class NotificationFeed extends Context.Service<

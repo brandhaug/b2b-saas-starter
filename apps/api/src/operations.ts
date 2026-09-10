@@ -109,8 +109,7 @@ type OperationParam = {
  * `endpoint` references the contract's canonical path and schemas. The catalog
  * adds capability behavior and permission policy, not a second wire contract.
  */
-type CollectionReadOperation = {
-  readonly mcpTool: true
+export type CollectionReadOperation = {
   readonly endpoint: HttpApiEndpoint.Top
   readonly permission: PermissionRequest
   readonly param?: undefined
@@ -133,7 +132,6 @@ type ParameterizedReadOperation<
   Key extends 'endpointId' | 'deliveryId' = 'endpointId'
 > = {
   readonly input: Key
-  readonly mcpTool: true
   readonly endpoint: HttpApiEndpoint.Top
   readonly permission: PermissionRequest
   readonly param: OperationParam
@@ -175,7 +173,6 @@ export function mirroredRestPath(path: string): string {
  */
 export const READ_OPERATIONS = {
   overview: {
-    mcpTool: true,
     endpoint: WorkspaceApi.endpoints.overview,
     permission: { notification: ['read'] },
     read: () => workspaceOverview,
@@ -188,7 +185,6 @@ export const READ_OPERATIONS = {
   // by the plugin; see statements.ts. The plugin's `member` statement covers
   // mutations only — it has no `read` action.
   members: {
-    mcpTool: true,
     endpoint: WorkspaceApi.endpoints.members,
     permission: { ac: ['read'] },
     read: (page) =>
@@ -200,7 +196,6 @@ export const READ_OPERATIONS = {
     toolDescription: 'List the workspace members and their roles.'
   },
   notifications: {
-    mcpTool: true,
     endpoint: WorkspaceApi.endpoints.notifications,
     permission: { notification: ['read'] },
     read: (page) => Effect.flatMap(NotificationFeed, (feed) => feed.listPage(page)),
@@ -211,7 +206,6 @@ export const READ_OPERATIONS = {
   // A read scope may LIST tokens — wider than the `member` role, which cannot:
   // a token is minted by an owner or admin (see `readScopeStatements`).
   'api-tokens': {
-    mcpTool: true,
     endpoint: WorkspaceApi.endpoints['api-tokens'],
     permission: { apiToken: ['list'] },
     read: (page) => Effect.flatMap(ApiTokenRegistry, (tokens) => tokens.listPage(page)),
@@ -220,7 +214,6 @@ export const READ_OPERATIONS = {
     toolDescription: 'List the workspace API token projections (never the secrets).'
   },
   webhooks: {
-    mcpTool: true,
     endpoint: WorkspaceApi.endpoints.webhooks,
     permission: { webhook: ['list'] },
     read: (page) =>
@@ -230,7 +223,6 @@ export const READ_OPERATIONS = {
     toolDescription: 'List registered webhook endpoints and their success rates.'
   },
   'webhook-deliveries': {
-    mcpTool: true,
     endpoint: WorkspaceApi.endpoints['webhook-deliveries'],
     permission: { webhook: ['list'] },
     input: 'endpointId',
@@ -244,7 +236,6 @@ export const READ_OPERATIONS = {
       'List recent deliveries for one webhook endpoint, newest first, with response status and recorded evidence.'
   },
   'webhook-delivery-attempts': {
-    mcpTool: true,
     endpoint: WorkspaceApi.endpoints['webhook-delivery-attempts'],
     permission: { webhook: ['list'] },
     input: 'deliveryId',
@@ -258,7 +249,6 @@ export const READ_OPERATIONS = {
       'Read retained attempts for one delivery, in attempt order, with bounded request and response evidence.'
   },
   'audit-events': {
-    mcpTool: true,
     endpoint: WorkspaceApi.endpoints['audit-events'],
     permission: { auditLog: ['read'] },
     read: (page) => Effect.flatMap(AuditEventLog, (log) => log.list(page)),
@@ -324,7 +314,6 @@ type WorkspaceMutationOperation = {
     | OperationExportRecipient
     | Scope.Scope
   >
-  readonly mcpTool: true
 }
 
 /** Decoded operation data, without HTTP headers, query codecs or request objects. */
@@ -372,8 +361,7 @@ export const MUTATION_OPERATIONS = {
           tokenScopes: created.scopes
         })
         return created
-      }),
-    mcpTool: true
+      })
   },
   'api-tokens.replace': {
     endpoint: ApiTokenApi.endpoints.replace,
@@ -394,9 +382,8 @@ export const MUTATION_OPERATIONS = {
           tokenScopes: replaced.scopes
         })
         return replaced
-      }),
+      })
     // Replacement shares the one-time reveal and caller-grant guard with create.
-    mcpTool: true
   },
   // Revoking an unknown id answers `revoked` all the same: the capability
   // resolves `false` and no typed failure exists for a no-match revoke.
@@ -409,8 +396,7 @@ export const MUTATION_OPERATIONS = {
         const tokens = yield* ApiTokenRegistry
         yield* tokens.revoke({ tokenId: options.params.tokenId })
         return TOKEN_REVOKED
-      }),
-    mcpTool: true
+      })
   },
   // The endpoint projection rides the response; the one-time signing secret
   // the capability also returns stays off the wire — the same split the web
@@ -432,8 +418,7 @@ export const MUTATION_OPERATIONS = {
         })
         yield* Effect.annotateLogsScoped({ webhookEndpointId: created.endpoint.id })
         return created.endpoint
-      }),
-    mcpTool: true
+      })
   },
   'webhooks.update': {
     endpoint: WebhookApi.endpoints.update,
@@ -458,8 +443,7 @@ export const MUTATION_OPERATIONS = {
         const updated = yield* webhooks.update(patch)
         yield* Effect.annotateLogsScoped({ webhookEndpointId: updated.id })
         return updated
-      }),
-    mcpTool: true
+      })
   },
   // A no-match delete fails the capability's typed 404 — the same
   // `WebhookEndpointNotFound` the contract declares.
@@ -472,8 +456,7 @@ export const MUTATION_OPERATIONS = {
         const webhooks = yield* WebhookEndpoints
         yield* webhooks.delete({ endpointId: options.params.endpointId })
         return WEBHOOK_DELETED
-      }),
-    mcpTool: true
+      })
   },
   // The new secret rides this one response only — the same one-time reveal
   // the web surface gives the operator.
@@ -491,8 +474,7 @@ export const MUTATION_OPERATIONS = {
           webhookEndpointId: options.params.endpointId
         })
         return { signingSecret: rotated.signingSecret }
-      }),
-    mcpTool: true
+      })
   },
   'webhooks.test-event': {
     endpoint: WebhookApi.endpoints['test-event'],
@@ -509,8 +491,7 @@ export const MUTATION_OPERATIONS = {
           status: 'queued',
           deliveryId: sent.deliveryId
         } satisfies QueuedDeliveryResponse
-      }),
-    mcpTool: true
+      })
   },
   'webhooks.replay-delivery': {
     endpoint: WebhookApi.endpoints['replay-delivery'],
@@ -527,8 +508,7 @@ export const MUTATION_OPERATIONS = {
           status: 'queued',
           deliveryId: replayed.deliveryId
         } satisfies QueuedDeliveryResponse
-      }),
-    mcpTool: true
+      })
   },
   'workspace-exports.request': {
     endpoint: WorkspaceExportApi.endpoints.request,
@@ -539,8 +519,7 @@ export const MUTATION_OPERATIONS = {
         const created = yield* exports.request
         yield* Effect.annotateLogsScoped({ exportId: created.id })
         return created
-      }),
-    mcpTool: true
+      })
   },
   'workspace-exports.download-link': {
     endpoint: WorkspaceExportApi.endpoints['download-link'],
@@ -569,8 +548,7 @@ export const MUTATION_OPERATIONS = {
           url: `${origin}${link.value.path}`,
           expiresAt: link.value.expiresAt
         }
-      }),
-    mcpTool: true
+      })
   }
 } satisfies Record<string, WorkspaceMutationOperation>
 

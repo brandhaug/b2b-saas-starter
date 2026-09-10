@@ -1,5 +1,5 @@
 import { AUDIT_EVENT_TYPES } from '@b2b-saas-starter/capabilities/governance/audit-event-taxonomy'
-import { WORKSPACE_ROLES } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
+import { workspaceRoles } from '@b2b-saas-starter/db/enums'
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import { workspaceOverview } from '@b2b-saas-starter/capabilities/workspace-projections'
 import { DEMO_WORKSPACE_SLUG } from '@/lib/demo-workspace'
@@ -43,7 +43,7 @@ export function loadDemoShowcase(): Promise<DemoShowcase | null> {
       overview: raw.overview,
       memberCount: raw.memberCount,
       notificationCount: raw.overview.notifications.length,
-      roleCount: WORKSPACE_ROLES.length,
+      roleCount: workspaceRoles.length,
       auditEventTypeCount: AUDIT_EVENT_TYPES.length
     }),
     () => null

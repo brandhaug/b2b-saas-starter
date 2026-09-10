@@ -350,31 +350,46 @@ MagicLinkEmail.PreviewProps = {
   url: 'http://localhost:3071/api/auth/magic-link/verify?token=example&callbackURL=http%3A%2F%2Flocalhost%3A3071%2Fmagic-link%2Fverify'
 } satisfies MagicLinkEmailProps
 
-type SecurityNoticeProps = {
-  readonly preview: string
-  readonly heading: string
-  readonly body: ReactNode
-  readonly warning: string
-  readonly locale: Locale
+type SecurityNoticeMessage = (
+  inputs?: Record<string, never>,
+  options?: { readonly locale?: Locale }
+) => string
+
+/** The three sentences a security notice differs by: what, headline, body. */
+type SecurityNoticeCopy = {
+  readonly preview: SecurityNoticeMessage
+  readonly heading: SecurityNoticeMessage
+  readonly body: SecurityNoticeMessage
+}
+
+type SecurityNoticeEmailProps = SecurityNoticeCopy & {
+  /** Defaults to the shared "if this wasn't you" line. */
+  readonly warning?: SecurityNoticeMessage | undefined
+  readonly locale?: Locale | undefined
 }
 
 /**
- * The shape every security notification shares: the state that changed, and
- * what to do if the recipient did not cause it. No action link on purpose —
- * a button in an email the true owner never asked for is a phishing assist,
- * so these emails point at the app's `/account` page in words only.
+ * Every account-security notification: state copy plus the warning line, and
+ * no action link on purpose. The recipient secures their account from the
+ * app's `/account` page; a button in an email the true owner did not ask for
+ * is a phishing assist.
  */
 function SecurityNoticeEmail({
   preview,
   heading,
   body,
-  warning,
-  locale
-}: SecurityNoticeProps) {
+  warning = m.backend_email_auth_security_warning,
+  locale = DEFAULT_LOCALE
+}: SecurityNoticeEmailProps) {
+  const options = { locale }
   return (
-    <EmailLayout preview={preview} heading={heading} locale={locale}>
-      <Text className="text-base text-foreground mt-4">{body}</Text>
-      <Text className="text-sm text-muted-foreground mt-4">{warning}</Text>
+    <EmailLayout
+      preview={preview({}, options)}
+      heading={heading({}, options)}
+      locale={locale}
+    >
+      <Text className="text-base text-foreground mt-4">{body({}, options)}</Text>
+      <Text className="text-sm text-muted-foreground mt-4">{warning({}, options)}</Text>
     </EmailLayout>
   )
 }
@@ -388,24 +403,19 @@ type TwoFactorChangedEmailProps = {
 export function TwoFactorChangedEmail({ enabled, locale }: TwoFactorChangedEmailProps) {
   // The rule against ternaries applies here too; plain branches keep the
   // two wordings next to each other.
-  const options = { locale: locale ?? DEFAULT_LOCALE }
-  let preview = m.backend_email_auth_two_factor_enabled_preview({}, options)
-  let heading = m.backend_email_auth_two_factor_enabled_heading({}, options)
-  let body = m.backend_email_auth_two_factor_enabled({}, options)
-  if (!enabled) {
-    preview = m.backend_email_auth_two_factor_disabled_preview({}, options)
-    heading = m.backend_email_auth_two_factor_disabled_heading({}, options)
-    body = m.backend_email_auth_two_factor_disabled({}, options)
+  let copy: SecurityNoticeCopy = {
+    preview: m.backend_email_auth_two_factor_enabled_preview,
+    heading: m.backend_email_auth_two_factor_enabled_heading,
+    body: m.backend_email_auth_two_factor_enabled
   }
-  return (
-    <SecurityNoticeEmail
-      preview={preview}
-      heading={heading}
-      body={body}
-      warning={m.backend_email_auth_security_warning({}, options)}
-      locale={options.locale}
-    />
-  )
+  if (!enabled) {
+    copy = {
+      preview: m.backend_email_auth_two_factor_disabled_preview,
+      heading: m.backend_email_auth_two_factor_disabled_heading,
+      body: m.backend_email_auth_two_factor_disabled
+    }
+  }
+  return <SecurityNoticeEmail {...copy} locale={locale} />
 }
 
 TwoFactorChangedEmail.PreviewProps = {
@@ -419,24 +429,19 @@ type PasskeyChangedEmailProps = {
 
 /** Security notification for a passkey change (added or removed). */
 export function PasskeyChangedEmail({ added, locale }: PasskeyChangedEmailProps) {
-  const options = { locale: locale ?? DEFAULT_LOCALE }
-  let preview = m.backend_email_auth_passkey_added_preview({}, options)
-  let heading = m.backend_email_auth_passkey_added_heading({}, options)
-  let body = m.backend_email_auth_passkey_added({}, options)
-  if (!added) {
-    preview = m.backend_email_auth_passkey_removed_preview({}, options)
-    heading = m.backend_email_auth_passkey_removed_heading({}, options)
-    body = m.backend_email_auth_passkey_removed({}, options)
+  let copy: SecurityNoticeCopy = {
+    preview: m.backend_email_auth_passkey_added_preview,
+    heading: m.backend_email_auth_passkey_added_heading,
+    body: m.backend_email_auth_passkey_added
   }
-  return (
-    <SecurityNoticeEmail
-      preview={preview}
-      heading={heading}
-      body={body}
-      warning={m.backend_email_auth_security_warning({}, options)}
-      locale={options.locale}
-    />
-  )
+  if (!added) {
+    copy = {
+      preview: m.backend_email_auth_passkey_removed_preview,
+      heading: m.backend_email_auth_passkey_removed_heading,
+      body: m.backend_email_auth_passkey_removed
+    }
+  }
+  return <SecurityNoticeEmail {...copy} locale={locale} />
 }
 
 PasskeyChangedEmail.PreviewProps = {
@@ -460,22 +465,22 @@ type PasswordChangedEmailProps = {
  * confirmation, and the signed-in change).
  */
 export function PasswordChangedEmail({ via, locale }: PasswordChangedEmailProps) {
-  const options = { locale: locale ?? DEFAULT_LOCALE }
-  let flow = m.backend_email_auth_password_reset_via({}, options)
-  let preview = m.backend_email_auth_password_reset_preview({}, options)
-  let heading = m.backend_email_auth_password_reset_heading({}, options)
+  let preview = m.backend_email_auth_password_reset_preview
+  let heading = m.backend_email_auth_password_reset_heading
+  let flow = m.backend_email_auth_password_reset_via
   if (via === 'password-change') {
-    flow = m.backend_email_auth_password_changed_via({}, options)
-    preview = m.backend_email_auth_password_changed_preview({}, options)
-    heading = m.backend_email_auth_password_changed_heading({}, options)
+    preview = m.backend_email_auth_password_changed_preview
+    heading = m.backend_email_auth_password_changed_heading
+    flow = m.backend_email_auth_password_changed_via
   }
   return (
     <SecurityNoticeEmail
       preview={preview}
       heading={heading}
-      body={m.backend_email_auth_password_changed_body({ via: flow }, options)}
-      warning={m.backend_email_auth_security_warning({}, options)}
-      locale={options.locale}
+      body={(_inputs, options) =>
+        m.backend_email_auth_password_changed_body({ via: flow({}, options) }, options)
+      }
+      locale={locale}
     />
   )
 }
@@ -495,14 +500,13 @@ PasswordChangedEmail.PreviewProps = {
 export function BackupCodesRotatedEmail({
   locale
 }: { readonly locale?: Locale | undefined } = {}) {
-  const options = { locale: locale ?? DEFAULT_LOCALE }
   return (
     <SecurityNoticeEmail
-      preview={m.backend_email_auth_backup_codes_preview({}, options)}
-      heading={m.backend_email_auth_backup_codes_heading({}, options)}
-      body={m.backend_email_auth_backup_codes({}, options)}
-      warning={m.backend_email_auth_backup_codes_warning({}, options)}
-      locale={options.locale}
+      preview={m.backend_email_auth_backup_codes_preview}
+      heading={m.backend_email_auth_backup_codes_heading}
+      body={m.backend_email_auth_backup_codes}
+      warning={m.backend_email_auth_backup_codes_warning}
+      locale={locale}
     />
   )
 }
@@ -512,14 +516,13 @@ BackupCodesRotatedEmail.PreviewProps = {}
 export function RecoveryStartedEmail({
   locale
 }: { readonly locale?: Locale | undefined } = {}) {
-  const options = { locale: locale ?? DEFAULT_LOCALE }
   return (
     <SecurityNoticeEmail
-      preview={m.security_recovery_email_subject({}, options)}
-      heading={m.security_recovery_email_subject({}, options)}
-      body={m.security_recovery_email_body({}, options)}
-      warning={m.security_recovery_email_warning({}, options)}
-      locale={options.locale}
+      preview={m.security_recovery_email_subject}
+      heading={m.security_recovery_email_subject}
+      body={m.security_recovery_email_body}
+      warning={m.security_recovery_email_warning}
+      locale={locale}
     />
   )
 }

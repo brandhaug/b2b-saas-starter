@@ -16,7 +16,7 @@ import {
   type QueueConsumerSettings,
   webhookConsumerSettings,
   workspaceExportConsumerSettings
-} from '../../../infra/bindings.ts'
+} from '@b2b-saas-starter/infra'
 import { type DeliveryOutcome, type Env } from './queue-consumer.ts'
 
 /**

@@ -28,20 +28,18 @@ export type WorkspaceNavTarget =
 /** Nav targets outside any workspace: the user-level rows. */
 export type YouNavTarget = '/account' | '/admin' | '/help'
 
-/**
- * The section a row renders under. Rows sharing a group render beneath one
- * label, in table order: workspace content first, then the developer
- * platform, then the user-level rows — which is why Account and System admin
- * can never inherit the previous group's label. The type keeps `group`
- * optional because the command palette defends on `row.group === undefined`;
- * every row below declares one.
- */
-export type WorkspaceNavGroup = string
-
 /** Fields shared by every nav row, whichever surface it targets. */
 type NavRow = {
   readonly label: string
-  readonly group?: WorkspaceNavGroup
+  /**
+   * The section label this row renders under. Rows sharing a group render
+   * beneath one label, in table order: workspace content first, then the
+   * developer platform, then the user-level rows — which is why Account and
+   * System admin can never inherit the previous group's label. Optional
+   * because the command palette defends on `row.group === undefined`; every
+   * row below declares one.
+   */
+  readonly group?: string
   readonly icon: ReactNode
   /** For rows whose read is itself a permission: the viewer must hold it. */
   readonly permission?: PermissionRequest

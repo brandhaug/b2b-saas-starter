@@ -2,12 +2,12 @@ import assert from 'node:assert/strict'
 import { mkdtemp, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import test from 'node:test'
 import { setTimeout } from 'node:timers/promises'
-import { main as urlsMain, previewEnv, resolveSubdomain } from './preview-urls.ts'
+import { test } from 'vite-plus/test'
+import { main as urlsMain, resolveSubdomain, stageEnv } from './preview-urls.ts'
 import { main as statusMain, previewSummary } from './preview-status.ts'
 
-await test('preview URL resolution validates Cloudflare response and formats worker URLs', async () => {
+test('preview URL resolution validates Cloudflare response and formats worker URLs', async () => {
   const calls: Array<{ readonly url: string; readonly authorization: string }> = []
   const subdomain = await resolveSubdomain('account', 'secret', async (url, init) => {
     calls.push({
@@ -26,7 +26,7 @@ await test('preview URL resolution validates Cloudflare response and formats wor
     }
   ])
   assert.equal(
-    previewEnv('example', 'pr-1'),
+    stageEnv('example', 'pr-1'),
     [
       'CLOUDFLARE_WORKERS_SUBDOMAIN=example',
       'WEB_URL=https://b2b-saas-starter-pr-1-web.example.workers.dev',
@@ -36,7 +36,7 @@ await test('preview URL resolution validates Cloudflare response and formats wor
   )
 })
 
-await test('preview URL command writes GITHUB_ENV without echoing the token', async () => {
+test('preview URL command writes GITHUB_ENV without echoing the token', async () => {
   let output = ''
   await urlsMain(
     {
@@ -56,7 +56,7 @@ await test('preview URL command writes GITHUB_ENV without echoing the token', as
   assert.doesNotMatch(output, /secret/)
 })
 
-await test('deployed status creates a transient deployment, marks it success, and writes the summary', async () => {
+test('deployed status creates a transient deployment, marks it success, and writes the summary', async () => {
   const commands: Array<{
     readonly args: ReadonlyArray<string>
     readonly input: string | undefined
@@ -77,7 +77,7 @@ await test('deployed status creates a transient deployment, marks it success, an
   }
   await statusMain(['deployed'], env, async (args, input) => {
     commands.push({ args, input })
-    return { stdout: commands.length === 1 ? '123\n' : '', stderr: '' }
+    return commands.length === 1 ? '123\n' : ''
   })
   assert.deepEqual(
     commands.map(({ args }) => args),
@@ -112,7 +112,7 @@ await test('deployed status creates a transient deployment, marks it success, an
   assert.equal(await readFile(summaryPath, 'utf8'), previewSummary(env))
 })
 
-await test('destroyed status paginates deployments and marks every id inactive', async () => {
+test('destroyed status paginates deployments and marks every id inactive', async () => {
   const seen: Array<ReadonlyArray<string>> = []
   let pending = false
   await statusMain(
@@ -124,7 +124,7 @@ await test('destroyed status paginates deployments and marks every id inactive',
       await setTimeout(0)
       pending = false
       seen.push(args)
-      return { stdout: seen.length === 1 ? '1\n2\n' : '', stderr: '' }
+      return seen.length === 1 ? '1\n2\n' : ''
     }
   )
   assert.deepEqual(seen, [

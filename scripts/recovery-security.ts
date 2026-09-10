@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { promisify } from 'node:util'
+import { parseArgs, promisify } from 'node:util'
 
 import { SecurityEvidenceRecord } from '@b2b-saas-starter/capabilities/governance/security-recovery-evidence'
 import { Schema } from 'effect'
@@ -147,20 +147,24 @@ type ApplyOptions = {
   readonly confirmTarget?: string | undefined
 }
 
-function readOption(name: string): string | undefined {
-  return process.argv
-    .find((argument) => argument.startsWith(`${name}=`))
-    ?.slice(name.length + 1)
-}
-
 function parseApplyOptions(): ApplyOptions {
-  const evidence = readOption('--evidence')
-  const restorePoint = readOption('--restore-point')
-  const freezeTime = readOption('--freeze-time')
-  const database = readOption('--database')
-  const local = process.argv.includes('--local')
-  const confirmTarget = readOption('--confirm-target')
-  const persistTo = readOption('--persist-to')
+  const { values } = parseArgs({
+    args: process.argv.slice(3),
+    options: {
+      evidence: { type: 'string' },
+      'restore-point': { type: 'string' },
+      'freeze-time': { type: 'string' },
+      database: { type: 'string' },
+      local: { type: 'boolean', default: false },
+      'confirm-target': { type: 'string' },
+      'persist-to': { type: 'string' }
+    }
+  })
+  const { evidence, database, local } = values
+  const restorePoint = values['restore-point']
+  const freezeTime = values['freeze-time']
+  const confirmTarget = values['confirm-target']
+  const persistTo = values['persist-to']
   if (
     !evidence ||
     !restorePoint ||

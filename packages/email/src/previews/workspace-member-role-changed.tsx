@@ -1,11 +1,11 @@
-import {
-  notificationEmailFor,
-  NOTIFICATION_PREVIEW_PROPS
-} from '../notification-emails.ts'
+import { NOTIFICATION_PREVIEW_PROPS } from '../notification-emails.ts'
+import { NotificationEmail } from '../notification-templates.tsx'
 
 export default function Preview() {
-  return notificationEmailFor(
-    'workspace_member.role_changed',
-    NOTIFICATION_PREVIEW_PROPS['workspace_member.role_changed']
+  return (
+    <NotificationEmail
+      kind="workspace_member.role_changed"
+      {...NOTIFICATION_PREVIEW_PROPS['workspace_member.role_changed']}
+    />
   )
 }

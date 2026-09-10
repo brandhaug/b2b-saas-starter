@@ -58,7 +58,7 @@ function actor(role: WorkspaceRole): Actor {
 const suspensionLayer = SeedWorkspaceSuspension({
   workspace,
   systemUsers: seedSystemUsers
-}).pipe(Layer.provide(SeedLayer), Layer.merge(SeedStrongAuthentication()))
+}).pipe(Layer.provide(SeedLayer), Layer.merge(SeedStrongAuthentication))
 
 /**
  * `requirePermission` annotates the request's wide event on denial, so it needs

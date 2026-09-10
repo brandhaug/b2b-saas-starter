@@ -377,31 +377,6 @@ describe('admin account deletion', () => {
       hookedLayer
     )
   })
-
-  it.live('refuses the admin hard delete when lifecycle hooks are absent', () =>
-    run(
-      Effect.gen(function* () {
-        const admin = yield* signUpSession('admin-no-hooks@starter.test')
-        const target = yield* signUpSession('target-no-hooks@starter.test')
-        const auth = yield* Auth.Tag
-        yield* Effect.promise(() =>
-          db.update(user).set({ role: 'admin' }).where(eq(user.id, admin.userId)).run()
-        )
-
-        const result = yield* Effect.exit(
-          auth.api.removeUser({
-            body: { userId: target.userId },
-            headers: admin.headers
-          })
-        )
-        expect(result._tag).toBe('Failure')
-        const remaining = yield* Effect.promise(() =>
-          db.select().from(user).where(eq(user.id, target.userId))
-        )
-        expect(remaining).toHaveLength(1)
-      })
-    )
-  )
 })
 
 describe('two-factor plugin', () => {

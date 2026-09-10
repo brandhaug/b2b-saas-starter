@@ -1,34 +1,9 @@
-import { Schema } from 'effect'
-
-/** The durable checkout states owned by `billing_checkout_claims`. */
-const CheckoutClaimStatus = Schema.Union([
-  Schema.Literal('pending'),
-  Schema.Literal('created'),
-  Schema.Literal('completed'),
-  Schema.Literal('expired')
-])
-export type CheckoutClaimStatus = typeof CheckoutClaimStatus.Type
-
-/** The fields that must stay immutable for one logical checkout attempt. */
-export const CheckoutClaim = Schema.Struct({
-  id: Schema.String,
-  workspaceId: Schema.String,
-  planId: Schema.String,
-  idempotencyKey: Schema.String,
-  priceId: Schema.String,
-  quantity: Schema.Number,
-  successUrl: Schema.String,
-  cancelUrl: Schema.String,
-  status: CheckoutClaimStatus,
-  stripeSessionId: Schema.NullOr(Schema.String),
-  checkoutUrl: Schema.NullOr(Schema.String),
-  attemptCount: Schema.Number,
-  failureReason: Schema.NullOr(Schema.String),
-  expiresAt: Schema.String,
-  createdAt: Schema.String,
-  updatedAt: Schema.String
-})
-export type CheckoutClaim = typeof CheckoutClaim.Type
+import { type billingCheckoutClaims } from '@b2b-saas-starter/db/schema'
+/**
+ * One `billing_checkout_claims` row: the fields that must stay immutable for
+ * a single logical checkout attempt, read straight off the stored shape.
+ */
+export type CheckoutClaim = typeof billingCheckoutClaims.$inferSelect
 
 export type CheckoutClaimInput = {
   readonly workspaceId: string

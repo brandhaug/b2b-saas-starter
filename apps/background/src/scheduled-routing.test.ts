@@ -6,7 +6,7 @@ import {
   notificationDigestCron,
   notificationDigestRetryCron,
   retentionCleanupCron
-} from '../../../infra/bindings.ts'
+} from '@b2b-saas-starter/infra'
 import { scheduledRun, unknownCronEvent } from './scheduled-routing.ts'
 
 /**
