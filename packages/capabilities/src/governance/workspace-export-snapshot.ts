@@ -84,7 +84,7 @@ const allAuditEvents: Effect.Effect<
  * same projections the app renders, so an export never shows a field the UI
  * hides (signing secrets, token hashes, raw audit metadata). Runs against the
  * `WorkspaceContext` in scope: a trusted `actor: null` context on the queue
- * consumer, the requesting owner's on the Seed path. With no actor the
+ * consumer and Seed's deferred path. With no actor the
  * notification feed yields workspace broadcasts only, which is the intended
  * boundary — user-targeted notifications are the user's data.
  */
