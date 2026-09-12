@@ -85,7 +85,7 @@ describe('WorkspaceAssistantInvestigation', () => {
     fireEvent.change(screen.getByLabelText('Your question'), {
       target: { value: 'Investigate this delivery' }
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Ask', exact: true }))
+    fireEvent.click(screen.getByRole('button', { name: 'Ask' }))
     await waitFor(() =>
       expect(ask).toHaveBeenCalledWith({
         data: { workspaceSlug: 'starter-lab', question: 'Investigate this delivery' }
