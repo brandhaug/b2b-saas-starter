@@ -34,6 +34,7 @@ export function WorkspaceWebhooksPage({
 
   return (
     <WorkspaceShell
+      layout="wide"
       workspaceSlug={workspaceSlug}
       systemRole={systemRole}
       unreadCount={unreadCount}

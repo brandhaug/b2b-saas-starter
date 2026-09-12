@@ -53,6 +53,7 @@ const sendTestEvent = vi.fn<SendTestEvent>()
 function renderPanel(input: {
   readonly role: 'owner' | 'member'
   readonly endpoints?: ReadonlyArray<typeof endpoint>
+  readonly initialEntry?: string
 }) {
   return renderWithRouter(
     <WebhooksPanel
@@ -63,7 +64,8 @@ function renderPanel(input: {
       rotateSecret={rotateSecret}
       replayDelivery={replayDelivery}
       sendTestEvent={sendTestEvent}
-    />
+    />,
+    input.initialEntry === undefined ? undefined : { initialEntry: input.initialEntry }
   )
 }
 
@@ -79,8 +81,9 @@ describe('WebhooksPanel', () => {
 
   it('offers the create form and the row controls to a role that holds them', async () => {
     await renderPanel({ role: 'owner' })
-    expect(screen.getByRole('button', { name: 'Disable' })).not.toBeNull()
-    expect(screen.getByRole('button', { name: 'Rotate secret' })).not.toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    expect(screen.getByRole('menuitem', { name: 'Disable' })).not.toBeNull()
+    expect(screen.getByRole('menuitem', { name: 'Rotate secret' })).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Register an endpoint' }))
     expect(screen.getByLabelText('Endpoint URL')).not.toBeNull()
   })
@@ -96,13 +99,52 @@ describe('WebhooksPanel', () => {
     await renderPanel({ role: 'member' })
     expect(screen.getByText('Your role cannot register endpoints.')).not.toBeNull()
     expect(screen.queryByLabelText('Endpoint URL')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Disable' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Rotate secret' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'More actions' })).toBeNull()
   })
 
   it('shows the empty state with no endpoints', async () => {
     await renderPanel({ role: 'owner', endpoints: [] })
     expect(screen.getByText('No endpoints registered')).not.toBeNull()
+  })
+
+  it('filters endpoints by enabled status and URL', async () => {
+    await renderPanel({
+      role: 'owner',
+      endpoints: [
+        endpoint,
+        {
+          ...endpoint,
+          id: 'whe_disabled',
+          url: 'https://disabled.example/hooks',
+          enabled: false
+        }
+      ]
+    })
+    fireEvent.click(screen.getAllByRole('combobox', { name: 'Status' })[0]!)
+    fireEvent.keyDown(await screen.findByRole('option', { name: 'Disabled' }), {
+      key: 'Enter'
+    })
+    expect(screen.getByText('https://disabled.example/hooks')).not.toBeNull()
+    await waitFor(() => {
+      expect(screen.queryByText(endpoint.url)).toBeNull()
+    })
+  })
+
+  it('stores search and sort choices in the URL', async () => {
+    const { router } = await renderPanel({ role: 'owner' })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search endpoints' }), {
+      target: { value: 'example' }
+    })
+    fireEvent.click(screen.getByRole('combobox', { name: 'Sort' }))
+    fireEvent.keyDown(await screen.findByRole('option', { name: 'Success rate' }), {
+      key: 'Enter'
+    })
+    await waitFor(() => {
+      expect(router.state.location.search).toMatchObject({
+        query: 'example',
+        sort: 'success'
+      })
+    })
   })
 
   it('renders the delivery timestamp in UTC', async () => {
@@ -112,7 +154,8 @@ describe('WebhooksPanel', () => {
 
   it('reveals the rotated secret once', async () => {
     await renderPanel({ role: 'owner' })
-    fireEvent.click(screen.getByRole('button', { name: 'Rotate secret' }))
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Rotate secret' }))
     await screen.findByText('Secret rotated. Copy it now, it will not be shown again.')
     expect(rotateSecret).toHaveBeenCalledWith({
       data: { workspaceSlug: 'starter-lab', endpointId: 'whe_1' }
@@ -122,7 +165,8 @@ describe('WebhooksPanel', () => {
   it('surfaces a failure from either mutation on the row it happened on', async () => {
     updateEndpoint.mockRejectedValue(new Error('Endpoint already disabled'))
     await renderPanel({ role: 'owner' })
-    fireEvent.click(screen.getByRole('button', { name: 'Disable' }))
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Disable' }))
     fireEvent.click(screen.getByRole('button', { name: 'Confirm disable' }))
     await waitFor(() => {
       expect(screen.getByText('Could not disable endpoint.')).not.toBeNull()
@@ -153,6 +197,21 @@ describe('WebhookDeliveriesDrawer', () => {
     expect(
       screen.getAllByRole('button', { name: 'View attempt history' })
     ).toHaveLength(2)
+  })
+
+  it('opens the drawer through the URL and browser Back closes it', async () => {
+    const { router } = await renderPanel({
+      role: 'owner',
+      endpoints: [endpointWithFailure]
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Deliveries \(2\)/ }))
+    await screen.findByRole('dialog')
+    expect(router.state.location.search.record).toBe('whe_1')
+    router.history.back()
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull()
+    })
+    expect(router.state.location.search.record).toBeUndefined()
   })
 
   it('offers Replay on failed rows and queues it through the port', async () => {

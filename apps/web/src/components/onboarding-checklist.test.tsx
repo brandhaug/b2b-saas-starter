@@ -48,16 +48,14 @@ describe('OnboardingChecklist', () => {
       { role: 'owner' },
       vi.fn(async () => true)
     )
-    screen.getByText('1 of 3')
+    screen.getByText('1 of 2')
     expect(screen.queryByRole('link', { name: 'Invite a member' })).toBeNull()
-    expect(
-      screen.getByRole('link', { name: 'Create an API token' }).getAttribute('href')
-    ).toBe('/workspaces/starter-lab/api-tokens')
     expect(
       screen
         .getByRole('link', { name: 'Enable two-factor on your account' })
         .getAttribute('href')
     ).toBe('/account')
+    expect(screen.queryByRole('link', { name: 'Create an API token' })).not.toBeNull()
   })
 
   it('lets an owner dismiss and confirms it', async () => {
@@ -76,6 +74,12 @@ describe('OnboardingChecklist', () => {
     )
     expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull()
     screen.getByText('Owners and admins can dismiss this checklist for the workspace.')
+    expect(
+      screen.getByRole('link', { name: 'Meet your team' }).getAttribute('href')
+    ).toBe('/workspaces/starter-lab/members')
+    expect(
+      screen.getByRole('link', { name: 'Notifications' }).getAttribute('href')
+    ).toBe('/account/notifications')
   })
 
   it('omits the member note where the page carries no dismiss control', async () => {
@@ -91,8 +95,10 @@ describe('OnboardingChecklist', () => {
         'Owners and admins can dismiss this checklist for the workspace.'
       )
     ).toBeNull()
-    // The steps themselves still render.
-    screen.getByRole('link', { name: 'Create an API token' })
+    // Members see the required account step, while developer mutations remain
+    // hidden because they do not hold the create permissions.
+    screen.getByRole('link', { name: 'Enable two-factor on your account' })
+    expect(screen.queryByRole('link', { name: 'Create an API token' })).toBeNull()
   })
 
   it('renders nothing once dismissed', async () => {

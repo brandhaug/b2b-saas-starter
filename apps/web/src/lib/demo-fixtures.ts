@@ -193,7 +193,7 @@ const endpoints = [
     url: 'https://example.com/webhooks/starter',
     enabled: true,
     events: ['api_token.created'],
-    successRate: 0.96,
+    successRate: 96,
     deliveries
   },
   {
@@ -201,7 +201,7 @@ const endpoints = [
     url: 'https://billing.example.com/hooks/starter',
     enabled: false,
     events: ['webhook_endpoint.created'],
-    successRate: 0.8,
+    successRate: 80,
     deliveries: []
   }
 ] satisfies WorkspaceWebhooksPayload['endpoints']
@@ -381,6 +381,7 @@ export const demoFixtures = {
     plans: billingPlans,
     pricingUnavailable: false,
     currentPlanId: 'team',
+    seatUsage: memberSeatUsage,
     stripeConfigured: false,
     synchronization: { status: 'current', lastSyncedAt: '2026-05-16T07:30:05.000Z' },
     lifecycle: {

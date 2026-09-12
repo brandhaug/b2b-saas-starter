@@ -1,3 +1,4 @@
+import { type WorkspaceView } from '@/lib/workspace-view'
 import { type Invitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import { auditActorTypeLabel, auditEventLabel } from '@/lib/audit-labels'
 import { formatDateTime } from '@/lib/format-date'
@@ -23,6 +24,7 @@ export type AttentionItem = {
     | '/workspaces/$workspaceSlug/webhooks'
     | '/workspaces/$workspaceSlug/audit'
   /** The link's accessible tail, e.g. "Review invitations". */
+  readonly search?: WorkspaceView
   readonly linkLabel: string
 }
 
@@ -49,10 +51,11 @@ export function attentionItems({
     if (pending > 0) {
       items.push({
         id: 'pending-invitations',
-        severity: 'warn',
+        severity: 'info',
         title: m.attention_pending_title({ count: pending }),
         description: m.attention_pending_description(),
         to: '/workspaces/$workspaceSlug/members',
+        search: { tab: 'invitations' },
         linkLabel: m.attention_review_invitations()
       })
     }
@@ -67,6 +70,7 @@ export function attentionItems({
         title: m.attention_unused_title({ count: neverUsed }),
         description: m.attention_unused_description(),
         to: '/workspaces/$workspaceSlug/api-tokens',
+        search: { filter: 'unused' },
         linkLabel: m.attention_review_tokens()
       })
     }
@@ -84,6 +88,7 @@ export function attentionItems({
             threshold: SUCCESS_RATE_THRESHOLD
           }),
           to: '/workspaces/$workspaceSlug/webhooks',
+          search: { tab: 'endpoints', record: endpoint.id },
           linkLabel: m.attention_inspect_deliveries()
         })
       }

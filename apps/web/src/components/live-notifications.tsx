@@ -1,3 +1,4 @@
+import { useWorkspaceView } from '@/lib/workspace-view'
 import { type Notification as CapabilityNotification } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -10,6 +11,14 @@ import {
   markNotificationsReadServerFn,
   notificationsQueryKey
 } from '@/lib/server/notifications'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Panel } from '@/components/page/panel'
@@ -70,6 +79,8 @@ export function LiveNotifications({
   // once, so the timestamp survives re-renders.
   // oxlint-disable-next-line react/hook-use-state -- a mount timestamp, never set again; lazy state is the cheapest way to read the clock once
   const [fallbackFetchedAt] = useState(Date.now)
+  const { view, update } = useWorkspaceView()
+  const filter = view.filter === 'unread' ? 'unread' : 'all'
 
   const { data, error, isFetching, refetch } = useQuery({
     queryKey: notificationsQueryKey(workspaceSlug),
@@ -113,6 +124,9 @@ export function LiveNotifications({
   // panel foot.
   const { failure: failedMark, runWith: markRowsRead } =
     useKeyedFailure<ReadonlyArray<string>>()
+
+  const visible =
+    filter === 'unread' ? data.filter((notification) => !notification.read) : data
 
   return (
     <Panel
@@ -163,7 +177,27 @@ export function LiveNotifications({
         ) : null
       }
     >
-      {data.length === 0 ? (
+      <Select
+        items={[
+          { value: 'all', label: m.workspace_notifications_all() },
+          { value: 'unread', label: m.workspace_notifications_unread() }
+        ]}
+        value={filter}
+        onValueChange={(value) =>
+          update({ filter: value === 'unread' ? 'unread' : undefined })
+        }
+      >
+        <SelectTrigger aria-label={m.workspace_notification_filter()}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            <SelectItem value="all">{m.workspace_notifications_all()}</SelectItem>
+            <SelectItem value="unread">{m.workspace_notifications_unread()}</SelectItem>
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+      {visible.length === 0 ? (
         <Empty>
           <EmptyHeader>
             <EmptyMedia variant="icon">
@@ -178,8 +212,8 @@ export function LiveNotifications({
           {failedMark !== null && failedMark.key.length > 1 ? (
             <ActionFeedback error={failedMark.message} />
           ) : null}
-          <ItemGroup>
-            {data.map((notification) => (
+          <ItemGroup className="divide-y divide-border">
+            {visible.map((notification) => (
               /* One row shape at every width: the actions sit beside the
                   copy while it fits, packed to the row's right edge
                   (`ml-auto`) so a `Read` badge and a `New` + `Mark read`
@@ -188,12 +222,7 @@ export function LiveNotifications({
                   stack the same way on a phone instead of two different
                   squeezes. The copy clamps nowhere: a notification is the
                   content, not chrome. */
-              <Item
-                key={notification.id}
-                variant="outline"
-                size="sm"
-                className="items-start"
-              >
+              <Item key={notification.id} size="sm" className="items-start">
                 <ItemContent className="min-w-0">
                   <ItemTitle className="line-clamp-none">
                     {notification.title}

@@ -1,3 +1,4 @@
+import { type WorkspaceView } from '@/lib/workspace-view'
 import { type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { usePreview } from '@/lib/preview-context'
@@ -8,8 +9,10 @@ export function WorkspaceLink({
   to,
   workspaceSlug,
   className,
+  search,
   children
 }: {
+  readonly search?: WorkspaceView | undefined
   readonly to: WorkspaceNavTarget
   readonly workspaceSlug: string
   readonly className?: string
@@ -20,7 +23,7 @@ export function WorkspaceLink({
     ? previewWorkspaceLocation(to)
     : { to, params: { workspaceSlug } }
   return (
-    <Link {...location} className={className}>
+    <Link {...location} search={search ?? {}} className={className}>
       {children}
     </Link>
   )

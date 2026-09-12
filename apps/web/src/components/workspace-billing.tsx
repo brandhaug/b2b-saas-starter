@@ -4,6 +4,7 @@ import {
 } from '@b2b-saas-starter/billing/billing'
 import { Check, Minus, ExternalLink } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
+import { Link } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -11,7 +12,8 @@ import { Label } from '@/components/ui/label'
 import {
   type Plan,
   type ResourceEntitlement,
-  type ResourceSelection
+  type ResourceSelection,
+  type SeatUsage
 } from '@b2b-saas-starter/billing/plan-catalog'
 import { CAPABILITY_UNAVAILABLE_ERROR_NAME } from '@/lib/capability-error'
 import { causeMessage } from '@/lib/cause-message'
@@ -22,7 +24,6 @@ import {
   selectBillingResourcesServerFn
 } from '@/lib/server/billing'
 import { ActionFeedback } from '@/components/page/action-feedback'
-import { Identifier } from '@/components/page/identifier'
 import { Panel } from '@/components/page/panel'
 import { Spinner } from '@/components/ui/spinner'
 import { formatCurrency, formatDate, formatNumber } from '@b2b-saas-starter/i18n/format'
@@ -133,6 +134,7 @@ function checkoutErrorText(thrown: unknown): string {
 export function BillingPlans({
   workspaceSlug,
   currentPlanId,
+  seatUsage,
   plans,
   stripeConfigured,
   pricingUnavailable = false,
@@ -149,6 +151,7 @@ export function BillingPlans({
 }: {
   readonly workspaceSlug: string
   readonly currentPlanId: string
+  readonly seatUsage: SeatUsage
   readonly plans: ReadonlyArray<BillingPlan>
   readonly stripeConfigured: boolean
   readonly pricingUnavailable?: boolean
@@ -226,12 +229,35 @@ export function BillingPlans({
           ) : null
         }
       >
-        <div className="flex flex-wrap items-center gap-3">
-          <Badge>{currentPlan?.name ?? currentPlanId}</Badge>
-          <p className="text-sm text-muted-foreground">
-            {m.entitlements_follow_plan()}
-            {currentPlan === undefined ? '.' : `: ${entitlementSentence(currentPlan)}`}
-          </p>
+        <div className="grid gap-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <Badge>{currentPlan?.name ?? currentPlanId}</Badge>
+            <p className="text-sm text-muted-foreground">
+              {m.entitlements_follow_plan()}
+              {currentPlan === undefined
+                ? '.'
+                : `: ${entitlementSentence(currentPlan)}`}
+            </p>
+          </div>
+          <dl className="grid gap-3 border-t border-border pt-4 sm:grid-cols-2">
+            <div className="grid gap-1">
+              <dt className="text-xs text-muted-foreground">{m.seats()}</dt>
+              <dd className="text-sm">
+                {formatNumber(seatUsage.used, getLocale())}
+                {seatUsage.included === null
+                  ? ''
+                  : ` / ${formatNumber(seatUsage.included, getLocale())}`}
+              </dd>
+            </div>
+            {lifecycle.currentPeriodEnd ? (
+              <div className="grid gap-1">
+                <dt className="text-xs text-muted-foreground">{m.billing_period()}</dt>
+                <dd className="text-sm">
+                  {formatBillingDate(lifecycle.currentPeriodEnd)}
+                </dd>
+              </div>
+            ) : null}
+          </dl>
         </div>
       </Panel>
       <BillingSynchronization status={synchronization.status} />
@@ -250,9 +276,14 @@ export function BillingPlans({
       <ActionFeedback error={portal.error} />
       {stripeConfigured ? null : (
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-          {m.billing_not_configured()} <Identifier>STRIPE_SECRET_KEY</Identifier>,{' '}
-          <Identifier>STRIPE_WEBHOOK_SECRET</Identifier>{' '}
-          {m.billing_configure_price_ids()}
+          {m.billing_not_configured()}{' '}
+          <Link
+            to="/docs/$category/$slug"
+            params={{ category: 'integrations', slug: 'stripe-billing' }}
+            className="font-medium text-foreground underline underline-offset-4 hover:no-underline"
+          >
+            {m.billing_setup_guide()}
+          </Link>
         </p>
       )}
       <ActionFeedback error={upgrade.error} />

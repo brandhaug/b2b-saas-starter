@@ -10,6 +10,7 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import {
   resourceEntitlement,
+  seatUsage,
   type ResourceSelection,
   STARTER_PLAN
 } from '@b2b-saas-starter/billing/plan-catalog'
@@ -66,6 +67,7 @@ function fixture(): WorkspaceBillingPayload {
     plans: [],
     pricingUnavailable: true,
     currentPlanId: 'starter',
+    seatUsage: seatUsage(STARTER_PLAN, 1),
     stripeConfigured: false,
     synchronization: { status: 'current', lastSyncedAt: null },
     lifecycle: {

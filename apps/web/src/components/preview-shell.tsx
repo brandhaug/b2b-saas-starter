@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils'
 import { type ReactNode, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { BellIcon } from 'lucide-react'
@@ -19,8 +20,10 @@ const viewer = { role: 'owner' } satisfies WorkspaceViewer
 
 export function PreviewShell({
   children,
+  layout = 'standard',
   unreadCount
 }: {
+  readonly layout?: 'standard' | 'wide' | undefined
   readonly children: ReactNode
   readonly unreadCount?: number | undefined
 }) {
@@ -34,7 +37,7 @@ export function PreviewShell({
         >
           {m.common_skip_to_content()}
         </a>
-        <aside className="hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground p-4 lg:block">
+        <aside className="sticky top-0 hidden h-dvh overflow-y-auto border-r border-sidebar-border bg-sidebar text-sidebar-foreground p-4 lg:block">
           <WorkspaceNav workspace={workspace} viewer={viewer} />
         </aside>
         <div className="min-w-0">
@@ -90,7 +93,14 @@ export function PreviewShell({
             tabIndex={-1}
             className="px-4 py-6 sm:px-6 outline-none"
           >
-            <div className="mx-auto grid w-full max-w-4xl gap-6">{children}</div>
+            <div
+              className={cn(
+                'mx-auto grid w-full gap-6',
+                layout === 'wide' ? 'max-w-7xl' : 'max-w-4xl'
+              )}
+            >
+              {children}
+            </div>
           </main>
         </div>
       </div>

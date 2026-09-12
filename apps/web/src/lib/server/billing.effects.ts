@@ -2,6 +2,8 @@ import { Billing, type ReconcileResult } from '@b2b-saas-starter/billing/billing
 import { ResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
+import { seatUsage } from '@b2b-saas-starter/billing/plan-catalog'
 import { Effect } from 'effect'
 import { env as cloudflareEnv } from 'cloudflare:workers'
 
@@ -38,6 +40,10 @@ const billingPayload: WorkspacePageFrame<WorkspaceBillingPayload> = workspacePag
           {
             unreadCount,
             plan: billing.currentPlan,
+            members: Effect.flatMap(
+              WorkspaceMembership,
+              (membership) => membership.listMembers
+            ),
             stripeConfigured: billing.configured,
             synchronization: billing.synchronizationStatus,
             lifecycle: billing.lifecycleStatus,
@@ -74,6 +80,7 @@ const billingPayload: WorkspacePageFrame<WorkspaceBillingPayload> = workspacePag
             plans: segments.plans ?? [],
             pricingUnavailable: segments.plans === null,
             currentPlanId: segments.plan.id,
+            seatUsage: seatUsage(segments.plan, segments.members.length),
             stripeConfigured: segments.stripeConfigured,
             synchronization: segments.synchronization,
             lifecycle: segments.lifecycle,

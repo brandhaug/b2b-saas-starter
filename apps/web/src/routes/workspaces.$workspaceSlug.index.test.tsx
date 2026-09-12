@@ -117,12 +117,12 @@ describe('WorkspaceDashboardPage', () => {
     expect(screen.queryByText('Needs attention')).toBeNull()
     expect(screen.queryByText('Webhook delivery')).toBeNull()
     // The rest of the dashboard still renders.
-    screen.getByText('Notifications')
+    screen.getByRole('heading', { name: 'Notifications' })
   })
 
   it('shows the owner the Seed Workspace checklist with a dismiss control', async () => {
     await renderDashboard(await loadDashboard())
-    screen.getByText('3 of 4')
+    screen.getByText('1 of 2')
     screen.getByRole('button', { name: 'Dismiss' })
   })
 

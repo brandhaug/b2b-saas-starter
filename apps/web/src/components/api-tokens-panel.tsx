@@ -1,6 +1,7 @@
 import { type ApiToken } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
+import { MoreHorizontalIcon } from 'lucide-react'
 
 import { ApiTokenForm, type CreateApiToken } from '@/components/api-token-form'
 import {
@@ -17,6 +18,13 @@ import {
   ItemGroup,
   ItemTitle
 } from '@/components/ui/item'
+import { Separator } from '@/components/ui/separator'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu'
 import { ConfirmButton } from '@/components/confirm-button'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { CreateAction, Panel } from '@/components/page/panel'
@@ -28,6 +36,11 @@ import { revokeApiTokenServerFn } from '@/lib/server/api-tokens'
 import { useKeyedFailure } from '@/hooks/use-keyed-failure'
 import { useServerAction } from '@/hooks/use-server-action'
 import { m } from '@b2b-saas-starter/i18n/messages'
+import {
+  DeveloperListPagination,
+  DeveloperListToolbar
+} from '@/components/developer-list-controls'
+import { useDeveloperListView } from '@/lib/developer-list'
 
 /**
  * The clock the expiry copy reads. Nothing on this panel changes between two
@@ -137,7 +150,6 @@ export function ApiTokensPanel({
   const canCreate =
     creation === 'visible' && viewerCan(viewer, { apiToken: ['create'] })
   const canRevoke = viewerCan(viewer, { apiToken: ['revoke'] })
-
   // The loader owns the list, so the hook re-runs it on success rather than
   // mirroring the revoked row into local state.
   const revoke = useServerAction(
@@ -154,6 +166,47 @@ export function ApiTokensPanel({
     await revokeOnRow(tokenId, () => revoke.runAsync(tokenId))
   }
 
+  const list = useDeveloperListView({
+    filters: ['all', 'active', 'expired', 'replaced', 'unused'],
+    sorts: ['created', 'name', 'lastUsed'],
+    defaultFilter: 'all',
+    defaultSort: 'created'
+  })
+  const filteredTokens = (() => {
+    const needle = list.query.trim().toLocaleLowerCase()
+    return tokens
+      .filter((token) => {
+        const expired = token.expiresAt !== null && Date.parse(token.expiresAt) <= now
+        let tokenStatus = 'active'
+        if (token.replacedByTokenId !== null) {
+          tokenStatus = 'replaced'
+        } else if (expired) {
+          tokenStatus = 'expired'
+        }
+        return (
+          (list.filter === 'all' ||
+            list.filter === tokenStatus ||
+            (list.filter === 'unused' && token.lastUsedAt === null)) &&
+          (needle === '' ||
+            `${token.name} ${token.prefix}`.toLocaleLowerCase().includes(needle))
+        )
+      })
+      .toSorted((a, b) => {
+        if (list.sort === 'name') {
+          return a.name.localeCompare(b.name)
+        }
+        if (list.sort === 'lastUsed') {
+          return (b.lastUsedAt ?? '').localeCompare(a.lastUsedAt ?? '')
+        }
+        return b.createdAt.localeCompare(a.createdAt)
+      })
+  })()
+  const { page, pageCount } = list.pageFor(filteredTokens.length)
+  const visibleTokens = filteredTokens.slice(
+    (page - 1) * list.pageSize,
+    page * list.pageSize
+  )
+
   return (
     // No panel heading: the page header's h1 already says "API tokens", and
     // the create action belongs on that same title row rather than floating
@@ -162,6 +215,7 @@ export function ApiTokensPanel({
       actions={
         creation === 'visible' ? (
           <CreateAction
+            action="create"
             allowed={canCreate}
             title={m.tokens_create_title()}
             deniedReason={m.token_mint_denied()}
@@ -200,71 +254,122 @@ export function ApiTokensPanel({
           </EmptyHeader>
         </Empty>
       ) : (
-        <ItemGroup>
-          {tokens.map((token) => (
-            <Item key={token.id} variant="outline" size="sm">
-              <ItemContent>
-                <ItemTitle>
-                  {token.name}
-                  <Identifier>{token.prefix}…</Identifier>
-                </ItemTitle>
-                <ItemDescription>
-                  {m.token_created_label()}{' '}
-                  {formatTimestampOr(token.createdAt, m.never())} ·{' '}
-                  {m.token_last_used_label()}{' '}
-                  {formatTimestampOr(token.lastUsedAt, m.never())}
-                </ItemDescription>
-                <ItemDescription>
-                  {token.expiresAt !== null && Date.parse(token.expiresAt) <= now
-                    ? m.token_expired()
-                    : m.token_expires()}{' '}
-                  {formatTimestampOr(token.expiresAt, m.never())}
-                  {token.replacedByTokenId === null
-                    ? null
-                    : ` · ${m.token_replacement_issued()}`}
-                </ItemDescription>
-                <div className="flex flex-wrap gap-1">
-                  {token.scopes.map((scope) => (
-                    <Badge key={scope} variant="outline">
-                      {scope}
-                    </Badge>
-                  ))}
-                </div>
-              </ItemContent>
-              <ItemActions>
-                {canCreate &&
-                token.replacedByTokenId === null &&
-                (token.expiresAt === null || Date.parse(token.expiresAt) > now) ? (
-                  <Button
-                    variant="outline"
-                    disabled={replacing !== null}
-                    onClick={() => setReplacing(token)}
-                  >
-                    {m.action_replace()}
-                  </Button>
-                ) : null}
-                {canRevoke ? (
-                  <ConfirmButton
-                    // Tinted, not filled: revocation is destructive, and
-                    // the plain-foreground default read as less consequential
-                    // than the secondary "Replace" beside it.
-                    variant="destructive"
-                    label={m.action_revoke()}
-                    confirmLabel={m.action_confirm_revoke()}
-                    armed={confirmingId === token.id}
-                    busy={revoke.pendingInput === token.id}
-                    onArm={() => setConfirmingId(token.id)}
-                    onCancel={() => setConfirmingId(null)}
-                    onConfirm={() => void revokeTokenOnRow(token.id)}
-                  />
-                ) : null}
-              </ItemActions>
-              {failedRow?.key === token.id ? (
-                <ActionFeedback error={failedRow.message} />
-              ) : null}
-            </Item>
-          ))}
-        </ItemGroup>
+        <>
+          <DeveloperListToolbar
+            query={list.query}
+            filter={list.filter}
+            sort={list.sort}
+            searchLabel={m.developer_list_search_tokens()}
+            filters={[
+              { value: 'all', label: m.developer_list_all_statuses() },
+              { value: 'active', label: m.developer_list_active() },
+              { value: 'expired', label: m.developer_list_expired() },
+              { value: 'replaced', label: m.developer_list_replaced() },
+              { value: 'unused', label: m.developer_list_unused() }
+            ]}
+            sorts={[
+              { value: 'created', label: m.developer_list_newest() },
+              { value: 'name', label: m.developer_list_name() },
+              { value: 'lastUsed', label: m.developer_list_last_used() }
+            ]}
+            onChange={list.updateView}
+          />
+          {visibleTokens.length === 0 ? (
+            <p className="py-6 text-sm text-muted-foreground">
+              {m.developer_list_no_matching_tokens()}
+            </p>
+          ) : null}
+          <ItemGroup className="gap-0">
+            {visibleTokens.map((token, index) => (
+              <Fragment key={token.id}>
+                <Item size="sm" className="border-0 px-0 py-4">
+                  <ItemContent>
+                    <ItemTitle>
+                      {token.name}
+                      <Identifier>{token.prefix}…</Identifier>
+                    </ItemTitle>
+                    <ItemDescription>
+                      {m.token_created_label()}{' '}
+                      {formatTimestampOr(token.createdAt, m.never())} ·{' '}
+                      {m.token_last_used_label()}{' '}
+                      {formatTimestampOr(token.lastUsedAt, m.never())}
+                    </ItemDescription>
+                    <ItemDescription>
+                      {token.expiresAt !== null && Date.parse(token.expiresAt) <= now
+                        ? m.token_expired()
+                        : m.token_expires()}{' '}
+                      {formatTimestampOr(token.expiresAt, m.never())}
+                      {token.replacedByTokenId === null
+                        ? null
+                        : ` · ${m.token_replacement_issued()}`}
+                    </ItemDescription>
+                    <div className="flex flex-wrap gap-1">
+                      {token.scopes.map((scope) => (
+                        <Badge key={scope} variant="outline">
+                          {scope}
+                        </Badge>
+                      ))}
+                    </div>
+                  </ItemContent>
+                  <ItemActions>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            aria-label={m.developer_list_more_actions()}
+                          />
+                        }
+                      >
+                        <MoreHorizontalIcon />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        {canCreate &&
+                        token.replacedByTokenId === null &&
+                        (token.expiresAt === null ||
+                          Date.parse(token.expiresAt) > now) ? (
+                          <DropdownMenuItem onClick={() => setReplacing(token)}>
+                            {m.action_replace()}
+                          </DropdownMenuItem>
+                        ) : null}
+                        {canRevoke ? (
+                          <DropdownMenuItem onClick={() => setConfirmingId(token.id)}>
+                            {m.action_revoke()}
+                          </DropdownMenuItem>
+                        ) : null}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    {canRevoke && confirmingId === token.id ? (
+                      <ConfirmButton
+                        // Tinted, not filled: revocation is destructive, and
+                        // the plain-foreground default read as less consequential
+                        // than the secondary "Replace" beside it.
+                        variant="destructive"
+                        label={m.action_revoke()}
+                        confirmLabel={m.action_confirm_revoke()}
+                        armed={confirmingId === token.id}
+                        busy={revoke.pendingInput === token.id}
+                        onArm={() => setConfirmingId(token.id)}
+                        onCancel={() => setConfirmingId(null)}
+                        onConfirm={() => void revokeTokenOnRow(token.id)}
+                      />
+                    ) : null}
+                  </ItemActions>
+                  {failedRow?.key === token.id ? (
+                    <ActionFeedback error={failedRow.message} />
+                  ) : null}
+                </Item>
+                {index < visibleTokens.length - 1 ? <Separator /> : null}
+              </Fragment>
+            ))}
+          </ItemGroup>
+          <DeveloperListPagination
+            page={page}
+            pageCount={pageCount}
+            onChange={list.updateView}
+          />
+        </>
       )}
     </Panel>
   )

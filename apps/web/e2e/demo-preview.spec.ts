@@ -23,7 +23,7 @@ test('visitors browse every workspace section without authentication', async ({
     'API tokens',
     'Webhook endpoints',
     'Audit trail',
-    'General',
+    'Settings',
     'Assistant'
   ]) {
     await navigation.getByRole('link', { name, exact: true }).click()
@@ -53,12 +53,12 @@ test('preview forms and destructive dialogs explain refusal without sending or c
     .locator('header [data-slot="select-trigger"]:enabled')
     .waitFor({ state: 'attached' })
   await page.getByRole('button', { name: 'Invite a member', exact: true }).click()
-  await page.getByLabel('Invite by email', { exact: true }).fill('visitor@example.com')
+  await page.getByLabel('Email addresses', { exact: true }).fill('visitor@example.com')
   await page.getByRole('button', { name: 'Send invitation', exact: true }).click()
   await expect(
     page.getByText(/This preview is read-only. No changes were made./)
   ).toBeVisible()
-  await expect(page).toHaveURL(/\/demo\/members$/)
+  await expect(page).toHaveURL(/\/demo\/members\?/)
 
   await page.goto('/demo/settings')
   await page
@@ -110,8 +110,9 @@ test('token creation, replacement, and webhook creation refuse locally', async (
   await page
     .getByRole('listitem')
     .filter({ hasText: 'Local admin token' })
-    .getByRole('button', { name: 'Replace', exact: true })
+    .getByRole('button', { name: 'More actions', exact: true })
     .click()
+  await page.getByRole('menuitem', { name: 'Replace', exact: true }).click()
   const replacement = page.getByRole('form', {
     name: 'Replace Local admin token',
     exact: true
@@ -135,4 +136,28 @@ test('token creation, replacement, and webhook creation refuse locally', async (
     page.getByText(/This preview is read-only. No changes were made./)
   ).toBeVisible()
   expect(writes).toEqual([])
+})
+
+test('workspace tabs and member lookup survive sharing and reload', async ({
+  page
+}) => {
+  await page.goto('/demo/settings?tab=sso')
+  await expect(page.getByRole('tab', { name: 'Single sign-on' })).toHaveAttribute(
+    'aria-selected',
+    'true'
+  )
+  await page.reload()
+  await expect(page.getByRole('tab', { name: 'Single sign-on' })).toHaveAttribute(
+    'aria-selected',
+    'true'
+  )
+  await page.goto('/demo/members?query=engineer')
+  await expect(page.getByText('engineer@example.com', { exact: true })).toBeVisible()
+  await expect(page.getByText('martin@example.com', { exact: true })).not.toBeVisible()
+  await page.reload()
+  await expect(page.getByText('engineer@example.com', { exact: true })).toBeVisible()
+  await page.locator('header [data-slot="select-trigger"]:enabled').waitFor()
+  await page.getByRole('textbox', { name: 'Search members by name or email' }).fill('')
+  await expect(page).not.toHaveURL(/query=/)
+  await expect(page.getByText('martin@example.com', { exact: true })).toBeVisible()
 })

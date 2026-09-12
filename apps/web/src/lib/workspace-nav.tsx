@@ -86,35 +86,35 @@ export function workspaceNav(): ReadonlyArray<WorkspaceNavRow> {
       exact: true
     },
     {
-      // Members owns the roster and, since the settings page stopped carrying
-      // it, the invitation flow too — both are membership concerns.
-      to: '/workspaces/$workspaceSlug/members',
-      label: m.nav_members(),
-      group: m.nav_workspace_group(),
-      icon: <UsersIcon className="size-4" />
-    },
-    {
       to: '/workspaces/$workspaceSlug/assistant',
       label: m.nav_assistant(),
       group: m.nav_workspace_group(),
       icon: <SparklesIcon className="size-4" />
     },
     {
+      // Members owns the roster and, since the settings page stopped carrying
+      // it, the invitation flow too — both are membership concerns.
+      to: '/workspaces/$workspaceSlug/members',
+      label: m.nav_members(),
+      group: m.nav_administration_group(),
+      icon: <UsersIcon className="size-4" />
+    },
+    {
       to: '/workspaces/$workspaceSlug/settings',
-      label: m.nav_general(),
-      group: m.nav_workspace_group(),
+      label: m.nav_settings(),
+      group: m.nav_administration_group(),
       icon: <SettingsIcon className="size-4" />
     },
     {
       to: '/workspaces/$workspaceSlug/billing',
       label: m.nav_billing(),
-      group: m.nav_workspace_group(),
+      group: m.nav_administration_group(),
       icon: <CreditCardIcon className="size-4" />
     },
     {
       to: '/workspaces/$workspaceSlug/audit',
       label: m.nav_audit_trail(),
-      group: m.nav_workspace_group(),
+      group: m.nav_administration_group(),
       icon: <HistoryIcon className="size-4" />,
       permission: { auditLog: ['read'] }
     },

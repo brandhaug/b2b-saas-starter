@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils'
 import { SupportDetails } from '@/components/support-details'
 import { type ComponentProps, type ReactNode, useEffect, useState } from 'react'
 import { Link, useRouter } from '@tanstack/react-router'
@@ -42,7 +43,9 @@ export function WorkspaceShell(
 ) {
   const preview = usePreview()
   return preview ? (
-    <PreviewShell unreadCount={props.unreadCount}>{props.children}</PreviewShell>
+    <PreviewShell unreadCount={props.unreadCount} layout={props.layout}>
+      {props.children}
+    </PreviewShell>
   ) : (
     <AuthenticatedWorkspaceShell {...props} />
   )
@@ -50,6 +53,7 @@ export function WorkspaceShell(
 
 function AuthenticatedWorkspaceShell({
   children,
+  layout = 'standard',
   unreadCount,
   workspaceSlug,
   viewer,
@@ -57,6 +61,7 @@ function AuthenticatedWorkspaceShell({
   stopImpersonating
 }: {
   readonly children: ReactNode
+  readonly layout?: 'standard' | 'wide' | undefined
   /**
    * Unread-notification badge count. Omit on surfaces without a workspace
    * notification feed (e.g. /admin) — no badge is rendered.
@@ -138,7 +143,7 @@ function AuthenticatedWorkspaceShell({
       >
         {m.common_skip_to_content()}
       </a>
-      <aside className="hidden border-r border-sidebar-border bg-sidebar text-sidebar-foreground p-4 lg:block">
+      <aside className="sticky top-0 hidden h-dvh overflow-y-auto border-r border-sidebar-border bg-sidebar text-sidebar-foreground p-4 lg:block">
         <WorkspaceNav
           workspace={sidebarWorkspace}
           viewer={viewer}
@@ -211,10 +216,9 @@ function AuthenticatedWorkspaceShell({
             </div>
           )}
         </div>
-        {/* One content width for every shell page — the page body centers at
-            `max-w-4xl` instead of each page picking its own column. */}
+        {/* Forms keep a reading width; operational lists can use the available space. */}
         <main id="main-content" tabIndex={-1} className="px-4 py-6 sm:px-6 outline-none">
-          <div className="mx-auto grid w-full max-w-4xl gap-6">
+          <div className={cn('mx-auto grid w-full gap-6', layout === 'wide' ? 'max-w-7xl' : 'max-w-4xl')}>
             {children}
             <footer className="border-t border-border pt-6">
               <SupportDetails

@@ -1,9 +1,11 @@
+import { workspaceViewSearch } from '@/lib/workspace-view'
 import { createFileRoute, notFound } from '@tanstack/react-router'
 import { DemoRenderer } from '@/components/demo-renderer'
 import { PreviewProvider } from '@/components/preview-provider'
 import { isDemoSection } from '@/lib/demo-fixtures'
 
 export const Route = createFileRoute('/demo_/$section')({
+  validateSearch: workspaceViewSearch,
   // The guard narrows once and hands the section down as context; the
   // component reads a `DemoSection`, so there is no second check to keep in
   // step with this one.

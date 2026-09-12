@@ -110,6 +110,7 @@ export function WorkspaceBillingPage({
       <BillingPlans
         workspaceSlug={workspaceSlug}
         currentPlanId={data.currentPlanId}
+        seatUsage={data.seatUsage}
         plans={data.plans}
         pricingUnavailable={data.pricingUnavailable}
         stripeConfigured={data.stripeConfigured}

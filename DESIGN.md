@@ -37,11 +37,11 @@ Use sentence case. Keep input text at 16px on mobile to avoid focus zoom. Micro 
 
 ## Layout and shape
 
-Use the four-pixel spacing scale through Tailwind utilities. Public layouts cap at `max-w-7xl`, articles at `max-w-3xl`, and workspace page bodies at `max-w-4xl`. Sticky content clears the shared header; anchor offsets must leave headings visible.
+Use the four-pixel spacing scale through Tailwind utilities. Public layouts cap at `max-w-7xl`, articles at `max-w-3xl`, and workspace forms and overview at `max-w-4xl`. Member, audit, token, and webhook lists use `max-w-7xl` so comparable records have room to align. Sticky content clears the shared header; anchor offsets must leave headings visible.
 
-The workspace sidebar has a fixed desktop width and a mobile sheet. Touch controls render at least 44px tall below `md`. Desktop controls use 36px by default; 32px variants are limited to dense row/menu actions.
+The workspace sidebar has a fixed desktop width, independent scrolling, and a mobile sheet. Separate workspace activity, administration, developer tools, and personal navigation. Settings names the configuration destination; General names its identity tab. Touch controls render at least 44px tall below `md`. Desktop controls use 36px by default; 32px variants are limited to dense row/menu actions.
 
-Panels and dialogs have square corners. Controls use the softer `rounded-md` radius. Keep panels flat with one-pixel borders; reserve restrained shadows for floating menus and tooltips, and blur for overlays. Use `bg-muted` for nested content instead of nesting cards.
+Panels and dialogs have square corners. Controls use the softer `rounded-md` radius. Use separators between resource rows and contextual menus for secondary row actions. Search, filters, and pagination belong above or below the list, with selected views retained in the URL. Keep panels flat with one-pixel borders; reserve restrained shadows for floating menus and tooltips, and blur for overlays. Use `bg-muted` for nested content instead of nesting cards.
 
 ## Components
 

@@ -6,7 +6,8 @@ import {
 } from '@b2b-saas-starter/billing/billing'
 import {
   type ResourceSelection,
-  type ResourceEntitlement
+  type ResourceEntitlement,
+  type SeatUsage
 } from '@b2b-saas-starter/billing/plan-catalog'
 import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
@@ -37,6 +38,8 @@ export type WorkspaceBillingPayload = {
   /** True when configured provider pricing could not be read or validated. */
   readonly pricingUnavailable: boolean
   readonly currentPlanId: string
+  /** Current roster size and the plan's included-seat terms. */
+  readonly seatUsage: SeatUsage
   /** True when the Billing capability has its provider wired. */
   readonly stripeConfigured: boolean
   readonly synchronization: BillingSynchronizationStatus

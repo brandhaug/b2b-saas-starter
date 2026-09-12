@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router'
+import { WorkspaceLink } from '@/components/workspace-link'
 import { ArrowRightIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Panel } from '@/components/page/panel'
@@ -22,7 +22,13 @@ export function AttentionFeed({
   readonly items: ReadonlyArray<AttentionItem>
 }) {
   if (items.length === 0) {
-    return null
+    return (
+      <Panel title={m.workspace_healthy_title()}>
+        <p className="text-sm text-muted-foreground">
+          {m.workspace_healthy_description()}
+        </p>
+      </Panel>
+    )
   }
   return (
     <Panel title={m.needs_attention()} className="min-w-0">
@@ -46,14 +52,15 @@ export function AttentionFeed({
                 {item.description}
               </p>
             </div>
-            <Link
+            <WorkspaceLink
               to={item.to}
-              params={{ workspaceSlug }}
+              workspaceSlug={workspaceSlug}
+              search={item.search}
               className="flex shrink-0 items-center gap-1 text-sm underline underline-offset-2 max-md:min-h-11 max-md:w-full max-md:justify-end"
             >
               {item.linkLabel}
               <ArrowRightIcon aria-hidden className="size-3.5" />
-            </Link>
+            </WorkspaceLink>
           </li>
         ))}
       </ol>

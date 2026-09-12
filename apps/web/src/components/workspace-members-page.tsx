@@ -3,11 +3,14 @@ import { WorkspaceLink } from '@/components/workspace-link'
 import { InvitationPanel } from '@/components/invitation-panel'
 import { EmailDeliveryPanel } from '@/components/email-delivery-panel'
 import { MembersPanel } from '@/components/members-panel'
+import { InviteMemberForm } from '@/components/invite-member-form'
 import { PageHeader } from '@/components/page/page-header'
+import { CreateAction } from '@/components/page/panel'
 import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { type WorkspaceMembersPayload } from '@/lib/server/workspace-members'
+import { viewerCan } from '@/lib/permissions'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
@@ -33,18 +36,25 @@ export function WorkspaceMembersPage({
   readonly actorUserId: string
 }) {
   const { viewer, unreadCount, members, invitations, seatUsage } = data
-
   return (
     <WorkspaceShell
       workspaceSlug={workspaceSlug}
       systemRole={systemRole}
       unreadCount={unreadCount}
       viewer={viewer}
+      layout="wide"
     >
       <PageHeader
         breadcrumb={<WorkspaceCrumb workspaceSlug={workspaceSlug} />}
         title={m.nav_members()}
         description={m.page_members_description()}
+        actions={
+          viewerCan(viewer, { invitation: ['create'] }) ? (
+            <CreateAction action="invite" title={m.form_invite_member()}>
+              <InviteMemberForm workspaceSlug={workspaceSlug} />
+            </CreateAction>
+          ) : null
+        }
       />
       {/* The seat half of the plan gate, as a prompt rather than a refusal:
           the workspace may always add Members, but a flat plan past its
@@ -74,26 +84,31 @@ export function WorkspaceMembersPage({
             label: m.nav_members(),
             content: (
               <div className="grid gap-6">
-                {' '}
                 <MembersPanel
                   workspaceSlug={workspaceSlug}
                   members={members}
                   viewer={viewer}
                   actorUserId={actorUserId}
                 />
-                {/* `null` means this actor may not read the invitation segment; the
-          panel gates its own form against `invitation:create`. */}
-                {invitations === null ? null : (
-                  <InvitationPanel
-                    workspaceSlug={workspaceSlug}
-                    viewer={viewer}
-                    invitations={invitations}
-                    emailDeliveries={data.emailDeliveries ?? []}
-                  />
-                )}
               </div>
             )
           },
+          ...(invitations === null
+            ? []
+            : [
+                {
+                  value: 'invitations',
+                  label: m.pending_invitations(),
+                  content: (
+                    <InvitationPanel
+                      workspaceSlug={workspaceSlug}
+                      viewer={viewer}
+                      invitations={invitations}
+                      emailDeliveries={data.emailDeliveries ?? []}
+                    />
+                  )
+                }
+              ]),
           ...(data.emailDeliveries === null
             ? []
             : [
