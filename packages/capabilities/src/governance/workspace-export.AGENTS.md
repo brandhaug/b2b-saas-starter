@@ -10,9 +10,11 @@ Workspace export (ADR 0055): an owner requests an archive, the background consum
   adapter only decodes the message, selects the trusted context resolver,
   annotates the wide event, and turns a retry disposition into platform
   scheduling. Seed and Live use the same snapshot/archive recipe; Seed runs it
-  inline because it has no queue or bucket.
+  inline because it has no queue or bucket. Seed invokes the same generation
+  constructor on its next read with the request's workspace and a trusted
+  `actor: null` context, so private Member notifications stay out of archives.
 - `request` batches the `pending` row with `workspace.export_requested`, then enqueues, and answers the `pending` projection on both adapters — Seed defers its inline build to the next read rather than returning `ready`. An enqueue failure marks the row `failed` (`enqueue_failed`); unconfigured fails `CapabilityUnavailable('not_configured')`.
-- Settling an export as failed is audited `workspace.export_failed` and batched with the transition, so an operator sees why a pending export stopped.
+- Settling an export as failed is audited `workspace.export_failed` and batched with the transition, so an operator sees why a pending export stopped. Seed records that evidence before changing its in-memory row; an audit outage leaves deferred work pending for retry.
 - `issueDownloadLink` requires an explicit session or API Token recipient and returns a path and expiry, never an origin. TTL is 15 minutes, capped at the artifact's horizon. Human links sign the user, session and Workspace slug with the artifact identity. Issuance boundaries check recent authentication and download permission.
 - The API download boundary rechecks human session freshness and current Workspace membership/permission. `openDownload` verifies the complete signature, expiry and `isWorkspaceExportDownloadable`, then audits the signed recipient. Refusals answer 404 before artifact storage is read.
 

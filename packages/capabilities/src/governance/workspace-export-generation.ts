@@ -1,4 +1,4 @@
-import { Context, DateTime, Effect, Layer, Result } from 'effect'
+import { Context, DateTime, Effect, Layer, Result, type Scope } from 'effect'
 
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type WorkspaceNotFound } from '../errors.ts'
@@ -113,6 +113,87 @@ function settledSuspension(
   return failed(input, 'workspace_suspended', exports)
 }
 
+/** Builds the shared generator with stable snapshot and lifecycle dependencies. */
+export function workspaceExportGenerationEffect(
+  resolveWorkspace: ResolveWorkspace
+): Effect.Effect<
+  WorkspaceExportGenerationInterface,
+  never,
+  GenerationDependencies | Scope.Scope
+> {
+  return Effect.gen(function* () {
+    const exports = yield* WorkspaceExports
+    const suspension = yield* WorkspaceSuspensionService
+    const scope = yield* Effect.scope
+    const snapshotContext = yield* workspaceExportSnapshotContextEffect()
+    const generate = Effect.fn('WorkspaceExportGeneration.generate')(function* (
+      input: WorkspaceExportGenerationInput
+    ) {
+      const message = input.message
+      const allowed = yield* Effect.result(
+        suspension.requireAllowed(message.workspaceId, 'product')
+      )
+      if (Result.isFailure(allowed)) {
+        if (allowed.failure._tag === 'WorkspaceSuspended') {
+          return yield* settledSuspension(input, exports)
+        }
+        return yield* unavailable(input, allowed.failure.reason, exports)
+      }
+
+      const built = yield* Effect.result(
+        Effect.gen(function* () {
+          const workspaceContext = yield* Layer.buildWithScope(
+            resolveWorkspace(message.workspaceSlug),
+            scope
+          )
+          return yield* buildWorkspaceExportArchiveEffect({
+            exportId: message.exportId,
+            generatedAt: yield* DateTime.now
+          }).pipe(
+            Effect.provide(snapshotContext),
+            Effect.provideContext(workspaceContext)
+          )
+        })
+      )
+
+      if (Result.isFailure(built)) {
+        if (built.failure._tag === 'WorkspaceNotFound') {
+          return yield* failed(input, 'workspace_not_found', exports)
+        }
+        return yield* unavailable(input, built.failure.reason, exports)
+      }
+      if (built.success.snapshot.workspace.id !== message.workspaceId) {
+        return yield* failed(input, 'workspace_mismatch', exports)
+      }
+
+      const completed = yield* Effect.result(
+        exports.complete({
+          exportId: message.exportId,
+          workspaceId: message.workspaceId,
+          archive: built.success.archive
+        })
+      )
+      if (Result.isFailure(completed)) {
+        if (completed.failure._tag === 'WorkspaceSuspended') {
+          return yield* settledSuspension(input, exports)
+        }
+        return yield* unavailable(input, completed.failure.reason, exports)
+      }
+      if (!completed.success) {
+        return {
+          _tag: 'skipped',
+          reason: 'already_settled'
+        } satisfies WorkspaceExportGenerationResult
+      }
+      return {
+        _tag: 'ready',
+        sizeBytes: built.success.archive.length
+      } satisfies WorkspaceExportGenerationResult
+    })
+    return WorkspaceExportGeneration.of({ generate })
+  })
+}
+
 /**
  * Builds and settles one queued export. The queue only supplies identity and
  * retry state; snapshot dependencies, archive ordering, and terminal row
@@ -122,78 +203,6 @@ export function WorkspaceExportGenerationLayer(
   resolveWorkspace: ResolveWorkspace
 ): Layer.Layer<WorkspaceExportGeneration, never, GenerationDependencies> {
   return Layer.effect(WorkspaceExportGeneration)(
-    Effect.gen(function* () {
-      const exports = yield* WorkspaceExports
-      const suspension = yield* WorkspaceSuspensionService
-      const scope = yield* Effect.scope
-      const snapshotContext = yield* workspaceExportSnapshotContextEffect()
-
-      const generate = Effect.fn('WorkspaceExportGeneration.generate')(function* (
-        input: WorkspaceExportGenerationInput
-      ) {
-        const message = input.message
-        const allowed = yield* Effect.result(
-          suspension.requireAllowed(message.workspaceId, 'product')
-        )
-        if (Result.isFailure(allowed)) {
-          if (allowed.failure._tag === 'WorkspaceSuspended') {
-            return yield* settledSuspension(input, exports)
-          }
-          return yield* unavailable(input, allowed.failure.reason, exports)
-        }
-
-        const built = yield* Effect.result(
-          Effect.gen(function* () {
-            const workspaceContext = yield* Layer.buildWithScope(
-              resolveWorkspace(message.workspaceSlug),
-              scope
-            )
-            return yield* buildWorkspaceExportArchiveEffect({
-              exportId: message.exportId,
-              generatedAt: yield* DateTime.now
-            }).pipe(
-              Effect.provide(snapshotContext),
-              Effect.provideContext(workspaceContext)
-            )
-          })
-        )
-
-        if (Result.isFailure(built)) {
-          if (built.failure._tag === 'WorkspaceNotFound') {
-            return yield* failed(input, 'workspace_not_found', exports)
-          }
-          return yield* unavailable(input, built.failure.reason, exports)
-        }
-        if (built.success.snapshot.workspace.id !== message.workspaceId) {
-          return yield* failed(input, 'workspace_mismatch', exports)
-        }
-
-        const completed = yield* Effect.result(
-          exports.complete({
-            exportId: message.exportId,
-            workspaceId: message.workspaceId,
-            archive: built.success.archive
-          })
-        )
-        if (Result.isFailure(completed)) {
-          if (completed.failure._tag === 'WorkspaceSuspended') {
-            return yield* settledSuspension(input, exports)
-          }
-          return yield* unavailable(input, completed.failure.reason, exports)
-        }
-        if (!completed.success) {
-          return {
-            _tag: 'skipped',
-            reason: 'already_settled'
-          } satisfies WorkspaceExportGenerationResult
-        }
-        return {
-          _tag: 'ready',
-          sizeBytes: built.success.archive.length
-        } satisfies WorkspaceExportGenerationResult
-      })
-
-      return WorkspaceExportGeneration.of({ generate })
-    })
+    workspaceExportGenerationEffect(resolveWorkspace)
   )
 }
