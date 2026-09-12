@@ -1,3 +1,10 @@
+import { pickOptionalStrings } from '@/lib/utils'
+import {
+  createAssistantTaskServerFn,
+  getAssistantTaskServerFn,
+  approveAssistantTaskServerFn,
+  cancelAssistantTaskServerFn
+} from '@/lib/server/assistant-tasks'
 import { createFileRoute } from '@tanstack/react-router'
 import { pageTitle } from '@/components/page/page-title'
 import { RoutePending } from '@/components/route-pending'
@@ -6,6 +13,7 @@ import { askAssistantServerFn, loadAssistantPageServerFn } from '@/lib/server/as
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 export const Route = createFileRoute('/workspaces/$workspaceSlug/assistant')({
+  validateSearch: (search) => pickOptionalStrings(search, ['deliveryId', 'taskId']),
   loader: ({ params }) =>
     loadAssistantPageServerFn({
       data: { workspaceSlug: params.workspaceSlug }
@@ -22,11 +30,31 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/assistant')({
 function WorkspaceAssistantRoute() {
   const { workspaceSlug } = Route.useParams()
   const data = Route.useLoaderData()
+  const search = Route.useSearch()
+  const navigate = Route.useNavigate()
   return (
     <WorkspaceAssistantPage
       workspaceSlug={workspaceSlug}
       data={data}
       ask={askAssistantServerFn}
+      {...(search.deliveryId === undefined
+        ? {}
+        : { selectedDeliveryId: search.deliveryId })}
+      {...(search.taskId === undefined ? {} : { selectedTaskId: search.taskId })}
+      onSelectTask={(taskId) => {
+        void navigate({ search: { taskId } })
+      }}
+      {...(data.investigations
+        ? {
+            investigation: {
+              ...data.investigations,
+              create: createAssistantTaskServerFn,
+              get: getAssistantTaskServerFn,
+              approve: approveAssistantTaskServerFn,
+              cancel: cancelAssistantTaskServerFn
+            }
+          }
+        : {})}
       systemRole={Route.useRouteContext().session.user.role}
     />
   )

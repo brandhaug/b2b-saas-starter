@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import { statusLabel } from '@/lib/value-labels'
 import { type WebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { type WebhookEndpoint } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
@@ -68,6 +69,7 @@ export function WebhookDeliveriesDrawer({
   readonly listDeliveryAttempts?: ListDeliveryAttempts
 }) {
   const canReplay = viewerCan(viewer, { webhook: ['replay'] })
+  const canInvestigate = viewerCan(viewer, { assistant: ['read'], webhook: ['list'] })
   const canTest = viewerCan(viewer, { webhook: ['test'] })
 
   const replay = useServerAction(
@@ -158,19 +160,36 @@ export function WebhookDeliveriesDrawer({
                           ? {}
                           : { listAttempts: listDeliveryAttempts })}
                       />
-                      {replayable ? (
-                        <div>
-                          <Button
-                            variant="ghost"
-                            size="xs"
-                            disabled={replay.pendingInput === delivery.id}
-                            onClick={() => replay.run(delivery.id)}
-                          >
-                            {replay.pendingInput === delivery.id ? (
-                              <Spinner data-icon="inline-start" />
-                            ) : null}
-                            {m.webhook_replay_action()}
-                          </Button>
+                      {canInvestigate || replayable ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          {canInvestigate ? (
+                            <Button
+                              variant="ghost"
+                              size="xs"
+                              render={
+                                <Link
+                                  to="/workspaces/$workspaceSlug/assistant"
+                                  params={{ workspaceSlug }}
+                                  search={{ deliveryId: delivery.id }}
+                                />
+                              }
+                            >
+                              {m.investigate_delivery()}
+                            </Button>
+                          ) : null}
+                          {replayable ? (
+                            <Button
+                              variant="ghost"
+                              size="xs"
+                              disabled={replay.pendingInput === delivery.id}
+                              onClick={() => replay.run(delivery.id)}
+                            >
+                              {replay.pendingInput === delivery.id ? (
+                                <Spinner data-icon="inline-start" />
+                              ) : null}
+                              {m.webhook_replay_action()}
+                            </Button>
+                          ) : null}
                         </div>
                       ) : null}
                     </li>

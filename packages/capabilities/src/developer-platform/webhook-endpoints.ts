@@ -225,6 +225,10 @@ export const planAdminReplay = Effect.fn('WebhookEndpoints.planAdminReplay')(fun
 
 type ReplayWebhookDeliveryInput = {
   readonly deliveryId: string
+  /** Stable identity for a caller that must reconcile an uncertain enqueue. */
+  readonly replayDeliveryId?: string | undefined
+  readonly expectedEndpointUrl?: string | undefined
+  readonly expectedStatus?: WebhookDeliveryStatus | undefined
 }
 
 type SendTestEventInput = {
@@ -305,6 +309,16 @@ type WebhookEndpointsInterface = {
   ) => Effect.Effect<
     ReadonlyArray<WebhookDelivery>,
     CapabilityUnavailable,
+    WorkspaceContext
+  >
+
+  readonly inspectDelivery: (input: { readonly deliveryId: string }) => Effect.Effect<
+    {
+      readonly endpoint: WebhookEndpoint
+      readonly delivery: WebhookDelivery
+      readonly attempts: ReadonlyArray<WebhookDeliveryAttempt>
+    },
+    CapabilityUnavailable | WebhookDeliveryNotFound,
     WorkspaceContext
   >
 

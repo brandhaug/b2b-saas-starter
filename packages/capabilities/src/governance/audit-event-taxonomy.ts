@@ -36,6 +36,9 @@ export const AUDIT_EVENT_TYPES = [
   'webhook.delivery_failed',
   'webhook.delivery_dead_lettered',
   'webhook.delivery_replayed',
+  'assistant_task.created',
+  'assistant_task.approved',
+  'assistant_task.cancelled',
   // developer-platform — MCP Clients connected through OAuth (ADR 0068)
   'mcp_client.consent_granted',
   'mcp_client.consent_revoked',
@@ -155,6 +158,7 @@ const AUDIT_TARGET_TYPES = [
   'session',
   'api_token',
   'webhook_endpoint',
+  'assistant_task',
   'mcp_client',
   'workspace',
   'workspace_member',

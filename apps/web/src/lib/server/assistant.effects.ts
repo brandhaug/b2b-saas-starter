@@ -1,3 +1,5 @@
+import { WebhookInvestigationTasks } from '@b2b-saas-starter/capabilities/developer-platform/webhook-investigation-tasks'
+import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import {
   AssistantService,
@@ -11,8 +13,8 @@ import { env as cloudflareEnv } from 'cloudflare:workers'
 
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
-import { requireWorkspacePermission } from './authorize'
-import { workspacePage, type WorkspacePageFrame } from './page-frame'
+import { requireWorkspacePermission, whenPermitted } from './authorize'
+import { workspacePage } from './page-frame'
 import {
   type AssistantAnswered,
   type AssistantPageInput,
@@ -29,9 +31,35 @@ import {
  * reason for the split.
  */
 
-const assistantPagePayload: WorkspacePageFrame<AssistantPagePayload> = workspacePage(
-  { assistant: ['read'] },
-  () => Effect.sync(() => ({ configured: isAssistantConfigured(cloudflareEnv) }))
+const assistantPagePayload = workspacePage({ assistant: ['read'] }, () =>
+  Effect.gen(function* () {
+    const investigations = yield* whenPermitted(
+      { webhook: ['list'] },
+      Effect.gen(function* () {
+        const tasks = yield* WebhookInvestigationTasks
+        const webhooks = yield* WebhookEndpoints
+        const endpoints = yield* webhooks.list
+        const deliveries = yield* Effect.forEach(
+          endpoints,
+          (endpoint) =>
+            webhooks.listDeliveries({ endpointId: endpoint.id }).pipe(
+              Effect.map((items) =>
+                items.map((delivery) => ({
+                  id: delivery.id,
+                  endpointId: endpoint.id,
+                  endpointUrl: endpoint.url,
+                  eventType: delivery.eventType,
+                  status: delivery.status
+                }))
+              )
+            ),
+          { concurrency: 4 }
+        )
+        return { tasks: yield* tasks.list(), deliveries: deliveries.flat() }
+      })
+    )
+    return { configured: isAssistantConfigured(cloudflareEnv), investigations }
+  })
 )
 
 export async function loadAssistantPageHandler(
@@ -63,11 +91,26 @@ export async function askAssistantHandler(
           message: m.server_assistant_unconfigured()
         } satisfies AssistantRefused
       }
+      let evidence: string | undefined
+      if (input.taskId !== undefined) {
+        yield* requireWorkspacePermission({ webhook: ['list'] })
+        const tasks = yield* WebhookInvestigationTasks
+        const task = yield* tasks.get({ taskId: input.taskId })
+        // Only bounded operational evidence reaches the model; no payload, headers, response body, or destination URL.
+        evidence = JSON.stringify({
+          diagnosis: task.diagnosis,
+          sourceDeliveryId: task.sourceDeliveryId,
+          status: task.status,
+          outcome: task.outcome,
+          responseStatus: task.evidence.lastResponseStatus,
+          attempts: task.evidence.attempts
+        })
+      }
       const service = yield* AssistantService
       // Annotated so the outcome object literals keep their discriminated
       // `ok` values instead of widening to `boolean`.
       const answered: Effect.Effect<AskAssistantOutcome, never, never> = service
-        .ask({ workspaceSlug: ctx.workspace.slug, question: input.question })
+        .ask({ workspaceSlug: ctx.workspace.slug, question: input.question, evidence })
         .pipe(
           Effect.map((reply): AssistantAnswered => ({
             ok: true,

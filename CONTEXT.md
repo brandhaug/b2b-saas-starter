@@ -117,6 +117,14 @@ One event payload addressed to one Webhook Endpoint, including its automatic
 retries. A manual replay is a new delivery linked to its source.
 _Avoid_: Attempt, callback
 
+**Assistant Task**:
+A saved request to investigate a Workspace's operational evidence and track any approved action through its recorded outcome.
+_Avoid_: Conversation, agent, chat session
+
+**Replay Proposal**:
+An Assistant Task's request for a Member to approve replaying one failed Webhook Delivery to its identified Webhook Endpoint.
+_Avoid_: Automatic retry, generated recommendation
+
 **Webhook Attempt**:
 An individual dispatch result or terminal outcome within a Webhook Delivery.
 _Avoid_: Delivery, audit event

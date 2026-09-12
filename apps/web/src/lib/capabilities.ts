@@ -69,6 +69,7 @@ export type CapabilityBindings = Pick<
 // an unconfigured deploy, present when alchemy provisioned them.
 const starterEnv: StarterEnv = {
   DB: cloudflareEnv.DB,
+  WEBHOOK_QUEUE: cloudflareEnv.WEBHOOK_QUEUE,
   BILLING_QUEUE: cloudflareEnv.BILLING_QUEUE,
   WORKSPACE_EXPORT_QUEUE: cloudflareEnv.WORKSPACE_EXPORT_QUEUE,
   WORKSPACE_EXPORT_BUCKET: cloudflareEnv.WORKSPACE_EXPORT_BUCKET,
