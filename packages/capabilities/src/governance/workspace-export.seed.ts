@@ -1,4 +1,4 @@
-import { DateTime, Effect, Layer, Option, Result } from 'effect'
+import { DateTime, Effect, Layer, Option, Result, Scope } from 'effect'
 
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { newCapabilityId } from '../internal/ids.ts'
@@ -11,7 +11,11 @@ import { type SystemNotificationEvent } from '../notifications/notification-even
 import { testWorkspaceContext, WorkspaceContext } from '../workspace-context.ts'
 import { AuditEventLog, type AuditEventLogInterface } from './audit-event-log.ts'
 import { workspaceExportFileName } from './workspace-export-archive.ts'
-import { buildWorkspaceExportArchiveEffect } from './workspace-export-generation.ts'
+import {
+  buildWorkspaceExportArchiveEffect,
+  workspaceExportGenerationEffect,
+  type WorkspaceExportGenerationResult
+} from './workspace-export-generation.ts'
 import {
   workspaceExportSnapshotContextEffect,
   type WorkspaceExportSnapshotServices
@@ -28,7 +32,8 @@ import {
   type IssueWorkspaceExportDownloadInput,
   type OpenWorkspaceExportDownloadInput,
   type WorkspaceExport,
-  type WorkspaceExportAvailability
+  type WorkspaceExportAvailability,
+  type WorkspaceExportsInterface
 } from './workspace-export.ts'
 import { type Workspace } from './workspace-identity.ts'
 import { WorkspaceSuspensionService } from './workspace-suspension.ts'
@@ -72,9 +77,10 @@ type SeedExportRow = {
    * fixture's version of a worker that drained the queue immediately.
    * `null` once drained (or for a row that never had one).
    */
-  deferredBuild: Effect.Effect<Uint8Array, CapabilityUnavailable> | null
-  /** The instant the deferred build is stamped as completing at. */
-  deferredAt: DateTime.Utc | null
+  deferredBuild: Effect.Effect<
+    WorkspaceExportGenerationResult,
+    CapabilityUnavailable
+  > | null
 }
 
 /** Newest first, like Live's `ORDER BY created_at DESC`. */
@@ -102,10 +108,8 @@ function readyNotification(workspaceName: string, expiresAt: string) {
 
 /**
  * In-memory exports: the Seed adapter has no queue and no bucket, so
- * `request` collects the snapshot, builds the archive, and lands the row
- * `ready` in one step. The archive is the same bytes the background worker
- * would write (same `collectWorkspaceExportSnapshot`, same builder), so a test
- * against Seed asserts the real artifact shape.
+ * `request` leaves a pending row and drains the shared generation policy on
+ * the next read. The archive is the same bytes the background worker writes.
  *
  * Depends on the read services because it takes the snapshot itself; Live
  * leaves that to the consumer. `layers.ts` provides the shared seed instances
@@ -128,17 +132,11 @@ export function SeedWorkspaceExports(options: {
       const feed = yield* NotificationFeed
       const snapshotContext = yield* workspaceExportSnapshotContextEffect()
       const suspension = yield* WorkspaceSuspensionService
+      const scope = yield* Effect.scope
       function requireProduct(workspaceId: string) {
         return suspension.requireAllowed(workspaceId, 'product')
       }
       const rows: Array<SeedExportRow> = []
-
-      function buildArchive(exportId: string, generatedAt: DateTime.Utc) {
-        return buildWorkspaceExportArchiveEffect({ exportId, generatedAt }).pipe(
-          Effect.provide(snapshotContext),
-          Effect.map(({ archive }) => archive)
-        )
-      }
 
       if (options.fixture) {
         const now = yield* DateTime.now
@@ -154,7 +152,11 @@ export function SeedWorkspaceExports(options: {
         // lands `failed` with the reason rather than failing layer construction
         // for every other capability.
         const built = yield* Effect.result(
-          buildArchive(options.fixture.id, completedAt).pipe(
+          buildWorkspaceExportArchiveEffect({
+            exportId: options.fixture.id,
+            generatedAt: completedAt
+          }).pipe(
+            Effect.provide(snapshotContext),
             Effect.provide(testWorkspaceContext(options.workspace, null, 'system'))
           )
         )
@@ -174,12 +176,11 @@ export function SeedWorkspaceExports(options: {
               requestedAt: DateTime.formatIso(requestedAt),
               completedAt: DateTime.formatIso(completedAt),
               expiresAt: workspaceExportExpiresAt(completedAt),
-              sizeBytes: built.success.length,
+              sizeBytes: built.success.archive.length,
               failureReason: null
             },
-            archive: built.success,
-            deferredBuild: null,
-            deferredAt: null
+            archive: built.success.archive,
+            deferredBuild: null
           })
         } else {
           rows.push({
@@ -194,8 +195,7 @@ export function SeedWorkspaceExports(options: {
               failureReason: built.failure.reason
             },
             archive: null,
-            deferredBuild: null,
-            deferredAt: null
+            deferredBuild: null
           })
         }
       }
@@ -209,13 +209,11 @@ export function SeedWorkspaceExports(options: {
       const drainDeferredBuilds = Effect.gen(function* () {
         for (const row of rows) {
           const build = row.deferredBuild
-          const at = row.deferredAt
-          row.deferredBuild = null
-          row.deferredAt = null
-          if (build === null || at === null || row.record.status !== 'pending') {
+          if (build === null || row.record.status !== 'pending') {
             continue
           }
-          yield* completeRow(row, yield* build, at, audit, feed)
+          yield* build
+          row.deferredBuild = null
         }
       })
 
@@ -228,7 +226,7 @@ export function SeedWorkspaceExports(options: {
         )
       }
 
-      return {
+      const service: WorkspaceExportsInterface = {
         availability: Effect.fn('WorkspaceExports.availability')(() =>
           Effect.succeed({ available: true } satisfies WorkspaceExportAvailability)
         )(),
@@ -262,8 +260,7 @@ export function SeedWorkspaceExports(options: {
             requestedByUserId: ctx.actor?.userId ?? null,
             downloadSecret: yield* newCapabilityId('sec'),
             archive: null,
-            deferredBuild: null,
-            deferredAt: null
+            deferredBuild: null
           }
           rows.push(row)
           yield* audit.record({
@@ -279,12 +276,26 @@ export function SeedWorkspaceExports(options: {
           // a `pending` export whose artifact does not exist yet. The
           // fixture has no queue, so the build waits here and the next read
           // drains it — the state a caller sees is the same either way.
-          // The build reads the workspace's own data, so it carries the
-          // requester's context with it rather than the next reader's.
-          row.deferredBuild = buildArchive(id, requestedAt).pipe(
-            Effect.provideService(WorkspaceContext, ctx)
+          // The build reads the workspace's own data with a trusted system
+          // context, rather than inheriting the next reader's actor.
+          row.deferredBuild = workspaceExportGenerationEffect(() =>
+            testWorkspaceContext(ctx.workspace, null, 'system')
+          ).pipe(
+            Effect.provide(snapshotContext),
+            Effect.provideService(WorkspaceExports, service),
+            Effect.provideService(WorkspaceSuspensionService, suspension),
+            Effect.provideService(Scope.Scope, scope),
+            Effect.flatMap((generation) =>
+              generation.generate({
+                message: {
+                  exportId: id,
+                  workspaceId: ctx.workspace.id,
+                  workspaceSlug: ctx.workspace.slug
+                },
+                finalAttempt: true
+              })
+            )
           )
-          row.deferredAt = requestedAt
           return row.record
         })(),
         issueDownloadLink: Effect.fn('WorkspaceExports.issueDownloadLink')(function* (
@@ -327,14 +338,8 @@ export function SeedWorkspaceExports(options: {
             return false
           }
           const completedAt = yield* DateTime.now
-          row.record = {
-            ...row.record,
-            status: 'failed',
-            completedAt: DateTime.formatIso(completedAt),
-            failureReason: input.reason
-          }
-          // The same event Live commits beside the transition: a settled
-          // failure is the outcome an operator most needs a trail for.
+          // Record the evidence before changing the row so an unavailable
+          // audit service leaves the deferred export pending for retry.
           yield* audit.record({
             workspaceId: row.workspaceId,
             actorUserId: null,
@@ -344,6 +349,14 @@ export function SeedWorkspaceExports(options: {
             targetId: row.record.id,
             metadata: { reason: input.reason }
           })
+          row.record = {
+            ...row.record,
+            status: 'failed',
+            completedAt: DateTime.formatIso(completedAt),
+            failureReason: input.reason
+          }
+          // The same event Live commits beside the transition: a settled
+          // failure is the outcome an operator most needs a trail for.
           return true
         }),
         openDownload: Effect.fn('WorkspaceExports.openDownload')(function* (
@@ -393,6 +406,7 @@ export function SeedWorkspaceExports(options: {
           })
         })
       }
+      return service
     })
   )
 }
