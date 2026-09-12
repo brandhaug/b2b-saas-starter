@@ -1,3 +1,4 @@
+import { workspaceViewSearch } from '@/lib/workspace-view'
 import { createFileRoute } from '@tanstack/react-router'
 import { pageTitle } from '@/components/page/page-title'
 import { PreviewProvider } from '@/components/preview-provider'
@@ -6,6 +7,7 @@ import { DemoRenderer } from '@/components/demo-renderer'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 export const Route = createFileRoute('/demo')({
+  validateSearch: workspaceViewSearch,
   component: () => (
     <PreviewProvider>
       <DemoRenderer section="overview" />

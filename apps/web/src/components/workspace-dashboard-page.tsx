@@ -66,16 +66,6 @@ export function WorkspaceDashboardPage({
           auditEvents: null
         })}
       />
-      <LiveNotifications
-        workspaceSlug={workspace.slug}
-        fallback={notifications}
-        {...(ports?.listNotifications === undefined
-          ? {}
-          : { listNotifications: ports.listNotifications })}
-        {...(ports?.markNotificationsRead === undefined
-          ? {}
-          : { markRead: ports.markNotificationsRead })}
-      />
       {/* Derived from live state on every load; renders nothing once an
           owner or admin dismissed it for the workspace. */}
       <OnboardingChecklist
@@ -86,6 +76,16 @@ export function WorkspaceDashboardPage({
         {...(ports?.dismissOnboardingChecklist === undefined
           ? {}
           : { dismiss: ports.dismissOnboardingChecklist })}
+      />
+      <LiveNotifications
+        workspaceSlug={workspace.slug}
+        fallback={notifications}
+        {...(ports?.listNotifications === undefined
+          ? {}
+          : { listNotifications: ports.listNotifications })}
+        {...(ports?.markNotificationsRead === undefined
+          ? {}
+          : { markRead: ports.markNotificationsRead })}
       />
     </WorkspaceShell>
   )

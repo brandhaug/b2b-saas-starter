@@ -1,3 +1,4 @@
+import { workspaceViewSearch } from '@/lib/workspace-view'
 import { Outlet, createFileRoute, redirect } from '@tanstack/react-router'
 
 import { loadWorkspaceSuspensionServerFn } from '@/lib/server/workspace-suspension'
@@ -9,6 +10,7 @@ import { loadWorkspaceSuspensionServerFn } from '@/lib/server/workspace-suspensi
  * page read on either SSR or client navigation.
  */
 export const Route = createFileRoute('/workspaces/$workspaceSlug')({
+  validateSearch: workspaceViewSearch,
   beforeLoad: async ({ params, location }) => {
     const suspension = await loadWorkspaceSuspensionServerFn({
       data: { workspaceSlug: params.workspaceSlug }

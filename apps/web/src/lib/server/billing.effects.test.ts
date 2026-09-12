@@ -10,6 +10,8 @@ import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { ResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+import { seedMembers } from '@b2b-saas-starter/capabilities/governance/workspace-identity.seed'
+import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import {
   testWorkspaceContext,
@@ -107,6 +109,9 @@ vi.mock('../capabilities', () => ({
     })
     const tokens = Layer.mock(ApiTokenRegistry, { list: Effect.succeed([]) })
     const webhooks = Layer.mock(WebhookEndpoints, { list: Effect.succeed([]) })
+    const membership = Layer.mock(WorkspaceMembership, {
+      listMembers: Effect.succeed(seedMembers)
+    })
     const feed = Layer.mock(NotificationFeed, { unreadCount: Effect.succeed(0) })
     const contextLayer = testWorkspaceContext(
       context.workspace,
@@ -118,7 +123,15 @@ vi.mock('../capabilities', () => ({
       Effect.scoped(
         effect.pipe(
           Effect.provide(
-            Layer.mergeAll(billing, resources, tokens, webhooks, feed, contextLayer)
+            Layer.mergeAll(
+              billing,
+              resources,
+              tokens,
+              webhooks,
+              membership,
+              feed,
+              contextLayer
+            )
           )
         )
       )
@@ -168,6 +181,7 @@ describe('billing loader recovery controls', () => {
       expect(payload.pricingUnavailable).toBe(true)
       expect(payload.plans).toEqual([])
       expect(payload.currentPlanId).toBe('starter')
+      expect(payload.seatUsage.used).toBe(seedMembers.length)
     }
   )
 

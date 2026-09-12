@@ -1,16 +1,12 @@
 import { roleLabel, statusLabel } from '@/lib/value-labels'
-import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { type Invitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import { useState } from 'react'
-import { useForm } from '@tanstack/react-form'
 import { toast } from 'sonner'
 
-import { FormTextField } from '@/components/form-text-field'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
-import { FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field'
 import {
   Item,
   ItemActions,
@@ -21,42 +17,19 @@ import {
 } from '@/components/ui/item'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { Identifier } from '@/components/page/identifier'
-import { CreateAction, ListSection, Panel } from '@/components/page/panel'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { ListSection, Panel } from '@/components/page/panel'
 import { Spinner } from '@/components/ui/spinner'
-import { viewerCan, workspaceRoles, type Viewer } from '@/lib/permissions'
+import { viewerCan, type Viewer } from '@/lib/permissions'
 import {
   cancelInvitationServerFn,
-  sendInvitationServerFn,
   resendInvitationServerFn,
   type SentInvitation
 } from '@/lib/server/invitations'
 import { useServerAction } from '@/hooks/use-server-action'
 import { useKeyedFailure } from '@/hooks/use-keyed-failure'
-import { EMAIL_PATTERN } from '@/lib/email-pattern'
 import { invitationStatusVariant } from '@/lib/badge-variants'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { type EmailDeliveryRow } from '@/lib/server/email-delivery'
-
-type InvitationValues = {
-  email: string
-  role: WorkspaceRole
-}
-
-const DEFAULT_INVITATION_VALUES: InvitationValues = {
-  email: '',
-  role: 'member'
-}
-
-function validateEmail(value: string): string | undefined {
-  if (value.trim().length === 0) {
-    return m.email_required()
-  }
-  if (!EMAIL_PATTERN.test(value)) {
-    return m.auth_invalid_email()
-  }
-  return
-}
 
 function invitationSendLabel(sent: SentInvitation) {
   const values = { email: sent.invitation.email }
@@ -85,26 +58,6 @@ export function InvitationPanel({
   // invite; the server fn re-checks the permission regardless.
   const canInvite = viewerCan(viewer, { invitation: ['create'] })
   const [sent, setSent] = useState<SentInvitation | null>(null)
-
-  // Same shape as `ApiTokenForm`: the server function rejects on failure and
-  // the hook folds that rejection into a display message, so the failure path
-  // is a value rather than a try/catch. The loader owns the invitation list, so
-  // the hook re-runs it rather than mirroring the new row into local state.
-  const send = useServerAction(
-    (value: InvitationValues) =>
-      sendInvitationServerFn({
-        data: { workspaceSlug, email: value.email, role: value.role }
-      }),
-    {
-      failureMessage: m.invitation_send_failed(),
-      onSuccess: (result) => {
-        // No toast: the inline ok alert below carries the delivery verdict
-        // and the invite link — a second, poorer copy of the same news in
-        // the corner is noise, not confirmation.
-        setSent(result)
-      }
-    }
-  )
 
   const cancel = useServerAction(
     (invitationId: string) =>
@@ -137,102 +90,23 @@ export function InvitationPanel({
   // the next cancel — the shared per-row failure hook.
   const { failure: failedRow, runWith: cancelOnRow } = useKeyedFailure<string>()
 
-  const form = useForm({
-    defaultValues: DEFAULT_INVITATION_VALUES,
-    onSubmit: async ({ value }) => {
-      const outcome = await send.runAsync(value)
-      if (outcome.ok) {
-        form.reset()
-      }
-    }
-  })
-
   return (
     <Panel
       title={m.panel_invitations()}
       description={m.panel_invitations_description()}
     >
-      <CreateAction
-        allowed={canInvite}
-        title={m.form_invite_member()}
-        deniedReason={m.workspace_invite_denied()}
-      >
-        <form
-          onSubmit={(event) => {
-            event.preventDefault()
-            event.stopPropagation()
-            void form.handleSubmit()
-          }}
-          className="grid gap-4"
-        >
-          <form.Field
-            name="email"
-            validators={{ onChange: ({ value }) => validateEmail(value) }}
-          >
-            {(field) => (
-              <FormTextField
-                name={field.name}
-                label={m.form_invite_by_email()}
-                value={field.state.value}
-                errors={field.state.meta.errors}
-                onBlur={field.handleBlur}
-                onChange={field.handleChange}
-                placeholder={m.invitation_email_placeholder()}
-              />
-            )}
-          </form.Field>
-
-          <form.Field name="role">
-            {(field) => (
-              <FieldSet>
-                <FieldLegend variant="label">{m.common_role()}</FieldLegend>
-                <RadioGroup
-                  name={field.name}
-                  value={field.state.value}
-                  onValueChange={(role) => field.handleChange(role)}
-                  className="flex flex-wrap gap-3"
-                >
-                  {workspaceRoles.map((role) => (
-                    <FieldLabel key={role}>
-                      <RadioGroupItem value={role} />
-                      <span>{roleLabel(role)}</span>
-                    </FieldLabel>
-                  ))}
-                </RadioGroup>
-              </FieldSet>
-            )}
-          </form.Field>
-
-          <form.Subscribe
-            selector={(state): readonly [boolean, boolean] => [
-              state.canSubmit,
-              state.isSubmitting
-            ]}
-          >
-            {([canSubmit, isSubmitting]) => (
-              <Button
-                type="submit"
-                disabled={!canSubmit || isSubmitting}
-                className="justify-self-start"
-              >
-                {isSubmitting ? <Spinner data-icon="inline-start" /> : null}
-                {m.form_send_invitation()}
-              </Button>
-            )}
-          </form.Subscribe>
-
-          {sent ? (
-            <Alert variant="ok" className="justify-self-stretch">
-              <AlertTitle>{invitationSendLabel(sent)}</AlertTitle>
-              <AlertDescription>
-                <Identifier>{sent.inviteUrl}</Identifier>
-              </AlertDescription>
-            </Alert>
-          ) : null}
-          <ActionFeedback error={send.error} />
-          <ActionFeedback error={resend.error} />
-        </form>
-      </CreateAction>
+      {canInvite ? null : (
+        <p className="text-sm text-muted-foreground">{m.workspace_invite_denied()}</p>
+      )}
+      {sent ? (
+        <Alert variant="ok">
+          <AlertTitle>{invitationSendLabel(sent)}</AlertTitle>
+          <AlertDescription>
+            <Identifier>{sent.inviteUrl}</Identifier>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      <ActionFeedback error={resend.error} />
 
       <ListSection title={m.pending_invitations()}>
         {invitations.length === 0 ? (

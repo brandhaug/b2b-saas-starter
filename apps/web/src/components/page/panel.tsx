@@ -9,6 +9,7 @@ import {
   SheetTitle
 } from '@/components/ui/sheet'
 
+import { useWorkspaceView } from '@/lib/workspace-view'
 import { cn } from '@/lib/utils'
 
 /**
@@ -154,14 +155,17 @@ export function CreateAction({
   allowed = true,
   title,
   deniedReason,
+  action,
   children
 }: {
+  readonly action?: string
   readonly allowed?: boolean
   readonly title: string
   /** Shown in the trigger's place when the viewer's role cannot create. */
   readonly deniedReason?: string
   readonly children: ReactNode
 }) {
+  const { view, update } = useWorkspaceView()
   if (!allowed) {
     return deniedReason === undefined ? null : (
       <p className="text-sm text-muted-foreground">{deniedReason}</p>
@@ -169,7 +173,15 @@ export function CreateAction({
   }
   return (
     <div className="flex justify-end">
-      <Sheet>
+      <Sheet
+        {...(action === undefined
+          ? {}
+          : {
+              open: view.action === action,
+              onOpenChange: (open: boolean) =>
+                update({ action: open ? action : undefined }, !open)
+            })}
+      >
         <SheetTrigger render={<Button />}>{title}</SheetTrigger>
         <SheetContent className="overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-lg">
           <SheetHeader>

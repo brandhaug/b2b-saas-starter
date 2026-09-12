@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react'
+import { useWorkspaceView } from '@/lib/workspace-view'
 import { Tabs } from '@base-ui/react/tabs'
 
 /** Named views with keyboard navigation and persistent form state. */
@@ -14,12 +15,22 @@ export function SectionTabs({
     readonly keepMounted?: boolean
   }>
 }) {
+  const { view, update } = useWorkspaceView()
+  const selected = sections.some((section) => section.value === view.tab)
+    ? view.tab
+    : defaultValue
   const firstSection = sections[0]
   if (sections.length === 1 && firstSection !== undefined) {
     return firstSection.content
   }
   return (
-    <Tabs.Root defaultValue={defaultValue} className="grid min-w-0 gap-6">
+    <Tabs.Root
+      value={selected}
+      onValueChange={(value) =>
+        update({ tab: String(value), record: undefined, action: undefined })
+      }
+      className="grid min-w-0 gap-6"
+    >
       <Tabs.List className="flex gap-1 overflow-x-auto border-b border-border">
         {sections.map(({ value, label }) => (
           <Tabs.Tab

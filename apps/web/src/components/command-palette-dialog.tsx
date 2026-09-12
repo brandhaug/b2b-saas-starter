@@ -1,10 +1,11 @@
-import { use, type ReactNode } from 'react'
+import { type PermissionRequest } from '@b2b-saas-starter/authz/client'
+import { use, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { BookOpenIcon } from 'lucide-react'
 import { getAllDocMeta } from '@/lib/docs'
 import { publicLinks } from '@/lib/content'
 import { viewerCan } from '@/lib/permissions'
-import { workspaceNav, youNav } from '@/lib/workspace-nav'
+import { workspaceNav, youNav, type WorkspaceNavTarget } from '@/lib/workspace-nav'
 import { CommandPaletteContext } from '@/lib/command-palette-context'
 import {
   CommandDialog,
@@ -69,6 +70,7 @@ function KnowledgeEntries({ close }: { readonly close: () => void }) {
 // fallow-ignore-next-line unused-export
 export default function CommandPaletteDialog() {
   const navigate = useNavigate()
+  const [query, setQuery] = useState('')
   // Target the current workspace when inside one; outside a workspace the
   // command falls back to the workspace list — never a hardcoded workspace.
   const params = useParams({ strict: false })
@@ -94,8 +96,7 @@ export default function CommandPaletteDialog() {
       rows.push(
         <CommandItem
           key={row.to}
-          // Grouped rows match their section name too — the sidebar says
-          // "General", the palette still answers "settings".
+          // Match section labels as well as destination names.
           {...(row.group === undefined ? {} : { keywords: [row.group] })}
           onSelect={() => {
             close()
@@ -144,14 +145,89 @@ export default function CommandPaletteDialog() {
     )
   }
 
+  const actions =
+    viewer === null
+      ? []
+      : ([
+          {
+            label: m.form_invite_member(),
+            to: '/workspaces/$workspaceSlug/members',
+            action: 'invite',
+            permission: { invitation: ['create'] }
+          },
+          {
+            label: m.tokens_create_title(),
+            to: '/workspaces/$workspaceSlug/api-tokens',
+            action: 'create',
+            permission: { apiToken: ['create'] }
+          },
+          {
+            label: m.register_endpoint(),
+            to: '/workspaces/$workspaceSlug/webhooks',
+            action: 'create',
+            permission: { webhook: ['create'] }
+          }
+        ] satisfies ReadonlyArray<{
+          label: string
+          to: WorkspaceNavTarget
+          action: string
+          permission: PermissionRequest
+        }>)
+
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
       <CommandInput
+        value={query}
+        onValueChange={setQuery}
         placeholder={m.command_search_placeholder()}
         aria-label={m.command_search_label()}
       />
       <CommandList>
         <CommandEmpty>{m.command_no_results()}</CommandEmpty>
+        {(preview || workspaceSlug !== undefined) && viewer !== null ? (
+          <CommandGroup heading={m.workspace_actions()}>
+            {query.trim() === '' ? null : (
+              <CommandItem
+                onSelect={() => {
+                  close()
+                  const location = preview
+                    ? previewWorkspaceLocation('/workspaces/$workspaceSlug/members')
+                    : {
+                        to: '/workspaces/$workspaceSlug/members' satisfies WorkspaceNavTarget,
+                        params: { workspaceSlug: workspaceSlug ?? '' }
+                      }
+                  void navigate({
+                    ...location,
+                    search: { query: query.trim(), tab: 'members' }
+                  })
+                }}
+              >
+                {m.workspace_find_members({ query: query.trim() })}
+              </CommandItem>
+            )}
+            {actions.map((action) =>
+              viewerCan(viewer, action.permission) ? (
+                <CommandItem
+                  key={action.action + action.to}
+                  onSelect={() => {
+                    close()
+                    const location = preview
+                      ? previewWorkspaceLocation(action.to)
+                      : {
+                          to: action.to,
+                          params: { workspaceSlug: workspaceSlug ?? '' }
+                        }
+                    void navigate({ ...location, search: { action: action.action } })
+                  }}
+                >
+                  {action.label}
+                </CommandItem>
+              ) : null
+            )}
+          </CommandGroup>
+        ) : null}
+        <CommandGroup heading={m.nav_workspace_group()}>{rows}</CommandGroup>
+        <KnowledgeEntries close={close} />
         <CommandGroup heading={m.command_public_pages()}>
           {publicLinks().map((link) => (
             <CommandItem
@@ -165,10 +241,6 @@ export default function CommandPaletteDialog() {
             </CommandItem>
           ))}
         </CommandGroup>
-        {/* Suspends on the cached meta index the first time it opens — the
-            provider already wraps the dialog in a Suspense boundary. */}
-        <KnowledgeEntries close={close} />
-        <CommandGroup heading={m.nav_workspace_group()}>{rows}</CommandGroup>
       </CommandList>
     </CommandDialog>
   )

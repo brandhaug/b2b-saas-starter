@@ -16,6 +16,8 @@ import { viewerCan, type Viewer } from '@/lib/permissions'
 import { dismissOnboardingChecklistServerFn } from '@/lib/server/workspace-onboarding'
 import { type WorkspaceNavTarget } from '@/lib/workspace-nav'
 import { m } from '@b2b-saas-starter/i18n/messages'
+import { cn } from '@/lib/utils'
+import { type WorkspaceView } from '@/lib/workspace-view'
 
 /**
  * Dismissing, as a port. Injected so a test drives the card with a real
@@ -35,47 +37,72 @@ function stepCopy() {
   return {
     invite_member: {
       label: m.onboarding_invite_member(),
-      to: '/workspaces/$workspaceSlug/members'
+      to: '/workspaces/$workspaceSlug/members',
+      search: { action: 'invite' }
     },
     create_api_token: {
       label: m.onboarding_create_api_token(),
-      to: '/workspaces/$workspaceSlug/api-tokens'
+      to: '/workspaces/$workspaceSlug/api-tokens',
+      search: { action: 'create' }
     },
     add_webhook_endpoint: {
       label: m.onboarding_add_webhook_endpoint(),
-      to: '/workspaces/$workspaceSlug/webhooks'
+      to: '/workspaces/$workspaceSlug/webhooks',
+      search: { action: 'create' }
     },
-    enable_two_factor: { label: m.onboarding_enable_two_factor(), to: '/account' },
+    enable_two_factor: {
+      label: m.onboarding_enable_two_factor(),
+      to: '/account',
+      search: {}
+    },
     choose_plan: {
       label: m.onboarding_choose_plan(),
-      to: '/workspaces/$workspaceSlug/billing'
+      to: '/workspaces/$workspaceSlug/billing',
+      search: {}
     }
   } satisfies Record<
     WorkspaceProgressStepId,
-    { readonly label: string; readonly to: WorkspaceNavTarget | '/account' }
+    {
+      readonly label: string
+      readonly to: WorkspaceNavTarget | '/account'
+      readonly search: WorkspaceView
+    }
   >
 }
 
 function StepLink({
   to,
   workspaceSlug,
+  search,
+  className: linkClassName,
   children
 }: {
   readonly to: WorkspaceNavTarget | '/account'
   readonly workspaceSlug: string
+  readonly search?: WorkspaceView
+  readonly className?: string
   readonly children: string
 }) {
   const preview = usePreview()
-  const className = 'underline-offset-4 hover:underline'
+  const className = cn('underline-offset-4 hover:underline', linkClassName)
   if (to === '/account') {
-    return (
-      <Link to={preview ? '/sign-in' : to} className={className}>
-        {preview ? m.demo_try_sign_in() : children}
+    return preview ? (
+      <Link to="/sign-in" className={className}>
+        {m.demo_try_sign_in()}
+      </Link>
+    ) : (
+      <Link to={to} className={className}>
+        {children}
       </Link>
     )
   }
   return (
-    <WorkspaceLink to={to} workspaceSlug={workspaceSlug} className={className}>
+    <WorkspaceLink
+      to={to}
+      workspaceSlug={workspaceSlug}
+      search={search}
+      className={className}
+    >
       {children}
     </WorkspaceLink>
   )
@@ -116,8 +143,20 @@ export function OnboardingChecklist({
    */
   readonly dismissalHint?: ReactNode
 }) {
+  const preview = usePreview()
   const [justDismissed, setJustDismissed] = useState(false)
   const canDismiss = viewerCan(viewer, { onboarding: ['dismiss'] })
+  const canInvite = viewerCan(viewer, { invitation: ['create'] })
+  const canManageWorkspace = canInvite
+  const canCreateToken = viewerCan(viewer, { apiToken: ['create'] })
+  const canCreateWebhook = viewerCan(viewer, { webhook: ['create'] })
+  const canReadAudit = viewerCan(viewer, { auditLog: ['read'] })
+  const requiredIds = canInvite
+    ? new Set<WorkspaceProgressStepId>(['invite_member', 'enable_two_factor'])
+    : new Set<WorkspaceProgressStepId>(['enable_two_factor'])
+  const requiredSteps = progress.steps
+    .filter((step) => requiredIds.has(step.id))
+    .toSorted((a, b) => Number(a.complete) - Number(b.complete))
 
   // The loader owns `dismissedAt`; the hook re-runs it on success. The local
   // flag only bridges the moment between the click and the refreshed payload.
@@ -133,7 +172,8 @@ export function OnboardingChecklist({
     return null
   }
 
-  const allDone = progress.completedCount === progress.totalCount
+  const completedCount = requiredSteps.filter((step) => step.complete).length
+  const allDone = completedCount === requiredSteps.length
 
   return (
     <Panel
@@ -143,8 +183,8 @@ export function OnboardingChecklist({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="text-sm tabular-nums text-muted-foreground">
           {m.onboarding_progress({
-            completedCount: progress.completedCount,
-            totalCount: progress.totalCount
+            completedCount,
+            totalCount: requiredSteps.length
           })}
         </span>
         {canDismiss ? (
@@ -159,7 +199,7 @@ export function OnboardingChecklist({
         ) : null}
       </div>
       <ul className="grid gap-2 text-sm">
-        {progress.steps.map((step) => {
+        {requiredSteps.map((step, index) => {
           const copy = stepCopy()[step.id]
           return (
             <li key={step.id} className="flex items-center gap-2">
@@ -177,7 +217,14 @@ export function OnboardingChecklist({
               {step.complete ? (
                 <span className="text-muted-foreground">{copy.label}</span>
               ) : (
-                <StepLink to={copy.to} workspaceSlug={workspaceSlug}>
+                <StepLink
+                  to={copy.to}
+                  workspaceSlug={workspaceSlug}
+                  search={copy.search}
+                  {...(index === requiredSteps.findIndex((item) => !item.complete)
+                    ? { className: 'font-medium' }
+                    : {})}
+                >
                   {copy.label}
                 </StepLink>
               )}
@@ -185,6 +232,86 @@ export function OnboardingChecklist({
           )
         })}
       </ul>
+      {canManageWorkspace ? null : (
+        <div className="grid gap-2 border-t border-border pt-4 text-sm">
+          <p className="text-muted-foreground">{m.onboarding_member_orientation()}</p>
+          <div className="flex flex-wrap gap-4">
+            <WorkspaceLink
+              to="/workspaces/$workspaceSlug/members"
+              workspaceSlug={workspaceSlug}
+              className="underline underline-offset-4"
+            >
+              {m.onboarding_meet_team()}
+            </WorkspaceLink>
+            {preview ? (
+              <Link
+                to="/demo/$section"
+                params={{ section: 'notifications' }}
+                className="underline underline-offset-4"
+              >
+                {m.notifications_title()}
+              </Link>
+            ) : (
+              <Link
+                to="/account/notifications"
+                className="underline underline-offset-4"
+              >
+                {m.notifications_title()}
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
+      {canManageWorkspace && (canCreateToken || canCreateWebhook || canReadAudit) ? (
+        <div className="grid gap-2 border-t border-border pt-4 text-sm">
+          <p className="text-muted-foreground">
+            {m.onboarding_optional_integrations()}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {m.onboarding_workflow_guidance()}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            <Link
+              to="/docs/$category/$slug"
+              params={{ category: 'capability-interfaces', slug: 'api-tokens' }}
+              className="underline underline-offset-4 hover:no-underline"
+            >
+              {m.onboarding_api_docs()}
+            </Link>
+          </p>
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
+            {canCreateToken ? (
+              <WorkspaceLink
+                to="/workspaces/$workspaceSlug/api-tokens"
+                search={{ action: 'create' }}
+                workspaceSlug={workspaceSlug}
+                className="underline underline-offset-4 hover:no-underline"
+              >
+                {m.onboarding_create_api_token()}
+              </WorkspaceLink>
+            ) : null}
+            {canCreateWebhook ? (
+              <WorkspaceLink
+                to="/workspaces/$workspaceSlug/webhooks"
+                search={{ action: 'create' }}
+                workspaceSlug={workspaceSlug}
+                className="underline underline-offset-4 hover:no-underline"
+              >
+                {m.onboarding_add_webhook_endpoint()}
+              </WorkspaceLink>
+            ) : null}
+            {canReadAudit ? (
+              <WorkspaceLink
+                to="/workspaces/$workspaceSlug/audit"
+                workspaceSlug={workspaceSlug}
+                className="underline underline-offset-4 hover:no-underline"
+              >
+                {m.onboarding_review_audit()}
+              </WorkspaceLink>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
       {canDismiss || !dismissalHint ? null : (
         <p className="text-xs text-muted-foreground">{dismissalHint}</p>
       )}

@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { fireEvent, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
 import { fixtureSession } from '@/test/fixture-session'
@@ -83,6 +83,22 @@ async function renderPage(data: WorkspaceMembersPayload) {
 }
 
 describe('WorkspaceMembersPage seat prompt', () => {
+  it('opens the header invitation form from the Invitations tab', async () => {
+    await renderWithRouter(
+      <WorkspaceMembersPage
+        workspaceSlug="starter-lab"
+        data={withinLimit}
+        actorUserId="usr_owner"
+      />,
+      {
+        path: '/workspaces/starter-lab/members',
+        initialEntry: '/workspaces/starter-lab/members?tab=invitations'
+      }
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Invite a member' }))
+    expect(screen.getByLabelText('Email addresses')).not.toBeNull()
+  })
+
   it('prompts an upgrade when members pass the plan’s included seats', async () => {
     await renderPage(overLimit)
     const prompt = screen.getByText(/more than the 3 seats its plan includes/)

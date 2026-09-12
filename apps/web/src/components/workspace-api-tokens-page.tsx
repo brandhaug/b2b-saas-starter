@@ -28,6 +28,7 @@ export function WorkspaceApiTokensPage({
 
   return (
     <WorkspaceShell
+      layout="wide"
       workspaceSlug={workspaceSlug}
       systemRole={systemRole}
       unreadCount={unreadCount}

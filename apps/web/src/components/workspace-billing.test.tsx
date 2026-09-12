@@ -7,6 +7,7 @@ import {
   PLANS,
   planById,
   resourceEntitlement,
+  seatUsage,
   type ResourceEntitlement
 } from '@b2b-saas-starter/billing/plan-catalog'
 import { type WorkspaceViewer } from '@/lib/permissions'
@@ -87,6 +88,7 @@ async function renderPlans(options?: {
     <BillingPlans
       workspaceSlug="starter-lab"
       currentPlanId={options?.currentPlanId ?? 'team'}
+      seatUsage={seatUsage(planById(options?.currentPlanId ?? 'team'), 4)}
       plans={options?.plans ?? PLANS}
       pricingUnavailable={options?.pricingUnavailable ?? false}
       lifecycle={{
@@ -147,6 +149,7 @@ function PollingBillingPlans() {
       <BillingPlans
         workspaceSlug="starter-lab"
         currentPlanId="starter"
+        seatUsage={seatUsage(planById('starter'), 3)}
         plans={PLANS}
         pricingUnavailable={false}
         lifecycle={{

@@ -161,7 +161,7 @@ describe('WorkspaceShell', () => {
     await renderShell({ systemRole: 'admin' })
     const overview = screen.getByRole('link', { name: 'Overview' })
     expect(overview.getAttribute('href')).toBe('/workspaces/starter-lab')
-    const settings = screen.getByRole('link', { name: 'General' })
+    const settings = screen.getByRole('link', { name: 'Settings' })
     expect(settings.getAttribute('href')).toBe('/workspaces/starter-lab/settings')
     screen.getByRole('link', { name: 'System admin' })
   })
@@ -200,13 +200,13 @@ describe('WorkspaceShell', () => {
         youLabel.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING
       ).toBeTruthy()
     }
-    expect(screen.queryByText('Settings')).toBeNull()
+    expect(screen.getByText('Administration')).toBeTruthy()
   })
 
   it('keeps the sidebar column but not its workspace rows when no workspace is in play', async () => {
     await renderShell({ workspaceSlug: null, systemRole: 'admin' })
     expect(screen.queryByRole('link', { name: 'Overview' })).toBeNull()
-    expect(screen.queryByRole('link', { name: 'General' })).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Settings' })).toBeNull()
     // The degenerate column stays honest: the picker's doorway stands in for
     // the switcher, the user rows render under their own label.
     screen.getByRole('link', { name: 'Choose a workspace…' })
@@ -225,7 +225,7 @@ describe('WorkspaceShell', () => {
     })
     const overview = screen.getByRole('link', { name: 'Overview' })
     expect(overview.getAttribute('href')).toBe('/workspaces/starter-lab')
-    screen.getByRole('link', { name: 'General' })
+    screen.getByRole('link', { name: 'Settings' })
     // The switcher names the remembered workspace even with no directory in
     // context to look it up in.
     screen.getByText('Starter Lab')

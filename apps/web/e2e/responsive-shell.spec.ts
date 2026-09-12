@@ -79,9 +79,12 @@ test.describe('owner controls on a narrow screen', () => {
       .getByRole('listitem')
       .filter({ hasText: 'engineer@example.com' })
     await member
-      .getByRole('button', { name: 'Remove Product Engineer', exact: true })
+      .getByRole('button', { name: 'More actions for Product Engineer', exact: true })
       .click()
-    const confirm = member.getByRole('button', { name: /confirm remove/iu })
+    await page.getByRole('menuitem', { name: 'Remove', exact: true }).click()
+    const confirm = page
+      .getByRole('alertdialog')
+      .getByRole('button', { name: /confirm remove/iu })
     await confirm.scrollIntoViewIfNeeded()
     await expect(confirm).toBeInViewport({ ratio: 1 })
     await expectPageFits(page)

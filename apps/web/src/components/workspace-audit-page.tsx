@@ -170,6 +170,7 @@ export function WorkspaceAuditPage({
 
   return (
     <WorkspaceShell
+      layout="wide"
       workspaceSlug={workspaceSlug}
       systemRole={systemRole}
       viewer={data.viewer}
