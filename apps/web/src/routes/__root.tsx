@@ -86,7 +86,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
     links: [
       ...localeLinks(match.context.canonicalPath),
       { rel: 'stylesheet', href: appCss },
-      { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+      { rel: 'icon', type: 'image/png', href: '/assets/starter-logo.png' },
       /* Preload the latin variable woff2 for the text faces: the family
          names in index.css resolve to the fontsource `@font-face` rules,
          which otherwise start loading two round-trips deep (CSS → font
