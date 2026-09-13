@@ -3,6 +3,7 @@ import { ArrowRightIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { GithubIcon } from '@/components/icons/github'
 import { GITHUB_URL } from '@/components/landing/github-url'
+import { LightRays } from '@/components/landing/light-rays'
 import { SETUP_STEPS } from '@/lib/toolchain'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
@@ -19,8 +20,9 @@ const BILL_OF_MATERIALS: ReadonlyArray<string> = [
 
 function HeroSection() {
   return (
-    <section className="border-b border-border">
-      <div className="mx-auto max-w-7xl px-4 pt-16 pb-12 sm:px-6 lg:pt-28 lg:pb-16">
+    <section className="relative isolate overflow-hidden border-b border-border">
+      <LightRays />
+      <div className="relative mx-auto max-w-7xl px-4 pt-16 pb-12 sm:px-6 lg:pt-28 lg:pb-16">
         {/* The schematic moved: it now works for the whole scroll as the
             sticky rail of the traced-request section below, instead of dying
             at this fold. The hero is the claim; the spine is the proof. The
@@ -66,7 +68,7 @@ function HeroSection() {
               if they stop matching the quickstart verbatim. */}
           <ol
             aria-label={m.landing_quickstart_commands()}
-            className="rise rise-4 w-full max-w-sm justify-self-start border border-border bg-card font-mono text-xs lg:justify-self-stretch"
+            className="rise rise-4 w-full max-w-sm justify-self-start border border-border bg-card/40 font-mono text-xs lg:justify-self-stretch"
           >
             {SETUP_STEPS.map((step) => (
               <li
@@ -81,7 +83,7 @@ function HeroSection() {
             ))}
           </ol>
         </div>
-        <ul className="mt-14 flex flex-wrap gap-x-7 gap-y-2 border-t border-border pt-5 font-mono text-xs text-muted-foreground">
+        <ul className="mt-14 flex flex-wrap gap-x-7 gap-y-2 border-t border-muted-foreground pt-5 font-mono text-xs text-muted-foreground">
           {BILL_OF_MATERIALS.map((item) => (
             <li key={item}>{item}</li>
           ))}
