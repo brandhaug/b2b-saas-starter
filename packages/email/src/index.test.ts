@@ -89,6 +89,10 @@ describe('EmailDispatcher', () => {
       expect(sent?.subject).toBe('Hello from the starter')
       expect(sent?.html).toContain('Acme')
       expect(sent?.html).toContain('https://example.com/accept')
+      expect(sent?.html).toContain(
+        'https://b2b-saas-starter-web.brandhaug.workers.dev/assets/starter-logo.png'
+      )
+      expect(sent?.html).toContain('alt="B2B SaaS Starter"')
       expect(sent?.text?.toLowerCase()).toContain('acme')
       expect(result.mode).toBe('cloudflare-email')
       expect(result.providerMessageId).toBe('cfmsg_123')

@@ -40,6 +40,32 @@ export function DemoStrip({ demo }: { readonly demo: DemoShowcase }) {
           <ArrowRightIcon aria-hidden className="size-3.5" />
         </Link>
       </div>
+      <figure className="mx-auto max-w-7xl px-4 pb-8 sm:px-6">
+        <Link
+          to="/demo"
+          className="group block overflow-hidden border border-border bg-card outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background"
+        >
+          <img
+            src="/images/workspace-preview.png"
+            alt={m.showcase_workspace_preview_alt()}
+            width={1440}
+            height={1000}
+            loading="lazy"
+            decoding="async"
+            className="w-full"
+          />
+        </Link>
+        <figcaption className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
+          <span>{m.showcase_workspace_preview_caption()}</span>
+          <Link
+            to="/demo"
+            className="inline-flex min-h-11 items-center gap-2 text-foreground underline underline-offset-4"
+          >
+            {m.public_demo_open()}
+            <ArrowRightIcon aria-hidden className="size-4" />
+          </Link>
+        </figcaption>
+      </figure>
     </section>
   )
 }

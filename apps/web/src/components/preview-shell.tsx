@@ -50,7 +50,7 @@ export function PreviewShell({
             />
             <Link
               to="/demo"
-              className="min-w-0 flex-1 truncate text-sm font-medium hover:underline underline-offset-2"
+              className="min-w-0 flex-1 truncate text-sm text-muted-foreground hover:text-foreground hover:underline underline-offset-4 lg:invisible"
             >
               {workspace.name}
             </Link>
@@ -77,7 +77,7 @@ export function PreviewShell({
               </Badge>
             )}
           </header>
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted px-4 py-3 sm:px-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-card/40 px-4 py-2 text-muted-foreground sm:px-8">
             <p className="text-sm">{m.demo_preview_notice()}</p>
             <Button
               nativeButton={false}
@@ -91,11 +91,11 @@ export function PreviewShell({
           <main
             id="main-content"
             tabIndex={-1}
-            className="px-4 py-6 sm:px-6 outline-none"
+            className="px-4 py-8 sm:px-8 outline-none"
           >
             <div
               className={cn(
-                'mx-auto grid w-full gap-6',
+                'mx-auto grid w-full gap-8',
                 layout === 'wide' ? 'max-w-7xl' : 'max-w-4xl'
               )}
             >

@@ -30,4 +30,16 @@ describe('AuthCardForm', () => {
     fireEvent.submit(form)
     expect(handleSubmit).toHaveBeenCalledOnce()
   })
+
+  it('keeps the dedicated entry shell to one main landmark', async () => {
+    await renderWithRouter(
+      <AuthCardForm title="Sign in" appearance="entry" form={null}>
+        <p>Account access</p>
+      </AuthCardForm>,
+      { destinations: ['/help'] }
+    )
+
+    expect(screen.getAllByRole('main')).toHaveLength(1)
+    expect(document.querySelectorAll('#main-content')).toHaveLength(1)
+  })
 })

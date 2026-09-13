@@ -105,7 +105,7 @@ it('shows loading followed by a never-dispatched terminal outcome', async () => 
     />
   )
   fireEvent.click(screen.getByRole('button', { name: 'View attempt history' }))
-  expect(screen.getByRole('status').textContent).toContain('Loading attempt history')
+  expect(screen.getByText('Loading attempt history…').tagName).toBe('OUTPUT')
   Effect.runSync(
     Deferred.succeed(result, [
       {

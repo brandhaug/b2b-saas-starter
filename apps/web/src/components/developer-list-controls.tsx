@@ -27,7 +27,7 @@ export function DeveloperListToolbar({
       aria-label={searchLabel}
     >
       <Input
-        className="md:max-w-sm"
+        className="bg-card md:max-w-sm"
         aria-label={searchLabel}
         placeholder={searchLabel}
         value={query}

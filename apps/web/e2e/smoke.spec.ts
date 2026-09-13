@@ -46,8 +46,12 @@ test('knowledge search loads metadata without downloading article bodies', async
     articleRequests.push(route.request().url())
     return route.abort()
   })
-  await page.goto('/sign-in')
-  await page.locator('form[data-hydrated="true"]').waitFor()
+  // Knowledge search belongs to the public header; credential entry has its
+  // own focused shell. Wait for the header's hydration gate before clicking.
+  await page.goto('/')
+  await page
+    .locator('header [data-slot="select-trigger"]:enabled')
+    .waitFor({ state: 'attached' })
   await page
     .getByRole('button', { name: 'Search', exact: true })
     .filter({ visible: true })

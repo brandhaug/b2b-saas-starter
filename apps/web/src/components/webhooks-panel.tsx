@@ -29,7 +29,13 @@ import { ConfirmButton } from '@/components/confirm-button'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { CreateAction, Panel } from '@/components/page/panel'
 import { Identifier } from '@/components/page/identifier'
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle
+} from '@/components/ui/empty'
 import { SecretReveal } from '@/components/secret-reveal'
 import { enabledVariant, webhookDeliveryStatusVariant } from '@/lib/badge-variants'
 import { formatTimestampOr } from '@/lib/format-date'
@@ -290,116 +296,133 @@ export function WebhooksPanel({
             onViewChange={list.setTableView}
           />
           {visibleEndpoints.length === 0 ? (
-            <p className="py-6 text-sm text-muted-foreground">
-              {m.developer_list_no_matching_endpoints()}
-            </p>
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>{m.developer_list_no_matching_endpoints()}</EmptyTitle>
+              </EmptyHeader>
+              <EmptyContent>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    update({ query: undefined, tableViews: undefined, page: undefined })
+                  }
+                >
+                  {m.developer_list_clear_all()}
+                </Button>
+              </EmptyContent>
+            </Empty>
           ) : null}
-          <ItemGroup className="gap-0">
-            {visibleEndpoints.map((endpoint, index) => (
-              <Fragment key={endpoint.id}>
-                <Item className="flex-col items-stretch border-0 px-0 py-4">
-                  <ItemContent>
-                    <ItemTitle className="flex-wrap">
-                      <Identifier>{endpoint.url}</Identifier>
-                      <Badge variant={enabledVariant(endpoint.enabled)}>
-                        {endpoint.enabled ? m.common_enabled() : m.common_disabled()}
-                      </Badge>
-                    </ItemTitle>
-                    <ItemDescription>
-                      {m.success_rate({ rate: endpoint.successRate })}
-                    </ItemDescription>
-                    <div className="flex flex-wrap gap-1">
-                      {endpoint.events.map((event) => (
-                        <Badge key={event} variant="outline">
-                          {event}
+          {visibleEndpoints.length === 0 ? null : (
+            <ItemGroup className="gap-0">
+              {visibleEndpoints.map((endpoint, index) => (
+                <Fragment key={endpoint.id}>
+                  <Item className="flex-col items-stretch border-0 px-0 py-4">
+                    <ItemContent>
+                      <ItemTitle className="flex-wrap">
+                        <Identifier>{endpoint.url}</Identifier>
+                        <Badge variant={enabledVariant(endpoint.enabled)}>
+                          {endpoint.enabled ? m.common_enabled() : m.common_disabled()}
                         </Badge>
-                      ))}
-                    </div>
-                  </ItemContent>
+                      </ItemTitle>
+                      <ItemDescription>
+                        {m.success_rate({ rate: endpoint.successRate })}
+                      </ItemDescription>
+                      <div className="flex flex-wrap gap-1">
+                        {endpoint.events.map((event) => (
+                          <Badge key={event} variant="outline">
+                            {event}
+                          </Badge>
+                        ))}
+                      </div>
+                    </ItemContent>
 
-                  <Deliveries
-                    deliveries={endpoint.deliveries}
-                    onOpenDrawer={() => {
-                      update({ record: endpoint.id })
-                    }}
-                  />
+                    <Deliveries
+                      deliveries={endpoint.deliveries}
+                      onOpenDrawer={() => {
+                        update({ record: endpoint.id })
+                      }}
+                    />
 
-                  {(canDisable || canRotate) && endpoint.enabled ? (
-                    <ItemActions className="flex-wrap">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          render={
-                            <Button
-                              variant="ghost"
-                              size="icon-xs"
-                              aria-label={m.developer_list_more_actions()}
-                            />
-                          }
-                        >
-                          <MoreHorizontalIcon />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent>
-                          {canDisable ? (
-                            <DropdownMenuItem
-                              onClick={() => setConfirmingId(endpoint.id)}
-                            >
-                              {m.disable_action()}
-                            </DropdownMenuItem>
-                          ) : null}
-                          {canRotate ? (
-                            <DropdownMenuItem
-                              onClick={() => void rotateOnRow(endpoint.id)}
-                            >
-                              {m.rotate_secret()}
-                            </DropdownMenuItem>
-                          ) : null}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                      {canDisable && confirmingId === endpoint.id ? (
-                        <ConfirmButton
-                          label={m.disable_action()}
-                          confirmLabel={m.confirm_disable()}
-                          armed={confirmingId === endpoint.id}
-                          busy={busyId === endpoint.id}
-                          onArm={() => setConfirmingId(endpoint.id)}
-                          onCancel={() => setConfirmingId(null)}
-                          onConfirm={() => void disableOnRow(endpoint.id)}
-                        />
-                      ) : null}
-                    </ItemActions>
-                  ) : null}
+                    {(canDisable || canRotate) && endpoint.enabled ? (
+                      <ItemActions className="flex-wrap">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="icon-xs"
+                                aria-label={m.developer_list_more_actions()}
+                              />
+                            }
+                          >
+                            <MoreHorizontalIcon />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            {canDisable ? (
+                              <DropdownMenuItem
+                                onClick={() => setConfirmingId(endpoint.id)}
+                              >
+                                {m.disable_action()}
+                              </DropdownMenuItem>
+                            ) : null}
+                            {canRotate ? (
+                              <DropdownMenuItem
+                                onClick={() => void rotateOnRow(endpoint.id)}
+                              >
+                                {m.rotate_secret()}
+                              </DropdownMenuItem>
+                            ) : null}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        {canDisable && confirmingId === endpoint.id ? (
+                          <ConfirmButton
+                            label={m.disable_action()}
+                            confirmLabel={m.confirm_disable()}
+                            armed={confirmingId === endpoint.id}
+                            busy={busyId === endpoint.id}
+                            onArm={() => setConfirmingId(endpoint.id)}
+                            onCancel={() => setConfirmingId(null)}
+                            onConfirm={() => void disableOnRow(endpoint.id)}
+                          />
+                        ) : null}
+                      </ItemActions>
+                    ) : null}
 
-                  {failedRow?.key === endpoint.id ? (
-                    <ActionFeedback error={failedRow.message} />
-                  ) : null}
+                    {failedRow?.key === endpoint.id ? (
+                      <ActionFeedback error={failedRow.message} />
+                    ) : null}
 
-                  {rotatedSecret?.endpointId === endpoint.id ? (
-                    <>
-                      <Separator />
-                      {/* `ok`, not the neutral default: this is the one moment
+                    {rotatedSecret?.endpointId === endpoint.id ? (
+                      <>
+                        <Separator />
+                        {/* `ok`, not the neutral default: this is the one moment
                         the signing secret is visible, the same treatment the
                         API token form's reveal gets. */}
-                      <Alert variant="ok">
-                        <AlertTitle>{m.secret_rotated_copy_now()}</AlertTitle>
-                        <AlertDescription>
-                          <SecretReveal
-                            secret={rotatedSecret.secret}
-                            label={m.webhook_secret()}
-                            className="flex items-center gap-2"
-                          />
-                          <p className="mt-2 text-xs text-muted-foreground">
-                            {m.webhook_secret_rotation_description()}
-                          </p>
-                        </AlertDescription>
-                      </Alert>
-                    </>
-                  ) : null}
-                </Item>
-                {index < visibleEndpoints.length - 1 ? <Separator /> : null}
-              </Fragment>
-            ))}
-          </ItemGroup>
-          <DeveloperListPagination page={page} pageCount={pageCount} />
+                        <Alert variant="ok">
+                          <AlertTitle>{m.secret_rotated_copy_now()}</AlertTitle>
+                          <AlertDescription>
+                            <SecretReveal
+                              secret={rotatedSecret.secret}
+                              label={m.webhook_secret()}
+                              className="flex items-center gap-2"
+                            />
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              {m.webhook_secret_rotation_description()}
+                            </p>
+                          </AlertDescription>
+                        </Alert>
+                      </>
+                    ) : null}
+                  </Item>
+                  {index < visibleEndpoints.length - 1 ? <Separator /> : null}
+                </Fragment>
+              ))}
+            </ItemGroup>
+          )}
+          {visibleEndpoints.length === 0 ? null : (
+            <DeveloperListPagination page={page} pageCount={pageCount} />
+          )}
         </>
       )}
 

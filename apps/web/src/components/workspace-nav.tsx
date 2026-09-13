@@ -15,17 +15,6 @@ import { previewWorkspaceLocation } from '@/lib/preview-navigation'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { seedWorkspaceRecord } from '@b2b-saas-starter/capabilities/governance/workspace-identity.seed'
 
-/**
- * Active and inactive treatments for nav links, kept as constants so the
- * active state reads as one statement: the page link is foreground text on
- * the sidebar's own accent plus `aria-current="page"` (set through
- * `activeProps`). The accent fill alone is under 2:1 against the sidebar, so
- * the active row also carries a one-pixel inset ring, a non-color cue that
- * clears the 3:1 floor for UI components. Mauve, because mauve means
- * current/selected (DESIGN.md), which leaves the lavender `sidebar-ring` to
- * mean focus alone; inset, so nothing shifts. Sidebar tokens otherwise, not
- * body tokens — the sidebar separates from the body independently.
- */
 /** The active marker, typed here so no call site needs an assertion. */
 const activeLinkProps = { 'aria-current': 'page' } satisfies {
   readonly 'aria-current': 'page'
@@ -54,14 +43,15 @@ export function WorkspaceNav({
   // same table, so they render under their own "You" label and can never
   // inherit the group printed before them.
   const navRows: Array<ReactNode> = []
+  const utilityRows: Array<ReactNode> = []
   let lastGroup: string | undefined
-  function sectionLabel(group: string | undefined) {
+  function sectionLabel(group: string | undefined, rows = navRows) {
     if (group === lastGroup) {
       return
     }
     lastGroup = group
     if (group !== undefined) {
-      navRows.push(
+      rows.push(
         <p
           key={`group-${group}`}
           className="px-3 pt-4 pb-1 font-mono text-2xs font-medium text-sidebar-foreground/60"
@@ -97,8 +87,8 @@ export function WorkspaceNav({
         />
       )
     } else {
-      sectionLabel(row.group)
-      navRows.push(
+      sectionLabel(row.group, utilityRows)
+      utilityRows.push(
         <NavLink
           key={row.to}
           to={row.to}
@@ -112,7 +102,7 @@ export function WorkspaceNav({
   }
 
   return (
-    <>
+    <div className="flex min-h-full flex-col">
       <Link
         to="/"
         onClick={onNavigate}
@@ -140,10 +130,11 @@ export function WorkspaceNav({
           <WorkspaceChoice workspace={workspace} onNavigate={onNavigate} />
         )}
       </div>
-      <nav aria-label={m.main_navigation()} className="mt-6 grid gap-1">
+      <nav aria-label={m.main_navigation()} className="mt-6 flex flex-1 flex-col gap-1">
         {navRows}
+        <div className="mt-auto grid gap-1 pt-8">{utilityRows}</div>
       </nav>
-    </>
+    </div>
   )
 }
 
