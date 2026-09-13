@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vite-plus/test'
+import { describe, expect, it, vi } from 'vite-plus/test'
 import {
   DataTable,
+  DataTableColumns,
   DataTableContent,
   DataTableFilter,
   DataTablePagination,
@@ -14,7 +15,12 @@ type Row = {
 }
 
 const columns: Array<DataTableColumnDef<Row>> = [
-  { accessorKey: 'name', header: 'Name', enableSorting: true },
+  {
+    accessorKey: 'name',
+    header: 'Name',
+    enableSorting: true,
+    enableHiding: false
+  },
   { accessorKey: 'category', header: 'Category', enableSorting: false }
 ]
 
@@ -49,6 +55,29 @@ describe('DataTable', () => {
     screen.getByText('Bravo')
     expect(screen.queryByText('Alpha')).toBeNull()
     expect(screen.queryByText('Charlie')).toBeNull()
+  })
+
+  it('toggles columns from the searchable column picker', () => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      }
+    )
+    Element.prototype.scrollIntoView = () => {}
+    render(
+      <DataTable columns={columns} data={rows}>
+        <DataTableFilter placeholder="Filter modules…" />
+        <DataTableColumns />
+        <DataTableContent />
+      </DataTable>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Columns' }))
+    expect(screen.queryByRole('checkbox', { name: 'Name' })).toBeNull()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Category' }))
+    expect(screen.queryByRole('columnheader', { name: 'Category' })).toBeNull()
   })
 
   it('paginates rows and disables controls at the boundaries', () => {

@@ -12,6 +12,13 @@ export type DataTableContextValue = {
   readonly canPreviousPage: boolean
   readonly canNextPage: boolean
   readonly content: ReactNode
+  readonly columns: ReadonlyArray<{
+    readonly id: string
+    readonly label: string
+    readonly canHide: boolean
+    readonly visible: boolean
+    readonly setVisible: (visible: boolean) => void
+  }>
 }
 
 export const DataTableContext = createContext<DataTableContextValue | null>(null)

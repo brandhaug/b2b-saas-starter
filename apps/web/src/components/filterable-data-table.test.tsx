@@ -47,8 +47,7 @@ describe('FilterableDataTable', () => {
     const { router } = await renderWithRouter(<Table />)
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     expect(screen.getByText(/Page 2 of 3/)).not.toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: /^Filter$/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'Add filter' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Name' }))
     fireEvent.change(await screen.findByRole('textbox', { name: 'Value' }), {
       target: { value: 'Echo' }
     })
@@ -70,5 +69,10 @@ describe('FilterableDataTable', () => {
     )
     expect(screen.getAllByRole('row')[1]?.textContent).toContain('Echo')
     expect(screen.getByRole('button', { name: /Sort · 1/ })).not.toBeNull()
+  })
+
+  it('renders one column picker in the table toolbar', async () => {
+    await renderWithRouter(<Table />)
+    expect(screen.getAllByRole('button', { name: 'Columns' })).toHaveLength(1)
   })
 })

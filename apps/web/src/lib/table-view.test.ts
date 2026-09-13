@@ -55,6 +55,20 @@ describe('table view model', () => {
     })
   })
 
+  it('keeps one visible condition for each field from URL state', () => {
+    const serialized = JSON.stringify({
+      filters: [
+        { field: 'name', operator: 'contains', value: 'first' },
+        { field: 'name', operator: 'is', value: 'hidden' },
+        { field: 'status', operator: 'is', value: 'open' }
+      ]
+    })
+    expect(parseTableView(serialized, fields).filters).toEqual([
+      { field: 'name', operator: 'contains', value: 'first' },
+      { field: 'status', operator: 'is', value: 'open' }
+    ])
+  })
+
   it('applies OR filters and stable multi-column sorting', () => {
     const rows = [
       { name: 'Beta', status: 'open' },

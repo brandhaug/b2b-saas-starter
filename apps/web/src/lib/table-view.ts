@@ -84,7 +84,7 @@ export function parseTableView(
     return defaultTableView
   }
   const fieldIds = new Set(fields.map((field) => field.id))
-  const filters = Array.isArray(decoded.filters)
+  const parsedFilters = Array.isArray(decoded.filters)
     ? decoded.filters.slice(0, MAX_ITEMS).flatMap((candidate) => {
         if (!isRecord(candidate)) {
           return []
@@ -117,6 +117,14 @@ export function parseTableView(
         return [{ field, operator, value }]
       })
     : []
+  const seenFilterFields = new Set<string>()
+  const filters = parsedFilters.filter((filter) => {
+    if (seenFilterFields.has(filter.field)) {
+      return false
+    }
+    seenFilterFields.add(filter.field)
+    return true
+  })
   const parsedSorts = Array.isArray(decoded.sorts)
     ? decoded.sorts.slice(0, MAX_ITEMS).flatMap((candidate) => {
         if (!isRecord(candidate)) {

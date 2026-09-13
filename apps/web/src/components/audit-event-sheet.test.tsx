@@ -76,7 +76,7 @@ describe('AuditEventSheet', () => {
         <>
           <div id="audit-view-controls">
             <TableViewControls
-              fields={[]}
+              fields={[{ id: 'eventType', label: 'Event', kind: 'text' }]}
               view={{ match: 'all', filters: [], sorts: [] }}
               onChange={vi.fn()}
             />
@@ -90,9 +90,7 @@ describe('AuditEventSheet', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     rendered.rerender(content(null))
     await waitFor(() =>
-      expect(document.activeElement).toBe(
-        screen.getByRole('button', { name: 'Filter' })
-      )
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Event' }))
     )
   })
 })

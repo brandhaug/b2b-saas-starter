@@ -25,7 +25,11 @@ import {
   type SortingState
 } from '@tanstack/react-table'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Columns3Icon } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -197,9 +201,85 @@ export function DataTableFilter({ placeholder }: { readonly placeholder: string 
       value={globalFilter}
       onChange={(event) => setGlobalFilter(event.target.value)}
       placeholder={placeholder}
-      className="max-w-xs"
+      className="w-full sm:max-w-xs"
       aria-label={placeholder}
     />
+  )
+}
+
+export function DataTableColumns() {
+  const { columns } = useDataTableContext()
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const hidableColumns = columns.filter((column) => column.canHide)
+  const normalizedQuery = query.trim().toLocaleLowerCase()
+  const matchingColumns = hidableColumns.filter((column) =>
+    `${column.label} ${column.id}`.toLocaleLowerCase().includes(normalizedQuery)
+  )
+  const hiddenCount = hidableColumns.filter((column) => !column.visible).length
+  if (hidableColumns.length === 0) {
+    return null
+  }
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) {
+          setQuery('')
+        }
+        setOpen(next)
+      }}
+    >
+      <PopoverTrigger
+        render={
+          <Button
+            variant="outline"
+            size="xs"
+            aria-expanded={open}
+            aria-label={m.table_view_columns()}
+          />
+        }
+      >
+        <Columns3Icon data-icon="inline-start" /> {m.table_view_columns()}
+        {hiddenCount > 0 && (
+          <span className="ml-0.5 inline-flex min-w-4 items-center justify-center rounded-sm bg-secondary px-1 text-xs tabular-nums">
+            {hiddenCount}
+          </span>
+        )}
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-0" aria-label={m.table_view_columns()}>
+        <div className="border-b border-border p-2">
+          <Input
+            placeholder={m.table_view_search_columns()}
+            aria-label={m.table_view_search_columns()}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            className="h-8"
+          />
+        </div>
+        <fieldset
+          aria-label={m.table_view_columns()}
+          className="max-h-75 overflow-y-auto p-1"
+        >
+          {matchingColumns.length === 0 ? (
+            <p className="px-2 py-6 text-center text-sm">{m.table_view_no_results()}</p>
+          ) : (
+            matchingColumns.map((column) => (
+              <Label
+                key={column.id}
+                className="focus-within:ring-ring flex h-8 w-full cursor-pointer items-center gap-2 rounded-sm px-2 text-sm hover:bg-muted/50 focus-within:ring-2 max-md:h-11"
+              >
+                <Checkbox
+                  checked={column.visible}
+                  onCheckedChange={() => column.setVisible(!column.visible)}
+                />
+                {column.label}
+              </Label>
+            ))
+          )}
+        </fieldset>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -261,11 +341,12 @@ export function DataTable<TData extends RowData>({
 }: DataTableProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = useState('')
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({})
   const table = useTable({
     features: dataTableFeatures,
     data,
     columns,
-    state: { sorting: sort?.value ?? sorting, globalFilter },
+    state: { sorting: sort?.value ?? sorting, globalFilter, columnVisibility },
     onSortingChange: (next) => {
       const value = functionalUpdate(next, sort?.value ?? sorting)
       if (sort) {
@@ -278,6 +359,7 @@ export function DataTable<TData extends RowData>({
     enableSorting: !manualSorting,
     manualSorting,
     onGlobalFilterChange: setGlobalFilter,
+    onColumnVisibilityChange: setColumnVisibility,
     manualPagination: pageSize === undefined,
     initialState: {
       pagination: { pageIndex: 0, pageSize: pageSize ?? 10 }
@@ -306,7 +388,14 @@ export function DataTable<TData extends RowData>({
             tableLabel={tableLabel}
             table={table}
           />
-        )
+        ),
+        columns: table.getAllLeafColumns().map((column) => ({
+          id: column.id,
+          label: headerTitleOf(column.columnDef.header, column.id),
+          canHide: column.getCanHide(),
+          visible: column.getIsVisible(),
+          setVisible: (visible: boolean) => column.toggleVisibility(visible)
+        }))
       }}
     >
       <div className="grid gap-3">{children}</div>

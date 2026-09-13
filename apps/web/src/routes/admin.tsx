@@ -16,7 +16,6 @@ import { BanUserAction } from '@/components/ban-user-action'
 import { ImpersonateUserAction } from '@/components/impersonate-user-action'
 import {
   DataTableContent,
-  DataTableFilter,
   DataTablePagination,
   type DataTableColumnDef
 } from '@/components/data-table'
@@ -71,6 +70,7 @@ function userColumns(): Array<DataTableColumnDef<SystemUser>> {
       // Screen readers announce an empty column header as nothing; name it.
       header: () => <span className="sr-only">{m.common_actions()}</span>,
       enableSorting: false,
+      enableHiding: false,
       cell: ({ row }) => (
         <div className="flex justify-end gap-1">
           <ImpersonateUserAction user={row.original} />
@@ -216,8 +216,8 @@ function AdminPage() {
           pageSize={5}
           tableLabel={m.admin_system_users()}
           emptyMessage={m.common_no_system_users()}
+          searchPlaceholder={m.admin_filter_users()}
         >
-          <DataTableFilter placeholder={m.admin_filter_users()} />
           <DataTableContent />
           <DataTablePagination />
         </FilterableDataTable>
@@ -274,8 +274,8 @@ function AdminPage() {
           pageSize={5}
           tableLabel={m.admin_audit_events()}
           emptyMessage={m.common_no_audit_events()}
+          searchPlaceholder={m.admin_filter_events()}
         >
-          <DataTableFilter placeholder={m.admin_filter_events()} />
           <DataTableContent />
           <DataTablePagination />
         </FilterableDataTable>
