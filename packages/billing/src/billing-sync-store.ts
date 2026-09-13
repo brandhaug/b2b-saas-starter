@@ -10,7 +10,7 @@ import { Database, type BatchStatement } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect } from 'effect'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 
-import { AuditEventLog } from './ports.ts'
+import { AuditEventLog, BillingWebhookPublisher } from './ports.ts'
 import { newCapabilityId } from './internal/ids.ts'
 import { makeBillingLease, type BillingLease } from './billing-lease.ts'
 import {
@@ -35,6 +35,7 @@ const SETTLED_EVENT_STATUSES = ['processing', 'failed'] as const
 export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function* () {
   const db = yield* Database
   const audit = yield* AuditEventLog
+  const webhookPublisher = yield* BillingWebhookPublisher
   const leases = yield* makeBillingLease()
   const notices = yield* makeBillingNotices()
   const unavailable = billingStoreUnavailable
@@ -373,6 +374,13 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
     }
     statements.push(...(yield* notices.prepare(lease.workspaceId, previous, next, now)))
     yield* leases.fencedBatch(lease, statements)
+    if (before.planId !== effectivePlanId) {
+      yield* webhookPublisher.publishPlanChanged({
+        workspaceId: lease.workspaceId,
+        planId: effectivePlanId,
+        previousPlanId: before.planId
+      })
+    }
     return drift
   })
 

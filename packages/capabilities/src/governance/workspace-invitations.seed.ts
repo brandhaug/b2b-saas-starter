@@ -11,6 +11,10 @@ import {
   recordCompletedAudit,
   recordCompletedMutationAudit
 } from './audit-event-log.ts'
+import {
+  publishWebhookEventForWorkspaceWith,
+  WebhookPublisher
+} from '../developer-platform/webhook-publisher.ts'
 import { fabricateSeedMember, type Workspace } from './workspace-identity.ts'
 import { type SeedRoster } from './workspace-membership.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
@@ -128,13 +132,14 @@ export function SeedWorkspaceInvitations(options: {
   /** The fixture workspace every seed invitation belongs to. */
   readonly workspace: Workspace
   readonly seed?: ReadonlyArray<SeedInvitationRow>
-}): Layer.Layer<WorkspaceInvitations, never, SeatSyncPublisher> {
+}): Layer.Layer<WorkspaceInvitations, never, SeatSyncPublisher | WebhookPublisher> {
   return Layer.effect(WorkspaceInvitations)(
     Effect.gen(function* () {
       const store = yield* Ref.make<ReadonlyArray<SeedInvitationRow>>(
         options.seed ?? []
       )
       const seatSync = yield* SeatSyncPublisher
+      const publisher = yield* WebhookPublisher
 
       return {
         // Scoped and ordered exactly as Live: the fixture holds one
@@ -268,6 +273,18 @@ export function SeedWorkspaceInvitations(options: {
           yield* publishSeatSyncWith(seatSync, {
             workspaceId: options.workspace.id,
             reason: 'invitation_accepted'
+          })
+          yield* publishWebhookEventForWorkspaceWith(publisher, options.workspace.id, {
+            eventType: 'workspace_invitation.accepted',
+            payload: {
+              invitationId: input.invitationId,
+              userId: input.userId,
+              role: pending.role
+            }
+          })
+          yield* publishWebhookEventForWorkspaceWith(publisher, options.workspace.id, {
+            eventType: 'workspace_member.added',
+            payload: { userId: input.userId, role: pending.role }
           })
           return {
             workspaceSlug: options.workspace.slug,

@@ -1,23 +1,130 @@
-/**
- * The webhook event vocabulary, in a dependency-free leaf so client surfaces
- * (the management UI's checkbox set) can read it without pulling the
- * capability's `effect`/`Schema` graph into a browser bundle. The service
- * module (`webhook-endpoints.ts`) re-exports it — the values are still
- * written once.
- */
+import { type AuditEventType } from '../governance/audit-event-taxonomy.ts'
 
-/**
- * The event types this starter currently publishes (the mutating capabilities
- * fan out below their interface — `ApiTokenRegistry` and `WebhookEndpoints.create`).
- * Subscriptions are free-text strings so a producer can grow without a
- * migration; this list is what the management UI offers as checkboxes.
- */
+/** The allowlisted event types this starter publishes. */
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const WEBHOOK_EVENT_TYPES = [
   'api_token.created',
   'api_token.revoked',
-  'webhook_endpoint.created'
+  'webhook_endpoint.created',
+  'workspace_member.added',
+  'workspace_member.removed',
+  'workspace_member.role_changed',
+  'workspace_invitation.accepted',
+  'billing.plan_changed'
 ] as const
 
 /** The union of {@link WEBHOOK_EVENT_TYPES} — the vocabulary is written once. */
 export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number]
+
+export type AuditEventPublicationDecision = 'webhook' | 'audit-only'
+
+/** Every audit event has an explicit publication disposition. */
+export const AUDIT_EVENT_PUBLICATION_POLICY = {
+  'api_token.created': 'webhook',
+  'api_token.revoked': 'webhook',
+  'api_token.replaced': 'audit-only',
+  'webhook_endpoint.created': 'webhook',
+  'webhook_endpoint.updated': 'audit-only',
+  'webhook_endpoint.deleted': 'audit-only',
+  'webhook_endpoint.secret_rotated': 'audit-only',
+  'webhook_endpoint.auto_disabled': 'audit-only',
+  'webhook.delivery_failed': 'audit-only',
+  'webhook.delivery_dead_lettered': 'audit-only',
+  'webhook.delivery_replayed': 'audit-only',
+  'assistant_task.created': 'audit-only',
+  'assistant_task.approved': 'audit-only',
+  'assistant_task.cancelled': 'audit-only',
+  'mcp_client.consent_granted': 'audit-only',
+  'mcp_client.consent_revoked': 'audit-only',
+  'workspace.created': 'audit-only',
+  'workspace.renamed': 'audit-only',
+  'workspace.deleted': 'audit-only',
+  'workspace.suspended': 'audit-only',
+  'workspace.unsuspended': 'audit-only',
+  'workspace.onboarding_dismissed': 'audit-only',
+  'workspace.export_requested': 'audit-only',
+  'workspace.export_completed': 'audit-only',
+  'workspace.export_failed': 'audit-only',
+  'workspace.export_downloaded': 'audit-only',
+  'auth.personal_data_exported': 'audit-only',
+  'workspace_member.added': 'webhook',
+  'workspace_member.removed': 'webhook',
+  'workspace_member.role_changed': 'webhook',
+  'workspace_invitation.sent': 'audit-only',
+  'workspace_invitation.canceled': 'audit-only',
+  'workspace_invitation.accepted': 'webhook',
+  'workspace_sso.connection_created': 'audit-only',
+  'workspace_sso.connection_updated': 'audit-only',
+  'workspace_sso.connection_removed': 'audit-only',
+  'auth.sso_sign_in': 'audit-only',
+  'auth.sso_sign_in_failed': 'audit-only',
+  'billing.resource_selection_updated': 'audit-only',
+  'billing.checkout_started': 'audit-only',
+  'billing.portal_opened': 'audit-only',
+  'billing.plan_changed': 'webhook',
+  'billing.payment_failed': 'audit-only',
+  'billing.grace_expiring': 'audit-only',
+  'billing.payment_recovered': 'audit-only',
+  'billing.seats_changed': 'audit-only',
+  'billing.sync_retry_requested': 'audit-only',
+  'notification_preference.changed': 'audit-only',
+  'auth.sign_in': 'audit-only',
+  'auth.sign_in_failed': 'audit-only',
+  'auth.sign_up': 'audit-only',
+  'auth.sign_up_failed': 'audit-only',
+  'auth.password_reset_requested': 'audit-only',
+  'auth.password_reset': 'audit-only',
+  'auth.password_reset_failed': 'audit-only',
+  'auth.recovery_started': 'audit-only',
+  'auth.email_verified': 'audit-only',
+  'auth.email_verification_failed': 'audit-only',
+  'auth.password_changed': 'audit-only',
+  'auth.password_change_failed': 'audit-only',
+  'auth.email_changed': 'audit-only',
+  'auth.email_change_failed': 'audit-only',
+  'auth.user_updated': 'audit-only',
+  'auth.user_update_failed': 'audit-only',
+  'auth.sign_out': 'audit-only',
+  'auth.sign_out_failed': 'audit-only',
+  'auth.session_revoked': 'audit-only',
+  'auth.session_revocation_failed': 'audit-only',
+  'account.deleted': 'audit-only',
+  'auth.two_factor_enabled': 'audit-only',
+  'auth.two_factor_enabled_failed': 'audit-only',
+  'auth.two_factor_disabled': 'audit-only',
+  'auth.two_factor_disable_failed': 'audit-only',
+  'auth.two_factor_verified': 'audit-only',
+  'auth.two_factor_verification_failed': 'audit-only',
+  'auth.two_factor_backup_codes_rotated': 'audit-only',
+  'auth.two_factor_backup_codes_rotation_failed': 'audit-only',
+  'auth.passkey_added': 'audit-only',
+  'auth.passkey_added_failed': 'audit-only',
+  'auth.passkey_removed': 'audit-only',
+  'auth.passkey_removed_failed': 'audit-only',
+  'auth.account_linked': 'audit-only',
+  'auth.account_unlinked': 'audit-only',
+  'system_admin.user_created': 'audit-only',
+  'system_admin.user_creation_failed': 'audit-only',
+  'system_admin.user_removed': 'audit-only',
+  'system_admin.user_removal_failed': 'audit-only',
+  'system_admin.user_role_changed': 'audit-only',
+  'system_admin.user_role_change_failed': 'audit-only',
+  'system_admin.user_banned': 'audit-only',
+  'system_admin.user_ban_failed': 'audit-only',
+  'system_admin.user_unbanned': 'audit-only',
+  'system_admin.user_unban_failed': 'audit-only',
+  'system_admin.user_password_set': 'audit-only',
+  'system_admin.user_password_set_failed': 'audit-only',
+  'system_admin.impersonation_started': 'audit-only',
+  'system_admin.impersonation_start_failed': 'audit-only',
+  'system_admin.impersonation_stopped': 'audit-only',
+  'system_admin.impersonation_stop_failed': 'audit-only',
+  'system_admin.user_session_revoked': 'audit-only',
+  'system_admin.user_session_revocation_failed': 'audit-only'
+} satisfies Record<AuditEventType, AuditEventPublicationDecision>
+
+export function auditEventPublicationDecision(
+  eventType: AuditEventType
+): AuditEventPublicationDecision {
+  return AUDIT_EVENT_PUBLICATION_POLICY[eventType]
+}

@@ -15,6 +15,10 @@ import {
   recordCompletedMutationAudit,
   recordCompletedAudit
 } from './audit-event-log.ts'
+import {
+  publishWebhookEventForWorkspaceWith,
+  WebhookPublisher
+} from '../developer-platform/webhook-publisher.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
 import {
   normalizeInvitationEmail,
@@ -57,13 +61,14 @@ export function LiveWorkspaceInvitations(
 ): Layer.Layer<
   WorkspaceInvitations,
   never,
-  Database | AuditEventLog | SeatSyncPublisher
+  Database | AuditEventLog | SeatSyncPublisher | WebhookPublisher
 > {
   return Layer.effect(WorkspaceInvitations)(
     Effect.gen(function* () {
       const db = yield* Database
       const audit = yield* AuditEventLog
       const seatSync = yield* SeatSyncPublisher
+      const publisher = yield* WebhookPublisher
 
       const unavailable = orUnavailable('workspace-invitations')
 
@@ -268,6 +273,18 @@ export function LiveWorkspaceInvitations(
           yield* publishSeatSyncWith(seatSync, {
             workspaceId: row.workspace.id,
             reason: 'invitation_accepted'
+          })
+          yield* publishWebhookEventForWorkspaceWith(publisher, row.workspace.id, {
+            eventType: 'workspace_invitation.accepted',
+            payload: {
+              invitationId: input.invitationId,
+              userId: input.userId,
+              role: pending.role
+            }
+          })
+          yield* publishWebhookEventForWorkspaceWith(publisher, row.workspace.id, {
+            eventType: 'workspace_member.added',
+            payload: { userId: input.userId, role: pending.role }
           })
           return {
             workspaceSlug: row.workspace.slug,

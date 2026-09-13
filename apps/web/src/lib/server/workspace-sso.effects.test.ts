@@ -13,6 +13,7 @@ import {
   type Workspace
 } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { SeedSeatSyncPublisher } from '@b2b-saas-starter/billing/seat-sync'
+import { SeedWebhookPublisher } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
 import { SeedNotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed.seed'
 import { SeedNotificationPreferences } from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
@@ -248,7 +249,8 @@ describe('notifyOwnersOfFailedTest — the owner fan-out rule', () => {
         const roster = yield* makeSeedRoster(members)
         const services = Layer.mergeAll(
           SeedWorkspaceMembership(roster, workspace).pipe(
-            Layer.provide(SeedSeatSyncPublisher)
+            Layer.provide(SeedSeatSyncPublisher),
+            Layer.provide(SeedWebhookPublisher)
           ),
           SeedNotificationFeed([]).pipe(
             Layer.provide(

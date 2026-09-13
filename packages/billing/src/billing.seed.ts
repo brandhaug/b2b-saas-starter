@@ -2,6 +2,7 @@ import {
   NotificationFeed,
   WorkspaceContext,
   AuditEventLog,
+  BillingWebhookPublisher,
   type BillingMember as Member
 } from './ports.ts'
 import { lifecycleNotices } from './billing-notices.ts'
@@ -121,11 +122,16 @@ export function SeedBilling(options?: {
    * fixture of a workspace nobody joined.
    */
   readonly members?: Effect.Effect<ReadonlyArray<Member>> | undefined
-}): Layer.Layer<Billing, never, AuditEventLog | NotificationFeed> {
+}): Layer.Layer<
+  Billing,
+  never,
+  AuditEventLog | NotificationFeed | BillingWebhookPublisher
+> {
   return Layer.effect(Billing)(
     Effect.gen(function* () {
       const audit = yield* AuditEventLog
       const feed = yield* NotificationFeed
+      const webhookPublisher = yield* BillingWebhookPublisher
       const sentNotices = yield* Ref.make<ReadonlySet<string>>(new Set())
       const configured = options?.stripeConfigured ?? false
       const workspacePlans = options?.workspacePlans ?? {}
@@ -368,6 +374,13 @@ export function SeedBilling(options?: {
             updated.set(input.workspaceId, next)
             return updated
           })
+          if (planChanged) {
+            yield* webhookPublisher.publishPlanChanged({
+              workspaceId: input.workspaceId,
+              planId: decision.planId,
+              previousPlanId: currentPlanId
+            })
+          }
           yield* Ref.update(providerSubscriptions, (map) => {
             const updated = new Map(map)
             updated.set(input.workspaceId, {

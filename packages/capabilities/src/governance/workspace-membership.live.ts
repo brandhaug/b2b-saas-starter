@@ -17,6 +17,10 @@ import {
   SeatSyncPublisher
 } from '@b2b-saas-starter/billing/seat-sync'
 import { AuditEventLog, recordCompletedMutationAudit } from './audit-event-log.ts'
+import {
+  publishWebhookEventWith,
+  WebhookPublisher
+} from '../developer-platform/webhook-publisher.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
 import {
   recordSecurityEvidence,
@@ -53,13 +57,14 @@ export function LiveWorkspaceMembership(
 ): Layer.Layer<
   WorkspaceMembership,
   never,
-  Database | AuditEventLog | SeatSyncPublisher
+  Database | AuditEventLog | SeatSyncPublisher | WebhookPublisher
 > {
   return Layer.effect(WorkspaceMembership)(
     Effect.gen(function* () {
       const db = yield* Database
       const audit = yield* AuditEventLog
       const seatSync = yield* SeatSyncPublisher
+      const publisher = yield* WebhookPublisher
 
       const unavailable = orUnavailable('workspace-membership')
 
@@ -209,6 +214,10 @@ export function LiveWorkspaceMembership(
             workspaceId: ctx.workspace.id,
             reason: 'member_removed'
           })
+          yield* publishWebhookEventWith(publisher, {
+            eventType: 'workspace_member.removed',
+            payload: { userId: input.userId }
+          })
         }),
         leave: Effect.fn('WorkspaceMembership.leave')(function* () {
           const ctx = yield* WorkspaceContext
@@ -261,12 +270,19 @@ export function LiveWorkspaceMembership(
             workspaceId: ctx.workspace.id,
             reason: 'member_removed'
           })
+          yield* publishWebhookEventWith(publisher, {
+            eventType: 'workspace_member.removed',
+            payload: { userId: actor.userId, reason: 'left' }
+          })
         })(),
         changeRole: Effect.fn('WorkspaceMembership.changeRole')(function* (
           input: MemberRoleInput
         ) {
           const ctx = yield* WorkspaceContext
           const facts = yield* rosterFacts(ctx.workspace.id, input.userId)
+          if (facts.targetRole === input.role) {
+            return yield* readMember(ctx.workspace.id, input.userId)
+          }
           const refusal = refuseMembershipChange('change_role', {
             actorRole: ctx.actor?.role ?? null,
             targetRole: facts.targetRole,
@@ -305,6 +321,10 @@ export function LiveWorkspaceMembership(
             },
             'workspace_membership.change_role'
           )
+          yield* publishWebhookEventWith(publisher, {
+            eventType: 'workspace_member.role_changed',
+            payload: { userId: input.userId, role: input.role }
+          })
           return member
         })
       }

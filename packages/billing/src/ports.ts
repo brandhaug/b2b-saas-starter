@@ -60,4 +60,16 @@ export class NotificationFeed extends Context.Service<
   NotificationPort
 >()('@b2b-saas-starter/billing/NotificationFeed') {}
 
+export type BillingWebhookPublisherPort = {
+  readonly publishPlanChanged: (input: {
+    readonly workspaceId: string
+    readonly planId: string
+    readonly previousPlanId: string | null
+  }) => Effect.Effect<void, never>
+}
+export class BillingWebhookPublisher extends Context.Service<
+  BillingWebhookPublisher,
+  BillingWebhookPublisherPort
+>()('@b2b-saas-starter/billing/WebhookPublisher') {}
+
 export type BillingMember = { readonly id: string; readonly role: string }

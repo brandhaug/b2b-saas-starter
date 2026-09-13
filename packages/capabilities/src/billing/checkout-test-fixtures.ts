@@ -21,7 +21,11 @@ import { vi } from 'vite-plus/test'
 import { AuditEventLog as BillingAuditEventLog } from '@b2b-saas-starter/billing/ports'
 import { orUnavailable } from '@b2b-saas-starter/failure/capability'
 import { inWorkspace } from '../testing/live-harness.ts'
-import { BillingAuditLayer, BillingNotificationLayer } from '../billing-adapters.ts'
+import {
+  BillingAuditLayer,
+  BillingNotificationLayer,
+  BillingWebhookLayer
+} from '../billing-adapters.ts'
 import { makeBillingLease } from '@b2b-saas-starter/billing/billing-lease'
 import { makeBillingSyncStore } from '@b2b-saas-starter/billing/billing-sync-store'
 import {
@@ -411,7 +415,14 @@ export function durable<A, E>(
         recordFailure: syncStore.fail
       })
       return yield* run(checkout, db)
-    }).pipe(Effect.provide(Layer.merge(BillingAuditLayer, BillingNotificationLayer))),
+    }).pipe(
+      Effect.provide(
+        Layer.merge(
+          Layer.merge(BillingAuditLayer, BillingNotificationLayer),
+          BillingWebhookLayer
+        )
+      )
+    ),
     { userId: 'usr_owner' }
   )
 }

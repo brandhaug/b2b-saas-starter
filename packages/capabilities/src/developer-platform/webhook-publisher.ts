@@ -15,6 +15,7 @@ import {
 } from '../internal/queue-publisher.ts'
 import { withTraceparent } from '../internal/traceparent.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
+import { type WebhookEventType } from './webhook-events.ts'
 import { type AuditEventLog } from '../governance/audit-event-log.ts'
 import { makeLiveWebhookEnqueueFailure } from './webhook-enqueue-failure.live.ts'
 
@@ -57,10 +58,102 @@ export type WebhookQueueBinding = QueueSendBinding<WebhookQueueMessage> & {
   ) => Promise<void>
 }
 
-type PublishWebhookEventInput = {
-  readonly eventType: string
-  readonly payload: typeof Schema.Json.Type
+const nullableString = Schema.NullOr(Schema.String)
+const workspaceRole = Schema.Literals(['owner', 'admin', 'member'])
+export const WebhookEventPayloads = {
+  'api_token.created': Schema.Struct({
+    id: Schema.String,
+    name: Schema.String,
+    prefix: Schema.String,
+    lastUsedAt: nullableString,
+    createdAt: Schema.String,
+    expiresAt: nullableString,
+    replacedByTokenId: nullableString
+  }),
+  'api_token.revoked': Schema.Struct({ tokenId: Schema.String }),
+  'webhook_endpoint.created': Schema.Struct({
+    id: Schema.String,
+    url: Schema.String,
+    enabled: Schema.Boolean,
+    events: Schema.Array(Schema.String),
+    successRate: Schema.Number
+  }),
+  'workspace_member.added': Schema.Struct({
+    userId: Schema.String,
+    role: workspaceRole
+  }),
+  'workspace_member.removed': Schema.Struct({
+    userId: Schema.String,
+    reason: Schema.optionalKey(Schema.String)
+  }),
+  'workspace_member.role_changed': Schema.Struct({
+    userId: Schema.String,
+    role: workspaceRole
+  }),
+  'workspace_invitation.accepted': Schema.Struct({
+    invitationId: Schema.String,
+    userId: Schema.String,
+    role: workspaceRole
+  }),
+  'billing.plan_changed': Schema.Struct({
+    planId: Schema.String,
+    previousPlanId: nullableString
+  })
 }
+export type WebhookEventPayloads = typeof WebhookEventPayloads
+export type WebhookPayload = {
+  readonly [K in WebhookEventType]: (typeof WebhookEventPayloads)[K]['Type']
+}
+export type WebhookEventInput = {
+  readonly [K in WebhookEventType]: {
+    readonly eventType: K
+    readonly payload: WebhookPayload[K]
+  }
+}[WebhookEventType]
+
+const decodeJson = Schema.decodeUnknownSync(Schema.Json)
+
+function sanitizeWebhookPayload(
+  input: PublishWebhookEventInput
+): Effect.Effect<typeof Schema.Json.Type, CapabilityUnavailable> {
+  function decode(decodeSchema: Schema.ConstraintDecoder<unknown>) {
+    return Effect.try({
+      try: () => decodeJson(Schema.decodeUnknownSync(decodeSchema)(input.payload)),
+      catch: () =>
+        new CapabilityUnavailable({
+          capability: 'webhook-publisher',
+          reason: 'payload_schema_invalid'
+        })
+    })
+  }
+  switch (input.eventType) {
+    case 'api_token.created': {
+      return decode(WebhookEventPayloads['api_token.created'])
+    }
+    case 'api_token.revoked': {
+      return decode(WebhookEventPayloads['api_token.revoked'])
+    }
+    case 'webhook_endpoint.created': {
+      return decode(WebhookEventPayloads['webhook_endpoint.created'])
+    }
+    case 'workspace_member.added': {
+      return decode(WebhookEventPayloads['workspace_member.added'])
+    }
+    case 'workspace_member.removed': {
+      return decode(WebhookEventPayloads['workspace_member.removed'])
+    }
+    case 'workspace_member.role_changed': {
+      return decode(WebhookEventPayloads['workspace_member.role_changed'])
+    }
+    case 'workspace_invitation.accepted': {
+      return decode(WebhookEventPayloads['workspace_invitation.accepted'])
+    }
+    case 'billing.plan_changed': {
+      return decode(WebhookEventPayloads['billing.plan_changed'])
+    }
+  }
+}
+export type PublishWebhookEventInput = WebhookEventInput
 
 /**
  * One addressed message for {@link WebhookPublisher.enqueue}: the operator
@@ -76,10 +169,14 @@ type EnqueueWebhookMessageInput = {
   readonly payload: typeof Schema.Json.Type
 }
 
-type WebhookPublisherInterface = {
+export type WebhookPublisherInterface = {
   readonly publish: (
     input: PublishWebhookEventInput
   ) => Effect.Effect<void, CapabilityUnavailable, WorkspaceContext>
+  readonly publishForWorkspace: (
+    workspaceId: string,
+    input: PublishWebhookEventInput
+  ) => Effect.Effect<void, CapabilityUnavailable>
 
   /**
    * Sends one pre-addressed message (replay, test send). Unlike `publish`
@@ -101,6 +198,7 @@ export const SeedWebhookPublisher: Layer.Layer<WebhookPublisher> = Layer.succeed
   WebhookPublisher
 )({
   publish: () => Effect.void,
+  publishForWorkspace: () => Effect.void,
   enqueue: () => Effect.void
 })
 
@@ -118,6 +216,19 @@ export function publishWebhookEventWith(
 ): Effect.Effect<void, never, WorkspaceContext> {
   return Effect.asVoid(
     bestEffort(publisher.publish(input), (failure) => ({
+      webhookPublish: 'failed',
+      webhookPublishReason: failure.reason
+    }))
+  )
+}
+
+export function publishWebhookEventForWorkspaceWith(
+  publisher: WebhookPublisherInterface,
+  workspaceId: string,
+  input: PublishWebhookEventInput
+): Effect.Effect<void, never> {
+  return Effect.asVoid(
+    bestEffort(publisher.publishForWorkspace(workspaceId, input), (failure) => ({
       webhookPublish: 'failed',
       webhookPublishReason: failure.reason
     }))
@@ -143,94 +254,10 @@ export function LiveWebhookPublisher(
               return
             }
             const ctx = yield* WorkspaceContext
-            // Stamp the producing request's trace context onto the message so
-            // the background consumer continues this trace instead of starting
-            // an unrelated one. Absent outside a span (tests, direct calls).
-            const traceparent = yield* currentTraceparent
-            const endpoints = yield* unavailable(
-              db
-                .select({
-                  id: webhookEndpoints.id,
-                  events: webhookEndpoints.events
-                })
-                .from(webhookEndpoints)
-                .where(
-                  and(
-                    eq(webhookEndpoints.workspaceId, ctx.workspace.id),
-                    eq(webhookEndpoints.enabled, true)
-                  )
-                )
-            )
-            const subscribed = endpoints.filter((endpoint) =>
-              endpoint.events.some((event) => event === input.eventType)
-            )
-            if (subscribed.length === 0) {
-              return
-            }
-            const messages = yield* Effect.forEach(subscribed, (endpoint) =>
-              Effect.gen(function* () {
-                return {
-                  body: withTraceparent(
-                    {
-                      endpointId: endpoint.id,
-                      deliveryId: yield* newCapabilityId('whd'),
-                      workspaceId: ctx.workspace.id,
-                      eventType: input.eventType,
-                      payload: input.payload
-                    },
-                    traceparent
-                  )
-                }
-              })
-            )
-            // Fan-out used to create the delivery row only when the consumer
-            // observed the message. That left deliveryId unauthenticated at
-            // the queue boundary: a message could pair this workspace's
-            // endpoint with another delivery id and payload, dispatching
-            // before persistence rejected the mismatch. Reserve every
-            // delivery before enqueueing so the consumer can bind all three
-            // identities (delivery, endpoint, workspace) before releasing a
-            // signing secret.
-            yield* unavailable(
-              db.insert(webhookDeliveries).values(
-                messages.map(({ body }): typeof webhookDeliveries.$inferInsert => ({
-                  id: body.deliveryId,
-                  endpointId: body.endpointId,
-                  eventType: body.eventType,
-                  status: 'pending',
-                  attempts: 0,
-                  lastAttemptAt: null,
-                  nextAttemptAt: null,
-                  responseStatus: null,
-                  payload: body.payload,
-                  requestHeaders: null,
-                  responseBody: null,
-                  replayedFrom: null,
-                  lastAttemptToken: null
-                }))
-              )
-            )
-            const enqueued = yield* Effect.result(
-              unavailable(
-                Effect.tryPromise({
-                  try: () => queue.sendBatch(messages),
-                  catch: (cause) => cause
-                })
-              )
-            )
-            if (Result.isFailure(enqueued)) {
-              yield* Effect.annotateLogs({ webhookEnqueue: 'confirmation_failed' })(
-                recordEnqueueFailure(messages).pipe(
-                  Effect.catchTag('CapabilityUnavailable', (failure) =>
-                    Effect.logError('webhook_enqueue_evidence_failed', failure).pipe(
-                      Effect.annotateLogs({ webhookEnqueueEvidence: 'failed' })
-                    )
-                  )
-                )
-              )
-              return yield* Effect.fail(enqueued.failure)
-            }
+            yield* publishForWorkspace(input, ctx.workspace.id)
           }),
+        publishForWorkspace: (workspaceId, input) =>
+          publishForWorkspace(input, workspaceId),
         enqueue: (message) => {
           if (!queue) {
             return Effect.fail(
@@ -260,6 +287,106 @@ export function LiveWebhookPublisher(
             )
           )
         }
+      }
+
+      function publishForWorkspace(
+        input: PublishWebhookEventInput,
+        workspaceId: string
+      ) {
+        return Effect.gen(function* () {
+          // Provider-light: without a queue binding the publisher no-ops
+          // instead of failing the app.
+          if (!queue) {
+            return
+          }
+          // Stamp the producing request's trace context onto the message so
+          // the background consumer continues this trace instead of starting
+          // an unrelated one. Absent outside a span (tests, direct calls).
+          const traceparent = yield* currentTraceparent
+          const endpoints = yield* unavailable(
+            db
+              .select({
+                id: webhookEndpoints.id,
+                events: webhookEndpoints.events
+              })
+              .from(webhookEndpoints)
+              .where(
+                and(
+                  eq(webhookEndpoints.workspaceId, workspaceId),
+                  eq(webhookEndpoints.enabled, true)
+                )
+              )
+          )
+          const subscribed = endpoints.filter((endpoint) =>
+            endpoint.events.some((event) => event === input.eventType)
+          )
+          if (subscribed.length === 0) {
+            return
+          }
+          const messages = yield* Effect.forEach(subscribed, (endpoint) =>
+            Effect.gen(function* () {
+              return {
+                body: withTraceparent(
+                  {
+                    endpointId: endpoint.id,
+                    deliveryId: yield* newCapabilityId('whd'),
+                    workspaceId,
+                    eventType: input.eventType,
+                    payload: yield* sanitizeWebhookPayload(input)
+                  },
+                  traceparent
+                )
+              }
+            })
+          )
+          // Fan-out used to create the delivery row only when the consumer
+          // observed the message. That left deliveryId unauthenticated at
+          // the queue boundary: a message could pair this workspace's
+          // endpoint with another delivery id and payload, dispatching
+          // before persistence rejected the mismatch. Reserve every
+          // delivery before enqueueing so the consumer can bind all three
+          // identities (delivery, endpoint, workspace) before releasing a
+          // signing secret.
+          yield* unavailable(
+            db.insert(webhookDeliveries).values(
+              messages.map(({ body }): typeof webhookDeliveries.$inferInsert => ({
+                id: body.deliveryId,
+                endpointId: body.endpointId,
+                eventType: body.eventType,
+                status: 'pending',
+                attempts: 0,
+                lastAttemptAt: null,
+                nextAttemptAt: null,
+                responseStatus: null,
+                payload: body.payload,
+                requestHeaders: null,
+                responseBody: null,
+                replayedFrom: null,
+                lastAttemptToken: null
+              }))
+            )
+          )
+          const enqueued = yield* Effect.result(
+            unavailable(
+              Effect.tryPromise({
+                try: () => queue.sendBatch(messages),
+                catch: (cause) => cause
+              })
+            )
+          )
+          if (Result.isFailure(enqueued)) {
+            yield* Effect.annotateLogs({ webhookEnqueue: 'confirmation_failed' })(
+              recordEnqueueFailure(messages).pipe(
+                Effect.catchTag('CapabilityUnavailable', (failure) =>
+                  Effect.logError('webhook_enqueue_evidence_failed', failure).pipe(
+                    Effect.annotateLogs({ webhookEnqueueEvidence: 'failed' })
+                  )
+                )
+              )
+            )
+            return yield* Effect.fail(enqueued.failure)
+          }
+        })
       }
     })
   )

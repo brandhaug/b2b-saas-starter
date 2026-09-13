@@ -9,6 +9,8 @@ import {
   billingCheckoutClaims,
   billingProviderEvents,
   billingSynchronization,
+  webhookDeliveries,
+  webhookEndpoints,
   workspaceMembers,
   workspaceSubscriptions,
   workspaces
@@ -30,6 +32,8 @@ import {
   type ProcessProviderEventInput
 } from '@b2b-saas-starter/billing/billing'
 import { type StripeSubscriptionResponse } from '@b2b-saas-starter/billing/stripe'
+import { WebhookEndpoints } from '../developer-platform/webhook-endpoints.ts'
+import { type WebhookQueueMessage } from '../developer-platform/webhook-publisher.ts'
 
 const workspaceId = 'wrk_live'
 const customerId = 'cus_sync'
@@ -213,6 +217,11 @@ const reset = Effect.gen(function* () {
   yield* db.delete(billingCheckoutClaims)
   yield* db.delete(billingSynchronization)
   yield* db.delete(workspaceSubscriptions)
+  yield* db.delete(webhookDeliveries).where(eq(webhookDeliveries.endpointId, 'wh_live'))
+  yield* db
+    .update(webhookEndpoints)
+    .set({ events: ['webhook_endpoint.created'] })
+    .where(eq(webhookEndpoints.id, 'wh_live'))
   yield* db.delete(auditEvents).where(eq(auditEvents.workspaceId, workspaceId))
   yield* db
     .delete(workspaceMembers)
@@ -294,6 +303,62 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           expect(
             first.audits.some((row) => row.eventType === 'billing.plan_changed')
           ).toBe(true)
+        })
+      )
+    )
+
+    it.effect('publishes one scoped plan change across repeated reconciliation', () =>
+      withStripe(() =>
+        Effect.gen(function* () {
+          const db = yield* Database
+          yield* db
+            .update(webhookEndpoints)
+            .set({ events: ['billing.plan_changed'] })
+            .where(eq(webhookEndpoints.id, 'wh_live'))
+          const messages = new Array<{ readonly body: WebhookQueueMessage }>()
+          const webhookQueue = {
+            send: (_message: WebhookQueueMessage) => Promise.resolve(),
+            sendBatch: (batch: Iterable<{ readonly body: WebhookQueueMessage }>) => {
+              for (const message of batch) {
+                messages.push(message)
+              }
+              return Promise.resolve()
+            }
+          }
+
+          const deliveries = yield* inWorkspace(
+            'live-lab',
+            Effect.gen(function* () {
+              const billing = yield* Billing
+              yield* billing.processProviderEvent(event('evt_webhook_plan_change'))
+              yield* billing.reconcileWorkspace({ workspaceId })
+              yield* billing.reconcileWorkspace({ workspaceId })
+              return yield* (yield* WebhookEndpoints).listDeliveries({
+                endpointId: 'wh_live'
+              })
+            }),
+            undefined,
+            { ...bindings, webhookQueue }
+          )
+
+          expect(messages).toHaveLength(1)
+          expect(messages[0]?.body).toMatchObject({
+            workspaceId,
+            endpointId: 'wh_live',
+            eventType: 'billing.plan_changed',
+            payload: { planId: 'team', previousPlanId: 'starter' }
+          })
+          expect(messages[0]?.body.payload).toEqual({
+            planId: 'team',
+            previousPlanId: 'starter'
+          })
+
+          expect(deliveries).toHaveLength(1)
+          expect(deliveries[0]).toMatchObject({
+            endpointId: 'wh_live',
+            eventType: 'billing.plan_changed',
+            payload: { planId: 'team', previousPlanId: 'starter' }
+          })
         })
       )
     )

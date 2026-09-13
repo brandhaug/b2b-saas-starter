@@ -10,7 +10,12 @@ import {
   type SeedProviderSubscriptionFixture
 } from '@b2b-saas-starter/billing/billing.seed'
 import { initialSnapshot, lifecycleContract } from './billing-lifecycle.contract.ts'
-import { BillingAuditLayer, BillingNotificationLayer } from '../billing-adapters.ts'
+import {
+  BillingAuditLayer,
+  BillingNotificationLayer,
+  BillingWebhookLayer
+} from '../billing-adapters.ts'
+import { SeedWebhookPublisher } from '../developer-platform/webhook-publisher.ts'
 
 it.effect('Seed reconciles the full lifecycle and enforces deadlines on reads', () =>
   Effect.gen(function* () {
@@ -26,7 +31,8 @@ it.effect('Seed reconciles the full lifecycle and enforces deadlines on reads', 
     )
     const billingLayer = SeedBilling({ stripeConfigured: true, providerState }).pipe(
       Layer.provide(BillingAuditLayer.pipe(Layer.provide(audit))),
-      Layer.provide(BillingNotificationLayer.pipe(Layer.provide(feed)))
+      Layer.provide(BillingNotificationLayer.pipe(Layer.provide(feed))),
+      Layer.provide(BillingWebhookLayer.pipe(Layer.provide(SeedWebhookPublisher)))
     )
     yield* Effect.gen(function* () {
       const billing = yield* Billing
