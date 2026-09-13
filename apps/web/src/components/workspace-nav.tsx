@@ -21,7 +21,7 @@ const activeLinkProps = { 'aria-current': 'page' } satisfies {
 }
 
 const navLinkClasses =
-  'relative flex min-h-9 items-center gap-2 rounded-md px-3 py-2 text-sm text-sidebar-foreground/80 outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring data-[status=active]:bg-sidebar-accent data-[status=active]:text-sidebar-accent-foreground data-[status=active]:font-medium data-[status=active]:before:absolute data-[status=active]:before:left-0 data-[status=active]:before:h-4 data-[status=active]:before:w-px data-[status=active]:before:bg-primary max-md:min-h-11'
+  'flex min-h-9 items-center gap-2 rounded-md px-3 py-2 text-sm text-sidebar-foreground/80 outline-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring data-[status=active]:bg-sidebar-accent data-[status=active]:text-sidebar-accent-foreground data-[status=active]:ring-1 data-[status=active]:ring-inset data-[status=active]:ring-primary max-md:min-h-11'
 
 export function WorkspaceNav({
   workspace,
