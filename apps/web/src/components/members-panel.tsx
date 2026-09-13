@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
+import { TableViewControls } from '@/components/table-view-controls'
 import {
   Item,
   ItemActions,
@@ -39,14 +40,6 @@ import {
   ItemGroup,
   ItemTitle
 } from '@/components/ui/item'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Spinner } from '@/components/ui/spinner'
 import { useKeyedFailure } from '@/hooks/use-keyed-failure'
@@ -60,8 +53,23 @@ import {
 } from '@/lib/server/workspace-members'
 import { roleLabel } from '@/lib/value-labels'
 import { useWorkspaceView } from '@/lib/workspace-view'
+import { applyTableView, type TableViewField } from '@/lib/table-view'
+import { useTableView } from '@/lib/use-table-view'
 
 const PAGE_SIZE = 20
+
+function memberListFields(): ReadonlyArray<TableViewField> {
+  return [
+    { id: 'name', label: m.developer_list_name(), kind: 'text' },
+    { id: 'email', label: m.provider_email(), kind: 'text' },
+    {
+      id: 'role',
+      label: m.common_role(),
+      kind: 'select',
+      options: workspaceRoles.map((role) => ({ value: role, label: roleLabel(role) }))
+    }
+  ]
+}
 
 function pageFrom(value: string | undefined) {
   const parsed = Number.parseInt(value ?? '1', 10)
@@ -193,9 +201,9 @@ export function MembersPanel({
   const canManage = viewerCan(viewer, { member: ['update'] })
   const canRemove = viewerCan(viewer, { member: ['delete'] })
   const { view, update } = useWorkspaceView()
+  const fields = memberListFields()
+  const table = useTableView('members', fields)
   const query = view.query ?? ''
-  const roleFilter: 'all' | WorkspaceRole =
-    workspaceRoles.find((role) => role === view.filter) ?? 'all'
   const requestedPage = pageFrom(view.page)
   const [confirmingMember, setConfirmingMember] = useState<Member | null>(null)
   const [leaveArmed, setLeaveArmed] = useState(false)
@@ -239,13 +247,25 @@ export function MembersPanel({
     }
   )
   const normalized = query.trim().toLocaleLowerCase()
-  const filteredMembers = members.filter((member) => {
-    const matchesQuery =
+  const searchedMembers = members.filter(
+    (member) =>
       normalized.length === 0 ||
       member.name.toLocaleLowerCase().includes(normalized) ||
       member.email.toLocaleLowerCase().includes(normalized)
-    return matchesQuery && (roleFilter === 'all' || member.role === roleFilter)
-  })
+  )
+  const filteredMembers = applyTableView(
+    searchedMembers,
+    table.view,
+    (member, field) => {
+      if (field === 'role') {
+        return member.role
+      }
+      if (field === 'email') {
+        return member.email
+      }
+      return member.name
+    }
+  )
   const pageCount = Math.max(1, Math.ceil(filteredMembers.length / PAGE_SIZE))
   const page = Math.min(requestedPage, pageCount)
   const visibleMembers = filteredMembers.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -271,7 +291,7 @@ export function MembersPanel({
 
   return (
     <div className="grid gap-4">
-      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_10rem]">
+      <div className="grid gap-3">
         <div className="relative min-w-0">
           <SearchIcon
             aria-hidden="true"
@@ -287,33 +307,7 @@ export function MembersPanel({
             className="pl-9"
           />
         </div>
-        <Select
-          value={roleFilter}
-          items={[
-            { value: 'all', label: m.members_all_roles() },
-            ...workspaceRoles.map((role) => ({ value: role, label: roleLabel(role) }))
-          ]}
-          onValueChange={(value) =>
-            update(
-              { filter: value === 'all' ? undefined : String(value), page: undefined },
-              true
-            )
-          }
-        >
-          <SelectTrigger aria-label={m.members_filter_role()} className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem value="all">{m.members_all_roles()}</SelectItem>
-              {workspaceRoles.map((role) => (
-                <SelectItem key={role} value={role}>
-                  {roleLabel(role)}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
+        <TableViewControls fields={fields} view={table.view} onChange={table.setView} />
       </div>
       {filteredMembers.length === 0 ? (
         <Empty>

@@ -5,6 +5,7 @@ import { RoutePending } from '@/components/route-pending'
 import { WorkspaceAuditPage } from '@/components/workspace-audit-page'
 import {
   auditFiltersFromSearch,
+  auditViewFromSearch,
   type ApplyWorkspaceAuditSearch
 } from '@/lib/audit-search'
 import { m } from '@b2b-saas-starter/i18n/messages'
@@ -38,7 +39,8 @@ const AUDIT_SEARCH_KEYS: ReadonlyArray<string> = [
   'since',
   'until',
   'cursor',
-  'event'
+  'event',
+  'view'
 ]
 
 type AuditSearch = {
@@ -48,6 +50,7 @@ type AuditSearch = {
   readonly until?: string | undefined
   readonly event?: string | undefined
   readonly cursor?: string | undefined
+  readonly view?: string | undefined
 }
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the router hands `validateSearch` an untyped record; `pickOptionalStrings` (which carries the same exemption) is the parse step
@@ -69,7 +72,8 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/audit')({
           workspaceSlug: params.workspaceSlug,
           filters: auditFiltersFromSearch(deps.search),
           ...(deps.search.cursor !== undefined && { cursor: deps.search.cursor }),
-          ...(deps.search.event && { event: deps.search.event })
+          ...(deps.search.event && { event: deps.search.event }),
+          view: auditViewFromSearch(deps.search.view)
         }
       })
   },

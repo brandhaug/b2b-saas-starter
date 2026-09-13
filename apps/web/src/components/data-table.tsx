@@ -9,6 +9,7 @@ import {
   createPaginatedRowModel,
   createSortedRowModel,
   flexRender,
+  functionalUpdate,
   globalFilteringFeature,
   rowPaginationFeature,
   rowSortingFeature,
@@ -94,6 +95,11 @@ type DataTableProps<TData extends RowData> = {
   readonly pageSize?: number
   readonly emptyMessage?: string
   readonly tableLabel?: string
+  readonly manualSorting?: boolean
+  readonly sort?: {
+    readonly value: SortingState
+    readonly onChange: (value: SortingState) => void
+  }
   readonly children: ReactNode
 }
 
@@ -249,6 +255,8 @@ export function DataTable<TData extends RowData>({
   pageSize,
   emptyMessage = m.shell_table_empty(),
   tableLabel,
+  manualSorting = false,
+  sort,
   children
 }: DataTableProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>([])
@@ -257,8 +265,18 @@ export function DataTable<TData extends RowData>({
     features: dataTableFeatures,
     data,
     columns,
-    state: { sorting, globalFilter },
-    onSortingChange: setSorting,
+    state: { sorting: sort?.value ?? sorting, globalFilter },
+    onSortingChange: (next) => {
+      const value = functionalUpdate(next, sort?.value ?? sorting)
+      if (sort) {
+        sort.onChange(value)
+      } else {
+        setSorting(value)
+      }
+      table.setPageIndex(0)
+    },
+    enableSorting: !manualSorting,
+    manualSorting,
     onGlobalFilterChange: setGlobalFilter,
     manualPagination: pageSize === undefined,
     initialState: {

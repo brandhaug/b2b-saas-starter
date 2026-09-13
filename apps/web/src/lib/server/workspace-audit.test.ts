@@ -3,10 +3,8 @@ import '@/test/qualified-session'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 
 import { fixtureSession } from '@/test/fixture-session'
-import {
-  loadWorkspaceAuditEventsHandler,
-  zonedDayBoundary
-} from './workspace-audit.effects'
+import { loadWorkspaceAuditEventsHandler } from './workspace-audit.effects'
+import { zonedDayBoundary } from './zoned-day-boundary'
 import { withPresentation } from './i18n-context'
 import { type WorkspaceAuditFilters } from './workspace-audit'
 import type * as AuthModule from './auth'
@@ -157,6 +155,32 @@ describe('loadWorkspaceAuditEventsHandler', () => {
     )
     expect(payload.events.map((event) => event.id)).toContain('aud_token')
   })
+
+  it.each(['is', 'isNot'] satisfies ReadonlyArray<'is' | 'isNot'>)(
+    'evaluates advanced date %s in the account zone and echoes the calendar value',
+    async (operator) => {
+      const view = {
+        match: 'all',
+        filters: [{ field: 'createdAt', operator, value: '2026-05-13' }],
+        sorts: [{ field: 'createdAt', direction: 'desc' }]
+      } satisfies NonNullable<
+        Parameters<typeof loadWorkspaceAuditEventsHandler>[0]['view']
+      >
+      const payload = await withPresentation(
+        { timeZone: 'Pacific/Honolulu', authenticated: true, needsTimeZone: false },
+        () =>
+          loadWorkspaceAuditEventsHandler({
+            workspaceSlug: 'starter-lab',
+            filters: {},
+            view
+          })
+      )
+      expect(payload.view).toEqual(view)
+      expect(payload.events.some((event) => event.id === 'aud_token')).toBe(
+        operator === 'is'
+      )
+    }
+  )
 
   it('keeps the same event on its Oslo day', async () => {
     const payload = await withPresentation(

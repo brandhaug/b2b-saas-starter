@@ -43,6 +43,13 @@ The workspace sidebar has a fixed desktop width, independent scrolling, and a mo
 
 Panels and dialogs have square corners. Controls use the softer `rounded-md` radius. Use separators between resource rows and contextual menus for secondary row actions. Search, filters, and pagination belong above or below the list, with selected views retained in the URL. Keep panels flat with one-pixel borders; reserve restrained shadows for floating menus and tooltips, and blur for overlays. Use `bg-muted` for nested content instead of nesting cards.
 
+Tables and resource lists share compact Filter and Sort popovers. Filters combine
+field, operator, and value with a single all/any choice; sort rows run in their
+listed priority. Active filter chips reopen the editor or remove a condition.
+Changes reset pagination and stay in the URL. Audit events and failed deliveries
+apply the selected view on the server before paging. Keep field choices tied to
+the records on each page and translate the controls with the rest of the app.
+
 ## Components
 
 - Outline is the default action treatment; ghost suits row actions and dismissals. Confirm destructive changes.

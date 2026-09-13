@@ -10,6 +10,11 @@ export type WorkspaceView = {
   readonly sort?: string | undefined
   readonly page?: string | undefined
   readonly record?: string | undefined
+  readonly invitationQuery?: string | undefined
+  readonly tableViews?: string | undefined
+  readonly view?: string | undefined
+  readonly failureView?: string | undefined
+  readonly failureCursor?: string | undefined
 }
 
 export function workspaceViewSearch(search: {
@@ -22,7 +27,12 @@ export function workspaceViewSearch(search: {
     'filter',
     'sort',
     'page',
-    'record'
+    'record',
+    'invitationQuery',
+    'tableViews',
+    'view',
+    'failureView',
+    'failureCursor'
   ])
   return {
     ...strings,

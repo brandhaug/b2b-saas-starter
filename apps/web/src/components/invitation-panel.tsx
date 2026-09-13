@@ -30,6 +30,37 @@ import { useKeyedFailure } from '@/hooks/use-keyed-failure'
 import { invitationStatusVariant } from '@/lib/badge-variants'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { type EmailDeliveryRow } from '@/lib/server/email-delivery'
+import { Input } from '@/components/ui/input'
+import { TableViewControls } from '@/components/table-view-controls'
+import { applyTableView, type TableViewField } from '@/lib/table-view'
+import { useTableView } from '@/lib/use-table-view'
+import { useWorkspaceView } from '@/lib/workspace-view'
+
+function invitationListFields(): ReadonlyArray<TableViewField> {
+  return [
+    { id: 'email', label: m.provider_email(), kind: 'text' },
+    {
+      id: 'role',
+      label: m.common_role(),
+      kind: 'select',
+      options: [
+        { value: 'owner', label: roleLabel('owner') },
+        { value: 'admin', label: roleLabel('admin') },
+        { value: 'member', label: roleLabel('member') }
+      ]
+    },
+    {
+      id: 'status',
+      label: m.developer_list_status(),
+      kind: 'select',
+      options: ['pending', 'accepted', 'rejected', 'canceled'].map((value) => ({
+        value,
+        label: statusLabel(value)
+      }))
+    },
+    { id: 'expiresAt', label: m.token_expires(), kind: 'date' }
+  ]
+}
 
 function invitationSendLabel(sent: SentInvitation) {
   const values = { email: sent.invitation.email }
@@ -57,6 +88,30 @@ export function InvitationPanel({
   // Presentation gate: the form yields to a reason for a role that cannot
   // invite; the server fn re-checks the permission regardless.
   const canInvite = viewerCan(viewer, { invitation: ['create'] })
+  const { view, update } = useWorkspaceView()
+  const fields = invitationListFields()
+  const table = useTableView('invitations', fields, false)
+  const query = view.invitationQuery ?? ''
+  const normalized = query.trim().toLocaleLowerCase()
+  const visibleInvitations = applyTableView(
+    invitations.filter(
+      (invitation) =>
+        normalized === '' || invitation.email.toLocaleLowerCase().includes(normalized)
+    ),
+    table.view,
+    (invitation, field) => {
+      if (field === 'expiresAt') {
+        return new Date(invitation.expiresAt)
+      }
+      if (field === 'role') {
+        return invitation.role
+      }
+      if (field === 'status') {
+        return invitation.status
+      }
+      return invitation.email
+    }
+  )
   const [sent, setSent] = useState<SentInvitation | null>(null)
 
   const cancel = useServerAction(
@@ -117,54 +172,81 @@ export function InvitationPanel({
             </EmptyHeader>
           </Empty>
         ) : (
-          <ItemGroup>
-            {invitations.map((invitation) => (
-              <Item key={invitation.id} variant="outline" size="sm">
-                <ItemContent>
-                  <ItemTitle>{invitation.email}</ItemTitle>
-                  <ItemDescription>{roleLabel(invitation.role)}</ItemDescription>
-                  {failedRow?.key === invitation.id ? (
-                    <ActionFeedback error={failedRow.message} />
-                  ) : null}
-                </ItemContent>
-                <ItemActions>
-                  {canInvite && invitation.status === 'pending' ? (
-                    <Button
-                      variant="outline"
-                      disabled={
-                        resend.pendingInput === invitation.id ||
-                        emailDeliveries.find(
-                          (record) => record.referenceId === invitation.id
-                        )?.resendAllowed === false
-                      }
-                      onClick={() => void resend.runAsync(invitation.id)}
-                    >
-                      {m.email_delivery_resend_invitation()}
-                    </Button>
-                  ) : null}
-                  <Badge variant={invitationStatusVariant(invitation.status)}>
-                    {statusLabel(invitation.status)}
-                  </Badge>
-                  {invitation.status === 'pending' ? (
-                    <Button
-                      variant="ghost"
-                      disabled={cancel.pendingInput === invitation.id}
-                      onClick={() =>
-                        void cancelOnRow(invitation.id, () =>
-                          cancel.runAsync(invitation.id)
-                        )
-                      }
-                    >
-                      {cancel.pendingInput === invitation.id ? (
-                        <Spinner data-icon="inline-start" />
-                      ) : null}
-                      {m.common_cancel()}
-                    </Button>
-                  ) : null}
-                </ItemActions>
-              </Item>
-            ))}
-          </ItemGroup>
+          <>
+            <div className="grid gap-3 pb-3">
+              <Input
+                value={query}
+                placeholder={m.developer_list_search_invitations()}
+                aria-label={m.developer_list_search_invitations()}
+                onChange={(event) =>
+                  update(
+                    {
+                      invitationQuery: event.target.value || undefined
+                    },
+                    true
+                  )
+                }
+              />
+              <TableViewControls
+                fields={fields}
+                view={table.view}
+                onChange={table.setView}
+              />
+            </div>
+            {visibleInvitations.length === 0 ? (
+              <p className="py-6 text-sm text-muted-foreground">
+                {m.developer_list_no_matching_invitations()}
+              </p>
+            ) : null}
+            <ItemGroup>
+              {visibleInvitations.map((invitation) => (
+                <Item key={invitation.id} variant="outline" size="sm">
+                  <ItemContent>
+                    <ItemTitle>{invitation.email}</ItemTitle>
+                    <ItemDescription>{roleLabel(invitation.role)}</ItemDescription>
+                    {failedRow?.key === invitation.id ? (
+                      <ActionFeedback error={failedRow.message} />
+                    ) : null}
+                  </ItemContent>
+                  <ItemActions>
+                    {canInvite && invitation.status === 'pending' ? (
+                      <Button
+                        variant="outline"
+                        disabled={
+                          resend.pendingInput === invitation.id ||
+                          emailDeliveries.find(
+                            (record) => record.referenceId === invitation.id
+                          )?.resendAllowed === false
+                        }
+                        onClick={() => void resend.runAsync(invitation.id)}
+                      >
+                        {m.email_delivery_resend_invitation()}
+                      </Button>
+                    ) : null}
+                    <Badge variant={invitationStatusVariant(invitation.status)}>
+                      {statusLabel(invitation.status)}
+                    </Badge>
+                    {invitation.status === 'pending' ? (
+                      <Button
+                        variant="ghost"
+                        disabled={cancel.pendingInput === invitation.id}
+                        onClick={() =>
+                          void cancelOnRow(invitation.id, () =>
+                            cancel.runAsync(invitation.id)
+                          )
+                        }
+                      >
+                        {cancel.pendingInput === invitation.id ? (
+                          <Spinner data-icon="inline-start" />
+                        ) : null}
+                        {m.common_cancel()}
+                      </Button>
+                    ) : null}
+                  </ItemActions>
+                </Item>
+              ))}
+            </ItemGroup>
+          </>
         )}
       </ListSection>
     </Panel>

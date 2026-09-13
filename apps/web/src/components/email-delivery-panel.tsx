@@ -1,7 +1,7 @@
 import { type EmailDeliveryRow } from '@/lib/server/email-delivery'
+import { FilterableDataTable, type DataTableField } from './filterable-data-table'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import {
-  DataTable,
   DataTableContent,
   DataTablePagination,
   type DataTableColumnDef
@@ -149,6 +149,60 @@ function deliveryColumns(): Array<DataTableColumnDef<EmailDeliveryRow>> {
   ]
 }
 
+function deliveryFields(): ReadonlyArray<DataTableField<EmailDeliveryRow>> {
+  return [
+    {
+      id: 'providerMessageId',
+      label: m.email_delivery_message_id(),
+      kind: 'text',
+      value: (row) => row.providerMessageId ?? row.id
+    },
+    {
+      id: 'recipient',
+      label: m.email_delivery_recipient(),
+      kind: 'text',
+      value: (row) => row.recipient
+    },
+    {
+      id: 'purpose',
+      label: m.email_delivery_purpose(),
+      kind: 'select',
+      options: [
+        { value: 'verification', label: m.email_delivery_verification() },
+        { value: 'recovery', label: m.email_delivery_recovery() },
+        { value: 'security', label: m.email_delivery_security() },
+        { value: 'invitation', label: m.email_delivery_invitation() },
+        { value: 'notification', label: m.email_delivery_notification() },
+        { value: 'digest', label: m.email_delivery_digest() }
+      ],
+      value: (row) => row.purpose
+    },
+    {
+      id: 'status',
+      label: m.status(),
+      kind: 'select',
+      options: [
+        { value: 'accepted', label: m.email_delivery_accepted() },
+        { value: 'delivered', label: m.email_delivery_delivered() },
+        { value: 'temporary_failure', label: m.email_delivery_delayed() },
+        { value: 'delayed', label: m.email_delivery_delayed() },
+        { value: 'failed', label: m.email_delivery_failed() },
+        { value: 'suppressed', label: m.email_delivery_suppressed() },
+        { value: 'ambiguous', label: m.email_delivery_ambiguous() },
+        { value: 'logged', label: m.email_delivery_logged() },
+        { value: 'queued', label: m.email_delivery_queued() }
+      ],
+      value: (row) => row.status
+    },
+    {
+      id: 'updatedAt',
+      label: m.email_delivery_updated(),
+      kind: 'date',
+      value: (row) => row.updatedAt
+    }
+  ]
+}
+
 export function EmailDeliveryPanel({
   records
 }: {
@@ -159,7 +213,9 @@ export function EmailDeliveryPanel({
       title={m.email_delivery_title()}
       description={m.email_delivery_description()}
     >
-      <DataTable
+      <FilterableDataTable
+        viewKey="email-deliveries"
+        fields={deliveryFields()}
         columns={deliveryColumns()}
         data={records}
         pageSize={10}
@@ -168,7 +224,7 @@ export function EmailDeliveryPanel({
       >
         <DataTableContent />
         <DataTablePagination />
-      </DataTable>
+      </FilterableDataTable>
       <p className="text-sm text-muted-foreground">{m.email_delivery_warning()}</p>
     </Panel>
   )

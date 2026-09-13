@@ -11,6 +11,7 @@ import {
 
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import {
+  clampPageLimit,
   seedKeysetPage,
   type KeysetCursorPosition,
   type Page
@@ -19,6 +20,23 @@ import { newCapabilityId } from '../internal/ids.ts'
 import { type AuditEventType, type AuditTargetType } from './audit-event-taxonomy.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { captureMonitoringSignal } from '@b2b-saas-starter/logger/providers'
+import {
+  auditRowMatchesView,
+  auditSortValue,
+  auditViewKey,
+  compareAuditRows,
+  normalizeAuditView,
+  decodeAuditCursor,
+  encodeAuditCursor,
+  type AuditView
+} from './audit-event-view.ts'
+export {
+  AuditView,
+  AuditViewField,
+  AuditViewOperator,
+  defaultAuditView
+} from './audit-event-view.ts'
+export type { AuditViewFilter, AuditViewSort } from './audit-event-view.ts'
 
 export const AuditEvent = Schema.Struct({
   id: Schema.String,
@@ -39,7 +57,7 @@ export type AuditEventDetail = AuditEvent & {
 }
 
 /**
- * The keyset position every audit page cuts on — newest first on
+ * The keyset position for global audit reads, newest first on
  * `(createdAt, id)`, identical for both adapters.
  */
 export function auditEventPosition(
@@ -72,6 +90,7 @@ export type ListAuditEventsInput = {
    * verbatim.
    */
   readonly limit?: number | undefined
+  readonly view?: AuditView | undefined
 }
 
 /**
@@ -286,6 +305,7 @@ function pagedSeedRows(
   workspaceId: string | undefined,
   input: ListAuditEventsInput | undefined
 ): Page<AuditEvent> {
+  const view = normalizeAuditView(input?.view)
   const matched = rows.filter(
     (row) =>
       (workspaceId === undefined || (row.workspaceId ?? null) === workspaceId) &&
@@ -293,19 +313,60 @@ function pagedSeedRows(
         (row.actorUserId ?? null) === input.actorUserId) &&
       (input?.eventType === undefined || row.eventType === input.eventType) &&
       (input?.since === undefined || row.createdAt >= input.since) &&
-      (input?.until === undefined || row.createdAt <= input.until)
+      (input?.until === undefined || row.createdAt <= input.until) &&
+      auditRowMatchesView(row, view)
   )
-  // The cursor decode (empty page on a malformed one), the `(createdAt DESC,
-  // id DESC)` ordering, and the one-past-the-cap cut all come from the shared
-  // keyset module — the same recipe Live applies in SQL. The wire projection
-  // happens before the cut so both adapters page the same shape. The default
-  // page names the audit read's own size (not the keyset module's generic
-  // 50), so a walk that passes no limit pages identically against Live —
-  // the export snapshot's completeness bound depends on it.
-  return seedKeysetPage(matched.map(toSeedWire), 'desc', auditEventPosition, {
-    ...input,
-    limit: input?.limit ?? AUDIT_EVENT_PAGE_SIZE
-  })
+  // Evaluate the complete scoped dataset before ordering and cutting a page.
+  // Live applies the same view and lexicographic cursor predicate in SQL.
+  const ordered = matched.toSorted((a, b) => compareAuditRows(a, b, view))
+  const cursor = decodeAuditCursor(
+    input?.cursor,
+    auditViewKey(view, workspaceId, input),
+    view.sorts.length
+  )
+  if (cursor === null) {
+    return { items: [], nextCursor: null }
+  }
+  let remaining = ordered
+  if (cursor !== undefined) {
+    remaining = ordered.filter((row) => {
+      for (let index = 0; index < view.sorts.length; index += 1) {
+        const sort = view.sorts[index]
+        if (!sort) {
+          return false
+        }
+        const value = auditSortValue(row, sort.field)
+        const at = cursor.values[index] ?? ''
+        if (value !== at) {
+          if (sort.direction === 'asc') {
+            return value > at
+          }
+          return value < at
+        }
+      }
+      const lastSort = view.sorts.at(-1)
+      if (lastSort?.direction === 'asc') {
+        return row.id > cursor.id
+      }
+      return row.id < cursor.id
+    })
+  }
+  const limit = clampPageLimit(input?.limit ?? AUDIT_EVENT_PAGE_SIZE)
+  const items = remaining.slice(0, limit).map(toSeedWire)
+  const last = remaining[limit - 1]
+  return {
+    items,
+    nextCursor: (() => {
+      if (remaining.length <= limit || !last) {
+        return null
+      }
+      return encodeAuditCursor({
+        view: auditViewKey(view, workspaceId, input),
+        values: view.sorts.map((sort) => auditSortValue(last, sort.field)),
+        id: last.id
+      })
+    })()
+  }
 }
 
 /**

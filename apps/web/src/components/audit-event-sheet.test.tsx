@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vite-plus/test'
+import { TableViewControls } from './table-view-controls'
 import { AuditEventSheet } from './audit-event-sheet'
 import { renderWithRouter } from '@/test/router-harness'
 
@@ -66,5 +67,32 @@ describe('AuditEventSheet', () => {
     )
 
     await waitFor(() => expect(document.activeElement).toBe(replacement))
+  })
+
+  it('restores focus to the shared filter trigger when the event is outside the list', async () => {
+    const close = vi.fn()
+    function content(eventId: string | null) {
+      return (
+        <>
+          <div id="audit-view-controls">
+            <TableViewControls
+              fields={[]}
+              view={{ match: 'all', filters: [], sorts: [] }}
+              onChange={vi.fn()}
+            />
+          </div>
+          <AuditEventSheet eventId={eventId} event={null} onClose={close} />
+        </>
+      )
+    }
+    const rendered = render(content('aud_hidden'))
+    await waitFor(() => expect(screen.getByRole('dialog')).not.toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    rendered.rerender(content(null))
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Filter' })
+      )
+    )
   })
 })

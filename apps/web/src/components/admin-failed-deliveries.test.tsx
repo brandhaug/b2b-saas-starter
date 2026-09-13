@@ -3,13 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
 import { AdminFailedDeliveries } from './admin-failed-deliveries'
 import {
-  loadFailedDeliveriesServerFn,
   replayFailedDeliveryServerFn,
   type FailedDeliveriesPayload
 } from '@/lib/server/admin'
 
 vi.mock('@/lib/server/admin', () => ({
-  loadFailedDeliveriesServerFn: vi.fn(),
   replayFailedDeliveryServerFn: vi.fn()
 }))
 
@@ -51,7 +49,6 @@ const initialPage: FailedDeliveriesPayload = {
 
 describe('AdminFailedDeliveries', () => {
   beforeEach(() => {
-    vi.mocked(loadFailedDeliveriesServerFn).mockReset()
     vi.mocked(replayFailedDeliveryServerFn).mockReset()
   })
 
@@ -89,33 +86,20 @@ describe('AdminFailedDeliveries', () => {
     ).toBe(true)
   })
 
-  it('keeps the current page on a failed read and follows the opaque cursor on retry', async () => {
-    vi.mocked(loadFailedDeliveriesServerFn)
-      .mockRejectedValueOnce(new Error('Session expired'))
-      .mockResolvedValueOnce({ items: [], nextCursor: null })
-    await renderWithRouter(<AdminFailedDeliveries initialPage={initialPage} />, {
-      path: '/admin'
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Older failures' }))
-    expect(await screen.findByRole('alert')).toHaveProperty(
-      'textContent',
-      'Could not load failed deliveries.'
-    )
-    expect(screen.getByText('dead_lettered')).not.toBeNull()
-    await waitFor(() =>
-      expect(
-        screen.getByRole('button', { name: 'Older failures' }).hasAttribute('disabled')
-      ).toBe(false)
+  it('puts the opaque cursor in the URL and clears it when returning to newest', async () => {
+    const { router } = await renderWithRouter(
+      <AdminFailedDeliveries initialPage={initialPage} />,
+      { path: '/admin' }
     )
     fireEvent.click(screen.getByRole('button', { name: 'Older failures' }))
-    await screen.findByText('No terminal webhook failures on this page.')
-    expect(loadFailedDeliveriesServerFn).toHaveBeenLastCalledWith({
-      data: { cursor: 'older-cursor' }
-    })
     await waitFor(() =>
-      expect(
-        screen.getByRole('button', { name: 'Older failures' }).hasAttribute('disabled')
-      ).toBe(true)
+      expect(router.state.location.search).toMatchObject({
+        failureCursor: 'older-cursor'
+      })
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh newest' }))
+    await waitFor(() =>
+      expect(router.state.location.search.failureCursor).toBeUndefined()
     )
   })
 
@@ -153,28 +137,15 @@ describe('AdminFailedDeliveries', () => {
     )
   })
 
-  it('keeps rows visible and disables both paging controls while reading', async () => {
-    const response = deferred<FailedDeliveriesPayload>()
-    vi.mocked(loadFailedDeliveriesServerFn).mockReturnValue(response.promise)
-    await renderWithRouter(<AdminFailedDeliveries initialPage={initialPage} />, {
-      path: '/admin'
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Older failures' }))
-    expect(await screen.findByText('Loading failures…')).not.toBeNull()
-    expect(screen.getByText('dead_lettered')).not.toBeNull()
+  it('keeps server order and disables pagination on the last page', async () => {
+    await renderWithRouter(
+      <AdminFailedDeliveries initialPage={{ ...initialPage, nextCursor: null }} />,
+      { path: '/admin' }
+    )
     expect(screen.getByRole('button', { name: 'Older failures' })).toHaveProperty(
       'disabled',
       true
     )
-    expect(screen.getByRole('button', { name: 'Refresh newest' })).toHaveProperty(
-      'disabled',
-      true
-    )
-    await act(async () => {
-      response.resolve({ items: [], nextCursor: null })
-    })
-    expect(
-      screen.getByText('No terminal webhook failures on this page.')
-    ).not.toBeNull()
+    expect(screen.queryByRole('button', { name: /Sort by/ })).toBeNull()
   })
 })

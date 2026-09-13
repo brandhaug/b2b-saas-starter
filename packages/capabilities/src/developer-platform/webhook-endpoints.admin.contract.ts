@@ -5,6 +5,7 @@ import { walkKeysetPages } from '../internal/keyset-cursor.ts'
 import { failureTag } from '../internal/failure-tag.ts'
 import { WebhookEndpoints } from './webhook-endpoints.ts'
 import { type SeedDeliveryFixture } from './webhook-endpoints.seed.ts'
+import { type DeliveryView } from './webhook-delivery-view.ts'
 
 // Both adapters receive these rows, including nullable attempt times and ties.
 export const adminDeliveryFixtures = [
@@ -113,6 +114,65 @@ export function adminWebhookContract(expect: ContractExpect) {
       items: [],
       nextCursor: null
     })
+
+    const view: DeliveryView = {
+      match: 'any',
+      filters: [
+        { field: 'status', operator: 'is', value: 'failed_permanent' },
+        { field: 'attempts', operator: 'gt', value: '1' }
+      ],
+      sorts: [
+        { field: 'attempts', direction: 'asc' },
+        { field: 'lastAttemptAt', direction: 'desc' }
+      ]
+    }
+    const advanced = yield* walkKeysetPages(
+      (input) => webhooks.listGlobalDeliveries({ ...input, view }),
+      { limit: 1 }
+    )
+    expect(advanced.exhausted).toBe(true)
+    expect(advanced.items.map((row) => row.id)).toEqual([
+      'whd_admin_y',
+      'whd_admin_null_a',
+      'whd_admin_z'
+    ])
+    const all = yield* webhooks.listGlobalDeliveries({
+      view: { ...view, match: 'all' }
+    })
+    expect(all.items).toHaveLength(0)
+    const advancedFirst = yield* webhooks.listGlobalDeliveries({ view, limit: 1 })
+    const changed = yield* webhooks.listGlobalDeliveries({
+      view: { ...view, match: 'all' },
+      cursor: advancedFirst.nextCursor ?? undefined
+    })
+    expect(changed).toEqual({ items: [], nextCursor: null })
+    const literal = yield* webhooks.listGlobalDeliveries({
+      view: {
+        match: 'all',
+        sorts: [],
+        filters: [{ field: 'endpointUrl', operator: 'contains', value: '%' }]
+      }
+    })
+    expect(literal.items).toHaveLength(0)
+    const nullAttempts = yield* webhooks.listGlobalDeliveries({
+      view: {
+        match: 'all',
+        sorts: [],
+        filters: [{ field: 'lastAttemptAt', operator: 'isEmpty', value: '' }]
+      }
+    })
+    expect(nullAttempts.items.map((row) => row.id)).toEqual([
+      'whd_admin_null_z',
+      'whd_admin_null_a'
+    ])
+    const fractional = yield* webhooks.listGlobalDeliveries({
+      view: {
+        match: 'all',
+        sorts: [],
+        filters: [{ field: 'attempts', operator: 'gt', value: '1.5' }]
+      }
+    })
+    expect(fractional.items.map((row) => row.id)).toEqual(['whd_admin_z'])
 
     const replay = yield* webhooks.replayDeliveryAsAdmin({
       deliveryId: 'whd_admin_z',

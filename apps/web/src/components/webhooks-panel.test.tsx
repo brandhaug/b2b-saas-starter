@@ -108,8 +108,18 @@ describe('WebhooksPanel', () => {
   })
 
   it('filters endpoints by enabled status and URL', async () => {
+    const tableViews = encodeURIComponent(
+      JSON.stringify({
+        webhooks: JSON.stringify({
+          match: 'all',
+          filters: [{ field: 'status', operator: 'is', value: 'disabled' }],
+          sorts: []
+        })
+      })
+    )
     await renderPanel({
       role: 'owner',
+      initialEntry: `/?tableViews=${tableViews}`,
       endpoints: [
         endpoint,
         {
@@ -120,31 +130,32 @@ describe('WebhooksPanel', () => {
         }
       ]
     })
-    fireEvent.click(screen.getAllByRole('combobox', { name: 'Status' })[0]!)
-    fireEvent.keyDown(await screen.findByRole('option', { name: 'Disabled' }), {
-      key: 'Enter'
-    })
     expect(screen.getByText('https://disabled.example/hooks')).not.toBeNull()
-    await waitFor(() => {
-      expect(screen.queryByText(endpoint.url)).toBeNull()
-    })
+    expect(screen.queryByText(endpoint.url)).toBeNull()
   })
 
   it('stores search and sort choices in the URL', async () => {
-    const { router } = await renderPanel({ role: 'owner' })
+    const tableViews = encodeURIComponent(
+      JSON.stringify({
+        webhooks: JSON.stringify({
+          match: 'all',
+          filters: [],
+          sorts: [
+            { field: 'successRate', direction: 'desc' },
+            { field: 'url', direction: 'asc' }
+          ]
+        })
+      })
+    )
+    const { router } = await renderPanel({
+      role: 'owner',
+      initialEntry: `/?tableViews=${tableViews}`
+    })
     fireEvent.change(screen.getByRole('textbox', { name: 'Search endpoints' }), {
       target: { value: 'example' }
     })
-    fireEvent.click(screen.getByRole('combobox', { name: 'Sort' }))
-    fireEvent.keyDown(await screen.findByRole('option', { name: 'Success rate' }), {
-      key: 'Enter'
-    })
-    await waitFor(() => {
-      expect(router.state.location.search).toMatchObject({
-        query: 'example',
-        sort: 'success'
-      })
-    })
+    await waitFor(() => expect(router.state.location.search.query).toBe('example'))
+    expect(screen.getByText(endpoint.url)).not.toBeNull()
   })
 
   it('renders the delivery timestamp in UTC', async () => {

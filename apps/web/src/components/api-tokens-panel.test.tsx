@@ -105,17 +105,31 @@ describe('ApiTokensPanel', () => {
     expect(screen.queryByText('CI token')).toBeNull()
   })
 
-  it('reads an unused-token attention filter from the URL', async () => {
+  it('reads a status table view from the URL', async () => {
+    const tableViews = encodeURIComponent(
+      JSON.stringify({
+        'api-tokens': JSON.stringify({
+          match: 'all',
+          filters: [{ field: 'status', operator: 'is', value: 'expired' }],
+          sorts: []
+        })
+      })
+    )
     await renderPanel({
       role: 'owner',
-      initialEntry: '/?filter=unused',
+      initialEntry: `/?tableViews=${tableViews}`,
       tokens: [
         token,
-        { ...token, id: 'tok_used', name: 'Used token', lastUsedAt: token.createdAt }
+        {
+          ...token,
+          id: 'tok_expired',
+          name: 'Expired token',
+          expiresAt: '2000-01-01T00:00:00.000Z'
+        }
       ]
     })
-    expect(screen.getByText('CI token')).not.toBeNull()
-    expect(screen.queryByText('Used token')).toBeNull()
+    expect(screen.getByText('Expired token')).not.toBeNull()
+    expect(screen.queryByText('CI token')).toBeNull()
   })
 
   it('pages through URL state and clamps an out-of-range page', async () => {
@@ -128,7 +142,7 @@ describe('ApiTokensPanel', () => {
     const { router } = await renderPanel({
       role: 'owner',
       tokens,
-      initialEntry: '/?page=99&sort=name'
+      initialEntry: '/?page=99'
     })
     expect(screen.getByText('Token 20')).not.toBeNull()
     expect(screen.queryByText('Token 00')).toBeNull()

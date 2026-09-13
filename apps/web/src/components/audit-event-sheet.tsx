@@ -69,7 +69,14 @@ export function AuditEventSheet({
             returnFocusEventId.current === null
               ? null
               : document.getElementById(`audit-event-${returnFocusEventId.current}`)
-          return eventLink ?? document.getElementById('audit-actor-filter')
+          // Filter is the first expandable trigger in the scoped shared toolbar.
+          return (
+            eventLink ??
+            document
+              .getElementById('audit-view-controls')
+              ?.querySelector<HTMLButtonElement>('button[aria-expanded]') ??
+            null
+          )
         }}
       >
         <SheetHeader>

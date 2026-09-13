@@ -26,7 +26,7 @@ import { m } from '@b2b-saas-starter/i18n/messages'
  * component has no `<Outlet />` and would swallow a child.
  */
 export const Route = createFileRoute('/account_/notifications')({
-  validateSearch: (search) => pickOptionalStrings(search, ['kind']),
+  validateSearch: (search) => pickOptionalStrings(search, ['kind', 'tableViews']),
   beforeLoad: async ({ location }) => {
     const session = await requireSession(location.href)
     return { session }

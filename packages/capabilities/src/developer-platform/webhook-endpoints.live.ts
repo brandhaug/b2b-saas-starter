@@ -1,3 +1,5 @@
+import { deliveryView, cutDeliveryViewPage } from './webhook-delivery-view.ts'
+import { deliveryViewQuery } from './webhook-delivery-view.live.ts'
 import { makeLiveAttemptHistory } from './webhook-attempt-history.live.ts'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import {
@@ -450,23 +452,9 @@ export const LiveWebhookEndpoints: Layer.Layer<
           const conditions: Array<SQL> = [
             inArray(webhookDeliveries.status, [...TERMINAL_DELIVERY_STATUSES])
           ]
-          // Nullable attempt times sort last. Use a nonempty sentinel below
-          // ISO dates so the shared cursor codec can page through nulls too.
-          const attemptKey = sql`coalesce(${webhookDeliveries.lastAttemptAt}, '!')`
-          const resume = keysetResume(
-            'desc',
-            {
-              key: attemptKey,
-              id: webhookDeliveries.id
-            },
-            input?.cursor
-          )
-          if (resume.kind === 'empty') {
-            return { items: [], nextCursor: null }
-          }
-          if (resume.kind === 'resume') {
-            conditions.push(resume.condition)
-          }
+          const view = deliveryView(input)
+          const query = deliveryViewQuery(view, input?.cursor)
+          conditions.push(...query.conditions)
           // One row past the page cap, so `cutKeysetPage` can see whether the
           // cap actually cut rows off before offering a cursor.
           const rows = yield* unavailable(
@@ -500,13 +488,10 @@ export const LiveWebhookEndpoints: Layer.Layer<
               )
               .innerJoin(workspaces, eq(workspaces.id, webhookEndpoints.workspaceId))
               .where(and(...conditions))
-              .orderBy(sql`${attemptKey} desc`, desc(webhookDeliveries.id))
+              .orderBy(...query.order)
               .limit(limit + 1)
           )
-          return cutKeysetPage(rows, limit, (row) => ({
-            key: row.lastAttemptAt ?? '!',
-            id: row.id
-          }))
+          return cutDeliveryViewPage(rows, limit, view)
         }
       ),
       update: (input) =>

@@ -1,3 +1,4 @@
+import { seedDeliveryViewPage } from './webhook-delivery-view.ts'
 import { seedOperatorDispatch } from './webhook-operator-dispatch.seed.ts'
 import {
   SeedResourceInventory,
@@ -636,16 +637,7 @@ export function SeedWebhookEndpoints(
             }
           }),
         listGlobalDeliveries: (input) =>
-          Effect.sync(() =>
-            // Newest first on `(lastAttemptAt DESC, id DESC)` — the same
-            // order Live's orderBy keeps, cut by the shared keyset recipe.
-            seedKeysetPage(
-              globalDeliveries(),
-              'desc',
-              (row) => ({ key: row.lastAttemptAt ?? '!', id: row.id }),
-              input
-            )
-          ),
+          Effect.sync(() => seedDeliveryViewPage(globalDeliveries(), input)),
         update: (input) =>
           Effect.gen(function* () {
             if (input.url !== undefined) {
