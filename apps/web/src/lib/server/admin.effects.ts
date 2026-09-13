@@ -1,4 +1,6 @@
 import { m } from '@b2b-saas-starter/i18n/messages'
+import { requestPresentation } from './i18n-context'
+import { zonedDayBoundary } from './zoned-day-boundary'
 import {
   AuditEventLog,
   type AuditEvent
@@ -133,9 +135,30 @@ export async function loadFailedDeliveriesHandler(
   input: FailedDeliveriesInput
 ): Promise<FailedDeliveriesPayload> {
   await requireAdminSession()
+  const { timeZone } = requestPresentation()
+  const view =
+    input.view === undefined
+      ? undefined
+      : {
+          ...input.view,
+          filters: input.view.filters.map((filter) => {
+            if (
+              filter.field !== 'lastAttemptAt' ||
+              !/^\d{4}-\d{2}-\d{2}$/.test(filter.value)
+            ) {
+              return filter
+            }
+            const start = zonedDayBoundary(filter.value, 'start', timeZone)
+            const end = zonedDayBoundary(filter.value, 'end', timeZone)
+            if (filter.operator === 'is' || filter.operator === 'isNot') {
+              return { ...filter, value: start, endValue: end }
+            }
+            return { ...filter, value: filter.operator === 'after' ? end : start }
+          })
+        }
   return runCapabilities(
     Effect.flatMap(WebhookEndpoints, (webhooks) =>
-      webhooks.listGlobalDeliveries({ ...input, limit: 20 })
+      webhooks.listGlobalDeliveries({ ...input, view, limit: 20 })
     )
   )
 }

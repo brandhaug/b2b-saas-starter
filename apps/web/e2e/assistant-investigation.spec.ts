@@ -10,6 +10,9 @@ test('retains an approved investigation after an unavailable queue', async ({
   const page = ownerPage
   await page.goto('/workspaces/starter-lab/assistant?deliveryId=whd_seed_dead_lettered')
   await page
+    .locator('header [data-slot="select-trigger"]:enabled')
+    .waitFor({ state: 'attached' })
+  await page
     .getByLabel('Investigation request')
     .fill('Investigate the exhausted receiver failure')
   await page.getByRole('button', { name: 'Investigate delivery', exact: true }).click()

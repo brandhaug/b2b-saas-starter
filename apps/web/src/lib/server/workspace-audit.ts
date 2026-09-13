@@ -1,6 +1,7 @@
 import {
   type AuditEvent,
-  type AuditEventDetail
+  type AuditEventDetail,
+  AuditView
 } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
@@ -54,6 +55,7 @@ export type WorkspaceAuditPayload = {
   readonly nextCursor: string | null
   /** The filters this page was loaded with, echoed back for the controls. */
   readonly filters: WorkspaceAuditFilters
+  readonly view?: AuditView
   readonly members: ReadonlyArray<{ readonly id: string; readonly name: string }>
 }
 
@@ -66,7 +68,8 @@ const WorkspaceAuditInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
   filters: WorkspaceAuditFilters,
   cursor: Schema.optionalKey(Schema.String),
-  event: Schema.optionalKey(Schema.NonEmptyString)
+  event: Schema.optionalKey(Schema.NonEmptyString),
+  view: Schema.optionalKey(AuditView)
 })
 
 export type WorkspaceAuditInput = typeof WorkspaceAuditInput.Type

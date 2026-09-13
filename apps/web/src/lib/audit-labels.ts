@@ -1,4 +1,3 @@
-import { AUDIT_EVENT_TYPES } from '@b2b-saas-starter/capabilities/governance/audit-event-taxonomy'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 const EVENT_LABELS: Readonly<Record<string, () => string>> = Object.freeze({
@@ -94,14 +93,4 @@ const ACTOR_TYPE_LABELS: Readonly<Record<string, () => string>> = Object.freeze(
 
 export function auditActorTypeLabel(actorType: string): string {
   return ACTOR_TYPE_LABELS[actorType]?.() ?? prettify(actorType)
-}
-
-export function auditEventFilterOptions(): ReadonlyArray<{
-  readonly value: string
-  readonly label: string
-}> {
-  return AUDIT_EVENT_TYPES.map((eventType) => ({
-    value: eventType,
-    label: auditEventLabel(eventType)
-  })).toSorted((a, b) => a.label.localeCompare(b.label))
 }

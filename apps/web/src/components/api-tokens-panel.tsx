@@ -41,6 +41,27 @@ import {
   DeveloperListToolbar
 } from '@/components/developer-list-controls'
 import { useDeveloperListView } from '@/lib/developer-list'
+import { applyTableView, type TableViewField } from '@/lib/table-view'
+
+function tokenListFields(): ReadonlyArray<TableViewField> {
+  return [
+    { id: 'name', label: m.developer_list_name(), kind: 'text' },
+    { id: 'prefix', label: m.token_prefix(), kind: 'text' },
+    {
+      id: 'status',
+      label: m.common_status(),
+      kind: 'select',
+      options: [
+        { value: 'active', label: m.developer_list_active() },
+        { value: 'expired', label: m.developer_list_expired() },
+        { value: 'replaced', label: m.developer_list_replaced() },
+        { value: 'unused', label: m.developer_list_unused() }
+      ]
+    },
+    { id: 'createdAt', label: m.token_created_label(), kind: 'date' },
+    { id: 'lastUsedAt', label: m.developer_list_last_used(), kind: 'date' }
+  ]
+}
 
 /**
  * The clock the expiry copy reads. Nothing on this panel changes between two
@@ -142,6 +163,7 @@ export function ApiTokensPanel({
 }) {
   const router = useRouter()
   const now = useExpiryClock(tokens)
+  const fields = tokenListFields()
   const [replacing, setReplacing] = useState<ApiToken | null>(null)
   // Revocation is irreversible, so it takes a click to arm and a second to
   // commit — the same two-step pattern the settings page's delete uses.
@@ -167,39 +189,39 @@ export function ApiTokensPanel({
   }
 
   const list = useDeveloperListView({
-    filters: ['all', 'active', 'expired', 'replaced', 'unused'],
-    sorts: ['created', 'name', 'lastUsed'],
-    defaultFilter: 'all',
-    defaultSort: 'created'
+    key: 'api-tokens',
+    fields
   })
   const filteredTokens = (() => {
     const needle = list.query.trim().toLocaleLowerCase()
-    return tokens
-      .filter((token) => {
-        const expired = token.expiresAt !== null && Date.parse(token.expiresAt) <= now
-        let tokenStatus = 'active'
-        if (token.replacedByTokenId !== null) {
-          tokenStatus = 'replaced'
-        } else if (expired) {
-          tokenStatus = 'expired'
-        }
-        return (
-          (list.filter === 'all' ||
-            list.filter === tokenStatus ||
-            (list.filter === 'unused' && token.lastUsedAt === null)) &&
-          (needle === '' ||
-            `${token.name} ${token.prefix}`.toLocaleLowerCase().includes(needle))
-        )
-      })
-      .toSorted((a, b) => {
-        if (list.sort === 'name') {
-          return a.name.localeCompare(b.name)
-        }
-        if (list.sort === 'lastUsed') {
-          return (b.lastUsedAt ?? '').localeCompare(a.lastUsedAt ?? '')
-        }
-        return b.createdAt.localeCompare(a.createdAt)
-      })
+    const searched = tokens.filter((token) => {
+      return (
+        needle === '' ||
+        `${token.name} ${token.prefix}`.toLocaleLowerCase().includes(needle)
+      )
+    })
+    return applyTableView(searched, list.tableView, (token, field) => {
+      const expired = token.expiresAt !== null && Date.parse(token.expiresAt) <= now
+      let status = 'active'
+      if (token.replacedByTokenId !== null) {
+        status = 'replaced'
+      } else if (expired) {
+        status = 'expired'
+      }
+      if (field === 'status') {
+        return status
+      }
+      if (field === 'createdAt') {
+        return new Date(token.createdAt)
+      }
+      if (field === 'lastUsedAt') {
+        return token.lastUsedAt === null ? null : new Date(token.lastUsedAt)
+      }
+      if (field === 'prefix') {
+        return token.prefix
+      }
+      return token.name
+    })
   })()
   const { page, pageCount } = list.pageFor(filteredTokens.length)
   const visibleTokens = filteredTokens.slice(
@@ -257,22 +279,10 @@ export function ApiTokensPanel({
         <>
           <DeveloperListToolbar
             query={list.query}
-            filter={list.filter}
-            sort={list.sort}
             searchLabel={m.developer_list_search_tokens()}
-            filters={[
-              { value: 'all', label: m.developer_list_all_statuses() },
-              { value: 'active', label: m.developer_list_active() },
-              { value: 'expired', label: m.developer_list_expired() },
-              { value: 'replaced', label: m.developer_list_replaced() },
-              { value: 'unused', label: m.developer_list_unused() }
-            ]}
-            sorts={[
-              { value: 'created', label: m.developer_list_newest() },
-              { value: 'name', label: m.developer_list_name() },
-              { value: 'lastUsed', label: m.developer_list_last_used() }
-            ]}
-            onChange={list.updateView}
+            fields={fields}
+            view={list.tableView}
+            onViewChange={list.setTableView}
           />
           {visibleTokens.length === 0 ? (
             <p className="py-6 text-sm text-muted-foreground">
@@ -364,11 +374,7 @@ export function ApiTokensPanel({
               </Fragment>
             ))}
           </ItemGroup>
-          <DeveloperListPagination
-            page={page}
-            pageCount={pageCount}
-            onChange={list.updateView}
-          />
+          <DeveloperListPagination page={page} pageCount={pageCount} />
         </>
       )}
     </Panel>

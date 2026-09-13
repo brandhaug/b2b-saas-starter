@@ -1,4 +1,5 @@
 import { type AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
+import { DeliveryView } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-view'
 import { type SystemRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { type WorkspaceWithMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import { type GlobalWebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
@@ -53,7 +54,8 @@ const ChangeWorkspaceRoleInput = Schema.Struct({
  * `nextCursor`, when the admin walks older rows.
  */
 const FailedDeliveriesInput = Schema.Struct({
-  cursor: Schema.optionalKey(Schema.String)
+  cursor: Schema.optionalKey(Schema.String),
+  view: Schema.optionalKey(Schema.fromJsonString(DeliveryView))
 })
 
 const ReplayFailedDeliveryInput = Schema.Struct({

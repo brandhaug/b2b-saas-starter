@@ -1,3 +1,4 @@
+import { type ListGlobalDeliveriesInput } from './webhook-delivery-view.ts'
 import { Context, Effect, Schema } from 'effect'
 
 import { type PlanLimitExceeded } from '@b2b-saas-starter/billing/errors'
@@ -326,7 +327,7 @@ type WebhookEndpointsInterface = {
    * not WorkspaceContext. Pages newest-first by (lastAttemptAt, id), nulls last.
    */
   readonly listGlobalDeliveries: (
-    input?: ListPageInput
+    input?: ListGlobalDeliveriesInput
   ) => Effect.Effect<Page<GlobalWebhookDelivery>, CapabilityUnavailable>
 
   /**

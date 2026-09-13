@@ -55,6 +55,23 @@ import {
   DeveloperListToolbar
 } from '@/components/developer-list-controls'
 import { useDeveloperListView } from '@/lib/developer-list'
+import { applyTableView, type TableViewField } from '@/lib/table-view'
+
+function webhookListFields(): ReadonlyArray<TableViewField> {
+  return [
+    { id: 'url', label: m.developer_list_url(), kind: 'text' },
+    {
+      id: 'status',
+      label: m.developer_list_status(),
+      kind: 'select',
+      options: [
+        { value: 'enabled', label: m.developer_list_enabled() },
+        { value: 'disabled', label: m.developer_list_disabled() }
+      ]
+    },
+    { id: 'successRate', label: m.developer_list_success_rate(), kind: 'number' }
+  ]
+}
 
 /**
  * Mutating an endpoint, as a port. Injected rather than imported at the call
@@ -151,6 +168,7 @@ export function WebhooksPanel({
   readonly listDeliveryAttempts?: ListDeliveryAttempts
 }) {
   const router = useRouter()
+  const fields = webhookListFields()
   const { view, update } = useWorkspaceView()
   const [rotatedSecret, setRotatedSecret] = useState<{
     readonly endpointId: string
@@ -166,10 +184,8 @@ export function WebhooksPanel({
   const canDisable = viewerCan(viewer, { webhook: ['update'] })
   const canRotate = viewerCan(viewer, { webhook: ['rotateSecret'] })
   const list = useDeveloperListView({
-    filters: ['all', 'enabled', 'disabled'],
-    sorts: ['url', 'success'],
-    defaultFilter: 'all',
-    defaultSort: 'url'
+    key: 'webhooks',
+    fields
   })
 
   // The loader owns the list, so the hook re-runs it on success rather than
@@ -218,18 +234,18 @@ export function WebhooksPanel({
     endpoints.find((endpoint) => endpoint.id === view.record) ?? null
   const filteredEndpoints = (() => {
     const needle = list.query.trim().toLocaleLowerCase()
-    return endpoints
-      .filter(
-        (endpoint) =>
-          (list.filter === 'all' ||
-            (endpoint.enabled ? 'enabled' : 'disabled') === list.filter) &&
-          (needle === '' || endpoint.url.toLocaleLowerCase().includes(needle))
-      )
-      .toSorted((a, b) =>
-        list.sort === 'success'
-          ? b.successRate - a.successRate
-          : a.url.localeCompare(b.url)
-      )
+    const searched = endpoints.filter(
+      (endpoint) => needle === '' || endpoint.url.toLocaleLowerCase().includes(needle)
+    )
+    return applyTableView(searched, list.tableView, (endpoint, field) => {
+      if (field === 'status') {
+        return endpoint.enabled ? 'enabled' : 'disabled'
+      }
+      if (field === 'successRate') {
+        return endpoint.successRate
+      }
+      return endpoint.url
+    })
   })()
   const { page, pageCount } = list.pageFor(filteredEndpoints.length)
   const visibleEndpoints = filteredEndpoints.slice(
@@ -268,19 +284,10 @@ export function WebhooksPanel({
         <>
           <DeveloperListToolbar
             query={list.query}
-            filter={list.filter}
-            sort={list.sort}
             searchLabel={m.developer_list_search_endpoints()}
-            filters={[
-              { value: 'all', label: m.developer_list_all_statuses() },
-              { value: 'enabled', label: m.developer_list_enabled() },
-              { value: 'disabled', label: m.developer_list_disabled() }
-            ]}
-            sorts={[
-              { value: 'url', label: m.developer_list_url() },
-              { value: 'success', label: m.developer_list_success_rate() }
-            ]}
-            onChange={list.updateView}
+            fields={fields}
+            view={list.tableView}
+            onViewChange={list.setTableView}
           />
           {visibleEndpoints.length === 0 ? (
             <p className="py-6 text-sm text-muted-foreground">
@@ -392,11 +399,7 @@ export function WebhooksPanel({
               </Fragment>
             ))}
           </ItemGroup>
-          <DeveloperListPagination
-            page={page}
-            pageCount={pageCount}
-            onChange={list.updateView}
-          />
+          <DeveloperListPagination page={page} pageCount={pageCount} />
         </>
       )}
 

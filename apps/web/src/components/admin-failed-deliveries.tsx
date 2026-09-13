@@ -1,3 +1,7 @@
+import { failedDeliveryFields } from '@/lib/failed-delivery-fields'
+import { useNavigate, useRouter, useRouterState } from '@tanstack/react-router'
+import { TableViewControls } from './table-view-controls'
+import { parseTableView, serializeTableView } from '@/lib/table-view'
 import { statusLabel } from '@/lib/value-labels'
 import { useState } from 'react'
 import { type GlobalWebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
@@ -9,7 +13,6 @@ import { formatDateTime } from '@/lib/format-date'
 import { webhookDeliveryStatusVariant } from '@/lib/badge-variants'
 import { useServerAction } from '@/hooks/use-server-action'
 import {
-  loadFailedDeliveriesServerFn,
   replayFailedDeliveryServerFn,
   type FailedDeliveriesPayload
 } from '@/lib/server/admin'
@@ -121,32 +124,48 @@ function columns(): Array<DataTableColumnDef<GlobalWebhookDelivery>> {
 }
 
 export function AdminFailedDeliveries({
-  initialPage
+  initialPage: page,
+  serializedView
 }: {
   readonly initialPage: FailedDeliveriesPayload
+  readonly serializedView?: string | undefined
 }) {
-  const [page, setPage] = useState(initialPage)
-  // `/admin` has no loader for this list, so the page it reads is local state
-  // and the hook keeps its own invalidation out of the way.
-  const deliveries = useServerAction(
-    (cursor: string | undefined) =>
-      loadFailedDeliveriesServerFn({
-        data: cursor === undefined ? {} : { cursor }
-      }),
-    {
-      failureMessage: m.load_failed_deliveries_failed(),
-      invalidate: false,
-      onSuccess: setPage
-    }
-  )
+  const navigate = useNavigate()
+  const router = useRouter()
+  const pending = useRouterState({ select: (state) => state.isLoading })
+  const fields = failedDeliveryFields()
+  const view = parseTableView(serializedView, fields)
+  function changeCursor(cursor: string | undefined) {
+    void navigate({
+      to: '.',
+      search: (previous) => ({ ...previous, failureCursor: cursor }),
+      resetScroll: false
+    })
+  }
   return (
     <Panel
       title={m.failed_webhook_deliveries()}
       description={m.failed_webhook_deliveries_description()}
     >
+      <TableViewControls
+        fields={fields}
+        view={view}
+        onChange={(next) => {
+          void navigate({
+            to: '.',
+            search: (previous) => ({
+              ...previous,
+              failureView: serializeTableView(next),
+              failureCursor: undefined
+            }),
+            resetScroll: false
+          })
+        }}
+      />
       <DataTable
         columns={columns()}
         data={page.items}
+        manualSorting
         tableLabel={m.failed_webhook_deliveries()}
         emptyMessage={m.no_terminal_webhook_failures()}
       >
@@ -155,25 +174,27 @@ export function AdminFailedDeliveries({
       <div className="flex flex-wrap gap-2">
         <Button
           variant="outline"
-          disabled={deliveries.pending}
-          onClick={() => deliveries.run(undefined)}
+          disabled={pending}
+          onClick={() => {
+            changeCursor(undefined)
+            void router.invalidate()
+          }}
         >
           {m.refresh_newest()}
         </Button>
         <Button
           variant="outline"
-          disabled={deliveries.pending || page.nextCursor === null}
+          disabled={pending || page.nextCursor === null}
           onClick={() => {
             if (page.nextCursor !== null) {
-              deliveries.run(page.nextCursor)
+              changeCursor(page.nextCursor)
             }
           }}
         >
           {m.older_failures()}
         </Button>
-        {deliveries.pending ? <output>{m.loading_failures()}</output> : null}
+        {pending ? <output>{m.loading_failures()}</output> : null}
       </div>
-      {deliveries.error ? <p role="alert">{deliveries.error}</p> : null}
     </Panel>
   )
 }

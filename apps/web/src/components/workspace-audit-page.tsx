@@ -1,5 +1,5 @@
 import { AuditEventLink, AuditEventSheet } from './audit-event-sheet'
-import { FilterXIcon, HistoryIcon } from 'lucide-react'
+import { HistoryIcon, XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Empty,
@@ -8,16 +8,6 @@ import {
   EmptyMedia,
   EmptyTitle
 } from '@/components/ui/empty'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select'
 import { PageHeader } from '@/components/page/page-header'
 import { Panel } from '@/components/page/panel'
 import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
@@ -28,22 +18,25 @@ import {
   type DataTableColumnDef
 } from '@/components/data-table'
 import { WorkspaceShell } from '@/components/workspace-shell'
-import {
-  auditActorTypeLabel,
-  auditEventFilterOptions,
-  auditEventLabel
-} from '@/lib/audit-labels'
+import { auditActorTypeLabel, auditEventLabel } from '@/lib/audit-labels'
 import { auditActorTypeVariant } from '@/lib/badge-variants'
 import {
   auditSearchFromFilters,
   compact,
-  type ApplyWorkspaceAuditSearch,
-  type WorkspaceAuditSearchUpdate
+  auditViewFields,
+  type ApplyWorkspaceAuditSearch
 } from '@/lib/audit-search'
 import { type WorkspaceAuditPayload } from '@/lib/server/workspace-audit'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { formatDateTime } from '@/lib/format-date'
 import { type AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
+import { TableViewControls } from './table-view-controls'
+import {
+  defaultTableView,
+  serializeTableView,
+  type TableView,
+  type TableViewField
+} from '@/lib/table-view'
 
 /**
  * The per-workspace audit trail: toolbar over
@@ -57,10 +50,7 @@ import { type AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit
  * URL vocabulary and its translation live in `lib/audit-search.ts`.
  */
 
-const SELECT_CLASSES = 'max-w-52'
-
-// Column definitions are static — module scope keeps the cell renderers out of
-// the render body. The server owns collection order: newest first.
+// The server owns collection order; column labels follow the active locale.
 function auditColumns(
   onOpenEvent?: (event: AuditEvent) => void
 ): Array<DataTableColumnDef<AuditEvent>> {
@@ -146,12 +136,45 @@ export function WorkspaceAuditPage({
   readonly systemRole?: string | null
 }) {
   const { events, nextCursor, filters, members } = data
-  const searchFilters = auditSearchFromFilters(filters)
-
-  // Filters changed: drop the cursor — a new filter addresses page one.
-  function withFilter(patch: Omit<WorkspaceAuditSearchUpdate, 'cursor'>) {
-    applySearch(compact({ ...searchFilters, ...patch }))
+  const view: TableView = data.view ?? defaultTableView
+  const searchFilters = {
+    ...auditSearchFromFilters(filters),
+    ...(serializeTableView(view) !== undefined && { view: serializeTableView(view) })
   }
+  const viewFields: ReadonlyArray<TableViewField> = auditViewFields().map((field) =>
+    field.id === 'actorUserId'
+      ? {
+          id: field.id,
+          label: field.label,
+          kind: 'select',
+          options: members.map((member) => ({ value: member.id, label: member.name }))
+        }
+      : field
+  )
+
+  const legacyFilters: Array<{
+    key: 'actor' | 'eventType' | 'since' | 'until'
+    label: string
+  }> = []
+  if (filters.actorUserId !== undefined) {
+    const actor =
+      members.find((member) => member.id === filters.actorUserId)?.name ??
+      filters.actorUserId
+    legacyFilters.push({ key: 'actor', label: `${m.actor_label()} ${actor}` })
+  }
+  if (filters.eventType !== undefined) {
+    legacyFilters.push({
+      key: 'eventType',
+      label: `${m.event_label()} ${auditEventLabel(filters.eventType)}`
+    })
+  }
+  if (filters.since !== undefined) {
+    legacyFilters.push({ key: 'since', label: `${m.when_label()} ≥ ${filters.since}` })
+  }
+  if (filters.until !== undefined) {
+    legacyFilters.push({ key: 'until', label: `${m.when_label()} ≤ ${filters.until}` })
+  }
+
   function nextPage() {
     if (nextCursor === null) {
       return
@@ -164,9 +187,6 @@ export function WorkspaceAuditPage({
     filters.eventType !== undefined ||
     filters.since !== undefined ||
     filters.until !== undefined
-  // The actor filter keys on user ids (the capability's filter contract), so
-  // it offers the workspace's members by id.
-  const actorOptions = members
 
   return (
     <WorkspaceShell
@@ -180,120 +200,50 @@ export function WorkspaceAuditPage({
         title={m.nav_audit_trail()}
         description={m.audit_trail_description()}
       />
-      <Panel
-        title={m.events()}
-        description={m.audit_events_description()}
-        actions={
-          hasFilters ? (
-            <Button variant="ghost" onClick={() => applySearch({})}>
-              <FilterXIcon aria-hidden className="size-4" />
-              Clear
-            </Button>
-          ) : undefined
-        }
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <Select
-            value={filters.actorUserId ?? ''}
-            onValueChange={(value) => {
-              if (value !== null) {
-                withFilter({ actor: value })
+      <Panel title={m.events()} description={m.audit_events_description()}>
+        <div id="audit-view-controls">
+          <TableViewControls
+            fields={viewFields}
+            view={view}
+            onChange={(next) => {
+              if (next.filters.length === 0 && next.sorts.length === 0) {
+                applySearch({})
+                return
               }
+              applySearch(
+                compact({
+                  ...auditSearchFromFilters(filters),
+                  view: serializeTableView(next)
+                })
+              )
             }}
-            items={[
-              { value: '', label: m.audit_all_actors() },
-              ...actorOptions.map((option) => ({
-                value: option.id,
-                label: option.name
-              }))
-            ]}
-          >
-            <SelectTrigger
-              id="audit-actor-filter"
-              aria-label={m.audit_filter_actor()}
-              className={SELECT_CLASSES}
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="">{m.audit_all_actors()}</SelectItem>
-                {actorOptions.map((option) => (
-                  <SelectItem key={option.id} value={option.id}>
-                    {option.name}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-          <Select
-            value={filters.eventType ?? ''}
-            onValueChange={(value) => {
-              if (value !== null) {
-                withFilter({ eventType: value })
-              }
-            }}
-            items={[
-              { value: '', label: m.audit_all_events() },
-              ...auditEventFilterOptions().map((option) => ({
-                value: option.value,
-                label: option.label
-              }))
-            ]}
-          >
-            <SelectTrigger
-              aria-label={m.audit_filter_event_type()}
-              className={SELECT_CLASSES}
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="">{m.audit_all_events()}</SelectItem>
-                {auditEventFilterOptions().map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-          {/* `Label` + `htmlFor`: the date inputs get a visible label — and
-              the programmatic name that comes with it — instead of an
-              aria-label only. */}
-          <div className="flex items-center gap-2">
-            <Label
-              htmlFor="audit-since"
-              className="text-xs font-normal text-muted-foreground"
-            >
-              Since
-            </Label>
-            <Input
-              id="audit-since"
-              type="date"
-              value={filters.since ?? ''}
-              onChange={(e) => withFilter({ since: e.target.value })}
-              className="w-36"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <Label
-              htmlFor="audit-until"
-              className="text-xs font-normal text-muted-foreground"
-            >
-              Until
-            </Label>
-            <Input
-              id="audit-until"
-              type="date"
-              value={filters.until ?? ''}
-              onChange={(e) => withFilter({ until: e.target.value })}
-              className="w-36"
-            />
-          </div>
+          />
         </div>
+        {hasFilters && (
+          <div className="flex flex-wrap items-center gap-2">
+            {legacyFilters.map((filter) => (
+              <Button
+                key={filter.key}
+                variant="outline"
+                size="xs"
+                aria-label={`${m.action_remove()} ${filter.label}`}
+                onClick={() =>
+                  applySearch(compact({ ...searchFilters, [filter.key]: undefined }))
+                }
+              >
+                {filter.label}
+                <XIcon aria-hidden className="size-3" />
+              </Button>
+            ))}
+            {view.filters.length === 0 && view.sorts.length === 0 && (
+              <Button variant="ghost" onClick={() => applySearch({})}>
+                {m.table_view_clear_all()}
+              </Button>
+            )}
+          </div>
+        )}
         {events.length === 0 ? (
-          <EmptyTrail hasFilters={hasFilters} />
+          <EmptyTrail hasFilters={hasFilters || view.filters.length > 0} />
         ) : (
           <>
             {/* One row model for both tables: the same component renders the
@@ -302,19 +252,19 @@ export function WorkspaceAuditPage({
             <DataTable
               columns={auditColumns(onOpenEvent)}
               data={events}
+              manualSorting
               tableLabel={m.audit_table_label()}
             >
               <DataTableContent />
             </DataTable>
             <div className="flex items-center justify-end">
-              {/* Keyset pagination has exactly one direction: older. The
-                button carries the opaque cursor back through the URL. */}
+              {/* The cursor resumes after the current page in the selected order. */}
               <Button
                 variant="outline"
                 disabled={nextCursor === null}
                 onClick={() => nextPage()}
               >
-                Older events
+                {m.shell_table_next()}
               </Button>
             </div>
           </>

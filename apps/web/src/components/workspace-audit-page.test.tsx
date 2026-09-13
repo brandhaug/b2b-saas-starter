@@ -59,14 +59,64 @@ describe('WorkspaceAuditPage', () => {
     // filters into an `actor`-keyed search update, so the actor vanished on
     // any page turn or second filter change.
     await renderPage({ filters: { actorUserId: 'usr_demo' }, nextCursor: 'cur_2' })
-    fireEvent.click(screen.getByRole('button', { name: 'Older events' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     expect(applySearch).toHaveBeenCalledWith({ actor: 'usr_demo', cursor: 'cur_2' })
   })
 
   it('clears all filters and the cursor', async () => {
     await renderPage({ filters: { actorUserId: 'usr_demo' }, nextCursor: 'cur_2' })
-    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all' }))
     expect(applySearch).toHaveBeenCalledWith({})
+  })
+
+  it('clears the serialized advanced view instead of merging it back', async () => {
+    await renderPage({
+      view: {
+        match: 'all',
+        filters: [{ field: 'eventType', operator: 'contains', value: 'token' }],
+        sorts: []
+      },
+      nextCursor: 'cur_2'
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all' }))
+    expect(applySearch).toHaveBeenCalledWith({})
+  })
+
+  it('shows each legacy constraint and removes one without dropping an advanced OR view', async () => {
+    const view = {
+      match: 'any',
+      filters: [
+        { field: 'eventType', operator: 'contains', value: 'token' },
+        { field: 'actorType', operator: 'is', value: 'user' }
+      ],
+      sorts: [{ field: 'createdAt', direction: 'desc' }]
+    } satisfies NonNullable<WorkspaceAuditPayload['view']>
+    await renderPage({
+      view,
+      filters: {
+        actorUserId: 'usr_demo',
+        eventType: 'api_token.created',
+        since: '2026-08-01',
+        until: '2026-08-31'
+      },
+      nextCursor: 'cur_2'
+    })
+    expect(screen.getByRole('button', { name: /Remove Event/ })).toBeTruthy()
+    expect(
+      screen.getByRole('button', { name: 'Remove When ≥ 2026-08-01' })
+    ).toBeTruthy()
+    expect(
+      screen.getByRole('button', { name: 'Remove When ≤ 2026-08-31' })
+    ).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Actor Demo Owner' }))
+    expect(applySearch).toHaveBeenLastCalledWith({
+      eventType: 'api_token.created',
+      since: '2026-08-01',
+      until: '2026-08-31',
+      view: JSON.stringify(view)
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all' }))
+    expect(applySearch).toHaveBeenLastCalledWith({})
   })
 
   it('drops empty values so cleared controls disappear from the URL', () => {

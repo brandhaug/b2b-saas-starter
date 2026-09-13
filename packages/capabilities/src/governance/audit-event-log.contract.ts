@@ -1,4 +1,4 @@
-import { Effect, Encoding } from 'effect'
+import { Effect } from 'effect'
 import { type ContractExpect } from './contract-expect.ts'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type Page } from '../internal/keyset-cursor.ts'
@@ -6,6 +6,7 @@ import {
   AUDIT_EVENT_PAGE_SIZE,
   AuditEventLog,
   type AuditEvent,
+  type AuditView,
   type ListAuditEventsInput,
   type SeedAuditEventRow
 } from './audit-event-log.ts'
@@ -182,6 +183,95 @@ export function auditEventLogContractCases(
       })
     },
     {
+      name: 'applies advanced filters and prioritized sorts before paging',
+      assert: Effect.gen(function* () {
+        const view: AuditView = {
+          match: 'all',
+          filters: [
+            { field: 'eventType', operator: 'contains', value: 'created' },
+            { field: 'actorType', operator: 'is', value: 'user' }
+          ],
+          sorts: [
+            { field: 'actorUserId', direction: 'asc' },
+            { field: 'createdAt', direction: 'desc' }
+          ]
+        }
+        const first = yield* list({ view, limit: 1 })
+        expect(first.items.map((event) => event.id)).toEqual(['aud_c_tie_a'])
+        expect(first.nextCursor === null).toBe(false)
+        const second = yield* list({
+          view,
+          limit: 2,
+          cursor: first.nextCursor ?? undefined
+        })
+        expect(second.items.map((event) => event.id)).toEqual([
+          'aud_c_old',
+          'aud_c_tie_b'
+        ])
+        const anyView: AuditView = {
+          ...view,
+          match: 'any',
+          filters: [
+            { field: 'actorUserId', operator: 'is', value: 'usr_bob' },
+            { field: 'eventType', operator: 'is', value: 'webhook_endpoint.created' }
+          ]
+        }
+        const anyFirst = yield* list({ view: anyView, limit: 1 })
+        const anyNext = yield* list({
+          view: anyView,
+          limit: 1,
+          cursor: anyFirst.nextCursor ?? undefined
+        })
+        const any = { items: [...anyFirst.items, ...anyNext.items] }
+        expect(any.items.map((event) => event.id)).toEqual([
+          'aud_c_tie_a',
+          'aud_c_tie_b'
+        ])
+        const reused = yield* list({
+          view: { ...view, sorts: [{ field: 'createdAt', direction: 'asc' }] },
+          cursor: first.nextCursor ?? undefined
+        })
+        expect(reused.items).toEqual([])
+        const changedLegacy = yield* list({
+          view,
+          actorUserId: 'usr_bob',
+          cursor: first.nextCursor ?? undefined
+        })
+        expect(changedLegacy.items).toEqual([])
+        const noSort = yield* list({
+          view: {
+            ...view,
+            filters: [{ field: 'actorUserId', operator: 'is', value: 'usr_bob' }],
+            sorts: []
+          }
+        })
+        expect(noSort.items.map((event) => event.id)).toEqual(['aud_c_tie_b'])
+      })
+    },
+    {
+      name: 'ignores incomplete filter drafts and matches text literally',
+      assert: Effect.gen(function* () {
+        const draft = yield* list({
+          view: {
+            match: 'all',
+            filters: [{ field: 'createdAt', operator: 'is', value: '' }],
+            sorts: []
+          }
+        })
+        expect(draft.items).toHaveLength(3)
+        for (const value of ['%', 'CREATED']) {
+          const literal = yield* list({
+            view: {
+              match: 'all',
+              filters: [{ field: 'eventType', operator: 'contains', value }],
+              sorts: []
+            }
+          })
+          expect(literal.items).toEqual([])
+        }
+      })
+    },
+    {
       name: 'yields an empty page for an undecodable cursor',
       assert: Effect.gen(function* () {
         const page = yield* list({ cursor: 'not-a-cursor' })
@@ -195,9 +285,8 @@ export function auditEventLogContractCases(
         // Cursor for the middle row (tie loser): everything strictly before
         // it in (createdAt DESC, id DESC) order — its tie twin first, then the
         // oldest row.
-        const page = yield* list({
-          cursor: Encoding.encodeBase64('2026-06-02T10:00:00.000Z aud_c_tie_b')
-        })
+        const first = yield* list({ limit: 1 })
+        const page = yield* list({ cursor: first.nextCursor ?? undefined })
         expect(page.items.map((event) => event.id)).toEqual([
           'aud_c_tie_a',
           'aud_c_old'

@@ -1,4 +1,7 @@
+import { m } from '@b2b-saas-starter/i18n/messages'
+import { type AuditView } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { type WorkspaceAuditPayload } from '@/lib/server/workspace-audit'
+import { parseTableView, type TableViewField } from '@/lib/table-view'
 
 /**
  * The audit page's URL vocabulary: the keys the route's search schema accepts.
@@ -11,6 +14,7 @@ export type WorkspaceAuditSearchUpdate = {
   readonly until?: string
   readonly event?: string
   readonly cursor?: string
+  readonly view?: string
 }
 
 export type ApplyWorkspaceAuditSearch = (search: WorkspaceAuditSearchUpdate) => void
@@ -35,7 +39,8 @@ export function compact(search: {
     'since',
     'until',
     'cursor',
-    'event'
+    'event',
+    'view'
   ]
   for (const key of keys) {
     const value = search[key]
@@ -44,6 +49,54 @@ export function compact(search: {
     }
   }
   return next
+}
+
+export function auditViewFields(): ReadonlyArray<TableViewField> {
+  return [
+    { id: 'eventType', label: m.event_label(), kind: 'text' },
+    { id: 'actorUserId', label: m.actor_label(), kind: 'text' },
+    { id: 'actorType', label: m.actor_type_label(), kind: 'text' },
+    { id: 'createdAt', label: m.when_label(), kind: 'date' }
+  ]
+}
+
+export function auditViewFromSearch(serialized: string | undefined): AuditView {
+  const parsed = parseTableView(serialized, auditViewFields())
+  const filters: Array<AuditView['filters'][number]> = []
+  for (const filter of parsed.filters.slice(0, 12)) {
+    const { field, operator, value } = filter
+    if (field === 'createdAt') {
+      if (
+        operator !== 'contains' &&
+        operator !== 'notContains' &&
+        value.length <= 128
+      ) {
+        filters.push({ field, operator, value })
+      }
+    } else if (
+      field === 'eventType' ||
+      field === 'actorUserId' ||
+      field === 'actorType'
+    ) {
+      filters.push({ field, operator, value })
+    }
+  }
+  const sorts: Array<AuditView['sorts'][number]> = []
+  for (const sort of parsed.sorts.slice(0, 4)) {
+    const { field, direction } = sort
+    if (
+      field === 'eventType' ||
+      field === 'actorUserId' ||
+      field === 'actorType' ||
+      field === 'createdAt'
+    ) {
+      sorts.push({ field, direction })
+    }
+  }
+  if (sorts.length === 0) {
+    sorts.push({ field: 'createdAt', direction: 'desc' })
+  }
+  return { match: parsed.match, filters, sorts }
 }
 
 /**

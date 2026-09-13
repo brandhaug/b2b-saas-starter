@@ -1,4 +1,9 @@
 import { roleLabel } from '@/lib/value-labels'
+import { workspaceViewSearch } from '@/lib/workspace-view'
+import {
+  FilterableDataTable,
+  type DataTableField
+} from '@/components/filterable-data-table'
 import { type AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { pageTitle } from '@/components/page/page-title'
 import { createFileRoute } from '@tanstack/react-router'
@@ -10,7 +15,6 @@ import { loadAdminPage } from '@/lib/server/admin-loader'
 import { BanUserAction } from '@/components/ban-user-action'
 import { ImpersonateUserAction } from '@/components/impersonate-user-action'
 import {
-  DataTable,
   DataTableContent,
   DataTableFilter,
   DataTablePagination,
@@ -108,6 +112,57 @@ function auditColumns(): Array<DataTableColumnDef<AuditEvent>> {
   ]
 }
 
+function userFields(): ReadonlyArray<DataTableField<SystemUser>> {
+  return [
+    { id: 'name', label: m.admin_name(), kind: 'text', value: (row) => row.name },
+    { id: 'email', label: m.admin_email(), kind: 'text', value: (row) => row.email },
+    {
+      id: 'role',
+      label: m.admin_system_role(),
+      kind: 'select',
+      options: [
+        { value: 'admin', label: roleLabel('admin') },
+        { value: 'user', label: roleLabel('user') }
+      ],
+      value: (row) => row.role
+    },
+    {
+      id: 'banned',
+      label: m.status(),
+      kind: 'select',
+      options: [
+        { value: 'true', label: m.user_banned() },
+        { value: 'false', label: m.user_active() }
+      ],
+      value: (row) => row.banned
+    }
+  ]
+}
+
+function auditFields(): ReadonlyArray<DataTableField<AuditEvent>> {
+  return [
+    {
+      id: 'eventType',
+      label: m.event_label(),
+      kind: 'text',
+      value: (row) => row.eventType
+    },
+    {
+      id: 'targetType',
+      label: m.target_label(),
+      kind: 'text',
+      value: (row) => row.targetType
+    },
+    { id: 'actor', label: m.actor_label(), kind: 'text', value: (row) => row.actor },
+    {
+      id: 'createdAt',
+      label: m.admin_created(),
+      kind: 'date',
+      value: (row) => row.createdAt
+    }
+  ]
+}
+
 function suspensionView(workspace: AdminWorkspace) {
   const base = { status: workspace.suspension.status }
   const withExplanation =
@@ -121,6 +176,11 @@ function suspensionView(workspace: AdminWorkspace) {
 }
 
 export const Route = createFileRoute('/admin')({
+  validateSearch: workspaceViewSearch,
+  loaderDeps: ({ search }) => ({
+    view: search.failureView,
+    cursor: search.failureCursor
+  }),
   // requireAdmin gates on the Better Auth admin role (non-admins get a 404).
   // /admin keeps its own gate instead of joining the /workspaces layout —
   // requireSession is not enough here.
@@ -129,7 +189,7 @@ export const Route = createFileRoute('/admin')({
     return { session }
   },
   // Parallel system-level reads; no workspace context is borrowed.
-  loader: loadAdminPage,
+  loader: ({ deps }) => loadAdminPage(deps),
   pendingComponent: RoutePending,
   component: AdminPage,
   head: () => ({ meta: [{ title: pageTitle(m.public_meta_admin()) }] })
@@ -139,6 +199,7 @@ function AdminPage() {
   const { users, events, failedDeliveries, emailDeliveries, workspaces } =
     Route.useLoaderData()
   const { session } = Route.useRouteContext()
+  const search = Route.useSearch()
 
   return (
     <WorkspaceShell viewer={null} systemRole={session.user.role} workspaceSlug={null}>
@@ -147,7 +208,9 @@ function AdminPage() {
         description={m.page_admin_description()}
       />
       <Panel title={m.panel_users()}>
-        <DataTable
+        <FilterableDataTable
+          viewKey="admin-users"
+          fields={userFields()}
           columns={userColumns()}
           data={users}
           pageSize={5}
@@ -157,7 +220,7 @@ function AdminPage() {
           <DataTableFilter placeholder={m.admin_filter_users()} />
           <DataTableContent />
           <DataTablePagination />
-        </DataTable>
+        </FilterableDataTable>
         <AdminUserActions users={users} />
       </Panel>
 
@@ -196,11 +259,16 @@ function AdminPage() {
         </div>
       </Panel>
 
-      <AdminFailedDeliveries initialPage={failedDeliveries} />
+      <AdminFailedDeliveries
+        initialPage={failedDeliveries}
+        serializedView={search.failureView}
+      />
       <EmailDeliveryPanel records={emailDeliveries} />
 
       <Panel title={m.panel_audit_events()}>
-        <DataTable
+        <FilterableDataTable
+          viewKey="admin-audit"
+          fields={auditFields()}
           columns={auditColumns()}
           data={events}
           pageSize={5}
@@ -210,7 +278,7 @@ function AdminPage() {
           <DataTableFilter placeholder={m.admin_filter_events()} />
           <DataTableContent />
           <DataTablePagination />
-        </DataTable>
+        </FilterableDataTable>
       </Panel>
     </WorkspaceShell>
   )

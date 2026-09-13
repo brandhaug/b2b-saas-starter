@@ -23,16 +23,22 @@ import {
 } from '@/lib/demo-fixtures'
 import {
   auditFiltersFromSearch,
+  auditViewFromSearch,
   type WorkspaceAuditSearchUpdate
 } from '@/lib/audit-search'
+import { applyTableView } from '@/lib/table-view'
 import { DEMO_WORKSPACE_SLUG } from '@/lib/demo-workspace'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
-// oxlint-disable-next-line typescript/require-await -- preview refusal implements the assistant's promise contract without I/O
-async function previewAssistantAsk(
+function previewAssistantAsk(
   ..._args: Parameters<AskAssistant>
 ): ReturnType<AskAssistant> {
-  return { ok: false, reason: 'unavailable', message: m.shell_demo_read_only() }
+  // oxlint-disable-next-line effect/noNewPromise -- The browser preview implements the assistant Promise contract without importing the Effect runtime.
+  return Promise.resolve({
+    ok: false,
+    reason: 'unavailable',
+    message: m.shell_demo_read_only()
+  })
 }
 
 export function DemoRenderer({ section }: { readonly section: DemoSection }) {
@@ -152,8 +158,24 @@ function DemoAudit() {
     }
     matchingDetailIds.add(event.id)
   }
-  const events = demoFixtures.audit.events.filter((event) =>
-    matchingDetailIds.has(event.id)
+  const view = auditViewFromSearch(search.view)
+  const events = applyTableView(
+    demoFixtures.audit.events.filter((event) => matchingDetailIds.has(event.id)),
+    view,
+    (event, field) => {
+      if (field === 'actorUserId') {
+        return (
+          demoAuditDetails.find((detail) => detail.id === event.id)?.actorUserId ?? null
+        )
+      }
+      if (field === 'actorType') {
+        return event.actorType
+      }
+      if (field === 'eventType') {
+        return event.eventType
+      }
+      return event.createdAt
+    }
   )
   const selectedEvent =
     selectedEventId === null
@@ -163,7 +185,13 @@ function DemoAudit() {
   return (
     <WorkspaceAuditPage
       workspaceSlug={DEMO_WORKSPACE_SLUG}
-      data={{ ...demoFixtures.audit, events, filters, selectedEvent }}
+      data={{
+        ...demoFixtures.audit,
+        events,
+        filters,
+        selectedEvent,
+        view
+      }}
       applySearch={setSearch}
       selectedEventId={selectedEventId}
       closeEvent={() => setSelectedEventId(null)}

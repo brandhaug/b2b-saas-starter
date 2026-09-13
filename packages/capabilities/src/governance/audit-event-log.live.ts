@@ -3,19 +3,26 @@ import { auditEvents, user } from '@b2b-saas-starter/db/schema'
 import { auditActorTypes } from '@b2b-saas-starter/db/enums'
 import { Database } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer, Schema } from 'effect'
-import { and, desc, eq, gte, lte, sql, type SQL } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, lte, or, sql, type SQL } from 'drizzle-orm'
 
 import {
   AUDIT_ACTOR_TYPE_INVALID,
-  auditEventPosition,
   AuditEventLog,
   type AuditEvent,
   AUDIT_EVENT_PAGE_SIZE,
   type ListAuditEventsInput,
-  type RecordAuditEventInput
+  type RecordAuditEventInput,
+  type AuditView
 } from './audit-event-log.ts'
-import { clampPageLimit, cutKeysetPage, type Page } from '../internal/keyset-cursor.ts'
-import { keysetResume } from '../internal/keyset-query.ts'
+import {
+  type AuditViewFilter,
+  type AuditViewSort,
+  auditViewKey,
+  normalizeAuditView,
+  decodeAuditCursor,
+  encodeAuditCursor
+} from './audit-event-view.ts'
+import { clampPageLimit, type Page } from '../internal/keyset-cursor.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import {
   CapabilityUnavailable,
@@ -58,8 +65,154 @@ function toWireRow(row: AuditRow): AuditEvent {
  * the wire shape. `nextCursor` is emitted only when the cap actually cut rows
  * off — never for an exact multiple, whose next page would be empty.
  */
-function buildPage(rows: ReadonlyArray<AuditRow>, limit: number): Page<AuditEvent> {
-  return cutKeysetPage(rows.map(toWireRow), limit, auditEventPosition)
+function buildPage(
+  rows: ReadonlyArray<AuditRow>,
+  limit: number,
+  view: AuditView,
+  key: string
+): Page<AuditEvent> {
+  const items = rows.slice(0, limit).map(toWireRow)
+  const last = rows[limit - 1]
+  let nextCursor: string | null = null
+  if (rows.length > limit && last) {
+    nextCursor = encodeAuditCursor({
+      view: key,
+      values: view.sorts.map((sort) => last.event[sort.field] ?? ''),
+      id: last.event.id
+    })
+  }
+  return { items, nextCursor }
+}
+
+function columnFor(field: AuditViewSort['field']): SQL {
+  switch (field) {
+    case 'eventType': {
+      return sql`${auditEvents.eventType}`
+    }
+    case 'actorUserId': {
+      return sql`coalesce(${auditEvents.actorUserId}, '')`
+    }
+    case 'actorType': {
+      return sql`${auditEvents.actorType}`
+    }
+    case 'createdAt': {
+      return sql`${auditEvents.createdAt}`
+    }
+  }
+  return sql`''`
+}
+
+function filterSql(filter: AuditViewFilter): SQL {
+  const column = columnFor(filter.field)
+  const value = filter.value
+  if (
+    filter.field === 'createdAt' &&
+    (filter.operator === 'is' || filter.operator === 'isNot')
+  ) {
+    const [start, end] = value.split('|')
+    if (start && end) {
+      const range = sql`${column} >= ${start} and ${column} <= ${end}`
+      if (filter.operator === 'isNot') {
+        return sql`not (${range})`
+      }
+      return range
+    }
+  }
+  switch (filter.operator) {
+    case 'contains': {
+      return sql`instr(${column}, ${value}) > 0`
+    }
+    case 'notContains': {
+      return sql`instr(${column}, ${value}) = 0`
+    }
+    case 'is': {
+      return sql`${column} = ${value}`
+    }
+    case 'isNot': {
+      return sql`${column} <> ${value}`
+    }
+    case 'before': {
+      return sql`${column} < ${value}`
+    }
+    case 'after': {
+      return sql`${column} > ${value}`
+    }
+    case 'gt': {
+      return sql`${column} > ${value}`
+    }
+    case 'lt': {
+      return sql`${column} < ${value}`
+    }
+    case 'isEmpty': {
+      return sql`(${column} is null or ${column} = '')`
+    }
+    case 'isNotEmpty': {
+      return sql`(${column} is not null and ${column} <> '')`
+    }
+  }
+}
+
+function cursorComparison(
+  column: SQL,
+  value: string,
+  direction: 'asc' | 'desc' | undefined
+): SQL {
+  if (direction === 'asc') {
+    return sql`${column} > ${value}`
+  }
+  return sql`${column} < ${value}`
+}
+function sortColumn(column: SQL, direction: 'asc' | 'desc' | undefined): SQL {
+  if (direction === 'asc') {
+    return asc(column)
+  }
+  return desc(column)
+}
+
+function resumeSql(
+  view: AuditView,
+  cursor: ReturnType<typeof decodeAuditCursor>
+): SQL | null {
+  if (cursor === undefined) {
+    return null
+  }
+  if (cursor === null) {
+    return sql`false`
+  }
+  const clauses: Array<SQL> = []
+  for (let index = 0; index < view.sorts.length; index += 1) {
+    const sort = view.sorts[index]
+    const value = cursor.values[index]
+    if (!sort || value === undefined) {
+      return sql`false`
+    }
+    const column = columnFor(sort.field)
+    const comparison = cursorComparison(column, value, sort.direction)
+    const prefix = view.sorts
+      .slice(0, index)
+      .map(
+        (prior, priorIndex) =>
+          sql`${columnFor(prior.field)} = ${cursor.values[priorIndex] ?? ''}`
+      )
+    clauses.push(and(...prefix, comparison) ?? comparison)
+    if (index === view.sorts.length - 1) {
+      const idComparison = cursorComparison(
+        sql`${auditEvents.id}`,
+        cursor.id,
+        view.sorts.at(-1)?.direction
+      )
+      clauses.push(
+        and(
+          ...view.sorts.map(
+            (prior, priorIndex) =>
+              sql`${columnFor(prior.field)} = ${cursor.values[priorIndex] ?? ''}`
+          ),
+          idComparison
+        ) ?? idComparison
+      )
+    }
+  }
+  return or(...clauses) ?? sql`false`
 }
 
 export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
@@ -68,6 +221,7 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
       const db = yield* Database
 
       function pageQuery(workspaceId: string, input?: ListAuditEventsInput) {
+        const view = normalizeAuditView(input?.view)
         const conditions: Array<SQL> = [eq(auditEvents.workspaceId, workspaceId)]
         if (input?.actorUserId !== undefined) {
           conditions.push(eq(auditEvents.actorUserId, input.actorUserId))
@@ -81,19 +235,24 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
         if (input?.until !== undefined) {
           conditions.push(lte(auditEvents.createdAt, input.until))
         }
-        // The SQL half of the keyset recipe lives in `keyset-query.ts`,
-        // shared with every other paged Live read: everything strictly
-        // before the cursor's position in `(createdAt DESC, id DESC)`.
-        const resume = keysetResume(
-          'desc',
-          { key: auditEvents.createdAt, id: auditEvents.id },
-          input?.cursor
-        )
-        if (resume.kind === 'empty') {
-          return null
+        const predicates = view.filters.map(filterSql)
+        if (predicates.length > 0) {
+          if (view.match === 'all') {
+            conditions.push(and(...predicates) ?? sql`false`)
+          } else {
+            conditions.push(or(...predicates) ?? sql`false`)
+          }
         }
-        if (resume.kind === 'resume') {
-          conditions.push(resume.condition)
+        const resume = resumeSql(
+          view,
+          decodeAuditCursor(
+            input?.cursor,
+            auditViewKey(view, workspaceId, input),
+            view.sorts.length
+          )
+        )
+        if (resume) {
+          conditions.push(resume)
         }
         const query = db
           .select({ event: auditEvents, actor: user })
@@ -103,16 +262,18 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
         // One row past the page cap: `buildPage` needs to see whether the cap
         // actually cut rows off before it offers a cursor.
         return query
-          .orderBy(desc(auditEvents.createdAt), desc(auditEvents.id))
+          .orderBy(
+            ...view.sorts.map((sort) =>
+              sortColumn(columnFor(sort.field), sort.direction)
+            ),
+            sortColumn(sql`${auditEvents.id}`, view.sorts.at(-1)?.direction)
+          )
           .limit(pageLimit(input) + 1)
       }
 
       function pagedRows(workspaceId: string, input: ListAuditEventsInput | undefined) {
         const query = pageQuery(workspaceId, input)
         // An undecodable cursor addresses no position — empty page.
-        if (query === null) {
-          return Effect.succeed<Array<AuditRow>>([])
-        }
         return orUnavailable('audit-event-log')(query)
       }
 
@@ -200,7 +361,13 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
           Effect.gen(function* () {
             const ctx = yield* WorkspaceContext
             const rows = yield* pagedRows(ctx.workspace.id, input)
-            return buildPage(rows, pageLimit(input))
+            const view = normalizeAuditView(input?.view)
+            return buildPage(
+              rows,
+              pageLimit(input),
+              view,
+              auditViewKey(view, ctx.workspace.id, input)
+            )
           }),
         listGlobal: globalRows,
         record: (input) =>
