@@ -14,6 +14,7 @@ import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
 import { Badge } from '@/components/ui/badge'
 import {
   DataTable,
+  DataTableColumns,
   DataTableContent,
   type DataTableColumnDef
 } from '@/components/data-table'
@@ -201,73 +202,76 @@ export function WorkspaceAuditPage({
         description={m.audit_trail_description()}
       />
       <Panel title={m.events()} description={m.audit_events_description()}>
-        <div id="audit-view-controls">
-          <TableViewControls
-            fields={viewFields}
-            view={view}
-            onChange={(next) => {
-              if (next.filters.length === 0 && next.sorts.length === 0) {
-                applySearch({})
-                return
-              }
-              applySearch(
-                compact({
-                  ...auditSearchFromFilters(filters),
-                  view: serializeTableView(next)
-                })
-              )
-            }}
-          />
-        </div>
-        {hasFilters && (
-          <div className="flex flex-wrap items-center gap-2">
-            {legacyFilters.map((filter) => (
-              <Button
-                key={filter.key}
-                variant="outline"
-                size="xs"
-                aria-label={`${m.action_remove()} ${filter.label}`}
-                onClick={() =>
-                  applySearch(compact({ ...searchFilters, [filter.key]: undefined }))
+        {/* One row model for both tables: the same component renders the admin
+            users table, so column treatment and the mono `When` cell cannot drift. */}
+        <DataTable
+          columns={auditColumns(onOpenEvent)}
+          data={events}
+          manualSorting
+          tableLabel={m.audit_table_label()}
+        >
+          <div
+            id="audit-view-controls"
+            className="flex flex-wrap items-center justify-between gap-2"
+          >
+            <TableViewControls
+              fields={viewFields}
+              view={view}
+              onChange={(next) => {
+                if (next.filters.length === 0 && next.sorts.length === 0) {
+                  applySearch({})
+                  return
                 }
-              >
-                {filter.label}
-                <XIcon aria-hidden className="size-3" />
-              </Button>
-            ))}
-            {view.filters.length === 0 && view.sorts.length === 0 && (
-              <Button variant="ghost" onClick={() => applySearch({})}>
-                {m.table_view_clear_all()}
-              </Button>
-            )}
+                applySearch(
+                  compact({
+                    ...auditSearchFromFilters(filters),
+                    view: serializeTableView(next)
+                  })
+                )
+              }}
+            />
+            <DataTableColumns />
           </div>
-        )}
-        {events.length === 0 ? (
-          <EmptyTrail hasFilters={hasFilters || view.filters.length > 0} />
-        ) : (
-          <>
-            {/* One row model for both tables: the same component renders the
-                admin users table, so column treatment and the mono `When` cell
-                cannot drift between them. */}
-            <DataTable
-              columns={auditColumns(onOpenEvent)}
-              data={events}
-              manualSorting
-              tableLabel={m.audit_table_label()}
-            >
-              <DataTableContent />
-            </DataTable>
-            <div className="flex items-center justify-end">
-              {/* The cursor resumes after the current page in the selected order. */}
-              <Button
-                variant="outline"
-                disabled={nextCursor === null}
-                onClick={() => nextPage()}
-              >
-                {m.shell_table_next()}
-              </Button>
+          {hasFilters && (
+            <div className="flex flex-wrap items-center gap-2">
+              {legacyFilters.map((filter) => (
+                <Button
+                  key={filter.key}
+                  variant="outline"
+                  size="xs"
+                  aria-label={`${m.action_remove()} ${filter.label}`}
+                  onClick={() =>
+                    applySearch(compact({ ...searchFilters, [filter.key]: undefined }))
+                  }
+                >
+                  {filter.label}
+                  <XIcon aria-hidden className="size-3" />
+                </Button>
+              ))}
+              {view.filters.length === 0 && view.sorts.length === 0 && (
+                <Button variant="ghost" onClick={() => applySearch({})}>
+                  {m.table_view_clear_all()}
+                </Button>
+              )}
             </div>
-          </>
+          )}
+          {events.length === 0 ? (
+            <EmptyTrail hasFilters={hasFilters || view.filters.length > 0} />
+          ) : (
+            <DataTableContent />
+          )}
+        </DataTable>
+        {events.length > 0 && (
+          <div className="flex items-center justify-end">
+            {/* The cursor resumes after the current page in the selected order. */}
+            <Button
+              variant="outline"
+              disabled={nextCursor === null}
+              onClick={() => nextPage()}
+            >
+              {m.shell_table_next()}
+            </Button>
+          </div>
         )}
       </Panel>
       <AuditEventSheet

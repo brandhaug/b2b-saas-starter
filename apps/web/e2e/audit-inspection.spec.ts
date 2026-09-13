@@ -33,17 +33,13 @@ test('event links preserve filters, keyboard focus, and back/forward history', a
   await page
     .locator('header [data-slot="select-trigger"]:enabled')
     .waitFor({ state: 'attached' })
-  await page.getByRole('button', { name: /^Filter/ }).click()
-  const filters = page.getByRole('dialog', { name: 'Filter', exact: true })
-  await filters.getByRole('button', { name: 'Add filter' }).click()
-  await filters.getByRole('combobox', { name: 'Field', exact: true }).click()
-  await page.getByRole('option', { name: 'Actor', exact: true }).click()
-  await filters.getByRole('combobox', { name: 'Value', exact: true }).click()
-  await page.getByRole('option', { name: 'Ops Lead', exact: true }).click()
+  await page.getByRole('button', { name: 'Actor', exact: true }).click()
+  const filters = page.getByRole('dialog', { name: 'Actor', exact: true })
+  await filters.getByRole('radio', { name: 'Ops Lead', exact: true }).click()
   await expect(page).toHaveURL(
     (url) => url.searchParams.get('view')?.includes('usr_ops') === true
   )
-  await filters.getByRole('button', { name: 'Close', exact: true }).click()
+  await page.keyboard.press('Escape')
   const filteredUrl = page.url()
   const serializedView = new URL(filteredUrl).searchParams.get('view')
   expect(serializedView).toBeTruthy()
@@ -97,7 +93,7 @@ test('a direct link resolves outside the visible list and closes in place on mob
   await dialog.getByRole('button', { name: 'Close', exact: true }).click()
   await expect(dialog).toHaveCount(0)
   await expect(page).toHaveURL(`${auditPath}?eventType=no.such.event&cursor=invalid`)
-  await expect(page.getByRole('button', { name: /^Filter/ })).toBeFocused()
+  await expect(page.getByRole('button', { name: 'Event', exact: true })).toBeFocused()
 })
 
 test('missing and foreign-workspace events have the same unavailable result', async ({

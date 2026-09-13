@@ -5,7 +5,12 @@ import { parseTableView, serializeTableView } from '@/lib/table-view'
 import { statusLabel } from '@/lib/value-labels'
 import { useState } from 'react'
 import { type GlobalWebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
-import { DataTable, DataTableContent, type DataTableColumnDef } from './data-table'
+import {
+  DataTable,
+  DataTableColumns,
+  DataTableContent,
+  type DataTableColumnDef
+} from './data-table'
 import { Panel } from './page/panel'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
@@ -118,6 +123,7 @@ function columns(): Array<DataTableColumnDef<GlobalWebhookDelivery>> {
     {
       id: 'actions',
       header: m.replay_action(),
+      enableHiding: false,
       cell: ({ row }) => <ReplayAction key={row.original.id} delivery={row.original} />
     }
   ]
@@ -147,21 +153,6 @@ export function AdminFailedDeliveries({
       title={m.failed_webhook_deliveries()}
       description={m.failed_webhook_deliveries_description()}
     >
-      <TableViewControls
-        fields={fields}
-        view={view}
-        onChange={(next) => {
-          void navigate({
-            to: '.',
-            search: (previous) => ({
-              ...previous,
-              failureView: serializeTableView(next),
-              failureCursor: undefined
-            }),
-            resetScroll: false
-          })
-        }}
-      />
       <DataTable
         columns={columns()}
         data={page.items}
@@ -169,6 +160,24 @@ export function AdminFailedDeliveries({
         tableLabel={m.failed_webhook_deliveries()}
         emptyMessage={m.no_terminal_webhook_failures()}
       >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <TableViewControls
+            fields={fields}
+            view={view}
+            onChange={(next) => {
+              void navigate({
+                to: '.',
+                search: (previous) => ({
+                  ...previous,
+                  failureView: serializeTableView(next),
+                  failureCursor: undefined
+                }),
+                resetScroll: false
+              })
+            }}
+          />
+          <DataTableColumns />
+        </div>
         <DataTableContent />
       </DataTable>
       <div className="flex flex-wrap gap-2">
