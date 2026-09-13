@@ -6,6 +6,7 @@ import {
   Heading,
   Hr,
   Html,
+  Img,
   Link,
   pixelBasedPreset,
   Preview,
@@ -89,6 +90,15 @@ export function EmailLayout({
               overflowWrap: 'anywhere'
             }}
           >
+            <Section className="mb-6" style={{ textAlign: 'left' }}>
+              <Img
+                src="https://b2b-saas-starter-web.brandhaug.workers.dev/assets/starter-logo.png"
+                alt="B2B SaaS Starter"
+                width={40}
+                height={40}
+                style={{ display: 'block' }}
+              />
+            </Section>
             <Heading
               as="h1"
               className="text-2xl leading-8 font-semibold text-foreground m-0"
