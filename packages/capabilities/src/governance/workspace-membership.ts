@@ -382,9 +382,6 @@ export function SeedWorkspaceMembership(
               })
             )
           }
-          if (member.role === input.role) {
-            return member
-          }
           const refusal = refuseMembershipChange('change_role', {
             actorRole: ctx.actor?.role ?? null,
             targetRole: member.role,
@@ -393,6 +390,9 @@ export function SeedWorkspaceMembership(
           })
           if (refusal !== null) {
             return yield* Effect.fail(new MembershipChangeRejected({ reason: refusal }))
+          }
+          if (member.role === input.role) {
+            return member
           }
           // A role change can strip authority the old role carried, so the
           // Live adapter files the same removal evidence — the fixture must

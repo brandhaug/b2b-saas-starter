@@ -1,20 +1,7 @@
-import { type AuditEventType } from '../governance/audit-event-taxonomy.ts'
-
-/** The allowlisted event types this starter publishes. */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
-export const WEBHOOK_EVENT_TYPES = [
-  'api_token.created',
-  'api_token.revoked',
-  'webhook_endpoint.created',
-  'workspace_member.added',
-  'workspace_member.removed',
-  'workspace_member.role_changed',
-  'workspace_invitation.accepted',
-  'billing.plan_changed'
-] as const
-
-/** The union of {@link WEBHOOK_EVENT_TYPES} — the vocabulary is written once. */
-export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number]
+import {
+  AUDIT_EVENT_TYPES,
+  type AuditEventType
+} from '../governance/audit-event-taxonomy.ts'
 
 export type AuditEventPublicationDecision = 'webhook' | 'audit-only'
 
@@ -123,8 +110,17 @@ export const AUDIT_EVENT_PUBLICATION_POLICY = {
   'system_admin.user_session_revocation_failed': 'audit-only'
 } satisfies Record<AuditEventType, AuditEventPublicationDecision>
 
-export function auditEventPublicationDecision(
-  eventType: AuditEventType
-): AuditEventPublicationDecision {
-  return AUDIT_EVENT_PUBLICATION_POLICY[eventType]
-}
+type WebhookEventTypeFromPolicy = {
+  [K in AuditEventType]: (typeof AUDIT_EVENT_PUBLICATION_POLICY)[K] extends 'webhook'
+    ? K
+    : never
+}[AuditEventType]
+
+/** The allowlisted event types this starter publishes, derived from policy. */
+export const WEBHOOK_EVENT_TYPES = AUDIT_EVENT_TYPES.filter(
+  (eventType): eventType is WebhookEventTypeFromPolicy =>
+    AUDIT_EVENT_PUBLICATION_POLICY[eventType] === 'webhook'
+)
+
+/** The union of {@link WEBHOOK_EVENT_TYPES}. */
+export type WebhookEventType = WebhookEventTypeFromPolicy

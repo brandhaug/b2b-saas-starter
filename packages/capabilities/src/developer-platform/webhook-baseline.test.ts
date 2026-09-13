@@ -139,6 +139,30 @@ it.effect('does not publish a no-op role change', () => {
   }).pipe(Effect.provide(layer))
 })
 
+it.effect(
+  'keeps owner-role restrictions for unchanged roles without publishing',
+  () => {
+    const { layer, published } = fixture()
+    return Effect.gen(function* () {
+      const membership = yield* WorkspaceMembership
+      yield* membership.changeRole({ userId: member.id, role: 'admin' })
+      const refused = yield* Effect.flip(
+        membership.changeRole({ userId: owner.id, role: 'owner' }).pipe(
+          Effect.provide(
+            testWorkspaceContext(workspace, {
+              userId: member.id,
+              role: 'admin',
+              systemRole: 'user'
+            })
+          )
+        )
+      )
+      expect(refused.reason).toBe('owner_requires_owner')
+      expect(published).toHaveLength(1)
+    }).pipe(Effect.provide(layer))
+  }
+)
+
 it.effect('acceptance publishes both events, scopes them, and rejects repeats', () => {
   const { layer, published } = fixture()
   return Effect.gen(function* () {

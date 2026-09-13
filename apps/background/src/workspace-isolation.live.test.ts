@@ -9,6 +9,7 @@ import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platf
 import {
   WebhookPublisher,
   publishWebhookEventWith,
+  type WebhookPayload,
   type WebhookQueueBinding,
   type WebhookQueueMessage
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
@@ -187,11 +188,12 @@ function publishWebhook(
   )
 }
 
-function tokenPayload(marker: string) {
+function tokenPayload(marker: string): WebhookPayload['api_token.created'] {
   return {
     id: `tok_${marker}`,
     name: marker,
     prefix: `tok_${marker}`,
+    scopes: ['read'],
     lastUsedAt: null,
     createdAt: '2026-09-01T00:00:00.000Z',
     expiresAt: null,

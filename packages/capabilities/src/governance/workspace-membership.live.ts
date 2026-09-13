@@ -280,9 +280,6 @@ export function LiveWorkspaceMembership(
         ) {
           const ctx = yield* WorkspaceContext
           const facts = yield* rosterFacts(ctx.workspace.id, input.userId)
-          if (facts.targetRole === input.role) {
-            return yield* readMember(ctx.workspace.id, input.userId)
-          }
           const refusal = refuseMembershipChange('change_role', {
             actorRole: ctx.actor?.role ?? null,
             targetRole: facts.targetRole,
@@ -291,6 +288,9 @@ export function LiveWorkspaceMembership(
           })
           if (refusal !== null) {
             return yield* Effect.fail(new MembershipChangeRejected({ reason: refusal }))
+          }
+          if (facts.targetRole === input.role) {
+            return yield* readMember(ctx.workspace.id, input.userId)
           }
           const memberId = yield* resolveMemberId(ctx.workspace.id, input.userId)
           yield* callBinding(binding, (bound) =>

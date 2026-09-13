@@ -4,10 +4,12 @@ import { eq } from 'drizzle-orm'
 import { Database } from '@b2b-saas-starter/db/service'
 import { webhookEndpoints } from '@b2b-saas-starter/db/schema'
 import { WebhookEndpoints } from './webhook-endpoints.ts'
+import { ApiTokenRegistry } from './api-token-registry.ts'
 import {
   LiveWebhookPublisher,
   WebhookPublisher,
-  type WebhookPayload
+  type WebhookPayload,
+  type WebhookQueueMessage
 } from './webhook-publisher.ts'
 import { LiveAuditEventLog } from '../governance/audit-event-log.live.ts'
 import { WorkspaceMembership } from '../governance/workspace-membership.ts'
@@ -19,6 +21,44 @@ import {
 } from '../testing/live-harness.ts'
 
 layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('publisher', (it) => {
+  it.effect('token creation retains granted scopes without publishing the secret', () =>
+    Effect.gen(function* () {
+      const messages: Array<WebhookQueueMessage> = []
+      const created = yield* inWorkspace(
+        'dev-contract-lab',
+        Effect.gen(function* () {
+          const endpoints = yield* WebhookEndpoints
+          yield* endpoints.create({
+            url: 'https://example.com/token-hook',
+            events: ['api_token.created']
+          })
+          const tokens = yield* ApiTokenRegistry
+          return yield* tokens.create({ name: 'Read integration', scopes: ['read'] })
+        }),
+        { userId: 'usr_owner' },
+        {
+          webhookQueue: {
+            send: (message) => {
+              messages.push(message)
+              return Promise.resolve()
+            },
+            sendBatch: (batch) => {
+              for (const message of batch) {
+                messages.push(message.body)
+              }
+              return Promise.resolve()
+            }
+          }
+        }
+      )
+      const { token: secret, ...publicToken } = created
+      expect(messages).toHaveLength(1)
+      expect(messages[0]?.payload).toEqual(publicToken)
+      expect(messages[0]?.payload).toMatchObject({ scopes: ['read'] })
+      expect(messages[0]?.payload).not.toHaveProperty('token', secret)
+    })
+  )
+
   it.effect('scopes fan-out and persists only the allowlisted payload', () =>
     Effect.gen(function* () {
       const db = yield* Database

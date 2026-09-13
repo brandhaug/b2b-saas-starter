@@ -65,6 +65,7 @@ export const WebhookEventPayloads = {
     id: Schema.String,
     name: Schema.String,
     prefix: Schema.String,
+    scopes: Schema.Array(Schema.String),
     lastUsedAt: nullableString,
     createdAt: Schema.String,
     expiresAt: nullableString,
@@ -99,7 +100,7 @@ export const WebhookEventPayloads = {
     planId: Schema.String,
     previousPlanId: nullableString
   })
-}
+} satisfies Readonly<Record<WebhookEventType, Schema.Schema<unknown>>>
 export type WebhookEventPayloads = typeof WebhookEventPayloads
 export type WebhookPayload = {
   readonly [K in WebhookEventType]: (typeof WebhookEventPayloads)[K]['Type']
@@ -116,42 +117,15 @@ const decodeJson = Schema.decodeUnknownSync(Schema.Json)
 function sanitizeWebhookPayload(
   input: PublishWebhookEventInput
 ): Effect.Effect<typeof Schema.Json.Type, CapabilityUnavailable> {
-  function decode(decodeSchema: Schema.ConstraintDecoder<unknown>) {
-    return Effect.try({
-      try: () => decodeJson(Schema.decodeUnknownSync(decodeSchema)(input.payload)),
-      catch: () =>
-        new CapabilityUnavailable({
-          capability: 'webhook-publisher',
-          reason: 'payload_schema_invalid'
-        })
-    })
-  }
-  switch (input.eventType) {
-    case 'api_token.created': {
-      return decode(WebhookEventPayloads['api_token.created'])
-    }
-    case 'api_token.revoked': {
-      return decode(WebhookEventPayloads['api_token.revoked'])
-    }
-    case 'webhook_endpoint.created': {
-      return decode(WebhookEventPayloads['webhook_endpoint.created'])
-    }
-    case 'workspace_member.added': {
-      return decode(WebhookEventPayloads['workspace_member.added'])
-    }
-    case 'workspace_member.removed': {
-      return decode(WebhookEventPayloads['workspace_member.removed'])
-    }
-    case 'workspace_member.role_changed': {
-      return decode(WebhookEventPayloads['workspace_member.role_changed'])
-    }
-    case 'workspace_invitation.accepted': {
-      return decode(WebhookEventPayloads['workspace_invitation.accepted'])
-    }
-    case 'billing.plan_changed': {
-      return decode(WebhookEventPayloads['billing.plan_changed'])
-    }
-  }
+  const schema = WebhookEventPayloads[input.eventType]
+  return Effect.try({
+    try: () => decodeJson(Schema.decodeUnknownSync(schema)(input.payload)),
+    catch: () =>
+      new CapabilityUnavailable({
+        capability: 'webhook-publisher',
+        reason: 'payload_schema_invalid'
+      })
+  })
 }
 export type PublishWebhookEventInput = WebhookEventInput
 
