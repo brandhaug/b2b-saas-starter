@@ -6,7 +6,13 @@ import { toast } from 'sonner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle
+} from '@/components/ui/empty'
 import {
   Item,
   ItemActions,
@@ -194,58 +200,77 @@ export function InvitationPanel({
               />
             </div>
             {visibleInvitations.length === 0 ? (
-              <p className="py-6 text-sm text-muted-foreground">
-                {m.developer_list_no_matching_invitations()}
-              </p>
+              <Empty>
+                <EmptyHeader>
+                  <EmptyTitle>{m.developer_list_no_matching_invitations()}</EmptyTitle>
+                </EmptyHeader>
+                <EmptyContent>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() =>
+                      update({
+                        invitationQuery: undefined,
+                        tableViews: undefined,
+                        page: undefined
+                      })
+                    }
+                  >
+                    {m.developer_list_clear_all()}
+                  </Button>
+                </EmptyContent>
+              </Empty>
             ) : null}
-            <ItemGroup>
-              {visibleInvitations.map((invitation) => (
-                <Item key={invitation.id} variant="outline" size="sm">
-                  <ItemContent>
-                    <ItemTitle>{invitation.email}</ItemTitle>
-                    <ItemDescription>{roleLabel(invitation.role)}</ItemDescription>
-                    {failedRow?.key === invitation.id ? (
-                      <ActionFeedback error={failedRow.message} />
-                    ) : null}
-                  </ItemContent>
-                  <ItemActions>
-                    {canInvite && invitation.status === 'pending' ? (
-                      <Button
-                        variant="outline"
-                        disabled={
-                          resend.pendingInput === invitation.id ||
-                          emailDeliveries.find(
-                            (record) => record.referenceId === invitation.id
-                          )?.resendAllowed === false
-                        }
-                        onClick={() => void resend.runAsync(invitation.id)}
-                      >
-                        {m.email_delivery_resend_invitation()}
-                      </Button>
-                    ) : null}
-                    <Badge variant={invitationStatusVariant(invitation.status)}>
-                      {statusLabel(invitation.status)}
-                    </Badge>
-                    {invitation.status === 'pending' ? (
-                      <Button
-                        variant="ghost"
-                        disabled={cancel.pendingInput === invitation.id}
-                        onClick={() =>
-                          void cancelOnRow(invitation.id, () =>
-                            cancel.runAsync(invitation.id)
-                          )
-                        }
-                      >
-                        {cancel.pendingInput === invitation.id ? (
-                          <Spinner data-icon="inline-start" />
-                        ) : null}
-                        {m.common_cancel()}
-                      </Button>
-                    ) : null}
-                  </ItemActions>
-                </Item>
-              ))}
-            </ItemGroup>
+            {visibleInvitations.length === 0 ? null : (
+              <ItemGroup>
+                {visibleInvitations.map((invitation) => (
+                  <Item key={invitation.id} variant="outline" size="sm">
+                    <ItemContent>
+                      <ItemTitle>{invitation.email}</ItemTitle>
+                      <ItemDescription>{roleLabel(invitation.role)}</ItemDescription>
+                      {failedRow?.key === invitation.id ? (
+                        <ActionFeedback error={failedRow.message} />
+                      ) : null}
+                    </ItemContent>
+                    <ItemActions>
+                      {canInvite && invitation.status === 'pending' ? (
+                        <Button
+                          variant="outline"
+                          disabled={
+                            resend.pendingInput === invitation.id ||
+                            emailDeliveries.find(
+                              (record) => record.referenceId === invitation.id
+                            )?.resendAllowed === false
+                          }
+                          onClick={() => void resend.runAsync(invitation.id)}
+                        >
+                          {m.email_delivery_resend_invitation()}
+                        </Button>
+                      ) : null}
+                      <Badge variant={invitationStatusVariant(invitation.status)}>
+                        {statusLabel(invitation.status)}
+                      </Badge>
+                      {invitation.status === 'pending' ? (
+                        <Button
+                          variant="ghost"
+                          disabled={cancel.pendingInput === invitation.id}
+                          onClick={() =>
+                            void cancelOnRow(invitation.id, () =>
+                              cancel.runAsync(invitation.id)
+                            )
+                          }
+                        >
+                          {cancel.pendingInput === invitation.id ? (
+                            <Spinner data-icon="inline-start" />
+                          ) : null}
+                          {m.common_cancel()}
+                        </Button>
+                      ) : null}
+                    </ItemActions>
+                  </Item>
+                ))}
+              </ItemGroup>
+            )}
           </>
         )}
       </ListSection>

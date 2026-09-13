@@ -115,6 +115,7 @@ export function SignUpPage({
 
   return (
     <AuthCardForm
+      appearance="entry"
       title={m.create_your_account()}
       description={m.sign_up_description()}
       form={form}

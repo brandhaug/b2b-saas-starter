@@ -73,7 +73,7 @@ export function WorkspaceSettingsPage({
             value: 'general',
             label: m.nav_general(),
             content: (
-              <Panel title={m.nav_general()}>
+              <Panel>
                 {canRename || canDelete ? (
                   <WorkspaceGeneralSettings
                     workspaceSlug={workspaceSlug}

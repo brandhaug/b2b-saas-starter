@@ -229,10 +229,14 @@ export function BillingPlans({
           ) : null
         }
       >
-        <div className="grid gap-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <Badge>{currentPlan?.name ?? currentPlanId}</Badge>
-            <p className="text-sm text-muted-foreground">
+        <div className="grid gap-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div className="grid gap-1">
+              <h3 className="text-2xl font-semibold tracking-tight">
+                {currentPlan?.name ?? currentPlanId}
+              </h3>
+            </div>
+            <p className="basis-full text-sm text-muted-foreground">
               {m.entitlements_follow_plan()}
               {currentPlan === undefined
                 ? '.'
@@ -336,8 +340,14 @@ function PlanTile({
   readonly priceNote: ReactNode
   readonly children?: ReactNode
 }) {
+  const isCurrent = badge !== undefined && badge !== null
+
   return (
-    <div className="grid gap-2 rounded-none border border-border bg-muted p-4 content-start">
+    <div
+      className={`grid h-full content-start gap-3 rounded-none border bg-muted p-4 [grid-template-rows:auto_auto_auto_1fr_auto] ${
+        isCurrent ? 'border-primary/60' : 'border-border'
+      }`}
+    >
       <div className="flex items-center justify-between gap-2">
         <h3 className="font-semibold">{plan.name}</h3>
         {badge}

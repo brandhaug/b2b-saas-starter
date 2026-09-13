@@ -2,6 +2,7 @@ import { useEffect, useRef, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useClientValue } from '@/lib/client-only-value'
 import { PublicLayout } from '@/components/public-layout'
+import { AuthShell } from '@/components/auth/auth-shell'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { m } from '@b2b-saas-starter/i18n/messages'
@@ -34,7 +35,8 @@ export function AuthCardForm({
   error,
   notice,
   footer,
-  children
+  children,
+  appearance = 'default'
 }: {
   readonly title: string
   readonly description?: ReactNode
@@ -49,6 +51,8 @@ export function AuthCardForm({
   /** Rendered in the card body after the form (links, hints). */
   readonly footer?: ReactNode
   readonly children: ReactNode
+  /** The dedicated entry shell is reserved for sign-in and sign-up. */
+  readonly appearance?: 'default' | 'entry'
 }) {
   // Hydration signal for e2e and the pre-hydration guard: the fieldset stays
   // disabled until React attaches the submit handler, while method="post"
@@ -67,57 +71,72 @@ export function AuthCardForm({
       <AlertDescription>{error}</AlertDescription>
     </Alert>
   ) : null
-  return (
-    <PublicLayout>
-      {/* `flex-1` fills the space PublicLayout's `min-h-dvh flex-col` leaves
-          between the header and its `mt-auto` footer — no hardcoded chrome height. */}
-      <main
-        id="main-content"
-        tabIndex={-1}
-        className="mx-auto grid w-full max-w-md flex-1 place-items-center px-4 py-12 outline-none"
+  const content = (
+    <main
+      id="main-content"
+      tabIndex={-1}
+      className={
+        appearance === 'entry'
+          ? 'w-full'
+          : 'mx-auto grid w-full max-w-md flex-1 place-items-center px-4 py-12 outline-none'
+      }
+    >
+      <Card
+        className={
+          appearance === 'entry' ? 'w-full border-0 bg-transparent py-0' : 'w-full'
+        }
       >
-        <Card className="w-full">
-          <CardHeader>
-            <CardTitle as="h1">{title}</CardTitle>
-            {description ? (
-              <p className="text-sm text-muted-foreground">{description}</p>
-            ) : null}
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            {form === null ? (
-              <div className="grid gap-4">
+        <CardHeader className={appearance === 'entry' ? 'px-0' : undefined}>
+          <CardTitle
+            as="h1"
+            className={appearance === 'entry' ? 'text-3xl tracking-tight' : undefined}
+          >
+            {title}
+          </CardTitle>
+          {description ? (
+            <p className="text-sm text-muted-foreground">{description}</p>
+          ) : null}
+        </CardHeader>
+        <CardContent
+          className={
+            appearance === 'entry' ? 'grid gap-4 px-0 [&_input]:bg-card' : 'grid gap-4'
+          }
+        >
+          {form === null ? (
+            <div className="grid gap-4">
+              {children}
+              {errorAlert}
+            </div>
+          ) : (
+            <form
+              method="post"
+              data-hydrated={hydrated ? 'true' : undefined}
+              onSubmit={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                void form.handleSubmit()
+              }}
+              className="grid gap-4"
+            >
+              <fieldset disabled={!hydrated} className="contents">
                 {children}
-                {errorAlert}
-              </div>
-            ) : (
-              <form
-                method="post"
-                data-hydrated={hydrated ? 'true' : undefined}
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  void form.handleSubmit()
-                }}
-                className="grid gap-4"
-              >
-                <fieldset disabled={!hydrated} className="contents">
-                  {children}
-                  {submit}
-                </fieldset>
-                {errorAlert}
-                {notice ? (
-                  <Alert>
-                    <AlertDescription>{notice}</AlertDescription>
-                  </Alert>
-                ) : null}
-                {hydrated ? null : (
-                  <output className="text-sm text-muted-foreground">
-                    {m.public_auth_initializing()}
-                  </output>
-                )}
-              </form>
-            )}
-            {footer}
+                {submit}
+              </fieldset>
+              {errorAlert}
+              {notice ? (
+                <Alert>
+                  <AlertDescription>{notice}</AlertDescription>
+                </Alert>
+              ) : null}
+              {hydrated ? null : (
+                <output className="text-sm text-muted-foreground">
+                  {m.public_auth_initializing()}
+                </output>
+              )}
+            </form>
+          )}
+          {footer}
+          {appearance === 'entry' ? null : (
             <p className="text-center text-sm text-muted-foreground">
               <Link
                 to="/help"
@@ -127,10 +146,15 @@ export function AuthCardForm({
                 {m.public_meta_support()}
               </Link>
             </p>
-          </CardContent>
-        </Card>
-      </main>
-    </PublicLayout>
+          )}
+        </CardContent>
+      </Card>
+    </main>
+  )
+  return appearance === 'entry' ? (
+    <AuthShell>{content}</AuthShell>
+  ) : (
+    <PublicLayout>{content}</PublicLayout>
   )
 }
 

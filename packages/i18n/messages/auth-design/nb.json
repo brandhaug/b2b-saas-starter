@@ -1,0 +1,13 @@
+{
+  "auth_design_build_on_proof": "Bygg på et grunnlag du kan inspisere.",
+  "auth_design_brand_description": "En Cloudflare-først B2B SaaS-starter med ekte arbeidsflyter du kan utforske: autentisering, arbeidsområder, tillatelser, fakturering og revisjonsspor.",
+  "auth_design_capabilities_label": "Starter-funksjoner",
+  "auth_design_capability_auth": "Autentisering med sterk sikkerhet",
+  "auth_design_capability_workspaces": "Tillatelser og medlemmer i arbeidsområder",
+  "auth_design_capability_audit": "Etterprøvbare handlinger og webhooks",
+  "auth_design_capability_cloudflare": "Bygget for Cloudflare Workers",
+  "auth_design_workspace": "Arbeidsområde",
+  "auth_design_reference_preview": "Inne i referansearbeidsområdet",
+  "auth_design_account_access": "Kontotilgang",
+  "auth_design_explore_starter": "Utforsk starteren"
+}

@@ -36,6 +36,7 @@ import {
   Item,
   ItemActions,
   ItemContent,
+  ItemMedia,
   ItemDescription,
   ItemGroup,
   ItemTitle
@@ -44,7 +45,6 @@ import { Separator } from '@/components/ui/separator'
 import { Spinner } from '@/components/ui/spinner'
 import { useKeyedFailure } from '@/hooks/use-keyed-failure'
 import { useServerAction } from '@/hooks/use-server-action'
-import { roleVariant } from '@/lib/badge-variants'
 import { viewerCan, workspaceRoles, type Viewer } from '@/lib/permissions'
 import {
   changeMemberRoleServerFn,
@@ -119,7 +119,7 @@ function MemberActions({
   const hasMenu = ownRow || canReRole || canRemove
   return (
     <ItemActions>
-      <Badge variant={roleVariant(member.role)}>{roleLabel(member.role)}</Badge>
+      <Badge variant="neutral">{roleLabel(member.role)}</Badge>
       {ownRow && leaveArmed ? (
         <ConfirmButton
           label={m.action_leave_workspace()}
@@ -304,7 +304,7 @@ export function MembersPanel({
             }
             placeholder={m.members_search_placeholder()}
             aria-label={m.members_search_label()}
-            className="pl-9"
+            className="bg-card pl-9 sm:max-w-md"
           />
         </div>
         <TableViewControls fields={fields} view={table.view} onChange={table.setView} />
@@ -314,18 +314,41 @@ export function MembersPanel({
           <EmptyHeader>
             <EmptyTitle>{m.members_no_filter_match()}</EmptyTitle>
             <EmptyDescription>{m.members_filter_hint()}</EmptyDescription>
+            <Button
+              variant="outline"
+              onClick={() => {
+                update(
+                  { query: undefined, tableViews: undefined, page: undefined },
+                  true
+                )
+              }}
+            >
+              {m.table_view_clear_all()}
+            </Button>
           </EmptyHeader>
         </Empty>
       ) : (
         <>
-          <ItemGroup>
+          <ItemGroup className="gap-0">
             {visibleMembers.map((member, index) => (
               <Fragment key={member.id}>
-                <Item size="sm" className="grid-cols-[minmax(0,1fr)_auto] px-0">
+                <Item size="sm" className="flex-nowrap px-0 py-4">
+                  <ItemMedia
+                    aria-hidden="true"
+                    className="grid size-10 place-items-center rounded-md border border-border bg-card text-sm font-medium text-muted-foreground"
+                  >
+                    {member.name
+                      .trim()
+                      .split(/\s+/u)
+                      .slice(0, 2)
+                      .map((part) => part.charAt(0))
+                      .join('')
+                      .toLocaleUpperCase()}
+                  </ItemMedia>
                   <ItemContent className="min-w-0">
-                    <div className="grid min-w-0 gap-1 sm:grid-cols-[minmax(10rem,0.8fr)_minmax(12rem,1.2fr)] sm:items-center sm:gap-4">
+                    <div className="grid min-w-0 gap-0.5">
                       <ItemTitle className="truncate">{member.name}</ItemTitle>
-                      <ItemDescription className="break-all">
+                      <ItemDescription className="line-clamp-none break-all">
                         {member.email}
                       </ItemDescription>
                     </div>
