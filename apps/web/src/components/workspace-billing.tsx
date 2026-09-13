@@ -302,11 +302,7 @@ export function BillingPlans({
             <PlanTile
               key={plan.id}
               plan={plan}
-              badge={
-                plan.id === currentPlanId ? (
-                  <Badge variant="neutral">{m.common_current()}</Badge>
-                ) : null
-              }
+              isCurrent={plan.id === currentPlanId}
               priceNote={stripeConfigured ? null : m.billing_example_price()}
             >
               <PlanAction
@@ -331,17 +327,15 @@ export function BillingPlans({
  */
 function PlanTile({
   plan,
-  badge,
+  isCurrent = false,
   priceNote,
   children
 }: {
   readonly plan: BillingPlan
-  readonly badge?: ReactNode
+  readonly isCurrent?: boolean
   readonly priceNote: ReactNode
   readonly children?: ReactNode
 }) {
-  const isCurrent = badge !== undefined && badge !== null
-
   return (
     <div
       className={`grid h-full content-start gap-3 rounded-none border bg-muted p-4 [grid-template-rows:auto_auto_auto_1fr_auto] ${
@@ -350,7 +344,7 @@ function PlanTile({
     >
       <div className="flex items-center justify-between gap-2">
         <h3 className="font-semibold">{plan.name}</h3>
-        {badge}
+        {isCurrent ? <Badge variant="neutral">{m.common_current()}</Badge> : null}
       </div>
       <p className="text-2xl font-semibold">{planPrice(plan)}</p>
       {priceNote ? <p className="text-xs text-muted-foreground">{priceNote}</p> : null}

@@ -69,7 +69,7 @@ The public demo band includes a labeled screenshot of the reference workspace li
 
 - Outline is the default action treatment; ghost suits row actions and dismissals. Confirm destructive changes.
 - Alerts use their semantic tint and an icon, not an ordinary card treatment.
-- [badge-variants.ts](apps/web/src/lib/badge-variants.ts) maps status and role to variants. Mauve means current/selected; unknown free-text status uses outline.
+- [badge-variants.ts](apps/web/src/lib/badge-variants.ts) maps status and administrative role emphasis to variants. Member rosters use neutral role labels so identity leads the row; the administrative membership editor retains owner emphasis. Mauve means current/selected; unknown free-text status uses outline.
 - Docs code blocks use Shiki's Catppuccin Mocha theme on the card background.
 
 Avoid gradients, neon glows, glassmorphism, decorative notches, and illustration-heavy marketing. The interface should give commands, data, and decisions visual priority.
