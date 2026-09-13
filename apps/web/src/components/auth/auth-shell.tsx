@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { BoxesIcon, CheckIcon, ArrowUpRightIcon } from 'lucide-react'
+import { CheckIcon, ArrowUpRightIcon } from 'lucide-react'
 import { type ReactNode } from 'react'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { LanguageSwitcher } from '@/components/language-switcher'
@@ -18,9 +18,13 @@ export function AuthShell({ children }: { readonly children: ReactNode }) {
       </a>
       <header className="mx-auto flex h-20 w-full max-w-7xl items-center justify-between px-6 sm:px-10 lg:px-14">
         <Link to="/" className="inline-flex items-center gap-3">
-          <span className="grid size-9 place-items-center bg-primary text-primary-foreground">
-            <BoxesIcon className="size-4" />
-          </span>
+          <img
+            src="/assets/starter-logo.png"
+            alt=""
+            width={40}
+            height={40}
+            className="size-10 shrink-0"
+          />
           <span className="text-sm font-semibold tracking-tight">B2B SaaS Starter</span>
         </Link>
         <Link
