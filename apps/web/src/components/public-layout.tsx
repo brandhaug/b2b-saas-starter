@@ -1,6 +1,6 @@
 import { type ReactNode, useState } from 'react'
 import { Link, useMatch } from '@tanstack/react-router'
-import { BoxesIcon, MenuIcon } from 'lucide-react'
+import { MenuIcon } from 'lucide-react'
 // The public layout is the one scope that still renders Newsreader (the
 // landing hero and section headings), so its latin variable woff2 preloads
 // here instead of in __root.tsx: auth screens and the workspace app never
@@ -118,9 +118,7 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
             to="/"
             className="flex items-center gap-2 font-semibold whitespace-nowrap"
           >
-            <span className="grid size-8 place-items-center rounded-md bg-primary text-primary-foreground">
-              <BoxesIcon className="size-4" />
-            </span>
+            <img src="/assets/starter-logo.png" alt="" width={40} height={40} className="size-10 shrink-0" />
             <span className="sr-only sm:not-sr-only">B2B SaaS Starter</span>
           </Link>
           <nav

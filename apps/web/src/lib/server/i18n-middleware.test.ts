@@ -121,18 +121,20 @@ describe('locale request integration', () => {
     expect(response.headers.has('set-cookie')).toBe(false)
   })
 
-  it.each(['/assets/app.123.js', '/favicon.svg', '/llms-full.txt', '/robots.txt'])(
-    'leaves static asset %s untouched',
-    async (path) => {
-      const response = await localizeRequest(
-        new Request(`https://starter.test${path}`, {
-          headers: { 'accept-language': 'nb-NO' }
-        }),
-        async () => new Response('asset')
-      )
-      expect(await response.text()).toBe('asset')
-      expect(response.headers.has('content-language')).toBe(false)
-      expect(response.headers.has('set-cookie')).toBe(false)
-    }
-  )
+  it.each([
+    '/assets/app.123.js',
+    '/assets/starter-logo.png',
+    '/llms-full.txt',
+    '/robots.txt'
+  ])('leaves static asset %s untouched', async (path) => {
+    const response = await localizeRequest(
+      new Request(`https://starter.test${path}`, {
+        headers: { 'accept-language': 'nb-NO' }
+      }),
+      async () => new Response('asset')
+    )
+    expect(await response.text()).toBe('asset')
+    expect(response.headers.has('content-language')).toBe(false)
+    expect(response.headers.has('set-cookie')).toBe(false)
+  })
 })

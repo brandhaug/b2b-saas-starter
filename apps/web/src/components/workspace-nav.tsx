@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import { BoxesIcon, ChevronsUpDownIcon } from 'lucide-react'
+import { ChevronsUpDownIcon } from 'lucide-react'
 import { adminSystemRole, viewerCan, type Viewer } from '@/lib/permissions'
 import { type SidebarWorkspace } from '@/lib/workspace-directory'
 import { WorkspaceSwitcher } from '@/components/workspace-switcher'
@@ -108,9 +108,13 @@ export function WorkspaceNav({
         onClick={onNavigate}
         className="flex items-center gap-2 font-semibold"
       >
-        <span className="grid size-8 place-items-center rounded-md bg-primary text-primary-foreground">
-          <BoxesIcon className="size-4" />
-        </span>
+        <img
+          src="/assets/starter-logo.png"
+          alt=""
+          width={40}
+          height={40}
+          className="size-10 shrink-0"
+        />
         B2B SaaS Starter
       </Link>
       {/* The switcher sits above the nav on every surface; the mobile sheet
