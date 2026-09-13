@@ -642,6 +642,30 @@ export function developerPlatformContractCases(
         ).length
         expect(auditsAfter).toBe(auditsBefore + 1)
 
+        const stable = yield* webhooks.replayDelivery({
+          deliveryId: 'whd_contract_failed',
+          replayDeliveryId: 'whr_contract_replay',
+          expectedEndpointUrl: endpoint.url,
+          expectedStatus: 'dead_lettered'
+        })
+        const stableAgain = yield* webhooks.replayDelivery({
+          deliveryId: 'whd_contract_failed',
+          replayDeliveryId: 'whr_contract_replay',
+          expectedEndpointUrl: endpoint.url,
+          expectedStatus: 'dead_lettered'
+        })
+        expect(stableAgain.deliveryId).toBe(stable.deliveryId)
+        expect(
+          (yield* webhooks.listDeliveries({ endpointId: endpoint.id })).filter(
+            (row) => row.id === stable.deliveryId
+          )
+        ).toHaveLength(1)
+        const inspected = yield* webhooks.inspectDelivery({
+          deliveryId: 'whd_contract_failed'
+        })
+        expect(inspected.delivery.id).toBe('whd_contract_failed')
+        expect(inspected.endpoint.url).toBe(endpoint.url)
+
         // A delivered row offers no replay, and a foreign id reads as not found.
         const deliveredOutcome = yield* Effect.exit(
           webhooks.replayDelivery({ deliveryId: replayed.deliveryId })

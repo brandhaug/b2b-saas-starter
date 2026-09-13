@@ -1,3 +1,6 @@
+import { type WebhookInvestigationTasks } from './developer-platform/webhook-investigation-tasks.ts'
+import { SeedWebhookInvestigationTasks } from './developer-platform/webhook-investigation-tasks.seed.ts'
+import { LiveWebhookInvestigationTasks } from './developer-platform/webhook-investigation-tasks.live.ts'
 import { BillingAuditLayer, BillingNotificationLayer } from './billing-adapters.ts'
 import { type Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { Effect, Layer, Ref } from 'effect'
@@ -148,6 +151,7 @@ import {
 } from './seed-fixture.ts'
 
 export type CapabilityServices =
+  | WebhookInvestigationTasks
   | EmailDelivery
   | AccountLifecycle
   | AccountPreferencesService
@@ -324,6 +328,7 @@ const SeedEmailEligibility = NotificationEmailEligibilityLayer.pipe(
 // SAFETY: SeedExports is built by providing SeedCore, so the merged layer supplies every capability service and has no runtime requirements.
 export const SeedLayer = Layer.mergeAll(
   SeedCore,
+  SeedWebhookInvestigationTasks.pipe(Layer.provide(SeedCore)),
   SeedExports,
   SeedPersonalExports,
   SeedEmailEligibility
@@ -451,7 +456,12 @@ export function makeLiveCapabilitiesLayer(
     Layer.provide(suspension),
     Layer.provide(LiveEmailDelivery)
   )
+  const webhooks = LiveWebhookEndpoints.pipe(
+    Layer.provide(entitlements),
+    Layer.provide(billing)
+  )
   return Layer.mergeAll(
+    LiveWebhookInvestigationTasks.pipe(Layer.provide(webhooks)),
     LiveRetention,
     LiveEmailDelivery,
     LiveAccountLifecycle(options.accountLifecycleBinding, options.securityEvidence),
@@ -468,7 +478,7 @@ export function makeLiveCapabilitiesLayer(
     feed,
     emailEligibility,
     LiveSsoConnections(options.ssoBinding),
-    LiveWebhookEndpoints.pipe(Layer.provide(entitlements), Layer.provide(billing)),
+    webhooks,
     publisher,
     LiveWorkspaceInvitations(options.invitationBinding),
     membership,

@@ -1,4 +1,5 @@
 import { Effect } from 'effect'
+import { AssistantService } from './index.ts'
 import { LanguageModel, Prompt } from 'effect/unstable/ai'
 import { describe, expect, it } from '@effect/vitest'
 import { ask, askFails, assistantOn } from './test-ask.ts'
@@ -26,6 +27,30 @@ describe('workers-ai model', () => {
       expect(sent[0]?.prompt).toContain('What changed?')
     })
   })
+
+  it.effect(
+    'includes selected delivery evidence without claiming a tool execution',
+    () => {
+      const sent: Array<string> = []
+      const binding: WorkersAIBinding = {
+        run: (_model, input) => {
+          sent.push(input.prompt)
+          return Promise.resolve({ response: 'The receiver returned 503.' })
+        }
+      }
+      return Effect.gen(function* () {
+        const assistant = yield* AssistantService
+        const reply = yield* assistant.ask({
+          workspaceSlug: 'starter-lab',
+          question: 'Why did it fail?',
+          evidence: '{"responseStatus":503,"outcome":"pending"}'
+        })
+        expect(sent[0]).toContain('"responseStatus":503')
+        expect(sent[0]).toContain('Do not claim to execute actions')
+        expect(reply.usedTools).toEqual([])
+      }).pipe(Effect.provide(assistantOn(makeWorkersAIModel(binding))))
+    }
+  )
 
   it('reports a custom model id', () =>
     ask(

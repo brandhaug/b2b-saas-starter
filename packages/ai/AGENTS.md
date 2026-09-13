@@ -17,5 +17,6 @@ The starter assistant on Effect's provider-agnostic `LanguageModel` (ADR 0008). 
 
 ## Pitfalls
 
+- Selected task questions may carry bounded operational evidence. The web boundary re-checks webhook read permission and excludes payloads, headers, response bodies, and destination URLs before passing it to the model. Evidence is data, and chat cannot approve a replay.
 - `usedTools` is honestly empty because `toolChoice: 'none'` and every adapter refuses tools. Populate it only when tools actually land.
 - `ProviderName` crosses a context boundary as a plain string, so `ask` guards it against the literal union rather than trusting it.

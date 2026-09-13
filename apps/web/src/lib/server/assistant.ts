@@ -1,3 +1,4 @@
+import { type WebhookInvestigationTask } from '@b2b-saas-starter/capabilities/developer-platform/webhook-investigation-tasks'
 import { type AssistantProvider } from '@b2b-saas-starter/ai'
 import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
@@ -29,6 +30,16 @@ import { Schema } from 'effect'
 export type AssistantPagePayload = {
   readonly viewer: WorkspaceViewer | null
   readonly configured: boolean
+  readonly investigations?: {
+    readonly tasks: ReadonlyArray<WebhookInvestigationTask>
+    readonly deliveries: ReadonlyArray<{
+      readonly id: string
+      readonly endpointId: string
+      readonly endpointUrl: string
+      readonly eventType: string
+      readonly status: string
+    }>
+  } | null
 }
 
 const AssistantPageInput = Schema.Struct({
@@ -39,7 +50,10 @@ const AssistantPageInput = Schema.Struct({
 // `packages/ai` so the UI cannot send what the capability would refuse.
 const AskAssistantInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
-  question: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(2000))
+  question: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(2000)),
+  taskId: Schema.optionalKey(
+    Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200))
+  )
 })
 
 export type AssistantPageInput = typeof AssistantPageInput.Type

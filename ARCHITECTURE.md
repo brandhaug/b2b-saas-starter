@@ -55,6 +55,28 @@ while dispatch eligibility considers enabled endpoints. Lifecycle and audit/outb
 commits do not wait for notice delivery. See [billing decisions](docs/adr/0076-billing-lifecycle-and-entitlement-decisions.md)
 and [operator procedures](docs/billing-operator-runbook.md).
 
+## Assistant tasks
+
+The assistant supports saved webhook investigations alongside text questions.
+`WebhookInvestigationTasks` in capabilities reads delivery evidence, records a
+finding, and proposes replay for exhausted recoverable failures. The web boundary
+requires assistant and webhook read permissions, and re-checks replay permission
+on approval. A conditional task transition records approval or cancellation with
+its audit event. A stable replay identity connects approval to the existing webhook
+queue and delivery evidence. Closing the assistant does not stop an enqueued replay.
+
+The task UI shows evidence, exact approval, recent tasks and observed results.
+Outcomes come from delivery records, including a distinct pending state and an
+unavailable state when evidence has expired. The bounded checks work without a
+model. When a provider is configured, chat can explain a selected task using
+allowlisted operational evidence. Models receive no webhook payloads, request
+headers, response bodies or destination URLs through this path.
+
+This is the first domain-specific execution example. It uses explicit application
+steps and approval rather than general model-selected tool execution. The text
+model adapters still refuse tools and structured output. Local D1 persists tasks
+without a model provider; replay dispatch requires the webhook queue binding.
+
 ## Data stores
 
 - D1 holds application and authentication state for every Workspace. Restores affect the whole service.

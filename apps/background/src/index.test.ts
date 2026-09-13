@@ -92,6 +92,7 @@ function stubEndpoints(
     listDeliveryAttempts: () => Effect.die('unused in delivery tests'),
     cleanupDeliveryHistory: () => Effect.die('unused in delivery tests'),
     listDeliveries: () => Effect.die('unused in delivery tests'),
+    inspectDelivery: () => Effect.die('unused in delivery tests'),
     listGlobalDeliveries: () => Effect.die('unused in delivery tests'),
     replayDeliveryAsAdmin: () => Effect.die('unused in delivery tests'),
     isDeliverySettled: () => Effect.succeed(false),

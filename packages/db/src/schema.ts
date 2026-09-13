@@ -530,6 +530,7 @@ export const webhookDeliveries = sqliteTable(
     lastAttemptAt: text('last_attempt_at'),
     nextAttemptAt: text('next_attempt_at'),
     responseStatus: integer('response_status'),
+    approvedEndpointUrl: text('approved_endpoint_url'),
     // Operator tooling: the event payload at rest so a failed delivery can be
     // replayed verbatim, the request headers and a truncated response body
     // from the latest attempt, and the delivery this one was replayed from.
@@ -584,6 +585,30 @@ export const webhookDeliveryAttempts = sqliteTable(
     uniqueIndex('webhook_delivery_terminal_identity_idx')
       .on(table.deliveryId)
       .where(sql`${table.phase} = 'terminal'`)
+  ]
+)
+
+export const webhookInvestigationTasks = sqliteTable(
+  'webhook_investigation_tasks',
+  {
+    id: id(),
+    workspaceId: workspaceRef(),
+    status: text('status', {
+      enum: ['proposed', 'approved', 'cancelled', 'completed']
+    }).notNull(),
+    record: text('record', { mode: 'json' }).$type<JsonObject>().notNull(),
+    replayDeliveryId: text('replay_delivery_id'),
+    transitionId: text('transition_id'),
+    createdAt: isoCreatedAt(),
+    updatedAt: text('updated_at').notNull()
+  },
+  (table) => [
+    index('webhook_investigation_tasks_workspace_idx').on(
+      table.workspaceId,
+      table.createdAt,
+      table.id
+    ),
+    uniqueIndex('webhook_investigation_tasks_replay_idx').on(table.replayDeliveryId)
   ]
 )
 

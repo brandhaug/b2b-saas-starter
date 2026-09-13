@@ -222,23 +222,28 @@ export const LiveWebhookEndpoints: Layer.Layer<
       readonly workspaceId: string
       readonly plan: PendingDispatchPlan
       readonly auditEvent?: RecordAuditEventInput | undefined
+      readonly approvedEndpointUrl?: string | undefined
     }) {
       return Effect.gen(function* () {
         const now = yield* DateTime.now
-        const insert = db.insert(webhookDeliveries).values({
-          id: input.deliveryId,
-          endpointId: input.plan.endpointId,
-          eventType: input.plan.eventType,
-          status: input.plan.status,
-          attempts: input.plan.attempts,
-          lastAttemptAt: DateTime.formatIso(now),
-          nextAttemptAt: input.plan.nextAttemptAt,
-          responseStatus: input.plan.responseStatus,
-          payload: input.plan.payload,
-          requestHeaders: null,
-          responseBody: null,
-          replayedFrom: input.plan.replayedFrom
-        })
+        const insert = db
+          .insert(webhookDeliveries)
+          .values({
+            id: input.deliveryId,
+            endpointId: input.plan.endpointId,
+            eventType: input.plan.eventType,
+            status: input.plan.status,
+            attempts: input.plan.attempts,
+            lastAttemptAt: DateTime.formatIso(now),
+            nextAttemptAt: input.plan.nextAttemptAt,
+            responseStatus: input.plan.responseStatus,
+            payload: input.plan.payload,
+            requestHeaders: null,
+            responseBody: null,
+            replayedFrom: input.plan.replayedFrom,
+            approvedEndpointUrl: input.approvedEndpointUrl ?? null
+          })
+          .onConflictDoNothing()
         if (input.auditEvent === undefined) {
           yield* unavailable(insert)
           return
@@ -246,7 +251,10 @@ export const LiveWebhookEndpoints: Layer.Layer<
         yield* auditedMutation({
           matched: Effect.succeed(true),
           auditEvent: input.auditEvent,
-          write: () => [insert]
+          write: () => [insert],
+          // The audit immediately follows this insert in one D1 batch. A duplicate
+          // stable replay identity changes zero rows and must record no new replay.
+          transition: { condition: sql`changes() = 1`, alongside: [] }
         })
       })
     }
@@ -395,6 +403,46 @@ export const LiveWebhookEndpoints: Layer.Layer<
               )
               .limit(DELIVERIES_PAGE_SIZE)
           )
+        }),
+      inspectDelivery: (input) =>
+        Effect.gen(function* () {
+          const ctx = yield* WorkspaceContext
+          const rows = yield* unavailable(
+            db
+              .select({
+                delivery: webhookDeliveries,
+                endpoint: webhookEndpoints
+              })
+              .from(webhookDeliveries)
+              .innerJoin(
+                webhookEndpoints,
+                eq(webhookEndpoints.id, webhookDeliveries.endpointId)
+              )
+              .where(
+                and(
+                  eq(webhookDeliveries.id, input.deliveryId),
+                  eq(webhookEndpoints.workspaceId, ctx.workspace.id)
+                )
+              )
+              .limit(1)
+          )
+          const row = rows[0]
+          if (!row) {
+            return yield* Effect.fail(
+              new WebhookDeliveryNotFound({ deliveryId: input.deliveryId })
+            )
+          }
+          const endpoint = yield* endpointProjection(row.endpoint.id, ctx.workspace.id)
+          if (endpoint === null) {
+            return yield* new WebhookDeliveryNotFound({ deliveryId: input.deliveryId })
+          }
+          return {
+            endpoint,
+            delivery: row.delivery,
+            attempts: yield* history.listDeliveryAttempts({
+              deliveryId: input.deliveryId
+            })
+          }
         }),
       listGlobalDeliveries: Effect.fn('WebhookEndpoints.listGlobalDeliveries')(
         function* (input) {
@@ -591,7 +639,8 @@ export const LiveWebhookEndpoints: Layer.Layer<
                 eventType: webhookDeliveries.eventType,
                 status: webhookDeliveries.status,
                 payload: webhookDeliveries.payload,
-                enabled: webhookEndpoints.enabled
+                enabled: webhookEndpoints.enabled,
+                endpointUrl: webhookEndpoints.url
               })
               .from(webhookDeliveries)
               .innerJoin(
@@ -612,6 +661,26 @@ export const LiveWebhookEndpoints: Layer.Layer<
               new WebhookDeliveryNotFound({ deliveryId: input.deliveryId })
             )
           }
+          if (
+            input.expectedEndpointUrl !== undefined &&
+            source.endpointUrl !== input.expectedEndpointUrl
+          ) {
+            return yield* Effect.fail(
+              new WebhookDispatchRejected({
+                reason: 'endpoint changed since investigation'
+              })
+            )
+          }
+          if (
+            input.expectedStatus !== undefined &&
+            source.status !== input.expectedStatus
+          ) {
+            return yield* Effect.fail(
+              new WebhookDispatchRejected({
+                reason: 'delivery status changed since investigation'
+              })
+            )
+          }
           if (!isReplayableDeliveryStatus(source.status)) {
             return yield* Effect.fail(
               new WebhookDispatchRejected({
@@ -624,11 +693,12 @@ export const LiveWebhookEndpoints: Layer.Layer<
               new WebhookDispatchRejected({ reason: 'endpoint is disabled' })
             )
           }
-          const deliveryId = yield* newCapabilityId('whd')
+          const deliveryId = input.replayDeliveryId ?? (yield* newCapabilityId('whd'))
           const payload = source.payload
           yield* recordOperatorDispatch({
             deliveryId,
             workspaceId: ctx.workspace.id,
+            approvedEndpointUrl: input.expectedEndpointUrl,
             plan: planReplayedDelivery({
               id: source.id,
               endpointId: source.endpointId,
@@ -649,6 +719,32 @@ export const LiveWebhookEndpoints: Layer.Layer<
               }
             }
           })
+          const reserved = yield* unavailable(
+            db
+              .select({
+                endpointId: webhookDeliveries.endpointId,
+                replayedFrom: webhookDeliveries.replayedFrom,
+                approvedEndpointUrl: webhookDeliveries.approvedEndpointUrl,
+                status: webhookDeliveries.status
+              })
+              .from(webhookDeliveries)
+              .where(eq(webhookDeliveries.id, deliveryId))
+              .limit(1)
+          )
+          const replay = reserved[0]
+          if (
+            !replay ||
+            replay.endpointId !== source.endpointId ||
+            replay.replayedFrom !== source.id ||
+            replay.approvedEndpointUrl !== (input.expectedEndpointUrl ?? null)
+          ) {
+            return yield* new WebhookDispatchRejected({
+              reason: 'replay identity does not match the approved delivery'
+            })
+          }
+          if (replay.status !== 'pending') {
+            return { deliveryId }
+          }
           // The enqueue rides after the row: a queue outage fails the replay
           // visibly (`CapabilityUnavailable`) instead of leaving the operator
           // believing it was sent. The pending row stays until they retry.
@@ -778,7 +874,8 @@ export const LiveWebhookEndpoints: Layer.Layer<
               .select({
                 id: webhookDeliveries.id,
                 eventType: webhookDeliveries.eventType,
-                payload: webhookDeliveries.payload
+                payload: webhookDeliveries.payload,
+                approvedEndpointUrl: webhookDeliveries.approvedEndpointUrl
               })
               .from(webhookDeliveries)
               .where(
@@ -790,7 +887,11 @@ export const LiveWebhookEndpoints: Layer.Layer<
               .limit(1)
           )
           const queued = delivery[0]
-          if (!queued) {
+          if (
+            !queued ||
+            (queued.approvedEndpointUrl !== null &&
+              queued.approvedEndpointUrl !== endpoint.url)
+          ) {
             return null
           }
           const allowed = yield* entitlements.isActiveForWorkspace({

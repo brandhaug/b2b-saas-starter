@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -6,162 +6,170 @@ import { PageHeader } from '@/components/page/page-header'
 import { Panel } from '@/components/page/panel'
 import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
 import { WorkspaceShell } from '@/components/workspace-shell'
+import { useServerAction } from '@/hooks/use-server-action'
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { viewerCan } from '@/lib/permissions'
 import { Spinner } from '@/components/ui/spinner'
-import { Empty, EmptyDescription, EmptyHeader } from '@/components/ui/empty'
 import {
   type AskAssistantOutcome,
   type AssistantPagePayload
 } from '@/lib/server/assistant'
+import {
+  WorkspaceAssistantInvestigation,
+  type AssistantInvestigationPorts
+} from './workspace-assistant-investigation'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
-/**
- * The one server call this page makes, as a port. Injected rather than
- * imported at the call site so a test drives the transcript with a real
- * function of this shape instead of replacing the module it lives in.
- */
 export type AskAssistant = (input: {
-  readonly data: { readonly workspaceSlug: string; readonly question: string }
+  readonly data: {
+    readonly workspaceSlug: string
+    readonly question: string
+    readonly taskId?: string
+  }
 }) => Promise<AskAssistantOutcome>
-
-type AssistantPageProvider = 'workers-ai' | 'openai-compatible' | 'mock'
-
-const PROVIDER_LABELS = {
-  'workers-ai': 'Workers AI',
-  'openai-compatible': 'OpenAI-compatible',
-  mock: 'Mock provider'
-} satisfies Record<AssistantPageProvider, string>
-
 type TranscriptEntry = {
   readonly id: string
   readonly role: 'user' | 'assistant'
   readonly text: string
-  /** Set on assistant entries that carry a real provider reply. */
-  readonly provider: AssistantPageProvider | null
+  readonly provider: 'workers-ai' | 'openai-compatible' | 'mock' | null
+}
+const providerLabels = {
+  'workers-ai': 'Workers AI',
+  'openai-compatible': 'OpenAI-compatible',
+  mock: 'Mock provider'
 }
 
-function entry(
-  role: TranscriptEntry['role'],
-  text: string,
-  provider: AssistantPageProvider | null = null
-): TranscriptEntry {
-  return { id: crypto.randomUUID(), role, text, provider }
-}
-
-function outcomeToEntry(outcome: AskAssistantOutcome): TranscriptEntry {
-  return outcome.ok
-    ? entry('assistant', outcome.answer, outcome.provider)
-    : entry('assistant', outcome.message)
-}
-
-function TranscriptBody({
-  canUseAssistant,
-  transcript
+function Transcript({
+  entries,
+  enabled
 }: {
-  readonly canUseAssistant: boolean
-  readonly transcript: ReadonlyArray<TranscriptEntry>
+  readonly entries: ReadonlyArray<TranscriptEntry>
+  readonly enabled: boolean
 }) {
-  if (transcript.length > 0) {
-    return (
-      // `aria-live`: the reply arrives long after the submit, and without a
-      // live region it lands silently for a screen reader.
-      <ol className="grid gap-3" aria-label={m.conversation()} aria-live="polite">
-        {transcript.map((item) => (
-          <TranscriptBubble key={item.id} item={item} />
-        ))}
-      </ol>
-    )
+  if (!entries.length) {
+    return enabled ? (
+      <p className="text-sm text-muted-foreground">{m.assistant_question_empty()}</p>
+    ) : null
   }
-  if (canUseAssistant) {
-    return (
-      <p className="text-muted-foreground text-sm">{m.assistant_question_empty()}</p>
-    )
-  }
-  return null
-}
-
-function TranscriptBubble({ item }: { readonly item: TranscriptEntry }) {
-  const isUser = item.role === 'user'
   return (
-    // `min-w-0` plus `wrap-anywhere`: a pasted URL or token in a message has
-    // no break opportunity, and would otherwise stretch the transcript column.
-    <li className="grid min-w-0 gap-1">
-      <div className="text-muted-foreground text-xs font-medium">
-        {isUser ? m.assistant_you() : m.assistant_label()}
-      </div>
-      <div
-        className={
-          isUser
-            ? 'rounded-md bg-muted px-3 py-2 text-sm whitespace-pre-wrap wrap-anywhere'
-            : 'rounded-md border border-border px-3 py-2 text-sm whitespace-pre-wrap wrap-anywhere'
-        }
-      >
-        {item.text}
-        {item.provider ? (
-          <span className="text-muted-foreground mt-2 block text-xs">
-            {PROVIDER_LABELS[item.provider]}
-          </span>
-        ) : null}
-      </div>
-    </li>
+    <ol className="grid gap-3" aria-label={m.conversation()} aria-live="polite">
+      {entries.map((item) => (
+        <li key={item.id} className="grid min-w-0 gap-1">
+          <div className="text-xs font-medium text-muted-foreground">
+            {item.role === 'user' ? m.assistant_you() : m.assistant_label()}
+          </div>
+          <div
+            className={
+              item.role === 'user'
+                ? 'rounded-md bg-muted px-3 py-2 text-sm whitespace-pre-wrap wrap-anywhere'
+                : 'rounded-md border border-border px-3 py-2 text-sm whitespace-pre-wrap wrap-anywhere'
+            }
+          >
+            {item.text}
+            {item.provider ? (
+              <span className="mt-2 block text-xs text-muted-foreground">
+                {providerLabels[item.provider]}
+              </span>
+            ) : null}
+          </div>
+        </li>
+      ))}
+    </ol>
   )
 }
 
-/**
- * The per-workspace assistant chat. One question in flight at a time: the
- * submit button disables while the server function runs, and both sides of an
- * outcome land in the transcript as values — `ok: false` renders its honest
- * message inline instead of failing the page.
- */
-export function WorkspaceAssistantPage({
-  workspaceSlug,
-  data,
-  ask,
-  systemRole
-}: {
+type AssistantPageProps = {
   readonly workspaceSlug: string
   readonly data: AssistantPagePayload
   readonly ask: AskAssistant
-  /** The signed-in user's Better Auth system role, for the shell's admin link. */
-  readonly systemRole?: string | null
-}) {
-  const [question, setQuestion] = useState('')
-  const [pending, setPending] = useState(false)
-  const [transcript, setTranscript] = useState<ReadonlyArray<TranscriptEntry>>([])
+  readonly systemRole?: string | null | undefined
+  readonly investigation?: AssistantInvestigationPorts | undefined
+  readonly selectedDeliveryId?: string | undefined
+  readonly selectedTaskId?: string | undefined
+  readonly onSelectTask?: ((taskId: string) => void) | undefined
+}
 
-  // Presentation gate, mirroring the loader's hard gate: when no provider is
-  // configured the form is absent and the honest copy stands in for it.
+export function WorkspaceAssistantPage(props: AssistantPageProps) {
+  return (
+    <AssistantPage
+      key={`${props.workspaceSlug}:${props.selectedTaskId ?? ''}:${props.selectedDeliveryId ?? ''}`}
+      {...props}
+    />
+  )
+}
+
+function AssistantPage({
+  workspaceSlug,
+  data,
+  ask,
+  systemRole,
+  investigation,
+  selectedDeliveryId,
+  selectedTaskId,
+  onSelectTask
+}: AssistantPageProps) {
+  const [activeTaskId, setActiveTaskId] = useState(
+    selectedTaskId ??
+      (selectedDeliveryId
+        ? investigation?.tasks.find(
+            (task) => task.sourceDeliveryId === selectedDeliveryId
+          )?.id
+        : investigation?.tasks[0]?.id)
+  )
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
+  function selectTask(taskId: string) {
+    setActiveTaskId(taskId)
+    onSelectTask?.(taskId)
+  }
+  const [question, setQuestion] = useState('')
+  const action = useServerAction(ask, {
+    failureMessage: m.assistant_unreachable(),
+    invalidate: false
+  })
+  const pending = action.pending
+  const [transcript, setTranscript] = useState<ReadonlyArray<TranscriptEntry>>([])
   const canUseAssistant =
     data.configured && viewerCan(data.viewer, { assistant: ['read'] })
-
   async function submit() {
     const trimmed = question.trim()
-    if (trimmed.length === 0 || pending) {
+    if (!trimmed || pending) {
       return
     }
-    setPending(true)
     setQuestion('')
-    setTranscript((entries) => [...entries, entry('user', trimmed)])
-    // The ask port resolves with an outcome value (both sides are values, not
-    // rejections), but a transport-level rejection still has to re-enable the
-    // form — hence the catch that degrades into a transcript entry.
-    const outcomeOrRejection = await ask({
-      data: { workspaceSlug, question: trimmed }
-    }).then(
-      (outcome) => outcome,
-      () => null
-    )
-    setPending(false)
-    // `null` is the transport-level rejection branch: degrade into a
-    // transcript entry instead of leaving the question hanging.
-    setTranscript((entries) => [
-      ...entries,
-      outcomeOrRejection === null
-        ? entry('assistant', m.assistant_unreachable())
-        : outcomeToEntry(outcomeOrRejection)
+    setTranscript((items) => [
+      ...items,
+      { id: crypto.randomUUID(), role: 'user', text: trimmed, provider: null }
     ])
+    const request =
+      activeTaskId === undefined
+        ? { workspaceSlug, question: trimmed }
+        : { workspaceSlug, question: trimmed, taskId: activeTaskId }
+    const response = await action.runAsync({ data: request })
+    if (!mounted.current) {
+      return
+    }
+    const result = response.ok ? response.value : null
+    const item: TranscriptEntry = result?.ok
+      ? {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          text: result.answer,
+          provider: result.provider
+        }
+      : {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          text: result?.message ?? m.assistant_unreachable(),
+          provider: null
+        }
+    setTranscript((items) => [...items, item])
   }
-
   return (
     <WorkspaceShell
       workspaceSlug={workspaceSlug}
@@ -176,14 +184,12 @@ export function WorkspaceAssistantPage({
       <Panel
         title={m.nav_assistant()}
         actions={
-          canUseAssistant ? (
-            <Badge variant="info">{m.workspace_connected()}</Badge>
-          ) : (
-            <Badge variant="outline">{m.workspace_not_enabled()}</Badge>
-          )
+          <Badge variant={canUseAssistant ? 'info' : 'outline'}>
+            {canUseAssistant ? m.workspace_connected() : m.workspace_not_enabled()}
+          </Badge>
         }
       >
-        <TranscriptBody canUseAssistant={canUseAssistant} transcript={transcript} />
+        <Transcript entries={transcript} enabled={canUseAssistant} />
         {canUseAssistant ? (
           <form
             className="grid gap-2"
@@ -192,30 +198,52 @@ export function WorkspaceAssistantPage({
               void submit()
             }}
           >
-            <Textarea
-              aria-label={m.your_question()}
-              value={question}
-              onChange={(event) => setQuestion(event.target.value)}
-              maxLength={2000}
-              rows={3}
-              placeholder={m.assistant_placeholder()}
-              disabled={pending}
-            />
+            {activeTaskId ? (
+              <p className="font-mono text-xs text-muted-foreground">
+                {m.assistant_task_context({ taskId: activeTaskId })}
+              </p>
+            ) : null}
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="assistant-question">
+                  {m.your_question()}
+                </FieldLabel>
+                <Textarea
+                  id="assistant-question"
+                  aria-label={m.your_question()}
+                  value={question}
+                  onChange={(event) => setQuestion(event.target.value)}
+                  maxLength={2000}
+                  rows={3}
+                  placeholder={m.assistant_placeholder()}
+                  disabled={pending}
+                />
+              </Field>
+            </FieldGroup>
             <div className="flex justify-end">
-              <Button type="submit" disabled={pending || question.trim().length === 0}>
+              <Button type="submit" disabled={pending || !question.trim()}>
                 {pending ? <Spinner data-icon="inline-start" /> : null}
                 {m.ask_action()}
               </Button>
             </div>
           </form>
         ) : (
-          <Empty>
-            <EmptyHeader>
-              <EmptyDescription>{m.server_assistant_unconfigured()}</EmptyDescription>
-            </EmptyHeader>
-          </Empty>
+          <p className="text-sm text-muted-foreground">
+            {m.assistant_chat_unavailable()}
+          </p>
         )}
       </Panel>
+      {investigation ? (
+        <WorkspaceAssistantInvestigation
+          workspaceSlug={workspaceSlug}
+          investigation={investigation}
+          modelConfigured={data.configured}
+          canReplay={viewerCan(data.viewer, { webhook: ['replay'] })}
+          selectedDeliveryId={selectedDeliveryId}
+          selectedTaskId={selectedTaskId}
+          onSelectTask={selectTask}
+        />
+      ) : null}
     </WorkspaceShell>
   )
 }

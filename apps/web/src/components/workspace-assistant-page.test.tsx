@@ -32,7 +32,7 @@ describe('WorkspaceAssistantPage', () => {
   it('hides the form and shows honest copy when no provider is configured', async () => {
     ask.mockReturnValue(new Promise(() => {}))
     await renderPage(unconfigured)
-    screen.getByText(m.server_assistant_unconfigured())
+    screen.getByText(m.assistant_chat_unavailable())
     expect(screen.queryByLabelText('Your question')).toBeNull()
     expect(ask).not.toHaveBeenCalled()
   })
@@ -49,13 +49,59 @@ describe('WorkspaceAssistantPage', () => {
       target: { value: 'What changed?' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Ask' }))
-    expect(ask).toHaveBeenCalledWith({
-      data: { workspaceSlug: 'starter-lab', question: 'What changed?' }
-    })
+    await waitFor(() =>
+      expect(ask).toHaveBeenCalledWith({
+        data: { workspaceSlug: 'starter-lab', question: 'What changed?' }
+      })
+    )
     await waitFor(() => {
       screen.getByText('Two webhooks were updated this week.')
     })
     screen.getByText('Workers AI')
+  })
+
+  it('clears the pending action after a transport failure', async () => {
+    ask.mockRejectedValue(new Error('offline'))
+    await renderPage(configured)
+    fireEvent.change(screen.getByLabelText('Your question'), {
+      target: { value: 'Hi' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Ask' }))
+    await waitFor(() => screen.getByText(m.assistant_unreachable()))
+    expect(screen.getByLabelText('Your question')).toHaveProperty('disabled', false)
+    fireEvent.change(screen.getByLabelText('Your question'), {
+      target: { value: 'Try again' }
+    })
+    expect(screen.getByRole('button', { name: 'Ask' })).toHaveProperty(
+      'disabled',
+      false
+    )
+  })
+
+  it('sends the selected saved investigation as model context', async () => {
+    ask.mockResolvedValue({ ok: false, reason: 'unavailable', message: 'Unavailable' })
+    await renderWithRouter(
+      <WorkspaceAssistantPage
+        workspaceSlug="starter-lab"
+        data={configured}
+        ask={ask}
+        selectedTaskId="task_selected"
+      />,
+      { path: '/workspaces/starter-lab/assistant' }
+    )
+    fireEvent.change(screen.getByLabelText('Your question'), {
+      target: { value: 'Explain the evidence' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Ask' }))
+    await waitFor(() =>
+      expect(ask).toHaveBeenCalledWith({
+        data: {
+          workspaceSlug: 'starter-lab',
+          question: 'Explain the evidence',
+          taskId: 'task_selected'
+        }
+      })
+    )
   })
 
   it('renders an unavailable answer inline as the outcome message', async () => {

@@ -1,3 +1,4 @@
+import { seedOperatorDispatch } from './webhook-operator-dispatch.seed.ts'
 import {
   SeedResourceInventory,
   SeedResourceInventoryLayer
@@ -36,7 +37,6 @@ import {
   terminalDeliveryAuditEventType,
   WEBHOOK_FAILURE_AUTO_DISABLE_AT,
   type Json,
-  type PendingDispatchPlan,
   type SeedWebhookDeliveryFixture,
   type WebhookDeliveryStatus
 } from './webhook-delivery-plan.ts'
@@ -448,48 +448,8 @@ export function SeedWebhookEndpoints(
         } satisfies RecordedWebhookAttempt & { readonly deliveryId: string }
       })
 
-      /**
-       * The `pending` row an operator dispatch (replay, test send) starts
-       * from, with its audit event when there is one. The row shape is the
-       * caller's plan, mirroring Live's `recordOperatorDispatch`.
-       */
-      const recordOperatorDispatch = Effect.fnUntraced(function* (input: {
-        readonly deliveryId: string
-        readonly workspaceId: string
-        readonly plan: PendingDispatchPlan
-        readonly auditEventType?: 'webhook.delivery_replayed' | undefined
-      }) {
-        deliveries.push({
-          id: input.deliveryId,
-          endpointId: input.plan.endpointId,
-          workspaceId: input.workspaceId,
-          eventType: input.plan.eventType,
-          status: input.plan.status,
-          attempts: input.plan.attempts,
-          lastAttemptAt: DateTime.formatIso(yield* DateTime.now),
-          nextAttemptAt: input.plan.nextAttemptAt,
-          responseStatus: input.plan.responseStatus,
-          payload: input.plan.payload,
-          requestHeaders: null,
-          responseBody: null,
-          replayedFrom: input.plan.replayedFrom
-        })
-        if (input.auditEventType !== undefined) {
-          yield* audit.record({
-            workspaceId: input.workspaceId,
-            actorUserId: (yield* WorkspaceContext).actor?.userId ?? null,
-            actorType: (yield* WorkspaceContext).actorType,
-            eventType: input.auditEventType,
-            targetType: 'webhook_endpoint',
-            targetId: input.plan.endpointId,
-            metadata: {
-              deliveryId: input.deliveryId,
-              replayedFrom: input.plan.replayedFrom,
-              eventType: input.plan.eventType
-            }
-          })
-        }
-      })
+      const approvedDestinations = new Map<string, string>()
+      const recordOperatorDispatch = yield* seedOperatorDispatch(deliveries)
 
       return {
         listDeliveryAttempts: Effect.fn('WebhookEndpoints.listDeliveryAttempts')(
@@ -654,6 +614,27 @@ export function SeedWebhookEndpoints(
               .slice(0, DELIVERIES_PAGE_SIZE)
               .map(({ workspaceId: _ws, ...row }) => row)
           }),
+        inspectDelivery: (input) =>
+          Effect.gen(function* () {
+            const ctx = yield* WorkspaceContext
+            const delivery = deliveries.find((row) => row.id === input.deliveryId)
+            if (!delivery) {
+              return yield* new WebhookDeliveryNotFound({
+                deliveryId: input.deliveryId
+              })
+            }
+            const endpoint = endpointFor(delivery.endpointId, ctx.workspace.id)
+            if (!endpoint) {
+              return yield* Effect.fail(
+                new WebhookDeliveryNotFound({ deliveryId: input.deliveryId })
+              )
+            }
+            return {
+              endpoint: toProjection(endpoint, deliveries),
+              delivery: { ...delivery },
+              attempts: attempts.filter((row) => row.deliveryId === delivery.id)
+            }
+          }),
         listGlobalDeliveries: (input) =>
           Effect.sync(() =>
             // Newest first on `(lastAttemptAt DESC, id DESC)` — the same
@@ -794,6 +775,16 @@ export function SeedWebhookEndpoints(
                 new WebhookDeliveryNotFound({ deliveryId: input.deliveryId })
               )
             }
+            if (
+              input.expectedStatus !== undefined &&
+              source.status !== input.expectedStatus
+            ) {
+              return yield* Effect.fail(
+                new WebhookDispatchRejected({
+                  reason: 'delivery status changed since investigation'
+                })
+              )
+            }
             if (!isReplayableDeliveryStatus(source.status)) {
               return yield* Effect.fail(
                 new WebhookDispatchRejected({
@@ -807,7 +798,26 @@ export function SeedWebhookEndpoints(
                 new WebhookDispatchRejected({ reason: 'endpoint is disabled' })
               )
             }
-            const deliveryId = yield* newCapabilityId('whd')
+            if (
+              input.expectedEndpointUrl !== undefined &&
+              endpoint.url !== input.expectedEndpointUrl
+            ) {
+              return yield* Effect.fail(
+                new WebhookDispatchRejected({
+                  reason: 'endpoint changed since investigation'
+                })
+              )
+            }
+            const deliveryId = input.replayDeliveryId ?? (yield* newCapabilityId('whd'))
+            const prior = deliveries.find((row) => row.id === deliveryId)
+            if (
+              prior &&
+              approvedDestinations.get(deliveryId) !== input.expectedEndpointUrl
+            ) {
+              return yield* new WebhookDispatchRejected({
+                reason: 'replay identity does not match the approved delivery'
+              })
+            }
             yield* recordOperatorDispatch({
               deliveryId,
               workspaceId: ctx.workspace.id,
@@ -819,6 +829,12 @@ export function SeedWebhookEndpoints(
               }),
               auditEventType: 'webhook.delivery_replayed'
             })
+            if (input.expectedEndpointUrl !== undefined) {
+              approvedDestinations.set(deliveryId, input.expectedEndpointUrl)
+            }
+            if (prior && prior.status !== 'pending') {
+              return { deliveryId }
+            }
             yield* publisher.enqueue({
               endpointId: source.endpointId,
               workspaceId: ctx.workspace.id,
@@ -911,7 +927,12 @@ export function SeedWebhookEndpoints(
         getDispatchTarget: (endpointId, workspaceId, deliveryId) =>
           Effect.gen(function* () {
             const endpoint = endpointFor(endpointId, workspaceId)
-            if (!endpoint || !endpoint.enabled) {
+            if (
+              !endpoint ||
+              !endpoint.enabled ||
+              (approvedDestinations.has(deliveryId) &&
+                approvedDestinations.get(deliveryId) !== endpoint.url)
+            ) {
               return null
             }
             const queued = deliveries.find(
