@@ -1,0 +1,13 @@
+{
+  "auth_design_build_on_proof": "Build on a foundation you can inspect.",
+  "auth_design_brand_description": "A Cloudflare-first B2B SaaS starter with the real workflows to explore: authentication, workspaces, permissions, billing, and audit evidence.",
+  "auth_design_capabilities_label": "Starter capabilities",
+  "auth_design_capability_auth": "Authentication with strong security",
+  "auth_design_capability_workspaces": "Workspace permissions and membership",
+  "auth_design_capability_audit": "Auditable actions and webhooks",
+  "auth_design_capability_cloudflare": "Built for Cloudflare Workers",
+  "auth_design_workspace": "Workspace",
+  "auth_design_reference_preview": "Inside the reference workspace",
+  "auth_design_account_access": "Account access",
+  "auth_design_explore_starter": "Explore the starter"
+}

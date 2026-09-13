@@ -1,3 +1,5 @@
+import { CheckIcon, CircleIcon, XIcon } from 'lucide-react'
+import { EvidenceCode } from '@/components/evidence-code'
 import { statusLabel } from '@/lib/value-labels'
 import {
   type WebhookDelivery,
@@ -54,14 +56,12 @@ export function WebhookDeliveryTimeline({
       </Button>
       {expanded ? (
         <div id={historyId} className="grid min-w-0 gap-3">
-          <div>
-            <p className="mb-1 text-xs font-medium">{m.webhook_payload()}</p>
-            <pre className="overflow-x-auto rounded-md bg-muted p-2 font-mono text-xs break-all whitespace-pre-wrap">
-              {JSON.stringify(delivery.payload, null, 2)}
-            </pre>
-          </div>
+          <EvidenceCode
+            label={m.webhook_payload()}
+            value={JSON.stringify(delivery.payload, null, 2)}
+          />
           {attempts.isPending ? (
-            <output className="text-xs text-muted-foreground">
+            <output className="text-sm text-muted-foreground">
               {m.loading_attempt_history()}
             </output>
           ) : null}
@@ -79,16 +79,22 @@ export function WebhookDeliveryTimeline({
             </div>
           ) : null}
           {attempts.data?.length === 0 ? (
-            <p className="text-xs text-muted-foreground">{m.no_retained_attempts()}</p>
+            <p className="text-sm text-muted-foreground">{m.no_retained_attempts()}</p>
           ) : null}
           {attempts.data ? (
-            <ol
-              aria-label={m.attempt_history()}
-              className="grid gap-3 border-l border-border pl-3"
-            >
+            <ol aria-label={m.attempt_history()} className="grid gap-5">
               {attempts.data.map((attempt) => (
-                <li key={attempt.id} className="grid min-w-0 gap-2">
-                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                <li
+                  key={attempt.id}
+                  className="relative grid min-w-0 gap-2 border-l border-border pl-6 ml-3"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="absolute -left-3 top-0 grid size-6 place-items-center rounded-full border border-border bg-card"
+                  >
+                    <AttemptStatusIcon status={attempt.status} />
+                  </span>
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
                     <span className="font-medium">
                       {attempt.phase === 'terminal'
                         ? m.terminal_outcome()
@@ -104,11 +110,11 @@ export function WebhookDeliveryTimeline({
                       <span className="font-mono">{attempt.durationMs} ms</span>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     {formatTimestampOr(attempt.attemptedAt, '')}
                   </p>
                   {attempt.failureReason === null ? null : (
-                    <p className="text-xs break-words">{attempt.failureReason}</p>
+                    <p className="text-sm break-words">{attempt.failureReason}</p>
                   )}
                   <AttemptEvidence attempt={attempt} />
                 </li>
@@ -122,35 +128,51 @@ export function WebhookDeliveryTimeline({
 }
 
 function AttemptEvidence({ attempt }: { readonly attempt: WebhookDeliveryAttempt }) {
+  if (attempt.requestHeaders === null && attempt.responseBody === null) {
+    return null
+  }
   return (
-    <dl className="grid min-w-0 gap-2 text-xs">
-      {attempt.requestHeaders === null ? null : (
-        <div>
-          <dt className="mb-1 font-medium">{m.webhook_request_headers()}</dt>
-          <dd>
-            <pre className="overflow-x-auto rounded-md bg-muted p-2 font-mono break-all whitespace-pre-wrap">
-              {Object.entries(attempt.requestHeaders)
-                .map(([name, value]) => `${name}: ${value}`)
-                .join('\n')}
-            </pre>
-          </dd>
-        </div>
-      )}
-      {attempt.responseBody === null ? null : (
-        <div>
-          <dt className="mb-1 font-medium">
-            {m.response_body()}{' '}
-            <span className="font-normal text-muted-foreground">
+    <details className="group min-w-0">
+      <summary className="w-fit cursor-pointer py-2 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-2 focus-visible:outline-ring max-md:min-h-11">
+        {m.evidence_attempt_details()}
+      </summary>
+      <div className="grid min-w-0 gap-3 pt-2">
+        {attempt.requestHeaders === null ? null : (
+          <EvidenceCode
+            label={m.webhook_request_headers()}
+            value={Object.entries(attempt.requestHeaders)
+              .map(([name, value]) => `${name}: ${value}`)
+              .join('\n')}
+          />
+        )}
+        {attempt.responseBody === null ? null : (
+          <div className="grid gap-1.5">
+            <EvidenceCode
+              label={m.response_body()}
+              value={
+                attempt.responseBody === '' ? m.empty_value() : attempt.responseBody
+              }
+            />
+            <p className="text-sm text-muted-foreground">
               {m.webhook_bounded_excerpt()}
-            </span>
-          </dt>
-          <dd>
-            <pre className="overflow-x-auto rounded-md bg-muted p-2 font-mono break-all whitespace-pre-wrap">
-              {attempt.responseBody === '' ? m.empty_value() : attempt.responseBody}
-            </pre>
-          </dd>
-        </div>
-      )}
-    </dl>
+            </p>
+          </div>
+        )}
+      </div>
+    </details>
   )
+}
+
+function AttemptStatusIcon({
+  status
+}: {
+  readonly status: WebhookDeliveryAttempt['status']
+}) {
+  if (status === 'delivered') {
+    return <CheckIcon className="size-3 text-status-ok" />
+  }
+  if (status === 'failed') {
+    return <XIcon className="size-3 text-destructive" />
+  }
+  return <CircleIcon className="size-3 text-status-warn" />
 }

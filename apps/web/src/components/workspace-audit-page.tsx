@@ -9,7 +9,6 @@ import {
   EmptyTitle
 } from '@/components/ui/empty'
 import { PageHeader } from '@/components/page/page-header'
-import { Panel } from '@/components/page/panel'
 import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -201,7 +200,7 @@ export function WorkspaceAuditPage({
         title={m.nav_audit_trail()}
         description={m.audit_trail_description()}
       />
-      <Panel title={m.events()} description={m.audit_events_description()}>
+      <section aria-label={m.events()} className="grid gap-4">
         {/* One row model for both tables: the same component renders the admin
             users table, so column treatment and the mono `When` cell cannot drift. */}
         <DataTable
@@ -256,13 +255,19 @@ export function WorkspaceAuditPage({
             </div>
           )}
           {events.length === 0 ? (
-            <EmptyTrail hasFilters={hasFilters || view.filters.length > 0} />
+            <EmptyTrail
+              hasFilters={hasFilters || view.filters.length > 0}
+              onClear={() => applySearch({})}
+            />
           ) : (
             <DataTableContent />
           )}
         </DataTable>
         {events.length > 0 && (
-          <div className="flex items-center justify-end">
+          <div className="flex items-center justify-between gap-4 border-t border-border pt-4">
+            <p className="text-sm text-muted-foreground">
+              {m.audit_events_description()}
+            </p>
             {/* The cursor resumes after the current page in the selected order. */}
             <Button
               variant="outline"
@@ -273,7 +278,7 @@ export function WorkspaceAuditPage({
             </Button>
           </div>
         )}
-      </Panel>
+      </section>
       <AuditEventSheet
         eventId={selectedEventId}
         event={data.selectedEvent}
@@ -283,7 +288,13 @@ export function WorkspaceAuditPage({
   )
 }
 
-function EmptyTrail({ hasFilters }: { readonly hasFilters: boolean }) {
+function EmptyTrail({
+  hasFilters,
+  onClear
+}: {
+  readonly hasFilters: boolean
+  readonly onClear: () => void
+}) {
   return (
     <Empty>
       <EmptyHeader>
@@ -294,6 +305,9 @@ function EmptyTrail({ hasFilters }: { readonly hasFilters: boolean }) {
           <>
             <EmptyTitle>{m.empty_no_events_filters()}</EmptyTitle>
             <EmptyDescription>{m.audit_widen_or_clear()}</EmptyDescription>
+            <Button variant="outline" onClick={onClear}>
+              {m.table_view_clear_all()}
+            </Button>
           </>
         ) : (
           <>

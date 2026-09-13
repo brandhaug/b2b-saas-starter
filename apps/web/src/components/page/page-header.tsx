@@ -21,11 +21,11 @@ export function PageHeader({
   readonly actions?: ReactNode
 }) {
   return (
-    <header className="grid gap-2">
+    <header className="grid gap-3">
       {breadcrumb === undefined ? null : (
         <nav
           aria-label={m.public_knowledge_breadcrumb()}
-          className="text-sm text-muted-foreground [&_a]:underline [&_a]:underline-offset-2 [&_a:hover]:text-foreground"
+          className="text-sm text-muted-foreground [&_a]:underline-offset-4 [&_a:hover]:text-foreground"
         >
           {breadcrumb}
         </nav>
@@ -33,8 +33,11 @@ export function PageHeader({
       <div className="flex flex-wrap items-start justify-between gap-3">
         {/* `title` on the truncated text so the full page name survives
             hover/AT even when the column is too narrow to show it. */}
-        <div className="grid min-w-0 gap-1">
-          <h1 className="truncate text-xl font-semibold" title={title}>
+        <div className="grid min-w-0 gap-2">
+          <h1
+            className="text-2xl font-semibold tracking-tight text-balance"
+            title={title}
+          >
             {title}
           </h1>
           {description === undefined ? null : (

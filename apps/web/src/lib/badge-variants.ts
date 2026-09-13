@@ -6,13 +6,9 @@ import { type Badge } from '@/components/ui/badge'
 export type BadgeVariant = NonNullable<React.ComponentProps<typeof Badge>['variant']>
 
 /**
- * Workspace role → badge variant, the one mapping every surface that renders
- * a role uses (roster and `/admin`'s membership editor). A
- * role is identity, not a status: the status hues (ok/warn/info/destructive)
- * stay reserved for states, mauve stays reserved for emphasis, and the owner
- * — the one role a workspace cannot share, since only owners grant ownership
- * — is the one role that earns the emphasis hue. Admin and member are peers
- * in neutral.
+ * Administrative membership editor role emphasis. Owners are singled out here
+ * because ownership grants deserve attention. Member rosters use neutral role
+ * labels so the person's identity leads the row. Status hues remain for states.
  */
 export function roleVariant(role: WorkspaceRole): BadgeVariant {
   if (role === 'owner') {

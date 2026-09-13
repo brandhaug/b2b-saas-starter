@@ -110,7 +110,7 @@ function RenameForm({
         event.stopPropagation()
         void form.handleSubmit()
       }}
-      className="grid gap-3"
+      className="grid gap-5"
       aria-label={m.workspace_rename()}
     >
       <form.Field
@@ -118,14 +118,25 @@ function RenameForm({
         validators={{ onChange: ({ value }) => validateWorkspaceName(value) }}
       >
         {(field) => (
-          <FormTextField
-            name={field.name}
-            label={m.form_workspace_name()}
-            value={field.state.value}
-            errors={field.state.meta.errors}
-            onBlur={field.handleBlur}
-            onChange={field.handleChange}
-          />
+          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] md:items-start md:gap-8">
+            <div className="grid gap-1">
+              <p className="text-sm font-medium">{m.form_workspace_name()}</p>
+              <p className="text-sm text-muted-foreground">
+                {m.settings_design_workspace_name_hint()}
+              </p>
+            </div>
+            <div className="w-full [&>div>label]:sr-only">
+              <FormTextField
+                name={field.name}
+                label={m.form_workspace_name()}
+                value={field.state.value}
+                errors={field.state.meta.errors}
+                onBlur={field.handleBlur}
+                onChange={field.handleChange}
+                className="w-full"
+              />
+            </div>
+          </div>
         )}
       </form.Field>
       <form.Subscribe
@@ -135,17 +146,19 @@ function RenameForm({
         ]}
       >
         {([canSubmit, name]) => (
-          <Button
-            type="submit"
-            // A no-op save (the current name) does nothing worth a request.
-            disabled={!canSubmit || name.trim() === currentName}
-            className="justify-self-start"
-          >
-            {m.save_name()}
-          </Button>
+          <div className="flex flex-col-reverse gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <ActionFeedback error={submit.error} />
+            <Button
+              type="submit"
+              // A no-op save (the current name) does nothing worth a request.
+              disabled={!canSubmit || name.trim() === currentName}
+              className="sm:ml-auto"
+            >
+              {m.save_name()}
+            </Button>
+          </div>
         )}
       </form.Subscribe>
-      <ActionFeedback error={submit.error} />
     </form>
   )
 }
@@ -175,7 +188,7 @@ function DeleteSection({
   const armed = typed.trim() === workspaceSlug
 
   return (
-    <div className="grid gap-2 rounded-none bg-muted p-4">
+    <div className="grid gap-3 border-t border-border pt-6">
       <p className="text-sm font-medium">{m.workspace_delete()}</p>
       <p className="text-sm text-muted-foreground">
         {m.workspace_delete_description({ name })}

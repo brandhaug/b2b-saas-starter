@@ -180,23 +180,34 @@ export function OnboardingChecklist({
       title={m.setup_workspace()}
       {...(allDone ? { description: m.setup_workspace_complete() } : {})}
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <span className="text-sm tabular-nums text-muted-foreground">
-          {m.onboarding_progress({
+      <div className="grid gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span className="text-sm tabular-nums text-muted-foreground">
+            {m.onboarding_progress({
+              completedCount,
+              totalCount: requiredSteps.length
+            })}
+          </span>
+          {canDismiss ? (
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={dismissal.pending}
+              onClick={() => dismissal.run()}
+            >
+              {m.dismiss_action()}
+            </Button>
+          ) : null}
+        </div>
+        <progress
+          aria-label={m.onboarding_progress({
             completedCount,
             totalCount: requiredSteps.length
           })}
-        </span>
-        {canDismiss ? (
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={dismissal.pending}
-            onClick={() => dismissal.run()}
-          >
-            {m.dismiss_action()}
-          </Button>
-        ) : null}
+          value={completedCount}
+          max={requiredSteps.length}
+          className="h-1.5 w-full accent-primary"
+        />
       </div>
       <ul className="grid gap-2 text-sm">
         {requiredSteps.map((step, index) => {
@@ -263,54 +274,54 @@ export function OnboardingChecklist({
         </div>
       )}
       {canManageWorkspace && (canCreateToken || canCreateWebhook || canReadAudit) ? (
-        <div className="grid gap-2 border-t border-border pt-4 text-sm">
-          <p className="text-muted-foreground">
-            {m.onboarding_optional_integrations()}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {m.onboarding_workflow_guidance()}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            <Link
-              to="/docs/$category/$slug"
-              params={{ category: 'capability-interfaces', slug: 'api-tokens' }}
-              className="underline underline-offset-4 hover:no-underline"
-            >
-              {m.onboarding_api_docs()}
-            </Link>
-          </p>
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
-            {canCreateToken ? (
-              <WorkspaceLink
-                to="/workspaces/$workspaceSlug/api-tokens"
-                search={{ action: 'create' }}
-                workspaceSlug={workspaceSlug}
+        <details className="border-t border-border pt-4 text-sm">
+          <summary className="cursor-pointer font-medium underline-offset-4 hover:underline">
+            {m.onboarding_developer_setup()}
+          </summary>
+          <div className="mt-3 grid gap-2 text-muted-foreground">
+            <p>{m.onboarding_workflow_guidance()}</p>
+            <p>
+              <Link
+                to="/docs/$category/$slug"
+                params={{ category: 'capability-interfaces', slug: 'api-tokens' }}
                 className="underline underline-offset-4 hover:no-underline"
               >
-                {m.onboarding_create_api_token()}
-              </WorkspaceLink>
-            ) : null}
-            {canCreateWebhook ? (
-              <WorkspaceLink
-                to="/workspaces/$workspaceSlug/webhooks"
-                search={{ action: 'create' }}
-                workspaceSlug={workspaceSlug}
-                className="underline underline-offset-4 hover:no-underline"
-              >
-                {m.onboarding_add_webhook_endpoint()}
-              </WorkspaceLink>
-            ) : null}
-            {canReadAudit ? (
-              <WorkspaceLink
-                to="/workspaces/$workspaceSlug/audit"
-                workspaceSlug={workspaceSlug}
-                className="underline underline-offset-4 hover:no-underline"
-              >
-                {m.onboarding_review_audit()}
-              </WorkspaceLink>
-            ) : null}
+                {m.onboarding_api_docs()}
+              </Link>
+            </p>
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
+              {canCreateToken ? (
+                <WorkspaceLink
+                  to="/workspaces/$workspaceSlug/api-tokens"
+                  search={{ action: 'create' }}
+                  workspaceSlug={workspaceSlug}
+                  className="underline underline-offset-4 hover:no-underline"
+                >
+                  {m.onboarding_create_api_token()}
+                </WorkspaceLink>
+              ) : null}
+              {canCreateWebhook ? (
+                <WorkspaceLink
+                  to="/workspaces/$workspaceSlug/webhooks"
+                  search={{ action: 'create' }}
+                  workspaceSlug={workspaceSlug}
+                  className="underline underline-offset-4 hover:no-underline"
+                >
+                  {m.onboarding_add_webhook_endpoint()}
+                </WorkspaceLink>
+              ) : null}
+              {canReadAudit ? (
+                <WorkspaceLink
+                  to="/workspaces/$workspaceSlug/audit"
+                  workspaceSlug={workspaceSlug}
+                  className="underline underline-offset-4 hover:no-underline"
+                >
+                  {m.onboarding_review_audit()}
+                </WorkspaceLink>
+              ) : null}
+            </div>
           </div>
-        </div>
+        </details>
       ) : null}
       {canDismiss || !dismissalHint ? null : (
         <p className="text-xs text-muted-foreground">{dismissalHint}</p>

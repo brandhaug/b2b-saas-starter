@@ -1,0 +1,6 @@
+{
+  "evidence_wrap_lines": "Wrap lines",
+  "evidence_copy_named": "Copy {label}",
+  "evidence_copy_failed": "Could not copy. Select the text to copy it manually.",
+  "evidence_attempt_details": "Request and response"
+}

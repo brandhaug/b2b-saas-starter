@@ -57,36 +57,44 @@ export function WorkspaceDashboardPage({
         title={workspace.name}
         description={m.dashboard_attention_description()}
       />
-      <AttentionFeed
-        workspaceSlug={workspace.slug}
-        items={attentionItems({
-          invitations: data.invitations,
-          apiTokens: data.apiTokens,
-          webhooks,
-          auditEvents: null
-        })}
-      />
-      {/* Derived from live state on every load; renders nothing once an
-          owner or admin dismissed it for the workspace. */}
-      <OnboardingChecklist
-        workspaceSlug={workspace.slug}
-        progress={progress}
-        viewer={viewer}
-        dismissalHint={dismissalHint}
-        {...(ports?.dismissOnboardingChecklist === undefined
-          ? {}
-          : { dismiss: ports.dismissOnboardingChecklist })}
-      />
-      <LiveNotifications
-        workspaceSlug={workspace.slug}
-        fallback={notifications}
-        {...(ports?.listNotifications === undefined
-          ? {}
-          : { listNotifications: ports.listNotifications })}
-        {...(ports?.markNotificationsRead === undefined
-          ? {}
-          : { markRead: ports.markNotificationsRead })}
-      />
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(18rem,0.8fr)] lg:items-start">
+        <div className="grid min-w-0 gap-6 lg:col-start-1 lg:row-start-1">
+          <AttentionFeed
+            workspaceSlug={workspace.slug}
+            items={attentionItems({
+              invitations: data.invitations,
+              apiTokens: data.apiTokens,
+              webhooks,
+              auditEvents: null
+            })}
+          />
+        </div>
+        {/* Derived from live state on every load; renders nothing once an
+            owner or admin dismissed it for the workspace. */}
+        <div className="min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1">
+          <OnboardingChecklist
+            workspaceSlug={workspace.slug}
+            progress={progress}
+            viewer={viewer}
+            dismissalHint={dismissalHint}
+            {...(ports?.dismissOnboardingChecklist === undefined
+              ? {}
+              : { dismiss: ports.dismissOnboardingChecklist })}
+          />
+        </div>
+        <div className="min-w-0 lg:col-start-1 lg:row-start-2">
+          <LiveNotifications
+            workspaceSlug={workspace.slug}
+            fallback={notifications}
+            {...(ports?.listNotifications === undefined
+              ? {}
+              : { listNotifications: ports.listNotifications })}
+            {...(ports?.markNotificationsRead === undefined
+              ? {}
+              : { markRead: ports.markNotificationsRead })}
+          />
+        </div>
+      </div>
     </WorkspaceShell>
   )
 }

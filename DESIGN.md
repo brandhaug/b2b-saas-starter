@@ -26,7 +26,7 @@ Geist handles body text and headings. Geist Mono handles code, identifiers, and 
 | Content                         | Treatment                                                       |
 | ------------------------------- | --------------------------------------------------------------- |
 | Landing hero / section headings | Newsreader, `text-5xl` to `text-6xl` / `text-3xl` to `text-4xl` |
-| Other page titles               | Geist `text-3xl`; workspace shell title `text-xl`               |
+| Other page titles               | Geist `text-3xl`; workspace shell title `text-2xl`              |
 | Article section headings        | `text-xl` h2, `text-base` h3                                    |
 | Card titles                     | Geist `text-lg font-semibold`                                   |
 | Body                            | `text-sm` at every width; long-form prose `text-lg`             |
@@ -39,7 +39,7 @@ Use sentence case. Keep input text at 16px on mobile to avoid focus zoom. Micro 
 
 Use the four-pixel spacing scale through Tailwind utilities. Public layouts cap at `max-w-7xl`, articles at `max-w-3xl`, and workspace forms and overview at `max-w-4xl`. Member, audit, token, and webhook lists use `max-w-7xl` so comparable records have room to align. Sticky content clears the shared header; anchor offsets must leave headings visible.
 
-The workspace sidebar has a fixed desktop width, independent scrolling, and a mobile sheet. Separate workspace activity, administration, developer tools, and personal navigation. Settings names the configuration destination; General names its identity tab. Touch controls render at least 44px tall below `md`. Desktop controls use 36px by default; 32px variants are limited to dense row/menu actions.
+The workspace sidebar has a fixed desktop width, independent scrolling, and a mobile sheet. Separate workspace activity, administration, developer tools, and personal navigation. Personal navigation stays at the sidebar foot. Active navigation uses a one-pixel inset mauve border over its filled background; keyboard focus keeps its separate ring. Settings names the configuration destination; General names its identity tab. Touch controls render at least 44px tall below `md`. Desktop controls use 36px by default; 32px variants are limited to dense row/menu actions.
 
 Panels and dialogs have square corners. Controls use the softer `rounded-md` radius. Use separators between resource rows and contextual menus for secondary row actions. Search, filters, and pagination belong above or below the list, with selected views retained in the URL. Keep panels flat with one-pixel borders; reserve restrained shadows for floating menus and tooltips, and blur for overlays. Use `bg-muted` for nested content instead of nesting cards.
 
@@ -53,11 +53,23 @@ pagination and stay in the URL. Audit events and failed deliveries apply the
 selected view on the server before paging. Keep field choices tied to each page's
 records and translate the controls with the rest of the app.
 
+## Page composition
+
+The overview gives attention the main column and setup a narrower secondary column on wide screens. Notifications use a quieter separated list. Setup progress is a native progress element; optional developer guidance opens in a disclosure.
+
+Settings align the field explanation and a bounded control on desktop, stacking them on mobile. Save actions sit in a consistent footer. Separate destructive actions from everyday edits without making them the brightest region. Member rows group initials, name, and email; role and actions align at the end.
+
+Audit places its toolbar directly above records. Keep pagination guidance at the footer rather than adding an extra panel heading. Delivery attempts use a status marker, summary, timestamp, and expandable request/response evidence. Diagnostic text has a labeled header, copy feedback, wrapping control, and a keyboard-scrollable body.
+
+Sign-in and sign-up use a dedicated split shell. The form is the primary task, with one h1, a bounded width, and a quiet field background. A desktop-only panel introduces the reference workspace using factual product copy. Mobile keeps the form, legal links, language control, and support. Other authentication steps retain the compact shared shell.
+
+The public demo band includes a labeled screenshot of the reference workspace linked to the live demo. Refresh `apps/web/public/images/workspace-preview.png` when overview composition changes; the image is illustrative, while the adjacent counts come from the showcase loader.
+
 ## Components
 
 - Outline is the default action treatment; ghost suits row actions and dismissals. Confirm destructive changes.
 - Alerts use their semantic tint and an icon, not an ordinary card treatment.
-- [badge-variants.ts](apps/web/src/lib/badge-variants.ts) maps status and role to variants. Mauve means current/selected; unknown free-text status uses outline.
+- [badge-variants.ts](apps/web/src/lib/badge-variants.ts) maps status and administrative role emphasis to variants. Member rosters use neutral role labels so identity leads the row; the administrative membership editor retains owner emphasis. Mauve means current/selected; unknown free-text status uses outline.
 - Docs code blocks use Shiki's Catppuccin Mocha theme on the card background.
 
 Avoid gradients, neon glows, glassmorphism, decorative notches, and illustration-heavy marketing. The interface should give commands, data, and decisions visual priority.

@@ -311,6 +311,7 @@ export function SignInPage({
     }
     return (
       <AuthCardForm
+        appearance="entry"
         title={m.sign_in_with_email_link()}
         description={m.email_link_description()}
         form={linkForm}
@@ -369,6 +370,7 @@ export function SignInPage({
 
   return (
     <AuthCardForm
+      appearance="entry"
       title={m.form_sign_in()}
       description={m.sign_in_description()}
       form={passwordForm}
@@ -467,7 +469,7 @@ function signInFooter({
     <>
       {mode === 'password' ? (
         <>
-          <div className="grid gap-3">
+          <div className="grid gap-2">
             <PasskeySignIn redirect={redirect} />
             <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
               <Button type="button" variant="link" onClick={onUseLink}>

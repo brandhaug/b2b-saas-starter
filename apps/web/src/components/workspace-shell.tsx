@@ -172,7 +172,7 @@ function AuthenticatedWorkspaceShell({
               <Link
                 to="/workspaces/$workspaceSlug"
                 params={{ workspaceSlug }}
-                className="min-w-0 flex-1 truncate text-sm font-medium hover:underline underline-offset-2"
+                className="min-w-0 flex-1 truncate text-sm text-muted-foreground hover:text-foreground hover:underline underline-offset-4 lg:invisible"
                 title={workspaceName ?? workspaceSlug}
               >
                 {workspaceName}
@@ -217,8 +217,8 @@ function AuthenticatedWorkspaceShell({
           )}
         </div>
         {/* Forms keep a reading width; operational lists can use the available space. */}
-        <main id="main-content" tabIndex={-1} className="px-4 py-6 sm:px-6 outline-none">
-          <div className={cn('mx-auto grid w-full gap-6', layout === 'wide' ? 'max-w-7xl' : 'max-w-4xl')}>
+        <main id="main-content" tabIndex={-1} className="px-4 py-8 sm:px-8 outline-none">
+          <div className={cn('mx-auto grid w-full gap-8', layout === 'wide' ? 'max-w-7xl' : 'max-w-4xl')}>
             {children}
             <footer className="border-t border-border pt-6">
               <SupportDetails

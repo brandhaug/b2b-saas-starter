@@ -131,7 +131,7 @@ export function LiveNotifications({
   return (
     <Panel
       title={m.notifications_title()}
-      className="min-w-0"
+      className="min-w-0 border-0 border-t border-border bg-transparent px-0 pt-4 sm:px-0 sm:pt-4"
       actions={
         <>
           <Button

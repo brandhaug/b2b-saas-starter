@@ -29,7 +29,13 @@ import { ConfirmButton } from '@/components/confirm-button'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { CreateAction, Panel } from '@/components/page/panel'
 import { Identifier } from '@/components/page/identifier'
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle
+} from '@/components/ui/empty'
 import { formatTimestampOr } from '@/lib/format-date'
 import { viewerCan, type Viewer } from '@/lib/permissions'
 import { revokeApiTokenServerFn } from '@/lib/server/api-tokens'
@@ -42,6 +48,7 @@ import {
 } from '@/components/developer-list-controls'
 import { useDeveloperListView } from '@/lib/developer-list'
 import { applyTableView, type TableViewField } from '@/lib/table-view'
+import { useWorkspaceView } from '@/lib/workspace-view'
 
 function tokenListFields(): ReadonlyArray<TableViewField> {
   return [
@@ -192,6 +199,7 @@ export function ApiTokensPanel({
     key: 'api-tokens',
     fields
   })
+  const { update } = useWorkspaceView()
   const filteredTokens = (() => {
     const needle = list.query.trim().toLocaleLowerCase()
     const searched = tokens.filter((token) => {
@@ -285,96 +293,113 @@ export function ApiTokensPanel({
             onViewChange={list.setTableView}
           />
           {visibleTokens.length === 0 ? (
-            <p className="py-6 text-sm text-muted-foreground">
-              {m.developer_list_no_matching_tokens()}
-            </p>
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>{m.developer_list_no_matching_tokens()}</EmptyTitle>
+              </EmptyHeader>
+              <EmptyContent>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() =>
+                    update({ query: undefined, tableViews: undefined, page: undefined })
+                  }
+                >
+                  {m.developer_list_clear_all()}
+                </Button>
+              </EmptyContent>
+            </Empty>
           ) : null}
-          <ItemGroup className="gap-0">
-            {visibleTokens.map((token, index) => (
-              <Fragment key={token.id}>
-                <Item size="sm" className="border-0 px-0 py-4">
-                  <ItemContent>
-                    <ItemTitle>
-                      {token.name}
-                      <Identifier>{token.prefix}…</Identifier>
-                    </ItemTitle>
-                    <ItemDescription>
-                      {m.token_created_label()}{' '}
-                      {formatTimestampOr(token.createdAt, m.never())} ·{' '}
-                      {m.token_last_used_label()}{' '}
-                      {formatTimestampOr(token.lastUsedAt, m.never())}
-                    </ItemDescription>
-                    <ItemDescription>
-                      {token.expiresAt !== null && Date.parse(token.expiresAt) <= now
-                        ? m.token_expired()
-                        : m.token_expires()}{' '}
-                      {formatTimestampOr(token.expiresAt, m.never())}
-                      {token.replacedByTokenId === null
-                        ? null
-                        : ` · ${m.token_replacement_issued()}`}
-                    </ItemDescription>
-                    <div className="flex flex-wrap gap-1">
-                      {token.scopes.map((scope) => (
-                        <Badge key={scope} variant="outline">
-                          {scope}
-                        </Badge>
-                      ))}
-                    </div>
-                  </ItemContent>
-                  <ItemActions>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        render={
-                          <Button
-                            variant="ghost"
-                            size="icon-xs"
-                            aria-label={m.developer_list_more_actions()}
-                          />
-                        }
-                      >
-                        <MoreHorizontalIcon />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        {canCreate &&
-                        token.replacedByTokenId === null &&
-                        (token.expiresAt === null ||
-                          Date.parse(token.expiresAt) > now) ? (
-                          <DropdownMenuItem onClick={() => setReplacing(token)}>
-                            {m.action_replace()}
-                          </DropdownMenuItem>
-                        ) : null}
-                        {canRevoke ? (
-                          <DropdownMenuItem onClick={() => setConfirmingId(token.id)}>
-                            {m.action_revoke()}
-                          </DropdownMenuItem>
-                        ) : null}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    {canRevoke && confirmingId === token.id ? (
-                      <ConfirmButton
-                        // Tinted, not filled: revocation is destructive, and
-                        // the plain-foreground default read as less consequential
-                        // than the secondary "Replace" beside it.
-                        variant="destructive"
-                        label={m.action_revoke()}
-                        confirmLabel={m.action_confirm_revoke()}
-                        armed={confirmingId === token.id}
-                        busy={revoke.pendingInput === token.id}
-                        onArm={() => setConfirmingId(token.id)}
-                        onCancel={() => setConfirmingId(null)}
-                        onConfirm={() => void revokeTokenOnRow(token.id)}
-                      />
+          {visibleTokens.length === 0 ? null : (
+            <ItemGroup className="gap-0">
+              {visibleTokens.map((token, index) => (
+                <Fragment key={token.id}>
+                  <Item size="sm" className="border-0 px-0 py-4">
+                    <ItemContent>
+                      <ItemTitle>
+                        {token.name}
+                        <Identifier>{token.prefix}…</Identifier>
+                      </ItemTitle>
+                      <ItemDescription>
+                        {m.token_created_label()}{' '}
+                        {formatTimestampOr(token.createdAt, m.never())} ·{' '}
+                        {m.token_last_used_label()}{' '}
+                        {formatTimestampOr(token.lastUsedAt, m.never())}
+                      </ItemDescription>
+                      <ItemDescription>
+                        {token.expiresAt !== null && Date.parse(token.expiresAt) <= now
+                          ? m.token_expired()
+                          : m.token_expires()}{' '}
+                        {formatTimestampOr(token.expiresAt, m.never())}
+                        {token.replacedByTokenId === null
+                          ? null
+                          : ` · ${m.token_replacement_issued()}`}
+                      </ItemDescription>
+                      <div className="flex flex-wrap gap-1">
+                        {token.scopes.map((scope) => (
+                          <Badge key={scope} variant="outline">
+                            {scope}
+                          </Badge>
+                        ))}
+                      </div>
+                    </ItemContent>
+                    <ItemActions>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          render={
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
+                              aria-label={m.developer_list_more_actions()}
+                            />
+                          }
+                        >
+                          <MoreHorizontalIcon />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          {canCreate &&
+                          token.replacedByTokenId === null &&
+                          (token.expiresAt === null ||
+                            Date.parse(token.expiresAt) > now) ? (
+                            <DropdownMenuItem onClick={() => setReplacing(token)}>
+                              {m.action_replace()}
+                            </DropdownMenuItem>
+                          ) : null}
+                          {canRevoke ? (
+                            <DropdownMenuItem onClick={() => setConfirmingId(token.id)}>
+                              {m.action_revoke()}
+                            </DropdownMenuItem>
+                          ) : null}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      {canRevoke && confirmingId === token.id ? (
+                        <ConfirmButton
+                          // Tinted, not filled: revocation is destructive, and
+                          // the plain-foreground default read as less consequential
+                          // than the secondary "Replace" beside it.
+                          variant="destructive"
+                          label={m.action_revoke()}
+                          confirmLabel={m.action_confirm_revoke()}
+                          armed={confirmingId === token.id}
+                          busy={revoke.pendingInput === token.id}
+                          onArm={() => setConfirmingId(token.id)}
+                          onCancel={() => setConfirmingId(null)}
+                          onConfirm={() => void revokeTokenOnRow(token.id)}
+                        />
+                      ) : null}
+                    </ItemActions>
+                    {failedRow?.key === token.id ? (
+                      <ActionFeedback error={failedRow.message} />
                     ) : null}
-                  </ItemActions>
-                  {failedRow?.key === token.id ? (
-                    <ActionFeedback error={failedRow.message} />
-                  ) : null}
-                </Item>
-                {index < visibleTokens.length - 1 ? <Separator /> : null}
-              </Fragment>
-            ))}
-          </ItemGroup>
-          <DeveloperListPagination page={page} pageCount={pageCount} />
+                  </Item>
+                  {index < visibleTokens.length - 1 ? <Separator /> : null}
+                </Fragment>
+              ))}
+            </ItemGroup>
+          )}
+          {visibleTokens.length === 0 ? null : (
+            <DeveloperListPagination page={page} pageCount={pageCount} />
+          )}
         </>
       )}
     </Panel>

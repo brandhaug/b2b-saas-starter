@@ -1,0 +1,6 @@
+{
+  "evidence_wrap_lines": "Bryt lange linjer",
+  "evidence_copy_named": "Kopier {label}",
+  "evidence_copy_failed": "Kunne ikke kopiere. Merk teksten for å kopiere den manuelt.",
+  "evidence_attempt_details": "Forespørsel og svar"
+}
