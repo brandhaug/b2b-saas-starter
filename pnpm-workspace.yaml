@@ -17,11 +17,11 @@ catalog:
   '@base-ui/react': 1.8.0
   '@inlang/paraglide-js': 2.25.0
   '@inlang/plugin-message-format': 4.4.4
-  '@better-auth/cimd': 1.7.4
-  '@better-auth/mcp': 1.7.4
+  '@better-auth/cimd': 1.7.3
+  '@better-auth/mcp': 1.7.3
   '@better-auth/oauth-provider': 1.7.2
-  '@better-auth/passkey': 1.7.4
-  '@better-auth/sso': 1.7.4
+  '@better-auth/passkey': 1.7.3
+  '@better-auth/sso': 1.7.3
   '@better-auth/utils': 0.4.2
   '@cloudflare/workers-types': 5.20260911.1
   '@cloudflare/vitest-pool-workers': 0.22.0
@@ -58,7 +58,7 @@ catalog:
   '@vitest/coverage-v8': 4.1.11
   alchemy: 2.0.0-beta.77
   babel-plugin-react-compiler: 1.0.0
-  better-auth: 1.7.4
+  better-auth: 1.7.3
   class-variance-authority: 0.7.1
   cmdk: 1.1.1
   cn: 0.2.5
