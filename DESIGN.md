@@ -91,7 +91,7 @@ Base UI starting and ending states drive interruptible opacity and transform
 transitions. Anchored popups keep their trigger origin; dialogs remain centered;
 sheets travel by their own size. Reduced motion retains short opacity and color
 feedback while removing movement. The command palette fits the dynamic viewport
-with an independently scrolling result list. Authentication uses a static background.
+with an independently scrolling result list.
 
 Submit buttons reserve their spinner space. Copy actions report both success and
 failure next to the control, with selectable content available for manual copying.
