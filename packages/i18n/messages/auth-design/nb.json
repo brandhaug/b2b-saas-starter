@@ -6,8 +6,6 @@
   "auth_design_capability_workspaces": "Tillatelser og medlemmer i arbeidsområder",
   "auth_design_capability_audit": "Etterprøvbare handlinger og webhooks",
   "auth_design_capability_cloudflare": "Bygget for Cloudflare Workers",
-  "auth_design_workspace": "Arbeidsområde",
-  "auth_design_reference_preview": "Inne i referansearbeidsområdet",
   "auth_design_account_access": "Kontotilgang",
   "auth_design_explore_starter": "Utforsk starteren"
 }
