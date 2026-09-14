@@ -201,7 +201,8 @@ export const account = sqliteTable(
     id: id(),
     accountId: text('accountId').notNull(),
     providerId: text('providerId').notNull(),
-    issuer: text('issuer').notNull(),
+    // Better Auth 1.7.3+ no longer writes issuer for account rows.
+    issuer: text('issuer'),
     userId: text('userId')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
