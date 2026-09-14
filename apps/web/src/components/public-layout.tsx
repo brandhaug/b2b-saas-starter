@@ -7,7 +7,7 @@ import { MenuIcon } from 'lucide-react'
 // enter this layout and never pay for the font.
 import newsreaderLatinWoff2 from '@fontsource-variable/newsreader/files/newsreader-latin-opsz-normal.woff2?url'
 import { SearchButton, CommandPaletteProvider } from '@/components/command-palette'
-import { GITHUB_URL } from '@/components/landing/github-url'
+import { GITHUB_URL } from '@/lib/github-url'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,

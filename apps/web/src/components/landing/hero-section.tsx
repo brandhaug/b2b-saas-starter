@@ -2,7 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { ArrowRightIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { GithubIcon } from '@/components/icons/github'
-import { GITHUB_URL } from '@/components/landing/github-url'
+import { GITHUB_URL } from '@/lib/github-url'
 import { SETUP_STEPS } from '@/lib/toolchain'
 import { m } from '@b2b-saas-starter/i18n/messages'
 

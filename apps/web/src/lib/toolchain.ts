@@ -1,4 +1,4 @@
-import { GITHUB_URL } from '../components/landing/github-url'
+import { GITHUB_URL } from './github-url'
 
 /**
  * The toolchain strings the public site prints, single-sourced.

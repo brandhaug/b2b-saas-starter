@@ -9,13 +9,24 @@ test.beforeEach(async ({ context }, testInfo) => {
   })
 })
 
-test('public homepage renders the starter showcase', async ({ page }) => {
+test('public homepage offers the demo and expandable source evidence', async ({
+  page
+}) => {
   await page.goto('/')
   await expect(
     page.getByRole('heading', { name: /the hard parts, already wired/i })
   ).toBeVisible()
   await expect(
-    page.getByRole('listitem').filter({ hasText: 'TanStack Start' })
+    page.getByRole('link', { name: 'Explore demo', exact: true }).first()
+  ).toHaveAttribute('href', '/demo')
+  const contract = page.getByRole('heading', { name: 'The contract', exact: true })
+  await expect(contract).toBeHidden()
+  await page
+    .getByText('Read the contract, capability, and runtime evidence', { exact: true })
+    .click()
+  await expect(contract).toBeVisible()
+  await expect(
+    page.getByRole('heading', { name: 'The runtime it lands on', exact: true })
   ).toBeVisible()
 })
 
@@ -108,9 +119,12 @@ test('reset-password page shows the opaque failure state without a token', async
   ).toBeVisible()
 })
 
-test('verify-email page reports success without an error param', async ({ page }) => {
+test('an anonymous verification visit stays neutral without proof', async ({
+  page
+}) => {
   await page.goto('/verify-email')
-  await expect(page.getByRole('heading', { name: 'Email verified' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Check your inbox' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Email verified' })).toBeHidden()
 })
 
 test('seeded demo user signs in and reaches the workspace dashboard', async ({
@@ -123,6 +137,8 @@ test('seeded demo user signs in and reaches the workspace dashboard', async ({
   await signInAsOwner(page, '/workspaces/starter-lab')
   // The seeded dashboard renders real capability data, not the auth screen.
   await expect(page.getByRole('heading', { name: /starter lab/i })).toBeVisible()
+  await page.goto('/verify-email')
+  await expect(page.getByRole('heading', { name: 'Email verified' })).toBeVisible()
 })
 
 test('seeded demo user can request a magic link', async ({ page }) => {
