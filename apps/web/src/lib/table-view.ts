@@ -48,7 +48,6 @@ const operatorSet = new Set<string>(tableFilterOperators)
 function isTableFilterOperator(value: unknown): value is TableFilterOperator {
   return typeof value === 'string' && operatorSet.has(value)
 }
-/* oxlint-enable anti-slop/no-runtime-typeof */
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- sort direction is narrowed by the predicate.
 function isSortDirection(value: unknown): value is 'asc' | 'desc' {
