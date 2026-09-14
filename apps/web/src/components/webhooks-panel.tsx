@@ -352,7 +352,9 @@ export function WebhooksPanel({
                               <Button
                                 variant="ghost"
                                 size="icon-xs"
-                                aria-label={m.developer_list_more_actions()}
+                                aria-label={m.developer_list_more_actions_named({
+                                  name: endpoint.url
+                                })}
                               />
                             }
                           >

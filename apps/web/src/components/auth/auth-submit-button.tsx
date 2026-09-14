@@ -49,7 +49,9 @@ export function AuthSubmitButton({
             disabled={!canSubmit || isSubmitting}
             aria-busy={isSubmitting}
           >
-            {isSubmitting ? <Spinner data-icon="inline-start" /> : icon}
+            <span className="inline-flex size-4 shrink-0" aria-hidden="true">
+              {isSubmitting ? <Spinner /> : icon}
+            </span>
             {label}
           </Button>
           <output aria-live="polite" aria-atomic="true" className="sr-only">

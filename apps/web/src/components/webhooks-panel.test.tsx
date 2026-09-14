@@ -81,7 +81,9 @@ describe('WebhooksPanel', () => {
 
   it('offers the create form and the row controls to a role that holds them', async () => {
     await renderPanel({ role: 'owner' })
-    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: `More actions for ${endpoint.url}` })
+    )
     expect(screen.getByRole('menuitem', { name: 'Disable' })).not.toBeNull()
     expect(screen.getByRole('menuitem', { name: 'Rotate secret' })).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Register an endpoint' }))
@@ -99,7 +101,9 @@ describe('WebhooksPanel', () => {
     await renderPanel({ role: 'member' })
     expect(screen.getByText('Your role cannot register endpoints.')).not.toBeNull()
     expect(screen.queryByLabelText('Endpoint URL')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'More actions' })).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: `More actions for ${endpoint.url}` })
+    ).toBeNull()
   })
 
   it('shows the empty state with no endpoints', async () => {
@@ -165,7 +169,9 @@ describe('WebhooksPanel', () => {
 
   it('reveals the rotated secret once', async () => {
     await renderPanel({ role: 'owner' })
-    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: `More actions for ${endpoint.url}` })
+    )
     fireEvent.click(screen.getByRole('menuitem', { name: 'Rotate secret' }))
     await screen.findByText('Secret rotated. Copy it now, it will not be shown again.')
     expect(rotateSecret).toHaveBeenCalledWith({
@@ -176,7 +182,9 @@ describe('WebhooksPanel', () => {
   it('surfaces a failure from either mutation on the row it happened on', async () => {
     updateEndpoint.mockRejectedValue(new Error('Endpoint already disabled'))
     await renderPanel({ role: 'owner' })
-    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: `More actions for ${endpoint.url}` })
+    )
     fireEvent.click(screen.getByRole('menuitem', { name: 'Disable' }))
     fireEvent.click(screen.getByRole('button', { name: 'Confirm disable' }))
     await waitFor(() => {

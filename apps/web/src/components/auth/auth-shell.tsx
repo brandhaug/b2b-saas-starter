@@ -3,13 +3,11 @@ import { CheckIcon, ArrowUpRightIcon } from 'lucide-react'
 import { type ReactNode } from 'react'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { LanguageSwitcher } from '@/components/language-switcher'
-import { LightRays } from '@/components/landing/light-rays'
 
 /** Dedicated entry surface for the two primary credential routes. */
 export function AuthShell({ children }: { readonly children: ReactNode }) {
   return (
     <div className="relative isolate flex min-h-dvh flex-col bg-background text-foreground">
-      <LightRays />
       <a
         // oxlint-disable-next-line react-doctor/anchor-target-exists -- AuthCardForm owns the main-content landmark inside this shell.
         href="#main-content"

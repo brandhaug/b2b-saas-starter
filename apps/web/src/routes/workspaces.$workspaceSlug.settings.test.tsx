@@ -4,6 +4,7 @@ import { Toaster } from '@/components/ui/sonner'
 import { type WorkspaceSettingsPayload } from '@/lib/server/workspace-settings'
 import { renderWithRouter } from '@/test/router-harness'
 import {
+  WorkspaceGeneralSettings,
   type DeleteWorkspace,
   type RenameWorkspace
 } from '@/components/workspace-general-settings'
@@ -96,20 +97,24 @@ describe('WorkspaceSettingsPage as a member', () => {
 
 describe('WorkspaceSettingsPage lifecycle ports', () => {
   it('renames through the port and reports success', async () => {
-    const rename = vi.fn<RenameWorkspace>().mockResolvedValue({ name: 'Renamed Lab' })
+    const rename = vi.fn<RenameWorkspace>().mockImplementation(async ({ data }) => ({
+      name: data.name
+    }))
     await renderWithRouter(
       <>
-        <WorkspaceSettingsPage
+        <WorkspaceGeneralSettings
           workspaceSlug="starter-lab"
-          data={settingsSummary}
-          ports={{ renameWorkspace: rename }}
+          currentName="Starter Lab"
+          canRename
+          canDelete={false}
+          ports={{ rename }}
         />
         {/* Success is a sonner toast; it only renders where a Toaster lives. */}
         <Toaster />
       </>,
       { path: '/workspaces/starter-lab/settings', destinations: ['/sign-in'] }
     )
-    await screen.findByRole('heading', { name: 'Workspace settings' })
+    await screen.findByLabelText('Workspace name')
     fireEvent.change(screen.getByLabelText('Workspace name'), {
       target: { value: 'Renamed Lab' }
     })
@@ -119,7 +124,24 @@ describe('WorkspaceSettingsPage lifecycle ports', () => {
         data: { workspaceSlug: 'starter-lab', name: 'Renamed Lab' }
       })
     )
+    expect(
+      screen.getByRole('button', { name: 'Save name' }).hasAttribute('disabled')
+    ).toBe(true)
     await screen.findByText(/Workspace renamed to “Renamed Lab”/)
+    fireEvent.change(screen.getByLabelText('Workspace name'), {
+      target: { value: 'Starter Lab' }
+    })
+    expect(
+      screen.getByRole('button', { name: 'Save name' }).hasAttribute('disabled')
+    ).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Save name' }))
+    await waitFor(() => expect(rename).toHaveBeenCalledTimes(2))
+    expect(rename).toHaveBeenLastCalledWith({
+      data: { workspaceSlug: 'starter-lab', name: 'Starter Lab' }
+    })
+    expect(
+      screen.getByRole('button', { name: 'Save name' }).hasAttribute('disabled')
+    ).toBe(true)
   })
 
   it('deletes through the port after typing the slug to arm the dialog', async () => {

@@ -28,9 +28,7 @@ function DropdownMenuContent({
         <MenuPrimitive.Popup
           data-slot="dropdown-menu-content"
           className={cn(
-            // Motion is `motion-safe:`-gated; without it the menu simply
-            // appears, like every other overlay in the app.
-            'bg-popover text-popover-foreground data-open:motion-safe:animate-in data-closed:motion-safe:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:motion-safe:zoom-out-95 data-open:motion-safe:zoom-in-95 z-50 max-h-(--available-height) min-w-40 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-md border border-border p-1 shadow-md',
+            'ui-popup bg-popover text-popover-foreground z-50 max-h-(--available-height) min-w-40 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-md border border-border p-1 shadow-md',
             className
           )}
           {...props}
@@ -47,7 +45,7 @@ function DropdownMenuItem({ className, ...props }: MenuPrimitive.Item.Props) {
     <MenuPrimitive.Item
       data-slot="dropdown-menu-item"
       className={cn(
-        'focus-visible:bg-accent focus-visible:text-accent-foreground data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 relative grid cursor-default grid-cols-[auto_1fr] items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none select-none [&_svg:not([class*=size-])]:size-4 [&_svg]:shrink-0 max-md:min-h-11',
+        'focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 relative grid cursor-default grid-cols-[auto_1fr] items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none select-none [&_svg:not([class*=size-])]:size-4 [&_svg]:shrink-0 max-md:min-h-11',
         className
       )}
       {...props}
@@ -97,7 +95,7 @@ function DropdownMenuSubmenuTrigger({
     <MenuPrimitive.SubmenuTrigger
       data-slot="dropdown-menu-submenu-trigger"
       className={cn(
-        'focus-visible:bg-accent focus-visible:text-accent-foreground data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground grid cursor-default grid-cols-[auto_1fr_auto] items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none select-none [&_svg:not([class*=size-])]:size-4 [&_svg]:shrink-0 max-md:min-h-11',
+        'focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground grid cursor-default grid-cols-[auto_1fr_auto] items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none select-none [&_svg:not([class*=size-])]:size-4 [&_svg]:shrink-0 max-md:min-h-11',
         className
       )}
       {...props}
@@ -125,7 +123,7 @@ function DropdownMenuSubmenuContent({
         <MenuPrimitive.Popup
           data-slot="dropdown-menu-submenu-content"
           className={cn(
-            'bg-popover text-popover-foreground data-open:motion-safe:animate-in data-closed:motion-safe:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:motion-safe:zoom-out-95 data-open:motion-safe:zoom-in-95 z-50 max-h-(--available-height) min-w-40 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-md border border-border p-1 shadow-md',
+            'ui-popup bg-popover text-popover-foreground z-50 max-h-(--available-height) min-w-40 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-md border border-border p-1 shadow-md',
             className
           )}
           {...props}

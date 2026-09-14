@@ -79,3 +79,19 @@ Avoid gradients, neon glows, glassmorphism, decorative notches, and illustration
 Target WCAG 2.1 AA: body-text contrast at least 4.5:1, large-text and control contrast at least 3:1. Verify actual rendered surfaces, including deep bands and translucent fills.
 
 Provide visible two-pixel focus rings with offsets, keyboard navigation, semantic landmarks, a skip link, and accessible names. Honor `prefers-reduced-motion` for every animation. Status meaning must remain understandable without color.
+
+## Interaction feedback
+
+Keyboard actions settle immediately, including the command palette, overlays,
+switches, and documentation jumps. Pointer presses on shared buttons use a subtle
+scale response. The document records input method before control handlers run so
+portaled controls follow the same rule.
+
+Base UI starting and ending states drive interruptible opacity and transform
+transitions. Anchored popups keep their trigger origin; dialogs remain centered;
+sheets travel by their own size. Reduced motion retains short opacity and color
+feedback while removing movement. The command palette fits the dynamic viewport
+with an independently scrolling result list. Authentication uses a static background.
+
+Submit buttons reserve their spinner space. Copy actions report both success and
+failure next to the control, with selectable content available for manual copying.
