@@ -1,3 +1,5 @@
+import { GITHUB_URL } from '../components/landing/github-url'
+
 /**
  * The toolchain strings the public site prints, single-sourced.
  *
@@ -14,12 +16,24 @@
  * `toolchain.test.ts` fails when a step here stops appearing there verbatim,
  * so the hero can never promise fewer commands than the docs deliver.
  */
+export const REPOSITORY_DIRECTORY = 'b2b-saas-starter'
+
 export const SETUP_STEPS: ReadonlyArray<string> = [
   'vp install',
+  'cp .env.example .env',
   'pnpm run db:migrate:local',
   'pnpm run db:seed',
   'pnpm run dev'
 ]
+
+export const CLONE_COMMAND = `git clone ${GITHUB_URL}.git`
+
+/** The complete sequence visitors can paste from the closing section. */
+export const COPY_COMMAND = [
+  CLONE_COMMAND,
+  `cd ${REPOSITORY_DIRECTORY}`,
+  ...SETUP_STEPS
+].join(' && ')
 
 /** Deployment is Alchemy IaC off the root script. */
 export const DEPLOY_COMMAND = 'pnpm run deploy'

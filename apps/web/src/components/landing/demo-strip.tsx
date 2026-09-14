@@ -21,7 +21,7 @@ export function DemoStrip({ demo }: { readonly demo: DemoShowcase }) {
   ]
   return (
     <section className="border-b border-border bg-muted/40">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-10 gap-y-4 px-4 py-5 sm:px-6">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-10 gap-y-4 px-4 py-5 sm:px-6">
         <dl className="flex flex-wrap gap-x-10 gap-y-3">
           {stats.map((stat) => (
             <div key={stat.label} className="grid gap-0.5">
@@ -32,13 +32,6 @@ export function DemoStrip({ demo }: { readonly demo: DemoShowcase }) {
             </div>
           ))}
         </dl>
-        <Link
-          to="/demo"
-          className="inline-flex items-center gap-1.5 text-sm font-medium underline underline-offset-4 hover:no-underline max-md:min-h-11"
-        >
-          {m.public_demo_open()}
-          <ArrowRightIcon aria-hidden className="size-3.5" />
-        </Link>
       </div>
       <figure className="mx-auto max-w-7xl px-4 pb-8 sm:px-6">
         <Link
@@ -46,11 +39,12 @@ export function DemoStrip({ demo }: { readonly demo: DemoShowcase }) {
           className="group block overflow-hidden border border-border bg-card outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background"
         >
           <img
-            src="/images/workspace-preview.png"
+            src="/images/workspace-preview.webp"
             alt={m.showcase_workspace_preview_alt()}
             width={1440}
             height={1000}
-            loading="lazy"
+            loading="eager"
+            fetchPriority="high"
             decoding="async"
             className="w-full"
           />

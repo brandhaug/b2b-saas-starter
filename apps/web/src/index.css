@@ -386,39 +386,6 @@
   animation-delay: 280ms;
 }
 
-.trace-signal {
-  stroke-dasharray: 12 112;
-  stroke-dashoffset: 12;
-  animation: trace-travel 7.2s linear infinite;
-}
-
-/* The schematic marks itself off-screen; paused animations stop the
-   compositor work the ten travelling signals would otherwise never stop
-   doing. Running is the default so the SSR markup and the first client paint
-   agree. */
-[data-schematic-visible='false'] .trace-signal {
-  animation-play-state: paused;
-}
-
-@keyframes trace-travel {
-  0% {
-    stroke-dashoffset: 12;
-    opacity: 0;
-  }
-  3% {
-    opacity: 1;
-  }
-  25% {
-    stroke-dashoffset: -100;
-    opacity: 1;
-  }
-  28%,
-  100% {
-    stroke-dashoffset: -112;
-    opacity: 0;
-  }
-}
-
 .trace-node-body,
 .trace-node-label {
   transition:
@@ -436,14 +403,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .trace-signal {
-    animation: none;
-  }
   .rise {
     animation: none;
-  }
-  .schematic-pulse {
-    display: none;
   }
   /* Hover and state motion (the knowledge-list arrow nudge, a switch thumb,
      a sheet's slide) resolves instantly: the property list drops transform,
@@ -472,4 +433,21 @@
 .prose :where(code):not(:where([class~='not-prose'] *))::before,
 .prose :where(code):not(:where([class~='not-prose'] *))::after {
   content: '';
+}
+
+/* Native progress retains its accessible value while both engines use the theme. */
+[data-slot='setup-progress'] {
+  appearance: none;
+  border: 0;
+  background: var(--muted);
+  color: var(--primary);
+}
+[data-slot='setup-progress']::-webkit-progress-bar {
+  background: var(--muted);
+}
+[data-slot='setup-progress']::-webkit-progress-value {
+  background: var(--primary);
+}
+[data-slot='setup-progress']::-moz-progress-bar {
+  background: var(--primary);
 }

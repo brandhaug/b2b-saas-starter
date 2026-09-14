@@ -125,15 +125,11 @@ export function WorkspacesPage({
         ) : (
           <ItemGroup>
             {workspaces.map(({ workspace, memberCount, notificationCount }) => (
-              <Link
-                key={workspace.id}
-                to="/workspaces/$workspaceSlug"
-                params={{ workspaceSlug: workspace.slug }}
-                className="group/workspace-link block rounded-none focus-visible:outline-none"
-              >
-                <Item
-                  variant="outline"
-                  className="transition-colors group-focus-visible/workspace-link:ring-2 group-focus-visible/workspace-link:ring-ring"
+              <Item key={workspace.id} variant="outline" className="p-0">
+                <Link
+                  to="/workspaces/$workspaceSlug"
+                  params={{ workspaceSlug: workspace.slug }}
+                  className="flex w-full items-center gap-2.5 px-3 py-2.5 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <ItemContent>
                     <ItemTitle>{workspace.name}</ItemTitle>
@@ -152,8 +148,8 @@ export function WorkspacesPage({
                       className="size-4 text-muted-foreground"
                     />
                   </ItemActions>
-                </Item>
-              </Link>
+                </Link>
+              </Item>
             ))}
           </ItemGroup>
         )}

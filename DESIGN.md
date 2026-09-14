@@ -55,7 +55,7 @@ records and translate the controls with the rest of the app.
 
 ## Page composition
 
-The overview gives attention the main column and setup a narrower secondary column on wide screens. Notifications use a quieter separated list. Setup progress is a native progress element; optional developer guidance opens in a disclosure.
+The overview gives attention the main column and setup a narrower secondary column on wide screens. Notifications use a quieter separated list. Setup progress is a native progress element styled with the shared primary and muted tokens in both Chromium and Firefox; optional developer guidance opens in a disclosure.
 
 Settings align the field explanation and a bounded control on desktop, stacking them on mobile. Save actions sit in a consistent footer. Separate destructive actions from everyday edits without making them the brightest region. Member rows group initials, name, and email; role and actions align at the end.
 
@@ -63,7 +63,9 @@ Audit places its toolbar directly above records. Keep pagination guidance at the
 
 Sign-in and sign-up use a dedicated split shell. The form is the primary task, with one h1, a bounded width, and a quiet field background. A desktop-only panel introduces the reference workspace using factual product copy. Mobile keeps the form, legal links, language control, and support. Other authentication steps retain the compact shared shell.
 
-The public demo band includes a labeled screenshot of the reference workspace linked to the live demo. Refresh `apps/web/public/images/workspace-preview.png` when overview composition changes; the image is illustrative, while the adjacent counts come from the showcase loader.
+The landing hero pairs the value proposition with runnable setup commands. Keep the headline within two desktop lines and the actions in the first viewport. Use a compact request trace with optional code evidence, followed by descriptive provider roles. Public demo actions consistently say Explore demo.
+
+The public demo band includes a labeled screenshot of the reference workspace linked to the demo. Refresh `apps/web/public/images/workspace-preview.webp` when overview composition changes: capture `/demo` at 1440 by 1000 pixels and encode it as lossless WebP. The screenshot loads eagerly because it enters the first mobile viewport. It is illustrative, while the adjacent counts come from the showcase loader.
 
 ## Components
 
@@ -78,4 +80,4 @@ Avoid gradients, neon glows, glassmorphism, decorative notches, and illustration
 
 Target WCAG 2.1 AA: body-text contrast at least 4.5:1, large-text and control contrast at least 3:1. Verify actual rendered surfaces, including deep bands and translucent fills.
 
-Provide visible two-pixel focus rings with offsets, keyboard navigation, semantic landmarks, a skip link, and accessible names. Honor `prefers-reduced-motion` for every animation. Status meaning must remain understandable without color.
+Provide visible two-pixel focus rings with offsets, keyboard navigation, semantic landmarks, a skip link, and accessible names. Honor `prefers-reduced-motion` for every animation. Landing motion is limited to a brief hero entrance and interaction feedback. Architecture diagrams are static apart from active-node feedback; authentication has no ambient animation. Status meaning must remain understandable without color.

@@ -28,6 +28,7 @@ function ItemSeparator({
   return (
     <Separator
       data-slot="item-separator"
+      aria-hidden="true"
       orientation="horizontal"
       className={cn('my-2', className)}
       {...props}

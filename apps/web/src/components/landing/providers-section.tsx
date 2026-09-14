@@ -14,11 +14,7 @@ function ProvidersSection() {
             {m.landing_optional_providers_description()}
           </p>
         </div>
-        {/* Provider, role, state is tabular data, so it reads as the same
-            table the runtime bindings use rather than five identical
-            icon-plus-text cards padded out with a col-span. The dot repeats
-            what the status column already says in words, so it is decorative:
-            the state survives without color. */}
+        {/* Provider, role, and state are tabular data. */}
         <table className="mt-12 w-full border-collapse text-left">
           <caption className="sr-only">{m.landing_optional_providers()}</caption>
           <thead>
@@ -53,13 +49,7 @@ function ProvidersSection() {
                   {provider.role}
                 </td>
                 <td className="py-3 align-baseline font-mono text-xs text-muted-foreground">
-                  <span className="inline-flex items-center gap-2">
-                    <span
-                      aria-hidden
-                      className="size-2 shrink-0 rounded-full bg-status-warn"
-                    />
-                    {m.provider_env_gated()}
-                  </span>
+                  {m.provider_env_gated()}
                 </td>
               </tr>
             ))}

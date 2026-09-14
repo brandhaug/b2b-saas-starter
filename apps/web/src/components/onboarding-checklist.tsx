@@ -84,7 +84,10 @@ function StepLink({
   readonly children: string
 }) {
   const preview = usePreview()
-  const className = cn('underline-offset-4 hover:underline', linkClassName)
+  const className = cn(
+    'inline-flex min-h-11 items-center underline-offset-4 hover:underline md:min-h-9',
+    linkClassName
+  )
   if (to === '/account') {
     return preview ? (
       <Link to="/sign-in" className={className}>
@@ -206,7 +209,8 @@ export function OnboardingChecklist({
           })}
           value={completedCount}
           max={requiredSteps.length}
-          className="h-1.5 w-full accent-primary"
+          data-slot="setup-progress"
+          className="h-1.5 w-full"
         />
       </div>
       <ul className="grid gap-2 text-sm">
@@ -250,7 +254,7 @@ export function OnboardingChecklist({
             <WorkspaceLink
               to="/workspaces/$workspaceSlug/members"
               workspaceSlug={workspaceSlug}
-              className="underline underline-offset-4"
+              className="inline-flex min-h-11 items-center underline underline-offset-4"
             >
               {m.onboarding_meet_team()}
             </WorkspaceLink>
@@ -258,14 +262,14 @@ export function OnboardingChecklist({
               <Link
                 to="/demo/$section"
                 params={{ section: 'notifications' }}
-                className="underline underline-offset-4"
+                className="inline-flex min-h-11 items-center underline underline-offset-4"
               >
                 {m.notifications_title()}
               </Link>
             ) : (
               <Link
                 to="/account/notifications"
-                className="underline underline-offset-4"
+                className="inline-flex min-h-11 items-center underline underline-offset-4"
               >
                 {m.notifications_title()}
               </Link>
@@ -284,7 +288,7 @@ export function OnboardingChecklist({
               <Link
                 to="/docs/$category/$slug"
                 params={{ category: 'capability-interfaces', slug: 'api-tokens' }}
-                className="underline underline-offset-4 hover:no-underline"
+                className="inline-flex min-h-11 items-center underline underline-offset-4 hover:no-underline"
               >
                 {m.onboarding_api_docs()}
               </Link>
@@ -295,7 +299,7 @@ export function OnboardingChecklist({
                   to="/workspaces/$workspaceSlug/api-tokens"
                   search={{ action: 'create' }}
                   workspaceSlug={workspaceSlug}
-                  className="underline underline-offset-4 hover:no-underline"
+                  className="inline-flex min-h-11 items-center underline underline-offset-4 hover:no-underline"
                 >
                   {m.onboarding_create_api_token()}
                 </WorkspaceLink>
@@ -305,7 +309,7 @@ export function OnboardingChecklist({
                   to="/workspaces/$workspaceSlug/webhooks"
                   search={{ action: 'create' }}
                   workspaceSlug={workspaceSlug}
-                  className="underline underline-offset-4 hover:no-underline"
+                  className="inline-flex min-h-11 items-center underline underline-offset-4 hover:no-underline"
                 >
                   {m.onboarding_add_webhook_endpoint()}
                 </WorkspaceLink>
@@ -314,7 +318,7 @@ export function OnboardingChecklist({
                 <WorkspaceLink
                   to="/workspaces/$workspaceSlug/audit"
                   workspaceSlug={workspaceSlug}
-                  className="underline underline-offset-4 hover:no-underline"
+                  className="inline-flex min-h-11 items-center underline underline-offset-4 hover:no-underline"
                 >
                   {m.onboarding_review_audit()}
                 </WorkspaceLink>

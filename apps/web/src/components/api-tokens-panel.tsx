@@ -392,7 +392,9 @@ export function ApiTokensPanel({
                       <ActionFeedback error={failedRow.message} />
                     ) : null}
                   </Item>
-                  {index < visibleTokens.length - 1 ? <Separator /> : null}
+                  {index < visibleTokens.length - 1 ? (
+                    <Separator aria-hidden="true" />
+                  ) : null}
                 </Fragment>
               ))}
             </ItemGroup>

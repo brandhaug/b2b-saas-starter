@@ -59,7 +59,7 @@ function DocsIndex() {
                     <Link
                       to="/docs/$category/$slug"
                       params={{ category: slug, slug: article.slug }}
-                      className="group flex items-baseline gap-2 py-1.5 text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+                      className="group flex items-baseline gap-2 py-3 text-sm md:py-1.5 text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
                     >
                       {article.frontmatter.title}
                       <ArrowRightIcon

@@ -415,7 +415,9 @@ export function WebhooksPanel({
                       </>
                     ) : null}
                   </Item>
-                  {index < visibleEndpoints.length - 1 ? <Separator /> : null}
+                  {index < visibleEndpoints.length - 1 ? (
+                    <Separator aria-hidden="true" />
+                  ) : null}
                 </Fragment>
               ))}
             </ItemGroup>
