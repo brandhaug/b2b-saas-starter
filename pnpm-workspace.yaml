@@ -23,7 +23,7 @@ catalog:
   '@better-auth/passkey': 1.7.2
   '@better-auth/sso': 1.7.2
   '@better-auth/utils': 0.4.2
-  '@cloudflare/workers-types': 5.20260906.1
+  '@cloudflare/workers-types': 5.20260911.1
   '@cloudflare/vitest-pool-workers': 0.22.0
   '@effect/platform-node': 4.0.0-rc.112
   '@effect/sql-d1': 4.0.0-rc.112
