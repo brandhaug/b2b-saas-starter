@@ -20,23 +20,36 @@ export function CommandPaletteProvider({
   readonly systemRole?: string | null | undefined
 }) {
   const [open, setOpen] = useState(false)
+  const [hasOpened, setHasOpened] = useState(false)
+  function setPaletteOpen(next: boolean) {
+    if (next) {
+      setHasOpened(true)
+    }
+    setOpen(next)
+  }
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'k' && (event.metaKey || event.ctrlKey)) {
         event.preventDefault()
         preloadCommandPalette()
-        setOpen((current) => !current)
+        const next = !open
+        if (next) {
+          setHasOpened(true)
+        }
+        setOpen(next)
       }
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [open])
 
   return (
-    <CommandPaletteContext value={{ open, setOpen, viewer, systemRole }}>
+    <CommandPaletteContext
+      value={{ open, setOpen: setPaletteOpen, viewer, systemRole }}
+    >
       {children}
-      {open ? (
+      {hasOpened ? (
         <Suspense fallback={null}>
           <CommandPaletteDialog />
         </Suspense>

@@ -30,7 +30,7 @@ function DropdownMenuContent({
           className={cn(
             // Motion is `motion-safe:`-gated; without it the menu simply
             // appears, like every other overlay in the app.
-            'bg-popover text-popover-foreground data-open:motion-safe:animate-in data-closed:motion-safe:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:motion-safe:zoom-out-95 data-open:motion-safe:zoom-in-95 z-50 max-h-(--available-height) min-w-40 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-md border border-border p-1 shadow-md',
+            'bg-popover text-popover-foreground motion-safe:data-starting-style:[transform:translateY(8px)] motion-safe:data-ending-style:[transform:translateY(4px)] motion-safe:data-starting-style:opacity-0 motion-safe:data-ending-style:opacity-0 z-50 max-h-(--available-height) min-w-40 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-(--radius) border border-border p-1 shadow-md motion-safe:transition-[transform,opacity] duration-150 ease-out',
             className
           )}
           {...props}
@@ -103,7 +103,10 @@ function DropdownMenuSubmenuTrigger({
       {...props}
     >
       {children}
-      <ChevronRightIcon className="ml-auto size-4 text-muted-foreground" />
+      <ChevronRightIcon
+        className="ml-auto size-4 text-muted-foreground"
+        strokeWidth={1.5}
+      />
     </MenuPrimitive.SubmenuTrigger>
   )
 }
@@ -125,7 +128,7 @@ function DropdownMenuSubmenuContent({
         <MenuPrimitive.Popup
           data-slot="dropdown-menu-submenu-content"
           className={cn(
-            'bg-popover text-popover-foreground data-open:motion-safe:animate-in data-closed:motion-safe:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:motion-safe:zoom-out-95 data-open:motion-safe:zoom-in-95 z-50 max-h-(--available-height) min-w-40 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-md border border-border p-1 shadow-md',
+            'bg-popover text-popover-foreground motion-safe:data-starting-style:[transform:translateY(8px)] motion-safe:data-ending-style:[transform:translateY(4px)] motion-safe:data-starting-style:opacity-0 motion-safe:data-ending-style:opacity-0 z-50 max-h-(--available-height) min-w-40 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-(--radius) border border-border p-1 shadow-md motion-safe:transition-[transform,opacity] duration-150 ease-out',
             className
           )}
           {...props}

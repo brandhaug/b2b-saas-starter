@@ -199,6 +199,40 @@
   }
 }
 
+[data-sonner-toast].cn-toast,
+[data-sonner-toast].cn-toast[data-removed='true'][data-front='true'][data-swipe-out='false'],
+[data-sonner-toast].cn-toast[data-removed='true'][data-front='false'][data-swipe-out='false'][data-expanded='true'],
+[data-sonner-toast].cn-toast[data-removed='true'][data-front='false'][data-swipe-out='false'][data-expanded='false'] {
+  transition:
+    transform 150ms ease-out,
+    opacity 150ms ease-out,
+    height 400ms ease-out,
+    box-shadow 200ms ease-out;
+}
+
+@utility icon-transition {
+  transition:
+    filter 150ms cubic-bezier(0.2, 0, 0, 1),
+    opacity 150ms cubic-bezier(0.2, 0, 0, 1),
+    scale 150ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+[data-sonner-toast].cn-toast[data-removed='true'][data-front='true'][data-swipe-out='false'] {
+  --y: translateY(4px);
+  opacity: 0;
+}
+
+[data-sonner-toast].cn-toast[data-removed='true'][data-front='false'][data-swipe-out='false'][data-expanded='true'] {
+  --y: translateY(calc(var(--lift) * var(--offset) + 4px));
+  opacity: 0;
+}
+
+[data-sonner-toast].cn-toast[data-removed='true'][data-front='false'][data-swipe-out='false'][data-expanded='false'] {
+  --y: translateY(calc(var(--lift-amount) * var(--toasts-before) + 4px))
+    scale(calc(-1 * var(--scale)));
+  opacity: 0;
+}
+
 /* rehype-pretty-code. The pre sits on the palette surface (`--card`) rather
    than the shiki theme's own background, so code blocks keep the panel
    treatment whatever theme vite.config compiles in. */

@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
+import { IconTransition } from '@/components/ui/icon-transition'
 
 /**
  * The only part of the form API the submit button reads. Structural so it
@@ -49,7 +50,12 @@ export function AuthSubmitButton({
             disabled={!canSubmit || isSubmitting}
             aria-busy={isSubmitting}
           >
-            {isSubmitting ? <Spinner data-icon="inline-start" /> : icon}
+            <IconTransition
+              active={isSubmitting}
+              data-icon="inline-start"
+              idle={icon}
+              activeIcon={<Spinner />}
+            />
             {label}
           </Button>
           <output aria-live="polite" aria-atomic="true" className="sr-only">

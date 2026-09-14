@@ -811,7 +811,7 @@ function EntitlementRow({
   if (limit === null) {
     return (
       <li className="flex items-center gap-2">
-        <Check className="size-4 text-status-ok" />
+        <Check className="size-4 text-status-ok" strokeWidth={1.5} />
         {unlimitedLabel ??
           m.shell_plan_unlimited_label({ label: label.toLocaleLowerCase(getLocale()) })}
       </li>
@@ -819,7 +819,7 @@ function EntitlementRow({
   }
   return (
     <li className="flex items-center gap-2">
-      <Minus className="size-4 text-muted-foreground" />
+      <Minus className="size-4 text-muted-foreground" strokeWidth={1.5} />
       {m.shell_plan_limit_label({ label, limit: formatNumber(limit, getLocale()) })}
     </li>
   )

@@ -25,7 +25,7 @@ function SheetOverlay({ className, ...props }: SheetPrimitive.Backdrop.Props) {
     <SheetPrimitive.Backdrop
       data-slot="sheet-overlay"
       className={cn(
-        'data-open:motion-safe:animate-in data-closed:motion-safe:animate-out data-closed:fade-out-0 data-open:fade-in-0 bg-overlay/80 duration-100 data-ending-style:opacity-0 data-starting-style:opacity-0 supports-backdrop-filter:backdrop-blur-xs fixed inset-0 z-50',
+        'bg-overlay/80 motion-safe:transition-opacity motion-safe:duration-100 motion-safe:ease-out motion-safe:data-ending-style:opacity-0 motion-safe:data-starting-style:opacity-0 supports-backdrop-filter:backdrop-blur-xs fixed inset-0 z-50',
         className
       )}
       {...props}
@@ -48,11 +48,12 @@ function SheetContent({
         data-slot="sheet-content"
         data-side={side}
         className={cn(
-          // Slide/zoom motion is `motion-safe:`-gated; without it the sheet
-          // simply appears (opacity fades ride the same animation classes).
+          // Motion is `motion-safe:`-gated; without it the sheet simply
+          // appears in its open or closed state.
           // `text-sm` is the body size a sheet inherits, like a card; dense
           // children (timelines, metadata rows) opt down themselves.
-          'bg-background data-open:motion-safe:animate-in data-closed:motion-safe:animate-out data-[side=right]:data-closed:motion-safe:slide-out-to-right-10 data-[side=right]:data-open:motion-safe:slide-in-from-right-10 data-[side=left]:data-closed:motion-safe:slide-out-to-left-10 data-[side=left]:data-open:motion-safe:slide-in-from-left-10 data-[side=top]:data-closed:motion-safe:slide-out-to-top-10 data-[side=top]:data-open:motion-safe:slide-in-from-top-10 data-closed:fade-out-0 data-open:fade-in-0 data-[side=bottom]:data-closed:motion-safe:slide-out-to-bottom-10 data-[side=bottom]:data-open:motion-safe:slide-in-from-bottom-10 fixed z-50 flex flex-col bg-clip-padding text-sm shadow-lg transition duration-200 ease-in-out data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:h-auto data-[side=bottom]:border-t data-[side=left]:inset-y-0 data-[side=left]:left-0 data-[side=left]:h-full data-[side=left]:w-3/4 data-[side=left]:border-r data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-3/4 data-[side=right]:border-l data-[side=top]:inset-x-0 data-[side=top]:top-0 data-[side=top]:h-auto data-[side=top]:border-b data-[side=left]:sm:max-w-sm data-[side=right]:sm:max-w-sm',
+          'bg-background fixed z-50 flex flex-col bg-clip-padding text-sm shadow-lg data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:h-auto data-[side=bottom]:border-t data-[side=left]:inset-y-0 data-[side=left]:left-0 data-[side=left]:h-full data-[side=left]:w-3/4 data-[side=left]:border-r data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-3/4 data-[side=right]:border-l data-[side=top]:inset-x-0 data-[side=top]:top-0 data-[side=top]:h-auto data-[side=top]:border-b data-[side=left]:sm:max-w-sm data-[side=right]:sm:max-w-sm',
+          'motion-safe:data-starting-style:[transform:translateY(8px)] motion-safe:data-ending-style:[transform:translateY(4px)] motion-safe:data-starting-style:opacity-0 motion-safe:data-ending-style:opacity-0 motion-safe:transition-[transform,opacity] motion-safe:duration-200 motion-safe:ease-out',
           className
         )}
         {...props}

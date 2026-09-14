@@ -74,6 +74,14 @@ The public demo band includes a labeled screenshot of the reference workspace li
 
 Avoid gradients, neon glows, glassmorphism, decorative notches, and illustration-heavy marketing. The interface should give commands, data, and decisions visual priority.
 
+## Interaction polish
+
+Use interruptible CSS transitions for interactive state changes, naming only the properties that change. Keep overlay exits softer than entrances: fade with a small fixed vertical displacement and `ease-out`. Preserve the intentional staged hero entrance; do not stagger frequent interactions.
+
+Buttons press to `scale(0.96)` unless their `static` prop disables it. Contextual icon pairs stay mounted and cross-fade between scale `0.25`/`1`, opacity `0`/`1`, and blur `4px`/`0px`, using `cubic-bezier(0.2, 0, 0, 1)`. Keep frequent feedback at 150ms or less, with a persistent label, color, or icon cue.
+
+Nested control radii follow outer radius = inner radius + padding. Floating menus use an 8px outer radius around 4px items with 4px padding; square panels stay square. Lucide icons beside regular text use 1.5px strokes and those beside semibold text use 2px. Images have a 1px pure-white outline at 10% opacity in the fixed dark theme.
+
 ## Accessibility
 
 Target WCAG 2.1 AA: body-text contrast at least 4.5:1, large-text and control contrast at least 3:1. Verify actual rendered surfaces, including deep bands and translucent fills.

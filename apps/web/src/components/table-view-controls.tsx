@@ -355,7 +355,7 @@ function MatchControl({ view, onChange }: Pick<Props, 'view' | 'onChange'>) {
           key={match}
           variant={view.match === match ? 'secondary' : 'ghost'}
           size="xs"
-          className="h-7 border-0 px-2 max-md:h-10"
+          className="h-7 rounded-sm border-0 px-2 max-md:h-10"
           aria-pressed={view.match === match}
           onClick={() => onChange({ ...view, match })}
         >

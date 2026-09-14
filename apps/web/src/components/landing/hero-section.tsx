@@ -54,7 +54,7 @@ function HeroSection() {
                 href={GITHUB_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex h-11 items-center gap-2 border border-border bg-background px-5 text-sm font-medium transition-colors hover:bg-muted"
+                className="inline-flex h-11 items-center gap-2 border border-border bg-background px-5 text-sm font-medium motion-safe:transition-[background-color,border-color,color,scale] hover:bg-muted motion-safe:active:scale-[0.96]"
               >
                 <GithubIcon className="size-4" />
                 {m.action_view_github()}

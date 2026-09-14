@@ -118,7 +118,7 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
             to="/"
             className="flex items-center gap-2 font-semibold whitespace-nowrap"
           >
-            <img src="/assets/starter-logo.png" alt="" width={40} height={40} className="size-10 shrink-0" />
+            <img src="/assets/starter-logo.png" alt="" width={40} height={40} className="size-10 shrink-0 outline outline-white/10" />
             <span className="sr-only sm:not-sr-only">B2B SaaS Starter</span>
           </Link>
           <nav

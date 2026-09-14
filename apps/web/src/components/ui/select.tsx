@@ -50,7 +50,10 @@ function SelectTrigger({
       {children}
       <SelectPrimitive.Icon
         render={
-          <ChevronDownIcon className="pointer-events-none size-4 text-muted-foreground" />
+          <ChevronDownIcon
+            className="pointer-events-none size-4 text-muted-foreground"
+            strokeWidth={1.5}
+          />
         }
       />
     </SelectPrimitive.Trigger>
@@ -85,9 +88,10 @@ function SelectContent({
           data-slot="select-content"
           data-align-trigger={alignItemWithTrigger}
           className={cn(
-            // Slide/zoom motion is `motion-safe:`-gated; without it the popup
-            // simply appears.
-            'relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-none border border-border bg-popover text-popover-foreground shadow-md duration-100 data-[align-trigger=true]:animate-none data-[side=bottom]:motion-safe:slide-in-from-top-2 data-[side=inline-end]:motion-safe:slide-in-from-left-2 data-[side=inline-start]:motion-safe:slide-in-from-right-2 data-[side=left]:motion-safe:slide-in-from-right-2 data-[side=right]:motion-safe:slide-in-from-left-2 data-[side=top]:motion-safe:slide-in-from-bottom-2 data-open:motion-safe:animate-in data-open:fade-in-0 data-open:motion-safe:zoom-in-95 data-closed:motion-safe:animate-out data-closed:fade-out-0 data-closed:motion-safe:zoom-out-95',
+            'relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-none border border-border bg-popover text-popover-foreground shadow-md',
+            alignItemWithTrigger
+              ? '[transition:none] [animation:none] opacity-100 [transform:none]'
+              : 'motion-safe:data-starting-style:[transform:translateY(8px)] motion-safe:data-ending-style:[transform:translateY(4px)] motion-safe:data-starting-style:opacity-0 motion-safe:data-ending-style:opacity-0 motion-safe:transition-[transform,opacity] motion-safe:duration-100 motion-safe:ease-out',
             className
           )}
           {...props}
@@ -129,7 +133,7 @@ function SelectItem({ className, children, ...props }: SelectPrimitive.Item.Prop
           <span className="pointer-events-none absolute right-2 flex size-4 items-center justify-center" />
         }
       >
-        <CheckIcon className="pointer-events-none" />
+        <CheckIcon className="pointer-events-none" strokeWidth={1.5} />
       </SelectPrimitive.ItemIndicator>
     </SelectPrimitive.Item>
   )

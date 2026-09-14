@@ -5,7 +5,7 @@ function LocaleFlag({ locale }: { readonly locale: Locale }) {
     <img
       aria-hidden="true"
       alt=""
-      className="h-4 w-6 shrink-0 rounded-sm object-cover"
+      className="h-4 w-6 shrink-0 rounded-sm object-cover outline outline-white/10"
       draggable="false"
       src={`/flags/${locale === 'nb' ? 'no' : 'us'}.svg`}
     />

@@ -46,7 +46,7 @@ function KnowledgeEntries({ close }: { readonly close: () => void }) {
             })
           }}
         >
-          <BookOpenIcon aria-hidden className="size-4" />
+          <BookOpenIcon aria-hidden className="size-4" strokeWidth={1.5} />
           {doc.frontmatter.title}
         </CommandItem>
       ))}

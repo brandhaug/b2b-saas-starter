@@ -43,6 +43,7 @@ import {
 } from '@/components/ui/item'
 import { Separator } from '@/components/ui/separator'
 import { Spinner } from '@/components/ui/spinner'
+import { IconTransition } from '@/components/ui/icon-transition'
 import { useKeyedFailure } from '@/hooks/use-keyed-failure'
 import { useServerAction } from '@/hooks/use-server-action'
 import { viewerCan, workspaceRoles, type Viewer } from '@/lib/permissions'
@@ -143,7 +144,11 @@ function MemberActions({
               />
             }
           >
-            {changing || removing ? <Spinner /> : <MoreHorizontalIcon />}
+            <IconTransition
+              active={changing || removing}
+              idle={<MoreHorizontalIcon />}
+              activeIcon={<Spinner />}
+            />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {canReRole ? (

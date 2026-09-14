@@ -284,7 +284,7 @@ function UserMenu({
         </div>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => void router.navigate({ to: '/account' })}>
-          <UserRoundIcon />
+          <UserRoundIcon strokeWidth={1.5} />
           {m.nav_account()}
         </DropdownMenuItem>
         {directory !== null && directory.length > 0 ? (
@@ -312,7 +312,7 @@ function UserMenu({
         ) : null}
         {admin ? (
           <DropdownMenuItem onClick={() => void router.navigate({ to: '/admin' })}>
-            <ShieldIcon />
+            <ShieldIcon strokeWidth={1.5} />
             {m.nav_system_admin()}
           </DropdownMenuItem>
         ) : null}
@@ -321,7 +321,7 @@ function UserMenu({
           disabled={signingOut.pending}
           onClick={() => signingOut.run()}
         >
-          <LogOutIcon />
+          <LogOutIcon strokeWidth={1.5} />
           {m.sign_out()}
         </DropdownMenuItem>
       </DropdownMenuContent>

@@ -39,6 +39,7 @@ import {
   ItemTitle
 } from '@/components/ui/item'
 import { Spinner } from '@/components/ui/spinner'
+import { IconTransition } from '@/components/ui/icon-transition'
 import { useServerAction } from '@/hooks/use-server-action'
 import { useKeyedFailure } from '@/hooks/use-keyed-failure'
 import { m } from '@b2b-saas-starter/i18n/messages'
@@ -144,11 +145,12 @@ export function LiveNotifications({
             disabled={isFetching}
             aria-label={m.common_refresh_notifications()}
           >
-            {isFetching ? (
-              <Spinner data-icon="inline-start" />
-            ) : (
-              <RefreshCwIcon data-icon="inline-start" />
-            )}
+            <IconTransition
+              active={isFetching}
+              data-icon="inline-start"
+              idle={<RefreshCwIcon />}
+              activeIcon={<Spinner />}
+            />
           </Button>
           {unread.length === 0 ? null : (
             <Button

@@ -31,7 +31,7 @@ function CommandInput({
       data-slot="command-input-wrapper"
       className="flex items-center gap-2 border-b px-3"
     >
-      <SearchIcon className="size-4 shrink-0 opacity-50" />
+      <SearchIcon className="size-4 shrink-0 opacity-50" strokeWidth={1.5} />
       <CommandPrimitive.Input
         data-slot="command-input"
         className={cn(
@@ -132,8 +132,8 @@ function CommandDialog({
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Backdrop className="data-open:motion-safe:animate-in data-closed:motion-safe:animate-out data-closed:motion-safe:fade-out-0 data-open:motion-safe:fade-in-0 bg-overlay/80 animation-duration-100 supports-backdrop-filter:backdrop-blur-xs fixed inset-0 isolate z-50" />
-        <DialogPrimitive.Popup className="bg-background border-border data-open:motion-safe:animate-in data-closed:motion-safe:animate-out data-closed:motion-safe:fade-out-0 data-open:motion-safe:fade-in-0 data-closed:motion-safe:zoom-out-95 data-open:motion-safe:zoom-in-95 fixed top-[20%] left-1/2 z-50 w-full max-w-dialog-inset -translate-x-1/2 overflow-hidden rounded-none border animation-duration-100 sm:max-w-lg">
+        <DialogPrimitive.Backdrop className="bg-overlay/80 motion-safe:transition-opacity motion-safe:duration-100 motion-safe:ease-out motion-safe:data-ending-style:opacity-0 motion-safe:data-starting-style:opacity-0 supports-backdrop-filter:backdrop-blur-xs fixed inset-0 isolate z-50" />
+        <DialogPrimitive.Popup className="bg-background border-border motion-safe:data-starting-style:[transform:translateY(8px)] motion-safe:data-ending-style:[transform:translateY(4px)] motion-safe:data-starting-style:opacity-0 motion-safe:data-ending-style:opacity-0 fixed top-[20%] left-1/2 z-50 w-full max-w-dialog-inset -translate-x-1/2 overflow-hidden rounded-none border motion-safe:transition-[transform,opacity] motion-safe:duration-100 motion-safe:ease-out sm:max-w-lg">
           {/* The popup needs an accessible name; the visible input is not a
              Title. Base UI already sets role=dialog + aria-modal on the
              popup. */}

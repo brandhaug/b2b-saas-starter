@@ -113,7 +113,7 @@ export function WorkspaceNav({
           alt=""
           width={40}
           height={40}
-          className="size-10 shrink-0"
+          className="size-10 shrink-0 outline outline-white/10"
         />
         B2B SaaS Starter
       </Link>

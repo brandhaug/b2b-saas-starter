@@ -24,7 +24,7 @@ export function AuthShell({ children }: { readonly children: ReactNode }) {
             alt=""
             width={40}
             height={40}
-            className="size-10 shrink-0"
+            className="size-10 shrink-0 outline outline-white/10"
           />
           <span className="text-sm font-semibold tracking-tight">B2B SaaS Starter</span>
         </Link>
@@ -66,7 +66,11 @@ export function AuthShell({ children }: { readonly children: ReactNode }) {
                 key={capability}
                 className="flex items-center gap-2 text-sm text-muted-foreground"
               >
-                <CheckIcon className="size-4 text-primary" aria-hidden="true" />
+                <CheckIcon
+                  className="size-4 text-primary"
+                  strokeWidth={1.5}
+                  aria-hidden="true"
+                />
                 {capability}
               </li>
             ))}
@@ -100,7 +104,7 @@ export function AuthShell({ children }: { readonly children: ReactNode }) {
             className="inline-flex min-h-11 items-center gap-1 underline-offset-4 hover:text-foreground hover:underline"
           >
             {m.auth_design_explore_starter()}{' '}
-            <ArrowUpRightIcon className="size-3" aria-hidden="true" />
+            <ArrowUpRightIcon className="size-3" strokeWidth={1.5} aria-hidden="true" />
           </Link>
         </div>
       </footer>

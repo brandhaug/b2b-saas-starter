@@ -64,7 +64,8 @@ function DocsIndex() {
                       {article.frontmatter.title}
                       <ArrowRightIcon
                         aria-hidden
-                        className="size-3.5 shrink-0 self-center transition-transform group-hover:translate-x-0.5"
+                        className="size-3.5 shrink-0 self-center"
+                        strokeWidth={1.5}
                       />
                     </Link>
                   </li>

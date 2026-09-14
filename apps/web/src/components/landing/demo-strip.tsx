@@ -52,7 +52,7 @@ export function DemoStrip({ demo }: { readonly demo: DemoShowcase }) {
             height={1000}
             loading="lazy"
             decoding="async"
-            className="w-full"
+            className="w-full outline outline-white/10"
           />
         </Link>
         <figcaption className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">

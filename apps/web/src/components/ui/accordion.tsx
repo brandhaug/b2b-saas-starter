@@ -49,14 +49,16 @@ function AccordionTrigger({
         {...props}
       >
         {children}
-        <ChevronDownIcon
-          data-slot="accordion-trigger-icon"
-          className="pointer-events-none shrink-0 group-aria-expanded/accordion-trigger:hidden"
-        />
-        <ChevronUpIcon
-          data-slot="accordion-trigger-icon"
-          className="pointer-events-none hidden shrink-0 group-aria-expanded/accordion-trigger:inline"
-        />
+        <span className="relative size-4 shrink-0" aria-hidden="true">
+          <ChevronDownIcon
+            data-slot="accordion-trigger-icon"
+            className="icon-transition pointer-events-none absolute inset-0 group-aria-expanded/accordion-trigger:scale-25 group-aria-expanded/accordion-trigger:opacity-0 group-aria-expanded/accordion-trigger:blur-[4px]"
+          />
+          <ChevronUpIcon
+            data-slot="accordion-trigger-icon"
+            className="icon-transition pointer-events-none absolute inset-0 scale-25 opacity-0 blur-[4px] group-aria-expanded/accordion-trigger:scale-100 group-aria-expanded/accordion-trigger:opacity-100 group-aria-expanded/accordion-trigger:blur-none"
+          />
+        </span>
       </AccordionPrimitive.Trigger>
     </AccordionPrimitive.Header>
   )
@@ -72,12 +74,12 @@ function AccordionContent({
       data-slot="accordion-content"
       // The height animation is `motion-safe:`-gated like every other
       // primitive here; without it the panel simply appears.
-      className="data-open:motion-safe:animate-accordion-down data-closed:motion-safe:animate-accordion-up text-sm overflow-hidden"
+      className="text-sm overflow-hidden motion-safe:h-(--accordion-panel-height) motion-safe:transition-[height] motion-safe:duration-200 motion-safe:ease-out motion-safe:data-starting-style:h-0 motion-safe:data-ending-style:h-0"
       {...props}
     >
       <div
         className={cn(
-          'pt-0 pb-2.5 [&_a]:hover:text-foreground h-(--accordion-panel-height) data-ending-style:h-0 data-starting-style:h-0 [&_a]:underline [&_a]:underline-offset-3 [&_p:not(:last-child)]:mb-4',
+          'pt-0 pb-2.5 [&_a]:hover:text-foreground h-(--accordion-panel-height) [&_a]:underline [&_a]:underline-offset-3 [&_p:not(:last-child)]:mb-4',
           className
         )}
       >

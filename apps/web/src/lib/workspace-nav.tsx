@@ -82,14 +82,14 @@ export function workspaceNav(): ReadonlyArray<WorkspaceNavRow> {
       to: '/workspaces/$workspaceSlug',
       label: m.nav_overview(),
       group: m.nav_workspace_group(),
-      icon: <LayoutDashboardIcon className="size-4" />,
+      icon: <LayoutDashboardIcon className="size-4" strokeWidth={1.5} />,
       exact: true
     },
     {
       to: '/workspaces/$workspaceSlug/assistant',
       label: m.nav_assistant(),
       group: m.nav_workspace_group(),
-      icon: <SparklesIcon className="size-4" />
+      icon: <SparklesIcon className="size-4" strokeWidth={1.5} />
     },
     {
       // Members owns the roster and, since the settings page stopped carrying
@@ -97,39 +97,39 @@ export function workspaceNav(): ReadonlyArray<WorkspaceNavRow> {
       to: '/workspaces/$workspaceSlug/members',
       label: m.nav_members(),
       group: m.nav_administration_group(),
-      icon: <UsersIcon className="size-4" />
+      icon: <UsersIcon className="size-4" strokeWidth={1.5} />
     },
     {
       to: '/workspaces/$workspaceSlug/settings',
       label: m.nav_settings(),
       group: m.nav_administration_group(),
-      icon: <SettingsIcon className="size-4" />
+      icon: <SettingsIcon className="size-4" strokeWidth={1.5} />
     },
     {
       to: '/workspaces/$workspaceSlug/billing',
       label: m.nav_billing(),
       group: m.nav_administration_group(),
-      icon: <CreditCardIcon className="size-4" />
+      icon: <CreditCardIcon className="size-4" strokeWidth={1.5} />
     },
     {
       to: '/workspaces/$workspaceSlug/audit',
       label: m.nav_audit_trail(),
       group: m.nav_administration_group(),
-      icon: <HistoryIcon className="size-4" />,
+      icon: <HistoryIcon className="size-4" strokeWidth={1.5} />,
       permission: { auditLog: ['read'] }
     },
     {
       to: '/workspaces/$workspaceSlug/api-tokens',
       label: m.nav_api_tokens(),
       group: m.nav_developer_group(),
-      icon: <KeyRoundIcon className="size-4" />,
+      icon: <KeyRoundIcon className="size-4" strokeWidth={1.5} />,
       permission: { apiToken: ['list'] }
     },
     {
       to: '/workspaces/$workspaceSlug/webhooks',
       label: m.nav_webhook_endpoints(),
       group: m.nav_developer_group(),
-      icon: <WebhookIcon className="size-4" />,
+      icon: <WebhookIcon className="size-4" strokeWidth={1.5} />,
       permission: { webhook: ['list'] }
     }
   ]
@@ -149,14 +149,14 @@ export function youNav(): ReadonlyArray<YouNavRow> {
       to: '/account',
       label: m.nav_account(),
       group: m.nav_you_group(),
-      icon: <UserRoundIcon className="size-4" />,
+      icon: <UserRoundIcon className="size-4" strokeWidth={1.5} />,
       exact: true
     },
     {
       to: '/admin',
       label: m.nav_system_admin(),
       group: m.nav_you_group(),
-      icon: <ShieldIcon className="size-4" />,
+      icon: <ShieldIcon className="size-4" strokeWidth={1.5} />,
       exact: true,
       adminOnly: true
     },
@@ -164,7 +164,7 @@ export function youNav(): ReadonlyArray<YouNavRow> {
       to: '/help',
       label: m.public_meta_support(),
       group: m.nav_you_group(),
-      icon: <HelpCircleIcon className="size-4" />,
+      icon: <HelpCircleIcon className="size-4" strokeWidth={1.5} />,
       exact: true
     }
   ]
