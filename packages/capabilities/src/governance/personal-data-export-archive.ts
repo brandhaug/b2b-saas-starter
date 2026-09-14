@@ -50,7 +50,7 @@ export const PersonalDataExport = Schema.Struct({
     Schema.Struct({
       id: Schema.String,
       providerId: Schema.String,
-      issuer: Schema.String,
+      issuer: MaybeString,
       accountId: Schema.String,
       createdAt: Schema.String,
       updatedAt: Schema.String
