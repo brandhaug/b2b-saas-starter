@@ -193,8 +193,8 @@ catalogs:
       specifier: 1.426.2
       version: 1.426.2
     posthog-node:
-      specifier: 5.51.4
-      version: 5.51.4
+      specifier: 5.52.1
+      version: 5.52.1
     qrcode.react:
       specifier: ^4.2.0
       version: 4.2.0
@@ -1135,7 +1135,7 @@ importers:
         version: 4.0.0-rc.112
       posthog-node:
         specifier: 'catalog:'
-        version: 5.51.4
+        version: 5.52.1
     devDependencies:
       '@effect/vitest':
         specifier: 'catalog:'
@@ -3931,8 +3931,14 @@ packages:
   '@posthog/core@1.51.2':
     resolution: {integrity: sha512-z3fPR/RdOgTYWdHQnZZm81CCgljDxsrMsSz72Jpd2vJAtycsRYKOlMXdP8+55yM3WYeVU1wOyF9BldWsIABr+A==}
 
+  '@posthog/core@1.53.2':
+    resolution: {integrity: sha512-Knx8442G2LyPVIzLvhcBX/TIdeHpZhrYrtZou3Uw8FWfbr9gQtQeOZDCog3MWcDxJ+4vAnMAAOzf5cYpc7Gxyw==}
+
   '@posthog/types@1.409.2':
     resolution: {integrity: sha512-hZ4EXZ1+BstMaxUkmAEg3qvgMR/S00Xb+wEwY/Tx2Dr9dBgiBWrERxaq2UwICh/Fh/vVXpKZT/0SkRtO8JKQ2A==}
+
+  '@posthog/types@1.411.1':
+    resolution: {integrity: sha512-Gd7tnSYctcSXup3naVlAgavvenByRao6rsSYdMgWgP35KE9jFn+rMHNRJeI5LNjJuLzMXHEVcgzAN7xcATefdw==}
 
   '@prisma/debug@7.2.0':
     resolution: {integrity: sha512-YSGTiSlBAVJPzX4ONZmMotL+ozJwQjRmZweQNIq/ER0tQJKJynNkRB3kyvt37eOfsbMCXk3gnLF6J9OJ4QWftw==}
@@ -7883,8 +7889,8 @@ packages:
       react:
         optional: true
 
-  posthog-node@5.51.4:
-    resolution: {integrity: sha512-gI6JMBnU3vjDNclUBWonw3y7k8Y0UPIAVO4AQ2zu9eyW+7sY8UQRofx4JIA7IGYLMEbs4gykfogOmXp16+oUdg==}
+  posthog-node@5.52.1:
+    resolution: {integrity: sha512-Xt0xazhAR1Bf2DEnPPZETkWx19jckKeMkJ4qMMTv1xuyKSNjy8AXREEkiuDbJWWr3k6KpgoYH6sURWBROpRKlA==}
     engines: {node: ^20.20.0 || >=22.22.0}
     peerDependencies:
       rxjs: ^7.0.0
@@ -11272,7 +11278,13 @@ snapshots:
     dependencies:
       '@posthog/types': 1.409.2
 
+  '@posthog/core@1.53.2':
+    dependencies:
+      '@posthog/types': 1.411.1
+
   '@posthog/types@1.409.2': {}
+
+  '@posthog/types@1.411.1': {}
 
   '@prisma/debug@7.2.0': {}
 
@@ -15363,9 +15375,9 @@ snapshots:
     transitivePeerDependencies:
       - preact-render-to-string
 
-  posthog-node@5.51.4:
+  posthog-node@5.52.1:
     dependencies:
-      '@posthog/core': 1.51.2
+      '@posthog/core': 1.53.2
 
   powershell-utils@0.1.0: {}
 
