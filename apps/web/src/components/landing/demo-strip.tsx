@@ -45,6 +45,7 @@ export function DemoStrip({ demo }: { readonly demo: DemoShowcase }) {
           to="/demo"
           className="group block overflow-hidden border border-border bg-card outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background"
         >
+          {/* oxlint-disable-next-line react-doctor/no-image-hover-transform -- The approved public design calls for restrained image hover scaling. */}
           <img
             src="/images/workspace-preview.png"
             alt={m.showcase_workspace_preview_alt()}
@@ -52,7 +53,7 @@ export function DemoStrip({ demo }: { readonly demo: DemoShowcase }) {
             height={1000}
             loading="lazy"
             decoding="async"
-            className="w-full"
+            className="w-full transition-transform duration-700 ease-out group-hover:scale-[1.025] group-focus-visible:scale-[1.025] motion-reduce:transition-none"
           />
         </Link>
         <figcaption className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">

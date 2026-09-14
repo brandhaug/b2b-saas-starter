@@ -123,7 +123,7 @@ describe('locale request integration', () => {
 
   it.each([
     '/assets/app.123.js',
-    '/assets/starter-logo.png',
+    '/assets/starter-logo.webp',
     '/llms-full.txt',
     '/robots.txt'
   ])('leaves static asset %s untouched', async (path) => {

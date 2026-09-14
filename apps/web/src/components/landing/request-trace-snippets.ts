@@ -41,45 +41,18 @@ export const CAPABILITY_SNIPPET: TraceSnippet = {
 })`
 }
 
-/** The three call sites of that one capability, each condensed to its deciding lines. */
-export const CALL_SITES: ReadonlyArray<TraceSnippet & { readonly label: string }> = [
-  {
-    label: 'server fn',
-    path: 'apps/web/src/lib/server/demo-showcase.effects.ts',
-    code: `return runWorkspaceCapabilities(
-  DEMO_WORKSPACE_SLUG,
-  Effect.all(
-    {
-      overview: workspaceOverview,
-      …
-    },
-    { concurrency: 'unbounded' }
-  )
-)`
-  },
-  {
-    label: 'REST handler',
-    path: 'apps/api/src/handlers.ts',
-    code: `.handle('overview', ({ params, request }) =>
-  workspaceRead(READ_OPERATIONS.overview, params, undefined, request)
-)`
-  },
-  {
-    label: 'MCP tool',
-    path: 'apps/api/src/mcp.ts',
-    code: `const caller = yield* requireCaller()
-const invoke = yield* decodeOperationInput(operation, payload)
-…
-const guarded = Effect.gen(function* () {
-  yield* authorizeMcpOperation(caller, operation.permission, MCP_READ_SCOPE)
-  return yield* invoke
-}).pipe(Effect.scoped)`
-  }
+/** Source links for the three transports that call the shared capability. */
+export const CALL_SITES: ReadonlyArray<{
+  readonly path: string
+  readonly label: string
+}> = [
+  { label: 'server fn', path: 'apps/web/src/lib/server/demo-showcase.effects.ts' },
+  { label: 'REST handler', path: 'apps/api/src/handlers.ts' },
+  { label: 'MCP tool', path: 'apps/api/src/mcp.ts' }
 ]
 
-/** Every panel whose caption names a repository file, for the guard test. */
+/** Every rendered panel that quotes a repository file, for the guard test. */
 export const QUOTED_SNIPPETS: ReadonlyArray<TraceSnippet> = [
   CONTRACT_SNIPPET,
-  CAPABILITY_SNIPPET,
-  ...CALL_SITES
+  CAPABILITY_SNIPPET
 ]

@@ -15,7 +15,7 @@ test('public homepage renders the starter showcase', async ({ page }) => {
     page.getByRole('heading', { name: /the hard parts, already wired/i })
   ).toBeVisible()
   await expect(
-    page.getByRole('listitem').filter({ hasText: 'TanStack Start' })
+    page.getByRole('link', { name: /Shared application layer/ })
   ).toBeVisible()
 })
 
@@ -29,6 +29,81 @@ test('the homepage renders the live seed numbers and the real overview payload',
   // The REST snippet embeds the workspace the curl line targets — the seed
   // workspace's real name, not a hand-written placeholder.
   await expect(page.getByText(/"name": "Starter Lab"/).first()).toBeVisible()
+})
+
+test('repository decisions stay readable when moving through the card stack', async ({
+  page
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await page.goto('/')
+  await page.locator('header [data-slot="select-trigger"]:enabled').waitFor()
+  const first = page
+    .getByRole('article', { includeHidden: true })
+    .filter({ hasText: 'Capabilities stay shared' })
+  const second = page
+    .getByRole('article', { includeHidden: true })
+    .filter({ hasText: 'Optional providers remain inactive' })
+  const third = page
+    .getByRole('article', { includeHidden: true })
+    .filter({ hasText: 'The Seed and Live adapters represent' })
+  await first.evaluate((card) =>
+    window.scrollTo({
+      top: window.scrollY + card.getBoundingClientRect().top - 127,
+      behavior: 'instant'
+    })
+  )
+  // Confirm the scroll interaction loaded before exercising its controls.
+  await expect(first).toHaveCSS('position', 'fixed')
+  await first.getByRole('button', { name: 'Next repository decision' }).click()
+  await expect(second).toBeInViewport({ ratio: 1 })
+  await expect(second).toHaveCSS('opacity', '1')
+  // Trial clicks also check that another pinned card does not cover the link.
+  await second.getByRole('link').click({ trial: true })
+  await second.getByRole('button', { name: 'Next repository decision' }).click()
+  await expect(third).toBeInViewport({ ratio: 1 })
+  await expect(third).toHaveCSS('opacity', '1')
+  await third.getByRole('link').click({ trial: true })
+  await third.getByRole('button', { name: 'Previous repository decision' }).click()
+  await expect(second).toBeInViewport({ ratio: 1 })
+  await second.getByRole('link').click({ trial: true })
+  await second.getByRole('button', { name: 'Previous repository decision' }).click()
+  await expect(first).toBeInViewport({ ratio: 1 })
+  await first.getByRole('link').click({ trial: true })
+})
+
+test('the request trace and provider accordion reveal the selected content', async ({
+  page
+}) => {
+  await page.goto('/')
+  await page.locator('header [data-slot="select-trigger"]:enabled').waitFor()
+  const contract = page.getByRole('tab', { name: 'Contract', exact: true })
+  await contract.click()
+  await expect(contract).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('tabpanel')).toHaveCount(1)
+  await expect(page.getByRole('tabpanel')).toContainText('HttpApiGroup')
+  await contract.press('ArrowRight')
+  const capability = page.getByRole('tab', { name: 'Capability', exact: true })
+  await expect(capability).toBeFocused()
+  await capability.press('Enter')
+  await expect(
+    page.getByRole('tab', { name: 'Capability', exact: true })
+  ).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('tabpanel')).toHaveCount(1)
+  await expect(
+    page.getByRole('tabpanel', { name: 'Capability', exact: true })
+  ).toContainText('workspaceOverview')
+  await expect(page.getByRole('tabpanel')).not.toContainText('HttpApiGroup')
+  const stripe = page.getByRole('button', { name: 'Stripe', exact: true })
+  const sentry = page.getByRole('button', { name: 'Sentry', exact: true })
+  await sentry.click()
+  await expect(sentry).toHaveAttribute('aria-expanded', 'true')
+  await expect(stripe).toHaveAttribute('aria-expanded', 'false')
+  const provider = page.getByRole('article').filter({ has: sentry })
+  await expect(provider.getByRole('link', { name: 'Read the docs' })).toBeVisible()
+  await sentry.click()
+  await expect(sentry).toHaveAttribute('aria-expanded', 'false')
+  await expect(provider.getByRole('link', { name: 'Read the docs' })).toBeHidden()
 })
 
 test('public docs render', async ({ page }) => {
@@ -133,6 +208,7 @@ test('seeded demo user can request a magic link', async ({ page }) => {
   await page.goto('/sign-in')
   await page.locator('form[data-hydrated="true"]').waitFor()
   // The second Local Auth Path: switch the form to email-only and send.
+  await page.getByText('Other sign-in methods', { exact: true }).click()
   await page.getByRole('button', { name: 'Email link', exact: true }).click()
   await expect(
     page.getByRole('heading', { name: 'Sign in with an email link' })
@@ -145,4 +221,21 @@ test('seeded demo user can request a magic link', async ({ page }) => {
   await expect(page.getByRole('alert')).toContainText(
     'check your inbox for a sign-in link'
   )
+})
+
+test('demo credentials fill the sign-in form without submitting', async ({ page }) => {
+  await page.goto('/sign-in')
+  await page.locator('form[data-hydrated="true"]').waitFor()
+  await page.getByRole('button', { name: 'View demo credentials', exact: true }).click()
+  await page
+    .getByRole('button', { name: 'Fill owner credentials', exact: true })
+    .click()
+  await expect(page.getByLabel('Email', { exact: true })).toHaveValue(
+    'demo@starter.local'
+  )
+  await expect(page.getByLabel('Password', { exact: true })).toHaveValue(
+    'demo-starter-password'
+  )
+  await expect(page.getByLabel('Password', { exact: true })).toBeFocused()
+  await expect(page).toHaveURL(/\/sign-in$/)
 })

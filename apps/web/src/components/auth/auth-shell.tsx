@@ -18,9 +18,9 @@ export function AuthShell({ children }: { readonly children: ReactNode }) {
         {m.common_skip_to_content()}
       </a>
       <header className="relative mx-auto flex h-20 w-full max-w-7xl items-center justify-between px-6 sm:px-10 lg:px-14">
-        <Link to="/" className="inline-flex items-center gap-3">
+        <Link to="/" className="inline-flex min-h-11 items-center gap-3">
           <img
-            src="/assets/starter-logo.png"
+            src="/assets/starter-logo.webp"
             alt=""
             width={40}
             height={40}

@@ -48,7 +48,6 @@
   "public_knowledge_heading": "Resonnementet er sjekket inn.",
   "public_knowledge_description": "Dokumentasjon og FAQ er versjonert MDX i repoet og søkes fra genererte indekser, uten CMS. Utgivelser lages av release-please.",
   "public_request_heading": "Én forespørsel, sporet fra ende til ende.",
-  "public_request_description": "Det samme oppslaget som fylte tallene over, fulgt fra curl-kallet som starter det til bindingen som lagrer det. Alle utdragene nedenfor er ekte kode fra dette repoet; bildeteksten på hvert panel viser stien. I sidestolpen lyser noden som omtales mens du leser.",
   "public_architecture_aria": "Arkitekturskjema, kan rulles vannrett",
   "public_architecture_title": "Forespørselstopologi for B2B SaaS Starter",
   "public_request_clients": "Klienter",

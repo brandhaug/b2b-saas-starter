@@ -50,6 +50,7 @@ test('registers, renames, signs in with, and removes a passkey', async ({
   await context.clearCookies()
   await page.goto('/sign-in?redirect=%2Fworkspaces%2Fstarter-lab%2Fsettings')
   await page.locator('form[data-hydrated="true"]').waitFor()
+  await page.getByText('Other sign-in methods', { exact: true }).click()
   await page.getByRole('button', { name: 'Sign in with a passkey' }).click()
   await expect(page.getByRole('heading', { name: 'Workspace settings' })).toBeVisible({
     timeout: 15_000

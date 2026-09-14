@@ -4,6 +4,14 @@
 @source "../node_modules/streamdown/dist/*.js";
 @plugin "@tailwindcss/typography";
 
+@font-face {
+  font-family: 'Cabinet Grotesk';
+  src: url('/fonts/cabinet-grotesk-variable.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 /* The only scheme: Catppuccin Mocha. Light mode was removed and the `dark:`
    variant with it (`starter/no-dark-prefix` fails the build on any use), so
    there is no dark custom-variant and no `.dark` selector to keep in sync —
@@ -46,8 +54,7 @@
      packages emit: 'Geist Variable' and 'Geist Mono Variable'. The un-suffixed
      names match nothing and silently fall back to ui-sans-serif. */
   --font-sans: 'Geist Variable', ui-sans-serif, sans-serif, system-ui;
-  --font-display:
-    'Newsreader Variable', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  --font-display: 'Cabinet Grotesk', 'Geist Variable', ui-sans-serif, sans-serif;
   --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
   --radius: 0.5rem;
   /* Two rungs, because two exist in the UI: `shadow-md` for floating menus,
@@ -282,24 +289,6 @@
   scroll-margin-top: 5.5rem;
 }
 
-/* Display voice for the public surface: Newsreader held at its maximum
-   optical size, the axis position where its display cut's stroke contrast
-   reads as display lettering rather than news text. `opsz` is pinned rather
-   than left to `font-optical-sizing: auto` so a 2xl subhead gets the same
-   cut as the 6xl hero. Naming only `opsz` here leaves `wght` under the
-   control of `font-weight`, per the variation-settings cascade.
-
-   The serif is opt-in per heading via this utility — page-level marketing
-   headings apply it (`text-display` sizes it at 24px or larger). It must
-   never land on card or panel titles, where a 14px serif reads as a caption. */
-@utility font-display {
-  font-family: var(--font-display);
-  font-variation-settings: 'opsz' 72;
-  /* Zero tracking, unlike the grotesque headings: the display cut already
-     sets a tight fit, and negative tracking collides its thin strokes. */
-  letter-spacing: 0;
-}
-
 /* The knowledge sidebar's own scroll height: pinned `top-18` below the
    header, its list must stop at the fold rather than 72px past it, which
    `max-h-dvh` left unreachable. A utility because the calc is the one
@@ -472,4 +461,14 @@
 .prose :where(code):not(:where([class~='not-prose'] *))::before,
 .prose :where(code):not(:where([class~='not-prose'] *))::after {
   content: '';
+}
+
+@utility hero-display {
+  font-size: clamp(2.5rem, 7.5vw, 6rem);
+  line-height: 1;
+  letter-spacing: -0.035em;
+}
+
+@utility hero-backdrop {
+  background: radial-gradient(ellipse at center, transparent 5%, var(--background) 85%);
 }

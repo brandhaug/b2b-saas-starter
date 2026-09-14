@@ -106,10 +106,10 @@ export function WorkspaceNav({
       <Link
         to="/"
         onClick={onNavigate}
-        className="flex items-center gap-2 font-semibold"
+        className="flex min-h-11 items-center gap-2 font-semibold"
       >
         <img
-          src="/assets/starter-logo.png"
+          src="/assets/starter-logo.webp"
           alt=""
           width={40}
           height={40}

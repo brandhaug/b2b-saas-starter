@@ -48,7 +48,6 @@
   "public_knowledge_heading": "The reasoning is checked in.",
   "public_knowledge_description": "Docs and FAQ are versioned MDX in the repo, searched from generated indexes, no CMS. Releases are cut by release-please.",
   "public_request_heading": "One request, traced end to end.",
-  "public_request_description": "The same read that filled the numbers above, followed from the curl that starts it to the binding that persists it. Every excerpt below is real code from this repository; the caption on each panel is its path. In the rail, the node under discussion lights as you read.",
   "public_architecture_aria": "Architecture schematic, scrollable horizontally",
   "public_architecture_title": "Request topology of the B2B SaaS Starter",
   "public_request_clients": "Clients",

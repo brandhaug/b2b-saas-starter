@@ -31,7 +31,17 @@ for (const { locale, signInLabel } of [
     page
   }) => {
     await page.goto(`/${locale}/`)
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+    const headline = page.getByRole('heading', { level: 1 })
+    await expect(headline).toBeVisible()
+    await page.evaluate(() => document.fonts.ready)
+    await expect
+      .poll(() =>
+        headline.evaluate((element) => {
+          const lineHeight = Number.parseFloat(getComputedStyle(element).lineHeight)
+          return Math.round(element.getBoundingClientRect().height / lineHeight)
+        })
+      )
+      .toBeLessThanOrEqual(3)
     await expectPageFits(page)
     await expect(
       page.getByRole('button', { name: signInLabel, exact: true })

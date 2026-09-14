@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 // oxlint-disable-next-line effect/noNodeBuiltinImport -- same: resolving the content path is a Node-side job, and the test never ships to the Worker
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vite-plus/test'
-import { SETUP_STEPS } from './toolchain'
+import { CLONE_AND_SETUP_STEPS } from './toolchain'
 
 /**
  * The quickstart is the canonical install story; the hero and closing block
@@ -17,16 +17,24 @@ const quickstart = readFileSync(
   'utf8'
 )
 
-describe('SETUP_STEPS', () => {
-  it('matches the quickstart command for command', () => {
-    for (const step of SETUP_STEPS) {
-      expect(quickstart).toContain(step)
-    }
+describe('copyable quickstart', () => {
+  it('includes every documented command in execution order', () => {
+    const commands = quickstart
+      .match(/```bash\n([\s\S]*?)```/)?.[1]
+      ?.trim()
+      .split('\n')
+    expect(CLONE_AND_SETUP_STEPS).toEqual(commands)
   })
 
-  it('keeps the copy-paste order the quickstart prints', () => {
-    const positions = SETUP_STEPS.map((step) => quickstart.indexOf(step))
-    expect(positions.every((position) => position >= 0)).toBe(true)
-    expect(positions.toSorted((a, b) => a - b)).toEqual(positions)
+  it('enters the repository and prepares the environment before database setup', () => {
+    expect(CLONE_AND_SETUP_STEPS).toEqual([
+      'git clone https://github.com/brandhaug/b2b-saas-starter.git',
+      'cd b2b-saas-starter',
+      'vp install',
+      'cp .env.example .env',
+      'pnpm run db:migrate:local',
+      'pnpm run db:seed',
+      'pnpm run dev'
+    ])
   })
 })

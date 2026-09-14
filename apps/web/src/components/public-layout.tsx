@@ -1,11 +1,6 @@
 import { type ReactNode, useState } from 'react'
 import { Link, useMatch } from '@tanstack/react-router'
 import { MenuIcon } from 'lucide-react'
-// The public layout is the one scope that still renders Newsreader (the
-// landing hero and section headings), so its latin variable woff2 preloads
-// here instead of in __root.tsx: auth screens and the workspace app never
-// enter this layout and never pay for the font.
-import newsreaderLatinWoff2 from '@fontsource-variable/newsreader/files/newsreader-latin-opsz-normal.woff2?url'
 import { SearchButton, CommandPaletteProvider } from '@/components/command-palette'
 import { GITHUB_URL } from '@/components/landing/github-url'
 import { Button } from '@/components/ui/button'
@@ -43,15 +38,6 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
     // prettier-ignore
     <CommandPaletteProvider>
       <div className="marketing flex min-h-dvh flex-col bg-background">
-        {/* Rendered in the tree, hoisted to <head> by React 19 — see the import
-          comment above. Deduped by href if the root ever preloads it again. */}
-        <link
-          rel="preload"
-          href={newsreaderLatinWoff2}
-          as="font"
-          type="font/woff2"
-          crossOrigin="anonymous"
-        />
       <a
         // oxlint-disable-next-line react-doctor/anchor-target-exists -- the target is owned by this layout's children: every public route renders its own <main id="main-content"> (routes/index.tsx, sign-in.tsx, pricing.tsx, …). The rule scans only the file declaring the link.
         href="#main-content"
@@ -59,7 +45,7 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
       >
         {m.common_skip_to_content()}
       </a>
-      <header className="sticky top-0 z-40 border-b border-border bg-background">
+      <header className="sticky top-0 z-40 border-b border-border bg-background/95">
         {/* Keep the narrow bar's fixed controls compact so the account CTA
             remains reachable at the smallest supported width. */}
         <div className="mx-auto flex h-16 min-w-0 max-w-7xl items-center gap-2 px-4 sm:px-6 md:gap-4">
@@ -116,14 +102,14 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
           </Sheet>
           <Link
             to="/"
-            className="flex items-center gap-2 font-semibold whitespace-nowrap"
+            className="flex min-h-11 min-w-11 items-center gap-2 font-semibold whitespace-nowrap"
           >
-            <img src="/assets/starter-logo.png" alt="" width={40} height={40} className="size-10 shrink-0" />
+            <img src="/assets/starter-logo.webp" alt="" width={40} height={40} className="size-10 shrink-0" />
             <span className="sr-only sm:not-sr-only">B2B SaaS Starter</span>
           </Link>
           <nav
             aria-label={m.common_site_navigation()}
-            className="ml-auto hidden items-center gap-1 lg:flex"
+            className="mx-auto hidden items-center gap-1 rounded-full border border-border bg-card px-2 py-1 lg:flex"
           >
             {publicLinks().map((link) => (
               <Link
@@ -158,13 +144,13 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
           <div className="flex flex-wrap gap-4">
             <Link
               to="/privacy"
-              className="py-2.5 underline-offset-4 hover:text-foreground hover:underline"
+              className="inline-flex min-h-11 items-center py-2.5 underline-offset-4 hover:text-foreground hover:underline"
             >
               {m.privacy()}
             </Link>
             <Link
               to="/terms"
-              className="py-2.5 underline-offset-4 hover:text-foreground hover:underline"
+              className="inline-flex min-h-11 items-center py-2.5 underline-offset-4 hover:text-foreground hover:underline"
             >
               {m.terms()}
             </Link>
@@ -175,7 +161,7 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
               href={`${GITHUB_URL}/releases`}
               target="_blank"
               rel="noopener noreferrer"
-              className="py-2.5 underline-offset-4 hover:text-foreground hover:underline"
+              className="inline-flex min-h-11 items-center py-2.5 underline-offset-4 hover:text-foreground hover:underline"
             >
               {m.changelog()}
               <span className="sr-only">{m.common_opens_new_tab()}</span>

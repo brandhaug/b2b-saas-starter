@@ -228,9 +228,19 @@ function AssistantPage({
             </div>
           </form>
         ) : (
-          <p className="text-sm text-muted-foreground">
-            {m.assistant_chat_unavailable()}
-          </p>
+          <div className="grid gap-3 text-sm text-muted-foreground">
+            <p>{m.assistant_chat_unavailable()}</p>
+            <p>{m.assistant_unavailable_description()}</p>
+            <div className="flex flex-wrap items-center gap-3">
+              <a
+                href="/docs/getting-started/optional-providers"
+                className="inline-flex min-h-11 items-center text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                {m.assistant_setup_docs()}
+              </a>
+              <span className="text-xs">{m.assistant_example_prompt()}</span>
+            </div>
+          </div>
         )}
       </Panel>
       {investigation ? (

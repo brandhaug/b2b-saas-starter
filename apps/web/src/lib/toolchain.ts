@@ -1,3 +1,5 @@
+import { GITHUB_URL } from '@/components/landing/github-url'
+
 /**
  * The toolchain strings the public site prints, single-sourced.
  *
@@ -16,9 +18,17 @@
  */
 export const SETUP_STEPS: ReadonlyArray<string> = [
   'vp install',
+  'cp .env.example .env',
   'pnpm run db:migrate:local',
   'pnpm run db:seed',
   'pnpm run dev'
+]
+
+/** A complete paste from a parent directory, including checkout preparation. */
+export const CLONE_AND_SETUP_STEPS: ReadonlyArray<string> = [
+  `git clone ${GITHUB_URL}.git`,
+  'cd b2b-saas-starter',
+  ...SETUP_STEPS
 ]
 
 /** Deployment is Alchemy IaC off the root script. */

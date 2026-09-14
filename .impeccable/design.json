@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 2,
+  "title": "Design system: B2B SaaS Starter",
+  "extensions": {
+    "motion": [
+      {
+        "name": "marketing-rise",
+        "value": "700ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "A staggered public hero entrance that leaves content visible when motion is unavailable."
+      },
+      {
+        "name": "trace-travel",
+        "value": "7.2s linear infinite",
+        "purpose": "Moves architecture signals along the request schematic while it is visible."
+      },
+      {
+        "name": "marquee",
+        "value": "32s linear infinite",
+        "purpose": "Scrolls the public technology stack; the visitor can pause it and reduced motion disables it."
+      },
+      {
+        "name": "state-transition",
+        "value": "350ms ease",
+        "purpose": "Settles trace-node fill and stroke changes and ordinary public state changes."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "prefers-reduced-motion: reduce",
+        "purpose": "Removes entrance, trace, and transition motion and pauses WebGL and GSAP animation."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single main action in a region, such as opening the live demo.",
+      "html": "<button class=\"ds-btn-primary\">Open demo</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; height: 36px; gap: 6px; padding: 0 12px; border: 1px solid transparent; border-radius: var(--radius-md, 6px); background: var(--primary); color: var(--primary-foreground); font: 500 0.875rem/1.25 'Geist Variable', ui-sans-serif, sans-serif; transition: background-color 180ms ease, outline-color 180ms ease; } .ds-btn-primary:hover { background: color-mix(in oklab, var(--primary) 80%, transparent); } .ds-btn-primary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }"
+    },
+    {
+      "name": "Outline button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "A quieter action that keeps a visible edge against the dark scheme.",
+      "html": "<button class=\"ds-btn-outline\">Read docs</button>",
+      "css": ".ds-btn-outline { display: inline-flex; align-items: center; justify-content: center; height: 36px; gap: 6px; padding: 0 12px; border: 1px solid var(--input); border-radius: var(--radius-md, 6px); background: color-mix(in oklab, var(--input) 30%, transparent); color: var(--foreground); font: 500 0.875rem/1.25 'Geist Variable', ui-sans-serif, sans-serif; transition: background-color 180ms ease, color 180ms ease, outline-color 180ms ease; } .ds-btn-outline:hover { background: color-mix(in oklab, var(--input) 50%, transparent); } .ds-btn-outline:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }"
+    },
+    {
+      "name": "Text input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "A compact search or form field with a distinct control edge.",
+      "html": "<label class=\"ds-field\"><span>Search</span><input class=\"ds-input\" placeholder=\"Find a record\" /></label>",
+      "css": ".ds-field { display: grid; gap: 6px; color: var(--muted-foreground); font: 400 0.75rem/1.25 'Geist Mono Variable', ui-monospace, monospace; } .ds-input { width: 100%; height: 36px; padding: 0 12px; border: 1px solid var(--input); border-radius: var(--radius-md, 6px); background: color-mix(in oklab, var(--input) 30%, transparent); color: var(--foreground); font: 400 0.875rem/1.25 'Geist Variable', ui-sans-serif, sans-serif; outline: none; } .ds-input::placeholder { color: var(--muted-foreground); } .ds-input:focus-visible { border-color: var(--ring); outline: 2px solid var(--ring); outline-offset: 2px; }"
+    },
+    {
+      "name": "Public navigation",
+      "kind": "nav",
+      "refersTo": "public-nav",
+      "description": "The desktop site links sit in one centered pill inside the sticky public header.",
+      "html": "<nav class=\"ds-public-nav\" aria-label=\"Site navigation\"><a class=\"ds-nav-link ds-nav-link-active\" href=\"#demo\">Demo</a><a class=\"ds-nav-link\" href=\"#docs\">Docs</a><a class=\"ds-nav-link\" href=\"#pricing\">Pricing</a></nav>",
+      "css": ".ds-public-nav { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 9999px; background: var(--card); } .ds-nav-link { padding: 6px 12px; border-radius: var(--radius-md, 6px); color: var(--muted-foreground); font: 400 0.875rem/1.25 'Geist Variable', ui-sans-serif, sans-serif; text-decoration: none; transition: background-color 180ms ease, color 180ms ease; } .ds-nav-link:hover, .ds-nav-link-active { background: var(--muted); color: var(--foreground); } .ds-nav-link:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }"
+    },
+    {
+      "name": "Proof card",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "A linked repository or Reference Application proof card in the public bento.",
+      "html": "<a class=\"ds-proof-card\" href=\"#proof\"><span class=\"ds-proof-path\">packages/capabilities</span><strong>Shared application behavior</strong><span class=\"ds-proof-copy\">The same capability layer serves every interface.</span></a>",
+      "css": ".ds-proof-card { display: flex; min-height: 256px; flex-direction: column; justify-content: space-between; gap: 16px; padding: 24px; border: 1px solid var(--border); border-radius: 0; background: var(--card); color: var(--foreground); text-decoration: none; transition: border-color 180ms ease, background-color 180ms ease; } .ds-proof-card:hover { border-color: var(--primary); background: color-mix(in oklab, var(--muted) 40%, var(--card)); } .ds-proof-card:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; } .ds-proof-path { color: var(--muted-foreground); font: 400 0.75rem/1.25 'Geist Mono Variable', ui-monospace, monospace; } .ds-proof-card strong { font: 600 1.25rem/1.25 'Geist Variable', ui-sans-serif, sans-serif; } .ds-proof-copy { color: var(--muted-foreground); font: 400 0.875rem/1.5 'Geist Variable', ui-sans-serif, sans-serif; }"
+    },
+    {
+      "name": "Provider disclosure",
+      "kind": "custom",
+      "refersTo": "panel",
+      "description": "An honest environment-gated provider panel that expands without inventing activity.",
+      "html": "<details class=\"ds-provider\" open><summary>Stripe <span aria-hidden=\"true\">+</span></summary><p>Optional provider. It stays inactive until configured.</p><a href=\"#docs\">Read provider docs</a></details>",
+      "css": ".ds-provider { border: 1px solid var(--border); border-radius: 0; background: var(--card); color: var(--foreground); } .ds-provider summary { display: flex; min-height: 80px; align-items: center; justify-content: space-between; padding: 24px 20px; cursor: pointer; list-style: none; font: 500 0.875rem/1.25 'Geist Variable', ui-sans-serif, sans-serif; } .ds-provider summary::-webkit-details-marker { display: none; } .ds-provider p, .ds-provider a { display: block; margin: 0 20px 24px; color: var(--muted-foreground); font: 400 0.875rem/1.5 'Geist Variable', ui-sans-serif, sans-serif; } .ds-provider a { color: var(--foreground); text-decoration: underline; } .ds-provider summary:focus-visible, .ds-provider a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }"
+    },
+    {
+      "name": "Trace tabs",
+      "kind": "custom",
+      "refersTo": "panel",
+      "description": "A four-stage request trace that keeps one code or runtime view readable at a time.",
+      "html": "<div class=\"ds-trace-tabs\" role=\"tablist\" aria-label=\"Request trace\"><button class=\"ds-trace-tab ds-trace-tab-active\" role=\"tab\" aria-selected=\"true\">Request</button><button class=\"ds-trace-tab\" role=\"tab\" aria-selected=\"false\">Contract</button><button class=\"ds-trace-tab\" role=\"tab\" aria-selected=\"false\">Capability</button><button class=\"ds-trace-tab\" role=\"tab\" aria-selected=\"false\">Runtime</button></div>",
+      "css": ".ds-trace-tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--border); } .ds-trace-tab { min-height: 44px; flex: 0 0 auto; padding: 12px 16px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted-foreground); font: 400 0.875rem/1.25 'Geist Variable', ui-sans-serif, sans-serif; cursor: pointer; } .ds-trace-tab:hover, .ds-trace-tab-active { color: var(--foreground); } .ds-trace-tab-active { border-bottom-color: var(--primary); } .ds-trace-tab:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }"
+    }
+  ]
+}

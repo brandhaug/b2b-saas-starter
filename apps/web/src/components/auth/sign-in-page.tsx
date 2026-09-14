@@ -294,6 +294,13 @@ export function SignInPage({
     }
   })
 
+  function fillDemoCredentials(credentials: { email: string; password: string }) {
+    setMode('password')
+    setLinkSent(false)
+    passwordForm.setFieldValue('email', credentials.email)
+    passwordForm.setFieldValue('password', credentials.password)
+  }
+
   if (mode === 'link') {
     if (linkSent) {
       return (
@@ -301,7 +308,13 @@ export function SignInPage({
           title={m.sign_in_with_email_link()}
           description={m.email_link_description()}
           error={submitError}
-          footer={signInFooter({ mode, redirect, socialProviders })}
+          footer={signInFooter({
+            mode,
+            redirect,
+            socialProviders,
+            socialLinkRequired,
+            onFillDemoCredentials: fillDemoCredentials
+          })}
         >
           <p role="alert" className="text-sm text-muted-foreground">
             {m.sign_in_link_sent_notice()}
@@ -328,7 +341,9 @@ export function SignInPage({
         footer={signInFooter({
           mode,
           redirect,
-          socialProviders
+          socialProviders,
+          socialLinkRequired,
+          onFillDemoCredentials: fillDemoCredentials
         })}
       >
         <>
@@ -388,26 +403,15 @@ export function SignInPage({
         mode,
         redirect,
         socialProviders,
+        socialLinkRequired,
         onUseLink: () => {
           setSubmitError(null)
           setMode('link')
-        }
+        },
+        onFillDemoCredentials: fillDemoCredentials
       })}
     >
       <LastSignInMethodHint />
-      <SocialSignInButtons providers={socialProviders} redirectTo={redirect} />
-      {socialLinkRequired ? (
-        <Link
-          to="/verify-authentication"
-          search={{
-            recent: 'true',
-            redirect: `/sign-in?redirect=${encodeURIComponent(safeRedirect(redirect))}`
-          }}
-          className="inline-flex items-center text-sm underline underline-offset-4 max-md:min-h-11"
-        >
-          {m.security_verify_continue()}
-        </Link>
-      ) : null}
 
       <passwordForm.Field name="email" validators={{ onChange: emailValidator }}>
         {(field) => (
@@ -458,37 +462,59 @@ function signInFooter({
   mode,
   redirect,
   socialProviders,
-  onUseLink
+  socialLinkRequired,
+  onUseLink,
+  onFillDemoCredentials
 }: {
   mode: 'password' | 'link'
   onUseLink?: () => void
   redirect?: string | undefined
   socialProviders: ReadonlyArray<SocialProviderId>
+  socialLinkRequired: boolean
+  onFillDemoCredentials: (credentials: { email: string; password: string }) => void
 }) {
   return (
     <>
       {mode === 'password' ? (
         <>
-          <div className="grid gap-2">
-            <PasskeySignIn redirect={redirect} />
-            <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
-              <Button type="button" variant="link" onClick={onUseLink}>
-                {m.auth_email_link()}
-              </Button>
-              <Link
-                to="/sign-in/email-code"
-                search={redirect ? { redirect } : {}}
-                className="inline-flex items-center text-sm text-primary underline underline-offset-4 max-md:min-h-11"
-              >
-                {m.auth_email_code()}
-              </Link>
+          <details className="rounded-md border border-border px-3 py-2">
+            <summary className="min-h-11 cursor-pointer content-center text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+              {m.auth_alternate_methods()}
+            </summary>
+            <div className="grid gap-3 pb-2 pt-3">
+              <SocialSignInButtons providers={socialProviders} redirectTo={redirect} />
+              {socialProviders.length > 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  {m.social_sign_in_description()}
+                </p>
+              ) : null}
+              {socialLinkRequired ? (
+                <Link
+                  to="/verify-authentication"
+                  search={{
+                    recent: 'true',
+                    redirect: `/sign-in?redirect=${encodeURIComponent(safeRedirect(redirect))}`
+                  }}
+                  className="inline-flex items-center text-sm underline underline-offset-4 max-md:min-h-11"
+                >
+                  {m.security_verify_continue()}
+                </Link>
+              ) : null}
+              <PasskeySignIn redirect={redirect} />
+              <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+                <Button type="button" variant="link" onClick={onUseLink}>
+                  {m.auth_email_link()}
+                </Button>
+                <Link
+                  to="/sign-in/email-code"
+                  search={redirect ? { redirect } : {}}
+                  className="inline-flex items-center text-sm text-primary underline underline-offset-4 max-md:min-h-11"
+                >
+                  {m.auth_email_code()}
+                </Link>
+              </div>
             </div>
-            {socialProviders.length > 0 ? (
-              <p className="text-xs text-muted-foreground">
-                {m.social_sign_in_description()}
-              </p>
-            ) : null}
-          </div>
+          </details>
           <p className="text-right">
             <Link
               to="/forgot-password"
@@ -500,7 +526,7 @@ function signInFooter({
           </p>
         </>
       ) : null}
-      <DemoCredentialsFooter />
+      <DemoCredentialsFooter onFill={onFillDemoCredentials} />
       <p className="text-center text-sm text-muted-foreground">
         {m.no_account_yet()}{' '}
         <Link

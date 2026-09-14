@@ -1,0 +1,10 @@
+{
+  "auth_alternate_methods": "Other sign-in methods",
+  "auth_demo_fill_owner": "Fill owner credentials",
+  "auth_demo_fill_member": "Fill member credentials",
+  "developer_list_filters": "Filters",
+  "developer_list_filter_count": "{count} active",
+  "assistant_unavailable_description": "Assistant questions are unavailable until a provider is configured for this workspace. You can still review the workspace evidence and investigation workflow.",
+  "assistant_setup_docs": "Read the assistant setup guide",
+  "assistant_example_prompt": "Example: Which webhook deliveries failed this week?"
+}

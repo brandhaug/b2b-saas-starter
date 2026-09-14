@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,6 +21,8 @@ export function DeveloperListToolbar({
   readonly onViewChange: (view: TableView) => void
 }) {
   const { update } = useWorkspaceView()
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const activeCount = view.filters.length + view.sorts.length
   return (
     <div
       className="flex flex-col gap-2 md:flex-row md:items-center"
@@ -35,7 +37,26 @@ export function DeveloperListToolbar({
           update({ query: event.target.value || undefined, page: undefined }, true)
         }}
       />
-      <TableViewControls fields={fields} view={view} onChange={onViewChange} />
+      <div className="hidden md:block">
+        <TableViewControls fields={fields} view={view} onChange={onViewChange} />
+      </div>
+      <details
+        className="w-full md:hidden"
+        open={filtersOpen}
+        onToggle={(event) => setFiltersOpen(event.currentTarget.open)}
+      >
+        <summary className="flex min-h-11 cursor-pointer items-center justify-between rounded-md border border-border px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+          <span>{m.developer_list_filters()}</span>
+          {activeCount > 0 ? (
+            <span className="text-muted-foreground">
+              {m.developer_list_filter_count({ count: activeCount })}
+            </span>
+          ) : null}
+        </summary>
+        <div className="pt-2">
+          <TableViewControls fields={fields} view={view} onChange={onViewChange} />
+        </div>
+      </details>
     </div>
   )
 }

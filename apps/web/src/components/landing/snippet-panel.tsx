@@ -1,6 +1,7 @@
 import { useOverflowFade } from '@/hooks/use-overflow-fade'
 import { type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 type CodeTokenKind =
   | 'comment'
@@ -114,7 +115,7 @@ function SnippetPanel({
         ref={ref}
         // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- <pre> is the semantic element for preformatted code; role="region" exposes the scrollable area without losing it.
         role="region"
-        aria-label={`${label}, scrollable code`}
+        aria-label={m.showcase_code_region({ label })}
         // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard users need a focus stop to pan the overflowing code.
         tabIndex={0}
         className={cn(

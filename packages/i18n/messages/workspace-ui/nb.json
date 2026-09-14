@@ -1,0 +1,10 @@
+{
+  "auth_alternate_methods": "Andre innloggingsmetoder",
+  "auth_demo_fill_owner": "Fyll inn eieropplysninger",
+  "auth_demo_fill_member": "Fyll inn medlemsopplysninger",
+  "developer_list_filters": "Filtre",
+  "developer_list_filter_count": "{count} aktive",
+  "assistant_unavailable_description": "Assistentspørsmål er utilgjengelige til en leverandør er konfigurert for dette arbeidsområdet. Du kan fortsatt se gjennom arbeidsområdets bevis og undersøkelsesflyt.",
+  "assistant_setup_docs": "Les veiledningen for oppsett av assistenten",
+  "assistant_example_prompt": "Eksempel: Hvilke webhook-leveranser mislyktes denne uken?"
+}

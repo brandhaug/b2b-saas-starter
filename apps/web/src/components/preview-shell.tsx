@@ -77,8 +77,8 @@ export function PreviewShell({
               </Badge>
             )}
           </header>
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-card/40 px-4 py-2 text-muted-foreground sm:px-8">
-            <p className="text-sm">{m.demo_preview_notice()}</p>
+          <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 border-b border-border bg-card/40 px-4 py-1.5 text-muted-foreground sm:px-8">
+            <p className="text-xs sm:text-sm">{m.demo_preview_notice()}</p>
             <Button
               nativeButton={false}
               variant="outline"

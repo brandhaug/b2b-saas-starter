@@ -1,4 +1,10 @@
-import { createFileRoute, Link, Outlet, useLocation } from '@tanstack/react-router'
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  useLocation,
+  useMatch
+} from '@tanstack/react-router'
 import { ChevronDownIcon } from 'lucide-react'
 import { PublicLayout } from '@/components/public-layout'
 import { DOC_CATEGORY_ORDER } from '@/lib/doc-categories'
@@ -16,8 +22,8 @@ export const Route = createFileRoute('/_knowledge')({
 function knowledgeLinkClasses(isActive: boolean, compact = false): string {
   const textSize = compact ? 'text-xs' : 'text-sm'
   return isActive
-    ? `block rounded-md bg-muted px-2 py-2 ${textSize} font-medium text-foreground`
-    : `block rounded-md px-2 py-2 ${textSize} text-muted-foreground transition-colors hover:text-foreground`
+    ? `flex min-h-11 items-center rounded-md bg-muted px-2 py-2 ${textSize} font-medium text-foreground`
+    : `flex min-h-11 items-center rounded-md px-2 py-2 ${textSize} text-muted-foreground transition-colors hover:text-foreground`
 }
 
 type SectionLinksProps = {
@@ -77,6 +83,20 @@ function SectionLinks({ docs, currentPath }: SectionLinksProps) {
 function KnowledgeLayout() {
   const docs = Route.useLoaderData()
   const pathname = useLocation().pathname
+  const index = useMatch({ from: '/_knowledge/docs/', shouldThrow: false })
+  if (index) {
+    return (
+      <PublicLayout>
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="mx-auto w-full max-w-6xl px-4 py-12 outline-none sm:px-6 sm:py-16"
+        >
+          <Outlet />
+        </main>
+      </PublicLayout>
+    )
+  }
 
   return (
     <PublicLayout>
@@ -91,7 +111,7 @@ function KnowledgeLayout() {
         <details className="group w-full border border-border md:hidden">
           {/* The native disclosure triangle belongs to no design system:
               hide it and draw the same chevron the rest of the app uses. */}
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-sm font-medium select-none [&::-webkit-details-marker]:hidden">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-sm font-medium select-none [&::-webkit-details-marker]:hidden">
             {m.public_knowledge_sections()}
             <ChevronDownIcon
               aria-hidden

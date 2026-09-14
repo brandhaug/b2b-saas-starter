@@ -154,6 +154,31 @@ describe('SignInPage', () => {
     )
   })
 
+  it('groups alternate methods behind an accessible disclosure', async () => {
+    await renderPage()
+    const disclosure = screen.getByText(m.auth_alternate_methods())
+    expect(disclosure.closest('details')).toBeDefined()
+    expect(disclosure.closest('summary')).toBeDefined()
+  })
+
+  it('fills owner demo credentials without submitting', async () => {
+    await renderPage()
+    fireEvent.click(
+      screen.getByRole('button', { name: m.auth_view_demo_credentials() })
+    )
+    fireEvent.click(screen.getByRole('button', { name: m.auth_demo_fill_owner() }))
+    await waitFor(() => {
+      expect(screen.getByLabelText<HTMLInputElement>('Email').value).toBe(
+        'demo@starter.local'
+      )
+      expect(screen.getByLabelText<HTMLInputElement>('Password').value).toBe(
+        'demo-starter-password'
+      )
+    })
+    expect(document.activeElement).toBe(screen.getByLabelText('Password'))
+    expect(signIn).not.toHaveBeenCalled()
+  })
+
   it('signs in through the passkey port and redirects on success', async () => {
     const { router } = await renderPage('/workspaces/starter-lab')
     signInPasskey.mockResolvedValue({

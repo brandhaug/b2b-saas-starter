@@ -1,37 +1,50 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowRightIcon, ClipboardIcon } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { GITHUB_URL } from '@/components/landing/github-url'
 import { LightRays } from '@/components/landing/light-rays'
-import { DEV_SERVERS, SETUP_STEPS } from '@/lib/toolchain'
+import { DEV_SERVERS, CLONE_AND_SETUP_STEPS } from '@/lib/toolchain'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 function ClosingSection() {
   // The whole command block, one click into the clipboard: the clone line
   // plus every quickstart step, `&&`-joined so it pastes as one paste. Same
   // copy pattern as secret-reveal: await, confirm visibly, clear after 2s.
-  const [copied, setCopied] = useState(false)
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
   const timer = useRef<number | null>(null)
-  const commandBlock = `git clone ${GITHUB_URL}.git && ${SETUP_STEPS.join(' && ')}`
+  const commandBlock = CLONE_AND_SETUP_STEPS.join(' && ')
+  useEffect(
+    () => () => {
+      if (timer.current !== null) {
+        window.clearTimeout(timer.current)
+      }
+    },
+    []
+  )
   async function copyCommands() {
-    await navigator.clipboard.writeText(commandBlock)
-    setCopied(true)
+    // oxlint-disable-next-line effect/noTryCatch -- Clipboard refusal is a local browser presentation state.
+    try {
+      await navigator.clipboard.writeText(commandBlock)
+    } catch {
+      setCopyStatus('failed')
+      return
+    }
+    setCopyStatus('copied')
     if (timer.current !== null) {
       window.clearTimeout(timer.current)
     }
     timer.current = window.setTimeout(() => {
-      setCopied(false)
+      setCopyStatus('idle')
     }, 2000)
   }
 
   return (
     <section className="band-deep relative isolate overflow-hidden bg-background text-foreground">
       <LightRays origin="top" />
-      <div className="relative mx-auto grid max-w-7xl items-center gap-x-20 gap-y-12 px-4 py-24 sm:px-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:py-28">
+      <div className="relative mx-auto grid max-w-7xl items-center gap-x-20 gap-y-12 px-4 py-24 sm:px-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:py-32">
         <div>
-          <h2 className="font-display text-balance text-3xl font-semibold sm:text-4xl">
-            {m.landing_fork_headline({ count: SETUP_STEPS.length })}
+          <h2 className="font-display text-balance text-4xl font-semibold sm:text-5xl">
+            {m.landing_fork_headline({ count: CLONE_AND_SETUP_STEPS.length })}
           </h2>
           <p className="mt-4 text-pretty text-sm leading-relaxed text-muted-foreground">
             {m.landing_fork_description()}
@@ -71,7 +84,7 @@ function ClosingSection() {
                   {m.action_copied()}
                 </span>
                 <span className="col-start-1 row-start-1">
-                  {copied ? m.action_copied() : ''}
+                  {copyStatus === 'copied' ? m.action_copied() : ''}
                 </span>
               </output>
               <Button
@@ -84,6 +97,11 @@ function ClosingSection() {
               </Button>
             </div>
           </div>
+          {copyStatus === 'failed' ? (
+            <output className="block border-x border-border px-3 py-2 text-sm text-destructive">
+              {m.evidence_copy_failed()}
+            </output>
+          ) : null}
           <dl
             // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- <dl> is the semantic element for the labelled command list; role="region" exposes the scrollable area without losing it.
             role="region"
@@ -92,11 +110,7 @@ function ClosingSection() {
             tabIndex={0}
             className="overflow-x-auto border border-t-0 border-border bg-card/40 p-5 font-mono text-xs leading-loose text-foreground/90"
           >
-            <div className="flex gap-3">
-              <dt className="shrink-0 text-muted-foreground">$ git clone</dt>
-              <dd>{GITHUB_URL}.git</dd>
-            </div>
-            {SETUP_STEPS.map((step) => (
+            {CLONE_AND_SETUP_STEPS.map((step) => (
               <div key={step} className="flex gap-3">
                 <dt className="shrink-0 text-muted-foreground">$ {step}</dt>
                 <dd className="sr-only">{step}</dd>
