@@ -130,6 +130,7 @@ overrides:
   vitest@*: 'catalog:'
   '@hono/node-server@<1.19.13': 1.19.13
   '@hono/node-server@<1.19.15': 1.19.15
+  hono@<4.13.5: 4.13.5
 patchedDependencies:
   '@better-auth/oauth-provider@1.7.2': patches/@better-auth__oauth-provider@1.7.2.patch
 peerDependencyRules:
