@@ -331,7 +331,7 @@ const SeedEmailEligibility = NotificationEmailEligibilityLayer.pipe(
   Layer.provide(SeedCore)
 )
 
-// oxlint-disable effect/noAs,anti-slop/require-safety-comment-for-type-assertion
+// oxlint-disable effect/noAs
 // SAFETY: SeedExports is built by providing SeedCore, so the merged layer supplies every capability service and has no runtime requirements.
 export const SeedLayer = Layer.mergeAll(
   SeedCore,
