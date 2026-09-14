@@ -15,7 +15,11 @@ import {
   orUnavailable
 } from '@b2b-saas-starter/failure/capability'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
-import { BillingAuditLayer, BillingNotificationLayer } from '../billing-adapters.ts'
+import {
+  BillingAuditLayer,
+  BillingNotificationLayer,
+  BillingWebhookLayer
+} from '../billing-adapters.ts'
 import {
   inWorkspace,
   LIVE_SUITE_TIMEOUT,
@@ -153,7 +157,12 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('durable checkout', (it) =>
               fixture.state.checkoutIdempotencyKeys[0]
             )
           }).pipe(
-            Effect.provide(Layer.merge(BillingAuditLayer, BillingNotificationLayer))
+            Effect.provide(
+              Layer.merge(
+                Layer.merge(BillingAuditLayer, BillingNotificationLayer),
+                BillingWebhookLayer
+              )
+            )
           ),
           { userId: 'usr_owner' }
         )
@@ -224,7 +233,12 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('durable checkout', (it) =>
             expect(claim?.quantity).toBe(1)
             expect(claim?.successUrl).toBe('https://example.test/success')
           }).pipe(
-            Effect.provide(Layer.merge(BillingAuditLayer, BillingNotificationLayer))
+            Effect.provide(
+              Layer.merge(
+                Layer.merge(BillingAuditLayer, BillingNotificationLayer),
+                BillingWebhookLayer
+              )
+            )
           ),
           { userId: 'usr_owner' }
         )

@@ -8,6 +8,19 @@ tags: [webhooks, queues, replay, rotation]
 
 A Webhook Endpoint is a workspace-owned outbound event delivery target. The starter ships endpoint management, signed payloads, attempt history, retries, replay, test sends, and secret rotation via Cloudflare Queues.
 
+The published event allowlist is `api_token.created`, `api_token.revoked`,
+`webhook_endpoint.created`, `workspace_member.added`,
+`workspace_member.removed`, `workspace_member.role_changed`,
+`workspace_invitation.accepted`, and `billing.plan_changed`. Each event has a
+dedicated payload shape and the publisher drops fields outside that shape;
+secrets, audit metadata, and actor provenance are never forwarded. The
+corresponding audit taxonomy is broader: events without a webhook allowlist
+entry remain audit-only. Membership-added delivery covers successful invitation
+acceptance; direct SSO provisioning and other Better Auth plugin writes are
+outside this capability seam. Fan out happens after the authoritative mutation
+and is best effort, so refused, duplicate, and no-op changes do not emit a
+domain webhook.
+
 ## Endpoint lifecycle
 
 - Created from the workspace webhooks UI, REST, or MCP

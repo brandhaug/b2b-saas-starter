@@ -445,6 +445,7 @@ it.effect(
       let attempts = 0
       const publisher = Layer.succeed(WebhookPublisher)({
         publish: () => Effect.void,
+        publishForWorkspace: () => Effect.void,
         enqueue: () =>
           Effect.suspend(() => {
             attempts += 1

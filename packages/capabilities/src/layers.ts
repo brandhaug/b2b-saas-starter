@@ -1,7 +1,11 @@
 import { type WebhookInvestigationTasks } from './developer-platform/webhook-investigation-tasks.ts'
 import { SeedWebhookInvestigationTasks } from './developer-platform/webhook-investigation-tasks.seed.ts'
 import { LiveWebhookInvestigationTasks } from './developer-platform/webhook-investigation-tasks.live.ts'
-import { BillingAuditLayer, BillingNotificationLayer } from './billing-adapters.ts'
+import {
+  BillingAuditLayer,
+  BillingNotificationLayer,
+  BillingWebhookLayer
+} from './billing-adapters.ts'
 import { type Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { Effect, Layer, Ref } from 'effect'
 import { type EmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery'
@@ -192,8 +196,11 @@ const SeedGovernance = Layer.unwrap(
     const roster = yield* makeSeedRoster(seedMembers)
     const catalog = yield* Ref.make<ReadonlyArray<Workspace>>([seedWorkspaceRecord])
     const billingAdapters = Layer.merge(
-      BillingAuditLayer.pipe(Layer.provide(SeedAuditLog)),
-      BillingNotificationLayer.pipe(Layer.provide(SeedNotifications))
+      Layer.merge(
+        BillingAuditLayer.pipe(Layer.provide(SeedAuditLog)),
+        BillingNotificationLayer.pipe(Layer.provide(SeedNotifications))
+      ),
+      BillingWebhookLayer.pipe(Layer.provide(SeedWebhookPublisher))
     )
     const suspension = SeedWorkspaceSuspension({
       workspace: seedWorkspaceRecord,
@@ -444,7 +451,9 @@ export function makeLiveCapabilitiesLayer(
   }).pipe(Layer.provide(preferences), (notificationLayer) =>
     BillingNotificationLayer.pipe(Layer.provideMerge(notificationLayer))
   )
-  const billing = LiveBilling(options.billing)
+  const billing = LiveBilling(options.billing).pipe(
+    Layer.provide(BillingWebhookLayer.pipe(Layer.provideMerge(publisher)))
+  )
   const entitlements = LiveResourceEntitlements.pipe(Layer.provide(billing))
   const suspension = LiveWorkspaceSuspension.pipe(
     Layer.provide(LiveAuditEventLog),

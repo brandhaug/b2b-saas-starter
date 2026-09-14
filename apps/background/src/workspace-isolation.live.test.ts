@@ -9,6 +9,7 @@ import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platf
 import {
   WebhookPublisher,
   publishWebhookEventWith,
+  type WebhookPayload,
   type WebhookQueueBinding,
   type WebhookQueueMessage
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
@@ -178,13 +179,26 @@ function publishWebhook(
       const publisher = yield* WebhookPublisher
       yield* publisher.publish({
         eventType: 'api_token.created',
-        payload: { marker: workspace.slug }
+        payload: tokenPayload(workspace.slug)
       })
       return queued(ports.webhooks, ports.webhooks.length - 1)
     }),
     { userId: workspace.userId },
     ports.bindings
   )
+}
+
+function tokenPayload(marker: string): WebhookPayload['api_token.created'] {
+  return {
+    id: `tok_${marker}`,
+    name: marker,
+    prefix: `tok_${marker}`,
+    scopes: ['read'],
+    lastUsedAt: null,
+    createdAt: '2026-09-01T00:00:00.000Z',
+    expiresAt: null,
+    replacedByTokenId: null
+  }
 }
 
 layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
@@ -212,7 +226,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               const publisher = yield* WebhookPublisher
               yield* publishWebhookEventWith(publisher, {
                 eventType: 'api_token.created',
-                payload: { marker: 'enqueue-failed-a' }
+                payload: tokenPayload('enqueue-failed-a')
               })
               return created.endpoint
             }),
@@ -231,7 +245,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                   id: failed.deliveryId,
                   status: 'failed_permanent',
                   attempts: 0,
-                  payload: { marker: 'enqueue-failed-a' }
+                  payload: tokenPayload('enqueue-failed-a')
                 }
               ])
               expect(
@@ -272,7 +286,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 {
                   id: messageB.deliveryId,
                   status: 'pending',
-                  payload: { marker: 'enqueue-failed-b' }
+                  payload: tokenPayload('enqueue-failed-b')
                 }
               ])
             }),
@@ -294,7 +308,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               url: endpoint.url,
               body: {
                 deliveryId: replay.deliveryId,
-                payload: { marker: 'enqueue-failed-a' }
+                payload: tokenPayload('enqueue-failed-a')
               }
             }
           ])
@@ -337,7 +351,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               const publisher = yield* WebhookPublisher
               yield* publishWebhookEventWith(publisher, {
                 eventType: 'api_token.created',
-                payload: { marker: 'enqueue-partial-a' }
+                payload: tokenPayload('enqueue-partial-a')
               })
             }),
             { userId: a.userId },
@@ -380,7 +394,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                     id: message.deliveryId,
                     status,
                     attempts,
-                    payload: { marker: 'enqueue-partial-a' }
+                    payload: tokenPayload('enqueue-partial-a')
                   }
                 ])
                 expect(
@@ -458,7 +472,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             body: {
               deliveryId: messageB.deliveryId,
               eventType: 'api_token.created',
-              payload: { marker: 'fanout-b' }
+              payload: tokenPayload('fanout-b')
             }
           },
           {
@@ -466,7 +480,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             body: {
               deliveryId: messageA.deliveryId,
               eventType: 'api_token.created',
-              payload: { marker: 'fanout-a' }
+              payload: tokenPayload('fanout-a')
             }
           }
         ])
@@ -486,7 +500,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             {
               id: message.deliveryId,
               status: 'delivered',
-              payload: { marker: workspace.slug }
+              payload: tokenPayload(workspace.slug)
             }
           ])
         }
@@ -543,7 +557,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             id: messageB.deliveryId,
             status: 'pending',
             attempts: 0,
-            payload: { marker: 'retry-b' }
+            payload: tokenPayload('retry-b')
           }
         ])
         expect(beforeB).toHaveLength(1)
@@ -570,7 +584,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 id: messageA.deliveryId,
                 status: 'dead_lettered',
                 eventType: 'api_token.created',
-                payload: { marker: 'retry-a' }
+                payload: tokenPayload('retry-a')
               }
             ])
             return yield* endpoints.replayDelivery({
@@ -594,17 +608,17 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           {
             deliveryId: messageA.deliveryId,
             eventType: 'api_token.created',
-            payload: { marker: 'retry-a' }
+            payload: tokenPayload('retry-a')
           },
           {
             deliveryId: replay.deliveryId,
             eventType: 'api_token.created',
-            payload: { marker: 'retry-a' }
+            payload: tokenPayload('retry-a')
           },
           {
             deliveryId: messageB.deliveryId,
             eventType: 'api_token.created',
-            payload: { marker: 'retry-b' }
+            payload: tokenPayload('retry-b')
           }
         ])
       })

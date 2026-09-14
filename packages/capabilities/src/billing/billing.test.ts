@@ -13,7 +13,12 @@ import {
 import { makeSeedRoster } from '../governance/workspace-membership.ts'
 import { type Member } from '../governance/workspace-identity.ts'
 import { testWorkspaceContext } from '../workspace-context.ts'
-import { BillingAuditLayer, BillingNotificationLayer } from '../billing-adapters.ts'
+import {
+  BillingAuditLayer,
+  BillingNotificationLayer,
+  BillingWebhookLayer
+} from '../billing-adapters.ts'
+import { SeedWebhookPublisher } from '../developer-platform/webhook-publisher.ts'
 import { Billing } from '@b2b-saas-starter/billing/billing'
 import {
   SeedBilling,
@@ -93,7 +98,8 @@ function billingFixture(options?: {
           members: Ref.get(roster)
         }).pipe(
           Layer.provide(BillingAuditLayer.pipe(Layer.provide(auditLayer))),
-          Layer.provide(BillingNotificationLayer.pipe(Layer.provide(feed)))
+          Layer.provide(BillingNotificationLayer.pipe(Layer.provide(feed))),
+          Layer.provide(BillingWebhookLayer.pipe(Layer.provide(SeedWebhookPublisher)))
         ),
         auditLayer,
         testWorkspaceContext({

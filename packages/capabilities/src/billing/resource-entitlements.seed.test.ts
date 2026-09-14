@@ -15,7 +15,11 @@ import { ApiTokenRegistry } from '../developer-platform/api-token-registry.ts'
 import { SeedLayer } from '../layers.ts'
 import { seedWorkspaceRecord } from '../seed-fixture.ts'
 import { testWorkspaceContext } from '../workspace-context.ts'
-import { BillingAuditLayer, BillingNotificationLayer } from '../billing-adapters.ts'
+import {
+  BillingAuditLayer,
+  BillingNotificationLayer,
+  BillingWebhookLayer
+} from '../billing-adapters.ts'
 import { SeedBilling } from '@b2b-saas-starter/billing/billing.seed'
 import { ResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements'
 import { SeedResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements.seed'
@@ -49,7 +53,8 @@ function seedFixture(
     ]
   }).pipe(
     Layer.provide(BillingAuditLayer.pipe(Layer.provide(audit))),
-    Layer.provide(BillingNotificationLayer.pipe(Layer.provide(feed)))
+    Layer.provide(BillingNotificationLayer.pipe(Layer.provide(feed))),
+    Layer.provide(BillingWebhookLayer.pipe(Layer.provide(SeedWebhookPublisher)))
   )
   const selection = SeedResourceEntitlements().pipe(
     Layer.provide(BillingAuditLayer),

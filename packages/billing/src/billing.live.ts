@@ -1,4 +1,9 @@
-import { type NotificationFeed, WorkspaceContext, AuditEventLog } from './ports.ts'
+import {
+  type NotificationFeed,
+  WorkspaceContext,
+  AuditEventLog,
+  type BillingWebhookPublisher
+} from './ports.ts'
 import {
   billingSynchronization,
   workspaceMembers,
@@ -43,7 +48,11 @@ function providerNotConfigured(): CapabilityUnavailable {
 
 export function LiveBilling(
   options: BillingOptions = {}
-): Layer.Layer<Billing, never, Database | RawD1 | AuditEventLog | NotificationFeed> {
+): Layer.Layer<
+  Billing,
+  never,
+  Database | RawD1 | AuditEventLog | NotificationFeed | BillingWebhookPublisher
+> {
   return Layer.effect(Billing)(
     Effect.gen(function* () {
       const db = yield* Database

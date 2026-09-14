@@ -78,6 +78,7 @@ describe('Seed admin webhooks without WorkspaceContext', () => {
     > = []
     const publisher = Layer.succeed(WebhookPublisher)({
       publish: () => Effect.void,
+      publishForWorkspace: () => Effect.void,
       enqueue: (input) =>
         Effect.sync(() => {
           messages.push(input)

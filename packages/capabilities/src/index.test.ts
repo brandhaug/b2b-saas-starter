@@ -1,4 +1,8 @@
-import { BillingAuditLayer, BillingNotificationLayer } from './billing-adapters.ts'
+import {
+  BillingAuditLayer,
+  BillingNotificationLayer,
+  BillingWebhookLayer
+} from './billing-adapters.ts'
 import { layerFromD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
@@ -276,6 +280,7 @@ describe('seed developer-platform plan-limit contract', () => {
         SeedBilling().pipe(
           Layer.provide(BillingAuditLayer),
           Layer.provide(BillingNotificationLayer),
+          Layer.provide(BillingWebhookLayer.pipe(Layer.provide(SeedWebhookPublisher))),
           Layer.provide(auditLog),
           Layer.provide(seedFeed([]))
         )
@@ -609,7 +614,8 @@ describe('webhook endpoint workspace scoping', () => {
       Layer.provide(
         LiveBilling().pipe(
           Layer.provide(BillingAuditLayer),
-          Layer.provide(BillingNotificationLayer)
+          Layer.provide(BillingNotificationLayer),
+          Layer.provide(BillingWebhookLayer)
         )
       ),
       Layer.provide(layerFromD1(fake.binding))
@@ -619,7 +625,8 @@ describe('webhook endpoint workspace scoping', () => {
         Layer.provide(
           LiveBilling().pipe(
             Layer.provide(BillingAuditLayer),
-            Layer.provide(BillingNotificationLayer)
+            Layer.provide(BillingNotificationLayer),
+            Layer.provide(BillingWebhookLayer)
           )
         ),
         Layer.provide(entitlements),
@@ -726,8 +733,10 @@ describe('seed workspace membership contract', () => {
         fabricateSeedMember('usr_auditable', 'member')
       ])
       return Layer.mergeAll(
+        SeedWebhookPublisher,
         SeedWorkspaceMembership(roster, seedWorkspaceRecord, evidenceSink).pipe(
-          Layer.provide(SeedSeatSyncPublisher)
+          Layer.provide(SeedSeatSyncPublisher),
+          Layer.provide(SeedWebhookPublisher)
         ),
         // A fresh log, not the fixture's: the audit-count case reads back
         // what its own mutations recorded, unseeded. The fixture's accounts
@@ -856,6 +865,7 @@ describe('seed workspace invitations contract', () => {
       const roster = yield* makeSeedRoster(seedMembers)
       const auditLog = SeedAuditEventLog([])
       return Layer.mergeAll(
+        SeedWebhookPublisher,
         SeedWorkspaceInvitations({
           roster,
           workspace: seedWorkspaceRecord,
@@ -883,9 +893,13 @@ describe('seed workspace invitations contract', () => {
                 }) satisfies SeedInvitationRow
             )
           ]
-        }).pipe(Layer.provide(SeedSeatSyncPublisher)),
+        }).pipe(
+          Layer.provide(SeedSeatSyncPublisher),
+          Layer.provide(SeedWebhookPublisher)
+        ),
         SeedWorkspaceMembership(roster, seedWorkspaceRecord).pipe(
-          Layer.provide(SeedSeatSyncPublisher)
+          Layer.provide(SeedSeatSyncPublisher),
+          Layer.provide(SeedWebhookPublisher)
         ),
         auditLog,
         testWorkspaceContext(seedWorkspaceRecord)
@@ -1026,6 +1040,11 @@ describe('bearer verification write throttling', () => {
     const billing = LiveBilling().pipe(
       Layer.provide(BillingAuditLayer),
       Layer.provide(BillingNotificationLayer),
+      Layer.provide(
+        BillingWebhookLayer.pipe(
+          Layer.provide(LiveWebhookPublisher().pipe(Layer.provide(LiveAuditEventLog)))
+        )
+      ),
       Layer.provide(LiveAuditEventLog),
       Layer.provide(feed),
       Layer.provide(layerFromD1(fake.binding))

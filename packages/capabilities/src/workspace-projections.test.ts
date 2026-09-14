@@ -1,4 +1,8 @@
-import { BillingAuditLayer, BillingNotificationLayer } from './billing-adapters.ts'
+import {
+  BillingAuditLayer,
+  BillingNotificationLayer,
+  BillingWebhookLayer
+} from './billing-adapters.ts'
 import { Effect, Layer } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 
@@ -79,6 +83,7 @@ function fixtureLayer(fixture: Fixture) {
       }).pipe(
         Layer.provide(BillingAuditLayer),
         Layer.provide(BillingNotificationLayer),
+        Layer.provide(BillingWebhookLayer.pipe(Layer.provide(SeedWebhookPublisher))),
         Layer.provide(audit),
         Layer.provide(feed)
       )
@@ -94,9 +99,11 @@ function fixtureLayer(fixture: Fixture) {
       }
       return Layer.mergeAll(
         audit,
+        SeedWebhookPublisher,
         testWorkspaceContext(seedWorkspaceRecord, actor),
         SeedWorkspaceMembership(roster, seedWorkspaceRecord).pipe(
-          Layer.provide(SeedSeatSyncPublisher)
+          Layer.provide(SeedSeatSyncPublisher),
+          Layer.provide(SeedWebhookPublisher)
         ),
         SeedApiTokenRegistry(fixture.tokens ?? []).pipe(
           Layer.provide(audit),
