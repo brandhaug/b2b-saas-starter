@@ -18,7 +18,7 @@ runs:
       run: |
         installer="$(mktemp)"
         trap 'rm -f "$installer"' EXIT
-        curl -fsSL https://vite.plus -o "$installer"
+        curl -fsSL https://raw.githubusercontent.com/voidzero-dev/vite-plus/3124145c680164caf482904a117732886fa9d57d/packages/cli/install.sh -o "$installer"
         echo 'd4a1ffa8245bdfcf39a786d545be6a43e231b771c32d7c02414bb96d4f5d9cdc  '"$installer" | shasum -a 256 -c -
         VP_VERSION=0.3.0 VP_NODE_MANAGER=yes bash "$installer"
         # The installer does not touch PATH, so expose its bin dir (vp + managed
