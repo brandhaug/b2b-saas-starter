@@ -1,5 +1,7 @@
 # Frontend, content, email and i18n dependency audit
 
+This is a historical record of the September 7 dependency review. The later [web design audit](../audits/awwwards-2026-09-14.md) replaced Newsreader with self-hosted Cabinet Grotesk and added GSAP; the font decisions and inventory below describe the earlier revision.
+
 Reviewed 2026-09-07 against the workspace catalog, package manifests, actual imports, `.fallowrc.json`, web/email intent nodes, and ADRs 0029, 0046 and 0063. Judgments below concern fit for this starter, not a claim that every installed release is the newest. The selected changes are implemented; see [the main audit](./dependency-audit.md) for integrated validation.
 
 The existing stack fits Cloudflare Workers. Retain React and TanStack Start: replacing them with Next.js/OpenNext, React Router or Astro would rewrite routing, server functions, auth gates and locale handling without fixing an observed problem. TanStack maintains a [Cloudflare example](https://tanstack.com/start/latest/docs/framework/react/examples/start-basic-cloudflare). The important operational distinction is already documented in ADR 0063: standalone web builds externalize packages, while deployment bundles dependencies into the Worker. Installed package size is not uploaded Worker size.

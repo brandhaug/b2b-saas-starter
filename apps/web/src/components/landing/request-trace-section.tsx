@@ -31,40 +31,19 @@ function isStageId(value: string): value is StageId {
   return STAGE_ID_SET.has(value)
 }
 
-function stageLabel(stage: StageId): string {
-  switch (stage) {
-    case 'request': {
-      return m.showcase_trace_request()
-    }
-    case 'contract': {
-      return m.showcase_trace_contract()
-    }
-    case 'capability': {
-      return m.showcase_trace_capability()
-    }
-    case 'runtime': {
-      return m.showcase_trace_runtime()
-    }
+/** Labels stay callable so locale selection happens during rendering. */
+const STAGES = {
+  request: { label: m.showcase_trace_request, nodes: ['curl'] },
+  contract: { label: m.showcase_trace_contract, nodes: ['api'] },
+  capability: { label: m.showcase_trace_capability, nodes: ['capabilities'] },
+  runtime: { label: m.showcase_trace_runtime, nodes: ['d1', 'queues', 'email'] }
+} satisfies Record<
+  StageId,
+  {
+    readonly label: () => string
+    readonly nodes: ReadonlyArray<SchematicNode>
   }
-}
-
-/** The node(s) each stage lights in the schematic rail. */
-function nodesForStage(stage: StageId): ReadonlyArray<SchematicNode> {
-  switch (stage) {
-    case 'request': {
-      return ['curl']
-    }
-    case 'contract': {
-      return ['api']
-    }
-    case 'capability': {
-      return ['capabilities']
-    }
-    case 'runtime': {
-      return ['d1', 'queues', 'email']
-    }
-  }
-}
+>
 
 /**
  * The request whose trace the section follows. The response body is built
@@ -125,7 +104,7 @@ function RequestTraceSection({
 }) {
   const [activeStage, setActiveStage] = useState<StageId>('request')
 
-  const activeNodes = nodesForStage(activeStage)
+  const activeNodes = STAGES[activeStage].nodes
 
   return (
     <section
@@ -164,7 +143,7 @@ function RequestTraceSection({
                 value={stage}
                 className="min-h-11 shrink-0 border-b-2 border-transparent px-4 py-3 text-sm text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring data-active:border-primary data-active:text-foreground"
               >
-                {stageLabel(stage)}
+                {STAGES[stage].label()}
               </Tabs.Tab>
             ))}
           </Tabs.List>

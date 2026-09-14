@@ -1,5 +1,7 @@
 # Dependency audit
 
+This is a historical record of the September 7 dependency review. The later [web design audit](../audits/awwwards-2026-09-14.md) replaced Newsreader with self-hosted Cabinet Grotesk and added GSAP; the font decisions and inventory below describe the earlier revision.
+
 Reviewed 2026-09-07, starting at `ef17c133`. The audit covers all 19 workspace
 manifests and their 88 distinct direct external dependencies, plus the lockfile's
 advisories, deprecations, overrides, peer compatibility and direct-package license

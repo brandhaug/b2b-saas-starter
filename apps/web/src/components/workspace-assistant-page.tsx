@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -232,12 +233,13 @@ function AssistantPage({
             <p>{m.assistant_chat_unavailable()}</p>
             <p>{m.assistant_unavailable_description()}</p>
             <div className="flex flex-wrap items-center gap-3">
-              <a
-                href="/docs/getting-started/optional-providers"
+              <Link
+                to="/docs/$category/$slug"
+                params={{ category: 'getting-started', slug: 'optional-providers' }}
                 className="inline-flex min-h-11 items-center text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 {m.assistant_setup_docs()}
-              </a>
+              </Link>
               <span className="text-xs">{m.assistant_example_prompt()}</span>
             </div>
           </div>

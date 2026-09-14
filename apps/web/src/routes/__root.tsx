@@ -8,9 +8,8 @@ import '@fontsource-variable/geist-mono/index.css'
 // Latin variable woff2 for the text faces that render above the fold,
 // resolved by Vite so the preload href always matches the emitted asset.
 // Without these, the fonts start loading two round-trips deep (CSS → font
-// file) after first paint. Newsreader is not preloaded here: most routes
-// (sign-in, the workspace app) render no display glyphs, so its 132 kB
-// preload belongs to the routes that actually use the face.
+// file) after first paint. The homepage preloads Cabinet Grotesk separately;
+// account and workspace pages use only the Geist families.
 import geistLatinWoff2 from '@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url'
 import geistMonoLatinWoff2 from '@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2?url'
 import { type QueryClient } from '@tanstack/react-query'
