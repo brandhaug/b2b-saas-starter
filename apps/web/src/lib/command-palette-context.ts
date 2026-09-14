@@ -4,6 +4,8 @@ import { type Viewer } from '@/lib/permissions'
 type CommandPaletteContextValue = {
   readonly open: boolean
   readonly setOpen: (open: boolean) => void
+  readonly query: string
+  readonly setQuery: (query: string) => void
   readonly viewer: Viewer
   readonly systemRole: string | null
 }

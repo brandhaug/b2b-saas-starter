@@ -1,4 +1,11 @@
-import { Suspense, use, type ReactNode, useEffect, useState } from 'react'
+import {
+  Suspense,
+  use,
+  type ReactNode,
+  useEffect,
+  useEffectEvent,
+  useState
+} from 'react'
 import { SearchIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -21,32 +28,31 @@ export function CommandPaletteProvider({
 }) {
   const [open, setOpen] = useState(false)
   const [hasOpened, setHasOpened] = useState(false)
+  const [query, setQuery] = useState('')
   function setPaletteOpen(next: boolean) {
     if (next) {
       setHasOpened(true)
+      setQuery('')
     }
     setOpen(next)
   }
+  const togglePalette = useEffectEvent(() => setPaletteOpen(!open))
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'k' && (event.metaKey || event.ctrlKey)) {
         event.preventDefault()
         preloadCommandPalette()
-        const next = !open
-        if (next) {
-          setHasOpened(true)
-        }
-        setOpen(next)
+        togglePalette()
       }
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [open])
+  }, [])
 
   return (
     <CommandPaletteContext
-      value={{ open, setOpen: setPaletteOpen, viewer, systemRole }}
+      value={{ open, setOpen: setPaletteOpen, query, setQuery, viewer, systemRole }}
     >
       {children}
       {hasOpened ? (

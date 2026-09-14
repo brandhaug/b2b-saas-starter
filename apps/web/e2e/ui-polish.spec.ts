@@ -75,6 +75,8 @@ test('command palette stays painted during dismissal and can be reopened', async
   await search.click()
   const dialog = page.getByRole('dialog', { name: 'Command menu' })
   await expect(dialog).toBeVisible()
+  const query = dialog.locator('[data-slot="command-input"]')
+  await query.fill('members')
   await dialog.evaluate(async (element) => {
     await Promise.all(element.getAnimations().map((animation) => animation.finished))
   })
@@ -87,10 +89,24 @@ test('command palette stays painted during dismissal and can be reopened', async
     includeHidden: true
   })
   await expect(closingDialog).toBeVisible()
+  await expect(query).toHaveValue('members')
   await expect(closingDialog).toBeHidden()
   await search.click()
   await expect(dialog).toBeVisible()
-  await expect(page.getByRole('combobox')).toBeFocused()
+  await expect(query).toBeFocused()
+  await expect(query).toHaveValue('')
+  await dialog.evaluate(async (element) => {
+    await Promise.all(element.getAnimations().map((animation) => animation.finished))
+  })
+  await query.fill('billing')
+  await page.keyboard.press('Escape')
+  await expect(closingDialog).toBeVisible()
+  await expect(query).toHaveValue('billing')
+  await expect(closingDialog).toBeHidden()
+  await page.keyboard.press('Meta+k')
+  await expect(dialog).toBeVisible()
+  await expect(query).toBeFocused()
+  await expect(query).toHaveValue('')
 })
 
 test('a confirmation stays centered while it fades out', async ({ page }) => {

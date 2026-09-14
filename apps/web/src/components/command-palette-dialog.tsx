@@ -1,5 +1,5 @@
 import { type PermissionRequest } from '@b2b-saas-starter/authz/client'
-import { use, useState, type ReactNode } from 'react'
+import { use, type ReactNode } from 'react'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { BookOpenIcon } from 'lucide-react'
 import { getAllDocMeta } from '@/lib/docs'
@@ -70,7 +70,6 @@ function KnowledgeEntries({ close }: { readonly close: () => void }) {
 // fallow-ignore-next-line unused-export
 export default function CommandPaletteDialog() {
   const navigate = useNavigate()
-  const [query, setQuery] = useState('')
   // Target the current workspace when inside one; outside a workspace the
   // command falls back to the workspace list — never a hardcoded workspace.
   const params = useParams({ strict: false })
@@ -80,7 +79,7 @@ export default function CommandPaletteDialog() {
   if (palette === null) {
     return null
   }
-  const { open, setOpen, viewer, systemRole } = palette
+  const { open, setOpen, query, setQuery, viewer, systemRole } = palette
 
   function close() {
     setOpen(false)
