@@ -3,12 +3,13 @@ import { CheckIcon, ArrowUpRightIcon } from 'lucide-react'
 import { type ReactNode } from 'react'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { LanguageSwitcher } from '@/components/language-switcher'
-import { seedWorkspaceRecord } from '@b2b-saas-starter/capabilities/governance/workspace-identity.seed'
+import { LightRays } from '@/components/landing/light-rays'
 
 /** Dedicated entry surface for the two primary credential routes. */
 export function AuthShell({ children }: { readonly children: ReactNode }) {
   return (
-    <div className="flex min-h-dvh flex-col bg-background text-foreground">
+    <div className="relative isolate flex min-h-dvh flex-col bg-background text-foreground">
+      <LightRays />
       <a
         // oxlint-disable-next-line react-doctor/anchor-target-exists -- AuthCardForm owns the main-content landmark inside this shell.
         href="#main-content"
@@ -16,7 +17,7 @@ export function AuthShell({ children }: { readonly children: ReactNode }) {
       >
         {m.common_skip_to_content()}
       </a>
-      <header className="mx-auto flex h-20 w-full max-w-7xl items-center justify-between px-6 sm:px-10 lg:px-14">
+      <header className="relative mx-auto flex h-20 w-full max-w-7xl items-center justify-between px-6 sm:px-10 lg:px-14">
         <Link to="/" className="inline-flex items-center gap-3">
           <img
             src="/assets/starter-logo.png"
@@ -35,9 +36,9 @@ export function AuthShell({ children }: { readonly children: ReactNode }) {
           {m.public_meta_support()}
         </Link>
       </header>
-      <div className="mx-auto grid w-full max-w-7xl flex-1 items-center px-6 py-10 outline-none sm:px-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(440px,0.8fr)] lg:gap-20 lg:px-14 lg:py-16">
+      <div className="relative mx-auto grid w-full max-w-7xl flex-1 items-center px-6 py-10 outline-none sm:px-10 lg:grid-cols-[minmax(0,0.9fr)_minmax(440px,0.8fr)] lg:gap-20 lg:px-14 lg:py-16">
         <section
-          className="hidden min-h-140 flex-col justify-between border border-border bg-card p-8 lg:flex xl:p-12"
+          className="hidden min-h-140 flex-col justify-between border border-border bg-card/40 p-8 lg:flex xl:p-12"
           aria-labelledby="auth-brand-title"
         >
           <div>
@@ -51,34 +52,25 @@ export function AuthShell({ children }: { readonly children: ReactNode }) {
               {m.auth_design_brand_description()}
             </p>
           </div>
-          <div
-            className="border-t border-border pt-6"
+          <ul
+            className="grid gap-2 border-t border-border pt-6"
             aria-label={m.auth_design_capabilities_label()}
           >
-            <div className="mb-3 flex items-center justify-between text-xs text-muted-foreground">
-              <span>{m.auth_design_reference_preview()}</span>
-              <span>{m.auth_design_workspace()}</span>
-            </div>
-            <div className="grid gap-2 border border-border bg-background p-3">
-              <div className="flex items-center justify-between border-b border-border pb-2 text-sm">
-                <span className="font-medium">{seedWorkspaceRecord.name}</span>
-              </div>
-              {[
-                m.auth_design_capability_auth(),
-                m.auth_design_capability_workspaces(),
-                m.auth_design_capability_audit(),
-                m.auth_design_capability_cloudflare()
-              ].map((capability) => (
-                <div
-                  key={capability}
-                  className="flex items-center gap-2 text-sm text-muted-foreground"
-                >
-                  <CheckIcon className="size-4 text-primary" aria-hidden="true" />
-                  {capability}
-                </div>
-              ))}
-            </div>
-          </div>
+            {[
+              m.auth_design_capability_auth(),
+              m.auth_design_capability_workspaces(),
+              m.auth_design_capability_audit(),
+              m.auth_design_capability_cloudflare()
+            ].map((capability) => (
+              <li
+                key={capability}
+                className="flex items-center gap-2 text-sm text-muted-foreground"
+              >
+                <CheckIcon className="size-4 text-primary" aria-hidden="true" />
+                {capability}
+              </li>
+            ))}
+          </ul>
         </section>
         <section
           className="mx-auto w-full max-w-md"
@@ -87,7 +79,7 @@ export function AuthShell({ children }: { readonly children: ReactNode }) {
           {children}
         </section>
       </div>
-      <footer className="mx-auto flex min-h-16 w-full max-w-7xl flex-wrap items-center justify-between gap-3 border-t border-border px-6 py-3 text-sm text-muted-foreground sm:px-10 lg:px-14">
+      <footer className="relative mx-auto flex min-h-16 w-full max-w-7xl flex-wrap items-center justify-between gap-3 border-t border-muted-foreground px-6 py-3 text-sm text-muted-foreground sm:px-10 lg:px-14">
         <span>{m.site_footer_tagline()}</span>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
           <Link

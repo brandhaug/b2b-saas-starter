@@ -6,8 +6,6 @@
   "auth_design_capability_workspaces": "Workspace permissions and membership",
   "auth_design_capability_audit": "Auditable actions and webhooks",
   "auth_design_capability_cloudflare": "Built for Cloudflare Workers",
-  "auth_design_workspace": "Workspace",
-  "auth_design_reference_preview": "Inside the reference workspace",
   "auth_design_account_access": "Account access",
   "auth_design_explore_starter": "Explore the starter"
 }
