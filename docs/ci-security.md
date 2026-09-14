@@ -15,9 +15,13 @@ changelog, resolve the release tag to its full commit, update the SHA and commen
 in one pull request, and let the normal CI, audit, and review protections run.
 Do not replace an immutable revision with a tag. Local composite actions are part
 of this repository and are reviewed with the workflow that calls them.
-The Vite+ installer is downloaded over HTTPS and checked against a recorded
-SHA-256 before execution; update that digest only after reviewing the installer
-release and recording the new value in the same change.
+The Vite+ installer is downloaded from an immutable upstream commit over HTTPS
+and checked against a recorded SHA-256 before execution. The current pin is
+[the v0.3.0 installer](https://github.com/voidzero-dev/vite-plus/blob/b2d15e3899dcc8adedfd45d98de9d30046a624f4/packages/cli/install.sh),
+with SHA-256 `3dd88cedb6d9b2665c305eda5413971417c8f183a819386148131b66a2cc6b2e`.
+The public `vite.plus` bootstrap changes independently of `VP_VERSION`, so it
+is not a reproducible download target. Update the source commit and digest only
+after reviewing the matching installer release, recording both in the same change.
 
 The catalog updater has a narrowly scoped write token because it opens dependency
 update pull requests. Checkout does not persist credentials. The preview workflow
