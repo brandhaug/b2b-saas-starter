@@ -26,7 +26,7 @@ function AlertDialogOverlay({
     <AlertDialogPrimitive.Backdrop
       data-slot="alert-dialog-overlay"
       className={cn(
-        'data-open:motion-safe:animate-in data-closed:motion-safe:animate-out data-closed:fade-out-0 data-open:fade-in-0 bg-overlay/80 duration-100 data-ending-style:opacity-0 data-starting-style:opacity-0 supports-backdrop-filter:backdrop-blur-xs fixed inset-0 z-50',
+        'ui-backdrop bg-overlay/80 supports-backdrop-filter:backdrop-blur-xs fixed inset-0 z-50',
         className
       )}
       {...props}
@@ -45,10 +45,7 @@ function AlertDialogContent({
       <AlertDialogPrimitive.Popup
         data-slot="alert-dialog-content"
         className={cn(
-          // Slide/zoom motion is `motion-safe:`-gated; without it the dialog
-          // simply appears. Square corners like every other panel and dialog
-          // (DESIGN.md); the shadow stays because the surface floats.
-          'bg-background data-open:motion-safe:animate-in data-closed:motion-safe:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:motion-safe:zoom-out-95 data-open:motion-safe:zoom-in-95 fixed top-1/2 left-1/2 z-50 grid grid-cols-1 min-w-0 max-h-dialog-inset w-full max-w-dialog-inset -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto overscroll-contain rounded-none border border-border p-6 shadow-lg duration-200 sm:max-w-sm wrap-anywhere',
+          'ui-popup bg-background fixed top-1/2 left-1/2 z-50 grid grid-cols-1 min-w-0 max-h-dialog-inset w-full max-w-dialog-inset -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto overscroll-contain rounded-none border border-border p-6 shadow-lg sm:max-w-sm wrap-anywhere',
           className
         )}
         {...props}

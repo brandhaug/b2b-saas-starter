@@ -1,9 +1,9 @@
+import { LightRays } from '@/components/landing/light-rays'
 import { Link } from '@tanstack/react-router'
 import { CheckIcon, ArrowUpRightIcon } from 'lucide-react'
 import { type ReactNode } from 'react'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { LanguageSwitcher } from '@/components/language-switcher'
-import { LightRays } from '@/components/landing/light-rays'
 
 /** Dedicated entry surface for the two primary credential routes. */
 export function AuthShell({ children }: { readonly children: ReactNode }) {

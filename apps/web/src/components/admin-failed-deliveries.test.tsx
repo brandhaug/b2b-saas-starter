@@ -78,7 +78,7 @@ describe('AdminFailedDeliveries', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Replay whd_terminal' }))
     expect(await screen.findByText(/Queued as whd_copy/)).not.toBeNull()
-    expect(screen.getByText('dead_lettered')).not.toBeNull()
+    expect(screen.getByText('sent to dead-letter queue')).not.toBeNull()
     expect(
       screen
         .getByRole('button', { name: 'Replay whd_terminal' })

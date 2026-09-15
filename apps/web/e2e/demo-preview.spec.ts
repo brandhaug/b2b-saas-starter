@@ -110,7 +110,7 @@ test('token creation, replacement, and webhook creation refuse locally', async (
   await page
     .getByRole('listitem')
     .filter({ hasText: 'Local admin token' })
-    .getByRole('button', { name: 'More actions', exact: true })
+    .getByRole('button', { name: 'More actions for Local admin token', exact: true })
     .click()
   await page.getByRole('menuitem', { name: 'Replace', exact: true }).click()
   const replacement = page.getByRole('form', {

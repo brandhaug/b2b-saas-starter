@@ -14,7 +14,7 @@ function Command({
     <CommandPrimitive
       data-slot="command"
       className={cn(
-        'bg-popover text-popover-foreground flex h-full w-full flex-col overflow-hidden',
+        'bg-popover text-popover-foreground flex h-full min-h-0 w-full flex-col overflow-hidden',
         className
       )}
       {...props}
@@ -35,7 +35,7 @@ function CommandInput({
       <CommandPrimitive.Input
         data-slot="command-input"
         className={cn(
-          'placeholder:text-muted-foreground flex h-10 max-md:h-11 w-full bg-transparent py-3 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-50',
+          'placeholder:text-muted-foreground flex h-10 max-md:h-11 w-full bg-transparent py-3 text-base md:text-sm outline-none disabled:cursor-not-allowed disabled:opacity-50',
           className
         )}
         {...props}
@@ -52,7 +52,7 @@ function CommandList({
     <CommandPrimitive.List
       data-slot="command-list"
       className={cn(
-        'max-h-75 scroll-py-1 overflow-x-hidden overflow-y-auto',
+        'min-h-0 max-h-75 scroll-py-1 overflow-x-hidden overflow-y-auto',
         className
       )}
       {...props}
@@ -132,8 +132,8 @@ function CommandDialog({
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Backdrop className="data-open:motion-safe:animate-in data-closed:motion-safe:animate-out data-closed:motion-safe:fade-out-0 data-open:motion-safe:fade-in-0 bg-overlay/80 animation-duration-100 supports-backdrop-filter:backdrop-blur-xs fixed inset-0 isolate z-50" />
-        <DialogPrimitive.Popup className="bg-background border-border data-open:motion-safe:animate-in data-closed:motion-safe:animate-out data-closed:motion-safe:fade-out-0 data-open:motion-safe:fade-in-0 data-closed:motion-safe:zoom-out-95 data-open:motion-safe:zoom-in-95 fixed top-[20%] left-1/2 z-50 w-full max-w-dialog-inset -translate-x-1/2 overflow-hidden rounded-none border animation-duration-100 sm:max-w-lg">
+        <DialogPrimitive.Backdrop className="bg-overlay/80 supports-backdrop-filter:backdrop-blur-xs fixed inset-0 isolate z-50" />
+        <DialogPrimitive.Popup className="command-popup bg-background border-border fixed left-1/2 z-50 flex w-full max-w-dialog-inset -translate-x-1/2 flex-col overflow-hidden rounded-none border sm:max-w-lg">
           {/* The popup needs an accessible name; the visible input is not a
              Title. Base UI already sets role=dialog + aria-modal on the
              popup. */}

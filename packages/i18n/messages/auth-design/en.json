@@ -7,5 +7,7 @@
   "auth_design_capability_audit": "Auditable actions and webhooks",
   "auth_design_capability_cloudflare": "Built for Cloudflare Workers",
   "auth_design_account_access": "Account access",
-  "auth_design_explore_starter": "Explore the starter"
+  "auth_design_explore_starter": "Explore the starter",
+  "auth_design_email_verification_pending": "Check your inbox",
+  "auth_design_email_verification_pending_description": "Use the verification link from your email to confirm your address."
 }

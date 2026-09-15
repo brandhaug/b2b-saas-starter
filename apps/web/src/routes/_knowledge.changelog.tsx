@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { GITHUB_URL } from '@/components/landing/github-url'
+import { GITHUB_URL } from '@/lib/github-url'
 
 /**
  * The starter has no tagged releases yet. Releases are cut by release-please

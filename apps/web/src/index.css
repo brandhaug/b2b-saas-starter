@@ -50,6 +50,8 @@
     'Newsreader Variable', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
   --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
   --radius: 0.5rem;
+  --ease-ui-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-ui-drawer: cubic-bezier(0.32, 0.72, 0, 1);
   /* Two rungs, because two exist in the UI: `shadow-md` for floating menus,
      popovers and tooltips, `shadow-lg` for sheets and dialogs. Panels and
      cards stay flat with a 1px border (DESIGN.md), so the rest of the ramp
@@ -386,39 +388,6 @@
   animation-delay: 280ms;
 }
 
-.trace-signal {
-  stroke-dasharray: 12 112;
-  stroke-dashoffset: 12;
-  animation: trace-travel 7.2s linear infinite;
-}
-
-/* The schematic marks itself off-screen; paused animations stop the
-   compositor work the ten travelling signals would otherwise never stop
-   doing. Running is the default so the SSR markup and the first client paint
-   agree. */
-[data-schematic-visible='false'] .trace-signal {
-  animation-play-state: paused;
-}
-
-@keyframes trace-travel {
-  0% {
-    stroke-dashoffset: 12;
-    opacity: 0;
-  }
-  3% {
-    opacity: 1;
-  }
-  25% {
-    stroke-dashoffset: -100;
-    opacity: 1;
-  }
-  28%,
-  100% {
-    stroke-dashoffset: -112;
-    opacity: 0;
-  }
-}
-
 .trace-node-body,
 .trace-node-label {
   transition:
@@ -436,40 +405,123 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .trace-signal {
-    animation: none;
-  }
   .rise {
     animation: none;
   }
-  .schematic-pulse {
-    display: none;
-  }
-  /* Hover and state motion (the knowledge-list arrow nudge, a switch thumb,
-     a sheet's slide) resolves instantly: the property list drops transform,
-     translate, scale and rotate, and what remains — the color family — lands
-     on its end value with no duration and no delay. Unscoped on purpose: the
-     `.marketing` wrapper missed the workspace app entirely, and it also
-     missed the portaled overlays (sheets, dialogs, popovers, tooltips) that
-     mount at the document root rather than inside the page tree.
-
-     Animations are not swept from here. Each one is gated at its own
-     definition — the rules above, and the `motion-safe:` variants the
-     primitives carry — so an entrance can choose between fading and being
-     removed instead of every keyframe collapsing to a blink. */
   *,
   *::before,
   *::after {
-    transition-duration: 0s !important;
-    transition-delay: 0s !important;
     transition-property:
       color, background-color, border-color, outline-color, text-decoration-color, fill,
       stroke, opacity !important;
   }
 }
 
+/* Overlay transitions follow Base UI's mount/unmount states and can reverse. */
+.ui-popup {
+  opacity: 1;
+  transform: scale(1);
+  transition:
+    opacity 160ms var(--ease-ui-out),
+    transform 160ms var(--ease-ui-out);
+}
+.ui-popup:is([data-starting-style], [data-ending-style]) {
+  opacity: 0;
+  transform: scale(0.95);
+}
+.ui-backdrop {
+  opacity: 1;
+  transition: opacity 160ms var(--ease-ui-out);
+}
+.ui-backdrop:is([data-starting-style], [data-ending-style]) {
+  opacity: 0;
+}
+.ui-sheet {
+  opacity: 1;
+  transform: translate(0);
+  transition:
+    opacity 160ms var(--ease-ui-out),
+    transform 240ms var(--ease-ui-drawer);
+}
+.ui-sheet:is([data-starting-style], [data-ending-style]) {
+  opacity: 0;
+}
+.ui-sheet[data-side='left']:is([data-starting-style], [data-ending-style]) {
+  transform: translateX(-100%);
+}
+.ui-sheet[data-side='right']:is([data-starting-style], [data-ending-style]) {
+  transform: translateX(100%);
+}
+.ui-sheet[data-side='top']:is([data-starting-style], [data-ending-style]) {
+  transform: translateY(-100%);
+}
+.ui-sheet[data-side='bottom']:is([data-starting-style], [data-ending-style]) {
+  transform: translateY(100%);
+}
+:is(.ui-popup, .ui-sheet, .ui-backdrop)[data-ending-style] {
+  transition-duration: 120ms;
+}
+.ui-popup[data-align-trigger='true'] {
+  transform: none;
+  transition: none;
+}
+.command-popup {
+  top: 20dvh;
+  max-height: calc(80dvh - 1rem);
+}
+.ui-pressable {
+  transition:
+    transform 140ms var(--ease-ui-out),
+    color 140ms ease,
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-input-modality='pointer']
+    .ui-pressable:active:not(:disabled, [aria-disabled='true']) {
+    transform: scale(0.97);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.ui-popup, .ui-sheet):is([data-starting-style], [data-ending-style]) {
+    transform: none;
+  }
+}
+/* Repeated keyboard actions settle immediately. Loading/decorative animations
+   keep their own lifecycle; typing does not stop spinners or restart the hero. */
+:root[data-input-modality='keyboard']
+  :is(
+    .ui-popup,
+    .ui-backdrop,
+    .ui-sheet,
+    .ui-pressable,
+    [data-slot='switch-thumb'],
+    [data-slot='accordion-content']
+  ) {
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+  animation: none !important;
+}
+
 /* Tailwind Typography wraps inline <code> with literal backticks by default. */
 .prose :where(code):not(:where([class~='not-prose'] *))::before,
 .prose :where(code):not(:where([class~='not-prose'] *))::after {
   content: '';
+}
+
+/* Native progress retains its accessible value while both engines use the theme. */
+[data-slot='setup-progress'] {
+  appearance: none;
+  border: 0;
+  background: var(--muted);
+  color: var(--primary);
+}
+[data-slot='setup-progress']::-webkit-progress-bar {
+  background: var(--muted);
+}
+[data-slot='setup-progress']::-webkit-progress-value {
+  background: var(--primary);
+}
+[data-slot='setup-progress']::-moz-progress-bar {
+  background: var(--primary);
 }

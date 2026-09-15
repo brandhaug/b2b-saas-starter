@@ -1,5 +1,6 @@
 import { type WorkspaceOverviewProjection } from '@b2b-saas-starter/capabilities/workspace-projections'
 import { seedWorkspaceRecord } from '@b2b-saas-starter/capabilities/governance/workspace-identity.seed'
+import { ChevronDownIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import {
   ArchitectureSchematic,
@@ -202,7 +203,7 @@ function RequestTraceSection({
             }}
           >
             <article data-stage="request" className="pt-2">
-              <StageMarker index="01" node="HTTP client" />
+              <StageMarker node="HTTP client" />
               <h3 className="mt-3 text-xl font-semibold text-balance">
                 {m.public_request_stage_request()}
               </h3>
@@ -217,110 +218,118 @@ function RequestTraceSection({
               </div>
             </article>
 
-            <article
-              data-stage="contract"
-              className="mt-16 border-t border-border pt-10 lg:mt-24"
-            >
-              <StageMarker index="02" node="apps/api" />
-              <h3 className="mt-3 text-xl font-semibold text-balance">
-                {m.public_request_stage_contract()}
-              </h3>
-              <p className="mt-3 max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">
-                {m.public_request_stage_contract_description()}
-              </p>
-              <div className="mt-6">
-                <SnippetPanel
-                  label={m.shell_trace_workspace_group()}
-                  path={CONTRACT_SNIPPET.path}
-                  code={CONTRACT_SNIPPET.code}
+            <details className="group mt-12 border-y border-border">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-sm font-medium text-foreground outline-none marker:hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background [&::-webkit-details-marker]:hidden">
+                <span>{m.public_request_details_summary()}</span>
+                <ChevronDownIcon
+                  aria-hidden
+                  className="size-4 shrink-0 transition-transform motion-reduce:transition-none group-open:rotate-180"
                 />
-              </div>
-            </article>
+              </summary>
+              <div className="pb-2">
+                <article data-stage="contract" className="border-t border-border pt-10">
+                  <StageMarker node="apps/api" />
+                  <h3 className="mt-3 text-xl font-semibold text-balance">
+                    {m.public_request_stage_contract()}
+                  </h3>
+                  <p className="mt-3 max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">
+                    {m.public_request_stage_contract_description()}
+                  </p>
+                  <div className="mt-6">
+                    <SnippetPanel
+                      label={m.shell_trace_workspace_group()}
+                      path={CONTRACT_SNIPPET.path}
+                      code={CONTRACT_SNIPPET.code}
+                    />
+                  </div>
+                </article>
 
-            <article
-              data-stage="capability"
-              className="mt-16 border-t border-border pt-10 lg:mt-24"
-            >
-              <StageMarker index="03" node="packages/capabilities" />
-              <h3 className="mt-3 text-xl font-semibold text-balance">
-                {m.public_request_stage_capability()}
-              </h3>
-              <p className="mt-3 max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">
-                {m.public_request_stage_capability_description()}
-              </p>
-              <div className="mt-6">
-                <SnippetPanel
-                  label={m.shell_trace_overview()}
-                  path={CAPABILITY_SNIPPET.path}
-                  code={CAPABILITY_SNIPPET.code}
-                />
-              </div>
-              {/* Three call sites, each cut to its deciding lines: the same
+                <article
+                  data-stage="capability"
+                  className="mt-16 border-t border-border pt-10 lg:mt-24"
+                >
+                  <StageMarker node="packages/capabilities" />
+                  <h3 className="mt-3 text-xl font-semibold text-balance">
+                    {m.public_request_stage_capability()}
+                  </h3>
+                  <p className="mt-3 max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">
+                    {m.public_request_stage_capability_description()}
+                  </p>
+                  <div className="mt-6">
+                    <SnippetPanel
+                      label={m.shell_trace_overview()}
+                      path={CAPABILITY_SNIPPET.path}
+                      code={CAPABILITY_SNIPPET.code}
+                    />
+                  </div>
+                  {/* Three call sites, each cut to its deciding lines: the same
                   effect serving a server fn, a REST handler, and an MCP
                   tool. Stacked full-width of the column — the widest line
                   (76 chars) fits unscrolled, so no panel needs panning. */}
-              <div className="mt-4 grid items-start gap-4">
-                {CALL_SITES.map((site) => (
-                  <SnippetPanel
-                    key={site.label}
-                    label={site.label}
-                    path={site.path}
-                    code={site.code}
-                  />
-                ))}
-              </div>
-            </article>
+                  <div className="mt-4 grid items-start gap-4">
+                    {CALL_SITES.map((site) => (
+                      <SnippetPanel
+                        key={site.label}
+                        label={site.label}
+                        path={site.path}
+                        code={site.code}
+                      />
+                    ))}
+                  </div>
+                </article>
 
-            <article
-              data-stage="runtime"
-              className="mt-16 border-t border-border pt-10 lg:mt-24"
-            >
-              <StageMarker index="04" node="D1 · Queues · Email" />
-              <h3 className="mt-3 text-xl font-semibold text-balance">
-                {m.public_request_stage_runtime()}
-              </h3>
-              <p className="mt-3 max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">
-                {m.public_request_stage_runtime_description()}{' '}
-                <code className="font-mono text-xs text-signal-ink">
-                  {DEPLOY_COMMAND}
-                </code>
-                .
-              </p>
-              <table className="mt-6 w-full border-collapse text-left">
-                <caption className="sr-only">{m.public_request_caption()}</caption>
-                <thead>
-                  <tr className="border-b border-border font-mono text-2xs text-muted-foreground">
-                    <th scope="col" className="py-2 pr-4 font-medium">
-                      {m.public_request_binding()}
-                    </th>
-                    <th scope="col" className="py-2 pr-4 font-medium">
-                      {m.public_request_holds()}
-                    </th>
-                    <th scope="col" className="py-2 font-medium">
-                      {m.public_request_declared_in()}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {runtimeRows().map((row) => (
-                    <tr key={row.node} className="border-b border-border">
-                      <th
-                        scope="row"
-                        className="py-3 pr-4 align-baseline font-mono text-sm font-medium"
-                      >
-                        {row.node}
-                      </th>
-                      <td className="py-3 pr-4 align-baseline text-sm text-muted-foreground">
-                        {row.holds}
-                      </td>
-                      <td className="py-3 align-baseline font-mono text-xs text-muted-foreground">
-                        {row.declared}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </article>
+                <article
+                  data-stage="runtime"
+                  className="mt-16 border-t border-border pt-10 lg:mt-24"
+                >
+                  <StageMarker node="D1 · Queues · Email" />
+                  <h3 className="mt-3 text-xl font-semibold text-balance">
+                    {m.public_request_stage_runtime()}
+                  </h3>
+                  <p className="mt-3 max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">
+                    {m.public_request_stage_runtime_description()}{' '}
+                    <code className="font-mono text-xs text-signal-ink">
+                      {DEPLOY_COMMAND}
+                    </code>
+                    .
+                  </p>
+                  <table className="mt-6 w-full border-collapse text-left">
+                    <caption className="sr-only">{m.public_request_caption()}</caption>
+                    <thead>
+                      <tr className="border-b border-border font-mono text-2xs text-muted-foreground">
+                        <th scope="col" className="py-2 pr-4 font-medium">
+                          {m.public_request_binding()}
+                        </th>
+                        <th scope="col" className="py-2 pr-4 font-medium">
+                          {m.public_request_holds()}
+                        </th>
+                        <th scope="col" className="py-2 font-medium">
+                          {m.public_request_declared_in()}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {runtimeRows().map((row) => (
+                        <tr key={row.node} className="border-b border-border">
+                          <th
+                            scope="row"
+                            className="py-3 pr-4 align-baseline font-mono text-sm font-medium"
+                          >
+                            {row.node}
+                          </th>
+                          <td className="py-3 pr-4 align-baseline text-sm text-muted-foreground">
+                            {row.holds}
+                          </td>
+                          <td className="py-3 align-baseline font-mono text-xs text-muted-foreground">
+                            {row.declared}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </article>
+              </div>
+            </details>
           </div>
 
           <div className="hidden lg:block">
@@ -334,23 +343,8 @@ function RequestTraceSection({
   )
 }
 
-function StageMarker({
-  index,
-  node
-}: {
-  readonly index: string
-  readonly node: string
-}) {
-  // The sequence is the content: request, contract, capability, runtime is a
-  // real order, so the counter carries information rather than decorating.
-  return (
-    <p className="font-mono text-2xs text-signal-ink">
-      <span aria-hidden className="text-muted-foreground">
-        {index} ·{' '}
-      </span>
-      {node}
-    </p>
-  )
+function StageMarker({ node }: { readonly node: string }) {
+  return <p className="font-mono text-2xs text-signal-ink">{node}</p>
 }
 
 /**

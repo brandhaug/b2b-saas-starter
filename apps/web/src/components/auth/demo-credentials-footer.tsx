@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -23,13 +24,36 @@ import { m } from '@b2b-saas-starter/i18n/messages'
  * configured. Extracted from the sign-in page so the card footer composes
  * instead of growing.
  */
-export function DemoCredentialsFooter() {
+export function DemoCredentialsFooter({
+  onFill
+}: {
+  readonly onFill: (
+    credentials: typeof DEMO_CREDENTIALS | typeof DEMO_MEMBER_CREDENTIALS
+  ) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const focusPasswordOnClose = useRef(false)
   return (
-    <Sheet>
-      <SheetTrigger render={<Button variant="link" />}>
+    <Sheet
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen)
+        if (nextOpen) {
+          focusPasswordOnClose.current = false
+        }
+      }}
+    >
+      <SheetTrigger render={<Button id="demo-credentials-trigger" variant="link" />}>
         {m.auth_view_demo_credentials()}
       </SheetTrigger>
-      <SheetContent className="overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-lg">
+      <SheetContent
+        finalFocus={() =>
+          focusPasswordOnClose.current
+            ? document.getElementById('password')
+            : document.getElementById('demo-credentials-trigger')
+        }
+        className="overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-lg"
+      >
         <SheetHeader>
           <SheetTitle>{m.auth_demo_credentials()}</SheetTitle>
         </SheetHeader>
@@ -45,6 +69,32 @@ export function DemoCredentialsFooter() {
             </code>
             .
           </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11"
+              onClick={() => {
+                focusPasswordOnClose.current = true
+                onFill(DEMO_CREDENTIALS)
+                queueMicrotask(() => setOpen(false))
+              }}
+            >
+              {m.auth_demo_fill_owner()}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11"
+              onClick={() => {
+                focusPasswordOnClose.current = true
+                onFill(DEMO_MEMBER_CREDENTIALS)
+                queueMicrotask(() => setOpen(false))
+              }}
+            >
+              {m.auth_demo_fill_member()}
+            </Button>
+          </div>
           <p className="text-xs text-muted-foreground">
             {m.public_auth_member_hint()}{' '}
             <code className="rounded-sm bg-muted px-1 py-0.5">

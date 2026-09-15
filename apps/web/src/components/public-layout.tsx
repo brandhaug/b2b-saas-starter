@@ -7,7 +7,7 @@ import { MenuIcon } from 'lucide-react'
 // enter this layout and never pay for the font.
 import newsreaderLatinWoff2 from '@fontsource-variable/newsreader/files/newsreader-latin-opsz-normal.woff2?url'
 import { SearchButton, CommandPaletteProvider } from '@/components/command-palette'
-import { GITHUB_URL } from '@/components/landing/github-url'
+import { GITHUB_URL } from '@/lib/github-url'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -66,7 +66,7 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
           <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
             <SheetTrigger
               render={
-                <Button variant="ghost" size="icon" className="lg:hidden">
+                <Button variant="ghost" size="icon" className="xl:hidden">
                   <MenuIcon className="size-5" />
                   <span className="sr-only">{m.common_open_menu()}</span>
                 </Button>
@@ -119,11 +119,11 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
             className="flex items-center gap-2 font-semibold whitespace-nowrap"
           >
             <img src="/assets/starter-logo.png" alt="" width={40} height={40} className="size-10 shrink-0" />
-            <span className="sr-only sm:not-sr-only">B2B SaaS Starter</span>
+            <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">B2B SaaS Starter</span>
           </Link>
           <nav
             aria-label={m.common_site_navigation()}
-            className="ml-auto hidden items-center gap-1 lg:flex"
+            className="ml-auto hidden items-center gap-1 xl:flex"
           >
             {publicLinks().map((link) => (
               <Link
@@ -136,10 +136,10 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
               </Link>
             ))}
           </nav>
-          <div className="hidden shrink-0 md:block">
+          <div className="ml-auto hidden shrink-0 md:block xl:ml-0">
             <SearchButton />
           </div>
-          <div className="hidden lg:block">
+          <div className="hidden xl:block">
             <LanguageSwitcher />
           </div>
           <Button
@@ -158,13 +158,13 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
           <div className="flex flex-wrap gap-4">
             <Link
               to="/privacy"
-              className="py-2.5 underline-offset-4 hover:text-foreground hover:underline"
+              className="inline-flex min-h-11 items-center py-3 underline-offset-4 hover:text-foreground hover:underline"
             >
               {m.privacy()}
             </Link>
             <Link
               to="/terms"
-              className="py-2.5 underline-offset-4 hover:text-foreground hover:underline"
+              className="inline-flex min-h-11 items-center py-3 underline-offset-4 hover:text-foreground hover:underline"
             >
               {m.terms()}
             </Link>
@@ -175,7 +175,7 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
               href={`${GITHUB_URL}/releases`}
               target="_blank"
               rel="noopener noreferrer"
-              className="py-2.5 underline-offset-4 hover:text-foreground hover:underline"
+              className="inline-flex min-h-11 items-center py-3 underline-offset-4 hover:text-foreground hover:underline"
             >
               {m.changelog()}
               <span className="sr-only">{m.common_opens_new_tab()}</span>

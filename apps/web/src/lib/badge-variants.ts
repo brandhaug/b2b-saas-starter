@@ -39,7 +39,11 @@ export function webhookDeliveryStatusVariant(status: string): BadgeVariant {
   if (status === 'delivered') {
     return 'ok'
   }
-  if (status === 'failed') {
+  if (
+    status === 'failed' ||
+    status === 'failed_permanent' ||
+    status === 'dead_lettered'
+  ) {
     return 'destructive'
   }
   if (status === 'pending') {
