@@ -38,7 +38,10 @@ function KnowledgeSection({
                       {doc.frontmatter.description}
                     </span>
                   </span>
-                  <ArrowRightIcon className="size-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                  <ArrowRightIcon
+                    className="size-3.5 shrink-0 text-muted-foreground"
+                    strokeWidth={1.5}
+                  />
                 </Link>
               </li>
             ))}

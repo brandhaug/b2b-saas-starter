@@ -294,6 +294,15 @@ export function SignInPage({
     }
   })
 
+  function fillDemoCredentials(credentials: { email: string; password: string }) {
+    setMode('password')
+    setLinkSent(false)
+    setSubmitError(null)
+    setSsoNotice(null)
+    passwordForm.setFieldValue('email', credentials.email)
+    passwordForm.setFieldValue('password', credentials.password)
+  }
+
   if (mode === 'link') {
     if (linkSent) {
       return (
@@ -301,7 +310,12 @@ export function SignInPage({
           title={m.sign_in_with_email_link()}
           description={m.email_link_description()}
           error={submitError}
-          footer={signInFooter({ mode, redirect, socialProviders })}
+          footer={signInFooter({
+            mode,
+            redirect,
+            socialProviders,
+            onFillDemoCredentials: fillDemoCredentials
+          })}
         >
           <p role="alert" className="text-sm text-muted-foreground">
             {m.sign_in_link_sent_notice()}
@@ -328,7 +342,8 @@ export function SignInPage({
         footer={signInFooter({
           mode,
           redirect,
-          socialProviders
+          socialProviders,
+          onFillDemoCredentials: fillDemoCredentials
         })}
       >
         <>
@@ -388,6 +403,7 @@ export function SignInPage({
         mode,
         redirect,
         socialProviders,
+        onFillDemoCredentials: fillDemoCredentials,
         onUseLink: () => {
           setSubmitError(null)
           setMode('link')
@@ -458,12 +474,14 @@ function signInFooter({
   mode,
   redirect,
   socialProviders,
-  onUseLink
+  onUseLink,
+  onFillDemoCredentials
 }: {
   mode: 'password' | 'link'
   onUseLink?: () => void
   redirect?: string | undefined
   socialProviders: ReadonlyArray<SocialProviderId>
+  onFillDemoCredentials: (credentials: { email: string; password: string }) => void
 }) {
   return (
     <>
@@ -500,7 +518,7 @@ function signInFooter({
           </p>
         </>
       ) : null}
-      <DemoCredentialsFooter />
+      <DemoCredentialsFooter onFill={onFillDemoCredentials} />
       <p className="text-center text-sm text-muted-foreground">
         {m.no_account_yet()}{' '}
         <Link

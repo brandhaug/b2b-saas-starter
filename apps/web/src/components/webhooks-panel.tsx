@@ -352,7 +352,9 @@ export function WebhooksPanel({
                               <Button
                                 variant="ghost"
                                 size="icon-xs"
-                                aria-label={m.developer_list_more_actions()}
+                                aria-label={m.developer_list_more_actions_named({
+                                  name: endpoint.url
+                                })}
                               />
                             }
                           >
@@ -394,28 +396,12 @@ export function WebhooksPanel({
                     ) : null}
 
                     {rotatedSecret?.endpointId === endpoint.id ? (
-                      <>
-                        <Separator />
-                        {/* `ok`, not the neutral default: this is the one moment
-                        the signing secret is visible, the same treatment the
-                        API token form's reveal gets. */}
-                        <Alert variant="ok">
-                          <AlertTitle>{m.secret_rotated_copy_now()}</AlertTitle>
-                          <AlertDescription>
-                            <SecretReveal
-                              secret={rotatedSecret.secret}
-                              label={m.webhook_secret()}
-                              className="flex items-center gap-2"
-                            />
-                            <p className="mt-2 text-xs text-muted-foreground">
-                              {m.webhook_secret_rotation_description()}
-                            </p>
-                          </AlertDescription>
-                        </Alert>
-                      </>
+                      <RotatedWebhookSecret secret={rotatedSecret.secret} />
                     ) : null}
                   </Item>
-                  {index < visibleEndpoints.length - 1 ? <Separator /> : null}
+                  {index < visibleEndpoints.length - 1 ? (
+                    <Separator aria-hidden="true" />
+                  ) : null}
                 </Fragment>
               ))}
             </ItemGroup>
@@ -444,5 +430,22 @@ export function WebhooksPanel({
         />
       )}
     </Panel>
+  )
+}
+
+function RotatedWebhookSecret({ secret }: { readonly secret: string }) {
+  return (
+    <>
+      <Separator />
+      <Alert variant="ok">
+        <AlertTitle>{m.secret_rotated_copy_now()}</AlertTitle>
+        <AlertDescription>
+          <SecretReveal secret={secret} label={m.webhook_secret()} />
+          <p className="mt-2 text-xs text-muted-foreground">
+            {m.webhook_secret_rotation_description()}
+          </p>
+        </AlertDescription>
+      </Alert>
+    </>
   )
 }

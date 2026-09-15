@@ -4,13 +4,23 @@ import { renderWithRouter } from '@/test/router-harness'
 import * as m from '@b2b-saas-starter/i18n/messages'
 import { VerifyEmailPage } from './verify-email'
 
-// The page only reports what the auth handler's redirect already decided, so
-// the report half takes no endpoint; the code alternative (error branch
-// only) calls the client module directly and needs no double for these
-// render-only cases.
+// The report half reads only the server-projected verification bit; the code
+// alternative (error branch only) calls the client module directly and needs
+// no double for these render-only cases.
 describe('VerifyEmailPage', () => {
-  it('reports success without an error param and offers no code form', async () => {
+  it('keeps an anonymous visit neutral without an error param', async () => {
     await renderWithRouter(<VerifyEmailPage />, { path: '/verify-email' })
+    screen.getByText(m.auth_design_email_verification_pending())
+    expect(screen.queryByText(m.email_verified())).toBeNull()
+    expect(screen.getByRole('link', { name: m.go_to_workspaces() })).toBeDefined()
+    expect(screen.queryByText(m.email_verification_failed())).toBeNull()
+    expect(screen.queryByText(m.verify_with_code())).toBeNull()
+  })
+
+  it('reports success only when the session confirms a verified email', async () => {
+    await renderWithRouter(<VerifyEmailPage emailVerified />, {
+      path: '/verify-email'
+    })
     screen.getByText(m.email_verified())
     expect(screen.getByRole('link', { name: m.go_to_workspaces() })).toBeDefined()
     expect(screen.queryByText(m.email_verification_failed())).toBeNull()

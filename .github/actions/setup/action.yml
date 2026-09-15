@@ -18,8 +18,9 @@ runs:
       run: |
         installer="$(mktemp)"
         trap 'rm -f "$installer"' EXIT
-        curl -fsSL https://vite.plus -o "$installer"
-        echo 'd4a1ffa8245bdfcf39a786d545be6a43e231b771c32d7c02414bb96d4f5d9cdc  '"$installer" | shasum -a 256 -c -
+        # The public bootstrap changes independently of the pinned CLI release.
+        curl -fsSL https://raw.githubusercontent.com/voidzero-dev/vite-plus/b2d15e3899dcc8adedfd45d98de9d30046a624f4/packages/cli/install.sh -o "$installer" # v0.3.0
+        echo '3dd88cedb6d9b2665c305eda5413971417c8f183a819386148131b66a2cc6b2e  '"$installer" | shasum -a 256 -c -
         VP_VERSION=0.3.0 VP_NODE_MANAGER=yes bash "$installer"
         # The installer does not touch PATH, so expose its bin dir (vp + managed
         # node/npm/corepack) to later steps.

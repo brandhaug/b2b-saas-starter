@@ -86,22 +86,27 @@ function RenameForm({
   readonly currentName: string
   readonly rename: RenameWorkspace
 }) {
-  const submit = useServerAction(
-    (name: string) => rename({ data: { workspaceSlug, name } }),
-    {
-      failureMessage: m.workspace_rename_failed(),
-      invalidate: false,
-      onSuccess: (_, name) => {
-        toast.success(m.workspace_renamed_to({ name }))
-      }
-    }
-  )
+  const [savedName, setSavedName] = useState(currentName)
   const form = useForm({
-    defaultValues: { name: currentName },
+    defaultValues: { name: savedName },
     onSubmit: async ({ value }) => {
       await submit.runAsync(value.name.trim())
     }
   })
+  const submit = useServerAction(
+    (name: string) => rename({ data: { workspaceSlug, name } }),
+    {
+      failureMessage: m.workspace_rename_failed(),
+      onSuccess: ({ name }) => {
+        // The response is the new server truth. Resetting establishes it as
+        // the form baseline before the loader refresh completes, so Save stays
+        // disabled after success while a later rename back remains possible.
+        setSavedName(name)
+        form.reset({ name })
+        toast.success(m.workspace_renamed_to({ name }))
+      }
+    }
+  )
 
   return (
     <form
@@ -151,7 +156,7 @@ function RenameForm({
             <Button
               type="submit"
               // A no-op save (the current name) does nothing worth a request.
-              disabled={!canSubmit || name.trim() === currentName}
+              disabled={!canSubmit || name.trim() === savedName}
               className="sm:ml-auto"
             >
               {m.save_name()}

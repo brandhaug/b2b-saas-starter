@@ -72,12 +72,12 @@ function AccordionContent({
       data-slot="accordion-content"
       // The height animation is `motion-safe:`-gated like every other
       // primitive here; without it the panel simply appears.
-      className="data-open:motion-safe:animate-accordion-down data-closed:motion-safe:animate-accordion-up text-sm overflow-hidden"
+      className="text-sm overflow-hidden motion-safe:h-(--accordion-panel-height) motion-safe:transition-[height] motion-safe:duration-200 motion-safe:ease-out motion-safe:data-starting-style:h-0 motion-safe:data-ending-style:h-0"
       {...props}
     >
       <div
         className={cn(
-          'pt-0 pb-2.5 [&_a]:hover:text-foreground h-(--accordion-panel-height) data-ending-style:h-0 data-starting-style:h-0 [&_a]:underline [&_a]:underline-offset-3 [&_p:not(:last-child)]:mb-4',
+          'pt-0 pb-2.5 [&_a]:hover:text-foreground [&_a]:underline [&_a]:underline-offset-3 [&_p:not(:last-child)]:mb-4',
           className
         )}
       >

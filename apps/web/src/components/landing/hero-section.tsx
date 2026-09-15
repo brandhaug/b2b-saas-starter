@@ -1,28 +1,15 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowRightIcon } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { buttonVariants } from '@/lib/button-variants'
 import { GithubIcon } from '@/components/icons/github'
-import { GITHUB_URL } from '@/components/landing/github-url'
-import { LightRays } from '@/components/landing/light-rays'
+import { GITHUB_URL } from '@/lib/github-url'
 import { SETUP_STEPS } from '@/lib/toolchain'
 import { m } from '@b2b-saas-starter/i18n/messages'
-
-const BILL_OF_MATERIALS: ReadonlyArray<string> = [
-  'TanStack Start',
-  'Effect v4',
-  'Drizzle D1',
-  'Better Auth',
-  'shadcn/ui',
-  'Tailwind v4',
-  'Cloudflare Workers',
-  'Alchemy v2'
-]
 
 function HeroSection() {
   return (
     <section className="relative isolate overflow-hidden border-b border-border">
-      <LightRays />
-      <div className="relative mx-auto max-w-7xl px-4 pt-16 pb-12 sm:px-6 lg:pt-28 lg:pb-16">
+      <div className="relative mx-auto max-w-7xl px-4 pt-16 pb-12 sm:px-6 lg:pt-24 lg:pb-16">
         {/* The schematic moved: it now works for the whole scroll as the
             sticky rail of the traced-request section below, instead of dying
             at this fold. The hero is the claim; the spine is the proof. The
@@ -38,23 +25,23 @@ function HeroSection() {
             {/* `leading-display`: a display face at 5–6xl wants near-solid
                 leading; `leading-tight` (1.25) opened air between lines the
                 wordmark was never sized for. */}
-            <h1 className="rise rise-2 mt-5 font-display text-balance text-5xl font-semibold leading-display sm:text-6xl">
+            <h1 className="rise rise-2 mt-5 font-display text-balance text-4xl font-semibold leading-display sm:text-5xl xl:text-6xl">
               {m.landing_headline()}
             </h1>
             <p className="rise rise-3 mt-6 text-pretty text-lg text-muted-foreground">
               {m.landing_description()}
             </p>
             <div className="rise rise-4 mt-9 flex flex-wrap items-center gap-3">
-              <Button nativeButton={false} render={<Link to="/demo" />} size="lg">
+              <Link to="/demo" className={buttonVariants({ size: 'lg' })}>
                 {m.action_open_demo()}
                 <ArrowRightIcon className="size-4" />
-              </Button>
+              </Link>
 
               <a
                 href={GITHUB_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex h-11 items-center gap-2 border border-border bg-background px-5 text-sm font-medium transition-colors hover:bg-muted"
+                className={buttonVariants({ variant: 'outline', size: 'lg' })}
               >
                 <GithubIcon className="size-4" />
                 {m.action_view_github()}
@@ -83,11 +70,6 @@ function HeroSection() {
             ))}
           </ol>
         </div>
-        <ul className="mt-14 flex flex-wrap gap-x-7 gap-y-2 border-t border-muted-foreground pt-5 font-mono text-xs text-muted-foreground">
-          {BILL_OF_MATERIALS.map((item) => (
-            <li key={item}>{item}</li>
-          ))}
-        </ul>
       </div>
     </section>
   )

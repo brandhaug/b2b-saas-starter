@@ -675,6 +675,8 @@ const { lint = {} } = defineConfig({
                 '^dark$',
                 '^marketing$',
                 '^toaster$',
+                '^ui-(popup|sheet|backdrop|pressable)$',
+                '^command-popup$',
                 '^grid-paper$',
                 '^band-deep$',
                 '^schematic-pulse$',

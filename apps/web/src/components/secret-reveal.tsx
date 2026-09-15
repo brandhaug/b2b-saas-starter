@@ -21,16 +21,22 @@ export function SecretReveal({
   readonly className?: string
 }) {
   const [revealed, setRevealed] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   useEffect(() => () => clearTimeout(timer.current), [])
 
   async function copy() {
-    await navigator.clipboard.writeText(secret)
-    setCopied(true)
     clearTimeout(timer.current)
-    timer.current = setTimeout(() => setCopied(false), 2000)
+    // oxlint-disable-next-line effect/noTryCatch -- clipboard is a browser platform boundary; keep manual selection recovery local to the control.
+    try {
+      await navigator.clipboard.writeText(secret)
+      setCopyStatus('copied')
+      clearTimeout(timer.current)
+      timer.current = setTimeout(() => setCopyStatus('idle'), 2000)
+    } catch {
+      setCopyStatus('failed')
+    }
   }
 
   return (
@@ -59,18 +65,25 @@ export function SecretReveal({
         type="button"
         variant="ghost"
         className="shrink-0"
+        aria-label={m.action_copy_named({ label })}
         onClick={() => void copy()}
       >
         {m.action_copy()}
-        <span className="sr-only"> {label}</span>
       </Button>
       {/* Always mounted, content swapped: a live region must exist before the
           change for screen readers to announce it. Visible for the same ~2s
           the timer holds it, so sighted users get the one confirmation too —
           a toast per copy would be spam. It is the last flex child, so
           appearing shifts nothing to its left. */}
-      <output className="shrink-0 text-xs font-medium text-status-ok">
-        {copied ? m.copy_success() : ''}
+      <output
+        aria-live="polite"
+        className={cn(
+          'min-w-0 text-xs font-medium',
+          copyStatus === 'failed' ? 'text-destructive' : 'text-status-ok'
+        )}
+      >
+        {copyStatus === 'copied' ? m.copy_success() : null}
+        {copyStatus === 'failed' ? m.secret_copy_failed() : null}
       </output>
     </span>
   )
