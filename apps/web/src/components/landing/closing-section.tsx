@@ -1,3 +1,4 @@
+import { LightRays } from '@/components/landing/light-rays'
 import { Link } from '@tanstack/react-router'
 import { ArrowRightIcon, ClipboardIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -54,6 +55,7 @@ function ClosingSection() {
 
   return (
     <section className="band-deep relative isolate overflow-hidden bg-background text-foreground">
+      <LightRays origin="top" />
       <div className="relative mx-auto grid max-w-7xl items-center gap-x-20 gap-y-12 px-4 py-24 sm:px-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:py-28">
         <div>
           <h2 className="font-display text-balance text-3xl font-semibold sm:text-4xl">

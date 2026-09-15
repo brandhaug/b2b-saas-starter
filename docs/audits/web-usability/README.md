@@ -10,9 +10,9 @@ TanStack developer toolbar is visible. They are static layout evidence;
 | ------------------------------------------ | ---------------------------------------------------------- |
 | [Homepage](home-desktop.webp)              | `/en`, 1440 × 1000                                         |
 | [Norwegian homepage](home-mobile-nb.webp)  | `/nb`, 390 × 844                                           |
-| [Documentation](docs-desktop.webp)         | `/en/docs`, 1440 × 1000                                    |
+| [Documentation](docs-desktop.webp)         | `/en/docs/getting-started/quickstart`, 1440 × 1000         |
 | [Command menu](commands-short-screen.webp) | `/demo/api-tokens`, 390 × 400, open Search with Ctrl/Cmd+K |
 
-The homepage retains Newsreader and the Catppuccin palette. The docs index puts
-Quickstart first. The command dialog stays inside the short viewport and scrolls
+The homepage retains Newsreader, the Catppuccin palette, and ambient light rays.
+The docs entry redirects directly to Quickstart. The command dialog stays inside the short viewport and scrolls
 its results independently.

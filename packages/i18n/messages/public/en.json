@@ -87,17 +87,6 @@
   ],
   "public_knowledge_docs": "docs/",
   "public_docs_title": "Documentation",
-  "public_docs_description": "Concepts and recipes for the starter architecture, modules, capability interfaces, and operations.",
-  "public_docs_article_count": [
-    {
-      "declarations": ["input count", "local category = count: plural"],
-      "selectors": ["category"],
-      "match": {
-        "category=one": "1 article",
-        "category=other": "{count} articles"
-      }
-    }
-  ],
   "public_docs_category_getting_started": "Getting started",
   "public_docs_category_architecture": "Architecture",
   "public_docs_category_capability_interfaces": "Capability interfaces",

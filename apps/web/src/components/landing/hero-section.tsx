@@ -1,3 +1,4 @@
+import { LightRays } from '@/components/landing/light-rays'
 import { Link } from '@tanstack/react-router'
 import { ArrowRightIcon } from 'lucide-react'
 import { buttonVariants } from '@/lib/button-variants'
@@ -9,6 +10,7 @@ import { m } from '@b2b-saas-starter/i18n/messages'
 function HeroSection() {
   return (
     <section className="relative isolate overflow-hidden border-b border-border">
+      <LightRays />
       <div className="relative mx-auto max-w-7xl px-4 pt-16 pb-12 sm:px-6 lg:pt-24 lg:pb-16">
         {/* The schematic moved: it now works for the whole scroll as the
             sticky rail of the traced-request section below, instead of dying

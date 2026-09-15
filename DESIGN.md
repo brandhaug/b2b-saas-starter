@@ -69,8 +69,8 @@ The landing hero pairs the value proposition with runnable setup commands. Keep 
 
 The public demo band includes a labeled screenshot of the reference workspace linked to the demo. Refresh `apps/web/public/images/workspace-preview.webp` when overview composition changes: capture `/demo` at 1440 by 1000 pixels and encode it as lossless WebP. The screenshot loads eagerly because it enters the first mobile viewport. It is illustrative, while the adjacent counts come from the showcase loader.
 
-The docs index starts with Quickstart, then groups articles by category in
-content-sized lists. Demo credential actions fill the sign-in form without
+The docs entry redirects directly to Quickstart, preserving the public locale.
+The article sidebar keeps the other guides accessible. Demo credential actions fill the sign-in form without
 submitting it and focus the password field; dismissing the sheet returns focus
 to its trigger. Inactive assistant views link to provider setup.
 
@@ -87,7 +87,7 @@ Avoid gradients, neon glows, glassmorphism, decorative notches, and illustration
 
 Target WCAG 2.1 AA: body-text contrast at least 4.5:1, large-text and control contrast at least 3:1. Verify actual rendered surfaces, including deep bands and translucent fills.
 
-Provide visible two-pixel focus rings with offsets, keyboard navigation, semantic landmarks, a skip link, and accessible names. Honor `prefers-reduced-motion` for every animation. Landing motion is limited to a brief hero entrance and interaction feedback. Architecture diagrams are static apart from active-node feedback; authentication has no ambient animation. Status meaning must remain understandable without color.
+Provide visible two-pixel focus rings with offsets, keyboard navigation, semantic landmarks, a skip link, and accessible names. Honor `prefers-reduced-motion` for every animation. The landing hero, closing section, and authentication shell retain the ambient light rays. Their renderer pauses off-screen and while the document is hidden, and draws a static frame for reduced motion. The hero keeps its brief entrance. Architecture diagrams are static apart from active-node feedback. Status meaning must remain understandable without color.
 
 ## Interaction feedback
 

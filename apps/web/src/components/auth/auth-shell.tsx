@@ -1,3 +1,4 @@
+import { LightRays } from '@/components/landing/light-rays'
 import { Link } from '@tanstack/react-router'
 import { CheckIcon, ArrowUpRightIcon } from 'lucide-react'
 import { type ReactNode } from 'react'
@@ -8,6 +9,7 @@ import { LanguageSwitcher } from '@/components/language-switcher'
 export function AuthShell({ children }: { readonly children: ReactNode }) {
   return (
     <div className="relative isolate flex min-h-dvh flex-col bg-background text-foreground">
+      <LightRays />
       <a
         // oxlint-disable-next-line react-doctor/anchor-target-exists -- AuthCardForm owns the main-content landmark inside this shell.
         href="#main-content"

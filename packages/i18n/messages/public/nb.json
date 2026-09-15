@@ -87,17 +87,6 @@
   ],
   "public_knowledge_docs": "docs/",
   "public_docs_title": "Dokumentasjon",
-  "public_docs_description": "Konsepter og oppskrifter for starterens arkitektur, moduler, kapabilitetsgrensesnitt og drift.",
-  "public_docs_article_count": [
-    {
-      "declarations": ["input count", "local category = count: plural"],
-      "selectors": ["category"],
-      "match": {
-        "category=one": "1 artikkel",
-        "category=other": "{count} artikler"
-      }
-    }
-  ],
   "public_docs_category_getting_started": "Kom i gang",
   "public_docs_category_architecture": "Arkitektur",
   "public_docs_category_capability_interfaces": "Kapabilitetsgrensesnitt",
