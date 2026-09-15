@@ -1,6 +1,8 @@
 import { useOverflowFade } from '@/hooks/use-overflow-fade'
 import { type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import { GITHUB_URL } from '@/lib/github-url'
+import { m } from '@b2b-saas-starter/i18n/messages'
 
 type CodeTokenKind =
   | 'comment'
@@ -97,12 +99,18 @@ function SnippetPanel({
 
   return (
     <figure className="min-w-0 border border-border bg-card">
-      <figcaption className="flex items-baseline justify-between gap-4 border-b border-border px-4 py-2 font-mono text-xs text-muted-foreground">
-        <span className="shrink-0">{label}</span>
+      <figcaption className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border px-4 py-3 font-mono text-xs text-muted-foreground sm:px-5">
+        <span className="break-words">{label}</span>
         {path === undefined ? null : (
-          <span className="truncate text-2xs" title={path}>
+          <a
+            href={`${GITHUB_URL}/blob/master/${path}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="min-w-0 break-all py-1 text-sm underline underline-offset-4 hover:text-foreground max-md:min-h-11 max-md:content-center"
+          >
             {path}
-          </span>
+            <span className="sr-only">{m.common_opens_new_tab()}</span>
+          </a>
         )}
       </figcaption>
       {/* The cap keeps a long body from setting the section's height; after
@@ -114,11 +122,11 @@ function SnippetPanel({
         ref={ref}
         // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- <pre> is the semantic element for preformatted code; role="region" exposes the scrollable area without losing it.
         role="region"
-        aria-label={`${label}, scrollable code`}
+        aria-label={m.showcase_scrollable_code({ label })}
         // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard users need a focus stop to pan the overflowing code.
         tabIndex={0}
         className={cn(
-          'max-h-108 overflow-auto p-4 font-mono text-xs leading-normal text-foreground/90',
+          'max-h-120 overflow-auto p-4 font-mono text-xs leading-relaxed text-foreground sm:p-5 sm:text-sm',
           fadeRight &&
             '[mask-image:linear-gradient(to_right,black_calc(100%_-_2.5rem),transparent_100%)]'
         )}

@@ -1,4 +1,18 @@
 {
-  "showcase_workspace_preview_alt": "Starter Lab-arbeidsområdet med oppfølgingspunkter, oppsettsfremdrift og varsler",
-  "showcase_workspace_preview_caption": "En forhåndsvisning av referansearbeidsområdet. Åpne demoen for å utforske det."
+  "showcase_workspace_preview_alt": "Starter Lab-referansearbeidsområde med eksempeldata",
+  "showcase_workspace_preview_caption": "Eksempelarbeidsområde. Handlinger i demoen endrer ikke data.",
+  "showcase_workspace_heading": "Prøv appen som følger med.",
+  "showcase_workspace_description": "Se medlemmer, invitasjoner, API-tokener og revisjonsloggen med eksempeldata. Ingen innlogging nødvendig.",
+  "showcase_trace_navigation": "Følg forespørselen",
+  "showcase_trace_request": "Forespørsel",
+  "showcase_trace_contract": "Kontrakt",
+  "showcase_trace_capability": "Kapabilitet",
+  "showcase_trace_runtime": "Kjøremiljø",
+  "showcase_trace_compare_callers": "Sammenlign kallene fra web, REST og MCP",
+  "showcase_trace_response_note": "Vertsnavnet er et eksempel. Svaret bruker denne installasjonens eksempelarbeidsområde, med ett varsel vist.",
+  "showcase_trace_fixture_note": "Denne installasjonen har ikke et eksempelarbeidsområde. Vertsnavnet og svaret viser et eksempel med seed-data.",
+  "showcase_scrollable_code": "{label}, rullbar kode",
+  "showcase_trace_view_architecture": "Vis arkitekturen",
+  "showcase_provider_column": "Leverandør",
+  "showcase_workers_role": "Webapp, REST- og MCP-API og bakgrunnsjobber"
 }
