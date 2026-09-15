@@ -56,13 +56,16 @@ export function useAssistantConversation(
       denied.current = false
       setError(null)
       const incoming = result.value
-      setHistory((current) =>
-        mergeConversationHistory(
+      setHistory((current) => {
+        if (cursor !== undefined && current?.nextCursor !== cursor) {
+          return current
+        }
+        return mergeConversationHistory(
           current,
           incoming,
           cursor === undefined ? 'snapshot' : 'page'
         )
-      )
+      })
     },
     [workspaceSlug, conversationId, ports, onAccessLost]
   )

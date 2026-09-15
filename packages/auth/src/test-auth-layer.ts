@@ -18,6 +18,7 @@ import {
 import { type DrizzleDatabase } from './ports.ts'
 import { testMcpConfig } from './test-mcp.ts'
 import { decodeUriSecret } from './test-totp.ts'
+export { cookieHeader, cookiePairs } from 'effectful-better-auth'
 
 /**
  * The one live-suite scaffold, shared by every suite that drives the real

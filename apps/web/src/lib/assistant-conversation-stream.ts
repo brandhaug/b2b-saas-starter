@@ -98,7 +98,14 @@ export function readConversationSnapshot(data: string): ConversationHistory | nu
   return frame.history
 }
 
-/** New authorized snapshots replace attempts by stable question ID and keep loaded older pages. */
+function compareExchanges(left: ConversationExchange, right: ConversationExchange) {
+  return (
+    left.question.createdAt.localeCompare(right.question.createdAt) ||
+    left.question.id.localeCompare(right.question.id)
+  )
+}
+
+/** Overlapping snapshots retain loaded pages; a catch-up gap restarts pagination. */
 export function mergeConversationHistory(
   current: ConversationHistory | null,
   incoming: ConversationHistory,
@@ -111,6 +118,18 @@ export function mergeConversationHistory(
     return current
   }
   const exchanges = new Map(current.items.map((item) => [item.question.id, item]))
+  if (
+    source === 'snapshot' &&
+    !incoming.items.some((item) => exchanges.has(item.question.id))
+  ) {
+    const latestIncoming = incoming.items.at(-1)
+    const latestCurrent = current.items.at(-1)
+    // The newest page owns the cursor across a reconnect gap. Ignore delayed reads.
+    return latestIncoming &&
+      (!latestCurrent || compareExchanges(latestIncoming, latestCurrent) > 0)
+      ? incoming
+      : current
+  }
   for (const item of incoming.items) {
     const previous = exchanges.get(item.question.id)
     if (source === 'page' && previous !== undefined) {
@@ -132,11 +151,7 @@ export function mergeConversationHistory(
     exchanges.set(item.question.id, { question: item.question, attempts })
   }
   return {
-    items: [...exchanges.values()].toSorted(
-      (left, right) =>
-        left.question.createdAt.localeCompare(right.question.createdAt) ||
-        left.question.id.localeCompare(right.question.id)
-    ),
+    items: [...exchanges.values()].toSorted(compareExchanges),
     policyRevision: incoming.policyRevision,
     nextCursor: source === 'page' ? incoming.nextCursor : current.nextCursor
   }

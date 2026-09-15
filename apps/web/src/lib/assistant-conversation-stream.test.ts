@@ -83,6 +83,48 @@ describe('conversation observer frames', () => {
     ).toBe(2)
   })
 
+  it('reopens pagination when reconnect catches up beyond the loaded history', () => {
+    const initial = { ...page('Completed'), nextCursor: null }
+    const latest: ConversationHistory = {
+      ...page('Completed'),
+      nextCursor: 'q12',
+      items: Array.from({ length: 30 }, (_, index) => ({
+        question: {
+          id: `q${index + 12}`,
+          createdAt: `2026-09-15T11:${String(index).padStart(2, '0')}:00Z`,
+          text: 'Later question',
+          taskId: null
+        },
+        attempts: []
+      }))
+    }
+    const caughtUp = mergeConversationHistory(initial, latest, 'snapshot')
+    expect(caughtUp.nextCursor).toBe('q12')
+    expect(caughtUp.items).toEqual(latest.items)
+    // A delayed pre-reconnect HTTP read must not rewind the new snapshot.
+    expect(mergeConversationHistory(caughtUp, initial, 'snapshot')).toEqual(caughtUp)
+    const missingPage: ConversationHistory = {
+      ...initial,
+      items: [
+        ...initial.items,
+        ...Array.from({ length: 10 }, (_, index) => ({
+          question: {
+            id: `q${index + 2}`,
+            createdAt: `2026-09-15T10:${String(index + 1).padStart(2, '0')}:00Z`,
+            text: 'Intervening question',
+            taskId: null
+          },
+          attempts: []
+        }))
+      ]
+    }
+    const restored = mergeConversationHistory(caughtUp, missingPage, 'page')
+    expect(restored.items.map((item) => item.question.id)).toEqual(
+      Array.from({ length: 41 }, (_, index) => `q${index + 1}`)
+    )
+    expect(restored.nextCursor).toBeNull()
+  })
+
   it('keeps older loaded questions when latest snapshots arrive', () => {
     const recent = page()
     const older: ConversationHistory = {

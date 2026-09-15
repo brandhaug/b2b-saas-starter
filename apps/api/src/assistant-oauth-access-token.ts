@@ -7,7 +7,10 @@ import {
 import { hasValue } from '@b2b-saas-starter/env/server'
 import { Context, Effect, Layer } from 'effect'
 import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from 'jose'
-import { type OAuthResourceConfig } from './oauth-access-token.ts'
+import {
+  hasOAuthResourceAudience,
+  type OAuthResourceConfig
+} from './oauth-access-token.ts'
 import { type ApiEnv } from './env.ts'
 
 export function assistantOAuthResourceConfig(
@@ -55,8 +58,15 @@ export function makeAssistantOAuthTokenVerifier(
           }),
         catch: () => new Unauthorized({ message: 'invalid_assistant_access_token' })
       })
-      const principal = assistantAccessTokenPrincipal(verified.payload)
-      if (verified.payload.aud !== config.audience || principal === null) {
+      // The persisted reference names this resource, never the ancillary OIDC audience.
+      const principal = assistantAccessTokenPrincipal({
+        ...verified.payload,
+        aud: config.audience
+      })
+      if (
+        principal === null ||
+        !hasOAuthResourceAudience(verified.payload.aud, config, principal.scopes)
+      ) {
         return yield* new Unauthorized({ message: 'invalid_assistant_access_token' })
       }
       return principal

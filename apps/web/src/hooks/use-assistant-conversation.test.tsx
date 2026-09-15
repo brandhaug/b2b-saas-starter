@@ -55,6 +55,65 @@ describe('conversation observation lifetime', () => {
     expect(operations.retry).not.toHaveBeenCalled()
   })
 
+  it('ignores an older-page response displaced by a catch-up snapshot', async () => {
+    vi.stubGlobal('WebSocket', ObserverSocket)
+    const operations = ports()
+    const initial: ConversationHistory = {
+      ...empty,
+      nextCursor: 'q1',
+      items: [
+        {
+          question: {
+            id: 'q1',
+            createdAt: '2026-09-15T10:00:00Z',
+            text: 'First',
+            taskId: null
+          },
+          attempts: []
+        }
+      ]
+    }
+    const later: ConversationHistory = {
+      ...initial,
+      nextCursor: 'q12',
+      items: [
+        {
+          question: {
+            id: 'q12',
+            createdAt: '2026-09-15T11:00:00Z',
+            text: 'Later',
+            taskId: null
+          },
+          attempts: []
+        }
+      ]
+    }
+    const pending = Promise.withResolvers<ConversationResult<ConversationHistory>>()
+    vi.mocked(operations.history)
+      .mockResolvedValueOnce({ ok: true, value: initial })
+      .mockReturnValueOnce(pending.promise)
+    const view = renderHook(() =>
+      useAssistantConversation('starter-lab', 'c1', operations)
+    )
+    await waitFor(() => expect(view.result.current.history).toEqual(initial))
+    act(() => {
+      void view.result.current.loadOlder()
+    })
+    act(() => {
+      ObserverSocket.instances[0]?.dispatchEvent(
+        new MessageEvent('message', {
+          data: JSON.stringify({ type: 'conversation_snapshot', history: later })
+        })
+      )
+    })
+    await act(async () => {
+      pending.resolve({ ok: true, value: empty })
+      await pending.promise
+    })
+    expect(view.result.current.history).toEqual(later)
+    view.unmount()
+  })
+
   it('clears protected content on expiry and establishes a fresh observer on reconnect', async () => {
     vi.stubGlobal('WebSocket', ObserverSocket)
     const operations = ports()

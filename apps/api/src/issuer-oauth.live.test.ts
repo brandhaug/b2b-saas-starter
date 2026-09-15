@@ -1,5 +1,4 @@
 import { eq } from 'drizzle-orm'
-import { cookieHeader, cookiePairs } from 'effectful-better-auth'
 import {
   MCP_CONSENT_CLAIM,
   MCP_SESSION_ID_CLAIM,
@@ -7,8 +6,8 @@ import {
   MCP_WORKSPACE_ROLE_CLAIM,
   MCP_WORKSPACE_SLUG_CLAIM
 } from '@b2b-saas-starter/authz/mcp-access-token'
-import { testMcpConfig } from './test-mcp.ts'
-import { type DrizzleDatabase } from './ports.ts'
+import { testMcpConfig } from '../../../packages/auth/src/test-mcp.ts'
+import { type DrizzleDatabase } from '../../../packages/auth/src/ports.ts'
 import {
   assistantSessionAuthority,
   session,
@@ -19,29 +18,53 @@ import {
 } from '@b2b-saas-starter/db/schema'
 import { DateTime, Effect, type Layer, Schema } from 'effect'
 import { createLocalJWKSet, jwtVerify } from 'jose'
+import { makeAssistantOAuthTokenVerifier } from './assistant-oauth-access-token.ts'
+import { makeOAuthTokenVerifier } from './oauth-access-token.ts'
 import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest'
-import { Auth, MCP_CONSENT_PAGE, MCP_WORKSPACE_SELECTED_HEADER } from './index.ts'
+import {
+  Auth,
+  MCP_CONSENT_PAGE,
+  MCP_WORKSPACE_SELECTED_HEADER
+} from '../../../packages/auth/src/index.ts'
 import {
   buildAuthLayer,
   provisionAuthD1,
   signUpSession,
+  cookieHeader,
+  cookiePairs,
   type AuthService,
   type ProvisionedAuthD1
-} from './test-auth-layer.ts'
+} from '../../../packages/auth/src/test-auth-layer.ts'
 
-// Social sign-in aside, the OAuth server this package runs is the MCP
-// authorization server (ADR 0068), and it is only observable the way an MCP
-// client drives it: discovery, then the authorization code flow with PKCE,
-// with the starter's two hops in the middle — the consent page picks a
-// workspace and vouches for the pick on `oauth2/continue`, then accepts on
-// `oauth2/consent`. The access token that comes out must verify against
-// `/api/auth/jwks` and carry the workspace claims the API worker maps onto
-// its `WorkspaceContext`.
+// Drive the real issuer's discovery, workspace consent, code/PKCE and refresh flow.
+// Both resource servers must accept their own tokens and reject the other resource's.
 
 let db: DrizzleDatabase
 let provisioned: ProvisionedAuthD1
 let authLayer: Layer.Layer<AuthService>
 const invalidatedUsers: Array<string> = []
+const decodeJwks = Schema.decodeUnknownSync(
+  Schema.Struct({
+    keys: Schema.Array(
+      Schema.Struct({
+        kty: Schema.String,
+        crv: Schema.String,
+        x: Schema.String,
+        kid: Schema.optionalKey(Schema.String),
+        alg: Schema.optionalKey(Schema.String)
+      })
+    )
+  })
+)
+const decodeMetadata = Schema.decodeUnknownSync(
+  Schema.Struct({
+    issuer: Schema.String,
+    authorization_endpoint: Schema.String,
+    jwks_uri: Schema.String,
+    code_challenge_methods_supported: Schema.Array(Schema.String),
+    client_id_metadata_document_supported: Schema.Boolean
+  })
+)
 
 // oxlint-disable-next-line effect/noTestLifecycleHooks -- owns the workerd process
 beforeAll(
@@ -156,7 +179,7 @@ describe('mcp oauth authorization server', () => {
             auth.instance.handler(new Request('http://localhost:3071/api/auth/jwks'))
           )
           expect(jwks.status).toBe(200)
-          const keys = yield* Effect.promise(() => jwks.json())
+          const keys = decodeJwks(yield* Effect.promise(() => jwks.json()))
           expect(Array.isArray(keys.keys) && keys.keys.length > 0).toBe(true)
 
           // The request arrives at the origin root, outside `/api/auth/*` — the
@@ -169,7 +192,7 @@ describe('mcp oauth authorization server', () => {
             )
           )
           expect(metadata.status).toBe(200)
-          const document = yield* Effect.promise(() => metadata.json())
+          const document = decodeMetadata(yield* Effect.promise(() => metadata.json()))
           expect(document.issuer).toBe('http://localhost:3071/api/auth')
           expect(document.authorization_endpoint).toBe(
             'http://localhost:3071/api/auth/oauth2/authorize'
@@ -319,9 +342,34 @@ describe('mcp oauth authorization server', () => {
             const jwksResponse = yield* Effect.promise(() =>
               auth.instance.handler(new Request('http://localhost:3071/api/auth/jwks'))
             )
-            const keySet = createLocalJWKSet(
+            const publicKeys = decodeJwks(
               yield* Effect.promise(() => jwksResponse.json())
             )
+            const keySet = createLocalJWKSet({ keys: [...publicKeys.keys] })
+            const issuerConfig = {
+              issuer: 'http://localhost:3071/api/auth',
+              audience: resource
+            }
+            function verifyResource(token: string, selectedResource: string) {
+              const config = { ...issuerConfig, audience: selectedResource }
+              if (selectedResource.endsWith('/assistant')) {
+                return makeAssistantOAuthTokenVerifier(config, keySet)
+                  .verify(token)
+                  .pipe(Effect.map((principal) => principal.userId))
+              }
+              return makeOAuthTokenVerifier(config, keySet)
+                .verify(token)
+                .pipe(Effect.map((principal) => principal.userId))
+            }
+            expect(
+              yield* verifyResource(tokens.access_token, resource).pipe(Effect.scoped)
+            ).toBe(userId)
+            expect(
+              (yield* verifyResource(tokens.access_token, otherResource).pipe(
+                Effect.result,
+                Effect.scoped
+              ))._tag
+            ).toBe('Failure')
             const { payload } = yield* Effect.promise(() =>
               jwtVerify(tokens.access_token, keySet, {
                 issuer: 'http://localhost:3071/api/auth',
@@ -382,7 +430,20 @@ describe('mcp oauth authorization server', () => {
               )
             )
             expect(refreshResponse.status).toBe(200)
-            const refreshed = yield* Effect.promise(() => refreshResponse.json())
+            const refreshed = decodeTokenPair(
+              yield* Effect.promise(() => refreshResponse.json())
+            )
+            expect(
+              yield* verifyResource(refreshed.access_token, resource).pipe(
+                Effect.scoped
+              )
+            ).toBe(userId)
+            expect(
+              (yield* verifyResource(refreshed.access_token, otherResource).pipe(
+                Effect.result,
+                Effect.scoped
+              ))._tag
+            ).toBe('Failure')
             const verifiedRefresh = yield* Effect.promise(() =>
               jwtVerify(refreshed.access_token, keySet, {
                 issuer: 'http://localhost:3071/api/auth',

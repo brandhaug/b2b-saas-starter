@@ -31,6 +31,29 @@ export type OAuthResourceConfig = {
   readonly jwksUrl: string
 }
 
+/** OIDC adds only this issuer's UserInfo endpoint beside the requested resource. */
+export function hasOAuthResourceAudience(
+  audience: string | ReadonlyArray<string> | undefined,
+  config: Pick<OAuthResourceConfig, 'issuer' | 'audience'>,
+  scopes: ReadonlyArray<string>
+): boolean {
+  if (audience === config.audience) {
+    return true
+  }
+  if (!Array.isArray(audience)) {
+    return false
+  }
+  if (audience.length === 1) {
+    return audience[0] === config.audience
+  }
+  return (
+    audience.length === 2 &&
+    scopes.includes('openid') &&
+    audience.includes(config.audience) &&
+    audience.includes(`${config.issuer}/oauth2/userinfo`)
+  )
+}
+
 /**
  * Both env vars set, or the OAuth path stays inactive: with no issuer there is
  * nothing to trust, and with no resource URL no audience to demand.
@@ -125,15 +148,25 @@ export function makeOAuthTokenVerifier(
             }),
           catch: (cause) => new Unauthorized({ message: rejectionReason(cause) })
         })
-        if (verified.payload.aud !== config.audience) {
-          return yield* Effect.fail(
-            new Unauthorized({ message: 'access_token_aud_mismatch' })
-          )
-        }
-        const outcome = mcpAccessTokenPrincipal(verified.payload)
+        // The principal retains the configured resource, not the ancillary OIDC audience.
+        const outcome = mcpAccessTokenPrincipal({
+          ...verified.payload,
+          aud: config.audience
+        })
         if (!outcome.ok) {
           yield* Effect.annotateLogsScoped({ authReason: outcome.reason })
           return yield* Effect.fail(new Unauthorized({ message: outcome.reason }))
+        }
+        if (
+          !hasOAuthResourceAudience(
+            verified.payload.aud,
+            config,
+            outcome.principal.scopes
+          )
+        ) {
+          return yield* Effect.fail(
+            new Unauthorized({ message: 'access_token_aud_mismatch' })
+          )
         }
         return outcome.principal
       })

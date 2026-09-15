@@ -302,6 +302,53 @@ describe('assistant OAuth verifier', () => {
         expect((yield* Effect.result(mcpVerifier.verify(multiAudience)))._tag).toBe(
           'Failure'
         )
+        for (const target of [
+          {
+            audience: 'http://localhost:8787/assistant',
+            scope: 'openid assistant:read',
+            verify: (bearer: string) => verifier.verify(bearer).pipe(Effect.asVoid)
+          },
+          {
+            audience: AUDIENCE,
+            scope: 'openid mcp:read',
+            verify: (bearer: string) => mcpVerifier.verify(bearer).pipe(Effect.asVoid)
+          }
+        ]) {
+          for (const audience of [
+            [target.audience],
+            [target.audience, `${ISSUER}/oauth2/userinfo`],
+            [`${ISSUER}/oauth2/userinfo`, target.audience]
+          ]) {
+            const oidcToken = yield* Effect.promise(() =>
+              signer.sign({ ...claims, scope: target.scope }, { audience })
+            )
+            expect((yield* Effect.result(target.verify(oidcToken)))._tag).toBe(
+              'Success'
+            )
+          }
+          for (const audience of [
+            [target.audience, 'https://foreign.test/api/auth/oauth2/userinfo'],
+            [target.audience, target.audience],
+            [
+              target.audience,
+              `${ISSUER}/oauth2/userinfo`,
+              'https://other-resource.test'
+            ],
+            [target.audience, `${ISSUER}/oauth2/userinfo`, `${ISSUER}/oauth2/userinfo`]
+          ]) {
+            const rejected = yield* Effect.promise(() =>
+              signer.sign({ ...claims, scope: target.scope }, { audience })
+            )
+            expect((yield* Effect.result(target.verify(rejected)))._tag).toBe('Failure')
+          }
+          const noOpenId = yield* Effect.promise(() =>
+            signer.sign(
+              { ...claims, scope: target.scope.replace('openid ', '') },
+              { audience: [target.audience, `${ISSUER}/oauth2/userinfo`] }
+            )
+          )
+          expect((yield* Effect.result(target.verify(noOpenId)))._tag).toBe('Failure')
+        }
         const expired = yield* Effect.promise(() =>
           signer.sign(claims, {
             audience: 'http://localhost:8787/assistant',

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { type OwnedConversation } from '@/lib/server/account-conversations'
 import { type ConversationResult } from '@/lib/server/assistant-conversations'
 import { callConversation } from '@/lib/assistant-conversation-call'
+import { formatTimestamp } from '@/lib/format-date'
 import { Panel } from '@/components/page/panel'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { Button } from '@/components/ui/button'
@@ -60,7 +61,9 @@ export function AccountConversationsPanel({
           >
             <div className="min-w-0 text-sm">
               <p className="break-all font-mono text-xs">{row.id}</p>
-              <time dateTime={row.createdAt}>{row.createdAt.slice(0, 10)}</time>
+              <time dateTime={row.createdAt}>
+                {formatTimestamp(row.createdAt, { dateStyle: 'short' })}
+              </time>
             </div>
             <AlertDialog>
               <AlertDialogTrigger
