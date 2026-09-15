@@ -327,6 +327,17 @@
   outline-offset: 2px;
 }
 
+.marketing ::selection {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.marketing :is(input, textarea) {
+  caret-color: var(--primary);
+}
+.marketing pre {
+  scrollbar-color: var(--input) var(--card);
+}
+
 /* Map the typography plugin's palette onto theme tokens so long-form
    marketing prose (privacy, terms) never carries hardcoded grays that
    clash with the Catppuccin scheme or fail AA in one mode. */

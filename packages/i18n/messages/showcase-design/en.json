@@ -1,4 +1,18 @@
 {
-  "showcase_workspace_preview_alt": "Starter Lab workspace showing attention items, setup progress, and notifications",
-  "showcase_workspace_preview_caption": "A preview of the reference workspace. Open the demo to explore it."
+  "showcase_workspace_preview_alt": "Starter Lab reference workspace with sample data",
+  "showcase_workspace_preview_caption": "Sample workspace. Demo actions do not change data.",
+  "showcase_workspace_heading": "Try the included app.",
+  "showcase_workspace_description": "Browse members, invitations, API tokens, and the audit trail with sample data. No sign-in needed.",
+  "showcase_trace_navigation": "Follow the request",
+  "showcase_trace_request": "Request",
+  "showcase_trace_contract": "Contract",
+  "showcase_trace_capability": "Capability",
+  "showcase_trace_runtime": "Runtime",
+  "showcase_trace_compare_callers": "Compare the web, REST, and MCP callers",
+  "showcase_trace_response_note": "The hostname is an example. The response uses this deployment’s sample workspace, with one notification shown.",
+  "showcase_trace_fixture_note": "This deployment has no sample workspace. The hostname and response show an example using seed data.",
+  "showcase_scrollable_code": "{label}, scrollable code",
+  "showcase_trace_view_architecture": "View the architecture",
+  "showcase_provider_column": "Provider",
+  "showcase_workers_role": "Web app, REST and MCP API, and background jobs"
 }

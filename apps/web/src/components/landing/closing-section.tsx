@@ -56,10 +56,10 @@ function ClosingSection() {
   return (
     <section className="band-deep relative isolate overflow-hidden bg-background text-foreground">
       <LightRays origin="top" />
-      <div className="relative mx-auto grid max-w-7xl items-center gap-x-20 gap-y-12 px-4 py-24 sm:px-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:py-28">
+      <div className="relative mx-auto grid max-w-7xl items-center gap-x-16 gap-y-10 px-5 py-16 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:py-24">
         <div>
-          <h2 className="font-display text-balance text-3xl font-semibold sm:text-4xl">
-            {m.landing_fork_headline({ count: SETUP_STEPS.length })}
+          <h2 className="font-display text-balance text-4xl font-medium leading-display sm:text-5xl">
+            {m.landing_fork_headline()}
           </h2>
           <p className="mt-4 text-pretty text-sm leading-relaxed text-muted-foreground">
             {m.landing_fork_description()}
@@ -116,7 +116,7 @@ function ClosingSection() {
             tabIndex={0}
             className="overflow-x-auto border border-t-0 border-border bg-card/40"
           >
-            <dl className="p-5 font-mono text-xs leading-loose text-foreground/90">
+            <dl className="p-5 font-mono text-xs leading-loose text-foreground sm:text-sm">
               <div className="flex gap-3">
                 <dt className="shrink-0 text-muted-foreground">$ git clone</dt>
                 <dd className="break-all">{CLONE_COMMAND.replace('git clone ', '')}</dd>

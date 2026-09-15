@@ -23,15 +23,15 @@ Self-hosted family names must match Fontsource: `Geist Variable`, `Geist Mono Va
 
 Geist handles body text and headings. Geist Mono handles code, identifiers, and tabular numeric data. Newsreader is limited to the landing hero and section headings through `font-display`, with optical size 72; never use it for workspace, card, or small-text headings.
 
-| Content                         | Treatment                                                       |
-| ------------------------------- | --------------------------------------------------------------- |
-| Landing hero / section headings | Newsreader, `text-5xl` to `text-6xl` / `text-3xl` to `text-4xl` |
-| Other page titles               | Geist `text-3xl`; workspace shell title `text-2xl`              |
-| Article section headings        | `text-xl` h2, `text-base` h3                                    |
-| Card titles                     | Geist `text-lg font-semibold`                                   |
-| Body                            | `text-sm` at every width; long-form prose `text-lg`             |
-| Form controls and their labels  | `text-base` below `md`, `text-sm` above                         |
-| Micro text                      | Mono hints, table headers, and schematic labels only            |
+| Content                         | Treatment                                                                      |
+| ------------------------------- | ------------------------------------------------------------------------------ |
+| Landing hero / section headings | Newsreader, `text-4xl` to `text-7xl` / `text-3xl` to `text-5xl`, medium weight |
+| Other page titles               | Geist `text-3xl`; workspace shell title `text-2xl`                             |
+| Article section headings        | `text-xl` h2, `text-base` h3                                                   |
+| Card titles                     | Geist `text-lg font-semibold`                                                  |
+| Body                            | `text-sm` at every width; long-form prose `text-lg`                            |
+| Form controls and their labels  | `text-base` below `md`, `text-sm` above                                        |
+| Micro text                      | Mono hints, table headers, and schematic labels only                           |
 
 Use sentence case. Keep input text at 16px on mobile to avoid focus zoom. Micro sizes are unsuitable for prose or interactive labels.
 
@@ -65,9 +65,11 @@ Audit places its toolbar directly above records. Keep pagination guidance at the
 
 Sign-in and sign-up use a dedicated split shell. The form is the primary task, with one h1, a bounded width, and a quiet field background. A desktop-only panel introduces the reference workspace using factual product copy. Mobile keeps the form, legal links, language control, and support. Other authentication steps retain the compact shared shell.
 
-The landing hero pairs the value proposition with runnable setup commands. Keep the headline within two desktop lines and the actions in the first viewport. Use a compact request trace with optional code evidence, followed by descriptive provider roles. Public demo actions consistently say Explore demo.
+The landing hero gives the value proposition the full width, with a two-line desktop headline and the demo action in the first mobile viewport. Runnable setup commands live in the closing section. Public demo actions consistently say Explore demo.
 
-The public demo band includes a labeled screenshot of the reference workspace linked to the demo. Refresh `apps/web/public/images/workspace-preview.webp` when overview composition changes: capture `/demo` at 1440 by 1000 pixels and encode it as lossless WebP. The screenshot loads eagerly because it enters the first mobile viewport. It is illustrative, while the adjacent counts come from the showcase loader.
+The request walkthrough exposes all four chapters. A bright Geist claim and a muted explanation share the same large type scale above each code example. The desktop architecture rail stays beside the evidence and marks the current chapter through scroll, focus, and navigation. Mobile uses a compact chapter index and an optional architecture disclosure. Only the supplementary caller comparison is collapsed. Code captions link to the quoted repository files; the response note distinguishes deployment data from the fixture fallback. Provider details, docs, and FAQ use aligned columns, thin rules, and compact spacing.
+
+The public demo section leads with a labeled screenshot of the reference workspace linked to the demo, followed by compact counts from the showcase loader. Refresh `apps/web/public/images/workspace-preview.webp` when overview composition changes: capture `/demo` at 1440 by 1000 pixels and encode it as lossless WebP. Its mobile counterpart, `workspace-preview-mobile.webp`, is captured at 390 by 720 pixels with development tools hidden. Both show sample data. A picture source selects the mobile capture below 640px, keeping the interface readable instead of shrinking desktop chrome. The image loads eagerly just below the hero.
 
 The docs entry redirects directly to Quickstart, preserving the public locale.
 The article sidebar keeps the other guides accessible. Demo credential actions fill the sign-in form without
