@@ -88,10 +88,15 @@ describe('conversation observation lifetime', () => {
         }
       ]
     }
-    const pending = Promise.withResolvers<ConversationResult<ConversationHistory>>()
+    let resolvePage!: (result: ConversationResult<ConversationHistory>) => void
+    const pendingPage = new Promise<ConversationResult<ConversationHistory>>(
+      (resolve) => {
+        resolvePage = resolve
+      }
+    )
     vi.mocked(operations.history)
       .mockResolvedValueOnce({ ok: true, value: initial })
-      .mockReturnValueOnce(pending.promise)
+      .mockReturnValueOnce(pendingPage)
     const view = renderHook(() =>
       useAssistantConversation('starter-lab', 'c1', operations)
     )
@@ -107,8 +112,8 @@ describe('conversation observation lifetime', () => {
       )
     })
     await act(async () => {
-      pending.resolve({ ok: true, value: empty })
-      await pending.promise
+      resolvePage({ ok: true, value: empty })
+      await pendingPage
     })
     expect(view.result.current.history).toEqual(later)
     view.unmount()
