@@ -239,47 +239,52 @@ export function LiveAssistantAuthority(
           if (!identity) {
             return null
           }
-          const [currentSession] = yield* unavailable(
-            db
-              .select()
-              .from(session)
-              .where(
-                and(
-                  eq(session.id, credential.sessionId),
-                  eq(session.userId, credential.userId)
-                )
+          const [[currentSession], [retainedSession], [totp], keys] = yield* Effect.all(
+            [
+              unavailable(
+                db
+                  .select()
+                  .from(session)
+                  .where(
+                    and(
+                      eq(session.id, credential.sessionId),
+                      eq(session.userId, credential.userId)
+                    )
+                  )
+                  .limit(1)
+              ),
+              unavailable(
+                db
+                  .select()
+                  .from(assistantSessionAuthority)
+                  .where(
+                    and(
+                      eq(assistantSessionAuthority.sessionId, credential.sessionId),
+                      eq(assistantSessionAuthority.userId, credential.userId)
+                    )
+                  )
+                  .limit(1)
+              ),
+              unavailable(
+                db
+                  .select({ id: twoFactor.id })
+                  .from(twoFactor)
+                  .where(
+                    and(
+                      eq(twoFactor.userId, credential.userId),
+                      eq(twoFactor.verified, true)
+                    )
+                  )
+                  .limit(1)
+              ),
+              unavailable(
+                db
+                  .select({ id: passkey.id })
+                  .from(passkey)
+                  .where(eq(passkey.userId, credential.userId))
               )
-              .limit(1)
-          )
-          const [retainedSession] = yield* unavailable(
-            db
-              .select()
-              .from(assistantSessionAuthority)
-              .where(
-                and(
-                  eq(assistantSessionAuthority.sessionId, credential.sessionId),
-                  eq(assistantSessionAuthority.userId, credential.userId)
-                )
-              )
-              .limit(1)
-          )
-          const [totp] = yield* unavailable(
-            db
-              .select({ id: twoFactor.id })
-              .from(twoFactor)
-              .where(
-                and(
-                  eq(twoFactor.userId, credential.userId),
-                  eq(twoFactor.verified, true)
-                )
-              )
-              .limit(1)
-          )
-          const keys = yield* unavailable(
-            db
-              .select({ id: passkey.id })
-              .from(passkey)
-              .where(eq(passkey.userId, credential.userId))
+            ],
+            { concurrency: 'unbounded' }
           )
           let grant: AssistantAuthorityState['grant'] = null
           if (credential.kind === 'oauth') {

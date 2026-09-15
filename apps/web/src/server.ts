@@ -7,10 +7,8 @@ import {
 import StartServerEntry from '@tanstack/react-start/server-entry'
 import { env as cloudflareEnv } from 'cloudflare:workers'
 import * as Sentry from '@sentry/cloudflare'
-import {
-  enforceSecureEndpoints,
-  minimumTlsResponse
-} from '@b2b-saas-starter/env/transport'
+import { enforceSecureEndpoints } from '@b2b-saas-starter/env/transport'
+import { minimumWebTlsResponse } from './lib/public-key-transport'
 
 // The TanStack Start entry's `fetch` carries Start's own handler signature;
 // the adapter below re-shapes it into a plain Workers `ExportedHandler` so
@@ -20,7 +18,7 @@ const worker = {
     // Sentry deliberately skips its options callback for HEAD and OPTIONS.
     // Keep the gate at the actual Worker seam too, before application code.
     enforceSecureEndpoints(cloudflareEnv)
-    const tlsResponse = minimumTlsResponse(request, cloudflareEnv.ENVIRONMENT)
+    const tlsResponse = minimumWebTlsResponse(request, cloudflareEnv.ENVIRONMENT)
     if (tlsResponse !== undefined) {
       return tlsResponse
     }
