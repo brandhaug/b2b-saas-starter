@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  />
+  <title>Assistant conversation prototype</title>
+  <style>
+    body {
+      max-width: 1050px;
+      margin: 40px auto;
+      padding: 0 24px;
+      font: 16px/1.5 system-ui;
+      color: #172330;
+      background: #fafbfc;
+    }
+    h1 {
+      line-height: 1.15;
+    }
+    button,
+    input,
+    select {
+      font: inherit;
+      padding: 8px 12px;
+      margin: 4px;
+      border: 1px solid #bbc5ce;
+      border-radius: 5px;
+    }
+    button {
+      cursor: pointer;
+      background: white;
+    }
+    button:hover {
+      background: #e8f3ff;
+    }
+    section {
+      border: 1px solid #dce3e9;
+      padding: 20px;
+      margin: 20px 0;
+      background: white;
+      border-radius: 8px;
+    }
+    pre {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font:
+        12px/1.5 ui-monospace,
+        monospace;
+      max-height: 340px;
+      overflow: auto;
+    }
+    .muted {
+      color: #526273;
+    }
+    .pill {
+      background: #e8f3ff;
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 700px) {
+      .grid {
+        display: block;
+      }
+    }
+    #live {
+      min-height: 50px;
+      overflow-wrap: anywhere;
+    }
+    .tabs button[aria-selected='true'] {
+      background: #dcefff;
+    }
+    li {
+      margin: 8px 0;
+    }
+  </style>
+  <h1>Leave a conversation. Come back to the answer.</h1>
+  <p>
+    Throwaway prototype. Can Cloudflare save and reconnect the answer while Effect runs
+    the model, and require an explicit Retry after interruption?
+  </p>
+  <p class="muted">
+    This page uses a real local SQLite Durable Object and a deterministic model. Alice
+    and Bob are synthetic identities. No provider calls or production credentials are
+    involved.
+  </p>
+  <section>
+    <label>Conversation <input id="conversation" value="walkthrough" /></label>
+    <button id="fresh">New conversation</button><button id="alice">Use Alice</button
+    ><button id="bob">Use Bob</button>
+    <p>
+      Connection <span id="connection" class="pill">Disconnected</span> · Last result
+      <span id="result">Ready</span>
+    </p>
+    <button id="connect">Connect / reconnect</button
+    ><button id="disconnect">Disconnect this tab</button
+    ><button id="refresh">Read saved state</button>
+  </section>
+  <section>
+    <label
+      >Question <input id="question" value="Explain this investigation" size="35"
+    /></label>
+    <label
+      >Response
+      <select id="mode">
+        <option value="normal">Complete normally</option>
+        <option value="fail">Provider fails partway</option>
+      </select></label
+    >
+    <label
+      >Chunks
+      <input id="chunks" type="number" value="40" min="1" max="200" style="width: 65px"
+    /></label>
+    <label
+      >Milliseconds per chunk
+      <input
+        id="delay"
+        type="number"
+        value="250"
+        min="20"
+        max="5000"
+        style="width: 75px"
+    /></label>
+    <div>
+      <button id="send">Send question</button
+      ><button id="repeat">Repeat identical send</button
+      ><button id="retry">Retry explicitly</button><button id="stop">Stop answer</button
+      ><button id="revoke">Revoke access</button
+      ><button id="restore">Restore fixture access</button>
+    </div>
+    <p class="muted">
+      A second tab can open this same conversation. New sends while an answer runs are
+      refused. Repeating the same send joins its existing result.
+    </p>
+    <h2>Live answer</h2>
+    <div id="live"></div>
+  </section>
+  <section>
+    <h2>Guided walkthroughs</h2>
+    <div class="tabs" id="tabs"></div>
+    <div id="walkthrough"></div>
+  </section>
+  <div class="grid">
+    <section>
+      <h2>Saved conversation</h2>
+      <div id="saved">No state read yet.</div>
+    </section>
+    <section>
+      <h2>Generation evidence</h2>
+      <div id="runs"></div>
+      <pre id="events"></pre>
+    </section>
+  </div>
+  <details>
+    <summary>Protocol frames and complete state</summary>
+    <pre id="frames"></pre>
+    <pre id="state"></pre>
+  </details>
+  <script>
+    const $ = (id) => document.getElementById(id)
+    let socket = null,
+      lastSend = null,
+      live = '',
+      frames = []
+    const path = (action) =>
+      '/c/' + encodeURIComponent($('conversation').value) + '/' + action
+    function result(text) {
+      $('result').textContent = text
+    }
+    async function request(action, body) {
+      const res = await fetch(
+        path(action),
+        body
+          ? {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body)
+            }
+          : {}
+      )
+      const text = await res.text()
+      if (action !== 'snapshot' || !res.ok)
+        result(res.status + ' ' + text.slice(0, 140))
+      if (!res.ok) return null
+      try {
+        return JSON.parse(text)
+      } catch {
+        return null
+      }
+    }
+    async function refresh() {
+      const state = await request('snapshot')
+      if (!state) return
+      $('state').textContent = JSON.stringify(state, null, 2)
+      $('saved').replaceChildren()
+      for (const message of state.messages) {
+        const p = document.createElement('p')
+        p.textContent =
+          message.role +
+          ': ' +
+          message.parts
+            .filter((x) => x.type === 'text')
+            .map((x) => x.text)
+            .join('')
+        $('saved').append(p)
+      }
+      $('runs').textContent = state.runs.map((r) => r.key + ': ' + r.status).join(' | ')
+      $('events').textContent = state.events
+        .map((e) => e.kind + ' ' + e.detail)
+        .join('\n')
+    }
+    function disconnect() {
+      socket?.close()
+      socket = null
+      $('connection').textContent = 'Disconnected'
+    }
+    function connect() {
+      disconnect()
+      live = ''
+      $('live').textContent = ''
+      const ws = new WebSocket(
+        location.origin.replace('http', 'ws') +
+          path('connect') +
+          '?_id=' +
+          crypto.randomUUID()
+      )
+      socket = ws
+      ws.onopen = () => {
+        $('connection').textContent = 'Connected'
+        ws.send(
+          JSON.stringify({
+            type: 'cf_agent_stream_resume_request',
+            probeId: crypto.randomUUID()
+          })
+        )
+        refresh()
+      }
+      ws.onclose = (e) => {
+        $('connection').textContent = 'Disconnected ' + e.code
+      }
+      ws.onmessage = (e) => {
+        frames.push(e.data)
+        $('frames').textContent = frames.slice(-80).join('\n')
+        let f
+        try {
+          f = JSON.parse(e.data)
+        } catch {
+          return
+        }
+        if (f.type === 'cf_agent_stream_resuming') {
+          ws.send(JSON.stringify({ type: 'cf_agent_stream_resume_ack', id: f.id }))
+        }
+        if (f.type === 'cf_agent_use_chat_response') {
+          let chunk
+          try {
+            chunk = JSON.parse(f.body)
+          } catch {
+            for (const line of String(f.body).split('\n')) {
+              if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+                try {
+                  chunk = JSON.parse(line.slice(6))
+                } catch {}
+              }
+            }
+          }
+          if (chunk?.type === 'text-start') live = ''
+          if (chunk?.type === 'text-delta') live += chunk.delta
+          if (chunk?.type === 'error') result(chunk.errorText)
+          $('live').textContent = live
+          if (f.done) refresh()
+        }
+        if (f.type === 'cf_agent_chat_messages') refresh()
+      }
+    }
+    async function signIn(actor) {
+      disconnect()
+      await fetch('/fixture/sign-in?member=' + actor)
+      result('Using synthetic ' + actor)
+      await refresh()
+    }
+    async function send() {
+      lastSend = {
+        key: crypto.randomUUID(),
+        question: $('question').value,
+        mode: $('mode').value,
+        chunks: Number($('chunks').value),
+        delay: Number($('delay').value)
+      }
+      await request('send', lastSend)
+      await refresh()
+    }
+    $('connect').onclick = connect
+    $('disconnect').onclick = disconnect
+    $('refresh').onclick = refresh
+    $('alice').onclick = () => signIn('alice')
+    $('bob').onclick = () => signIn('bob')
+    $('send').onclick = send
+    $('retry').onclick = () => {
+      $('mode').value = 'normal'
+      return send()
+    }
+    $('repeat').onclick = () => lastSend && request('send', lastSend)
+    $('stop').onclick = async () => {
+      await request('stop', {})
+      await refresh()
+    }
+    $('revoke').onclick = () => request('authority', { revoked: true })
+    $('restore').onclick = () => request('authority', { revoked: false })
+    async function fresh() {
+      disconnect()
+      $('conversation').value = 'walk-' + crypto.randomUUID()
+      lastSend = null
+      frames = []
+      live = ''
+      $('live').textContent = ''
+      $('frames').textContent = ''
+      $('mode').value = 'normal'
+      await signIn('alice')
+    }
+    $('fresh').onclick = fresh
+    const scenarios = [
+      {
+        name: 'Leave and return',
+        text: 'The answer keeps running after this tab disconnects. Reconnect and compare the generation count: it should still be one.',
+        steps: [
+          ['Use Alice', () => signIn('alice')],
+          ['Connect', connect],
+          ['Start answer', send],
+          ['Leave', disconnect],
+          ['Return', connect],
+          ['Inspect saved result', refresh]
+        ]
+      },
+      {
+        name: 'Two tabs / duplicate send',
+        text: 'Open the same conversation in a second tab. Both observe one answer. Repeating a send joins it; sending a different question while busy returns 409.',
+        steps: [
+          ['Connect', connect],
+          ['Start answer', send],
+          ['Repeat same send', () => request('send', lastSend)],
+          ['Try another send', send],
+          ['Inspect one active answer', refresh]
+        ]
+      },
+      {
+        name: 'Interrupted and Retry',
+        text: 'The deterministic provider fails partway. Saved partial output remains, and generation only starts again when you press Retry. To inspect process loss, stop the local Worker during a longer answer and restart it with the same scratch state.',
+        steps: [
+          [
+            'Choose provider failure',
+            () => {
+              $('mode').value = 'fail'
+            }
+          ],
+          ['Connect', connect],
+          ['Start answer', send],
+          ['Inspect interruption', refresh],
+          [
+            'Retry explicitly',
+            () => {
+              $('mode').value = 'normal'
+              return send()
+            }
+          ]
+        ]
+      },
+      {
+        name: 'Private access',
+        text: 'Bob cannot read Alice’s conversation. Revoking Alice’s access also closes her existing connection. Restore access only through this scratch fixture control.',
+        steps: [
+          ['Use Alice', () => signIn('alice')],
+          ['Connect', connect],
+          ['Start answer', send],
+          ['Revoke Alice', () => request('authority', { revoked: true })],
+          ['Try to read saved state', refresh],
+          ['Restore fixture', () => request('authority', { revoked: false })],
+          ['Use Bob', () => signIn('bob')],
+          ['Attempt history read', refresh]
+        ]
+      }
+    ]
+    function choose(index) {
+      $('tabs').replaceChildren()
+      scenarios.forEach((s, i) => {
+        const b = document.createElement('button')
+        b.textContent = s.name
+        b.setAttribute('aria-selected', String(index === i))
+        b.onclick = () => choose(i)
+        $('tabs').append(b)
+      })
+      $('walkthrough').replaceChildren()
+      const intro = document.createElement('p')
+      intro.textContent = scenarios[index].text
+      $('walkthrough').append(intro)
+      const reset = document.createElement('button')
+      reset.textContent = 'Start walkthrough in a new conversation'
+      reset.onclick = fresh
+      $('walkthrough').append(reset)
+      scenarios[index].steps.forEach(([label, action], i) => {
+        const b = document.createElement('button')
+        b.textContent = i + 1 + '. ' + label
+        b.onclick = action
+        $('walkthrough').append(b)
+      })
+    }
+    choose(0)
+    signIn('alice')
+  </script>
+</html>

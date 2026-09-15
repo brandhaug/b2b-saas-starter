@@ -1,0 +1,22 @@
+{
+  "name": "assistant-effect-prototype",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --local --ip 127.0.0.1 --port 8797 --persist-to .prototype-state",
+    "typecheck": "tsc --noEmit",
+    "bundle": "wrangler deploy --dry-run --outdir .prototype-build"
+  },
+  "dependencies": {
+    "@cloudflare/ai-chat": "0.12.0",
+    "agents": "0.23.0",
+    "ai": "7.0.101",
+    "effect": "4.0.0-rc.112"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260915.1",
+    "typescript": "7.0.2",
+    "wrangler": "4.131.0",
+    "ws": "8.21.3"
+  }
+}

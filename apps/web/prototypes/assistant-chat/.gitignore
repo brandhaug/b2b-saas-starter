@@ -1,0 +1,4 @@
+node_modules/
+.prototype-state/
+.prototype-build/
+.wrangler/

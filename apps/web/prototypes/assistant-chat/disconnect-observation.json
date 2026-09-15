@@ -1,0 +1,11 @@
+{
+  "name": "long-mu2kcxbc",
+  "disconnectedMs": 146009,
+  "state": "completed",
+  "modelStarts": 1,
+  "recoveryCalls": 0,
+  "replayFrames": 312,
+  "textLength": 3672,
+  "containsLastChunk": true,
+  "messages": 2
+}

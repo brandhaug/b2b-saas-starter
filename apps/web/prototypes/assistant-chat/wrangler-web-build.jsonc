@@ -1,0 +1,26 @@
+{
+  "name": "assistant-web-build-prototype",
+  "main": "../../dist/server/server.js",
+  "compatibility_date": "2026-09-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "AssistantPrototype",
+        "class_name": "AssistantPrototype"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "prototype-v1",
+      "new_sqlite_classes": ["AssistantPrototype"]
+    }
+  ],
+  "assets": {
+    "directory": "../../dist/client",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "find_additional_modules": true
+}

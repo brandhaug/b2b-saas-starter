@@ -1,0 +1,62 @@
+[
+  {
+    "scenario": "disconnect-before-first-token-and-reconnect",
+    "conversation": "probe-mu2kbzwi",
+    "accepted": 202,
+    "duplicate": true,
+    "competingSend": 409,
+    "modelStarts": 1,
+    "terminal": "completed",
+    "persistedAnswers": 1,
+    "tail": " context=1] [34/35; context=1] [35/35; context=1] ",
+    "replayFrames": 22,
+    "metadata": {
+      "provider": "prototype",
+      "model": "deterministic-effect",
+      "submissionKey": "send-one",
+      "usage": {
+        "inputTokens": {},
+        "outputTokens": {}
+      }
+    }
+  },
+  {
+    "scenario": "built-in-mutation-denial",
+    "deniedFrames": 2,
+    "historyMessages": 2
+  },
+  {
+    "scenario": "multi-turn-context",
+    "accepted": 202,
+    "modelStarts": 2,
+    "text": "[1/4; context=3] [2/4; context=3] [3/4; context=3] [4/4; context=3] "
+  },
+  {
+    "scenario": "typed-failure",
+    "state": "interrupted",
+    "starts": 1,
+    "savedPartial": "[1/12; context=1] [2/12; context=1] [3/12; context=1] [4/12; context=1] [5/12; context=1] [6/12; context=1] [7/12; context=1] ",
+    "events": ["model-start", "typed-model-error", "sdk-result"]
+  },
+  {
+    "scenario": "explicit-retry",
+    "starts": 2,
+    "states": ["interrupted", "completed"],
+    "savedAnswers": 2
+  },
+  {
+    "scenario": "stop",
+    "state": "stopped",
+    "starts": 1,
+    "savedPartial": "[1/70; context=1] [2/70; context=1] [3/70; context=1] [4/70; context=1] [5/70; context=1] ",
+    "events": ["model-start", "effect-aborted", "sdk-result"]
+  },
+  {
+    "scenario": "private-access-and-revocation",
+    "otherMember": 404,
+    "workspaceToken": 404,
+    "revokedHistory": 404,
+    "revokedSend": 404,
+    "socketCloseCode": 1008
+  }
+]

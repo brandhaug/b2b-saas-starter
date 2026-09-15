@@ -56,6 +56,14 @@ function cloudflareWorkersDeployPlugin(
     // through environment config — resolve per environment here instead.
     resolveId: {
       handler(source: string) {
+        // Prototype: Agents also imports native cloudflare:email.
+        if (
+          enabled &&
+          source.startsWith('cloudflare:') &&
+          this.environment.name === 'ssr'
+        ) {
+          return { id: source, external: true }
+        }
         if (!enabled || source !== 'cloudflare:workers') {
           return null
         }

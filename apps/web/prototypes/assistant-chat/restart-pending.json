@@ -1,0 +1,79 @@
+{
+  "names": ["restart-mid-mu2kkmpq", "restart-early-mu2kkmpq"],
+  "before": [
+    {
+      "owner": "alice",
+      "state": {
+        "revoked": false
+      },
+      "runs": [
+        {
+          "key": "original",
+          "question": "Interrupted during output",
+          "mode": "normal",
+          "chunks": 200,
+          "delay": 100,
+          "status": "streaming",
+          "request_id": "lHicO2Wr3bA7D9w9EpxTe",
+          "ordinal": 1
+        }
+      ],
+      "messages": [
+        {
+          "id": "original",
+          "role": "user",
+          "parts": [
+            {
+              "type": "text",
+              "text": "Interrupted during output"
+            }
+          ]
+        }
+      ],
+      "events": [
+        {
+          "seq": 1,
+          "kind": "model-start",
+          "detail": "{\"key\":\"original\",\"requestId\":\"lHicO2Wr3bA7D9w9EpxTe\",\"continuation\":false}"
+        }
+      ]
+    },
+    {
+      "owner": "alice",
+      "state": {
+        "revoked": false
+      },
+      "runs": [
+        {
+          "key": "original",
+          "question": "Interrupted before output",
+          "mode": "normal",
+          "chunks": 200,
+          "delay": 5000,
+          "status": "streaming",
+          "request_id": "0gtz_iYyutjvAES7RJIoa",
+          "ordinal": 1
+        }
+      ],
+      "messages": [
+        {
+          "id": "original",
+          "role": "user",
+          "parts": [
+            {
+              "type": "text",
+              "text": "Interrupted before output"
+            }
+          ]
+        }
+      ],
+      "events": [
+        {
+          "seq": 1,
+          "kind": "model-start",
+          "detail": "{\"key\":\"original\",\"requestId\":\"0gtz_iYyutjvAES7RJIoa\",\"continuation\":false}"
+        }
+      ]
+    }
+  ]
+}

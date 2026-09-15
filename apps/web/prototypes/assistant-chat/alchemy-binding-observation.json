@@ -1,0 +1,12 @@
+[
+  {
+    "key": "AssistantPrototype",
+    "bindings": [
+      {
+        "type": "durable_object_namespace",
+        "name": "AssistantPrototype",
+        "className": "AssistantPrototype"
+      }
+    ]
+  }
+]

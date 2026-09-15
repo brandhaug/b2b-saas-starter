@@ -37,3 +37,6 @@ export default Sentry.withSentry(() => {
   // disabled client — provider-light deployments are unchanged.
   return makeSentryOptions('web', cloudflareEnv)
 }, worker)
+
+// Throwaway named-export build probe.
+export { AssistantPrototype } from '../prototypes/assistant-chat/worker'
