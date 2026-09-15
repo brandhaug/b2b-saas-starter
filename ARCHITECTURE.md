@@ -118,7 +118,7 @@ SSO connections belong to Workspaces. The app enforces enabled/required status a
 
 ### API tokens and MCP OAuth
 
-API Tokens belong to one Workspace. Only token hashes are stored; verification checks revocation, expiry, and resource entitlements. REST is token-only.
+API Tokens belong to one Workspace. Only token hashes are stored; verification checks revocation, expiry, and resource entitlements. Current REST routes are token-only. The [accepted persistent assistant design](https://github.com/brandhaug/b2b-saas-starter/issues/444) will add member OAuth for private conversations using a separate audience and scopes; workspace API tokens will have no access to that content.
 
 MCP also accepts OAuth access tokens issued by the web Worker. The API verifies issuer and audience, re-resolves membership, and checks the immutable Workspace ID and current consent before reads, resources, and writes. Consent binds a client to one Workspace. Both credentials use the same operation catalog and permission checks. [Interactive isolation coverage](docs/security-workspace-isolation.md) records tested operations and evidence limits. See [API tokens](docs/adr/0026-workspace-api-tokens.md) and [MCP OAuth](docs/adr/0068-oauth-for-interactive-mcp-clients-beside-api-tokens.md).
 
@@ -160,4 +160,4 @@ Alchemy wraps secrets in `Redacted`. Production auth requires a secure `BETTER_A
 
 ## Explicit Non-Goals
 
-No Durable Objects without a coordination need, PWA/offline service worker, general uploads, or realtime WebSocket/SSE transport. Revisit these only for a concrete Starter use case.
+No PWA/offline service worker, general uploads, or general realtime platform. Durable Objects and realtime transport require a concrete Starter coordination use case. The [accepted conversation design](docs/adr/0009-no-durable-objects-without-coordination-need.md) provides that use case for the persistent assistant; implementation and deployed validation are pending.

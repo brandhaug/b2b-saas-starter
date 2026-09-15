@@ -1,5 +1,7 @@
 # Effect AI starter assistant
 
-The assistant uses one Effect `LanguageModel` workflow with Workers AI, OpenAI-compatible, and deterministic mock adapters. Configuration selects the layer; missing provider credentials keep local development usable. Provider and model identifiers come from the selected model context so replies report the provider that actually answered.
+The assistant uses one Effect `LanguageModel` workflow with Workers AI, OpenAI-compatible, and deterministic mock adapters. Configuration selects the layer, and provider/model identifiers come from that selected context. Typed AI errors map to safe application failures rather than silently switching providers.
 
-Adapters accept system/user text prompts and reject unsupported tools, structured output, and streaming rather than silently dropping inputs. They use typed AI errors internally; the assistant boundary maps failures to its public unavailable error. Shared acceptance and error policies keep provider switching out of application behavior.
+The [accepted persistent assistant specification](https://github.com/brandhaug/b2b-saas-starter/issues/444) keeps model execution, context limits and interruption in Effect. AIChatAgent will own saved messages and reconnectable streaming through a narrow adapter to the AI SDK UI-message protocol. This avoids replacing application services or adopting a second model-execution layer; the protocol dependency is an explicit integration cost.
+
+Persistence and streaming are not implemented yet. Current adapters accept system/user text and reject tools, structured output and streaming. The planned implementation adds assistant-role history and streaming, keeps tools disabled, and permits mock generation only for explicit demos/tests. Unconfigured persistent web and REST generation will refuse clearly while conversation browsing and management remain available.
