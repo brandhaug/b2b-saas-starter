@@ -117,7 +117,17 @@ export const prepareConversationContext = Effect.fn('ConversationModel.prepareCo
         reason: 'current_context_budget'
       })
     }
-    const exchanges = prompt.history.map((exchange) => {
+    const selected: Array<ReadonlyArray<ChatMessage>> = []
+    let tokens = tokenCeiling([system, ...current])
+    const seen = new Set<string>()
+    let omittedExchanges = 0
+    for (const exchange of prompt.history.toReversed()) {
+      if (seen.has(exchange.questionId)) {
+        return yield* new ConversationInputRejected({
+          reason: 'history_invalid'
+        })
+      }
+      seen.add(exchange.questionId)
       const messages: Array<ChatMessage> = []
       if (exchange.evidence !== undefined) {
         messages.push(evidenceMessage(exchange.evidence, 'Historical'))
@@ -126,29 +136,11 @@ export const prepareConversationContext = Effect.fn('ConversationModel.prepareCo
         { role: 'user', content: exchange.question },
         { role: 'assistant', content: exchange.answer }
       )
-      return messages
-    })
-    const selected: Array<ReadonlyArray<ChatMessage>> = []
-    let tokens = tokenCeiling([system, ...current])
-    const seen = new Set<string>()
-    let omittedExchanges = 0
-    for (let index = exchanges.length - 1; index >= 0; index -= 1) {
-      const exchange = exchanges[index]
-      const source = prompt.history[index]
-      if (exchange === undefined || source === undefined) {
-        continue
-      }
-      if (seen.has(source.questionId)) {
-        return yield* new ConversationInputRejected({
-          reason: 'history_invalid'
-        })
-      }
-      seen.add(source.questionId)
-      const cost = tokenCeiling(exchange) - 32
+      const cost = tokenCeiling(messages) - 32
       if (omittedExchanges > 0 || tokens + cost > inputBudget) {
         omittedExchanges += 1
       } else {
-        selected.unshift(exchange)
+        selected.unshift(messages)
         tokens += cost
       }
     }

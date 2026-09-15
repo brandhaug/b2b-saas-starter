@@ -1,4 +1,5 @@
 import {
+  ConversationSend,
   type ConversationSummary,
   type ConversationList,
   type ConversationPage,
@@ -42,11 +43,7 @@ const HistoryInput = Schema.Struct({
 })
 const SendInput = Schema.Struct({
   ...ConversationInput.fields,
-  idempotencyKey: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(128)),
-  question: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(2000)),
-  taskId: Schema.optionalKey(
-    Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(128))
-  )
+  ...ConversationSend.fields
 })
 const AttemptInput = Schema.Struct({
   ...ConversationInput.fields,
@@ -77,13 +74,6 @@ export const listConversationsServerFn = createServerFn({ method: 'GET' })
     const { listConversationsHandler } =
       await import('./assistant-conversations.effects')
     return listConversationsHandler(data)
-  })
-export const readConversationServerFn = createServerFn({ method: 'GET' })
-  .validator(Schema.decodeUnknownSync(ConversationInput))
-  .handler(async ({ data }): Promise<ConversationResult<ConversationSummary>> => {
-    const { readConversationHandler } =
-      await import('./assistant-conversations.effects')
-    return readConversationHandler(data)
   })
 export const conversationHistoryServerFn = createServerFn({ method: 'GET' })
   .validator(Schema.decodeUnknownSync(HistoryInput))
@@ -129,9 +119,6 @@ export type ConversationPorts = {
   readonly list: (input: {
     readonly data: ConversationListInput
   }) => Promise<ConversationResult<ConversationList>>
-  readonly read: (input: {
-    readonly data: ConversationReadInput
-  }) => Promise<ConversationResult<ConversationSummary>>
   readonly history: (input: {
     readonly data: ConversationHistoryInput
   }) => Promise<ConversationResult<ConversationHistory>>

@@ -140,29 +140,6 @@ export async function listConversationsHandler(input: ConversationListInput) {
     { userId: session.user.id }
   )
 }
-export async function readConversationHandler(input: ConversationReadInput) {
-  const session = await requireRequestSession()
-  const credential = credentialFor(session)
-  return runWorkspaceCapabilities(
-    input.workspaceSlug,
-    Effect.gen(function* () {
-      yield* requireWorkspacePermission({ assistant: ['read'] })
-      return yield* outcome(
-        Effect.gen(function* () {
-          const conversations = yield* requireConversationWorkspace(
-            credential,
-            input.conversationId
-          )
-          return yield* conversations.read({
-            credential,
-            conversationId: input.conversationId
-          })
-        })
-      )
-    }),
-    { userId: session.user.id }
-  )
-}
 export async function conversationHistoryHandler(input: ConversationHistoryInput) {
   const session = await requireRequestSession()
   const credential = credentialFor(session)
