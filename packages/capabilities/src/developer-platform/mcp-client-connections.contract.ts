@@ -53,6 +53,18 @@ export function mcpClientConnectionsContractCases(
 ): ReadonlyArray<McpClientConnectionsContractCase> {
   return [
     {
+      name: 'getGrant refuses a resource absent from the consent',
+      assert: Effect.gen(function* () {
+        const connections = yield* McpClientConnections
+        expect(
+          yield* connections.getGrant({
+            ...grants.active,
+            resource: 'https://unconsented.example/assistant'
+          })
+        ).toBe(null)
+      })
+    },
+    {
       // The binding is the whole answer an MCP request is authorized against:
       // it carries the grant version a re-consent bumps, so a stale binding
       // stops matching. An adapter that pinned the version to zero would

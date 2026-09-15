@@ -28,3 +28,7 @@ Deleting the account emails the user through the `AccountDeletedEmail` template 
 
 Account deletion requires the user's browser session. The public API does not
 expose it.
+
+## Private conversations
+
+Account and Workspace deletion fence their private Assistant Conversations before parent rows disappear. Access and new answers stop before asynchronous object cleanup. Durable cleanup addresses let the background worker retry storage removal. Creators can also delete their retained conversations through the identity-owned account operation after membership loss, without exposing transcript or Workspace evidence. Referenced Assistant Tasks keep their existing lifecycle.

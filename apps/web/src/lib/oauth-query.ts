@@ -9,6 +9,33 @@ import { m } from '@b2b-saas-starter/i18n/messages'
 
 const SIGNED_PARAMETER_NAMES = 'ba_param'
 
+/** Restore only repeatable protocol fields after TanStack search serialization. */
+function restoreRepeatedParameter(params: URLSearchParams, name: string): boolean {
+  const values = params.getAll(name)
+  const value = values[0]
+  if (values.length !== 1 || !value?.startsWith('[')) {
+    return true
+  }
+  // oxlint-disable-next-line effect/noTryCatch -- browser query boundary refuses malformed JSON without importing Effect
+  try {
+    const decoded: unknown = JSON.parse(value)
+    if (
+      !Array.isArray(decoded) ||
+      // oxlint-disable-next-line anti-slop/no-runtime-typeof -- browser boundary validates every untrusted repeated query value
+      !decoded.every((entry) => typeof entry === 'string')
+    ) {
+      return false
+    }
+    params.delete(name)
+    for (const entry of decoded) {
+      params.append(name, entry)
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
 /**
  * Exactly the parameters the signature covers, as the `oauth_query` body field
  * the provider verifies. Mirrors `@better-auth/oauth-provider`'s internal
@@ -18,6 +45,12 @@ const SIGNED_PARAMETER_NAMES = 'ba_param'
  */
 export function signedOAuthQuery(search: string): string | null {
   const params = new URLSearchParams(search)
+  if (
+    !restoreRepeatedParameter(params, SIGNED_PARAMETER_NAMES) ||
+    !restoreRepeatedParameter(params, 'resource')
+  ) {
+    return null
+  }
   const signedNames = new Set(params.getAll(SIGNED_PARAMETER_NAMES))
   if (!params.has('sig') || signedNames.size === 0) {
     return null
@@ -67,6 +100,12 @@ export function scopeLabel(scope: string): string {
     }
     case 'offline_access': {
       return m.oauth_scope_offline()
+    }
+    case 'assistant:read': {
+      return m.oauth_scope_assistant_read()
+    }
+    case 'assistant:write': {
+      return m.oauth_scope_assistant_write()
     }
     case 'mcp:read': {
       return m.oauth_scope_read()

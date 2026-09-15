@@ -261,3 +261,28 @@ complete the [recovery and monitoring setup](operations.md) and isolated drill.
 - `Missing required deploy environment variable` means a required
   secret is missing from the `production` environment, or the job ran
   outside that environment.
+
+## Private Assistant Conversation storage
+
+Alchemy binds `ASSISTANT_CONVERSATIONS` to the SQLite conversation host exported
+by the web Worker. API and background Workers address that host through
+cross-Worker bindings within the same stage. Keep the named class export, SQLite
+class migration and generated Wrangler declarations together when changing it.
+PR stages isolate conversation objects alongside their D1 databases and queues.
+
+Local development can persist D1 and conversation object state without remote
+credentials. New generation requires an enabled Workers AI binding or configured
+OpenAI-compatible provider. Set `ASSISTANT_RESOURCE_URL` separately from the MCP
+resource, with `MCP_OAUTH_ISSUER` pointing to the web authorization server, to enable
+member-authorized conversation REST. Workspace API Tokens have no access.
+
+Before relying on a deployed stage, exercise disconnect before and during output,
+reconnect from another owner tab and a REST observer, and deploy during an answer.
+Recovery must preserve saved partial output and require explicit Retry, without
+another automatic provider call. Verify the selected provider's streaming, usage
+and cancellation behavior independently. These deployment checks are separate
+from local domain and OAuth contract tests.
+
+See the [conversation guide](../apps/web/content/docs/capability-interfaces/assistant-conversations.mdx)
+for limits and the [recovery runbook](operations.md#private-assistant-conversation-recovery)
+for storage boundaries and deletion sanitation.

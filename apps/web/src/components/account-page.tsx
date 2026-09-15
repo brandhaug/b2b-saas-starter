@@ -1,3 +1,9 @@
+import { AccountConversationsPanel } from '@/components/account-conversations-panel'
+import {
+  deleteOwnedConversationServerFn,
+  type OwnedConversation
+} from '@/lib/server/account-conversations'
+import { type ConversationResult } from '@/lib/server/assistant-conversations'
 import { LocalePreferences } from '@/components/locale-preferences'
 import { type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
@@ -41,12 +47,14 @@ export function AccountPage({
   deletionPlan,
   preferences,
   connections = NO_CONNECTIONS,
-  currentSessionToken
+  currentSessionToken,
+  ownedConversations
 }: {
   readonly session: RouteSession
   readonly deletionPlan: AccountDeletionPlan
   readonly preferences?: ReadonlyArray<NotificationPreferenceRow>
   readonly connections?: ReadonlyArray<McpClientConnection>
+  readonly ownedConversations?: ConversationResult<ReadonlyArray<OwnedConversation>>
   readonly currentSessionToken: string
 }) {
   return (
@@ -112,6 +120,12 @@ export function AccountPage({
           <PersonalDataExportPanel />
         </WhileNotImpersonating>
       </Panel>
+      {ownedConversations ? (
+        <AccountConversationsPanel
+          initial={ownedConversations}
+          remove={deleteOwnedConversationServerFn}
+        />
+      ) : null}
       <SessionsPanel currentSessionToken={currentSessionToken} />
 
       {preferences === undefined ? null : (

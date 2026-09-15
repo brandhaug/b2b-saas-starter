@@ -103,11 +103,11 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           yield* execute(
             `INSERT INTO oauth_client (id,clientId,redirectUris,disabled) VALUES ('client-isolation','isolation-client','[]',0)`
           )
-          yield* execute(`INSERT INTO oauth_consent (id,userId,clientId,referenceId,scopes) VALUES
-      ('consent-isolation-a','usr_joiner','isolation-client','wrk_dev_contract','["mcp:read","mcp:write"]'),
-      ('consent-isolation-b','usr_joiner','isolation-client','wrk_other','["mcp:read","mcp:write"]'),
-      ('consent-isolation-other','usr_outsider','isolation-client','wrk_other','["mcp:read","mcp:write"]'),
-      ('consent-isolation-owner','usr_owner','isolation-client','wrk_dev_contract','["mcp:read"]')`)
+          yield* execute(`INSERT INTO oauth_consent (id,userId,clientId,referenceId,resources,scopes) VALUES
+      ('consent-isolation-a','usr_joiner','isolation-client','wrk_dev_contract','["https://api.test/mcp"]','["mcp:read","mcp:write"]'),
+      ('consent-isolation-b','usr_joiner','isolation-client','wrk_other','["https://api.test/mcp"]','["mcp:read","mcp:write"]'),
+      ('consent-isolation-other','usr_outsider','isolation-client','wrk_other','["https://api.test/mcp"]','["mcp:read","mcp:write"]'),
+      ('consent-isolation-owner','usr_owner','isolation-client','wrk_dev_contract','["https://api.test/mcp"]','["mcp:read"]')`)
           const issuer = 'https://issuer.test/api/auth'
           const audience = 'https://api.test/mcp'
           const keys = yield* Effect.promise(() => generateKeyPair('EdDSA'))
@@ -264,7 +264,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           expect(revokedRead.isError).toBe(true)
           yield* expectResourceDenied(a)
           yield* execute(
-            `INSERT INTO oauth_consent (id,userId,clientId,referenceId,scopes) VALUES ('consent-isolation-a-new','usr_joiner','isolation-client','wrk_dev_contract','["mcp:read","mcp:write"]')`
+            `INSERT INTO oauth_consent (id,userId,clientId,referenceId,resources,scopes) VALUES ('consent-isolation-a-new','usr_joiner','isolation-client','wrk_dev_contract','["https://api.test/mcp"]','["mcp:read","mcp:write"]')`
           )
           const restored = yield* clientFor(
             'usr_joiner',

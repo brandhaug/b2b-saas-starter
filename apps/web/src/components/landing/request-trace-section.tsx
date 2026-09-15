@@ -20,7 +20,7 @@ const STAGE_NODES = {
   request: ['curl'],
   contract: ['api'],
   capability: ['web', 'api', 'capabilities'],
-  runtime: ['web', 'api', 'background', 'd1', 'queues', 'email']
+  runtime: ['web', 'api', 'background', 'd1', 'durable-objects', 'queues', 'email']
 } satisfies Record<string, ReadonlyArray<SchematicNode>>
 type StageId = keyof typeof STAGE_NODES
 
@@ -67,6 +67,11 @@ function runtimeRows() {
       declared: 'apps/web · apps/api · apps/background'
     },
     { node: 'D1', holds: m.public_request_d1_holds(), declared: 'packages/db' },
+    {
+      node: 'Durable Objects',
+      holds: m.public_request_do_holds(),
+      declared: 'apps/web · WorkspaceAssistantConversation'
+    },
     {
       node: 'Queues',
       holds: m.public_request_queues_holds(),

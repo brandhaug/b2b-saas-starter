@@ -162,3 +162,23 @@ resume. Set `RETENTION_CLEANUP_ENABLED=false` to return to previews.
 Provider-free Seed mode has no D1 history to clean and reports `inactive`.
 Credential, invitation and signed-download validity remain with their owning
 Seed and Live capabilities, independent of physical cleanup.
+
+## Private Assistant Conversations
+
+Conversation history has no automatic age limit. The creator retains it until
+conversation, account or Workspace deletion. Membership or permission loss denies
+history and export access while retaining the conversation for possible restoration.
+Identity-owned account deletion can fence a retained conversation without reading
+its contents. Workspace exports exclude private conversations.
+
+Deletion fences and immutable object addresses survive parent-row removal and
+object cleanup. The minute background tick retries explicit deletion and expires
+abandoned admission reservations after their deadline and shutdown grace; it does
+not wait for age-retention approval. Personal archives revalidate their conversation
+manifest at download. A policy change or membership loss makes the old archive
+stale even after access is restored.
+
+Retained session proof is revocation evidence for bounded accepted runs. Keep it
+separate from ordinary expired-session cleanup and remove all proof during recovery
+sanitation. Conversation deletion evidence remains in the independent security
+store for every recovery point that could resurrect its storage.

@@ -1,3 +1,7 @@
+import {
+  WorkspaceAssistantConversations,
+  type PersistentAssistant
+} from './workspace-assistant-conversations'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
@@ -80,6 +84,7 @@ function Transcript({
 }
 
 type AssistantPageProps = {
+  readonly persistent?: PersistentAssistant | undefined
   readonly workspaceSlug: string
   readonly data: AssistantPagePayload
   readonly ask: AskAssistant
@@ -107,7 +112,8 @@ function AssistantPage({
   investigation,
   selectedDeliveryId,
   selectedTaskId,
-  onSelectTask
+  onSelectTask,
+  persistent
 }: AssistantPageProps) {
   const [activeTaskId, setActiveTaskId] = useState(
     selectedTaskId ??
@@ -182,69 +188,80 @@ function AssistantPage({
         title={m.ai_assistant()}
         description={m.ask_workspace_description()}
       />
-      <Panel
-        title={m.nav_assistant()}
-        actions={
-          <Badge variant={canUseAssistant ? 'info' : 'outline'}>
-            {canUseAssistant ? m.workspace_connected() : m.workspace_not_enabled()}
-          </Badge>
-        }
-      >
-        <Transcript entries={transcript} enabled={canUseAssistant} />
-        {canUseAssistant ? (
-          <form
-            className="grid gap-2"
-            onSubmit={(event) => {
-              event.preventDefault()
-              void submit()
-            }}
-          >
-            {activeTaskId ? (
-              <p className="font-mono text-xs text-muted-foreground">
-                {m.assistant_task_context({ taskId: activeTaskId })}
-              </p>
-            ) : null}
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="assistant-question">
-                  {m.your_question()}
-                </FieldLabel>
-                <Textarea
-                  id="assistant-question"
-                  aria-label={m.your_question()}
-                  value={question}
-                  onChange={(event) => setQuestion(event.target.value)}
-                  maxLength={2000}
-                  rows={3}
-                  placeholder={m.assistant_placeholder()}
-                  disabled={pending}
-                />
-              </Field>
-            </FieldGroup>
-            <div className="flex justify-end">
-              <Button type="submit" disabled={pending || !question.trim()}>
-                {pending ? <Spinner data-icon="inline-start" /> : null}
-                {m.ask_action()}
-              </Button>
+      {persistent ? (
+        <WorkspaceAssistantConversations
+          workspaceSlug={workspaceSlug}
+          configured={data.configured}
+          taskId={activeTaskId}
+          taskIds={investigation?.tasks.map((task) => task.id) ?? []}
+          onSelectTask={selectTask}
+          persistent={persistent}
+        />
+      ) : (
+        <Panel
+          title={m.nav_assistant()}
+          actions={
+            <Badge variant={canUseAssistant ? 'info' : 'outline'}>
+              {canUseAssistant ? m.workspace_connected() : m.workspace_not_enabled()}
+            </Badge>
+          }
+        >
+          <Transcript entries={transcript} enabled={canUseAssistant} />
+          {canUseAssistant ? (
+            <form
+              className="grid gap-2"
+              onSubmit={(event) => {
+                event.preventDefault()
+                void submit()
+              }}
+            >
+              {activeTaskId ? (
+                <p className="font-mono text-xs text-muted-foreground">
+                  {m.assistant_task_context({ taskId: activeTaskId })}
+                </p>
+              ) : null}
+              <FieldGroup>
+                <Field>
+                  <FieldLabel htmlFor="assistant-question">
+                    {m.your_question()}
+                  </FieldLabel>
+                  <Textarea
+                    id="assistant-question"
+                    aria-label={m.your_question()}
+                    value={question}
+                    onChange={(event) => setQuestion(event.target.value)}
+                    maxLength={2000}
+                    rows={3}
+                    placeholder={m.assistant_placeholder()}
+                    disabled={pending}
+                  />
+                </Field>
+              </FieldGroup>
+              <div className="flex justify-end">
+                <Button type="submit" disabled={pending || !question.trim()}>
+                  {pending ? <Spinner data-icon="inline-start" /> : null}
+                  {m.ask_action()}
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <div className="grid gap-3 text-sm text-muted-foreground">
+              <p>{m.assistant_chat_unavailable()}</p>
+              <p>{m.assistant_unavailable_description()}</p>
+              <div className="flex flex-wrap items-center gap-3">
+                <Link
+                  to="/docs/$category/$slug"
+                  params={{ category: 'getting-started', slug: 'optional-providers' }}
+                  className="inline-flex min-h-11 items-center text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  {m.assistant_setup_docs()}
+                </Link>
+                <span className="text-xs">{m.assistant_example_prompt()}</span>
+              </div>
             </div>
-          </form>
-        ) : (
-          <div className="grid gap-3 text-sm text-muted-foreground">
-            <p>{m.assistant_chat_unavailable()}</p>
-            <p>{m.assistant_unavailable_description()}</p>
-            <div className="flex flex-wrap items-center gap-3">
-              <Link
-                to="/docs/$category/$slug"
-                params={{ category: 'getting-started', slug: 'optional-providers' }}
-                className="inline-flex min-h-11 items-center text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              >
-                {m.assistant_setup_docs()}
-              </Link>
-              <span className="text-xs">{m.assistant_example_prompt()}</span>
-            </div>
-          </div>
-        )}
-      </Panel>
+          )}
+        </Panel>
+      )}
       {investigation ? (
         <WorkspaceAssistantInvestigation
           workspaceSlug={workspaceSlug}

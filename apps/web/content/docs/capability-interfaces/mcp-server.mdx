@@ -67,9 +67,11 @@ An MCP Client connects through OAuth 2.1. You sign in once, pick the workspace, 
 
 The client identifies itself with a Client ID Metadata Document, an HTTPS document published by the MCP client. There is no registration step and no client secret to manage.
 
+A connected client can separately request the assistant resource and `assistant:read` / `assistant:write` scopes. Consent lists those resources explicitly. MCP-audience tokens remain invalid on private conversation REST, and assistant-audience tokens remain invalid on MCP. Revoking the client connection revokes its granted resources.
+
 ## Connect from a script
 
-Scripts keep using API Tokens: `Authorization: Bearer bsk_live_…` on `POST /mcp`, exactly as on the REST routes. See [API tokens](/docs/capability-interfaces/api-tokens). A seeded local D1 accepts the documented seed token.
+Scripts keep using API Tokens: `Authorization: Bearer bsk_live_…` on `POST /mcp`, as on workspace REST routes. Private Assistant Conversation REST requires its separate member-OAuth resource instead. See [API tokens](/docs/capability-interfaces/api-tokens). A seeded local D1 accepts the documented seed token.
 
 ## What the two credentials share, and where they differ
 

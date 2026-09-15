@@ -63,6 +63,16 @@ const AuthConfigLive = Layer.sync(AuthConfig)(() => {
     // server/social-account-audit.ts).
     accountHooks: socialAccountAuditHooks,
     hasRecentAuthentication,
+    invalidateAssistantAuthority: async ({ userId }: { readonly userId: string }) => {
+      const { runCapabilities } = await import('./capabilities')
+      const { AssistantDirectory } =
+        await import('@b2b-saas-starter/capabilities/assistant/directory')
+      await runCapabilities(
+        Effect.flatMap(AssistantDirectory, (directory) =>
+          directory.invalidateAccess({ creatorUserId: userId })
+        )
+      )
+    },
     recoveryHooks: { onRecoveryStarted },
     // Production requires verified mailboxes; local dev and previews stay open
     // because lifecycle emails land in the log there (provider-light rule).
@@ -98,6 +108,8 @@ const AuthConfigLive = Layer.sync(AuthConfig)(() => {
     // fetched through the Workers-safe transport.
     mcp: {
       resource: env.MCP_RESOURCE_URL ?? LOCAL_MCP_RESOURCE,
+      assistantResource:
+        env.ASSISTANT_RESOURCE_URL ?? 'http://localhost:8787/assistant',
       fetchClientMetadataResource
     }
   }

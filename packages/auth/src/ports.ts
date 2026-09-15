@@ -154,6 +154,9 @@ export type AuthAccountHooks = {
 }
 
 export type AuthConfigInterface = {
+  readonly invalidateAssistantAuthority?: (input: {
+    readonly userId: string
+  }) => Promise<void>
   readonly db: DrizzleDatabase
   readonly secret: string
   readonly baseURL: string
@@ -210,6 +213,7 @@ export type AuthConfigInterface = {
    * picks a transport.
    */
   readonly mcp: {
+    readonly assistantResource?: string
     readonly resource: string
     readonly fetchClientMetadataResource: CimdOptions['fetchClientMetadataResource']
   }

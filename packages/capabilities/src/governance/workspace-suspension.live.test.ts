@@ -1,3 +1,4 @@
+import { AssistantDirectory } from '../assistant/directory.ts'
 import { Effect } from 'effect'
 import { Database } from '@b2b-saas-starter/db/service'
 import { sql } from 'drizzle-orm'
@@ -21,6 +22,61 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         inWorkspace('live-lab', testCase.assert, undefined)
       )
     }
+
+    it.effect(
+      'notifies only affected conversation hosts after committed suspension and restoration',
+      () => {
+        const notified: Array<Array<string>> = []
+        return inWorkspace(
+          'live-lab',
+          Effect.gen(function* () {
+            const directory = yield* AssistantDirectory
+            const suspension = yield* WorkspaceSuspensionService
+            yield* directory.create({
+              id: 'suspension-notification-room',
+              workspaceId: 'wrk_live',
+              creatorUserId: 'usr_owner'
+            })
+            yield* directory.create({
+              id: 'suspension-notification-other',
+              workspaceId: 'wrk_other',
+              creatorUserId: 'usr_owner'
+            })
+            yield* suspension.transition({
+              workspaceId: 'wrk_live',
+              action: 'suspend',
+              actor: { userId: 'usr_sysadmin' },
+              internalReason: 'Review',
+              customerExplanation: 'Review in progress.'
+            })
+            const suspended = yield* directory.get('suspension-notification-room')
+            yield* suspension.transition({
+              workspaceId: 'wrk_live',
+              action: 'unsuspend',
+              actor: { userId: 'usr_sysadmin' },
+              internalReason: 'Review complete'
+            })
+            expect(notified).toEqual([
+              ['suspension-notification-room'],
+              ['suspension-notification-room']
+            ])
+            expect(
+              (yield* directory.get('suspension-notification-room'))?.runAccessRevision
+            ).toBe((suspended?.runAccessRevision ?? 0) + 2)
+            expect(
+              (yield* directory.get('suspension-notification-other'))?.runAccessRevision
+            ).toBe(0)
+          }),
+          undefined,
+          {
+            assistantInvalidation: (addresses) => {
+              notified.push(addresses.map((address) => address.id))
+              return Promise.resolve()
+            }
+          }
+        )
+      }
+    )
 
     it.effect('does not affect another workspace', () =>
       Effect.gen(function* () {

@@ -5,6 +5,7 @@ import { newCapabilityId } from '../internal/ids.ts'
 /** Security changes that must be replayed after restoring an older database. */
 export const SecurityEvidenceKind = Schema.Literals([
   'account_deleted',
+  'assistant_conversation_deleted',
   'workspace_deleted',
   'workspace_access_removed',
   'api_token_revoked',
@@ -20,6 +21,7 @@ export const SecurityEvidenceRecord = Schema.Struct({
   kind: SecurityEvidenceKind,
   subjectId: Schema.String,
   workspaceId: Schema.NullOr(Schema.String),
+  creatorUserId: Schema.optionalKey(Schema.String),
   occurredAt: Schema.String,
   /**
    * Which adapter recorded it. `'seed'` never reaches a real evidence store
@@ -35,6 +37,7 @@ export type SecurityEvidenceInput = {
   readonly kind: SecurityEvidenceKind
   readonly subjectId: string
   readonly workspaceId?: string | undefined
+  readonly creatorUserId?: string | undefined
 }
 
 export type SecurityEvidenceGap = {
@@ -98,13 +101,16 @@ export function recordSecurityEvidence(
   }
   return Effect.gen(function* () {
     const now = yield* DateTime.now
-    const record: SecurityEvidenceRecord = {
+    let record: SecurityEvidenceRecord = {
       id: yield* newCapabilityId('sec'),
       kind: input.kind,
       subjectId: input.subjectId,
       workspaceId: input.workspaceId ?? null,
       occurredAt: DateTime.formatIso(now),
       source
+    }
+    if (input.creatorUserId !== undefined) {
+      record = { ...record, creatorUserId: input.creatorUserId }
     }
     const appended = yield* Effect.result(
       Effect.tryPromise({

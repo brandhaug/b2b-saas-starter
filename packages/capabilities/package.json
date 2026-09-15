@@ -16,7 +16,9 @@
     "./testing/live-harness": "./src/testing/live-harness.ts",
     "./workspace-context": "./src/workspace-context.ts",
     "./workspace-projections": "./src/workspace-projections.ts",
-    "./billing-adapters": "./src/billing-adapters.ts"
+    "./billing-adapters": "./src/billing-adapters.ts",
+    "./assistant/*": "./src/assistant/*.ts",
+    "./internal/ids": "./src/internal/ids.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
@@ -24,6 +26,7 @@
     "test": "vp run test:coverage"
   },
   "dependencies": {
+    "@b2b-saas-starter/ai": "workspace:*",
     "@b2b-saas-starter/authz": "workspace:*",
     "@b2b-saas-starter/billing": "workspace:*",
     "@b2b-saas-starter/db": "workspace:*",

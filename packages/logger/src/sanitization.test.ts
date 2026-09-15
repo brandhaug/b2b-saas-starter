@@ -396,3 +396,28 @@ describe('telemetry output policy', () => {
     }
   })
 })
+
+it('keeps assistant cleanup counts and code-owned notification outcomes while dropping content', () => {
+  expect(
+    diagnosticFields({
+      failedConversations: 2,
+      cleanedConversations: 3,
+      expiredReservations: 1,
+      assistantAffectedConversations: 4,
+      assistantAuthorityNotification: 'host_unavailable',
+      question: secret
+    })
+  ).toEqual({
+    failedConversations: 2,
+    cleanedConversations: 3,
+    expiredReservations: 1,
+    assistantAffectedConversations: 4,
+    assistantAuthorityNotification: 'host_unavailable'
+  })
+  expect(
+    diagnosticFields({
+      failedConversations: secret,
+      assistantAuthorityNotification: secret
+    })
+  ).toEqual({})
+})

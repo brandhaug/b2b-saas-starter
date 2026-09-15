@@ -1,3 +1,4 @@
+import { localAssistantSockets } from './scripts/local-socket-plugin'
 import mdx from '@mdx-js/rollup'
 import tailwindcss from '@tailwindcss/vite'
 import { devtools } from '@tanstack/devtools-vite'
@@ -6,6 +7,8 @@ import viteReact, { reactCompilerPreset } from '@vitejs/plugin-react'
 import babel from '@rolldown/plugin-babel'
 import { execFileSync } from 'node:child_process'
 import { resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import type * as LocalWorkerRuntime from './scripts/local-worker-runtime.mjs'
 // Named export rather than the identical default, so the local name matches
 // what the package exports.
 import { rehypePrettyCode } from 'rehype-pretty-code'
@@ -56,7 +59,7 @@ function cloudflareWorkersDeployPlugin(
     // through environment config — resolve per environment here instead.
     resolveId: {
       handler(source: string) {
-        if (!enabled || source !== 'cloudflare:workers') {
+        if (!enabled || !source.startsWith('cloudflare:')) {
           return null
         }
         if (this.environment.name === 'ssr') {
@@ -64,7 +67,7 @@ function cloudflareWorkersDeployPlugin(
           // the real module with the live `env` bindings.
           return { id: source, external: true }
         }
-        if (this.environment.name === 'client') {
+        if (this.environment.name === 'client' && source === 'cloudflare:workers') {
           // The browser cannot resolve a runtime module: stand in the
           // inert shim (an all-undefined env bag — the client never reads
           // a binding).
@@ -109,6 +112,32 @@ function i18nCatalogPlugin(): PluginOption {
       server.moduleGraph.invalidateAll()
       server.ws.send({ type: 'full-reload' })
       return []
+    }
+  }
+}
+
+// Release the companion workerd process when Vite dev or preview closes.
+function localWorkerLifecyclePlugin(): PluginOption {
+  async function dispose() {
+    const moduleUrl = pathToFileURL(
+      resolve(import.meta.dirname, 'scripts/local-worker-runtime.mjs')
+    ).href
+    const runtime: typeof LocalWorkerRuntime = await import(
+      /* @vite-ignore */ moduleUrl
+    )
+    await runtime.disposeLocalWorker()
+  }
+  return {
+    name: 'b2b-starter:local-worker-lifecycle',
+    configureServer(server) {
+      server.httpServer?.once('close', () => {
+        void dispose()
+      })
+    },
+    configurePreviewServer(server) {
+      server.httpServer.once('close', () => {
+        void dispose()
+      })
     }
   }
 }
@@ -168,11 +197,15 @@ export default defineConfig(({ command, mode }) => {
     plugins:
       lazyPlugins(() => [
         i18nCatalogPlugin(),
+        ...(workersShim === null
+          ? []
+          : [localWorkerLifecyclePlugin(), localAssistantSockets()]),
         devtools(),
         tailwindcss(),
         // Route tests colocate with their route files; the generator would
         // otherwise warn that each `*.test.tsx` exports no Route.
         tanstackStart({
+          server: { entry: workersShim === null ? './worker.ts' : './server.ts' },
           router: {
             routeFileIgnorePattern: '\\.test\\.'
           }

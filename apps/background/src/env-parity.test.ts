@@ -27,6 +27,7 @@ import { type Env } from './queue-consumer.ts'
 // `Env` must keep matching it key for key and type for type.
 type HandWrittenEnv = Partial<ServerEnv> & {
   readonly DB?: D1Database
+  readonly ASSISTANT_CONVERSATIONS?: DurableObjectNamespace
   readonly WEBHOOK_QUEUE?: WebhookQueueBinding
   readonly WORKSPACE_EXPORT_QUEUE?: WorkspaceExportQueueBinding
   readonly WORKSPACE_EXPORT_BUCKET?: WorkspaceExportBucketBinding
@@ -37,6 +38,7 @@ type HandWrittenEnv = Partial<ServerEnv> & {
 /** The binding names the deploy binds, re-spelled here as the oracle. */
 type DeclaredBindingName =
   | 'DB'
+  | 'ASSISTANT_CONVERSATIONS'
   | 'WEBHOOK_QUEUE'
   | 'BILLING_QUEUE'
   | 'WORKSPACE_EXPORT_QUEUE'

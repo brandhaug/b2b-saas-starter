@@ -234,6 +234,7 @@ export const seedMcpClients: ReadonlyArray<McpClientSummary> = [seedMcpClient]
 export const seedMcpClientConnections: ReadonlyArray<McpClientConnection> = [
   {
     id: 'con_example_mcp',
+    resources: ['http://localhost:8787/mcp'],
     client: seedMcpClient,
     workspace: {
       id: seedWorkspaceRecord.id,
@@ -658,3 +659,6 @@ export const seedNotificationPreferences: ReadonlyArray<SeedNotificationPreferen
   { userId: demoUserIdentity.id, kind: 'webhook.delivery_failed', channel: 'instant' },
   { userId: demoUserIdentity.id, kind: 'announcement', channel: 'off' }
 ]
+
+/** Explicit synthetic authority for isolated Assistant fixtures. Never accepted by Live. */
+export const seedAssistantSessionId = 'ses_demo_assistant'

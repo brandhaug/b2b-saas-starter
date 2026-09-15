@@ -1,4 +1,8 @@
 import {
+  ASSISTANT_READ_SCOPE,
+  ASSISTANT_WRITE_SCOPE
+} from '@b2b-saas-starter/authz/assistant-access-token'
+import {
   MCP_OFFLINE_ACCESS_SCOPE,
   MCP_READ_SCOPE,
   MCP_WRITE_SCOPE,
@@ -9,7 +13,13 @@ import {
   MCP_WORKSPACE_SLUG_CLAIM
 } from '@b2b-saas-starter/authz/mcp-access-token'
 import { type DrizzleDatabase } from './ports.ts'
-import { oauthConsent, workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema'
+import {
+  oauthConsent,
+  workspaceMembers,
+  workspaces,
+  assistantSessionAuthority,
+  session
+} from '@b2b-saas-starter/db/schema'
 import { APIError } from 'better-auth/api'
 import { and, eq } from 'drizzle-orm'
 
@@ -41,7 +51,9 @@ export const MCP_OAUTH_SCOPES = [
   'email',
   MCP_OFFLINE_ACCESS_SCOPE,
   MCP_READ_SCOPE,
-  MCP_WRITE_SCOPE
+  MCP_WRITE_SCOPE,
+  ASSISTANT_READ_SCOPE,
+  ASSISTANT_WRITE_SCOPE
 ]
 
 /**
@@ -106,6 +118,8 @@ export function mcpWorkspaceReferenceId(input: {
 export async function mcpWorkspaceAccessTokenClaims(
   db: DrizzleDatabase,
   input: {
+    readonly assistantResource?: string | undefined
+    readonly resources?: ReadonlyArray<string> | undefined
     readonly sessionId?: string | undefined
     readonly userId: string | undefined
     readonly clientId: string
@@ -124,7 +138,11 @@ export async function mcpWorkspaceAccessTokenClaims(
     .select({
       workspace: workspaces,
       member: workspaceMembers,
-      consent: { id: oauthConsent.id, version: oauthConsent.grantVersion }
+      consent: {
+        id: oauthConsent.id,
+        version: oauthConsent.grantVersion,
+        resources: oauthConsent.resources
+      }
     })
     .from(workspaceMembers)
     .innerJoin(workspaces, eq(workspaceMembers.workspaceId, workspaces.id))
@@ -151,6 +169,59 @@ export async function mcpWorkspaceAccessTokenClaims(
       error_description: 'the user is not a member of the consented workspace'
     })
   }
+  const consentResources = new Set(row.consent?.resources ?? [])
+  if (
+    !row.consent ||
+    !input.resources?.length ||
+    input.resources.some((resource) => !consentResources.has(resource))
+  ) {
+    // oxlint-disable-next-line effect/noThrowStatement -- Better Auth callback error channel
+    throw new APIError('FORBIDDEN', {
+      error: 'consent_required',
+      error_description: 'Current consent must include the requested resource'
+    })
+  }
+  if (input.assistantResource && input.resources.includes(input.assistantResource)) {
+    // The refresh token keeps the original session identity after natural
+    // cleanup. Issuance still requires retained proof and rejects revocation.
+    const sessionId = input.sessionId
+    if (!sessionId) {
+      // oxlint-disable-next-line effect/noThrowStatement -- Better Auth callback error channel
+      throw new APIError('FORBIDDEN', {
+        error: 'invalid_grant',
+        error_description: 'Session authority is unavailable'
+      })
+    }
+    // oxlint-disable-next-line effect/noAsyncFunction -- Better Auth callback uses its native database adapter.
+    const [proof] = await db
+      .select({ retained: assistantSessionAuthority, currentId: session.id })
+      .from(assistantSessionAuthority)
+      .leftJoin(
+        session,
+        and(
+          eq(session.id, assistantSessionAuthority.sessionId),
+          eq(session.userId, assistantSessionAuthority.userId)
+        )
+      )
+      .where(
+        and(
+          eq(assistantSessionAuthority.sessionId, sessionId),
+          eq(assistantSessionAuthority.userId, input.userId)
+        )
+      )
+      .limit(1)
+    if (
+      proof?.retained.revokedAt !== null ||
+      // oxlint-disable-next-line effect/noGlobals -- Better Auth callbacks have a native clock rather than an Effect runtime.
+      (proof.currentId === null && proof.retained.expiresAt.getTime() > Date.now())
+    ) {
+      // oxlint-disable-next-line effect/noThrowStatement -- Better Auth callback error channel
+      throw new APIError('FORBIDDEN', {
+        error: 'invalid_grant',
+        error_description: 'Session authority is unavailable'
+      })
+    }
+  }
   const claims = {
     [MCP_WORKSPACE_ID_CLAIM]: row.workspace.id,
     [MCP_WORKSPACE_SLUG_CLAIM]: row.workspace.slug,
@@ -159,11 +230,29 @@ export async function mcpWorkspaceAccessTokenClaims(
   if (input.sessionId) {
     Object.assign(claims, { [MCP_SESSION_ID_CLAIM]: input.sessionId })
   }
-  if (row.consent) {
-    return {
-      ...claims,
-      [MCP_CONSENT_CLAIM]: `${row.consent.id}:${row.consent.version}`
-    }
+  return {
+    ...claims,
+    [MCP_CONSENT_CLAIM]: `${row.consent.id}:${row.consent.version}`
   }
-  return claims
+}
+
+/** Register the additional REST resource only when the app configured it. */
+export function assistantOAuthResources(resource: string | undefined) {
+  if (resource === undefined) {
+    return []
+  }
+  return [
+    {
+      identifier: resource,
+      name: 'Private assistant conversations',
+      allowedScopes: [
+        'openid',
+        'profile',
+        'email',
+        MCP_OFFLINE_ACCESS_SCOPE,
+        ASSISTANT_READ_SCOPE,
+        ASSISTANT_WRITE_SCOPE
+      ]
+    }
+  ]
 }

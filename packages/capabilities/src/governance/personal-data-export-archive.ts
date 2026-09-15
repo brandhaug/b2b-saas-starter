@@ -1,3 +1,4 @@
+import { ExportedConversation } from '../assistant/lifecycle.ts'
 import { Schema } from 'effect'
 import { EmailDeliveryRecord } from '@b2b-saas-starter/email-delivery/email-delivery'
 import { WorkspaceWithMembership } from './workspace-membership.ts'
@@ -8,6 +9,7 @@ import { Notification } from '../notifications/notification-feed.ts'
 const MaybeString = Schema.NullOr(Schema.String)
 export const PersonalDataExport = Schema.Struct({
   generatedAt: Schema.String,
+  conversations: Schema.Array(ExportedConversation),
   user: Schema.Struct({
     id: Schema.String,
     name: Schema.String,

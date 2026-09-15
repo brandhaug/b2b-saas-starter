@@ -35,6 +35,7 @@ type WebWorkerEnv = Readonly<
  * record needs no new row below.
  */
 type WebBindingTypes = {
+  readonly ASSISTANT_CONVERSATIONS: DurableObjectNamespace
   // Optional so the local workers shim (no D1) satisfies the same type;
   // consumers must handle the missing binding (Seed layer fallback).
   readonly DB: D1Database

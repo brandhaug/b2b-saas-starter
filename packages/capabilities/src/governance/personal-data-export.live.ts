@@ -1,3 +1,4 @@
+import { AssistantConversationLifecycle } from '../assistant/lifecycle.ts'
 import {
   account,
   notifications,
@@ -41,6 +42,7 @@ export const LivePersonalDataExports: Layer.Layer<
   | NotificationPreferences
   | AuditEventLog
   | EmailDelivery
+  | AssistantConversationLifecycle
 > = Layer.effect(PersonalDataExports)(
   Effect.gen(function* () {
     const db = yield* Database
@@ -49,6 +51,7 @@ export const LivePersonalDataExports: Layer.Layer<
     const notices = yield* NotificationPreferences
     const delivery = yield* EmailDelivery
     const audit = yield* AuditEventLog
+    const conversations = yield* AssistantConversationLifecycle
     const auditedMutation = yield* auditedMutations({
       prepareAuditRecord: audit.prepareRecord,
       unavailable
@@ -275,6 +278,10 @@ export const LivePersonalDataExports: Layer.Layer<
       sessionId: string
     ) {
       const data = yield* collect(userId)
+      const conversationExport = yield* conversations.collectForExport(
+        userId,
+        sessionId
+      )
       const now = yield* Clock.currentTimeMillis
       yield* requireLiveSession(userId, sessionId, now)
       const id = yield* newCapabilityId('pde')
@@ -294,7 +301,11 @@ export const LivePersonalDataExports: Layer.Layer<
             id,
             userId,
             sessionId,
-            archive: renderPersonalDataExport(data),
+            archive: renderPersonalDataExport({
+              ...data,
+              conversations: conversationExport.conversations
+            }),
+            conversationManifest: conversationExport.manifest,
             createdAt: iso(now),
             expiresAt
           })
@@ -330,6 +341,7 @@ export const LivePersonalDataExports: Layer.Layer<
           reason: 'export_not_found'
         })
       }
+      yield* conversations.validateExport(userId, sessionId, row.conversationManifest)
       yield* audit.record({
         actorUserId: userId,
         actorType: 'user',

@@ -1,5 +1,6 @@
 import { SEED_READONLY_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { authorize, tokenPrincipal } from '@b2b-saas-starter/authz/client'
+import { AssistantBearerAuth } from '@b2b-saas-starter/api/assistant-conversations'
 import { BearerAuth, rateLimitBucketFor, StarterApi } from '@b2b-saas-starter/api'
 import { describe, expect, it } from '@effect/vitest'
 import { Effect, Schema } from 'effect'
@@ -70,7 +71,7 @@ type GatedOperation = {
   /** The permission the handler names, for whoever reads a failure. */
   readonly permission: string
   /** What the `read` scope gets: 200, or 403 for a mutation it does not reach. */
-  readonly expected: 200 | 403
+  readonly expected: 200 | 401 | 403
   readonly request: Request
 }
 
@@ -92,7 +93,81 @@ const READ_ROWS: ReadonlyArray<GatedOperation> = readOperations().map((op) => ({
   )
 }))
 
+const CONVERSATION_ROWS: ReadonlyArray<GatedOperation> = [
+  {
+    operation: 'POST /assistant/conversations',
+    permission: 'assistant OAuth write',
+    expected: 401,
+    request: makeRequest('POST', '/assistant/conversations', { workspaceSlug: SLUG })
+  },
+  {
+    operation: 'GET /assistant/conversations',
+    permission: 'assistant OAuth read',
+    expected: 401,
+    request: makeRequest('GET', '/assistant/conversations?workspaceSlug=starter-lab')
+  },
+  {
+    operation: 'GET /assistant/conversations/{conversationId}',
+    permission: 'assistant OAuth read',
+    expected: 401,
+    request: makeRequest('GET', '/assistant/conversations/private')
+  },
+  {
+    operation: 'GET /assistant/conversations/{conversationId}/messages',
+    permission: 'assistant OAuth read',
+    expected: 401,
+    request: makeRequest('GET', '/assistant/conversations/private/messages')
+  },
+  {
+    operation: 'POST /assistant/conversations/{conversationId}/messages',
+    permission: 'assistant OAuth write',
+    expected: 401,
+    request: makeRequest('POST', '/assistant/conversations/private/messages', {
+      question: 'Hello',
+      idempotencyKey: 'question-1'
+    })
+  },
+  {
+    operation:
+      'POST /assistant/conversations/{conversationId}/attempts/{attemptId}/retry',
+    permission: 'assistant OAuth write',
+    expected: 401,
+    request: makeRequest(
+      'POST',
+      '/assistant/conversations/private/attempts/answer-1/retry',
+      { idempotencyKey: 'retry-1' }
+    )
+  },
+  {
+    operation:
+      'POST /assistant/conversations/{conversationId}/attempts/{attemptId}/stop',
+    permission: 'assistant OAuth write',
+    expected: 401,
+    request: makeRequest(
+      'POST',
+      '/assistant/conversations/private/attempts/answer-1/stop'
+    )
+  },
+  {
+    operation:
+      'GET /assistant/conversations/{conversationId}/attempts/{attemptId}/events',
+    permission: 'assistant OAuth read',
+    expected: 401,
+    request: makeRequest(
+      'GET',
+      '/assistant/conversations/private/attempts/answer-1/events'
+    )
+  },
+  {
+    operation: 'DELETE /assistant/conversations/{conversationId}',
+    permission: 'assistant OAuth write',
+    expected: 401,
+    request: makeRequest('DELETE', '/assistant/conversations/private')
+  }
+]
+
 const MATRIX: ReadonlyArray<GatedOperation> = [
+  ...CONVERSATION_ROWS,
   ...READ_ROWS,
   ...mutationOperations().map((op): GatedOperation => ({
     operation: `${op.endpoint.method} /${mirroredRestPath(op.endpoint.path)}`,
@@ -248,8 +323,10 @@ describe('permission matrix', () => {
   it('every group behind the gate names a rate-limit bucket', () => {
     const gated = Object.values(StarterApi.groups)
       .filter((group) =>
-        Object.values(group.endpoints).some((endpoint) =>
-          endpoint.middlewares.has(BearerAuth)
+        Object.values(group.endpoints).some(
+          (endpoint) =>
+            endpoint.middlewares.has(BearerAuth) ||
+            endpoint.middlewares.has(AssistantBearerAuth)
         )
       )
       .map((group) => group.identifier)

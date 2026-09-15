@@ -482,6 +482,7 @@ describe('mcp oauth plugins', () => {
     expect(provider?.options.consentPage).toBe('/oauth/consent')
     expect(provider?.options.resources).toContain('http://localhost:8787/mcp')
     expect(provider?.options.clientRegistrationDefaultResources).toEqual([
+      'http://localhost:8787/assistant',
       'http://localhost:8787/mcp'
     ])
     expect(provider?.options.scopes).toContain('mcp:read')

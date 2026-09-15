@@ -1,4 +1,5 @@
 /* oxlint-disable effect/noAsyncFunction, effect/noGlobals, effect/noThrowStatement, effect/noTryCatch -- Better Auth invokes these database and endpoint callbacks outside Effect; its APIError and native Date are the adapter contract. */
+import { revokeRetainedAssistantSessions } from './assistant-session-hooks.ts'
 import * as schema from '@b2b-saas-starter/db/schema'
 import { type GenericEndpointContext } from 'better-auth'
 import {
@@ -39,6 +40,10 @@ export function makeAssuranceHooks(options: AuthConfigInterface) {
 
   async function invalidatePassword(userId: string) {
     await db
+      .update(schema.assistantSessionAuthority)
+      .set({ revokedAt: new Date() })
+      .where(eq(schema.assistantSessionAuthority.userId, userId))
+    await db
       .update(schema.session)
       .set({ passwordVerifiedAt: null, ...emptyStrongProof })
       .where(
@@ -51,6 +56,7 @@ export function makeAssuranceHooks(options: AuthConfigInterface) {
       .update(schema.session)
       .set({ passwordVerifiedAt: null })
       .where(eq(schema.session.userId, userId))
+    await options.invalidateAssistantAuthority?.({ userId })
   }
 
   return {
@@ -192,6 +198,24 @@ export function makeAssuranceHooks(options: AuthConfigInterface) {
       if (!result || isAPIError(result)) {
         return
       }
+      await revokeRetainedAssistantSessions(db, ctx)
+      let invalidationUser = ctx.context.session?.user.id
+      if (ctx.path === '/admin/revoke-user-sessions' && isString(ctx.body?.userId)) {
+        invalidationUser = ctx.body.userId
+      }
+      if (
+        isString(invalidationUser) &&
+        (ctx.path === '/revoke-sessions' ||
+          ctx.path === '/revoke-other-sessions' ||
+          ctx.path === '/admin/revoke-user-sessions' ||
+          [
+            '/oauth2/consent',
+            '/oauth2/update-consent',
+            '/oauth2/delete-consent'
+          ].includes(ctx.path))
+      ) {
+        await options.invalidateAssistantAuthority?.({ userId: invalidationUser })
+      }
       const current = ctx.context.session
       const target = ctx.context.newSession ?? current
       if (!target) {
@@ -273,6 +297,10 @@ export function makeAssuranceHooks(options: AuthConfigInterface) {
             // The plugin can create a session before its after-hook runs. A
             // refused ceremony must not leave that new session usable.
             if (ctx.context.newSession && sessionId !== current?.session.id) {
+              await db
+                .update(schema.assistantSessionAuthority)
+                .set({ revokedAt: now })
+                .where(eq(schema.assistantSessionAuthority.sessionId, sessionId))
               await db.delete(schema.session).where(eq(schema.session.id, sessionId))
             }
             throw new APIError('FORBIDDEN', {
@@ -313,6 +341,10 @@ export function makeAssuranceHooks(options: AuthConfigInterface) {
               locale
             })
           } catch (error) {
+            await db
+              .update(schema.assistantSessionAuthority)
+              .set({ revokedAt: now })
+              .where(eq(schema.assistantSessionAuthority.sessionId, sessionId))
             await db.delete(schema.session).where(eq(schema.session.id, sessionId))
             throw error
           }

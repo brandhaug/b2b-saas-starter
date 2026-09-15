@@ -1,3 +1,4 @@
+import { AssistantDirectory } from '../assistant/directory.ts'
 import { user, workspaces } from '@b2b-saas-starter/db/schema'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { and, eq, sql } from 'drizzle-orm'
@@ -33,9 +34,10 @@ const unavailable = orUnavailable('workspace-suspension')
 export const LiveWorkspaceSuspension: Layer.Layer<
   WorkspaceSuspensionService,
   never,
-  Database | RawD1 | AuditEventLog | NotificationFeed
+  Database | RawD1 | AuditEventLog | NotificationFeed | AssistantDirectory
 > = Layer.effect(WorkspaceSuspensionService)(
   Effect.gen(function* () {
+    const conversations = yield* AssistantDirectory
     const db = yield* Database
     const audit = yield* AuditEventLog
     const feed = yield* NotificationFeed
@@ -157,6 +159,10 @@ export const LiveWorkspaceSuspension: Layer.Layer<
         if (!changed) {
           return yield* get(input.workspaceId)
         }
+        yield* conversations.invalidateAccess(
+          { workspaceId: input.workspaceId },
+          { interruptRuns: true }
+        )
         yield* notice.commit
         yield* notice.publish
         return next

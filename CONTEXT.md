@@ -117,6 +117,10 @@ One event payload addressed to one Webhook Endpoint, including its automatic
 retries. A manual replay is a new delivery linked to its source.
 _Avoid_: Attempt, callback
 
+**Assistant Conversation**:
+A Member's private, saved exchange with the assistant within one Workspace. It contains successive questions and answer attempts and may reference Assistant Tasks. Each question can have multiple answer attempts. Conversation ownership grants no task approval or execution authority.
+_Avoid_: Assistant Task, agent, chat session
+
 **Assistant Task**:
 A saved request to investigate a Workspace's operational evidence and track any approved action through its recorded outcome.
 _Avoid_: Conversation, agent, chat session

@@ -1,3 +1,4 @@
+import { AssistantDirectory } from '../assistant/directory.ts'
 import { Database } from '@b2b-saas-starter/db/service'
 import { workspaces } from '@b2b-saas-starter/db/schema'
 import { Context, Effect, Layer, Option, Ref, Schema } from 'effect'
@@ -128,13 +129,18 @@ export function SeedWorkspaceLifecycle(options: {
   readonly catalog?: Ref.Ref<ReadonlyArray<Workspace>> | undefined
   /** The same optional sink the Live adapter takes; see `SeedWorkspaceMembership`. */
   readonly securityEvidence?: SecurityEvidenceSink | undefined
-}): Layer.Layer<WorkspaceLifecycle, never, WorkspaceSuspensionService> {
+}): Layer.Layer<
+  WorkspaceLifecycle,
+  never,
+  WorkspaceSuspensionService | AssistantDirectory
+> {
   return Layer.effect(WorkspaceLifecycle)(
     Effect.gen(function* () {
       const catalog =
         options.catalog ??
         (yield* Ref.make<ReadonlyArray<Workspace>>([options.workspace]))
       const suspension = yield* WorkspaceSuspensionService
+      const conversations = yield* AssistantDirectory
 
       const requireAvailableSlug = Effect.fnUntraced(function* (
         slug: string,
@@ -225,6 +231,7 @@ export function SeedWorkspaceLifecycle(options: {
           // Captured before the delete, as in Live: the audit event must
           // still name what was removed.
           const removed = ctx.workspace
+          yield* conversations.fence({ workspaceId: removed.id })
           yield* Ref.update(catalog, (rows) =>
             rows.filter((each) => each.id !== ctx.workspace.id)
           )
@@ -260,13 +267,14 @@ export function LiveWorkspaceLifecycle(
 ): Layer.Layer<
   WorkspaceLifecycle,
   never,
-  Database | AuditEventLog | WorkspaceSuspensionService
+  Database | AuditEventLog | WorkspaceSuspensionService | AssistantDirectory
 > {
   return Layer.effect(WorkspaceLifecycle)(
     Effect.gen(function* () {
       const db = yield* Database
       const audit = yield* AuditEventLog
       const suspension = yield* WorkspaceSuspensionService
+      const conversations = yield* AssistantDirectory
 
       const unavailable = orUnavailable('workspace-lifecycle')
 
@@ -350,6 +358,7 @@ export function LiveWorkspaceLifecycle(
           // cascaded children, and the audit event must still name what was
           // removed.
           const removed = ctx.workspace
+          yield* conversations.fence({ workspaceId: removed.id })
           yield* callBinding(binding, (bound) =>
             bound.remove({ workspaceId: ctx.workspace.id })
           )
