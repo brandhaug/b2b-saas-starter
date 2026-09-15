@@ -78,7 +78,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             `INSERT INTO oauth_client (id,clientId,redirectUris,disabled) VALUES ('client-suspension','suspension-client','[]',0)`
           )
           yield* execute(
-            `INSERT INTO oauth_consent (id,userId,clientId,referenceId,scopes) VALUES ('consent-suspension','usr_owner','suspension-client','wrk_dev_contract','["mcp:read"]')`
+            `INSERT INTO oauth_consent (id,userId,clientId,referenceId,resources,scopes) VALUES ('consent-suspension','usr_owner','suspension-client','wrk_dev_contract','["https://api.test/mcp"]','["mcp:read"]')`
           )
           const issuer = 'https://issuer.test/api/auth'
           const audience = 'https://api.test/mcp'

@@ -43,3 +43,7 @@ shared by Alchemy and the generated Wrangler configurations. See
 [outbound webhooks](/docs/operations/outbound-webhooks),
 [notification emails](/docs/operations/notification-emails), and
 [billing](/docs/integrations/stripe-billing) for delivery and recovery behavior.
+
+## Conversation host
+
+The web Worker exports the AIChatAgent conversation class. Its SQLite Durable Objects persist private history and replay; Effect executes the model. API REST observation and background cleanup reach that host through stage-specific cross-Worker bindings. D1 holds identity, authorization revisions, admission and deletion fences. The minute tick retries explicit deletion separately from age-retention cleanup. See [Private Assistant Conversations](/docs/capability-interfaces/assistant-conversations).

@@ -9,24 +9,39 @@ test.beforeEach(async ({ context }, testInfo) => {
   })
 })
 
-test('public homepage offers the demo and expandable source evidence', async ({
+test('public homepage exposes every request stage and optional caller evidence', async ({
   page
 }) => {
   await page.goto('/')
   await expect(
-    page.getByRole('heading', { name: /the hard parts, already wired/i })
+    page.getByRole('heading', { name: /from idea to production-ready saas/i })
   ).toBeVisible()
   await expect(
     page.getByRole('link', { name: 'Explore demo', exact: true }).first()
   ).toHaveAttribute('href', '/demo')
-  const contract = page.getByRole('heading', { name: 'The contract', exact: true })
-  await expect(contract).toBeHidden()
-  await page
-    .getByText('Read the contract, capability, and runtime evidence', { exact: true })
-    .click()
+  const contract = page.getByRole('heading', {
+    name: 'Check the inputs and errors.',
+    exact: true
+  })
   await expect(contract).toBeVisible()
+  await page
+    .getByRole('navigation', { name: 'Follow the request' })
+    .getByRole('link', { name: /Contract/ })
+    .click()
+  await expect(contract).toBeInViewport()
   await expect(
-    page.getByRole('heading', { name: 'The runtime it lands on', exact: true })
+    page
+      .getByRole('navigation', { name: 'Follow the request' })
+      .getByRole('link', { name: /Contract/ })
+  ).toHaveAttribute('aria-current', 'step')
+  const caller = page.getByRole('region', { name: 'MCP tool, scrollable code' })
+  await expect(caller).toBeHidden()
+  await page
+    .getByText('Compare the web, REST, and MCP callers', { exact: true })
+    .click()
+  await expect(caller).toBeVisible()
+  await expect(
+    page.getByRole('heading', { name: 'Deploy to Cloudflare.', exact: true })
   ).toBeVisible()
 })
 

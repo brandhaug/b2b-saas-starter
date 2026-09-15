@@ -1,5 +1,6 @@
 import {
   Cause,
+  Context,
   Clock,
   Duration,
   Effect,
@@ -29,6 +30,20 @@ import {
   diagnosticLabel
 } from './sanitization.ts'
 import { failureMessage } from '@b2b-saas-starter/failure'
+
+class WideEventFacts extends Context.Service<WideEventFacts, Record<string, unknown>>()(
+  'logger/WideEventFacts'
+) {}
+
+/** Adds application facts to the current canonical event without requiring a business-service Scope. */
+export const annotateWideEvent = Effect.fn('Logger.annotateWideEvent')(function* (
+  fields: Readonly<Record<string, unknown>>
+) {
+  const facts = yield* Effect.serviceOption(WideEventFacts)
+  if (Option.isSome(facts)) {
+    Object.assign(facts.value, fields)
+  }
+})
 
 /** The mutable draft `withRequestScope` fills before the sinks read it. */
 type WideEventRecordDraft = {
@@ -211,10 +226,14 @@ export function withRequestScope<A, E, R>(
           // from the event. onExit still fires on success, failure, and interrupt.
           // `withParentSpan` wraps the finalizer too, so the canonical line is
           // also recorded as an event on this span by `Logger.tracerLogger`.
+          const facts: Record<string, unknown> = {}
           return yield* body.pipe(
             Effect.onExit((exit) =>
-              emitWideEvent(options, span, traceId, startedAt, exit)
+              emitWideEvent(options, span, traceId, startedAt, exit).pipe(
+                Effect.annotateLogs(facts)
+              )
             ),
+            Effect.provideService(WideEventFacts, facts),
             Effect.withParentSpan(span, { captureStackTrace: false })
           )
         })

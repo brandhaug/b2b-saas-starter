@@ -42,6 +42,32 @@ const bundle: SecurityEvidenceBundle = {
 }
 
 describe('recovery security sanitation', () => {
+  it('reconstructs deleted conversation addresses before restored objects can serve content', () => {
+    const sql = buildRecoverySecuritySql(
+      {
+        ...bundle,
+        records: [
+          {
+            id: 'sec_conversation',
+            kind: 'assistant_conversation_deleted',
+            subjectId: 'conversation',
+            workspaceId: 'workspace',
+            creatorUserId: 'creator',
+            occurredAt: '2026-09-07T12:00:00.000Z',
+            source: 'live'
+          }
+        ]
+      },
+      '2026-09-07T00:00:00.000Z',
+      '2026-09-07T23:00:00.000Z'
+    )
+    expect(sql).toContain('DELETE FROM assistant_session_authority')
+    expect(sql).toContain('DELETE FROM personal_data_exports')
+    expect(sql).toContain('INSERT INTO assistant_conversations')
+    expect(sql).toContain("'conversation', 'workspace', 'creator'")
+    expect(sql).toContain('cleaned_at = NULL')
+  })
+
   it('requires an explicit local persistence path', async () => {
     await expect(
       run(

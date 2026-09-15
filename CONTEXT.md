@@ -118,7 +118,7 @@ retries. A manual replay is a new delivery linked to its source.
 _Avoid_: Attempt, callback
 
 **Assistant Conversation**:
-A Member's private, saved exchange with the assistant within one Workspace. It contains successive questions and answers and may reference Assistant Tasks.
+A Member's private, saved exchange with the assistant within one Workspace. It contains successive questions and answer attempts and may reference Assistant Tasks. Each question can have multiple answer attempts. Conversation ownership grants no task approval or execution authority.
 _Avoid_: Assistant Task, agent, chat session
 
 **Assistant Task**:

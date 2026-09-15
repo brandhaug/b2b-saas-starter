@@ -425,7 +425,8 @@ export const authorizeMcpOperation = Effect.fn('Mcp.authorizeOperation')(functio
     const grant = yield* connections.getGrant({
       userId: token.userId,
       clientId: token.clientId,
-      workspaceId: token.workspaceId
+      workspaceId: token.workspaceId,
+      resource: token.resource
     })
     if (
       grant?.binding !== token.consentBinding ||

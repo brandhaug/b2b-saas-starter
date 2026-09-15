@@ -1,3 +1,4 @@
+import { AssistantDirectory } from '../assistant/directory.ts'
 import { workspaceMembers } from '@b2b-saas-starter/db/schema'
 import { Database } from '@b2b-saas-starter/db/service'
 import { Effect } from 'effect'
@@ -25,6 +26,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         Effect.gen(function* () {
           const db = yield* Database
           const { binding, calls } = fakeMemberBinding(db)
+          const notified: Array<Array<string>> = []
           function run<A, E>(
             effect: Effect.Effect<A, E, WorkspaceContext | CapabilityServices>
           ) {
@@ -33,7 +35,11 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               effect,
               { userId: 'usr_owner' },
               {
-                memberBinding: binding
+                memberBinding: binding,
+                assistantInvalidation: (addresses) => {
+                  notified.push(addresses.map((address) => address.id))
+                  return Promise.resolve()
+                }
               }
             )
           }
@@ -42,6 +48,21 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           // membership has no add verb, so the roster a case mutates comes
           // from the fixture. Not `live-lab`, whose member count is the seat
           // quantity a billing suite asserts on.
+          yield* run(
+            Effect.gen(function* () {
+              const directory = yield* AssistantDirectory
+              yield* directory.create({
+                id: 'member-notification-room',
+                workspaceId: 'wrk_member_contract',
+                creatorUserId: 'usr_mover'
+              })
+              yield* directory.create({
+                id: 'member-notification-other',
+                workspaceId: 'wrk_member_contract',
+                creatorUserId: 'usr_owner'
+              })
+            })
+          )
           const promoted = yield* run(
             Effect.gen(function* () {
               const membership = yield* WorkspaceMembership
@@ -52,6 +73,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             })
           )
           expect(promoted.role).toBe('admin')
+          expect(notified).toEqual([['member-notification-room']])
 
           yield* run(
             Effect.gen(function* () {
@@ -67,6 +89,10 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             })
           )
           expect(remaining.map((member) => member.id)).not.toContain('usr_mover')
+          expect(notified).toEqual([
+            ['member-notification-room'],
+            ['member-notification-room']
+          ])
 
           // The plugin addresses members by their surrogate row id, so the
           // capability must resolve the user id to one before calling out.

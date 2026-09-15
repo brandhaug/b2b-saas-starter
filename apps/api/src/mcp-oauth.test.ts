@@ -31,7 +31,7 @@ import { jsonBody, mcpClient } from './test-utils.ts'
  */
 
 const ISSUER = 'http://localhost:3071/api/auth'
-const RESOURCE = 'https://api.test/mcp'
+const RESOURCE = 'http://localhost:8787/mcp'
 const env: ApiEnv = { MCP_OAUTH_ISSUER: ISSUER, MCP_RESOURCE_URL: RESOURCE }
 
 type TestAuthority = {

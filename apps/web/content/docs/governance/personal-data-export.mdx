@@ -16,7 +16,7 @@ across the user's Workspaces, notification preferences, notifications addressed
 to that user, session metadata (without tokens), linked-provider metadata
 (without OAuth credentials), passkey metadata without public keys, owned OAuth
 client metadata, the user's OAuth consent scopes and workspace references, and
-sanitized email-delivery history across workspaces. Email evidence includes
+sanitized email-delivery history across workspaces, and currently authorized private Assistant Conversations with every saved attempt and task reference. Email evidence includes
 recipients and delivery outcomes, without message bodies, secret links or send
 claim tokens. It includes records beyond the normal history page limit.
 
@@ -29,7 +29,7 @@ The server reads the identity from the authenticated session and performs the
 same check at request and download time. A request creates a private D1
 artifact bound to both the user and the originating session. It expires after
 24 hours; session or account deletion cascades to the artifact. The download
-rechecks the live session, user binding, and expiry before returning it. A new
+rechecks the live session, user binding, expiry and conversation/access manifest before returning it. Membership or permission loss, a content-policy change, or conversation/account/Workspace deletion invalidates affected cached archives. Restoring access requires a new archive. Previously downloaded files cannot be recalled. A new
 sign-in session must prepare its own export. The archive has `schemaVersion: 1`,
 a `generatedAt` timestamp, a `readme`, and named arrays for each record class.
 Empty record classes are empty arrays.

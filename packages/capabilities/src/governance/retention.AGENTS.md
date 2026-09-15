@@ -31,3 +31,5 @@ call the same implementation; they do not carry their own cleanup SQL.
 - `retention.live.test.ts` provisions through `withRawTestD1`, not `TestDatabase`:
   retention counts every table, so the shared fixture rows would be candidates it
   never planted.
+
+Private Assistant Conversations have no age-retention rule. Their explicit deletion and expired admission reconciliation run on the minute tick through the assistant lifecycle service. Retained session proof and deletion fences remain outside generic retention.

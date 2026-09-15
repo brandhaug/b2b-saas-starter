@@ -96,6 +96,7 @@ export function OAuthConsentPage({
   readonly assign?: (url: string) => void
 }) {
   const oauthQuery = payload.oauthQuery
+  const resources = new URLSearchParams(oauthQuery ?? '').getAll('resource')
   const [workspaceId, setWorkspaceId] = useState<string | null>(
     payload.workspaces.length === 1
       ? (payload.workspaces[0]?.workspace.id ?? null)
@@ -193,6 +194,21 @@ export function OAuthConsentPage({
             )}
             <p className="text-xs text-muted-foreground">{m.oauth_role_scope()}</p>
           </section>
+
+          {resources.length > 0 ? (
+            <section className="grid gap-2" aria-labelledby="consent-resources">
+              <h2 id="consent-resources" className="text-sm font-semibold">
+                {m.oauth_resources()}
+              </h2>
+              <ul className="grid gap-1 text-sm">
+                {resources.map((resource) => (
+                  <li key={resource} className="break-all font-mono text-xs">
+                    {resource}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
 
           <section className="grid gap-2" aria-labelledby="consent-scopes">
             <h2 id="consent-scopes" className="text-sm font-semibold">

@@ -4,7 +4,7 @@ import { failureMessage } from '@b2b-saas-starter/failure'
 // oxlint-disable-next-line effect/noNodeBuiltinImport -- loopback server verifies native fetch redirect behavior
 import { createServer } from 'node:http'
 import { afterEach, describe, expect, it, vi } from '@effect/vitest'
-import { Effect, Schema } from 'effect'
+import { Effect, Schema, Stream } from 'effect'
 import { LanguageModel, Prompt } from 'effect/unstable/ai'
 import { type OpenAIConfig, makeOpenAIModel } from './openai.ts'
 import { ask, askFails, assistantOn } from './test-ask.ts'
@@ -217,3 +217,52 @@ describe('openai-compatible model', () => {
     })
   )
 })
+
+it.effect(
+  'streams assistant history and records actual model, finish reason and usage',
+  () => {
+    const posted = stubFetch(
+      () =>
+        new Response(
+          [
+            'data: {"id":"response-1","model":"actual-model","choices":[{"delta":{"role":"assistant","content":"Hello"},"finish_reason":null}]}\n\n',
+            'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n',
+            'data: {"choices":[],"usage":{"prompt_tokens":42,"completion_tokens":7}}\n\n',
+            'data: [DONE]\n\n'
+          ].join(''),
+          { headers: { 'content-type': 'text/event-stream' } }
+        )
+    )
+    return Effect.gen(function* () {
+      const model = yield* LanguageModel.LanguageModel
+      const events = yield* model
+        .streamText({
+          prompt: Prompt.make([
+            { role: 'user', content: 'Earlier question' },
+            { role: 'assistant', content: [{ type: 'text', text: 'Earlier answer' }] },
+            { role: 'user', content: 'Continue' }
+          ]),
+          toolChoice: 'none'
+        })
+        .pipe(Stream.runCollect)
+      expect(events.find((event) => event.type === 'text-delta')).toMatchObject({
+        delta: 'Hello'
+      })
+      expect(
+        events.find(
+          (event) =>
+            event.type === 'response-metadata' && event.modelId === 'actual-model'
+        )
+      ).toMatchObject({
+        modelId: 'actual-model',
+        id: 'response-1'
+      })
+      expect(events.find((event) => event.type === 'finish')).toMatchObject({
+        reason: 'stop',
+        usage: { inputTokens: { total: 42 }, outputTokens: { total: 7 } }
+      })
+      expect(posted[0]?.body).toContain('Earlier answer')
+      expect(posted[0]?.body).toContain('"stream":true')
+    }).pipe(Effect.provide(makeOpenAIModel(TEST_CONFIG)))
+  }
+)

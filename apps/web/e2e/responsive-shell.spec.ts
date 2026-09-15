@@ -23,19 +23,44 @@ async function expectPageFits(page: Page) {
 }
 
 // oxlint-disable-next-line vitest/prefer-each -- Playwright parameterizes tests with loops; its test API has no each method.
-for (const { locale, signInLabel } of [
-  { locale: 'en', signInLabel: 'Sign in' },
-  { locale: 'nb', signInLabel: 'Logg inn' }
+for (const { locale, signInLabel, demoLabel } of [
+  { locale: 'en', signInLabel: 'Sign in', demoLabel: 'Explore demo' },
+  { locale: 'nb', signInLabel: 'Logg inn', demoLabel: 'Utforsk demoen' }
 ]) {
   test(`the ${locale} public header keeps sign-in reachable at 320px`, async ({
     page
   }) => {
     await page.goto(`/${locale}/`)
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+    await expect
+      .poll(() =>
+        page
+          .getByRole('heading', { level: 1 })
+          .evaluate((heading) => heading.scrollWidth - heading.clientWidth)
+      )
+      .toBeLessThanOrEqual(1)
     await expectPageFits(page)
     await expect(
       page.getByRole('button', { name: signInLabel, exact: true })
     ).toBeInViewport({ ratio: 1 })
+    await expect(
+      page.getByRole('link', { name: demoLabel, exact: true }).first()
+    ).toBeInViewport({ ratio: 1 })
+    const preview = page.locator('picture img')
+    await expect
+      .poll(() =>
+        preview.evaluate(
+          (image) =>
+            image instanceof HTMLImageElement &&
+            image.complete &&
+            image.naturalWidth > 0
+        )
+      )
+      .toBe(true)
+    await expect(preview).toHaveJSProperty(
+      'currentSrc',
+      new URL('/images/workspace-preview-mobile.webp', page.url()).href
+    )
   })
 }
 

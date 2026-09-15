@@ -19,6 +19,8 @@ Operator monitoring reads are documented in [operational-health](src/governance/
 Retention policy, approval and cleanup changes use [retention](src/governance/retention.AGENTS.md).
 Personal account archives use [personal-data-export](src/governance/personal-data-export.AGENTS.md).
 
+Persistent conversation directory, admission and lifecycle changes use [assistant persistence](src/assistant/AGENTS.md).
+
 ## Shared contracts
 
 - `workspace-context.ts` resolves slugs and refuses unknown workspaces and non-members identically. Seed fails closed without fixture membership.

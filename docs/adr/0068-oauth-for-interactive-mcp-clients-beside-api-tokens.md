@@ -1,9 +1,34 @@
 # OAuth for member-authorized clients
 
-Interactive MCP clients use browser consent and OAuth; automation can use workspace API tokens. The web worker issues audience-bound credentials and the API worker verifies issuer, signature, audience, and expiry. Current REST routes remain token-only. Missing OAuth configuration leaves MCP token access available.
+Interactive MCP clients use browser consent and OAuth; automation can use
+Workspace API Tokens. The web Worker issues audience-bound credentials and the
+API Worker verifies issuer, signature, exact audience and expiry. Ordinary REST
+workspace operations keep their API Token guards.
 
-The [accepted persistent assistant specification](https://github.com/brandhaug/b2b-saas-starter/issues/444) adds member-authorized REST for the same private conversations as the web app. Its pending implementation reuses the OAuth issuer and client connections with a distinct assistant resource/audience and explicit read/write scopes. Workspace tokens cannot access these conversations, and MCP and assistant audience tokens cannot be exchanged between resource endpoints. A workspace token's creator is attribution, not a member principal.
+The persistent assistant design
+adds a specific member-OAuth REST resource for private conversations. It reuses
+the issuer, code+PKCE flow, Workspace selection and client connections, with
+`ASSISTANT_RESOURCE_URL` as a distinct audience and `assistant:read` /
+`assistant:write` scopes. MCP-audience credentials fail on this resource, assistant
+credentials fail on MCP, and Workspace API Tokens have no access. Token creator
+attribution never becomes a member principal.
 
-Each consent selects one workspace. Resource execution rereads membership, compares the immutable Workspace ID, and checks current resource grants and consent version before exposing data or suspension details. MCP writes additionally require `mcp:write`, as defined in [ADR 0072](./0072-workspace-operation-catalog.md). Connection revocation removes consent and associated credentials; existing tokens lose read and write access on their next operation.
+Consent selects one Workspace and explicitly grants resources and scopes.
+Execution checks current membership, immutable Workspace ID, resource grants and
+consent version. Resource changes invalidate older grants. Connection revocation
+removes consent and associated credentials for its granted resources. MCP writes
+also require `mcp:write`, as defined in [ADR 0072](./0072-workspace-operation-catalog.md).
 
-Client metadata fetches reject unsafe hosts and redirects but cannot pin DNS resolution in Workers. Proof-of-possession tokens are refused because the resource server does not implement DPoP. Consent creation and its audit are not atomic across the plugin boundary; revocation uses one D1 batch.
+Private conversations additionally enforce creator ownership, current permissions,
+suspension and authentication assurance for reads, writes, exports and observation.
+Each outgoing batch checks current authority; idle subscriptions check at least
+every 15 seconds. Natural observation-credential expiry closes that subscription
+but does not cancel an accepted answer. Bounded retained session proof distinguishes
+natural expiry from explicit revocation; current membership, consent and assurance
+still apply. A failed authority lookup closes access and interrupts the run.
+
+Client metadata fetches reject unsafe hosts and redirects but cannot pin DNS
+resolution in Workers. Proof-of-possession tokens are refused because the resource
+server does not implement DPoP. Consent creation and its audit are not atomic
+across the plugin boundary; revocation uses one D1 batch. Local issuer and contract
+tests are separate from deployed identity-provider validation.

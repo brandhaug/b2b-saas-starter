@@ -59,23 +59,25 @@ type AuditedMutationInput = {
    */
   readonly write: () => ReadonlyArray<BatchStatement>
   /**
-   * Present when the write is a conditional single-row transition that a
+   * Present when the write is a conditional row transition that a
    * concurrent request can win instead. See {@link AuditedTransition}.
    */
   readonly transition?: AuditedTransition
 }
 
 /**
- * A conditional single-row transition and everything that must commit only
+ * A conditional row transition and everything that must commit only
  * with the request that won it.
  *
  * `condition` must be true exactly for the winning transition (in practice an
- * `EXISTS` naming the unique id the write stamps). It gates the audit insert
+ * `EXISTS` naming a unique transition stamp, or `changes() > 0` when the winning write immediately precedes the audit). It gates the audit insert
  * and every statement in `alongside`, all in one batch with the write, so a
  * loser commits nothing at all. The mutation then resolves `false`, read off
  * the write's own change count — no racy re-read after the batch.
  */
 type AuditedTransition = {
+  /** Index of the winning write when conditional prerequisite statements precede it. Defaults to zero. */
+  readonly writeIndex?: number
   readonly condition: SQL
   /**
    * Statements the transition also commits — notification rows, a delivery
@@ -132,10 +134,9 @@ export function auditedMutations(
         if (input.transition === undefined) {
           return true
         }
-        // The write is the batch's first statement, and its change count is
-        // what separates the request that won the transition from the one
-        // that arrived a moment late.
-        return results[0]?.meta.changes === 1
+        // The nominated write's count distinguishes the winning transition.
+        // Bulk lifecycle fences also succeed when they change several rows.
+        return (results[input.transition.writeIndex ?? 0]?.meta.changes ?? 0) > 0
       })
   })
 }

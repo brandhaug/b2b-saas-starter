@@ -25,7 +25,7 @@ The export is a single self-describing JSON document, stored and served gzip-com
 | `auditEvents`      | The complete workspace Audit Event trail, newest first                                                      |
 | `notifications`    | Workspace-wide Notifications. Notifications addressed to one user are that user's data and are not included |
 
-The archive excludes token hashes and webhook signing secrets. Treat downloaded archives as sensitive workspace data.
+The archive excludes token hashes, webhook signing secrets and private Assistant Conversation content. Conversation history belongs in the creator's currently authorized personal export. Treat downloaded archives as sensitive workspace data.
 
 ## Requesting an export
 

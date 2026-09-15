@@ -1,3 +1,7 @@
+import {
+  AssistantConversationLifecycle,
+  type ConversationExportManifest
+} from '../assistant/lifecycle.ts'
 import { Clock, DateTime, Effect, Layer } from 'effect'
 import { EmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -64,10 +68,17 @@ export function SeedPersonalDataExports(
   | NotificationPreferences
   | AuditEventLog
   | EmailDelivery
+  | AssistantConversationLifecycle
 > {
   const rows = new Map<
     string,
-    { userId: string; sessionId: string; expiresAt: number; json: string }
+    {
+      userId: string
+      sessionId: string
+      expiresAt: number
+      json: string
+      conversationManifest: ConversationExportManifest
+    }
   >()
   return Layer.effect(PersonalDataExports)(
     Effect.gen(function* () {
@@ -76,6 +87,7 @@ export function SeedPersonalDataExports(
       const notices = yield* NotificationPreferences
       const delivery = yield* EmailDelivery
       const audit = yield* AuditEventLog
+      const conversations = yield* AssistantConversationLifecycle
       function collect(userId: string) {
         return Effect.gen(function* () {
           const profile = profiles.find((candidate) => candidate.id === userId)
@@ -129,6 +141,10 @@ export function SeedPersonalDataExports(
         request: (userId, sessionId) =>
           Effect.gen(function* () {
             const data = yield* collect(userId)
+            const conversationExport = yield* conversations.collectForExport(
+              userId,
+              sessionId
+            )
             const now = yield* Clock.currentTimeMillis
             const id = yield* newCapabilityId('pde')
             for (const [existingId, existing] of rows) {
@@ -140,7 +156,11 @@ export function SeedPersonalDataExports(
               userId,
               sessionId,
               expiresAt: now + PERSONAL_DATA_EXPORT_TTL_MS,
-              json: renderPersonalDataExport(data)
+              json: renderPersonalDataExport({
+                ...data,
+                conversations: conversationExport.conversations
+              }),
+              conversationManifest: conversationExport.manifest
             })
             yield* audit.record({
               actorUserId: userId,
@@ -175,6 +195,11 @@ export function SeedPersonalDataExports(
               targetId: userId,
               metadata: { exportId: id, action: 'downloaded' }
             })
+            yield* conversations.validateExport(
+              userId,
+              sessionId,
+              row.conversationManifest
+            )
             return { fileName: `personal-data-${userId}.json`, json: row.json }
           })
       }

@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import { Deferred, Effect, Fiber, Stream } from 'effect'
 import { AssistantService } from './index.ts'
 import { LanguageModel, Prompt } from 'effect/unstable/ai'
 import { describe, expect, it } from '@effect/vitest'
@@ -10,7 +10,7 @@ describe('workers-ai model', () => {
     const sent: Array<{ model: string; prompt: string }> = []
     const binding: WorkersAIBinding = {
       run: (model, input) => {
-        sent.push({ model, prompt: input.prompt })
+        sent.push({ model, prompt: input.prompt ?? '' })
         return Promise.resolve({ response: 'The checklist did.' })
       }
     }
@@ -34,7 +34,7 @@ describe('workers-ai model', () => {
       const sent: Array<string> = []
       const binding: WorkersAIBinding = {
         run: (_model, input) => {
-          sent.push(input.prompt)
+          sent.push(input.prompt ?? '')
           return Promise.resolve({ response: 'The receiver returned 503.' })
         }
       }
@@ -65,13 +65,24 @@ describe('workers-ai model', () => {
       }
     ))
 
-  it.effect('refuses a prompt carrying a message it cannot send as plain chat', () =>
+  it.effect('refuses a prompt carrying tool messages', () =>
     Effect.gen(function* () {
       const model = yield* LanguageModel.LanguageModel
       const error = yield* Effect.flip(
         model.generateText({
           prompt: Prompt.make([
-            { role: 'assistant', content: [{ type: 'text', text: 'a prior turn' }] }
+            {
+              role: 'tool',
+              content: [
+                {
+                  type: 'tool-result',
+                  id: 'tool-1',
+                  name: 'lookup',
+                  result: 'a prior turn',
+                  isFailure: false
+                }
+              ]
+            }
           ])
         })
       )
@@ -104,3 +115,81 @@ describe('workers-ai model', () => {
       }
     ))
 })
+
+it.effect('streams role-preserving history through the Workers AI binding', () => {
+  const sent: Array<unknown> = []
+  const binding: WorkersAIBinding = {
+    run: (_model, input) => {
+      sent.push(input)
+      return Promise.resolve(
+        new Response('data: {"response":"Continued answer"}\n\ndata: [DONE]\n\n').body
+      )
+    }
+  }
+  return Effect.gen(function* () {
+    const model = yield* LanguageModel.LanguageModel
+    const events = yield* model
+      .streamText({
+        prompt: Prompt.make([
+          { role: 'user', content: 'Earlier question' },
+          { role: 'assistant', content: [{ type: 'text', text: 'Earlier answer' }] },
+          { role: 'user', content: 'Continue' }
+        ]),
+        toolChoice: 'none'
+      })
+      .pipe(Stream.runCollect)
+    expect(sent[0]).toMatchObject({
+      stream: true,
+      messages: [
+        { role: 'user', content: 'Earlier question' },
+        { role: 'assistant', content: 'Earlier answer' },
+        { role: 'user', content: 'Continue' }
+      ]
+    })
+    expect(events.find((event) => event.type === 'text-delta')).toMatchObject({
+      delta: 'Continued answer'
+    })
+    expect(events.find((event) => event.type === 'finish')).toMatchObject({
+      reason: 'unknown',
+      usage: { inputTokens: {}, outputTokens: {} }
+    })
+  }).pipe(Effect.provide(makeWorkersAIModel(binding)))
+})
+
+it.effect('cancels the Workers AI response reader on interruption', () =>
+  Effect.gen(function* () {
+    const firstText = yield* Deferred.make<undefined>()
+    let cancelled = false
+    const binding: WorkersAIBinding = {
+      run: () =>
+        Promise.resolve(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(
+                new TextEncoder().encode('data: {"response":"Partial answer"}\n\n')
+              )
+            },
+            cancel() {
+              cancelled = true
+            }
+          })
+        )
+    }
+    const fiber = yield* LanguageModel.streamText({
+      prompt: 'Explain',
+      toolChoice: 'none'
+    }).pipe(
+      Stream.runForEach((part) => {
+        if (part.type === 'text-delta') {
+          return Deferred.succeed(firstText, undefined)
+        }
+        return Effect.void
+      }),
+      Effect.provide(makeWorkersAIModel(binding)),
+      Effect.forkChild
+    )
+    yield* Deferred.await(firstText)
+    yield* Fiber.interrupt(fiber)
+    expect(cancelled).toBe(true)
+  })
+)

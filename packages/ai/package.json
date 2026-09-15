@@ -3,7 +3,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./conversation": "./src/conversation.ts",
+    "./conversation-context": "./src/conversation-context.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

@@ -33,6 +33,14 @@ import {
   protectedResourceMetadata
 } from './oauth-access-token.ts'
 
+import { assistantConversationsGroup } from './assistant-conversation-handlers.ts'
+import { assistantBearerAuth } from './assistant-conversation-guards.ts'
+import {
+  makeAssistantOAuthTokenVerifierLayer,
+  assistantOAuthResourceConfig,
+  assistantProtectedResourceMetadata
+} from './assistant-oauth-access-token.ts'
+
 /**
  * The rate-limit mechanism behind the contract's `RateLimiter` service: the
  * binding names and fallback limits come from `@b2b-saas-starter/infra` — the
@@ -71,13 +79,15 @@ const rootIndexLayer = HttpRouter.add('GET', '/', () =>
     HttpServerResponse.jsonUnsafe({
       name: 'b2b-saas-starter-api',
       description:
-        'Starter REST + MCP API. All routes except /health require an Authorization: Bearer API token; POST /mcp also accepts an OAuth access token.',
+        'Starter REST + MCP API. Workspace REST uses API tokens. Private assistant conversations require member OAuth for the assistant resource. POST /mcp accepts API tokens or MCP OAuth.',
       health: '/health',
       openapi: '/openapi.json',
       docs: '/reference',
       mcp: '/mcp',
       mcpDiscovery: '/mcp/discovery',
-      oauthProtectedResource: '/.well-known/oauth-protected-resource/mcp'
+      oauthProtectedResource: '/.well-known/oauth-protected-resource/mcp',
+      assistantConversations: '/assistant/conversations',
+      assistantOAuthProtectedResource: '/.well-known/oauth-protected-resource/assistant'
     })
   )
 )
@@ -119,7 +129,8 @@ function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRou
     // The OAuth access-token verifier for `POST /mcp` (ADR 0068): one per
     // isolate, so its cached JWKS outlives the request. Inactive when the
     // issuer env is unset.
-    makeOAuthTokenVerifierLayer(env)
+    makeOAuthTokenVerifierLayer(env),
+    makeAssistantOAuthTokenVerifierLayer(env)
   )
 
   const groups = Layer.mergeAll(
@@ -129,6 +140,7 @@ function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRou
     webhookGroup(env),
     workspaceExportGroup(env),
     assistantGroup(env),
+    assistantConversationsGroup(env),
     mcpGroup(env)
   )
 
@@ -136,7 +148,8 @@ function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRou
     Layer.provide(groups),
     // The contract's bearer gate: declared in `packages/api`, implemented in
     // `request-guards.ts`, attached to every group but `health`.
-    Layer.provide(bearerAuth(env))
+    Layer.provide(bearerAuth(env)),
+    Layer.provide(assistantBearerAuth(env))
   )
 
   return Layer.mergeAll(
@@ -152,6 +165,20 @@ function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRou
     // beside the contract like `/mcp`. See `export-download.ts`.
     exportDownloadLayer(env),
     protectedResourceLayer(env),
+    HttpRouter.add('GET', '/.well-known/oauth-protected-resource/assistant', () => {
+      const config = assistantOAuthResourceConfig(env)
+      if (config === undefined) {
+        return Effect.succeed(
+          HttpServerResponse.jsonUnsafe(
+            { error: 'assistant_oauth_not_configured' },
+            { status: 404 }
+          )
+        )
+      }
+      return Effect.succeed(
+        HttpServerResponse.jsonUnsafe(assistantProtectedResourceMetadata(config))
+      )
+    }),
     // Readiness is intentionally outside the public API contract: it probes
     // the dependency the worker cannot serve without, while `/health` stays
     // a cheap liveness probe for uptime monitors.

@@ -1,6 +1,9 @@
 import { writeFileSync } from 'node:fs'
 import {
+  ASSISTANT_CONVERSATION_CLASS,
+  ASSISTANT_CONVERSATION_BINDING,
   apiRateLimits,
+  stageResourceNames,
   billingReconciliationCron,
   retentionCleanupCron,
   retentionTargetKey,
@@ -101,6 +104,17 @@ type WorkerDefaults = {
 }
 
 type WranglerConfig = WorkerDefaults & {
+  readonly durable_objects?: {
+    readonly bindings: ReadonlyArray<{
+      readonly name: string
+      readonly class_name: string
+      readonly script_name?: string
+    }>
+  }
+  readonly migrations?: ReadonlyArray<{
+    readonly tag: string
+    readonly new_sqlite_classes: ReadonlyArray<string>
+  }>
   readonly placement?: { readonly mode: 'smart' }
   readonly ai?: { readonly binding: string }
   readonly queues?: {
@@ -180,6 +194,20 @@ export const wranglerConfigs: ReadonlyArray<{
     path: 'apps/web/wrangler.jsonc',
     config: {
       ...workerDefaults('web', workerEntryPoints.web),
+      durable_objects: {
+        bindings: [
+          {
+            name: ASSISTANT_CONVERSATION_BINDING,
+            class_name: ASSISTANT_CONVERSATION_CLASS
+          }
+        ]
+      },
+      migrations: [
+        {
+          tag: 'assistant-conversations',
+          new_sqlite_classes: [ASSISTANT_CONVERSATION_CLASS]
+        }
+      ],
       ai: { binding: AI_BINDING },
       // Producers only: membership and invitation mutations enqueue seat-sync
       // messages the background worker consumes (`Billing.syncSeats`),
@@ -202,7 +230,8 @@ export const wranglerConfigs: ReadonlyArray<{
         WORKERS_AI_ENABLED: 'false',
         // The MCP resource the web worker's OAuth server binds tokens to: the
         // local API dev server (ADR 0068). Production sets the real URL.
-        MCP_RESOURCE_URL: 'http://localhost:8787/mcp'
+        MCP_RESOURCE_URL: 'http://localhost:8787/mcp',
+        ASSISTANT_RESOURCE_URL: 'http://localhost:8787/assistant'
       },
       unsafe: { bindings: rateLimits(webRateLimits) }
     }
@@ -211,6 +240,15 @@ export const wranglerConfigs: ReadonlyArray<{
     path: 'apps/api/wrangler.jsonc',
     config: {
       ...workerDefaults('api', workerEntryPoints.api),
+      durable_objects: {
+        bindings: [
+          {
+            name: ASSISTANT_CONVERSATION_BINDING,
+            class_name: ASSISTANT_CONVERSATION_CLASS,
+            script_name: stageResourceNames('prod').worker('web')
+          }
+        ]
+      },
       // Smart placement is for the worker-only services; the web worker serves
       // the document and stays where the eyeball is.
       placement: { mode: 'smart' },
@@ -234,7 +272,8 @@ export const wranglerConfigs: ReadonlyArray<{
         // server issues for this worker's `/mcp`. Unset both and `/mcp` takes
         // API Tokens only.
         MCP_OAUTH_ISSUER: 'http://localhost:3071/api/auth',
-        MCP_RESOURCE_URL: 'http://localhost:8787/mcp'
+        MCP_RESOURCE_URL: 'http://localhost:8787/mcp',
+        ASSISTANT_RESOURCE_URL: 'http://localhost:8787/assistant'
       },
       unsafe: { bindings: rateLimits(apiRateLimits) }
     }
@@ -243,6 +282,15 @@ export const wranglerConfigs: ReadonlyArray<{
     path: 'apps/background/wrangler.jsonc',
     config: {
       ...workerDefaults('background', workerEntryPoints.background),
+      durable_objects: {
+        bindings: [
+          {
+            name: ASSISTANT_CONVERSATION_BINDING,
+            class_name: ASSISTANT_CONVERSATION_CLASS,
+            script_name: stageResourceNames('prod').worker('web')
+          }
+        ]
+      },
       placement: { mode: 'smart' },
       queues: {
         producers: [

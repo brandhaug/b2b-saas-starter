@@ -1,6 +1,6 @@
-import { Effect, Layer } from 'effect'
+import { Effect, Layer, Stream } from 'effect'
 import { AiError, LanguageModel, Model, type Response } from 'effect/unstable/ai'
-import { plainChat, unsupportedStream } from './text-model.ts'
+import { plainChat } from './text-model.ts'
 
 // The honest no-provider model: it echoes the question and names the env vars
 // that would enable a real provider. It holds to the same text-only
@@ -40,7 +40,32 @@ export const MockAssistantModel = Model.make(
           ]
           return parts
         }),
-      streamText: unsupportedStream(PROVIDER)
+      streamText: (options) =>
+        Stream.unwrap(
+          Effect.gen(function* () {
+            const plain = plainChat(options)
+            if ('reason' in plain) {
+              return yield* mockError(plain.reason)
+            }
+            const question =
+              plain.messages.findLast((message) => message.role === 'user')?.content ??
+              ''
+            return Stream.fromIterable([
+              { type: 'text-start', id: 'answer' },
+              {
+                type: 'text-delta',
+                id: 'answer',
+                delta: `Demo assistant: "${question}". This isolated conversation uses synthetic data. Approval and replay remain explicit application actions.`
+              },
+              { type: 'text-end', id: 'answer' },
+              {
+                type: 'finish',
+                reason: 'stop',
+                usage: { inputTokens: {}, outputTokens: {} }
+              }
+            ] satisfies Array<Response.StreamPartEncoded>)
+          })
+        )
     })
   )
 )

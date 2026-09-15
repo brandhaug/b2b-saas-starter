@@ -1,3 +1,14 @@
+import {
+  createConversationServerFn,
+  listConversationsServerFn,
+  readConversationServerFn,
+  conversationHistoryServerFn,
+  sendConversationServerFn,
+  retryConversationServerFn,
+  stopConversationServerFn,
+  deleteConversationServerFn,
+  type ConversationPorts
+} from '@/lib/server/assistant-conversations'
 import { pickOptionalStrings } from '@/lib/utils'
 import {
   createAssistantTaskServerFn,
@@ -12,8 +23,20 @@ import { WorkspaceAssistantPage } from '@/components/workspace-assistant-page'
 import { askAssistantServerFn, loadAssistantPageServerFn } from '@/lib/server/assistant'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
+const conversationPorts: ConversationPorts = {
+  create: createConversationServerFn,
+  list: listConversationsServerFn,
+  read: readConversationServerFn,
+  history: conversationHistoryServerFn,
+  send: sendConversationServerFn,
+  retry: retryConversationServerFn,
+  stop: stopConversationServerFn,
+  remove: deleteConversationServerFn
+}
+
 export const Route = createFileRoute('/workspaces/$workspaceSlug/assistant')({
-  validateSearch: (search) => pickOptionalStrings(search, ['deliveryId', 'taskId']),
+  validateSearch: (search) =>
+    pickOptionalStrings(search, ['deliveryId', 'taskId', 'conversationId']),
   loader: ({ params }) =>
     loadAssistantPageServerFn({
       data: { workspaceSlug: params.workspaceSlug }
@@ -37,12 +60,19 @@ function WorkspaceAssistantRoute() {
       workspaceSlug={workspaceSlug}
       data={data}
       ask={askAssistantServerFn}
+      persistent={{
+        ports: conversationPorts,
+        conversationId: search.conversationId,
+        onSelectConversation: (conversationId) => {
+          void navigate({ search: { ...search, conversationId } })
+        }
+      }}
       {...(search.deliveryId === undefined
         ? {}
         : { selectedDeliveryId: search.deliveryId })}
       {...(search.taskId === undefined ? {} : { selectedTaskId: search.taskId })}
       onSelectTask={(taskId) => {
-        void navigate({ search: { taskId } })
+        void navigate({ search: { ...search, taskId } })
       }}
       {...(data.investigations
         ? {

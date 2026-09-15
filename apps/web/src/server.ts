@@ -1,3 +1,5 @@
+// Node preview's upgrade bridge uses the same authenticated boundary as the route.
+export { connectAssistantConversation } from './lib/server/assistant-conversation-socket'
 import {
   makeSentryOptions,
   wireWideEventProviders

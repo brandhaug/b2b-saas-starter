@@ -1,3 +1,4 @@
+import { AssistantDirectory } from '../assistant/directory.ts'
 import { Context, Effect, Layer, Option, Ref, Schema } from 'effect'
 import { MembershipChangeRejected } from '../errors.ts'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -222,11 +223,16 @@ export function SeedWorkspaceMembership(
    * case assert the evidence instead of trusting the Live half alone.
    */
   securityEvidence?: SecurityEvidenceSink
-): Layer.Layer<WorkspaceMembership, never, SeatSyncPublisher | WebhookPublisher> {
+): Layer.Layer<
+  WorkspaceMembership,
+  never,
+  SeatSyncPublisher | WebhookPublisher | AssistantDirectory
+> {
   return Layer.effect(WorkspaceMembership)(
     Effect.gen(function* () {
       const seatSync = yield* SeatSyncPublisher
       const publisher = yield* WebhookPublisher
+      const conversations = yield* AssistantDirectory
 
       return {
         listMembers: Effect.fn('WorkspaceMembership.listMembers')(() =>
@@ -277,6 +283,10 @@ export function SeedWorkspaceMembership(
           if (refusal !== null) {
             return yield* Effect.fail(new MembershipChangeRejected({ reason: refusal }))
           }
+          yield* conversations.invalidateAccess(
+            { workspaceId: workspace.id, creatorUserId: input.userId },
+            { interruptRuns: true }
+          )
           yield* Ref.update(roster, (rows) =>
             rows.filter((candidate) => candidate.id !== input.userId)
           )
@@ -333,6 +343,10 @@ export function SeedWorkspaceMembership(
           if (refusal !== null) {
             return yield* Effect.fail(new MembershipChangeRejected({ reason: refusal }))
           }
+          yield* conversations.invalidateAccess(
+            { workspaceId: workspace.id, creatorUserId: own.id },
+            { interruptRuns: true }
+          )
           yield* Ref.update(roster, (rows) =>
             rows.filter((member) => member.id !== own.id)
           )
@@ -405,6 +419,10 @@ export function SeedWorkspaceMembership(
             },
             securityEvidence,
             'seed'
+          )
+          yield* conversations.invalidateAccess(
+            { workspaceId: workspace.id, creatorUserId: input.userId },
+            { interruptRuns: true }
           )
           const promoted: Member = { ...member, role: input.role }
           yield* Ref.update(roster, (rows) =>

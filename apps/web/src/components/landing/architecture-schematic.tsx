@@ -11,6 +11,7 @@ export type SchematicNode =
   | 'background'
   | 'capabilities'
   | 'd1'
+  | 'durable-objects'
   | 'queues'
   | 'email'
 
@@ -23,9 +24,10 @@ const CONNECTIONS = [
   { path: 'M52 170 V202 Q52 218 68 218 H184 Q200 218 200 234 V250' },
   { path: 'M200 170 V250' },
   { path: 'M348 170 V202 Q348 218 332 218 H216 Q200 218 200 234 V250' },
-  { path: 'M200 322 V342 Q200 358 184 358 H68 Q52 358 52 374 V402' },
-  { path: 'M200 322 V402' },
-  { path: 'M200 322 V342 Q200 358 216 358 H332 Q348 358 348 374 V402' }
+  { path: 'M200 322 V342 Q200 358 184 358 H56 Q40 358 40 374 V402' },
+  { path: 'M200 322 V350 Q200 366 184 366 H168 Q152 366 152 382 V402' },
+  { path: 'M200 322 V350 Q200 366 216 366 H256 Q272 366 272 382 V402' },
+  { path: 'M200 322 V342 Q200 358 216 358 H344 Q360 358 360 374 V402' }
 ] satisfies ReadonlyArray<{ readonly path: string }>
 
 export function ArchitectureSchematic({
@@ -140,23 +142,31 @@ export function ArchitectureSchematic({
       <TraceNode
         x={8}
         y={402}
-        width={88}
+        width={64}
         label="D1"
         active={active.has('d1')}
         external
       />
       <TraceNode
-        x={144}
+        x={80}
         y={402}
-        width={112}
+        width={144}
+        label="Durable Objects"
+        active={active.has('durable-objects')}
+        external
+      />
+      <TraceNode
+        x={232}
+        y={402}
+        width={80}
         label="Queues"
         active={active.has('queues')}
         external
       />
       <TraceNode
-        x={296}
+        x={320}
         y={402}
-        width={104}
+        width={80}
         label="Email"
         active={active.has('email')}
         external

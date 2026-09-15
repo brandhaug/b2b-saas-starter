@@ -5,11 +5,11 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "b2b-saas-starter-web",
-  "main": "src/server.ts",
+  "main": "src/worker.ts",
   "workers_dev": true,
   "preview_urls": false,
   "compatibility_date": "2026-05-16",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1
@@ -19,6 +19,20 @@
       "binding": "DB",
       "database_name": "b2b-saas-starter",
       "database_id": "placeholder"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ASSISTANT_CONVERSATIONS",
+        "class_name": "WorkspaceAssistantConversation"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "assistant-conversations",
+      "new_sqlite_classes": ["WorkspaceAssistantConversation"]
     }
   ],
   "ai": {
@@ -52,7 +66,8 @@
   ],
   "vars": {
     "WORKERS_AI_ENABLED": "false",
-    "MCP_RESOURCE_URL": "http://localhost:8787/mcp"
+    "MCP_RESOURCE_URL": "http://localhost:8787/mcp",
+    "ASSISTANT_RESOURCE_URL": "http://localhost:8787/assistant"
   },
   "unsafe": {
     "bindings": [

@@ -59,7 +59,7 @@ Calm, inspectable, opinionated. The voice of a senior engineer walking you throu
 - Generic AI-generated SaaS landing pages: gradient heroes, glassmorphism, glowing accents, identical icon-card grids, fake metrics, testimonial walls.
 - Fictional-product marketing — the showcase describes the Starter itself, never an invented company.
 - Consumer-product warmth (illustration-heavy, playful mascots). This is a tool for serious operators.
-- Editorial-magazine affectation (drop caps, serif body text) — the brand is an engineering document, not a magazine. The landing hero's Newsreader is the one display-serif moment; every other surface runs Geist.
+- Editorial-magazine affectation such as drop caps and serif body text. Newsreader is limited to the landing hero and section headings; other surfaces use Geist.
 
 ## Design Principles
 

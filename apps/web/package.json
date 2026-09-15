@@ -31,6 +31,7 @@
     "@better-auth/oauth-provider": "catalog:",
     "@better-auth/passkey": "catalog:",
     "@better-auth/sso": "catalog:",
+    "@cloudflare/ai-chat": "catalog:",
     "@fontsource-variable/geist": "catalog:",
     "@fontsource-variable/geist-mono": "catalog:",
     "@fontsource-variable/newsreader": "catalog:",
@@ -42,6 +43,8 @@
     "@tanstack/react-router-ssr-query": "catalog:",
     "@tanstack/react-start": "catalog:",
     "@tanstack/react-table": "catalog:",
+    "agents": "catalog:",
+    "ai": "catalog:",
     "better-auth": "catalog:",
     "class-variance-authority": "catalog:",
     "cmdk": "catalog:",
@@ -73,9 +76,12 @@
     "@types/mdx": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "@types/ws": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "babel-plugin-react-compiler": "catalog:",
+    "esbuild": "catalog:",
     "jsdom": "catalog:",
+    "miniflare": "catalog:",
     "rehype-pretty-code": "catalog:",
     "rehype-slug": "catalog:",
     "remark-frontmatter": "catalog:",
@@ -85,6 +91,7 @@
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plus": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "ws": "catalog:"
   }
 }

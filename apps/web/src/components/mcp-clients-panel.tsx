@@ -83,6 +83,11 @@ export function McpClientsPanel({
                     )}
                   </ItemTitle>
                   <ItemDescription>
+                    {connection.resources?.length ? (
+                      <span className="block break-all">
+                        {connection.resources.join(', ')}
+                      </span>
+                    ) : null}
                     {connection.scopes.join(' ')} · since{' '}
                     {formatTimestamp(connection.grantedAt, { dateStyle: 'medium' })}
                   </ItemDescription>

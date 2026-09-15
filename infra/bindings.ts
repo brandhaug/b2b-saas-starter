@@ -231,6 +231,7 @@ export type QueueBindingKey =
  */
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const resourceBindingNames = {
+  assistantConversations: 'ASSISTANT_CONVERSATIONS',
   database: 'DB',
   workersAi: 'AI',
   email: 'EMAIL',
@@ -257,6 +258,7 @@ const resourceBindingNames = {
  */
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const apiBindingNames = {
+  assistantConversations: resourceBindingNames.assistantConversations,
   database: resourceBindingNames.database,
   workersAi: resourceBindingNames.workersAi,
   webhookQueue: queueBindingKeys.webhookQueue,
@@ -267,6 +269,7 @@ const apiBindingNames = {
 
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const backgroundBindingNames = {
+  assistantConversations: resourceBindingNames.assistantConversations,
   database: resourceBindingNames.database,
   webhookQueue: queueBindingKeys.webhookQueue,
   billingQueue: queueBindingKeys.billingQueue,
@@ -278,6 +281,7 @@ const backgroundBindingNames = {
 
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const webBindingNames = {
+  assistantConversations: resourceBindingNames.assistantConversations,
   database: resourceBindingNames.database,
   workersAi: resourceBindingNames.workersAi,
   webhookQueue: queueBindingKeys.webhookQueue,
@@ -310,6 +314,7 @@ export type WebBindingName =
  * One compatibility date and flag set for every worker — production
  * (alchemy.run.ts) and local dev (each generated wrangler.jsonc) must run the
  * same runtime behavior, so changing the date cannot leave one worker behind.
+ * Public fetch routing lets API JWKS and OAuth client metadata resolve Workers URLs.
  * `nodejs_compat` is required: `@sentry/cloudflare` needs AsyncLocalStorage
  * (see packages/logger/src/providers.ts).
  */
@@ -320,7 +325,7 @@ export type WorkerCompatibility = {
 
 export const workerCompatibility = {
   date: '2026-05-16',
-  flags: ['nodejs_compat']
+  flags: ['nodejs_compat', 'global_fetch_strictly_public']
 } satisfies WorkerCompatibility
 
 // Shape matches Alchemy's `QueueConsumer` settings input. Wrangler spells the
@@ -393,7 +398,7 @@ export type WorkerApp = 'web' | 'api' | 'background'
  * resolve from this one record rather than spelling the path twice.
  */
 export const workerEntryPoints = {
-  web: 'src/server.ts',
+  web: 'src/worker.ts',
   api: 'src/index.ts',
   background: 'src/index.ts'
 } satisfies Record<WorkerApp, string>
@@ -504,3 +509,6 @@ export const notificationEmailConsumerSettings: QueueConsumerSettings = {
   maxRetries: 100,
   maxWaitTimeMs: 5000
 }
+
+export const ASSISTANT_CONVERSATION_CLASS = 'WorkspaceAssistantConversation'
+export const ASSISTANT_CONVERSATION_BINDING = 'ASSISTANT_CONVERSATIONS'

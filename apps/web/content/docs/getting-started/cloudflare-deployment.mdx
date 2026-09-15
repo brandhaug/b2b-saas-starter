@@ -1,6 +1,6 @@
 ---
 title: Cloudflare deployment
-description: Deploy the starter to Cloudflare Workers, D1, Queues, and Email Service using Alchemy.
+description: Deploy the starter to Cloudflare Workers, D1, Durable Objects, Queues, and Email Service using Alchemy.
 category: getting-started
 order: 20
 tags: [cloudflare, alchemy, deployment]
@@ -21,14 +21,33 @@ pnpm run deploy
 ```
 
 This invokes Alchemy for the `prod` stage. The stack contains three Workers,
-a shared D1 database, background queues, and rate-limit bindings. Configured
+a shared D1 database, a SQLite Durable Object namespace for private Assistant Conversations, background queues, and rate-limit bindings. Configured
 providers add resources such as the email binding and workspace-export bucket.
+The web Worker exports the conversation host; API and background bindings address that same host within the stage. D1 stores directory metadata and quotas, while each conversation object stores its transcript and replay.
+
 See [optional providers](/docs/getting-started/optional-providers).
+
+## Assistant bindings and providers
+
+`ASSISTANT_CONVERSATIONS` is a SQLite Durable Object binding, declared by Alchemy
+with its class migration. Keep the named host export in the built web Worker and
+point API/background cross-Worker bindings at that stage's web script. Generate
+Wrangler declarations from infrastructure sources; do not edit generated bindings.
+
+Conversation storage works with local persisted D1 and Durable Object state.
+Remote model credentials are optional: browsing and management work without them,
+while new generation refuses until a provider is configured. Member REST access
+also needs the separate assistant OAuth audience. See
+[Private Assistant Conversations](/docs/capability-interfaces/assistant-conversations).
+
+After deploying an isolated stage, verify disconnect/reconnect, deployment during
+an answer, explicit Retry and provider cancellation. Local tests and bundle checks
+are separate from those deployment and provider checks.
 
 ## Pull-request previews
 
 The `Preview` workflow deploys same-repository pull requests to `pr-<number>`,
-with a separate database, queues, and Workers. It migrates and seeds the database
+with a separate database, conversation object namespace, queues, and Workers. It migrates and seeds the database
 and updates a pull-request comment with the URLs. Closing the pull request
 destroys its stage.
 

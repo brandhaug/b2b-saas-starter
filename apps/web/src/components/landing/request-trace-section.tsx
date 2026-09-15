@@ -1,6 +1,6 @@
 import { type WorkspaceOverviewProjection } from '@b2b-saas-starter/capabilities/workspace-projections'
 import { seedWorkspaceRecord } from '@b2b-saas-starter/capabilities/governance/workspace-identity.seed'
-import { ChevronDownIcon } from 'lucide-react'
+import { ArrowRightIcon, ChevronDownIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import {
   ArchitectureSchematic,
@@ -16,57 +16,31 @@ import { DEMO_WORKSPACE_SLUG } from '@/lib/demo-workspace'
 import { DEPLOY_COMMAND } from '@/lib/toolchain'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
-/**
- * Direction A of the landing redesign: one narrative spine that follows a
- * single request end to end. Each stage quotes real code from this
- * repository (path in the panel caption), and the sticky schematic in the
- * rail lights the node under discussion as the reader scrolls — the map and
- * the prose stay in lockstep. The highlighting is a color-state change, not
- * an entrance: every stage and the whole schematic are visible without it,
- * and `prefers-reduced-motion` only drops the color transition, never the
- * state.
- */
-
-const STAGE_IDS = [
-  'request',
-  'contract',
-  'capability',
-  'runtime'
-] satisfies ReadonlyArray<'request' | 'contract' | 'capability' | 'runtime'>
-type StageId = (typeof STAGE_IDS)[number]
-
-const STAGE_ID_SET: ReadonlySet<string> = new Set(STAGE_IDS)
+const STAGE_NODES = {
+  request: ['curl'],
+  contract: ['api'],
+  capability: ['web', 'api', 'capabilities'],
+  runtime: ['web', 'api', 'background', 'd1', 'durable-objects', 'queues', 'email']
+} satisfies Record<string, ReadonlyArray<SchematicNode>>
+type StageId = keyof typeof STAGE_NODES
 
 function isStageId(value: string): value is StageId {
-  return STAGE_ID_SET.has(value)
+  return Object.hasOwn(STAGE_NODES, value)
 }
 
-/** The node(s) each stage lights in the schematic rail. */
-function nodesForStage(stage: StageId): ReadonlyArray<SchematicNode> {
-  switch (stage) {
-    case 'request': {
-      return ['curl']
-    }
-    case 'contract': {
-      return ['api']
-    }
-    case 'capability': {
-      return ['capabilities']
-    }
-    case 'runtime': {
-      return ['d1', 'queues', 'email']
-    }
-  }
+function traceStages(): ReadonlyArray<{
+  readonly id: StageId
+  readonly label: string
+}> {
+  return [
+    { id: 'request', label: m.showcase_trace_request() },
+    { id: 'contract', label: m.showcase_trace_contract() },
+    { id: 'capability', label: m.showcase_trace_capability() },
+    { id: 'runtime', label: m.showcase_trace_runtime() }
+  ]
 }
 
-/**
- * The request whose trace the section follows. The response body is built
- * from the live payload the route loader read — the same read that filled
- * the numbers strip — trimmed to the workspace object plus the first
- * notification, verbatim and pretty-printed, with a plain-text count of
- * everything elided (the count is the array's real length; the untruncated
- * bytes are what the demo dashboard renders).
- */
+// The response comes from the same projection as the showcase counts.
 function responseSnippet(overview: WorkspaceOverviewProjection): string {
   const [first] = overview.notifications
   const elided = overview.notifications.length - (first === undefined ? 0 : 1)
@@ -85,257 +59,234 @@ function responseSnippet(overview: WorkspaceOverviewProjection): string {
 
 const REQUEST_SNIPPET = `curl -H "Authorization: Bearer $API_TOKEN" \\\n  https://api.example.com/workspaces/${DEMO_WORKSPACE_SLUG}/overview`
 
-/** The runtime the trace lands on, one row per lit schematic node. */
-function runtimeRows(): ReadonlyArray<{
-  readonly node: string
-  readonly holds: string
-  readonly declared: string
-}> {
+function runtimeRows() {
   return [
     {
-      node: 'D1',
-      holds: m.public_request_d1_holds(),
-      declared: 'packages/db'
+      node: 'Workers',
+      holds: m.showcase_workers_role(),
+      declared: 'apps/web · apps/api · apps/background'
+    },
+    { node: 'D1', holds: m.public_request_d1_holds(), declared: 'packages/db' },
+    {
+      node: 'Durable Objects',
+      holds: m.public_request_do_holds(),
+      declared: 'apps/web · WorkspaceAssistantConversation'
     },
     {
       node: 'Queues',
       holds: m.public_request_queues_holds(),
       declared: 'apps/background'
     },
-    {
-      node: 'Email',
-      holds: m.public_request_email_holds(),
-      declared: 'packages/email'
-    }
+    { node: 'Email', holds: m.public_request_email_holds(), declared: 'packages/email' }
   ]
 }
 
 function RequestTraceSection({
   overview
 }: {
-  /** The live `overview` payload; `null` prints the fixture's shape only. */
   readonly overview: WorkspaceOverviewProjection | null
 }) {
   const sectionRef = useRef<HTMLElement | null>(null)
   const [activeStage, setActiveStage] = useState<StageId>('request')
 
-  // Which stage is "current" is decided by a focus band around the top third
-  // of the viewport; the rail lights that stage's node. A keyboard reader
-  // gets the same mapping through focus: landing in a stage's panel makes it
-  // current without a scroll.
   useEffect(() => {
     const root = sectionRef.current
     if (root === null || !('IntersectionObserver' in window)) {
       return
     }
-    const articles = [...root.querySelectorAll<HTMLElement>('[data-stage]')]
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          if (!entry.isIntersecting) {
-            continue
-          }
           const stage = entry.target.getAttribute('data-stage')
-          if (stage !== null && isStageId(stage)) {
+          if (entry.isIntersecting && stage !== null && isStageId(stage)) {
             setActiveStage(stage)
           }
         }
       },
       { rootMargin: '-25% 0px -65% 0px' }
     )
-    for (const article of articles) {
+    for (const article of root.querySelectorAll('[data-stage]')) {
       observer.observe(article)
     }
     return () => observer.disconnect()
   }, [])
 
-  const activeNodes = nodesForStage(activeStage)
-
   return (
-    <section ref={sectionRef} className="band-deep bg-background text-foreground">
-      <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:py-24">
-        <div className="max-w-2xl">
-          <h2 className="font-display text-balance text-3xl font-semibold sm:text-4xl">
+    <section
+      ref={sectionRef}
+      aria-labelledby="request-trace-heading"
+      className="border-t border-border"
+      onFocusCapture={(event) => {
+        if (!(event.target instanceof Element)) {
+          return
+        }
+        const stage = event.target.closest('[data-stage]')?.getAttribute('data-stage')
+        if (stage !== null && stage !== undefined && isStageId(stage)) {
+          setActiveStage(stage)
+        }
+      }}
+    >
+      <div className="mx-auto max-w-7xl px-5 py-16 sm:px-6 sm:py-24">
+        <div className="max-w-3xl">
+          <h2
+            id="request-trace-heading"
+            className="font-display text-4xl font-medium leading-display sm:text-5xl"
+          >
             {m.public_request_heading()}
           </h2>
-          <p className="mt-4 text-pretty leading-relaxed text-muted-foreground">
+          <p className="mt-5 max-w-2xl text-base leading-relaxed text-muted-foreground">
             {m.public_request_description()}
           </p>
         </div>
 
-        {/* No aria-label here: the schematic SVG already sets the same name
-            and a <title>, so labelling the figure too announces it twice. */}
-        <figure className="mx-auto mt-10 max-w-md lg:hidden">
-          <ArchitectureSchematic activeNodes={activeNodes} />
-        </figure>
-        <dl className="sr-only">
-          <div>
-            <dt>{m.public_request_clients()}</dt>
-            <dd>{m.public_request_clients_detail()}</dd>
+        <div className="mt-12 grid items-start gap-12 lg:mt-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:gap-16">
+          <div className="lg:sticky lg:top-24">
+            <nav aria-label={m.showcase_trace_navigation()}>
+              <ol className="grid grid-cols-2 gap-x-4 lg:grid-cols-1">
+                {traceStages().map((stage, index) => (
+                  <li key={stage.id}>
+                    <a
+                      href={`#request-${stage.id}`}
+                      aria-current={activeStage === stage.id ? 'step' : undefined}
+                      onClick={() => setActiveStage(stage.id)}
+                      className="flex min-h-11 items-center gap-3 border-b border-border py-3 text-sm text-muted-foreground hover:text-foreground aria-current:font-medium aria-current:text-signal"
+                    >
+                      <span className="font-mono text-xs">{index + 1}</span>
+                      {stage.label}
+                      {activeStage === stage.id ? (
+                        <ArrowRightIcon aria-hidden className="ml-auto size-4" />
+                      ) : null}
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            </nav>
+            <figure className="mt-6 hidden lg:block">
+              <ArchitectureSchematic activeNodes={STAGE_NODES[activeStage]} />
+            </figure>
+            <details className="mt-4 lg:hidden">
+              <summary className="min-h-11 cursor-pointer py-3 text-sm underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-ring">
+                {m.showcase_trace_view_architecture()}
+              </summary>
+              <figure className="mx-auto max-w-sm">
+                <ArchitectureSchematic activeNodes={STAGE_NODES[activeStage]} />
+              </figure>
+            </details>
           </div>
-          <div>
-            <dt>{m.public_request_workers()}</dt>
-            <dd>{m.public_request_workers_detail()}</dd>
-          </div>
-          <div>
-            <dt>{m.public_request_shared_layer()}</dt>
-            <dd>{m.public_request_shared_detail()}</dd>
-          </div>
-          <div>
-            <dt>{m.public_request_infrastructure()}</dt>
-            <dd>{m.public_request_infrastructure_detail()}</dd>
-          </div>
-        </dl>
 
-        <div className="mt-10 grid gap-x-16 gap-y-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,25rem)]">
-          <div
-            className="min-w-0"
-            onFocusCapture={(event) => {
-              if (!(event.target instanceof Element)) {
-                return
-              }
-              const stage = event.target
-                .closest('[data-stage]')
-                ?.getAttribute('data-stage')
-              if (stage !== null && stage !== undefined && isStageId(stage)) {
-                setActiveStage(stage)
-              }
-            }}
-          >
-            <article data-stage="request" className="pt-2">
-              <StageMarker node="HTTP client" />
-              <h3 className="mt-3 text-xl font-semibold text-balance">
+          <div className="min-w-0">
+            <article id="request-request" data-stage="request" className="scroll-mt-24">
+              <h3 className="text-2xl font-medium leading-snug sm:text-3xl">
                 {m.public_request_stage_request()}
               </h3>
-              <p className="mt-3 max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">
+              <p className="mt-2 text-2xl leading-snug text-muted-foreground sm:text-3xl">
                 {m.public_request_stage_request_description()}
               </p>
-              <div className="mt-6">
+              <div className="mt-8">
                 <SnippetPanel
                   label="REST · GET /workspaces/:slug/overview"
                   code={`${REQUEST_SNIPPET}\n\n${responseSnippet(overview ?? FALLBACK_OVERVIEW)}`}
                 />
               </div>
+              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                {overview === null
+                  ? m.showcase_trace_fixture_note()
+                  : m.showcase_trace_response_note()}
+              </p>
             </article>
 
-            <details className="group mt-12 border-y border-border">
-              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-sm font-medium text-foreground outline-none marker:hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background [&::-webkit-details-marker]:hidden">
-                <span>{m.public_request_details_summary()}</span>
-                <ChevronDownIcon
-                  aria-hidden
-                  className="size-4 shrink-0 transition-transform motion-reduce:transition-none group-open:rotate-180"
+            <article
+              id="request-contract"
+              data-stage="contract"
+              className="mt-16 scroll-mt-24 border-t border-border pt-12 sm:mt-24 sm:pt-16"
+            >
+              <h3 className="text-2xl font-medium leading-snug sm:text-3xl">
+                {m.public_request_stage_contract()}
+              </h3>
+              <p className="mt-2 text-2xl leading-snug text-muted-foreground sm:text-3xl">
+                {m.public_request_stage_contract_description()}
+              </p>
+              <div className="mt-8">
+                <SnippetPanel
+                  label={m.shell_trace_workspace_group()}
+                  path={CONTRACT_SNIPPET.path}
+                  code={CONTRACT_SNIPPET.code}
                 />
-              </summary>
-              <div className="pb-2">
-                <article data-stage="contract" className="border-t border-border pt-10">
-                  <StageMarker node="apps/api" />
-                  <h3 className="mt-3 text-xl font-semibold text-balance">
-                    {m.public_request_stage_contract()}
-                  </h3>
-                  <p className="mt-3 max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">
-                    {m.public_request_stage_contract_description()}
-                  </p>
-                  <div className="mt-6">
-                    <SnippetPanel
-                      label={m.shell_trace_workspace_group()}
-                      path={CONTRACT_SNIPPET.path}
-                      code={CONTRACT_SNIPPET.code}
-                    />
-                  </div>
-                </article>
-
-                <article
-                  data-stage="capability"
-                  className="mt-16 border-t border-border pt-10 lg:mt-24"
-                >
-                  <StageMarker node="packages/capabilities" />
-                  <h3 className="mt-3 text-xl font-semibold text-balance">
-                    {m.public_request_stage_capability()}
-                  </h3>
-                  <p className="mt-3 max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">
-                    {m.public_request_stage_capability_description()}
-                  </p>
-                  <div className="mt-6">
-                    <SnippetPanel
-                      label={m.shell_trace_overview()}
-                      path={CAPABILITY_SNIPPET.path}
-                      code={CAPABILITY_SNIPPET.code}
-                    />
-                  </div>
-                  {/* Three call sites, each cut to its deciding lines: the same
-                  effect serving a server fn, a REST handler, and an MCP
-                  tool. Stacked full-width of the column — the widest line
-                  (76 chars) fits unscrolled, so no panel needs panning. */}
-                  <div className="mt-4 grid items-start gap-4">
-                    {CALL_SITES.map((site) => (
-                      <SnippetPanel
-                        key={site.label}
-                        label={site.label}
-                        path={site.path}
-                        code={site.code}
-                      />
-                    ))}
-                  </div>
-                </article>
-
-                <article
-                  data-stage="runtime"
-                  className="mt-16 border-t border-border pt-10 lg:mt-24"
-                >
-                  <StageMarker node="D1 · Queues · Email" />
-                  <h3 className="mt-3 text-xl font-semibold text-balance">
-                    {m.public_request_stage_runtime()}
-                  </h3>
-                  <p className="mt-3 max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">
-                    {m.public_request_stage_runtime_description()}{' '}
-                    <code className="font-mono text-xs text-signal-ink">
-                      {DEPLOY_COMMAND}
-                    </code>
-                    .
-                  </p>
-                  <table className="mt-6 w-full border-collapse text-left">
-                    <caption className="sr-only">{m.public_request_caption()}</caption>
-                    <thead>
-                      <tr className="border-b border-border font-mono text-2xs text-muted-foreground">
-                        <th scope="col" className="py-2 pr-4 font-medium">
-                          {m.public_request_binding()}
-                        </th>
-                        <th scope="col" className="py-2 pr-4 font-medium">
-                          {m.public_request_holds()}
-                        </th>
-                        <th scope="col" className="py-2 font-medium">
-                          {m.public_request_declared_in()}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {runtimeRows().map((row) => (
-                        <tr key={row.node} className="border-b border-border">
-                          <th
-                            scope="row"
-                            className="py-3 pr-4 align-baseline font-mono text-sm font-medium"
-                          >
-                            {row.node}
-                          </th>
-                          <td className="py-3 pr-4 align-baseline text-sm text-muted-foreground">
-                            {row.holds}
-                          </td>
-                          <td className="py-3 align-baseline font-mono text-xs text-muted-foreground">
-                            {row.declared}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </article>
               </div>
-            </details>
-          </div>
+            </article>
 
-          <div className="hidden lg:block">
-            <div className="sticky top-24">
-              <ArchitectureSchematic activeNodes={activeNodes} />
-            </div>
+            <article
+              id="request-capability"
+              data-stage="capability"
+              className="mt-16 scroll-mt-24 border-t border-border pt-12 sm:mt-24 sm:pt-16"
+            >
+              <h3 className="text-2xl font-medium leading-snug sm:text-3xl">
+                {m.public_request_stage_capability()}
+              </h3>
+              <p className="mt-2 text-2xl leading-snug text-muted-foreground sm:text-3xl">
+                {m.public_request_stage_capability_description()}
+              </p>
+              <div className="mt-8">
+                <SnippetPanel
+                  label={m.shell_trace_overview()}
+                  path={CAPABILITY_SNIPPET.path}
+                  code={CAPABILITY_SNIPPET.code}
+                />
+              </div>
+              <details className="group mt-4 border-b border-border">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 py-4 text-sm font-medium marker:hidden focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+                  {m.showcase_trace_compare_callers()}
+                  <ChevronDownIcon
+                    aria-hidden
+                    className="size-4 shrink-0 transition-transform motion-reduce:transition-none group-open:rotate-180"
+                  />
+                </summary>
+                <div className="grid gap-4 pb-6">
+                  {CALL_SITES.map((site) => (
+                    <SnippetPanel
+                      key={site.label}
+                      label={site.label}
+                      path={site.path}
+                      code={site.code}
+                    />
+                  ))}
+                </div>
+              </details>
+            </article>
+
+            <article
+              id="request-runtime"
+              data-stage="runtime"
+              className="mt-16 scroll-mt-24 border-t border-border pt-12 sm:mt-24 sm:pt-16"
+            >
+              <h3 className="text-2xl font-medium leading-snug sm:text-3xl">
+                {m.public_request_stage_runtime()}
+              </h3>
+              <p className="mt-2 text-2xl leading-snug text-muted-foreground sm:text-3xl">
+                {m.public_runtime_description()}
+              </p>
+              <dl className="mt-8 border-t border-border">
+                {runtimeRows().map((row) => (
+                  <div
+                    key={row.node}
+                    className="grid gap-2 border-b border-border py-5 sm:grid-cols-[6rem_minmax(0,1fr)] sm:gap-6"
+                  >
+                    <dt className="font-mono text-sm font-medium text-signal">
+                      {row.node}
+                    </dt>
+                    <dd>
+                      <p className="text-sm leading-relaxed">{row.holds}</p>
+                      <p className="mt-2 font-mono text-xs text-muted-foreground">
+                        {row.declared}
+                      </p>
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+              <p className="mt-5 text-sm text-muted-foreground">
+                <code className="font-mono text-foreground">{DEPLOY_COMMAND}</code>
+              </p>
+            </article>
           </div>
         </div>
       </div>
@@ -343,15 +294,6 @@ function RequestTraceSection({
   )
 }
 
-function StageMarker({ node }: { readonly node: string }) {
-  return <p className="font-mono text-2xs text-signal-ink">{node}</p>
-}
-
-/**
- * What the request snippet prints when the showcase read came back empty
- * (this deployment has no seed workspace): the seed fixture's own values, so
- * the panel shows the payload's shape without claiming live data.
- */
 const FALLBACK_OVERVIEW: WorkspaceOverviewProjection = {
   workspace: seedWorkspaceRecord,
   notifications: []

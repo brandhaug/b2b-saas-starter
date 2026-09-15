@@ -6,7 +6,7 @@ External clients ── REST / MCP ───────────> apps/api
 Queues / cron ───────────────────────────> apps/background
                                               │
 All three Workers ──> packages/capabilities ────┤
-                                              └──> D1 / optional providers
+                                              └──> D1 / conversation Durable Objects / optional providers
 ```
 
 ## Components
@@ -15,7 +15,7 @@ All three Workers ──> packages/capabilities ────┤
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | [Web Worker](apps/web/AGENTS.md)                    | Public content, authenticated UI, server functions, and Better Auth endpoints. Calls capabilities in-process.                       |
 | [API Worker](apps/api/AGENTS.md)                    | REST, OpenAPI/Scalar reference, and stateful streamable-HTTP MCP. Both interfaces dispatch through the workspace operation catalog. |
-| [Background Worker](apps/background/AGENTS.md)      | Webhook delivery, workspace exports, billing reconciliation, and notification email.                                                |
+| [Background Worker](apps/background/AGENTS.md)      | Webhook delivery, workspace exports, billing reconciliation, notification email and fenced conversation cleanup.                    |
 | [Capabilities](packages/capabilities/AGENTS.md)     | Business use cases with Effect contracts and equivalent Seed/Live adapters.                                                         |
 | [Billing](packages/billing/AGENTS.md)               | Stripe projections, checkout recovery, subscription lifecycle, and resource entitlements.                                           |
 | [Database](packages/db/AGENTS.md)                   | Drizzle schema and migrations for shared D1 persistence.                                                                            |
@@ -55,6 +55,33 @@ while dispatch eligibility considers enabled endpoints. Lifecycle and audit/outb
 commits do not wait for notice delivery. See [billing decisions](docs/adr/0076-billing-lifecycle-and-entitlement-decisions.md)
 and [operator procedures](docs/billing-operator-runbook.md).
 
+## Private Assistant Conversations
+
+A creator keeps multiple private conversations in an immutable Workspace. The web
+Worker hosts one SQLite Durable Object per conversation using AIChatAgent for
+saved messages and replay. Web capabilities call it in-process through the host
+binding; member-OAuth REST and background cleanup use the same stage's host.
+Effect owns context preparation, streaming model execution and typed interruption.
+
+D1 holds the directory, immutable identities, monotonic evidence permissions and
+policy revision, export manifests, deletion fences and shared Member reservations.
+The object owns accepted input, questions, attempts, idempotency and transcript.
+Acceptance reserves shared quota, saves input, then commits before provider work.
+One answer runs per conversation; duplicate deliveries join its accepted attempt.
+Provider or process interruption requires explicit Retry, with saved partial output.
+The latest displayed, unflushed tail may be lost. Reconnect never invokes a provider.
+
+Current ownership, membership, permissions, assurance, consent and suspension apply
+to every snapshot and stream batch. Policy revisions prevent older authorization
+from disclosing newer restricted evidence. Personal archives include currently
+authorized conversations and revalidate their manifests at download. Workspace
+exports exclude private transcripts. Deletion fences block access before cleanup;
+immutable addresses survive parent removal so the background worker can retry.
+See [the conversation guide](apps/web/content/docs/capability-interfaces/assistant-conversations.mdx).
+
+Local contract tests cover application persistence, admission and lifecycle.
+Deployed recovery and real-provider streaming/cancellation require separate evidence.
+
 ## Assistant tasks
 
 The assistant supports saved webhook investigations alongside text questions.
@@ -79,14 +106,15 @@ without a model provider; replay dispatch requires the webhook queue binding.
 
 ## Data stores
 
-- D1 holds application and authentication state for every Workspace. Restores affect the whole service.
+- D1 holds application and authentication state, conversation directory metadata, quota reservations and deletion fences. Restores affect the whole service.
+- Conversation Durable Objects hold private transcripts and response replay. D1 SQL backups do not include that storage; restored objects still require current directory authority and deletion evidence.
 - Cloudflare Queues carry webhook, export, billing, and instant-notification work. Webhooks and billing have dead-letter consumers. Durable application records retain outcomes and support recovery.
 - Optional R2 stores gzipped JSON workspace exports with seven-day retention. There is no general file-upload workflow.
 - Checked-in MDX supplies public articles and navigation metadata. LLM summaries are static public files maintained alongside the articles.
 
 ## Deployment & Infrastructure
 
-[alchemy.run.ts](alchemy.run.ts) provisions Workers, D1, queues, optional providers, and bindings. [infra/bindings.ts](infra/bindings.ts) owns resource names, rate-limit specifications, and cron schedules. Generated Wrangler configs support local development and database commands; change the source specifications and run `pnpm run infra:wrangler`.
+[alchemy.run.ts](alchemy.run.ts) provisions Workers, D1, SQLite conversation Durable Objects, queues, optional providers, and bindings. [infra/bindings.ts](infra/bindings.ts) owns resource names, rate-limit specifications, and cron schedules. Generated Wrangler configs support local development and database commands; change the source specifications and run `pnpm run infra:wrangler`.
 
 Each stage has isolated resources. `pr-<number>` stages disable optional providers and use public demo credentials; they must contain only synthetic data. The [preview workflow](.github/workflows/preview.yml) deploys and removes them with the PR lifecycle. Production deploys after CI/E2E on `master`, or through manual dispatch. See [deployment setup](docs/deploying.md).
 
@@ -118,7 +146,7 @@ SSO connections belong to Workspaces. The app enforces enabled/required status a
 
 ### API tokens and MCP OAuth
 
-API Tokens belong to one Workspace. Only token hashes are stored; verification checks revocation, expiry, and resource entitlements. Current REST routes are token-only. The [accepted persistent assistant design](https://github.com/brandhaug/b2b-saas-starter/issues/444) will add member OAuth for private conversations using a separate audience and scopes; workspace API tokens will have no access to that content.
+API Tokens belong to one Workspace. Only token hashes are stored; verification checks revocation, expiry, and resource entitlements. Workspace REST routes retain token guards. Private Assistant Conversation REST uses member OAuth with a distinct audience and read/write scopes. Workspace API Tokens have no access to that content, including tokens attributed to its creator.
 
 MCP also accepts OAuth access tokens issued by the web Worker. The API verifies issuer and audience, re-resolves membership, and checks the immutable Workspace ID and current consent before reads, resources, and writes. Consent binds a client to one Workspace. Both credentials use the same operation catalog and permission checks. [Interactive isolation coverage](docs/security-workspace-isolation.md) records tested operations and evidence limits. See [API tokens](docs/adr/0026-workspace-api-tokens.md) and [MCP OAuth](docs/adr/0068-oauth-for-interactive-mcp-clients-beside-api-tokens.md).
 
@@ -160,4 +188,4 @@ Alchemy wraps secrets in `Redacted`. Production auth requires a secure `BETTER_A
 
 ## Explicit Non-Goals
 
-No PWA/offline service worker, general uploads, or general realtime platform. Durable Objects and realtime transport require a concrete Starter coordination use case. The [accepted conversation design](docs/adr/0009-no-durable-objects-without-coordination-need.md) provides that use case for the persistent assistant; implementation and deployed validation are pending.
+No PWA/offline service worker, general uploads, or general realtime platform. Durable Objects and realtime transport require a concrete Starter coordination use case. The [accepted conversation design](docs/adr/0009-no-durable-objects-without-coordination-need.md) provides that use case for the persistent assistant; the repository implements this boundary, with deployed and real-provider validation tracked separately.

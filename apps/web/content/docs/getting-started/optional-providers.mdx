@@ -18,19 +18,19 @@ Wrangler development, and the deployment shell environment for Alchemy.
 `alchemy.run.ts` forwards declared variables and provisions the required bindings.
 Restart development processes after changing configuration.
 
-| Provider                    | Configuration                                                                                               | Without configuration                                      |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| Cloudflare Email            | `CLOUDFLARE_EMAIL_FROM` plus an `EMAIL` binding                                                             | Log dispatcher                                             |
-| Turnstile                   | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`                                                                | Sign-up has no challenge                                   |
-| GitHub sign-in              | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`                                                                  | No GitHub button                                           |
-| Google sign-in              | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                                                                  | No Google button                                           |
-| Workers AI                  | `WORKERS_AI_ENABLED=true` plus an `AI` binding                                                              | Tries the next assistant provider                          |
-| OpenAI-compatible assistant | `OPENAI_API_KEY`; optional `OPENAI_BASE_URL`, `OPENAI_MODEL_ID`                                             | Mock assistant                                             |
-| Workspace export            | `WORKSPACE_EXPORTS_ENABLED=true`, `API_PUBLIC_URL`                                                          | D1-backed export actions unavailable                       |
-| Stripe                      | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_TEAM`; optional `STRIPE_PRICE_ID_ENTERPRISE` | Plan display and local entitlement checks remain available |
-| Sentry                      | `SENTRY_DSN`                                                                                                | No error export to Sentry                                  |
-| PostHog                     | `POSTHOG_KEY`; optional `POSTHOG_HOST`                                                                      | No PostHog capture                                         |
-| OTLP                        | `OTEL_EXPORTER_OTLP_ENDPOINT`                                                                               | No OTLP export                                             |
+| Provider                    | Configuration                                                                                               | Without configuration                                                                         |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Cloudflare Email            | `CLOUDFLARE_EMAIL_FROM` plus an `EMAIL` binding                                                             | Log dispatcher                                                                                |
+| Turnstile                   | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`                                                                | Sign-up has no challenge                                                                      |
+| GitHub sign-in              | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`                                                                  | No GitHub button                                                                              |
+| Google sign-in              | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                                                                  | No Google button                                                                              |
+| Workers AI                  | `WORKERS_AI_ENABLED=true` plus an `AI` binding                                                              | Selects configured OpenAI-compatible provider, otherwise persistent generation is unavailable |
+| OpenAI-compatible assistant | `OPENAI_API_KEY`; optional `OPENAI_BASE_URL`, `OPENAI_MODEL_ID`                                             | Persistent generation unavailable; stateless endpoint keeps its existing mock response        |
+| Workspace export            | `WORKSPACE_EXPORTS_ENABLED=true`, `API_PUBLIC_URL`                                                          | D1-backed export actions unavailable                                                          |
+| Stripe                      | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_TEAM`; optional `STRIPE_PRICE_ID_ENTERPRISE` | Plan display and local entitlement checks remain available                                    |
+| Sentry                      | `SENTRY_DSN`                                                                                                | No error export to Sentry                                                                     |
+| PostHog                     | `POSTHOG_KEY`; optional `POSTHOG_HOST`                                                                      | No PostHog capture                                                                            |
+| OTLP                        | `OTEL_EXPORTER_OTLP_ENDPOINT`                                                                               | No OTLP export                                                                                |
 
 ## Verify activation
 
@@ -41,11 +41,11 @@ Restart development processes after changing configuration.
 - Billing: the billing page offers configured provider actions to an owner or admin. See [Stripe billing](/docs/integrations/stripe-billing) for setup and recovery.
 - Observability: see [Sentry and PostHog](/docs/integrations/sentry-posthog) for server and browser behavior.
 
-## Assistant provider order
+## Assistant provider selection
 
-`selectAssistantLayer` in `packages/ai` prefers enabled Workers AI, then an
-OpenAI-compatible provider, then the mock. The web assistant calls the capability
-through a server function; machine clients use the API Worker:
+`packages/ai` selects enabled Workers AI first, then a configured OpenAI-compatible provider. A configured provider failure does not switch providers. Persistent conversations refuse new generation when neither is configured, while browsing and management remain available.
+
+The stateless `selectAssistantLayer` retains its existing explicit fallback behavior. This API Token request makes one unsaved answer:
 
 ```bash
 curl -s https://<api-host>/assistant/answer \
@@ -56,6 +56,16 @@ curl -s https://<api-host>/assistant/answer \
 
 A configured response reports `provider: "workers-ai"` or
 `provider: "openai-compatible"` and `assistantConfigured: true`.
+
+Persistent model limits use `ASSISTANT_INPUT_TOKENS`, `ASSISTANT_OUTPUT_TOKENS`,
+`ASSISTANT_PROVIDER_CONTEXT_TOKENS` and `ASSISTANT_PROVIDER_OUTPUT_TOKENS`.
+Admission uses `ASSISTANT_DEADLINE_MS`, `ASSISTANT_ACTIVE_LIMIT` and
+`ASSISTANT_RATE_LIMIT`. Set provider ceilings to the selected model's actual
+limits. The lower application/provider bound applies, with room reserved for the
+answer. Invalid configuration refuses generation.
+
+For saved history and member-authorized REST, see
+[Private Assistant Conversations](/docs/capability-interfaces/assistant-conversations).
 
 ## Add a variable
 

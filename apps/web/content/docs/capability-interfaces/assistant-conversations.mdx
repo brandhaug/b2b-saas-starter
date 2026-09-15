@@ -1,0 +1,141 @@
+---
+title: Private Assistant Conversations
+description: Saved questions, explicit retries, private access, and member-authorized REST observation.
+category: capability-interfaces
+order: 35
+tags: [assistant, conversations, rest, oauth]
+---
+
+An Assistant Conversation is your private saved history within a Workspace.
+Create separate conversations, return through their stable URLs, and ask
+follow-up questions. The first question supplies the title without another
+model request. Other members, Workspace owners and System Admins receive no
+implicit access to your conversations.
+
+## Leaving, returning and Retry
+
+An accepted answer runs on the server. Closing the panel, navigating away or
+closing every browser tab does not stop it. Reopening loads saved history and
+catches up with the active answer. Another tab signed in as the same creator
+observes the same attempt.
+
+Attempts show Accepted, Running, Completed, Interrupted or Stopped. Provider
+failure, a deadline or process interruption produces Interrupted. Saved partial
+text remains visible, with an explicit **Retry** action. The most recent displayed
+text may not yet have reached storage and can be lost on process failure.
+Reconnecting never starts another model call.
+
+**Stop** preserves saved partial text and records Stopped. If completion already
+committed, the result stays Completed. Cancellation propagates to the provider
+where supported; Stop cannot guarantee that provider billing ends immediately.
+Retry starts a new attempt for the latest Interrupted or Stopped question and
+keeps earlier attempts grouped beneath that question. It does not duplicate the
+question or join partial answers together. Earlier completed questions cannot
+be edited or regenerated into branches.
+
+## Context and limits
+
+The model sees system instructions, authorized completed exchanges and the
+current question. Unanswered questions and incomplete attempts stay in saved
+history but do not enter later model context. Oldest completed exchanges may be
+omitted to fit the budget, with an omission notice; full history remains saved.
+The current question and evidence are rejected if they cannot fit.
+
+| Limit                  | Initial ceiling                                       |
+| ---------------------- | ----------------------------------------------------- |
+| Question               | 2,000 characters                                      |
+| Task evidence          | 6,000 characters                                      |
+| Answer duration        | 10 minutes                                            |
+| Input context          | 64,000 tokens                                         |
+| Answer output          | 16,000 tokens                                         |
+| Active answers         | 3 per Member within the immutable Workspace           |
+| Newly accepted answers | 20 per rolling minute per Member within the Workspace |
+
+Application and provider ceilings both apply, with output capacity reserved in
+the provider context window. Output-limit termination is Interrupted. Each
+explicit Retry consumes one generation allowance. Duplicate sends, history
+reads and reconnects consume no new allowance. A different send while the
+conversation is busy receives a conflict and is not queued.
+
+Assistant Task references identify existing investigations and observations.
+Fresh evidence is resolved again on send and Retry. Missing tasks supply no fresh
+evidence; earlier observations remain historical. A conversation containing
+restricted evidence requires those permissions for its entire history and export.
+Tasks keep their existing approval and replay controls. Deleting a conversation
+does not delete or execute referenced tasks.
+
+## Access, deletion and exports
+
+Every operation checks current identity, membership, ownership, permissions,
+suspension and required authentication assurance. Live output checks current
+authority for each outgoing batch, and idle subscriptions revalidate at least
+every 15 seconds. Access-check failures interrupt generation and close disclosure.
+Rejoining a Workspace restores authorized history access but never resumes an
+interrupted answer.
+
+History stays until you delete the conversation, your account or the Workspace.
+Losing membership retains the history while denying access. The account deletion
+operation can delete your retained conversations without revealing Workspace
+evidence. Deletion hides a conversation before asynchronous storage cleanup.
+
+Your personal export includes currently authorized conversations, all saved
+attempts and task references. Workspace exports exclude private conversations.
+Cached personal archives are checked again at download and invalidated by access
+loss, policy changes or deletion, including within their 24-hour lifetime.
+Previously downloaded files cannot be recalled.
+
+## REST credentials
+
+Use the existing browser authorization-code flow with PKCE and select the
+Workspace, assistant resource and scopes in consent. Configure
+`ASSISTANT_RESOURCE_URL` as the assistant audience and `MCP_OAUTH_ISSUER` as the
+web issuer. Use `assistant:read` for reads and observation, and `assistant:write`
+for creation, send, Retry, Stop and deletion. Current permissions still apply.
+
+Pass the bearer token in the `Authorization` header. Workspace API Tokens are
+refused, including those created by the conversation owner. MCP-audience tokens
+are refused here; assistant-audience tokens are refused on MCP. Browser cookies
+are accepted only at the web Worker's same-origin boundary.
+
+| Operation | Route                                                         |
+| --------- | ------------------------------------------------------------- |
+| Create    | `POST /assistant/conversations` with `workspaceSlug`          |
+| List      | `GET /assistant/conversations?workspaceSlug=...&cursor=...`   |
+| Read      | `GET /assistant/conversations/:id`                            |
+| History   | `GET /assistant/conversations/:id/messages?cursor=...`        |
+| Send      | `POST /assistant/conversations/:id/messages`                  |
+| Retry     | `POST /assistant/conversations/:id/attempts/:attemptId/retry` |
+| Stop      | `POST /assistant/conversations/:id/attempts/:attemptId/stop`  |
+| Observe   | `GET /assistant/conversations/:id/attempts/:attemptId/events` |
+| Delete    | `DELETE /assistant/conversations/:id`                         |
+
+Create returns 201. Send and Retry return durable attempt identity with 202;
+delete returns 202 once its fence is durable. A send payload carries `question`,
+an optional `taskId` and a client-generated `idempotencyKey`. Retry uses a new key.
+The same key and canonical input return the existing attempt; changing the input
+under that key returns 409.
+
+Observation uses server-sent events. Reconnect with `Last-Event-ID`; an unavailable
+replay cursor receives saved state rather than regenerated text. When an
+observation credential expires, obtain a fresh credential and reconnect. Natural
+expiry closes that observer without canceling the accepted answer; explicit
+session or consent revocation interrupts affected runs.
+
+Errors use 400 for invalid or over-budget input, 401 for invalid credentials,
+403 for a scope or policy refusal, an opaque 404 for inaccessible conversations,
+409 for conflicts, 429 with retry guidance for limits, and 503 for unavailable
+configuration or storage. See the generated [REST reference](/docs/capability-interfaces/rest-api)
+for payload schemas. The existing stateless `/assistant/answer` endpoint retains
+its API Token behavior and does not read or write conversation history.
+
+## Provider setup and validation
+
+With no configured provider, authorized browsing and management remain available;
+new generation returns an unavailable response without a mock answer or quota
+reservation. Configure Workers AI or an OpenAI-compatible provider through
+[optional providers](/docs/getting-started/optional-providers).
+
+The repository includes local persistence, quota, lifecycle and OAuth tests.
+A deployment still needs its own disconnect/reconnect, rollout and real-provider
+streaming/cancellation checks. Local synthetic output does not prove provider
+behavior or deployed recovery.

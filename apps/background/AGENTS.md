@@ -42,3 +42,5 @@ Read [delivery guidance](../../docs/agents/background-delivery.md) before changi
 - The fold sits outside `withTriggerScope`, so the wide event exits carrying the failure cause before it becomes a queue outcome. `onFailure: 'retry'` except the dead-letter entries, which bound it by attempt.
 
 - The hourly retention invocation owns scheduled cleanup, including webhook/email history. Keep its approval gate separate from the daily digest; see [retention](../../packages/capabilities/src/governance/retention.AGENTS.md).
+
+- The minute tick also retries explicit Assistant Conversation deletion and expires abandoned admission reservations. Its `assistant_cleanup` event contains counts only. This work is independent of retention-age approval because the creator or parent deletion already authorized it.

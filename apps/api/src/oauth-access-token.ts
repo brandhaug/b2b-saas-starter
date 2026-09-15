@@ -125,6 +125,11 @@ export function makeOAuthTokenVerifier(
             }),
           catch: (cause) => new Unauthorized({ message: rejectionReason(cause) })
         })
+        if (verified.payload.aud !== config.audience) {
+          return yield* Effect.fail(
+            new Unauthorized({ message: 'access_token_aud_mismatch' })
+          )
+        }
         const outcome = mcpAccessTokenPrincipal(verified.payload)
         if (!outcome.ok) {
           yield* Effect.annotateLogsScoped({ authReason: outcome.reason })

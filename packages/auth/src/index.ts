@@ -1,3 +1,4 @@
+import { assistantSessionDeleteHook } from './assistant-session-hooks.ts'
 import { passkey } from '@better-auth/passkey'
 import { accessControl, workspaceRoleAccess } from '@b2b-saas-starter/authz/client'
 import {
@@ -11,7 +12,7 @@ import { cimd } from '@better-auth/cimd'
 import { mcp } from '@better-auth/mcp'
 import { sso } from '@better-auth/sso'
 import { type DBFieldAttribute } from 'better-auth/db'
-import { type BetterAuthOptions } from 'better-auth'
+import { type BetterAuthOptions, type GenericEndpointContext } from 'better-auth'
 import { getAuthoritativeSessionFromCtx } from 'better-auth/api'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { admin } from 'better-auth/plugins/admin'
@@ -34,6 +35,7 @@ import {
   MCP_CONSENT_PAGE,
   MCP_LOGIN_PAGE,
   MCP_OAUTH_SCOPES,
+  assistantOAuthResources,
   mcpWorkspaceAccessTokenClaims,
   mcpWorkspaceNeedsSelection,
   mcpWorkspaceReferenceId
@@ -219,6 +221,7 @@ function socialLinkValidation(
  */
 export function makeAuthOptions(options: AuthConfigInterface) {
   const assurance = makeAssuranceHooks(options)
+  const assistantResources = assistantOAuthResources(options.mcp.assistantResource)
   return {
     secret: options.secret,
     baseURL: options.baseURL,
@@ -265,7 +268,20 @@ export function makeAuthOptions(options: AuthConfigInterface) {
       ...userDeleteDatabaseHooks(options),
       session: {
         create: { before: assurance.sessionCreateBefore },
-        update: { before: assurance.sessionUpdateBefore }
+        update: { before: assurance.sessionUpdateBefore },
+        delete: {
+          before: assistantSessionDeleteHook(options.db),
+          // oxlint-disable-next-line effect/noAsyncFunction -- Better Auth database callback runs outside Effect.
+          after: async (
+            session: { readonly userId: string },
+            ctx: GenericEndpointContext | null
+          ) => {
+            if (ctx?.path !== '/get-session') {
+              // oxlint-disable-next-line effect/noAsyncFunction -- Native Better Auth callback awaits the external notification.
+              await options.invalidateAssistantAuthority?.({ userId: session.userId })
+            }
+          }
+        }
       },
       account: {
         update: {
@@ -578,6 +594,12 @@ export function makeAuthOptions(options: AuthConfigInterface) {
       // interactive path, and it requires `jwt()` above.
       mcp({
         resource: options.mcp.resource,
+        resources: assistantResources,
+        // Registration makes a client eligible to request this resource; the
+        // member must still consent to its audience and scopes explicitly.
+        clientRegistrationDefaultResources: assistantResources.map(
+          ({ identifier }) => identifier
+        ),
         loginPage: MCP_LOGIN_PAGE,
         consentPage: MCP_CONSENT_PAGE,
         scopes: MCP_OAUTH_SCOPES,
@@ -601,9 +623,11 @@ export function makeAuthOptions(options: AuthConfigInterface) {
         extensions: [
           {
             claims: {
-              accessToken: ({ user, client, referenceId, sessionId }) =>
+              accessToken: ({ user, client, referenceId, sessionId, resources }) =>
                 mcpWorkspaceAccessTokenClaims(options.db, {
                   userId: user?.id,
+                  assistantResource: options.mcp.assistantResource,
+                  resources,
                   sessionId,
                   clientId: client.clientId,
                   referenceId

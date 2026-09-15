@@ -1,3 +1,4 @@
+import { AssistantDirectory } from '../assistant/directory.ts'
 import { sql } from 'drizzle-orm'
 import { DateTime, Effect, Layer, Match, Ref, Semaphore } from 'effect'
 import { AuditEventLog } from './audit-event-log.ts'
@@ -31,10 +32,15 @@ export function SeedWorkspaceSuspension(options: {
   readonly catalog?: Ref.Ref<ReadonlyArray<Workspace>> | undefined
   readonly systemUsers: ReadonlyArray<SystemUserAccount>
   readonly initial?: WorkspaceSuspension | undefined
-}): Layer.Layer<WorkspaceSuspensionService, never, AuditEventLog | NotificationFeed> {
+}): Layer.Layer<
+  WorkspaceSuspensionService,
+  never,
+  AuditEventLog | NotificationFeed | AssistantDirectory
+> {
   return Layer.effect(WorkspaceSuspensionService)(
     Effect.gen(function* () {
       const audit = yield* AuditEventLog
+      const conversations = yield* AssistantDirectory
       const feed = yield* NotificationFeed
       const lock = yield* Semaphore.make(1)
       const catalog =
@@ -158,6 +164,10 @@ export function SeedWorkspaceSuspension(options: {
             if (!wonTransition) {
               return yield* get(input.workspaceId)
             }
+            yield* conversations.invalidateAccess(
+              { workspaceId: input.workspaceId },
+              { interruptRuns: true }
+            )
             yield* Ref.update(transitions, (stamps) =>
               new Map(stamps).set(next.workspaceId, transitionId)
             )

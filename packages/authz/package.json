@@ -6,6 +6,7 @@
     "./client": "./src/client.ts",
     "./errors": "./src/errors.ts",
     "./guard": "./src/guard.ts",
+    "./assistant-access-token": "./src/assistant-access-token.ts",
     "./mcp-access-token": "./src/mcp-access-token.ts"
   },
   "scripts": {
