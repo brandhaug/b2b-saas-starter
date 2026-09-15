@@ -25,7 +25,6 @@ function ports(): ConversationPorts {
   return {
     create: vi.fn(async () => refused),
     list: vi.fn(async () => refused),
-    read: vi.fn(async () => refused),
     history: vi.fn(async (): Promise<ConversationResult<ConversationHistory>> => ({
       ok: true,
       value: empty

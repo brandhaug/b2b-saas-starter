@@ -1,7 +1,6 @@
 import {
   createConversationServerFn,
   listConversationsServerFn,
-  readConversationServerFn,
   conversationHistoryServerFn,
   sendConversationServerFn,
   retryConversationServerFn,
@@ -26,7 +25,6 @@ import { m } from '@b2b-saas-starter/i18n/messages'
 const conversationPorts: ConversationPorts = {
   create: createConversationServerFn,
   list: listConversationsServerFn,
-  read: readConversationServerFn,
   history: conversationHistoryServerFn,
   send: sendConversationServerFn,
   retry: retryConversationServerFn,
