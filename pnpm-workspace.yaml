@@ -68,7 +68,7 @@ catalog:
   better-auth: 1.7.2
   class-variance-authority: 0.7.1
   cmdk: 1.1.1
-  cn: 0.2.5
+  cn: 0.3.0
   drizzle-kit: 1.0.0-rc.5-ab785fc
   drizzle-orm: 1.0.0-rc.5-ab785fc
   standardwebhooks: 1.1.1

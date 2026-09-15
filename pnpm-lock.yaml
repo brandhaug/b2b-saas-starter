@@ -163,8 +163,8 @@ catalogs:
       specifier: 1.1.1
       version: 1.1.1
     cn:
-      specifier: 0.2.5
-      version: 0.2.5
+      specifier: 0.3.0
+      version: 0.3.0
     drizzle-kit:
       specifier: 1.0.0-rc.5-ab785fc
       version: 1.0.0-rc.5-ab785fc
@@ -613,7 +613,7 @@ importers:
         version: 1.1.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       cn:
         specifier: 'catalog:'
-        version: 0.2.5
+        version: 0.3.0
       drizzle-orm:
         specifier: 'catalog:'
         version: 1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20260911.1)(@effect/sql-d1@4.0.0-rc.112(effect@4.0.0-rc.112))(@effect/sql-sqlite-do@4.0.0-rc.112(effect@4.0.0-rc.112))(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(bun-types@1.4.0)(effect@4.0.0-rc.112)(valibot@1.4.2(typescript@7.0.2))(zod@4.5.4)
@@ -6100,6 +6100,11 @@ packages:
 
   cn@0.2.5:
     resolution: {integrity: sha512-OCjZtMeQfXbI4Es1+EIjkd77gvWzaE689gD8KhfexlqjClC06qR1MQBR+Z35ZMSPNEBWyHiItW1Soy0UvwNv9w==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  cn@0.3.0:
+    resolution: {integrity: sha512-qRoU0ARrZD3Bbj1wKFftEKxPjSnzTEdFkf22NVhW+zU9D/wajhoP+qUZ5DChhhSOBCH1onV12hrmGqfu1+5Z2Q==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -13458,6 +13463,8 @@ snapshots:
       - '@types/react-dom'
 
   cn@0.2.5: {}
+
+  cn@0.3.0: {}
 
   code-block-writer@13.0.3: {}
 
