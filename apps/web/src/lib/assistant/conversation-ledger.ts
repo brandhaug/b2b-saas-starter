@@ -17,6 +17,7 @@ export class ConversationLedger implements ConversationAdmissionLedger {
       CREATE TABLE IF NOT EXISTS assistant_attempts (sequence INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT UNIQUE NOT NULL, question_id TEXT NOT NULL, status TEXT NOT NULL, data TEXT NOT NULL, input TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS assistant_attempt_question ON assistant_attempts(question_id,sequence);
       CREATE TABLE IF NOT EXISTS assistant_acceptance_keys (key TEXT PRIMARY KEY, payload_hash TEXT NOT NULL, attempt_id TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS assistant_pending_output (id INTEGER PRIMARY KEY CHECK(id=1), attempt_id TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS assistant_identity (id INTEGER PRIMARY KEY CHECK(id=1), conversation_id TEXT NOT NULL);`)
   }
 
@@ -77,11 +78,29 @@ export class ConversationLedger implements ConversationAdmissionLedger {
     ).pipe(Effect.map((rows) => rows[0] ?? null))
   }
 
+  pendingOutput() {
+    return this.read(
+      ConversationAttempt,
+      'SELECT data FROM assistant_attempts WHERE id=(SELECT attempt_id FROM assistant_pending_output WHERE id=1)'
+    ).pipe(Effect.map((rows) => rows[0] ?? null))
+  }
+
   latestAttempt() {
     return this.read(
       ConversationAttempt,
       'SELECT data FROM assistant_attempts ORDER BY sequence DESC LIMIT 1'
     ).pipe(Effect.map((rows) => rows[0] ?? null))
+  }
+
+  finishOutput(attemptId: string) {
+    return Effect.try({
+      try: () =>
+        this.storage.sql.exec(
+          'DELETE FROM assistant_pending_output WHERE attempt_id=?',
+          attemptId
+        ),
+      catch: () => new ConversationUnavailable({ reason: 'storage' })
+    }).pipe(Effect.asVoid)
   }
 
   question(id: string) {
@@ -188,14 +207,24 @@ export class ConversationLedger implements ConversationAdmissionLedger {
   update(attempt: ConversationAttempt) {
     return Effect.try({
       try: () =>
-        this.storage.sql
-          .exec(
-            "UPDATE assistant_attempts SET status=?,data=? WHERE id=? AND status IN ('Accepted','Running') RETURNING data",
-            attempt.status,
-            JSON.stringify(attempt),
-            attempt.id
-          )
-          .toArray().length > 0,
+        this.storage.transactionSync(() => {
+          const changed =
+            this.storage.sql
+              .exec(
+                "UPDATE assistant_attempts SET status=?,data=? WHERE id=? AND status IN ('Accepted','Running') RETURNING data",
+                attempt.status,
+                JSON.stringify(attempt),
+                attempt.id
+              )
+              .toArray().length > 0
+          if (changed && attempt.status === 'Running') {
+            this.storage.sql.exec(
+              'INSERT OR IGNORE INTO assistant_pending_output VALUES(1,?)',
+              attempt.id
+            )
+          }
+          return changed
+        }),
       catch: () => new ConversationUnavailable({ reason: 'storage' })
     })
   }

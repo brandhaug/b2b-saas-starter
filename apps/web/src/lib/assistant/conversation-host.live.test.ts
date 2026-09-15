@@ -495,6 +495,142 @@ it.live(
 )
 
 it.live(
+  'finishes local output even when shared reservation release fails',
+  () =>
+    Effect.gen(function* () {
+      const host = yield* provisionConversationHost(true)
+      yield* host.create('release-failure')
+      yield* host.request('release-failure', 'send', {
+        question: 'First',
+        idempotencyKey: 'first'
+      })
+      yield* host.waitForRequests(1)
+      yield* host.execute(
+        "CREATE TRIGGER fail_reservation_release BEFORE UPDATE OF released_at ON assistant_reservations BEGIN SELECT RAISE(FAIL,'Injected release failure'); END"
+      )
+      yield* host.emit(0, 'Saved complete answer')
+      yield* host.finish(0)
+      const completed = yield* host.terminal('release-failure')
+      expect(completed.items[0]?.attempts[0]).toMatchObject({
+        status: 'Completed',
+        text: 'Saved complete answer'
+      })
+      const next = yield* host
+        .request('release-failure', 'send', {
+          question: 'Second',
+          idempotencyKey: 'second'
+        })
+        .pipe(
+          Effect.repeat({
+            while: (response) => response.status === 409,
+            schedule: Schedule.spaced('20 millis')
+          }),
+          Effect.timeout('5 seconds')
+        )
+      expect(next.status).toBe(202)
+      expect(
+        (yield* host.reservations()).find(
+          (reservation) => reservation.id === completed.items[0]?.attempts[0]?.id
+        )?.releasedAt
+      ).toBeNull()
+      yield* host.waitForRequests(2)
+      yield* host.execute('DROP TRIGGER fail_reservation_release')
+      yield* host.emit(1, 'Second complete answer')
+      yield* host.finish(1)
+      yield* host.terminal('release-failure')
+      expect(host.requests).toHaveLength(2)
+    }).pipe(Effect.scoped),
+  120_000
+)
+
+for (const interruption of ['stop', 'authority']) {
+  it.live(
+    `restores saved output to its original attempt after ${interruption} finalization loses its process`,
+    () =>
+      Effect.gen(function* () {
+        const host = yield* provisionConversationHost(true)
+        yield* host.create('terminal-recovery')
+        yield* host.request('terminal-recovery', 'send', {
+          question: 'Hello',
+          idempotencyKey: 'before-interruption'
+        })
+        yield* host.waitForRequests(1)
+        yield* host.emit(0, 'Saved before interruption')
+        for (let chunk = 0; chunk < 10; chunk += 1) {
+          yield* host.emit(0, '.')
+        }
+        yield* host.waitForPersistedText(
+          'terminal-recovery',
+          'Saved before interruption'
+        )
+        const attemptId = (yield* host.history('terminal-recovery')).items[0]
+          ?.attempts[0]?.id
+        if (attemptId === undefined) {
+          return yield* Effect.die('Accepted attempt is absent.')
+        }
+        yield* host.request('terminal-recovery', 'pause-persistence', {})
+        if (interruption === 'stop') {
+          yield* host
+            .request('terminal-recovery', 'stop', { attemptId })
+            .pipe(Effect.forkChild)
+        } else {
+          yield* host.execute("DELETE FROM workspace_members WHERE id='member_do'")
+          yield* host.execute(
+            "INSERT INTO workspace_members(id,workspaceId,userId,role) VALUES('member_do','wrk_do','usr_do','member')"
+          )
+          yield* host.request(
+            'terminal-recovery',
+            'invalidate',
+            {},
+            { 'x-starter-assistant-invalidate': 'terminal-recovery' }
+          )
+        }
+        yield* host.request('terminal-recovery', 'persistence-waiting').pipe(
+          Effect.repeat({
+            while: (response) => response.status !== 204,
+            schedule: Schedule.spaced('10 millis')
+          }),
+          Effect.timeout('5 seconds')
+        )
+        yield* host.request('terminal-recovery', 'abort-object', {})
+        expect(host.requests).toHaveLength(1)
+        // Race an explicit Retry against SDK recovery. A busy response must not accept it early.
+        const retried = yield* host
+          .request('terminal-recovery', 'retry', {
+            attemptId,
+            idempotencyKey: 'after-recovery'
+          })
+          .pipe(
+            Effect.repeat({
+              while: (response) => response.status === 409,
+              schedule: Schedule.spaced('20 millis')
+            }),
+            Effect.timeout('5 seconds')
+          )
+        expect(retried.status).toBe(202)
+        yield* host.waitForRequests(2)
+        yield* host.emit(1, 'Independent retry answer')
+        yield* host.finish(1)
+        const recovered = yield* host.terminal('terminal-recovery')
+        expect(recovered.items[0]?.attempts[0]).toMatchObject({
+          id: attemptId,
+          status: interruption === 'stop' ? 'Stopped' : 'Interrupted',
+          reason: interruption === 'stop' ? 'stopped' : 'authority'
+        })
+        expect(recovered.items[0]?.attempts[0]?.text).toContain(
+          'Saved before interruption'
+        )
+        expect(recovered.items[0]?.attempts[1]).toMatchObject({
+          status: 'Completed',
+          text: 'Independent retry answer'
+        })
+        expect(host.requests).toHaveLength(2)
+      }).pipe(Effect.scoped),
+    120_000
+  )
+}
+
+it.live(
   'holds admission until stopped output finishes saving and keeps retry output separate',
   () =>
     Effect.gen(function* () {

@@ -24,6 +24,9 @@ Retry. Automatic continuation is disabled, including before the first token.
 AIChatAgent batches writes, so the most recent displayed but unflushed text can
 be lost. Stop records its terminal state before acknowledgement and propagates
 cancellation; provider billing may continue when cancellation is not guaranteed.
+The object durably records which attempt still has output to finalize. Recovery
+restores that attempt's saved replay text even after Stop or access revocation,
+preserves its terminal outcome, and fences new execution until restoration finishes.
 
 Persistent generation refuses with an unavailable response when no provider is
 configured. Browsing and management remain available. Mock generation is explicit

@@ -83,7 +83,6 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
     typeof ManagedRuntime.make<CapabilityServices, never>
   >
   private recoveryAttemptId: string | undefined
-  private recoveryPending = false
   private run: ConversationRun | undefined
   private readonly admission = Semaphore.makeUnsafe(1)
   private disclosurePending = false
@@ -430,10 +429,10 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
   override onStart() {
     return this.runtime.runPromise(
       Effect.gen({ self: this }, function* () {
+        const pending = yield* this.ledger.pendingOutput()
+        this.recoveryAttemptId = pending?.id
         const active = yield* this.ledger.active()
         if (active !== null) {
-          this.recoveryAttemptId = active.id
-          this.recoveryPending = active.status === 'Running'
           yield* this.terminal(active, 'Interrupted', 'process')
         }
       })
@@ -668,7 +667,8 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
         operation: input,
         ledger: this.ledger,
         executionBusy:
-          this.recoveryPending || (this.run !== undefined && !this.run.settled),
+          (yield* this.ledger.pendingOutput()) !== null ||
+          (this.run !== undefined && !this.run.settled),
         savedText: (id) => savedText(this.messages, id),
         limits
       }).pipe(Effect.provide(selectConversationModelLayer(this.env, limits)))
@@ -877,27 +877,32 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
         role: 'assistant',
         parts: [{ type: 'text', text: run.text }]
       }
-    ]).then(() => this.runtime.runPromise(this.terminal(attempt, status, reason)))
+    ]).then(() =>
+      this.runtime.runPromise(
+        this.ledger
+          .finishOutput(attempt.id)
+          .pipe(Effect.andThen(this.terminal(attempt, status, reason)))
+      )
+    )
   }
 
   protected override onChatRecovery(context: ChatRecoveryContext) {
     return this.runtime.runPromise(
       Effect.gen({ self: this }, function* () {
-        const latest =
+        const attempt =
           this.recoveryAttemptId === undefined
-            ? yield* this.ledger.latestAttempt()
+            ? null
             : yield* this.ledger.attempt(this.recoveryAttemptId)
         if (
-          latest?.status === 'Interrupted' &&
-          latest.reason === 'process' &&
-          context.partialText.length > savedText(this.messages, latest.id).length
+          attempt !== null &&
+          context.partialText.length > savedText(this.messages, attempt.id).length
         ) {
           yield* Effect.tryPromise({
             try: () =>
               this.persistMessages([
-                ...this.messages.filter((message) => message.id !== latest.id),
+                ...this.messages.filter((message) => message.id !== attempt.id),
                 {
-                  id: latest.id,
+                  id: attempt.id,
                   role: 'assistant',
                   parts: [{ type: 'text', text: context.partialText }]
                 }
@@ -905,10 +910,10 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
             catch: () => new ConversationUnavailable({ reason: 'storage' })
           })
         }
-        if (latest !== null) {
-          yield* this.terminal(latest, 'Interrupted', 'process')
+        if (attempt !== null) {
+          yield* this.ledger.finishOutput(attempt.id)
+          yield* this.terminal(attempt, 'Interrupted', 'process')
         }
-        this.recoveryPending = false
         this.publishSnapshot()
         // Persist once through the SDK above; its orphan merger would otherwise append the same text part twice.
         return { continue: false satisfies false, persist: false }

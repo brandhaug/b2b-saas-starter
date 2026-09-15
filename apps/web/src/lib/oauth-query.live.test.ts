@@ -80,32 +80,23 @@ it.live(
       const vouchedHeaders = new Headers(headers)
       vouchedHeaders.set(MCP_WORKSPACE_SELECTED_HEADER, workspace.id)
       vouchedHeaders.set('content-type', 'application/json')
-      function post(
-        path: string,
-        body: { oauth_query: string | null; postLogin?: boolean; accept?: boolean }
-      ) {
-        return Effect.flatMap(
-          Effect.promise(() =>
-            auth.instance.handler(
-              new Request(`${origin}/api/auth${path}`, {
-                method: 'POST',
-                headers: vouchedHeaders,
-                body: JSON.stringify(body)
-              })
-            )
-          ),
-          redirectTarget
-        )
-      }
-      const continued = yield* post('/oauth2/continue', {
-        postLogin: true,
-        oauth_query: restored
+      const continuedResult = yield* auth.api.oauth2Continue({
+        body: { postLogin: true, oauth_query: restored ?? '' },
+        headers: vouchedHeaders,
+        // SAFETY: matches the web adapter's plain header carrier; the issuer reads only headers/method and returns parsed JSON for this shape.
+        // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion -- real in-process issuer boundary under test
+        request: { headers: vouchedHeaders, method: 'POST' } as Request
       })
+      const continued = new URL(decodeRedirectBody(continuedResult).url, origin)
       expect(continued.pathname).toBe('/oauth/consent')
-      const callback = yield* post('/oauth2/consent', {
-        accept: true,
-        oauth_query: routedQuery(continued)
+      const consentedResult = yield* auth.api.oauth2Consent({
+        body: { accept: true, oauth_query: routedQuery(continued) ?? '' },
+        headers: vouchedHeaders,
+        // SAFETY: matches the web adapter's plain header carrier, retaining the verified workspace through authorize reentry.
+        // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion -- real in-process issuer boundary under test
+        request: { headers: vouchedHeaders, method: 'POST' } as Request
       })
+      const callback = new URL(decodeRedirectBody(consentedResult).url, origin)
       expect(callback.origin + callback.pathname).toBe(redirectUri)
       expect(callback.searchParams.get('state')).toBe('opaque+state/with=encoding')
       expect(callback.searchParams.has('code')).toBe(true)

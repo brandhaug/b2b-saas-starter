@@ -12,6 +12,9 @@ export class WorkspaceAssistantConversation extends ConversationHost {
     const fetch = this.fetch.bind(this)
     this.fetch = async (request) => {
       const action = new URL(request.url).pathname.split('/').at(-1)
+      if (action === 'abort-object') {
+        ctx.abort('Injected object interruption')
+      }
       if (action === 'observers-open') {
         return new Response(null, {
           status: [...this.getConnections()].length > 0 ? 204 : 404
