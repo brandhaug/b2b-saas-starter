@@ -78,7 +78,7 @@ catalog:
   fallow: 3.25.0
   jsdom: 30.0.1
   jose: 6.2.10
-  lucide-react: 1.45.0
+  lucide-react: 1.46.0
   oxlint: 1.80.0
   oxlint-plugin-effect: 0.11.0
   oxlint-plugin-react-doctor: 0.9.12
