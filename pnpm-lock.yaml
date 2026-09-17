@@ -196,8 +196,8 @@ catalogs:
       specifier: 1.45.0
       version: 1.45.0
     miniflare:
-      specifier: 5.20260911.0-alpha
-      version: 5.20260911.0-alpha
+      specifier: 5.20260911.1-alpha
+      version: 5.20260911.1-alpha
     oxlint:
       specifier: 1.80.0
       version: 1.80.0
@@ -707,7 +707,7 @@ importers:
         version: 30.0.1(@noble/hashes@2.4.0)
       miniflare:
         specifier: 'catalog:'
-        version: 5.20260911.0-alpha(@types/node@26.5.1)
+        version: 5.20260911.1-alpha(@types/node@26.5.1)
       rehype-pretty-code:
         specifier: 'catalog:'
         version: 0.14.5(shiki@4.4.3)
@@ -7770,8 +7770,8 @@ packages:
     resolution: {integrity: sha512-V41TxLjX1Dq4pys8X5GAl/CrUY0//QcXCIdYwy01Cev+JdsWOWzzN0IP45lojgw+fEVY9QdepzVIziT2IxhbUQ==}
     engines: {node: '>=22.0.0'}
 
-  miniflare@5.20260911.0-alpha:
-    resolution: {integrity: sha512-CRieJmvHx+7rNqnA5SKdsYsER6rfkUIE/jruIUw+fLhsQ4sORfuMtr3+FQzsQ9/y8lhk061V4Fl1DFdHiyBB6g==}
+  miniflare@5.20260911.1-alpha:
+    resolution: {integrity: sha512-7IDj9monoYcCPrS8HfcTt90T3pDwKGvNEAR1Y061KbJhBd5JkStOwOpHMUDFBo9PEbjWVDxPICAnXGNNV2LNfQ==}
     engines: {node: '>=22.0.0'}
 
   minimatch@10.2.6:
@@ -15367,7 +15367,7 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  miniflare@5.20260911.0-alpha(@types/node@26.5.1):
+  miniflare@5.20260911.1-alpha(@types/node@26.5.1):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       sharp: 0.35.4(@types/node@26.5.1)
