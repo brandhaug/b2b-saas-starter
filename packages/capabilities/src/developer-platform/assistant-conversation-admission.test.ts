@@ -201,6 +201,13 @@ it.effect(
       })
       expect(retry.question.id).toBe(failed.question.id)
       expect(host.prompts[1]?.history).toEqual([])
+      expect(host.prompts[1]?.failureObservations).toEqual([
+        {
+          questionId: failed.question.id,
+          attemptId: failed.attempt.id,
+          reason: 'provider'
+        }
+      ])
       yield* host.store.ledger.update({ ...retry.attempt, status: 'Completed' })
       host.store.texts.set(retry.attempt.id, 'Successful answer')
       yield* host.admission.release(retry.attempt.id)
@@ -214,6 +221,82 @@ it.effect(
       ])
       expect(yield* host.store.ledger.questions()).toHaveLength(2)
       expect(yield* host.store.ledger.attempts()).toHaveLength(3)
+    }).pipe(Effect.provide(SeedLayer))
+)
+
+it.effect(
+  'bounds failure observations and excludes diagnostics, partial answers and task evidence',
+  () =>
+    Effect.gen(function* () {
+      const host = yield* setup()
+      const reasons = ['output_limit', 'provider', 'stopped', 'private diagnostic']
+      for (const [index, reason] of reasons.entries()) {
+        const accepted = yield* host.accept({
+          question: `Question ${index}`,
+          idempotencyKey: `failure-${index}`
+        })
+        let status: 'Stopped' | 'Interrupted' = 'Interrupted'
+        if (reason === 'stopped') {
+          status = 'Stopped'
+        }
+        yield* host.store.ledger.update({
+          ...accepted.attempt,
+          status,
+          reason,
+          evidence: {
+            taskId: 'private-task',
+            sourceId: 'private-source',
+            observedAt: '2026-09-18T00:00:00Z',
+            text: 'private evidence'
+          }
+        })
+        host.store.texts.set(accepted.attempt.id, 'private partial answer')
+        yield* host.admission.release(accepted.attempt.id)
+      }
+      const accepted = yield* host.accept({
+        question: 'Why did that stop?',
+        idempotencyKey: 'next'
+      })
+      const execution = yield* host.store.execution(accepted.attempt.id)
+      expect(host.prompts.at(-1)?.history).toEqual([])
+      expect(
+        host.prompts.at(-1)?.failureObservations?.map((failure) => failure.reason)
+      ).toEqual(['provider', 'stopped', 'interrupted'])
+      expect(
+        execution.prompt.messages.map((message) => message.content).join('\n')
+      ).not.toContain('private')
+    }).pipe(Effect.provide(SeedLayer))
+)
+
+it.effect(
+  'retries with a safe failure observation when the referenced task is unavailable',
+  () =>
+    Effect.gen(function* () {
+      const host = yield* setup()
+      const first = yield* host.accept({
+        question: 'Explain the task',
+        taskId: 'unavailable-task',
+        idempotencyKey: 'unavailable-task-question'
+      })
+      yield* host.store.ledger.update({
+        ...first.attempt,
+        status: 'Interrupted',
+        reason: 'output_limit'
+      })
+      yield* host.admission.release(first.attempt.id)
+      const retry = yield* host.accept({
+        attemptId: first.attempt.id,
+        idempotencyKey: 'unavailable-task-retry'
+      })
+      expect(retry.attempt.evidence).toBeNull()
+      expect(host.prompts.at(-1)?.evidence).toBeUndefined()
+      expect(host.prompts.at(-1)?.failureObservations).toEqual([
+        {
+          questionId: first.question.id,
+          attemptId: first.attempt.id,
+          reason: 'output_limit'
+        }
+      ])
     }).pipe(Effect.provide(SeedLayer))
 )
 

@@ -264,114 +264,130 @@ it.live(
   20_000
 )
 
-it.live(
-  'explicit Seed retains failed partial output and retries from successful history only',
-  () =>
-    Effect.gen(function* () {
-      let calls = 0
-      const prompts: Array<ConversationPrompt> = []
-      const model = ConversationModel.of({
-        prepare: (input) => {
-          prompts.push(input)
-          return prepareConversationContext(input, modelLimits)
-        },
-        stream: () => {
-          calls += 1
-          if (calls === 1) {
-            return Stream.concat(
-              Stream.make({
-                type: 'text-delta',
-                text: 'Interrupted prefix'
-              } satisfies ConversationModelEvent),
-              Stream.fail(
-                new ConversationModelFailure({
-                  reason: 'provider',
-                  message: 'Synthetic provider failure'
-                })
+const retryFailures: ReadonlyArray<{
+  reason: ConversationModelFailure['reason']
+  observation: string
+}> = [
+  { reason: 'provider', observation: 'provider' },
+  { reason: 'output-limit', observation: 'output_limit' }
+]
+for (const failure of retryFailures) {
+  it.live(
+    `explicit Seed retains ${failure.reason} partial output and retries with safe failure context`,
+    () =>
+      Effect.gen(function* () {
+        let calls = 0
+        const prompts: Array<ConversationPrompt> = []
+        const model = ConversationModel.of({
+          prepare: (input) => {
+            prompts.push(input)
+            return prepareConversationContext(input, modelLimits)
+          },
+          stream: () => {
+            calls += 1
+            if (calls === 1) {
+              return Stream.concat(
+                Stream.make({
+                  type: 'text-delta',
+                  text: 'Interrupted prefix'
+                } satisfies ConversationModelEvent),
+                Stream.fail(
+                  new ConversationModelFailure({
+                    reason: failure.reason,
+                    message: 'Synthetic provider failure'
+                  })
+                )
               )
+            }
+            return Stream.make(
+              {
+                type: 'text-delta',
+                text: 'Successful answer'
+              } satisfies ConversationModelEvent,
+              {
+                type: 'finish',
+                reason: 'stop',
+                inputTokens: 10,
+                outputTokens: 3
+              } satisfies ConversationModelEvent
             )
           }
-          return Stream.make(
-            {
-              type: 'text-delta',
-              text: 'Successful answer'
-            } satisfies ConversationModelEvent,
-            {
-              type: 'finish',
-              reason: 'stop',
-              inputTokens: 10,
-              outputTokens: 3
-            } satisfies ConversationModelEvent
-          )
-        }
-      })
-      yield* Effect.gen(function* () {
-        const conversations = yield* AssistantConversations
-        const created = yield* conversations.create({ credential })
-        const identity = { credential, conversationId: created.id }
-        const first = yield* conversations.send({
-          ...identity,
-          question: 'First question',
-          idempotencyKey: 'first'
         })
-        const interrupted = yield* conversations.history(identity).pipe(
-          Effect.repeat({
-            while: (page) => page.items[0]?.attempts[0]?.status !== 'Interrupted',
-            schedule: Schedule.spaced('5 millis')
-          }),
-          Effect.timeout('5 seconds')
-        )
-        expect(interrupted.items[0]?.attempts[0]?.text).toBe('Interrupted prefix')
-        const retry = yield* conversations.retry({
-          ...identity,
-          attemptId: first.attempt.id,
-          idempotencyKey: 'retry'
-        })
-        expect(retry.question.id).toBe(first.question.id)
-        const completed = yield* conversations.history(identity).pipe(
-          Effect.repeat({
-            while: (page) => page.items[0]?.attempts[1]?.status !== 'Completed',
-            schedule: Schedule.spaced('5 millis')
-          }),
-          Effect.timeout('5 seconds')
-        )
-        expect(completed.items[0]?.attempts[1]).toMatchObject({
-          text: 'Successful answer',
-          inputTokens: 10,
-          outputTokens: 3
-        })
-        expect(prompts[1]?.history).toEqual([])
-        yield* conversations.send({
-          ...identity,
-          question: 'Follow up',
-          idempotencyKey: 'follow-up'
-        })
-        expect(prompts[2]?.history).toEqual([
-          {
-            questionId: first.question.id,
+        yield* Effect.gen(function* () {
+          const conversations = yield* AssistantConversations
+          const created = yield* conversations.create({ credential })
+          const identity = { credential, conversationId: created.id }
+          const first = yield* conversations.send({
+            ...identity,
             question: 'First question',
-            answer: 'Successful answer'
-          }
-        ])
-        yield* conversations.history(identity).pipe(
-          Effect.repeat({
-            while: (page) => page.items.at(-1)?.attempts[0]?.status !== 'Completed',
-            schedule: Schedule.spaced('5 millis')
-          }),
-          Effect.timeout('5 seconds')
-        )
-        expect(calls).toBe(3)
-      }).pipe(
-        Effect.provideService(WorkspaceContext, workspace),
-        Effect.provide(
-          makeSeedCapabilitiesLayer({
-            conversationModel: Layer.succeed(ConversationModel, model)
+            idempotencyKey: 'first'
           })
+          const interrupted = yield* conversations.history(identity).pipe(
+            Effect.repeat({
+              while: (page) => page.items[0]?.attempts[0]?.status !== 'Interrupted',
+              schedule: Schedule.spaced('5 millis')
+            }),
+            Effect.timeout('5 seconds')
+          )
+          expect(interrupted.items[0]?.attempts[0]?.text).toBe('Interrupted prefix')
+          const retry = yield* conversations.retry({
+            ...identity,
+            attemptId: first.attempt.id,
+            idempotencyKey: 'retry'
+          })
+          expect(retry.question.id).toBe(first.question.id)
+          const completed = yield* conversations.history(identity).pipe(
+            Effect.repeat({
+              while: (page) => page.items[0]?.attempts[1]?.status !== 'Completed',
+              schedule: Schedule.spaced('5 millis')
+            }),
+            Effect.timeout('5 seconds')
+          )
+          expect(completed.items[0]?.attempts[1]).toMatchObject({
+            text: 'Successful answer',
+            inputTokens: 10,
+            outputTokens: 3
+          })
+          expect(prompts[1]?.history).toEqual([])
+          expect(prompts[1]?.failureObservations).toEqual([
+            {
+              questionId: first.question.id,
+              attemptId: first.attempt.id,
+              reason: failure.observation
+            }
+          ])
+          yield* conversations.send({
+            ...identity,
+            question: 'Follow up',
+            idempotencyKey: 'follow-up'
+          })
+          expect(prompts[2]?.history).toEqual([
+            {
+              questionId: first.question.id,
+              question: 'First question',
+              answer: 'Successful answer'
+            }
+          ])
+          yield* conversations.history(identity).pipe(
+            Effect.repeat({
+              while: (page) => page.items.at(-1)?.attempts[0]?.status !== 'Completed',
+              schedule: Schedule.spaced('5 millis')
+            }),
+            Effect.timeout('5 seconds')
+          )
+          expect(calls).toBe(3)
+        }).pipe(
+          Effect.provideService(WorkspaceContext, workspace),
+          Effect.provide(
+            makeSeedCapabilitiesLayer({
+              conversationModel: Layer.succeed(ConversationModel, model)
+            })
+          )
         )
-      )
-    }),
-  20_000
-)
+      }),
+    20_000
+  )
+}
 
 it.live(
   'assembled Seed hides conversations after their evidence policy becomes unavailable',

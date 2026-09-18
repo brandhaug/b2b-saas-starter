@@ -27,7 +27,7 @@ function finishReason(
     return 'content-filter'
   }
   if (reason === undefined) {
-    return 'stop'
+    return 'unknown'
   }
   return reason
 }
@@ -71,19 +71,27 @@ export function makeOpenAIModel(config: OpenAIConfig) {
       if ('reason' in plain) {
         return yield* openAiError(plain.reason)
       }
+      const controller = yield* Effect.acquireRelease(
+        Effect.sync(() => new AbortController()),
+        (active) => Effect.sync(() => active.abort())
+      )
       // The whole outbound boundary of this package is this one call.
       // `packages/ai` deliberately depends on `effect` only, so there is no
       // `@effect/platform` HttpClient to route through; the global `fetch` is
       // confined to here.
       const response = yield* Effect.tryPromise({
-        try: (signal) =>
+        try: () =>
           // oxlint-disable-next-line effect/noGlobals -- raw fetch is the platform transport here
           fetch(chatUrl, {
             method: 'POST',
             headers,
-            // oxlint-disable-next-line effect/noGlobals -- outbound request body, deliberately unvalidated: the wire shape is exactly these two fields, and a codec would decode what we just built
-            body: JSON.stringify({ model: modelId, messages: plain.messages }),
-            signal,
+            // oxlint-disable-next-line effect/noGlobals -- outbound request body, deliberately unvalidated: the wire shape contains only selected request fields, and a codec would decode what we just built
+            body: JSON.stringify({
+              model: modelId,
+              messages: plain.messages,
+              max_tokens: config.maxOutputTokens ?? 4096
+            }),
+            signal: controller.signal,
             // Cloudflare Workers supports manual redirects; treating the 3xx
             // response as an ordinary provider failure prevents following it
             // or leaking auth.
@@ -143,7 +151,7 @@ export function makeOpenAIModel(config: OpenAIConfig) {
         }
       ]
       return parts
-    })
+    }).pipe(Effect.scoped)
   }
 
   function streamText(options: LanguageModel.ProviderOptions) {
