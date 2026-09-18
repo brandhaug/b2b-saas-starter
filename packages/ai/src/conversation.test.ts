@@ -2,6 +2,56 @@ import { describe, expect, it } from '@effect/vitest'
 import { Effect } from 'effect'
 import { ConversationModel, selectConversationModelLayer } from './conversation.ts'
 
+it.effect(
+  'includes safe interruption observations without treating them as answers',
+  () =>
+    Effect.gen(function* () {
+      const model = yield* ConversationModel
+      const prepared = yield* model.prepare({
+        workspaceSlug: 'starter-lab',
+        question: 'Why did the previous answer stop?',
+        history: [],
+        failureObservations: [
+          { questionId: 'q-1', attemptId: 'a-1', reason: 'output_limit' }
+        ]
+      })
+      expect(prepared.messages.some((message) => message.role === 'assistant')).toBe(
+        false
+      )
+      expect(prepared.messages.map((message) => message.content).join('\n')).toContain(
+        'Answer attempt a-1 for question q-1 reached its output limit.'
+      )
+      expect(prepared.messages.at(-1)?.content).toBe(
+        'Why did the previous answer stop?'
+      )
+    }).pipe(
+      Effect.provide(selectConversationModelLayer({ OPENAI_API_KEY: 'test-key' }))
+    )
+)
+
+it.effect('drops optional failure context before rejecting a question that fits', () =>
+  Effect.gen(function* () {
+    const model = yield* ConversationModel
+    const input = { workspaceSlug: 'starter-lab', question: 'Why?', history: [] }
+    const baseline = yield* model.prepare(input)
+    const limited = yield* ConversationModel.pipe(
+      Effect.provide(
+        selectConversationModelLayer(
+          { OPENAI_API_KEY: 'test-key' },
+          { maxInputTokens: baseline.estimatedInputTokens }
+        )
+      )
+    )
+    const prepared = yield* limited.prepare({
+      ...input,
+      failureObservations: [
+        { questionId: 'q-1', attemptId: 'a-1', reason: 'interrupted' }
+      ]
+    })
+    expect(prepared.messages).toEqual(baseline.messages)
+  }).pipe(Effect.provide(selectConversationModelLayer({ OPENAI_API_KEY: 'test-key' })))
+)
+
 describe('conversation model admission', () => {
   it.effect('refuses unconfigured generation before constructing a model request', () =>
     Effect.gen(function* () {

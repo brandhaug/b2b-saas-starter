@@ -36,8 +36,12 @@ be edited or regenerated into branches.
 ## Context and limits
 
 The model sees system instructions, authorized completed exchanges and the
-current question. Unanswered questions and incomplete attempts stay in saved
-history but do not enter later model context. Oldest completed exchanges may be
+current question. Unanswered questions and incomplete answer text stay in saved
+history but do not enter later model context. Up to three recent failed or stopped
+attempts supply short application-authored observations. These name only the
+question, attempt and a safe failure category, with no partial answer, task evidence
+or provider diagnostics. The context budget may omit these observations.
+Oldest completed exchanges may be
 omitted to fit the budget, with an omission notice; full history remains saved.
 The current question and evidence are rejected if they cannot fit.
 
@@ -127,6 +131,13 @@ Errors use 400 for invalid or over-budget input, 401 for invalid credentials,
 configuration or storage. See the generated [REST reference](/docs/capability-interfaces/rest-api)
 for payload schemas. The existing stateless `/assistant/answer` endpoint retains
 its API Token behavior and does not read or write conversation history.
+
+Stateless answers have a 60-second inference deadline and request at most 4,096
+output tokens by default. A provider-reported incomplete or output-limited response
+returns unavailable rather than a successful partial answer. When the provider
+omits completion metadata, the application cannot determine whether the text was
+truncated. Both assistant paths explain
+evidence and require explicit application actions for approval and replay.
 
 ## Provider setup and validation
 

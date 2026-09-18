@@ -34,6 +34,7 @@ export const ConversationExecution = Schema.Struct({
 })
 
 type Stored<A> = Effect.Effect<A, ConversationUnavailable>
+type FailureObservation = NonNullable<ConversationPrompt['failureObservations']>[number]
 /** The host supplies its atomic SQLite ledger and SDK-authoritative saved text. */
 export type ConversationAdmissionLedger = {
   latestAttempt(): Stored<ConversationAttempt | null>
@@ -152,7 +153,25 @@ export const acceptConversationAnswer = Effect.fn('AssistantConversation.accept'
     const request: ConversationPrompt = {
       workspaceSlug: context.workspace.slug,
       question: question.text,
-      history
+      history,
+      failureObservations: attempts
+        .flatMap<FailureObservation>((attempt) => {
+          if (attempt.status !== 'Interrupted' && attempt.status !== 'Stopped') {
+            return []
+          }
+          // Stored reasons may contain adapter diagnostics. Only these fixed
+          // application categories can enter model context, never partial text.
+          let reason: FailureObservation['reason'] = 'interrupted'
+          if (attempt.status === 'Stopped') {
+            reason = 'stopped'
+          } else if (attempt.reason === 'output_limit') {
+            reason = 'output_limit'
+          } else if (attempt.reason === 'provider') {
+            reason = 'provider'
+          }
+          return [{ questionId: attempt.questionId, attemptId: attempt.id, reason }]
+        })
+        .slice(-3)
     }
     if (evidence !== null) {
       Object.assign(request, { evidence })

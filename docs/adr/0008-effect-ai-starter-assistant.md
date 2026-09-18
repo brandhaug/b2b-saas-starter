@@ -6,6 +6,20 @@ assistant text history and stream text, metadata, finish and usage events. Tools
 and unsupported model parts fail explicitly. Provider selection never falls back
 after a configured provider fails.
 
+Both answer paths share unconditional action and evidence instructions. Stateless
+inference has a 60-second deadline covering response consumption and requests
+4,096 output tokens by default. Provider-reported incomplete output fails through
+the existing unavailable contract. Missing completion metadata remains unknown;
+the application cannot determine truncation from answer text alone.
+OpenAI cancellation covers fetch and response consumption;
+the Workers binding cannot guarantee cancellation of already-started provider work.
+
+Persistent context includes up to three recent interruption observations after
+current authorization. Only fixed application failure categories and attempt and
+question identities enter these observations. Partial answers, failed task evidence
+and raw diagnostics stay out. Optional observations yield to the current question
+when the context budget is full.
+
 The persistent assistant design
 uses AIChatAgent for saved messages and reconnectable streaming in one conversation
 Durable Object. A small adapter maps Effect events to the AI SDK UI-message

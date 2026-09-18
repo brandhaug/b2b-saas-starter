@@ -63,10 +63,11 @@ describe('openai-compatible model', () => {
       // oxlint-disable-next-line effect/noGlobals -- the assertion reads the raw wire body the adapter posted
       const body = JSON.parse(posted[0]?.body ?? '{}')
       expect(body.model).toBe('gpt-4o-mini')
+      expect(body.max_tokens).toBe(4096)
       expect(body.messages).toEqual([
         {
           role: 'system',
-          content: 'You are the B2B SaaS Starter assistant for workspace starter-lab.'
+          content: expect.stringContaining('Do not claim to execute actions')
         },
         { role: 'user', content: 'What changed?' }
       ])

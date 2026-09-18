@@ -20,11 +20,20 @@ export type WorkersAIBinding = {
       readonly stream?: boolean
       readonly max_tokens?: number
     }
-  ) => Promise<{ readonly response?: string } | ReadableStream<Uint8Array> | null>
+  ) => Promise<
+    | { readonly response?: string; readonly finish_reason?: string }
+    | ReadableStream<Uint8Array>
+    | null
+  >
 }
 
 const decodeWorkersAnswer = Schema.decodeUnknownEffect(
-  Schema.Struct({ response: Schema.optionalKey(Schema.String) })
+  Schema.Struct({
+    response: Schema.optionalKey(Schema.String),
+    finish_reason: Schema.optionalKey(
+      Schema.Literals(['stop', 'length', 'content_filter'])
+    )
+  })
 )
 
 /** One `AiError` for this adapter's `generateText` hook, with the module stamped. */
@@ -62,9 +71,15 @@ export function makeWorkersAIModel(
       const raw = yield* Effect.tryPromise({
         try: () => {
           if (plain.messages.some((message) => message.role === 'assistant')) {
-            return binding.run(modelId, { messages: plain.messages })
+            return binding.run(modelId, {
+              messages: plain.messages,
+              max_tokens: maxOutputTokens
+            })
           }
-          return binding.run(modelId, { prompt: flatPrompt(plain.messages) })
+          return binding.run(modelId, {
+            prompt: flatPrompt(plain.messages),
+            max_tokens: maxOutputTokens
+          })
         },
         catch: (cause) =>
           workersAiError(
@@ -83,11 +98,18 @@ export function makeWorkersAIModel(
           new AiError.InvalidOutputError({ description: 'missing response text' })
         )
       }
+      if (result.finish_reason !== undefined && result.finish_reason !== 'stop') {
+        return yield* workersAiError(
+          new AiError.InvalidOutputError({
+            description: `Assistant answer is incomplete: ${result.finish_reason}.`
+          })
+        )
+      }
       const parts: Array<Response.PartEncoded> = [
         { type: 'text', text: result.response },
         {
           type: 'finish',
-          reason: 'stop',
+          reason: result.finish_reason ?? 'unknown',
           usage: { inputTokens: {}, outputTokens: {} }
         }
       ]
