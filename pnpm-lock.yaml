@@ -208,8 +208,8 @@ catalogs:
       specifier: 0.9.12
       version: 0.9.12
     posthog-js:
-      specifier: 1.431.2
-      version: 1.431.2
+      specifier: 1.433.4
+      version: 1.433.4
     posthog-node:
       specifier: 5.52.1
       version: 5.52.1
@@ -628,7 +628,7 @@ importers:
         version: 1.46.0(react@19.3.0)
       posthog-js:
         specifier: 'catalog:'
-        version: 1.431.2(@types/react@19.3.0)(react@19.3.0)
+        version: 1.433.4(@types/react@19.3.0)(react@19.3.0)
       qrcode.react:
         specifier: 'catalog:'
         version: 4.2.0(react@19.3.0)
@@ -1992,9 +1992,6 @@ packages:
     engines: {node: '>=16'}
     cpu: [x64]
     os: [win32]
-
-  '@cloudflare/workers-types@5.20260914.1':
-    resolution: {integrity: sha512-9xGgkvmG1lw0QdKJmSR5YNXaA221DfefpDCfPLz5PlzdYU0BXzxONQoWakLXTsFIz8xtsNfeUg+mbspIA5P4Xg==}
 
   '@cloudflare/workers-types@5.20260915.1':
     resolution: {integrity: sha512-3Lw2wkyVcEDdD0W6rNBmannaAkUsWGsO5TjbyHflWIDlhxtFRDFnxqHoDlg4YiVxinsIcBl1j9jW1kdruUhZpg==}
@@ -8155,8 +8152,8 @@ packages:
     resolution: {integrity: sha512-8RyVklq0owXUTa4xlpzu4l9AaVKIdQvAcOHZWaMh98HgySsUtxRVf/chRe3dsSLqb6i40BzGRzEUddRaI+9TSw==}
     engines: {node: ^10 || ^12 || >=14}
 
-  posthog-js@1.431.2:
-    resolution: {integrity: sha512-zMAgEfvAXFXALTy0kPVXkkLHCZ72x4jR8Y8lMGX5lO7reM3qL8ZsC4Lz8p8wwpxSBCMISYKF0snXeodJDlF8tA==}
+  posthog-js@1.433.4:
+    resolution: {integrity: sha512-6OiSinv4tX2dZ3oc7fjzBOPLq3ouMbXk1y/DhyEh2vh+zh0m1WEIIyf5VtwcFFLOw2zEoGn1xXPXqt62eEV5uA==}
     peerDependencies:
       '@types/react': '>=16.8.0'
       react: '>=16.8.0'
@@ -10227,8 +10224,6 @@ snapshots:
   '@cloudflare/workerd-windows-64@1.20260911.1':
     optional: true
 
-  '@cloudflare/workers-types@5.20260914.1': {}
-
   '@cloudflare/workers-types@5.20260915.1': {}
 
   '@cspotcode/source-map-support@0.8.1':
@@ -10357,7 +10352,7 @@ snapshots:
 
   '@effect/sql-d1@4.0.0-rc.112(effect@4.0.0-rc.112)':
     dependencies:
-      '@cloudflare/workers-types': 5.20260914.1
+      '@cloudflare/workers-types': 5.20260915.1
       effect: 4.0.0-rc.112
 
   '@effect/sql-sqlite-do@4.0.0-rc.112(effect@4.0.0-rc.112)':
@@ -11733,8 +11728,8 @@ snapshots:
 
   '@posthog/browser-common@0.8.3':
     dependencies:
-      '@posthog/core': 1.53.2
-      '@posthog/types': 1.411.1
+      '@posthog/core': 1.54.2
+      '@posthog/types': 1.412.1
 
   '@posthog/core@1.53.2':
     dependencies:
@@ -15897,7 +15892,7 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
-  posthog-js@1.431.2(@types/react@19.3.0)(react@19.3.0):
+  posthog-js@1.433.4(@types/react@19.3.0)(react@19.3.0):
     dependencies:
       '@posthog/browser-common': 0.8.3
       '@posthog/core': 1.54.2
