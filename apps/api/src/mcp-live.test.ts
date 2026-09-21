@@ -195,7 +195,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('MCP live boundaries', (it)
           clientId
         )
         yield* execute(
-          `INSERT INTO oauth_consent (id,userId,clientId,referenceId,scopes) VALUES ('consent-live','usr_owner',?,'wrk_dev_contract','["mcp:read","mcp:write"]')`,
+          `INSERT INTO oauth_consent (id,userId,clientId,referenceId,resources,scopes) VALUES ('consent-live','usr_owner',?,'wrk_dev_contract','["https://api.test/mcp"]','["mcp:read","mcp:write"]')`,
           clientId
         )
         const keys = yield* Effect.promise(() => generateKeyPair('EdDSA'))
@@ -280,7 +280,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('MCP live boundaries', (it)
         ).not.toBe(true)
         yield* execute(`DELETE FROM oauth_consent WHERE id='consent-live'`)
         yield* execute(
-          `INSERT INTO oauth_consent (id,userId,clientId,referenceId,scopes) VALUES ('consent-new','usr_owner',?,'wrk_dev_contract','["mcp:read","mcp:write"]')`,
+          `INSERT INTO oauth_consent (id,userId,clientId,referenceId,resources,scopes) VALUES ('consent-new','usr_owner',?,'wrk_dev_contract','["https://api.test/mcp"]','["mcp:read","mcp:write"]')`,
           clientId
         )
         expect(

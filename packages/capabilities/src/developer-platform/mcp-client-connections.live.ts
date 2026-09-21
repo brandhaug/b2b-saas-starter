@@ -91,7 +91,8 @@ export function LiveMcpClientConnections(
               .select({
                 id: oauthConsent.id,
                 version: oauthConsent.grantVersion,
-                scopes: oauthConsent.scopes
+                scopes: oauthConsent.scopes,
+                resources: oauthConsent.resources
               })
               .from(oauthConsent)
               .innerJoin(oauthClient, eq(oauthConsent.clientId, oauthClient.clientId))
@@ -105,7 +106,10 @@ export function LiveMcpClientConnections(
               )
               .limit(1)
           )
-          if (!grant) {
+          if (
+            !grant ||
+            (input.resource !== undefined && !grant.resources?.includes(input.resource))
+          ) {
             return null
           }
           return { binding: `${grant.id}:${grant.version}`, scopes: grant.scopes }
@@ -150,13 +154,17 @@ export function LiveMcpClientConnections(
                     name: row.workspace.name
                   }
                 }
-                return {
+                const connection: McpClientConnection = {
                   id: row.consent.id,
                   client: toClientSummary(row.consent.clientId, row.client),
                   workspace,
                   scopes: row.consent.scopes,
                   grantedAt: row.consent.createdAt.toISOString()
                 }
+                if (row.consent.resources !== null) {
+                  Object.assign(connection, { resources: row.consent.resources })
+                }
+                return connection
               })
             )
           ),

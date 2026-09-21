@@ -27,7 +27,7 @@ test('switches public language, keeps it through navigation and refresh, and exp
     .getByRole('link', { name: /dokumentasjon/iu })
     .first()
     .click()
-  await expect(page).toHaveURL(/\/nb\/docs\/?$/u)
+  await expect(page).toHaveURL(/\/nb\/docs\/getting-started\/quickstart$/u)
   await page.reload()
   await expect(page.locator('html')).toHaveAttribute('lang', 'nb')
   await expect(

@@ -1,3 +1,4 @@
+import { SeedAssistantDirectory } from '../assistant/directory.seed.ts'
 import { Effect, Layer } from 'effect'
 import { expect, it } from '@effect/vitest'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -85,6 +86,7 @@ function fixture(options?: {
         publisher,
         SeedSeatSyncPublisher,
         SeedWorkspaceMembership(roster, workspace).pipe(
+          Layer.provide(SeedAssistantDirectory),
           Layer.provide(publisher),
           Layer.provide(SeedSeatSyncPublisher)
         ),

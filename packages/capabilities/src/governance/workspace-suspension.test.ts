@@ -1,3 +1,4 @@
+import { SeedAssistantDirectory } from '../assistant/directory.seed.ts'
 import { Effect, Layer, Ref } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 import { SeedWorkspaceSuspension } from './workspace-suspension.seed.ts'
@@ -48,6 +49,7 @@ function makeLayer(feed: Layer.Layer<NotificationFeed>) {
     Effect.gen(function* () {
       const catalog = yield* Ref.make<ReadonlyArray<Workspace>>(catalogWorkspaces)
       return SeedWorkspaceSuspension({ ...options, catalog }).pipe(
+        Layer.provide(SeedAssistantDirectory),
         Layer.provide(Layer.mock(AuditEventLog, { record: () => Effect.void })),
         Layer.provide(feed)
       )
@@ -129,6 +131,7 @@ describe('seed workspace suspension', () => {
     }).pipe(
       Effect.provide(
         SeedWorkspaceLifecycle({ workspace: options.workspace }).pipe(
+          Layer.provide(SeedAssistantDirectory),
           Layer.provideMerge(layer)
         )
       ),

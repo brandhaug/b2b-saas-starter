@@ -128,3 +128,21 @@ it('shows loading followed by a never-dispatched terminal outcome', async () => 
   expect(screen.queryByText('Response body')).toBeNull()
   expect(screen.getByText(/"event": "test"/)).not.toBeNull()
 })
+
+it.each(['failed_permanent', 'dead_lettered'] satisfies ReadonlyArray<
+  WebhookDeliveryAttempt['status']
+>)('presents terminal outcome %s as a readable failure', async (status) => {
+  renderWithQueryClient(
+    <WebhookDeliveryTimeline
+      workspaceSlug="starter-lab"
+      delivery={{ ...delivery, status }}
+      listAttempts={async () => [{ ...failed, phase: 'terminal', status }]}
+    />
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'View attempt history' }))
+  const label =
+    status === 'failed_permanent' ? 'permanently failed' : 'sent to dead-letter queue'
+  const badge = await screen.findByText(label)
+  expect(badge.getAttribute('data-variant')).toBe('destructive')
+  expect(screen.queryByText(status)).toBeNull()
+})

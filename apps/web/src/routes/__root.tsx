@@ -1,6 +1,7 @@
 import { localeLinks } from '@/lib/i18n-seo'
 import * as m from '@b2b-saas-starter/i18n/messages'
 import { getLocale } from '@b2b-saas-starter/i18n/runtime'
+import { InteractionModality } from '@/components/interaction-modality'
 import { LocaleBootstrap } from '@/components/locale-preferences'
 import { presentationSettings } from '@/lib/i18n'
 import '@fontsource-variable/geist/index.css'
@@ -86,7 +87,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
     links: [
       ...localeLinks(match.context.canonicalPath),
       { rel: 'stylesheet', href: appCss },
-      { rel: 'icon', type: 'image/png', href: '/assets/starter-logo.png' },
+      { rel: 'icon', type: 'image/png', href: '/assets/favicon.png' },
       /* Preload the latin variable woff2 for the text faces: the family
          names in index.css resolve to the fontsource `@font-face` rules,
          which otherwise start loading two round-trips deep (CSS → font
@@ -136,6 +137,7 @@ function RootDocument({ children }: { readonly children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
+        <InteractionModality />
         <LocaleBootstrap />
         {children}
         {/* No `richColors`: success/warning paint from the same status tokens

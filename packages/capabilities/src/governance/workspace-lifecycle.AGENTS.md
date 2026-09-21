@@ -7,6 +7,8 @@ Creates, renames, and hard-deletes workspaces through the `WorkspaceLifecycleBin
 - `create({ name, slug, userId })` is identity-keyed, the creator being a member of nothing yet. The plugin makes them the first owner and the capability reads the row back by slug, returning the `Workspace` DTO plus `planId`.
 - Audits `workspace.created`, `workspace.renamed`, and `workspace.deleted`. The delete is recorded as a system event (`workspaceId: null`) naming the removed workspace in `targetId`, so it survives its own cascade.
 
+Removal fences private Assistant Conversations and invalidates personal archives before the plugin removes the Workspace. Conversation cleanup addresses survive the cascade.
+
 ## Pitfalls
 
 - The Seed adapter shares a workspace catalog with Seed suspension in `layers.ts`; creation, rename, and deletion update the identities suspension resolves. It refuses slugs still in that catalog and optionally adds the creator to the shared `SeedRoster` as owner.

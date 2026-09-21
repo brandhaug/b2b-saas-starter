@@ -1,10 +1,10 @@
-import { Schema, Stream } from 'effect'
+import { Schema } from 'effect'
 import { AiError, type LanguageModel } from 'effect/unstable/ai'
 
 // What every adapter in this package shares: they are text-only models, and
 // `plainChat` is the whole acceptance policy — no tools, no structured
-// output, and a prompt of system and user messages with text parts only,
-// exactly the shape `AssistantLive` builds. Anything richer is refused with a
+// output, and a prompt of system, user and assistant messages with text parts only,
+// including completed conversation history. Anything richer is refused with a
 // typed `AiError` before any request is sent, instead of being silently
 // flattened or ignored, so all three adapters accept exactly the same
 // requests and differ in nothing but how they call their provider and encode
@@ -12,7 +12,7 @@ import { AiError, type LanguageModel } from 'effect/unstable/ai'
 
 /** The one message shape these adapters send: a chat role, and text. */
 export const ChatMessage = Schema.Struct({
-  role: Schema.Literals(['system', 'user']),
+  role: Schema.Literals(['system', 'user', 'assistant']),
   content: Schema.String
 })
 export type ChatMessage = typeof ChatMessage.Type
@@ -44,10 +44,14 @@ export function plainChat(options: LanguageModel.ProviderOptions): PlainChat {
   }
   const messages: Array<ChatMessage> = []
   for (const message of options.prompt.content) {
-    if (message.role !== 'system' && message.role !== 'user') {
+    if (
+      message.role !== 'system' &&
+      message.role !== 'user' &&
+      message.role !== 'assistant'
+    ) {
       return {
         reason: new AiError.InvalidUserInputError({
-          description: `carries a '${message.role}' message; only system and user are sent`
+          description: `carries a '${message.role}' message; only system, user and assistant text are sent`
         })
       }
     }
@@ -66,25 +70,7 @@ export function plainChat(options: LanguageModel.ProviderOptions): PlainChat {
       }
       content.push(part.text)
     }
-    messages.push({ role: 'user', content: content.join('') })
+    messages.push({ role: message.role, content: content.join('') })
   }
   return { messages }
-}
-
-/**
- * Every adapter here answers with one complete response. Streaming is refused
- * with a typed `AiError` — visible at the call site, not a silent
- * approximation — until an adapter implements it.
- */
-export function unsupportedStream(module: string) {
-  return () =>
-    Stream.fail(
-      AiError.make({
-        module,
-        method: 'streamText',
-        reason: new AiError.InvalidRequestError({
-          description: 'text-only adapters answer in one complete response'
-        })
-      })
-    )
 }

@@ -9,6 +9,8 @@ Self-service account deletion and the workspace teardown it implies (ADR 0059). 
 - `planAccountDeletion` is the shared rule, per membership, in precedence order: sole member in a suspended workspace gives `blocked_suspended_workspace`, other sole member gives `delete_workspace`, sole owner of a shared workspace `blocked_sole_owner` (the plugin refuses that leave too), otherwise `leave`. One blocked workspace blocks the account; `deletionMetadata` yields counts, never workspace names.
 - Audits `workspace.deleted` with `workspaceId: null` (the real id cascades away), `workspace_member.removed` with `metadata.reason: 'account_deleted'`, and an actorless `account.deleted` naming the account in `targetId`.
 
+Assistant conversation cleanup addresses are fenced before account or implied Workspace deletion. Tombstones survive parent removal so the background worker can retry object shutdown and storage deletion.
+
 ## Pitfalls
 
 - The store owns the order: password verified first, then the app's `beforeDelete` hook running `prepareDeletion` (`apps/web/src/lib/server/account-delete-hooks.ts`), then the user row, then `afterDelete` calling `recordDeleted`. Live `deleteAccount` is only the pre-check plus hand-off.

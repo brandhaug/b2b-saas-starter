@@ -1,7 +1,8 @@
 import { failureMessage } from '@b2b-saas-starter/failure'
-import { Effect, Layer, Option, Redacted, Schema } from 'effect'
+import { Effect, Layer, Option, Redacted, Schema, Stream } from 'effect'
 import { AiError, LanguageModel, Model, type Response } from 'effect/unstable/ai'
-import { plainChat, unsupportedStream } from './text-model.ts'
+import { plainChat } from './text-model.ts'
+import { providerStreamError, providerTextStream } from './provider-stream.ts'
 
 // The single platform adapter: any OpenAI-compatible `/chat/completions`
 // endpoint, called with one outbound POST. Config resolution happens once,
@@ -13,6 +14,7 @@ export type OpenAIConfig = {
   readonly apiKey: string
   readonly baseUrl?: string
   readonly modelId?: string
+  readonly maxOutputTokens?: number
 }
 
 const OpenAIFinishReason = Schema.Literals(['stop', 'length', 'content_filter'])
@@ -25,7 +27,7 @@ function finishReason(
     return 'content-filter'
   }
   if (reason === undefined) {
-    return 'stop'
+    return 'unknown'
   }
   return reason
 }
@@ -69,19 +71,27 @@ export function makeOpenAIModel(config: OpenAIConfig) {
       if ('reason' in plain) {
         return yield* openAiError(plain.reason)
       }
+      const controller = yield* Effect.acquireRelease(
+        Effect.sync(() => new AbortController()),
+        (active) => Effect.sync(() => active.abort())
+      )
       // The whole outbound boundary of this package is this one call.
       // `packages/ai` deliberately depends on `effect` only, so there is no
       // `@effect/platform` HttpClient to route through; the global `fetch` is
       // confined to here.
       const response = yield* Effect.tryPromise({
-        try: (signal) =>
+        try: () =>
           // oxlint-disable-next-line effect/noGlobals -- raw fetch is the platform transport here
           fetch(chatUrl, {
             method: 'POST',
             headers,
-            // oxlint-disable-next-line effect/noGlobals -- outbound request body, deliberately unvalidated: the wire shape is exactly these two fields, and a codec would decode what we just built
-            body: JSON.stringify({ model: modelId, messages: plain.messages }),
-            signal,
+            // oxlint-disable-next-line effect/noGlobals -- outbound request body, deliberately unvalidated: the wire shape contains only selected request fields, and a codec would decode what we just built
+            body: JSON.stringify({
+              model: modelId,
+              messages: plain.messages,
+              max_tokens: config.maxOutputTokens ?? 4096
+            }),
+            signal: controller.signal,
             // Cloudflare Workers supports manual redirects; treating the 3xx
             // response as an ordinary provider failure prevents following it
             // or leaking auth.
@@ -141,7 +151,57 @@ export function makeOpenAIModel(config: OpenAIConfig) {
         }
       ]
       return parts
-    })
+    }).pipe(Effect.scoped)
+  }
+
+  function streamText(options: LanguageModel.ProviderOptions) {
+    return Stream.unwrap(
+      Effect.gen(function* () {
+        const plain = plainChat(options)
+        if ('reason' in plain) {
+          return yield* AiError.make({
+            module: PROVIDER,
+            method: 'streamText',
+            reason: plain.reason
+          })
+        }
+        const controller = yield* Effect.acquireRelease(
+          Effect.sync(() => new AbortController()),
+          (active) => Effect.sync(() => active.abort())
+        )
+        const response = yield* Effect.tryPromise({
+          try: () =>
+            // oxlint-disable-next-line effect/noGlobals -- provider transport boundary with scoped cancellation
+            fetch(chatUrl, {
+              method: 'POST',
+              headers,
+              redirect: 'manual',
+              signal: controller.signal,
+              // oxlint-disable-next-line effect/noGlobals -- outgoing provider wire payload
+              body: JSON.stringify({
+                model: modelId,
+                messages: plain.messages,
+                stream: true,
+                stream_options: { include_usage: true },
+                max_tokens: config.maxOutputTokens ?? 16_000
+              })
+            }),
+          catch: () => providerStreamError(PROVIDER, 'Provider connection failed.')
+        })
+        if (!response.ok || response.body === null) {
+          return yield* providerStreamError(
+            PROVIDER,
+            `Provider refused streaming with status ${response.status}.`
+          )
+        }
+        return providerTextStream(
+          response.body,
+          PROVIDER,
+          modelId,
+          response.headers.get('x-request-id') ?? undefined
+        )
+      })
+    )
   }
 
   return Model.make(
@@ -151,7 +211,7 @@ export function makeOpenAIModel(config: OpenAIConfig) {
       LanguageModel.LanguageModel,
       LanguageModel.make({
         generateText,
-        streamText: unsupportedStream(PROVIDER)
+        streamText
       })
     )
   )

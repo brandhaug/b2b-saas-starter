@@ -4,7 +4,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./errors": "./src/errors.ts"
+    "./errors": "./src/errors.ts",
+    "./assistant-conversations": "./src/assistant-conversations.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

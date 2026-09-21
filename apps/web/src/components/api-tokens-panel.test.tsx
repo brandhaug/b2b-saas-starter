@@ -47,7 +47,7 @@ describe('ApiTokensPanel', () => {
 
   it('offers the create form and the revoke control to a role that holds both', async () => {
     await renderPanel({ role: 'owner' })
-    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for CI token' }))
     expect(screen.getByRole('menuitem', { name: 'Revoke' })).not.toBeNull()
     expect(screen.queryByText('Your role cannot mint tokens.')).toBeNull()
     expect(screen.queryByText('Your role cannot revoke tokens.')).toBeNull()
@@ -66,7 +66,7 @@ describe('ApiTokensPanel', () => {
     await renderPanel({ role: 'owner', creation: 'hidden' })
     expect(screen.queryByRole('button', { name: 'Create a token' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Replace' })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for CI token' }))
     expect(screen.getByRole('menuitem', { name: 'Revoke' })).not.toBeNull()
   })
 
@@ -156,7 +156,7 @@ describe('ApiTokensPanel', () => {
   it('revokes on the second click and reports a failure once', async () => {
     revokeToken.mockRejectedValue(new Error('Token already revoked'))
     await renderPanel({ role: 'owner' })
-    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for CI token' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Revoke' }))
     fireEvent.click(screen.getByRole('button', { name: 'Confirm revoke' }))
     await waitFor(() => {

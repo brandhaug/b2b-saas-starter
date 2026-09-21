@@ -9,13 +9,39 @@ test.beforeEach(async ({ context }, testInfo) => {
   })
 })
 
-test('public homepage renders the starter showcase', async ({ page }) => {
+test('public homepage exposes every request stage and optional caller evidence', async ({
+  page
+}) => {
   await page.goto('/')
   await expect(
-    page.getByRole('heading', { name: /the hard parts, already wired/i })
+    page.getByRole('heading', { name: /from idea to production-ready saas/i })
   ).toBeVisible()
   await expect(
-    page.getByRole('listitem').filter({ hasText: 'TanStack Start' })
+    page.getByRole('link', { name: 'Explore demo', exact: true }).first()
+  ).toHaveAttribute('href', '/demo')
+  const contract = page.getByRole('heading', {
+    name: 'Check the inputs and errors.',
+    exact: true
+  })
+  await expect(contract).toBeVisible()
+  await page
+    .getByRole('navigation', { name: 'Follow the request' })
+    .getByRole('link', { name: /Contract/ })
+    .click()
+  await expect(contract).toBeInViewport()
+  await expect(
+    page
+      .getByRole('navigation', { name: 'Follow the request' })
+      .getByRole('link', { name: /Contract/ })
+  ).toHaveAttribute('aria-current', 'step')
+  const caller = page.getByRole('region', { name: 'MCP tool, scrollable code' })
+  await expect(caller).toBeHidden()
+  await page
+    .getByText('Compare the web, REST, and MCP callers', { exact: true })
+    .click()
+  await expect(caller).toBeVisible()
+  await expect(
+    page.getByRole('heading', { name: 'Deploy to Cloudflare.', exact: true })
   ).toBeVisible()
 })
 
@@ -31,10 +57,25 @@ test('the homepage renders the live seed numbers and the real overview payload',
   await expect(page.getByText(/"name": "Starter Lab"/).first()).toBeVisible()
 })
 
-test('public docs render', async ({ page }) => {
-  await page.goto('/docs')
-  await expect(page.getByRole('heading', { name: 'Documentation' })).toBeVisible()
-})
+// oxlint-disable-next-line vitest/prefer-each -- Playwright uses loops to parameterize tests; it has no test.each.
+for (const { entry, locale } of [
+  { entry: '/docs', locale: 'en' },
+  { entry: '/en/docs', locale: 'en' },
+  { entry: '/nb/docs', locale: 'nb' }
+]) {
+  test(`${entry} redirects to Quickstart and preserves the public locale`, async ({
+    page
+  }) => {
+    await page.goto(entry)
+    await expect(page).toHaveURL(
+      new RegExp(`/${locale}/docs/getting-started/quickstart$`)
+    )
+    await expect(page.locator('html')).toHaveAttribute('lang', locale)
+    await expect(
+      page.getByRole('heading', { name: 'Quickstart', exact: true })
+    ).toBeVisible()
+  })
+}
 
 test('knowledge search loads metadata without downloading article bodies', async ({
   page
@@ -108,9 +149,12 @@ test('reset-password page shows the opaque failure state without a token', async
   ).toBeVisible()
 })
 
-test('verify-email page reports success without an error param', async ({ page }) => {
+test('an anonymous verification visit stays neutral without proof', async ({
+  page
+}) => {
   await page.goto('/verify-email')
-  await expect(page.getByRole('heading', { name: 'Email verified' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Check your inbox' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Email verified' })).toBeHidden()
 })
 
 test('seeded demo user signs in and reaches the workspace dashboard', async ({
@@ -123,6 +167,8 @@ test('seeded demo user signs in and reaches the workspace dashboard', async ({
   await signInAsOwner(page, '/workspaces/starter-lab')
   // The seeded dashboard renders real capability data, not the auth screen.
   await expect(page.getByRole('heading', { name: /starter lab/i })).toBeVisible()
+  await page.goto('/verify-email')
+  await expect(page.getByRole('heading', { name: 'Email verified' })).toBeVisible()
 })
 
 test('seeded demo user can request a magic link', async ({ page }) => {

@@ -3,7 +3,12 @@ import { readFileSync } from 'node:fs'
 // oxlint-disable-next-line effect/noNodeBuiltinImport -- same: resolving the content path is a Node-side job, and the test never ships to the Worker
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vite-plus/test'
-import { SETUP_STEPS } from './toolchain'
+import {
+  CLONE_COMMAND,
+  COPY_COMMAND,
+  REPOSITORY_DIRECTORY,
+  SETUP_STEPS
+} from './toolchain'
 
 /**
  * The quickstart is the canonical install story; the hero and closing block
@@ -28,5 +33,15 @@ describe('SETUP_STEPS', () => {
     const positions = SETUP_STEPS.map((step) => quickstart.indexOf(step))
     expect(positions.every((position) => position >= 0)).toBe(true)
     expect(positions.toSorted((a, b) => a - b)).toEqual(positions)
+  })
+
+  it('builds a complete clone-to-dev sequence', () => {
+    const commands = COPY_COMMAND.split(' && ')
+
+    expect(commands).toEqual([
+      CLONE_COMMAND,
+      `cd ${REPOSITORY_DIRECTORY}`,
+      ...SETUP_STEPS
+    ])
   })
 })

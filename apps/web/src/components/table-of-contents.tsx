@@ -34,7 +34,7 @@ export function TableOfContents({
                   ).matches
                   const target = document.getElementById(heading.id)
                   target?.scrollIntoView({
-                    behavior: reducedMotion ? 'instant' : 'smooth'
+                    behavior: reducedMotion || e.detail === 0 ? 'instant' : 'smooth'
                   })
                   history.replaceState(null, '', `#${heading.id}`)
                   // Preventing the default navigation also keeps the sequential

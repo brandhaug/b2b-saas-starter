@@ -1,3 +1,4 @@
+import { SeedAssistantDirectory } from './assistant/directory.seed.ts'
 import {
   BillingAuditLayer,
   BillingNotificationLayer,
@@ -735,6 +736,7 @@ describe('seed workspace membership contract', () => {
       return Layer.mergeAll(
         SeedWebhookPublisher,
         SeedWorkspaceMembership(roster, seedWorkspaceRecord, evidenceSink).pipe(
+          Layer.provide(SeedAssistantDirectory),
           Layer.provide(SeedSeatSyncPublisher),
           Layer.provide(SeedWebhookPublisher)
         ),
@@ -898,6 +900,7 @@ describe('seed workspace invitations contract', () => {
           Layer.provide(SeedWebhookPublisher)
         ),
         SeedWorkspaceMembership(roster, seedWorkspaceRecord).pipe(
+          Layer.provide(SeedAssistantDirectory),
           Layer.provide(SeedSeatSyncPublisher),
           Layer.provide(SeedWebhookPublisher)
         ),
@@ -1100,10 +1103,15 @@ function lifecycleLayerFor(
       const suspension = SeedWorkspaceSuspension({
         workspace: seedWorkspaceRecord,
         systemUsers: seedSystemUsers
-      }).pipe(Layer.provide(audit), Layer.provide(feed))
+      }).pipe(
+        Layer.provide(SeedAssistantDirectory),
+        Layer.provide(audit),
+        Layer.provide(feed)
+      )
       return Layer.mergeAll(
         audit,
         SeedAccountLifecycle({ roster, workspace: seedWorkspaceRecord }).pipe(
+          Layer.provide(SeedAssistantDirectory),
           Layer.provide(audit),
           Layer.provide(suspension)
         ),

@@ -9,6 +9,7 @@ import {
 } from './trace.ts'
 import {
   withHttpRequestScope,
+  annotateWideEvent,
   withRequestScope,
   withTriggerScope
 } from './wide-event.ts'
@@ -302,6 +303,24 @@ describe('withHttpInvocation', () => {
   })
 })
 
+it.effect('handles an internal Worker request whose cf property is undefined', () => {
+  const { layer, records } = collector()
+  const request = new Request('https://conversation.internal/read')
+  Object.defineProperty(request, 'cf', { value: undefined })
+  return Effect.gen(function* () {
+    const response = yield* withHttpInvocation(
+      { service: 'assistant', event: 'assistant.request', request, env: {} },
+      Effect.succeed(new Response('saved history'))
+    )
+    expect(response.status).toBe(200)
+    expect(only(records).annotations).toMatchObject({
+      service: 'assistant',
+      status: 'ok'
+    })
+    expect(only(records).annotations).not.toHaveProperty('region')
+  }).pipe(Effect.provide(layer))
+})
+
 describe('readWideEventEnvironment', () => {
   it('reads the deployment identity a wide event needs', () => {
     expect(
@@ -328,3 +347,26 @@ describe('readWideEventEnvironment', () => {
     expect(Object.keys(readWideEventEnvironment({ ENVIRONMENT: '' }))).toEqual([])
   })
 })
+
+it.effect(
+  'adds capability failure counts to the existing canonical event without another log line',
+  () => {
+    const { layer, records } = collector()
+    return Effect.gen(function* () {
+      yield* withRequestScope(
+        { service: 'background', event: 'assistant_cleanup' },
+        annotateWideEvent({ failedConversations: 2 })
+      )
+      expect(only(records).annotations).toMatchObject({
+        failedConversations: 2,
+        event: 'assistant_cleanup'
+      })
+      yield* withRequestScope(
+        { service: 'background', event: 'unrelated' },
+        Effect.void
+      )
+      expect(records).toHaveLength(2)
+      expect(records[1]?.annotations).not.toHaveProperty('failedConversations')
+    }).pipe(Effect.provide(layer))
+  }
+)

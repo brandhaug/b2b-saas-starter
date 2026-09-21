@@ -35,6 +35,15 @@ async function renderPage(
 }
 
 describe('workspace picker', () => {
+  it('exposes workspace links inside the directory list items', async () => {
+    await renderPage([membership])
+    const link = screen.getByRole('link', { name: /Starter Lab/ })
+    const item = link.closest('[role="listitem"]')
+    expect(item?.parentElement?.getAttribute('role')).toBe('list')
+    fireEvent.click(link)
+    await screen.findByText('/workspaces/starter-lab')
+  })
+
   it('names the list once: the page header, not a second panel heading', async () => {
     await renderPage([membership])
     expect(screen.getAllByRole('heading', { name: 'Your workspaces' })).toHaveLength(1)

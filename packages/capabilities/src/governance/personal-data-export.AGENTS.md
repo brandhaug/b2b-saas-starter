@@ -2,9 +2,9 @@
 
 The capability owns collection, the session-bound persistent archive, request/download audit evidence, and expiry. Its interface is `request(userId, sessionId)` followed by `download(userId, sessionId, exportId)`.
 
-Archives are personal account records across all of the user's workspaces. Workspace-owned records and other users' data are excluded. OAuth output is limited to client metadata and consent scopes; secrets, credentials, access tokens, refresh tokens, and signing material are never selected.
+Archives are personal account records across all of the user's workspaces. Currently authorized private Assistant Conversations include every saved attempt and task reference. Workspace-owned records and other users' data are excluded. OAuth output is limited to client metadata and consent scopes; secrets, credentials, access tokens, refresh tokens, and signing material are never selected.
 
-Live artifacts are stored in D1 with cascading user/session foreign keys and a 24-hour expiry. Download rechecks the user/session pair and expiry before reading. Retention cleanup is approval-gated through the generic retention policy.
+Live artifacts are stored in D1 with cascading user/session foreign keys and a 24-hour expiry. Download rechecks the user/session pair, expiry and conversation/access manifest before serving the cached archive. Policy changes, membership loss and deletion invalidate existing artifacts; restored access requires a new archive. Retention cleanup is approval-gated through the generic retention policy.
 
 Seed binds in-memory artifacts to the requesting user/session pair and applies the same expiry. It has no authentication session store; callers must validate the current session at the authenticated boundary. Both web actions require the current session and recent authentication. Session revocation and account-deletion cascades are covered by Live tests.
 

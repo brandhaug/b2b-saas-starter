@@ -32,3 +32,5 @@ packages/i18n/.generated/
 
 # Impeccable's machine-local app discovery
 /.impeccable/live/app-root.json
+/.impeccable/hook.cache.json
+/.impeccable/review/

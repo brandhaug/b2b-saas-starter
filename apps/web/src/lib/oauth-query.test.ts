@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vite-plus/test'
 import { consentRequest, scopeLabel, signedOAuthQuery } from './oauth-query'
+import { defaultParseSearch, defaultStringifySearch } from '@tanstack/react-router'
 
 describe('signedOAuthQuery', () => {
   it('keeps the signature, the signed-name list, and the named parameters only', () => {
@@ -13,6 +14,37 @@ describe('signedOAuthQuery', () => {
   it('is null for a page query that carries no OAuth signature', () => {
     expect(signedOAuthQuery('?redirect=%2Fworkspaces')).toBeNull()
     expect(signedOAuthQuery('')).toBeNull()
+  })
+
+  it('restores router-serialized repeated fields while retaining signed values', () => {
+    const original = new URLSearchParams({
+      client_id: 'https://client.example/metadata.json',
+      state: 'opaque+state/with=encoding',
+      sig: 'authentic-signature'
+    })
+    for (const name of ['ba_param', 'client_id', 'resource', 'state']) {
+      original.append('ba_param', name)
+    }
+    original.append('resource', 'https://api.example/assistant')
+    original.append('resource', 'https://api.example/mcp')
+    const routed = defaultStringifySearch(defaultParseSearch(`?${original}`))
+    const restored = new URLSearchParams(
+      signedOAuthQuery(`${routed}&redirect=/evil`) ?? ''
+    )
+    restored.sort()
+    original.sort()
+    expect([...restored]).toEqual([...original])
+    expect(restored.has('redirect')).toBe(false)
+  })
+
+  it('refuses malformed router arrays without altering opaque signed JSON strings', () => {
+    expect(signedOAuthQuery('?sig=x&ba_param=%5Bbroken')).toBeNull()
+    expect(signedOAuthQuery('?sig=x&ba_param=%5B1%5D')).toBeNull()
+    const params = new URLSearchParams({ sig: 'x', state: '["opaque"]' })
+    params.append('ba_param', 'state')
+    expect(
+      new URLSearchParams(signedOAuthQuery(params.toString()) ?? '').get('state')
+    ).toBe('["opaque"]')
   })
 })
 

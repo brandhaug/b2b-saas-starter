@@ -5,6 +5,9 @@
   },
   "entry": [
     "alchemy.run.ts",
+    // Bundled by esbuild into native workerd entry points.
+    "apps/web/scripts/local-assistant-worker.ts",
+    "apps/web/test/assistant/worker.ts",
     // `pnpm run test:scripts` runs these by directory, and the runbooks in
     // docs/ invoke the operator CLIs by path rather than through an npm alias.
     "scripts/*.test.ts",

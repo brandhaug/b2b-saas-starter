@@ -11,14 +11,14 @@ Cloudflare Worker for external REST clients and MCP. Serves the `StarterApi` con
 - Change the contract in `packages/api` first, then the handler. An endpoint's error channel stays a subset of its contract errors, and the contract declares no error the handlers cannot construct.
 - Protocol-driving tests share `src/test-utils.ts` (`jsonBody`, `mcpClient`); do not re-declare those helpers per file.
 - Yield stable capability services once in the handler layer. Resolve `WorkspaceContext`, actor, request origin, and log scope per request. Translate expected domain errors at the route boundary; let contract schemas encode declared failures.
-- A handler is `observed(...)` around `enforcePermission(permission, slug)` plus one capability call. Auth and the bucket come from `BearerAuth`, so no handler reads `Authorization`.
+- Workspace handlers wrap `enforcePermission` and one capability call in `observed`. Private conversation handlers use the current member context from `AssistantBearerAuth` and `AssistantConversations`. Each gate owns authentication and its abuse bucket; handlers never read `Authorization`.
 - Endpoints name permissions, never scopes. [`authz`](../../packages/authz/AGENTS.md) owns the scope-to-permission map, so a token and a web session resolve through one `authorize()`.
 - `provideWorkspace` builds the only request-scoped service, `WorkspaceContext`; the rest are isolate-level, reached through `HttpRouter.provideRequest`.
 - MCP JWTs use OAuth verification; other credentials use API Token verification (ADR 0068). Tokens authorize by scopes; OAuth tools and resources require current matching consent, the immutable Workspace ID, and Member re-resolved per call; writes additionally require `mcp:write`. Both use the `mcp` bucket; each write also consumes `rest_write` and `guardFailureResponse`. Router middleware gates the transport; `CurrentMcpCaller` travels through Effect RPC request-fiber context to each tool. Preserve `api_token` versus OAuth `user` audit provenance.
 
 ## Boundaries
 
-- Do not accept a JWT on a REST route; OAuth is the interactive surface only.
+- Private `/assistant/conversations` routes accept only assistant-audience member OAuth JWTs. Existing workspace REST groups keep API-token authentication. MCP and assistant audiences remain mutually invalid.
 - Supported workspace mutations have REST/MCP parity. Keep the typed projection in `mcp-mutations.ts` exhaustive, use canonical JSON payload schemas, and call the existing catalog operation. Every write checks its permission and declares all four MCP hints (ADR 0072). Hints never guarantee approval.
 - Do not add a membership or invitation endpoint: Better Auth `organization` writes are `requireHeaders: true` and a bearer token is no session (ARCHITECTURE.md). That surface stays in `apps/web`, so this worker wires no `EmailDispatcher` and no `EMAIL` binding.
 - No OTLP exporter at isolate level (ADR 0050): a Worker may not do I/O for a request that already ended. `withHttpInvocation` builds it per request; only `WideEventLoggerLive` is isolate-level.
@@ -37,3 +37,9 @@ Cloudflare Worker for external REST clients and MCP. Serves the `StarterApi` con
 
 - Token creation uses the shared `requireTokenScopes` guard. Keep requested grants bounded by caller authority on both REST and MCP.
 - MCP export links use invocation origin values, never captured HTTP request objects. Queue failures are tool errors even when a pending delivery committed first; no automatic mutation retries.
+
+## Private assistant REST
+
+`assistant-conversation-guards.ts` verifies the assistant resource token, checks current authority and provides immutable Workspace identity for each operation. Creator checks and transcript permission requirements stay in `AssistantConversations`; mutations share admission with web. Responses containing private data use `Cache-Control: private, no-store`.
+
+The events handler forwards `Last-Event-ID` and the host response. The host owns replay, snapshot fallback and authorization before each outgoing batch. The API Worker must never start inference or keep an alternate transcript. Natural observation credential expiry closes that observation, while accepted generation retains its bounded authority.

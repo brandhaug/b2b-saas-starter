@@ -10,6 +10,7 @@ import { type AuthConfigInterface } from './index.ts'
 export function testMcpConfig(): AuthConfigInterface['mcp'] {
   return {
     resource: 'http://localhost:8787/mcp',
+    assistantResource: 'http://localhost:8787/assistant',
     fetchClientMetadataResource: () => {
       // oxlint-disable-next-line effect/noThrowStatement, effect/noNewError -- a reached transport is a programmer error in a test helper; the throw is the failure channel
       throw new TypeError('client discovery is not exercised by this suite')

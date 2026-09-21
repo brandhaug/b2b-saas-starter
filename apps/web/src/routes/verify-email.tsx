@@ -1,3 +1,4 @@
+import { type ReactNode } from 'react'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { pageTitle } from '@/components/page/page-title'
 import { CheckCircle2Icon, CircleAlertIcon } from 'lucide-react'
@@ -5,14 +6,27 @@ import { EmailCodeExchangeCard } from '@/components/auth/email-code-exchange'
 import { PublicLayout } from '@/components/public-layout'
 import { authClient } from '@/lib/auth-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { getEmailVerificationStatusServerFn } from '@/lib/server/email-verification'
 import { getTurnstileSiteKey } from '@/lib/server/turnstile'
 import { pickOptionalStrings } from '@/lib/utils'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 export const Route = createFileRoute('/verify-email')({
   validateSearch: (search) => pickOptionalStrings(search, ['error']),
-  // Server-only read, env-gated: `null` renders no widget and sends no token.
-  loader: () => getTurnstileSiteKey(),
+  // Server-only reads. Project only the verification bit into the loader
+  // payload; identity fields never cross the SSR boundary for this public
+  // landing page.
+  loader: async () => {
+    // oxlint-disable-next-line effect/noNewPromise -- independent server-only reads keep the landing loader fast
+    const [turnstileSiteKey, emailVerified] = await Promise.all([
+      getTurnstileSiteKey(),
+      getEmailVerificationStatusServerFn()
+    ])
+    return {
+      turnstileSiteKey,
+      emailVerified
+    }
+  },
   component: VerifyEmailRoute,
   head: () => ({ meta: [{ title: pageTitle(m.public_meta_verify_email()) }] })
 })
@@ -20,24 +34,68 @@ export const Route = createFileRoute('/verify-email')({
 /**
  * The landing page for the verification link. The emailed URL points at the
  * auth handler, which verifies the token and redirects here — success arrives
- * with no params (and a session cookie, via autoSignInAfterVerification),
- * failure with `?error=<code>`. This page reports what already happened, and
- * on failure offers the code as the alternative way to verify.
+ * with a verified session (via autoSignInAfterVerification), failure with
+ * `?error=<code>`. A direct anonymous visit has neither proof and stays
+ * neutral; on failure the page offers the code as the alternative way to
+ * verify.
  */
 function VerifyEmailRoute() {
   const { error } = Route.useSearch()
-  return <VerifyEmailPage error={error} turnstileSiteKey={Route.useLoaderData()} />
+  const { turnstileSiteKey, emailVerified } = Route.useLoaderData()
+  return (
+    <VerifyEmailPage
+      error={error}
+      emailVerified={emailVerified}
+      turnstileSiteKey={turnstileSiteKey}
+    />
+  )
 }
 
 export function VerifyEmailPage({
   error,
+  emailVerified = false,
   turnstileSiteKey = null
 }: {
   readonly error?: string | undefined
+  /** Server-confirmed session state; defaults to neutral when absent. */
+  readonly emailVerified?: boolean | undefined
   /** Server-provided Turnstile site key; `null` renders no widget (provider-light). */
   readonly turnstileSiteKey?: string | null | undefined
 }) {
   const router = useRouter()
+  const verified = !error && emailVerified
+  let title: ReactNode = m.auth_design_email_verification_pending()
+  let copy: ReactNode = (
+    <p className="text-sm text-muted-foreground">
+      {m.auth_design_email_verification_pending_description()}
+    </p>
+  )
+  if (error) {
+    title = (
+      <span className="flex items-center gap-2">
+        <CircleAlertIcon className="size-5 text-destructive" />
+        {m.email_verification_failed()}
+      </span>
+    )
+    copy = (
+      <>
+        <p className="text-sm text-muted-foreground">
+          {m.email_verification_invalid()}
+        </p>
+        <p className="text-sm text-muted-foreground">
+          {m.email_verification_still_signed_in()}
+        </p>
+      </>
+    )
+  } else if (verified) {
+    title = (
+      <span className="flex items-center gap-2">
+        <CheckCircle2Icon className="size-5 text-status-ok" />
+        {m.email_verified()}
+      </span>
+    )
+    copy = <p className="text-sm text-muted-foreground">{m.email_verified_ready()}</p>
+  }
   return (
     <PublicLayout>
       <main
@@ -47,35 +105,10 @@ export function VerifyEmailPage({
       >
         <Card className="w-full">
           <CardHeader>
-            <CardTitle as="h1">
-              {error ? (
-                <span className="flex items-center gap-2">
-                  <CircleAlertIcon className="size-5 text-destructive" />
-                  {m.email_verification_failed()}
-                </span>
-              ) : (
-                <span className="flex items-center gap-2">
-                  <CheckCircle2Icon className="size-5 text-status-ok" />
-                  {m.email_verified()}
-                </span>
-              )}
-            </CardTitle>
+            <CardTitle as="h1">{title}</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4">
-            {error ? (
-              <>
-                <p className="text-sm text-muted-foreground">
-                  {m.email_verification_invalid()}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {m.email_verification_still_signed_in()}
-                </p>
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                {m.email_verified_ready()}
-              </p>
-            )}
+            {copy}
             <p className="text-center text-sm text-muted-foreground">
               <Link
                 to="/workspaces"

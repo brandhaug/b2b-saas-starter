@@ -327,10 +327,41 @@ export const Stack = Alchemy.Stack(
       workspaceExportBindings.WORKSPACE_EXPORT_QUEUE = workspaceExportQueue
     }
 
+    const web = yield* Cloudflare.Website.Vite('web', {
+      name: names.worker('web'),
+      rootDir: './apps/web',
+      env: {
+        ASSISTANT_CONVERSATIONS: Cloudflare.DurableObject(
+          'WorkspaceAssistantConversation'
+        ),
+        DB: db,
+        [queueBindingKeys.webhookQueue]: webhookQueue,
+        // Producer only — the background worker consumes; membership and
+        // invitation mutations enqueue seat-sync messages.
+        [queueBindingKeys.billingQueue]: billingQueue,
+        [queueBindingKeys.notificationEmailQueue]: notificationEmailQueue,
+        ...rateLimitBindings(webRateLimits),
+        AI: ai,
+        ...emailBinding,
+        // Workspace settings enqueues export jobs and reads the bucket binding
+        // only to answer "are exports available here".
+        ...workspaceExportBindings,
+        ...providerEnv,
+        BETTER_AUTH_SECRET,
+        BETTER_AUTH_URL,
+        BETTER_AUTH_TRUSTED_ORIGINS
+      },
+      ...workerDefaults
+    })
+
     const api = yield* Cloudflare.Worker('api', {
       name: names.worker('api'),
       main: workerMainPath('api'),
       env: {
+        ASSISTANT_CONVERSATIONS: Cloudflare.DurableObject(
+          'WorkspaceAssistantConversation',
+          { scriptName: web.workerName }
+        ),
         DB: db,
         // Producer only — the background worker consumes; the API worker
         // enqueues webhook events after audit-worthy mutations.
@@ -352,6 +383,10 @@ export const Stack = Alchemy.Stack(
       name: names.worker('background'),
       main: workerMainPath('background'),
       env: {
+        ASSISTANT_CONVERSATIONS: Cloudflare.DurableObject(
+          'WorkspaceAssistantConversation',
+          { scriptName: web.workerName }
+        ),
         DB: db,
         [queueBindingKeys.webhookQueue]: webhookQueue,
         // Verified Stripe events are persisted before being handed to this queue.
@@ -425,30 +460,6 @@ export const Stack = Alchemy.Stack(
       queueId: emailEventsQueue.queueId,
       scriptName: background.workerName,
       settings: emailEventsConsumerSettings
-    })
-
-    const web = yield* Cloudflare.Website.Vite('web', {
-      name: names.worker('web'),
-      rootDir: './apps/web',
-      env: {
-        DB: db,
-        [queueBindingKeys.webhookQueue]: webhookQueue,
-        // Producer only — the background worker consumes; membership and
-        // invitation mutations enqueue seat-sync messages.
-        [queueBindingKeys.billingQueue]: billingQueue,
-        [queueBindingKeys.notificationEmailQueue]: notificationEmailQueue,
-        ...rateLimitBindings(webRateLimits),
-        AI: ai,
-        ...emailBinding,
-        // Workspace settings enqueues export jobs and reads the bucket binding
-        // only to answer "are exports available here".
-        ...workspaceExportBindings,
-        ...providerEnv,
-        BETTER_AUTH_SECRET,
-        BETTER_AUTH_URL,
-        BETTER_AUTH_TRUSTED_ORIGINS
-      },
-      ...workerDefaults
     })
 
     return {

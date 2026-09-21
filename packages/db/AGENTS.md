@@ -20,6 +20,7 @@ Drizzle is pinned to a prerelease in the workspace catalog. Before changing APIs
 - Plugin-owned workspace tables retain camelCase columns and surrogate member IDs. `workspace_members` uses a unique `(workspaceId, userId)` index, not a composite primary key: the plugin addresses members by row ID (ADR 0051).
 - `workspaces.metadata` stays plain text because the plugin serializes it. Starter JSON columns use typed text and receive objects rather than pre-serialized strings.
 - Columns returned by organization endpoints need matching `additionalFields` in [auth](../auth/AGENTS.md), or the plugin strips them from responses. `onboardingDismissedAt` is capability-only and excluded (ADR 0066).
+- Assistant directory tombstones and reservations deliberately have no cascading parent foreign keys. Parent-deletion triggers fence retained object addresses before removing accounts or Workspaces; a create trigger requires both live parents. Session authority mirrors session evidence for accepted runs and preserves explicit revocation across natural credential expiry.
 - Workspace foreign keys cascade. Deletion audits use a null workspace ID so they survive that cascade.
 - Index child foreign-key columns, reusing the leftmost prefix of an existing non-partial composite index when possible. Preserve unique and partial constraints even when another index covers their columns. Verify index changes with `EXPLAIN QUERY PLAN` against migrated local D1; assert indexed access, not an exact index name.
 - D1 has no native boolean: use `integer({ mode: 'boolean' })`.

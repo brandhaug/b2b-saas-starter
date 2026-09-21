@@ -20,7 +20,9 @@ import {
   type ApiTokenScopeValue
 } from './enums.ts'
 import { sql } from 'drizzle-orm'
+import { Schema } from 'effect'
 import {
+  customType,
   index,
   integer,
   sqliteTable,
@@ -742,6 +744,10 @@ export const personalDataExports = sqliteTable(
       .notNull()
       .references(() => session.id, { onDelete: 'cascade' }),
     archive: text('archive').notNull(),
+    conversationManifest: text('conversation_manifest', { mode: 'json' })
+      .$type<ReadonlyArray<{ readonly id: string; readonly policyRevision: number }>>()
+      .notNull()
+      .default([]),
     createdAt: isoCreatedAt(),
     expiresAt: text('expires_at').notNull()
   },
@@ -760,10 +766,21 @@ export const personalDataExports = sqliteTable(
  * resolves models by; the SQL names are snake_case like every other table.
  */
 
-/** A Better Auth `string[]` field: JSON text holding a string array. */
-function authStringArray(column: string) {
-  return text(column, { mode: 'json' }).$type<ReadonlyArray<string>>()
-}
+/** Better Auth's SQLite adapter pre-serializes arrays; direct Drizzle callers pass arrays. */
+const authArray = Schema.Array(Schema.String)
+const authArrayJson = Schema.fromJsonString(authArray)
+const decodeAuthArrayInput = Schema.decodeUnknownSync(
+  Schema.Union([authArray, authArrayJson])
+)
+const encodeAuthArray = Schema.encodeSync(authArrayJson)
+const decodeAuthArray = Schema.decodeUnknownSync(authArrayJson)
+const authStringArray = customType<{ data: ReadonlyArray<string>; driverData: string }>(
+  {
+    dataType: () => 'text',
+    toDriver: (value) => encodeAuthArray(decodeAuthArrayInput(value)),
+    fromDriver: decodeAuthArray
+  }
+)
 
 /** A Better Auth `json` field with no declared shape beyond "JSON". */
 function authJson(column: string) {
@@ -883,7 +900,8 @@ export const oauthRefreshToken = sqliteTable(
     clientId: text('clientId')
       .notNull()
       .references(() => oauthClient.clientId),
-    sessionId: text('sessionId').references(() => session.id, { onDelete: 'set null' }),
+    // Retain the grant's originating identity after natural browser-session cleanup.
+    sessionId: text('sessionId'),
     userId: text('userId')
       .notNull()
       .references(() => user.id),
@@ -1236,3 +1254,75 @@ export const retentionProgress = sqliteTable('retention_progress', {
   hasMore: integer('has_more', { mode: 'boolean' }).notNull(),
   failure: text('failure')
 })
+
+/** The directory keeps immutable cleanup addresses after parent deletion. It contains no transcript. */
+export const assistantConversations = sqliteTable(
+  'assistant_conversations',
+  {
+    id: id(),
+    workspaceId: text('workspace_id').notNull(),
+    creatorUserId: text('creator_user_id').notNull(),
+    requiredPermissions: text('required_permissions', { mode: 'json' })
+      .$type<ReadonlyArray<string>>()
+      .notNull()
+      .default([]),
+    policyRevision: integer('policy_revision').notNull().default(0),
+    runAccessRevision: integer('run_access_revision').notNull().default(0),
+    createdAt: isoCreatedAt(),
+    deletedAt: text('deleted_at'),
+    cleanedAt: text('cleaned_at')
+  },
+  (table) => [
+    index('assistant_conversations_owner_idx').on(
+      table.workspaceId,
+      table.creatorUserId,
+      table.createdAt,
+      table.id
+    ),
+    index('assistant_conversations_creator_idx').on(table.creatorUserId),
+    index('assistant_conversations_cleanup_idx').on(table.deletedAt, table.cleanedAt)
+  ]
+)
+
+/** Released reservations retain their rate accounting; expiration bounds ambiguous cross-store writes. */
+export const assistantReservations = sqliteTable(
+  'assistant_reservations',
+  {
+    id: id(),
+    conversationId: text('conversation_id').notNull(),
+    workspaceId: text('workspace_id').notNull(),
+    userId: text('user_id').notNull(),
+    createdAt: integer('created_at').notNull(),
+    deadline: integer('deadline').notNull(),
+    committedAt: integer('committed_at'),
+    releasedAt: integer('released_at')
+  },
+  (table) => [
+    index('assistant_reservations_member_idx').on(
+      table.workspaceId,
+      table.userId,
+      table.createdAt
+    ),
+    index('assistant_reservations_conversation_idx').on(table.conversationId)
+  ]
+)
+
+/** Session proof retained for accepted runs when the observation credential expires naturally. */
+export const assistantSessionAuthority = sqliteTable(
+  'assistant_session_authority',
+  {
+    sessionId: text('session_id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+    revokedAt: integer('revoked_at', { mode: 'timestamp' }),
+    impersonatedBy: text('impersonated_by'),
+    passwordVerifiedAt: integer('password_verified_at', { mode: 'timestamp' }),
+    strongAuthAt: integer('strong_auth_at', { mode: 'timestamp' }),
+    strongAuthMethod: text('strong_auth_method'),
+    strongAuthCredentialId: text('strong_auth_credential_id'),
+    recoveryUntil: integer('recovery_until', { mode: 'timestamp' })
+  },
+  (table) => [index('assistant_session_authority_user_idx').on(table.userId)]
+)

@@ -435,6 +435,32 @@ describe('SignInPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
     await waitFor(() => expect(signIn).toHaveBeenCalledTimes(1))
   })
+
+  it('returns focus to the demo trigger when the credentials sheet is dismissed', async () => {
+    await renderPage()
+    const trigger = screen.getByRole('button', { name: m.auth_view_demo_credentials() })
+    fireEvent.click(trigger)
+    fireEvent.click(screen.getByRole('button', { name: m.common_close() }))
+    await waitFor(() => expect(document.activeElement).toBe(trigger))
+  })
+
+  it('fills owner demo credentials without submitting and focuses the password', async () => {
+    await renderPage()
+    fireEvent.click(
+      screen.getByRole('button', { name: m.auth_view_demo_credentials() })
+    )
+    fireEvent.click(screen.getByRole('button', { name: m.auth_demo_fill_owner() }))
+    expect(screen.getByLabelText<HTMLInputElement>('Email').value).toBe(
+      'demo@starter.local'
+    )
+    expect(screen.getByLabelText<HTMLInputElement>('Password').value).toBe(
+      'demo-starter-password'
+    )
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByLabelText('Password'))
+    )
+    expect(signIn).not.toHaveBeenCalled()
+  })
 })
 
 describe('SignInPage link mode', () => {

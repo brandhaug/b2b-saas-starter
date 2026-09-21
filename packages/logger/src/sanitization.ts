@@ -12,7 +12,17 @@ export function diagnosticLabel(value: unknown): string {
   return OMITTED
 }
 
+const countFields = new Set([
+  'unreadCount',
+  'failedConversations',
+  'cleanedConversations',
+  'expiredReservations',
+  'assistantAffectedConversations'
+])
+
 const allowedFields = new Set([
+  ...countFields,
+  'assistantAuthorityNotification',
   'service',
   'event',
   'status',
@@ -27,7 +37,6 @@ const allowedFields = new Set([
   'method',
   'handlerType',
   'scope',
-  'unreadCount',
   'traceId',
   'otelTraceId',
   'otelSpanId',
@@ -139,7 +148,10 @@ export function diagnosticFields(fields: object) {
     if (key === 'scope' && value !== 'standalone') {
       continue
     }
-    if (key === 'unreadCount' && typeof value !== 'number') {
+    if (countFields.has(key) && typeof value !== 'number') {
+      continue
+    }
+    if (key === 'assistantAuthorityNotification' && value !== 'host_unavailable') {
       continue
     }
     if (!allowedFields.has(key)) {

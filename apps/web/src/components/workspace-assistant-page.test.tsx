@@ -33,6 +33,11 @@ describe('WorkspaceAssistantPage', () => {
     ask.mockReturnValue(new Promise(() => {}))
     await renderPage(unconfigured)
     screen.getByText(m.assistant_chat_unavailable())
+    screen.getByText(m.assistant_unavailable_description())
+    expect(
+      screen.getByRole('link', { name: m.assistant_setup_docs() }).getAttribute('href')
+    ).toBe('/docs/getting-started/optional-providers')
+    screen.getByText(m.assistant_example_prompt())
     expect(screen.queryByLabelText('Your question')).toBeNull()
     expect(ask).not.toHaveBeenCalled()
   })

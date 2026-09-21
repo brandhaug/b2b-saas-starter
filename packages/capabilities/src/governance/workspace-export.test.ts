@@ -1,3 +1,4 @@
+import { SeedAssistantDirectory } from '../assistant/directory.seed.ts'
 import {
   BillingAuditLayer,
   BillingNotificationLayer,
@@ -475,6 +476,7 @@ describe('collectWorkspaceExportSnapshot — the audit walk bound', () => {
           Layer.provide(SeedWebhookPublisher)
         ),
         SeedWorkspaceMembership(roster, seedWorkspaceRecord).pipe(
+          Layer.provide(SeedAssistantDirectory),
           Layer.provide(SeedSeatSyncPublisher),
           Layer.provide(SeedWebhookPublisher)
         )

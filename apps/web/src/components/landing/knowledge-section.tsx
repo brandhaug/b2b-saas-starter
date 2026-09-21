@@ -10,14 +10,16 @@ function KnowledgeSection({
   readonly recentDocs: ReadonlyArray<DocMeta>
 }) {
   return (
-    <section className="mx-auto max-w-3xl px-4 py-24 sm:px-6">
-      <h2 className="font-display text-balance text-3xl font-semibold sm:text-4xl">
-        {m.public_knowledge_heading()}
-      </h2>
-      <p className="mt-4 max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">
-        {m.public_knowledge_description()}
-      </p>
-      <div className="mt-12">
+    <section className="mx-auto grid max-w-7xl gap-8 px-5 py-16 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:gap-16">
+      <div>
+        <h2 className="font-display text-balance text-3xl font-medium leading-display sm:text-4xl">
+          {m.public_knowledge_heading()}
+        </h2>
+        <p className="mt-4 max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">
+          {m.public_knowledge_description()}
+        </p>
+      </div>
+      <div>
         <div>
           <p className="border-b border-border pb-3 font-mono text-xs text-muted-foreground">
             {m.public_knowledge_docs()}
@@ -34,11 +36,14 @@ function KnowledgeSection({
                     <span className="block text-sm font-medium group-hover:text-primary">
                       {doc.frontmatter.title}
                     </span>
-                    <span className="mt-1 line-clamp-1 block text-xs text-muted-foreground">
+                    <span className="mt-1 block text-sm leading-relaxed text-muted-foreground">
                       {doc.frontmatter.description}
                     </span>
                   </span>
-                  <ArrowRightIcon className="size-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                  <ArrowRightIcon
+                    className="size-3.5 shrink-0 text-muted-foreground"
+                    strokeWidth={1.5}
+                  />
                 </Link>
               </li>
             ))}
