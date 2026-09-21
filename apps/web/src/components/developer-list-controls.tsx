@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { TableViewControls } from '@/components/table-view-controls'
 import { type TableView, type TableViewField } from '@/lib/table-view'
-import { useWorkspaceView } from '@/lib/workspace-view'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 export function DeveloperListToolbar({
@@ -12,15 +11,16 @@ export function DeveloperListToolbar({
   searchLabel,
   fields,
   view,
-  onViewChange
+  onViewChange,
+  onQueryChange
 }: {
   readonly query: string
   readonly searchLabel: string
   readonly fields: ReadonlyArray<TableViewField>
   readonly view: TableView
+  readonly onQueryChange: (query: string) => void
   readonly onViewChange: (view: TableView) => void
 }) {
-  const { update } = useWorkspaceView()
   return (
     <div
       className="flex flex-col gap-2 md:flex-row md:items-center"
@@ -32,7 +32,7 @@ export function DeveloperListToolbar({
         placeholder={searchLabel}
         value={query}
         onChange={(event) => {
-          update({ query: event.target.value || undefined, page: undefined }, true)
+          onQueryChange(event.target.value)
         }}
       />
       <div className="hidden md:block">
@@ -59,12 +59,13 @@ export function DeveloperListToolbar({
 
 export function DeveloperListPagination({
   page,
-  pageCount
+  pageCount,
+  onPageChange
 }: {
   readonly page: number
   readonly pageCount: number
+  readonly onPageChange: (page: number) => void
 }): ReactNode {
-  const { update } = useWorkspaceView()
   if (pageCount <= 1) {
     return null
   }
@@ -82,7 +83,7 @@ export function DeveloperListPagination({
           variant="outline"
           size="xs"
           disabled={page === 1}
-          onClick={() => update({ page: page === 2 ? undefined : String(page - 1) })}
+          onClick={() => onPageChange(page - 1)}
         >
           {m.developer_list_previous()}
         </Button>
@@ -90,7 +91,7 @@ export function DeveloperListPagination({
           variant="outline"
           size="xs"
           disabled={page === pageCount}
-          onClick={() => update({ page: String(page + 1) })}
+          onClick={() => onPageChange(page + 1)}
         >
           {m.developer_list_next()}
         </Button>
