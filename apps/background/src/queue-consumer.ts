@@ -38,6 +38,7 @@ import { FetchHttpClient, type HttpClient } from 'effect/unstable/http'
  * silently.
  */
 type BackgroundBindingTypes = {
+  readonly ASSISTANT_CONVERSATIONS: DurableObjectNamespace
   readonly DB: D1Database
   // The producer port, not workers-types' `Queue`: this worker only forwards
   // the binding to `starterEnv`, and every other worker declares it the same

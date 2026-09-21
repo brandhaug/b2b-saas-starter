@@ -83,7 +83,12 @@ export function SeedMcpClientConnections(
             )
             // Same two refusals as Live: no grant, or a grant whose client
             // registration has been disabled since it was made.
-            if (!grant || isDisabled(grant.client.clientId)) {
+            if (
+              !grant ||
+              isDisabled(grant.client.clientId) ||
+              (input.resource !== undefined &&
+                !grant.resources?.includes(input.resource))
+            ) {
               return null
             }
             return {
@@ -103,13 +108,17 @@ export function SeedMcpClientConnections(
             connections
               .reduce<Array<McpClientConnection>>((found, connection) => {
                 if (connection.userId === userId) {
-                  found.push({
+                  const summary: McpClientConnection = {
                     id: connection.id,
                     client: connection.client,
                     workspace: connection.workspace,
                     scopes: connection.scopes,
                     grantedAt: connection.grantedAt
-                  })
+                  }
+                  if (connection.resources !== undefined) {
+                    Object.assign(summary, { resources: connection.resources })
+                  }
+                  found.push(summary)
                 }
                 return found
               }, [])

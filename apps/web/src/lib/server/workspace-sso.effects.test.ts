@@ -1,3 +1,4 @@
+import { SeedAssistantDirectory } from '@b2b-saas-starter/capabilities/assistant/directory.seed'
 // oxlint-disable-next-line import/no-unassigned-import -- Installs the explicit authenticated-session test fixture.
 import '@/test/qualified-session'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
@@ -249,6 +250,7 @@ describe('notifyOwnersOfFailedTest — the owner fan-out rule', () => {
         const roster = yield* makeSeedRoster(members)
         const services = Layer.mergeAll(
           SeedWorkspaceMembership(roster, workspace).pipe(
+            Layer.provide(SeedAssistantDirectory),
             Layer.provide(SeedSeatSyncPublisher),
             Layer.provide(SeedWebhookPublisher)
           ),

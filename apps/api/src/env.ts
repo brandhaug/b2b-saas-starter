@@ -24,6 +24,7 @@ import { securityEvidenceSink } from './security-evidence.ts'
  * record needs no new row below.
  */
 type ApiBindingTypes = {
+  readonly ASSISTANT_CONVERSATIONS: DurableObjectNamespace
   readonly DB: D1Database
   readonly AI: WorkersAIBinding
   readonly WEBHOOK_QUEUE: WebhookQueueBinding

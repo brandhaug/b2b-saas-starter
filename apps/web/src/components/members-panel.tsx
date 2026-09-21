@@ -380,7 +380,9 @@ export function MembersPanel({
                     onLeaveCancel={() => setLeaveArmed(false)}
                   />
                 </Item>
-                {index < visibleMembers.length - 1 ? <Separator /> : null}
+                {index < visibleMembers.length - 1 ? (
+                  <Separator aria-hidden="true" />
+                ) : null}
               </Fragment>
             ))}
           </ItemGroup>

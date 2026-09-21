@@ -1,12 +1,14 @@
 # B2B SaaS Starter
 
-Cloudflare-first repository using TanStack Start, Effect v4, Drizzle D1, Better Auth, and Alchemy. Optional providers are inactive until configured.
+Cloudflare-first repository using TanStack Start, Effect v4, Drizzle D1, SQLite conversation Durable Objects, Better Auth, and Alchemy. Optional providers are inactive until configured.
 
 ## Documentation
 
 - [Quickstart](/en/docs/getting-started/quickstart)
 - [Architecture](/en/docs/architecture/overview)
 - [REST API](/en/docs/capability-interfaces/rest-api)
+- [Private Assistant Conversations](/en/docs/capability-interfaces/assistant-conversations)
+- [Cloudflare deployment](/en/docs/getting-started/cloudflare-deployment)
 - [MCP server](/en/docs/capability-interfaces/mcp-server)
 - [Optional providers](/en/docs/getting-started/optional-providers)
 - [Documentation index](/en/docs)

@@ -1,3 +1,4 @@
+import { SeedAssistantDirectory } from './assistant/directory.seed.ts'
 import {
   BillingAuditLayer,
   BillingNotificationLayer,
@@ -102,6 +103,7 @@ function fixtureLayer(fixture: Fixture) {
         SeedWebhookPublisher,
         testWorkspaceContext(seedWorkspaceRecord, actor),
         SeedWorkspaceMembership(roster, seedWorkspaceRecord).pipe(
+          Layer.provide(SeedAssistantDirectory),
           Layer.provide(SeedSeatSyncPublisher),
           Layer.provide(SeedWebhookPublisher)
         ),

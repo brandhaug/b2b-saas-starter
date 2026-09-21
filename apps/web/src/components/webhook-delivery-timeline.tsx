@@ -171,7 +171,7 @@ function AttemptStatusIcon({
   if (status === 'delivered') {
     return <CheckIcon className="size-3 text-status-ok" />
   }
-  if (status === 'failed') {
+  if (webhookDeliveryStatusVariant(status) === 'destructive') {
     return <XIcon className="size-3 text-destructive" />
   }
   return <CircleIcon className="size-3 text-status-warn" />

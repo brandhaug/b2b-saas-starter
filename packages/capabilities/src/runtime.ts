@@ -1,3 +1,9 @@
+import {
+  conversationTransport,
+  conversationLifecycleBinding,
+  conversationInvalidationBinding,
+  type ConversationNamespace
+} from './developer-platform/assistant-conversation-transport.ts'
 import { layerFromD1 } from '@b2b-saas-starter/db/service'
 import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { Layer } from 'effect'
@@ -35,6 +41,8 @@ type D1Binding = Parameters<typeof layerFromD1>[0]
  * per consumer of these options.
  */
 export type StarterEnv = {
+  readonly ASSISTANT_CONVERSATIONS?: ConversationNamespace | undefined
+  readonly ASSISTANT_RESOURCE_URL?: string | undefined
   readonly DB?: D1Binding | undefined
   readonly WEBHOOK_QUEUE?: WebhookQueueBinding | undefined
   /** Export job queue (ADR 0055). Provisioned with the bucket by `WORKSPACE_EXPORTS_ENABLED`; absent, exports report unavailable. */
@@ -60,6 +68,8 @@ export type StarterEnv = {
 export function starterEnv(
   env: Pick<
     StarterEnv,
+    | 'ASSISTANT_CONVERSATIONS'
+    | 'ASSISTANT_RESOURCE_URL'
     | 'DB'
     | 'WEBHOOK_QUEUE'
     | 'BILLING_QUEUE'
@@ -70,6 +80,8 @@ export function starterEnv(
 ): StarterEnv {
   return {
     DB: env.DB,
+    ASSISTANT_CONVERSATIONS: env.ASSISTANT_CONVERSATIONS,
+    ASSISTANT_RESOURCE_URL: env.ASSISTANT_RESOURCE_URL,
     WEBHOOK_QUEUE: env.WEBHOOK_QUEUE,
     BILLING_QUEUE: env.BILLING_QUEUE,
     WORKSPACE_EXPORT_QUEUE: env.WORKSPACE_EXPORT_QUEUE,
@@ -89,8 +101,9 @@ export function starterEnv(
  */
 function liveCapabilitiesOptions(env: StarterEnv): CapabilityBindings {
   const bindings: CapabilityBindings = env
-  return {
+  const options: CapabilityBindings = {
     ...bindings,
+    assistantResource: env.ASSISTANT_RESOURCE_URL ?? bindings.assistantResource,
     webhookQueue: env.WEBHOOK_QUEUE,
     seatSyncQueue: env.BILLING_QUEUE,
     notificationEmailQueue: env.NOTIFICATION_EMAIL_QUEUE,
@@ -99,6 +112,16 @@ function liveCapabilitiesOptions(env: StarterEnv): CapabilityBindings {
       bucket: env.WORKSPACE_EXPORT_BUCKET
     }
   }
+  if (env.ASSISTANT_CONVERSATIONS !== undefined) {
+    Object.assign(options, {
+      assistantInvalidation: conversationInvalidationBinding(
+        env.ASSISTANT_CONVERSATIONS
+      ),
+      assistantLifecycle: conversationLifecycleBinding(env.ASSISTANT_CONVERSATIONS),
+      assistantTransport: conversationTransport(env.ASSISTANT_CONVERSATIONS)
+    })
+  }
+  return options
 }
 
 export function selectCapabilitiesLayer(env: StarterEnv): CapabilitiesLayer {

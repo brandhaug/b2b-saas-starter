@@ -33,6 +33,7 @@ Before changing auth HTTP handling, session reads, workspace authentication gate
 ## Dependencies
 
 - Read `cloudflare:workers` bindings, never hardcode empty env. `DB` selects Live, absence Seed; dev uses persisted local D1 (ADR 0049). Browser navigation depends on the root fixture-parity rule.
+- The deployment-only `src/worker.ts` exports the native conversation class; `src/server.ts` remains usable by Node SSR. Dev and E2E shims load `scripts/local-worker-runtime.mjs` outside the Vite bundle to share persisted D1 and SQLite conversation storage. Restart dev after native host edits.
 - Two runtimes. `webRuntime` runs every server-side Effect, with isolate-level `WideEventLoggerLive` and OTLP per invocation (ADR 0050). `authRuntime` holds only `Auth`: merging `AuthLive` in drags the Better Auth server into the browser bundle.
 
 ## Pitfalls

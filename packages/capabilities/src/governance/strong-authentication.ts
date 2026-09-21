@@ -48,7 +48,7 @@ export class StrongAuthentication extends Context.Service<
   StrongAuthenticationInterface
 >()('@b2b-saas-starter/capabilities/StrongAuthentication') {}
 
-type SessionEvidence = {
+export type SessionEvidence = {
   readonly expiresAt: Date
   readonly impersonatedBy: string | null
   readonly passwordVerifiedAt: Date | null
@@ -58,16 +58,20 @@ type SessionEvidence = {
   readonly recoveryUntil: Date | null
 }
 
-function evaluate(
+export function evaluateStrongAuthentication(
   evidence: SessionEvidence | null,
   totpId: string | null,
   passkeyIds: ReadonlyArray<string>,
-  now: Date
+  now: Date,
+  allowNaturalExpiry = false
 ): StrongAuthenticationStatus {
   const hasTotp = totpId !== null
   const hasPasskey = passkeyIds.length > 0
   const hasFactors = hasTotp || hasPasskey
-  if (evidence === null || evidence.expiresAt.getTime() <= now.getTime()) {
+  if (
+    evidence === null ||
+    (!allowNaturalExpiry && evidence.expiresAt.getTime() <= now.getTime())
+  ) {
     return {
       qualified: false,
       recent: false,
@@ -183,7 +187,7 @@ export const LiveStrongAuthentication: Layer.Layer<
           recoveryUntil: row.recoveryUntil
         }
       }
-      return evaluate(
+      return evaluateStrongAuthentication(
         evidence,
         totp?.id ?? null,
         keys.map((key) => key.id),

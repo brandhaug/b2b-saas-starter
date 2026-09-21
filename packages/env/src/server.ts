@@ -52,6 +52,14 @@ export type ServerEnv = {
   // trusts as token issuer. Unset on the API worker, `/mcp` accepts API Tokens
   // only; unset on the web worker, the resource defaults to the local API dev
   // server so the consent flow keeps working provider-light.
+  readonly ASSISTANT_RESOURCE_URL?: string | undefined
+  readonly ASSISTANT_DEADLINE_MS?: string | undefined
+  readonly ASSISTANT_INPUT_TOKENS?: string | undefined
+  readonly ASSISTANT_OUTPUT_TOKENS?: string | undefined
+  readonly ASSISTANT_ACTIVE_LIMIT?: string | undefined
+  readonly ASSISTANT_RATE_LIMIT?: string | undefined
+  readonly ASSISTANT_PROVIDER_CONTEXT_TOKENS?: string | undefined
+  readonly ASSISTANT_PROVIDER_OUTPUT_TOKENS?: string | undefined
   readonly MCP_RESOURCE_URL?: string | undefined
   readonly MCP_OAUTH_ISSUER?: string | undefined
   readonly SERVICE_VERSION?: string | undefined
@@ -142,6 +150,14 @@ export const optionalModuleEnvPlainKeys = [
   'GITHUB_CLIENT_ID',
   'GOOGLE_CLIENT_ID',
   'OTEL_EXPORTER_OTLP_ENDPOINT',
+  'ASSISTANT_RESOURCE_URL',
+  'ASSISTANT_DEADLINE_MS',
+  'ASSISTANT_INPUT_TOKENS',
+  'ASSISTANT_OUTPUT_TOKENS',
+  'ASSISTANT_ACTIVE_LIMIT',
+  'ASSISTANT_RATE_LIMIT',
+  'ASSISTANT_PROVIDER_CONTEXT_TOKENS',
+  'ASSISTANT_PROVIDER_OUTPUT_TOKENS',
   'MCP_RESOURCE_URL',
   'MCP_OAUTH_ISSUER',
   'SERVICE_VERSION',

@@ -54,6 +54,8 @@ import {
   OpenApi
 } from 'effect/unstable/httpapi'
 
+import { AssistantConversationsApi } from './assistant-conversations.ts'
+
 import { RateLimited, Unauthorized, WorkspaceExportNotDownloadable } from './errors.ts'
 
 // The contract's error schemas and their HTTP encoding live in `./errors.ts`
@@ -75,13 +77,14 @@ export class RateLimiter extends Context.Service<
   GenericRateLimiterInterface<RateLimitBucket>
 >()('@b2b-saas-starter/api/RateLimiter') {}
 
-/** The groups behind the bearer gate. `health` is the contract's only public group. */
+/** Authenticated groups and their abuse buckets; health alone is public. */
 type GatedGroup =
   | 'workspace'
   | 'api-token-registry'
   | 'webhook-endpoints'
   | 'workspace-exports'
   | 'assistant'
+  | 'assistant-conversations'
   | 'mcp'
 
 const GROUP_BUCKETS = {
@@ -90,6 +93,7 @@ const GROUP_BUCKETS = {
   'webhook-endpoints': 'rest_write',
   'workspace-exports': 'rest_write',
   assistant: 'assistant',
+  'assistant-conversations': 'assistant',
   mcp: 'mcp'
 } satisfies Record<GatedGroup, RateLimitBucket>
 
@@ -103,7 +107,7 @@ const BUCKET_BY_GROUP: ReadonlyMap<string, RateLimitBucket> = new Map(
 /**
  * The bucket a group's endpoints draw from, or `undefined` for a group that
  * names none. `apps/api`'s contract test asserts every group carrying
- * `BearerAuth` has a row here, so a new gated group cannot ship unlimited.
+ * either authentication middleware has a row here, so a new gated group cannot ship unlimited.
  */
 export function rateLimitBucketFor(
   groupIdentifier: string
@@ -478,13 +482,14 @@ export const StarterApi = HttpApi.make('b2b-saas-starter')
   .add(WebhookApi)
   .add(WorkspaceExportApi)
   .add(AssistantApi)
+  .add(AssistantConversationsApi)
   .add(McpApi)
   .annotateMerge(
     OpenApi.annotations({
       title: 'B2B SaaS Starter API',
       version: '0.1.0',
       description:
-        'Capability Interface surface for the starter. REST endpoints, MCP discovery (`GET /mcp/discovery`), and the assistant share the same capability layer. All routes except `/health` require an `Authorization: Bearer <token>` API token.',
+        'Capability Interface surface for the starter. REST endpoints, MCP discovery (`GET /mcp/discovery`), and the assistant share the same capability layer. Workspace endpoints use API tokens. Private assistant conversations require member OAuth tokens issued for the assistant resource. `/health` is public.',
       servers: [{ url: '/', description: 'This worker' }]
     })
   )

@@ -1,6 +1,6 @@
 ---
 title: Architecture overview
-description: How the web worker, API worker, background worker, D1, and Effect capabilities fit together.
+description: How the web worker, API worker, background worker, D1, conversation Durable Objects, and Effect capabilities fit together.
 category: architecture
 order: 10
 tags: [architecture, cloudflare, effect]
@@ -18,6 +18,8 @@ Worker. Both enforce the shared permission rules in `packages/authz`.
 Capabilities select D1-backed Live adapters when a `DB` binding exists and
 in-memory Seed adapters otherwise. Local development uses persisted local D1;
 Seed adapters let capability tests run without a Worker.
+
+Private Assistant Conversations use one SQLite Durable Object in the web Worker for saved history and replay. D1 owns directory identity, content permissions, deletion fences and shared Member admission; Effect owns model execution. The API and background Workers bind to the same host within their stage.
 
 The background Worker consumes queues, handles Stripe webhooks, and runs
 scheduled reconciliation, email digests, and cleanup. Keeping this work outside

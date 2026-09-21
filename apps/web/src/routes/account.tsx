@@ -1,3 +1,4 @@
+import { loadOwnedConversationsServerFn } from '@/lib/server/account-conversations'
 import { createFileRoute } from '@tanstack/react-router'
 import { AccountPage } from '@/components/account-page'
 import { pageTitle } from '@/components/page/page-title'
@@ -22,11 +23,12 @@ export const Route = createFileRoute('/account')({
   // identity-keyed, no workspace involved.
   loader: async () => {
     // oxlint-disable-next-line effect/noNewPromise -- TanStack loaders are promise-shaped; Promise.all keeps the account read and the MCP-client read parallel
-    const [account, connections] = await Promise.all([
+    const [account, connections, ownedConversations] = await Promise.all([
       loadAccountPageServerFn(),
-      loadMcpClientConnectionsServerFn()
+      loadMcpClientConnectionsServerFn(),
+      loadOwnedConversationsServerFn()
     ])
-    return { ...account, connections }
+    return { ...account, connections, ownedConversations }
   },
   component: AccountRoute,
   head: () => ({ meta: [{ title: pageTitle(m.public_meta_account()) }] })
@@ -40,7 +42,8 @@ export const Route = createFileRoute('/account')({
  */
 function AccountRoute() {
   const { session } = Route.useRouteContext()
-  const { deletionPlan, preferences, connections } = Route.useLoaderData()
+  const { deletionPlan, preferences, connections, ownedConversations } =
+    Route.useLoaderData()
   // The current session token never rides the SSR payload (see `RouteSession`
   // in lib/server/auth.ts) — the panel reads it from the client session hook.
   const currentSession = authClient.useSession()
@@ -50,6 +53,7 @@ function AccountRoute() {
       deletionPlan={deletionPlan}
       preferences={preferences}
       connections={connections}
+      ownedConversations={ownedConversations}
       currentSessionToken={currentSession.data?.session.token ?? ''}
     />
   )

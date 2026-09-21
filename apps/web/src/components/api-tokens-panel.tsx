@@ -350,7 +350,9 @@ export function ApiTokensPanel({
                             <Button
                               variant="ghost"
                               size="icon-xs"
-                              aria-label={m.developer_list_more_actions()}
+                              aria-label={m.developer_list_more_actions_named({
+                                name: token.name
+                              })}
                             />
                           }
                         >
@@ -392,7 +394,9 @@ export function ApiTokensPanel({
                       <ActionFeedback error={failedRow.message} />
                     ) : null}
                   </Item>
-                  {index < visibleTokens.length - 1 ? <Separator /> : null}
+                  {index < visibleTokens.length - 1 ? (
+                    <Separator aria-hidden="true" />
+                  ) : null}
                 </Fragment>
               ))}
             </ItemGroup>

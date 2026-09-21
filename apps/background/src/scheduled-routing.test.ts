@@ -40,8 +40,8 @@ const EXPECTED: ReadonlyArray<ScheduledRow> = [
   {
     cron: billingReconciliationCron,
     monitorSlug: 'b2b-saas-starter-background-billing-reconciliation',
-    // The reconciliation pass and the operational-health snapshot.
-    effects: 2
+    // Billing, operational health and explicit assistant deletion cleanup.
+    effects: 3
   }
 ]
 

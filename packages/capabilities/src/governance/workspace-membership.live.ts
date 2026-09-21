@@ -1,3 +1,4 @@
+import { AssistantDirectory } from '../assistant/directory.ts'
 import { Database } from '@b2b-saas-starter/db/service'
 import { user, workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema'
 import { Effect, Layer } from 'effect'
@@ -57,10 +58,11 @@ export function LiveWorkspaceMembership(
 ): Layer.Layer<
   WorkspaceMembership,
   never,
-  Database | AuditEventLog | SeatSyncPublisher | WebhookPublisher
+  Database | AuditEventLog | SeatSyncPublisher | WebhookPublisher | AssistantDirectory
 > {
   return Layer.effect(WorkspaceMembership)(
     Effect.gen(function* () {
+      const conversations = yield* AssistantDirectory
       const db = yield* Database
       const audit = yield* AuditEventLog
       const seatSync = yield* SeatSyncPublisher
@@ -193,6 +195,10 @@ export function LiveWorkspaceMembership(
           yield* callBinding(binding, (bound) =>
             bound.removeMember({ workspaceId: ctx.workspace.id, memberId })
           )
+          yield* conversations.invalidateAccess(
+            { workspaceId: ctx.workspace.id, creatorUserId: input.userId },
+            { interruptRuns: true }
+          )
           yield* recordSecurityEvidence(
             {
               kind: 'workspace_access_removed',
@@ -248,6 +254,10 @@ export function LiveWorkspaceMembership(
           yield* callBinding(binding, (bound) =>
             bound.leave({ workspaceId: ctx.workspace.id })
           )
+          yield* conversations.invalidateAccess(
+            { workspaceId: ctx.workspace.id, creatorUserId: actor.userId },
+            { interruptRuns: true }
+          )
           yield* recordSecurityEvidence(
             {
               kind: 'workspace_access_removed',
@@ -302,6 +312,10 @@ export function LiveWorkspaceMembership(
           )
           // A restored role may carry more authority than this change left in
           // place. Conservatively remove the restored membership for review.
+          yield* conversations.invalidateAccess(
+            { workspaceId: ctx.workspace.id, creatorUserId: input.userId },
+            { interruptRuns: true }
+          )
           yield* recordSecurityEvidence(
             {
               kind: 'workspace_access_removed',

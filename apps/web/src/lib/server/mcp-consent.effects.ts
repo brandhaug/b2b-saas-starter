@@ -145,7 +145,7 @@ export async function grantOAuthConsentHandler(
         api.oauth2Continue({
           body: { postLogin: true, oauth_query: input.oauthQuery },
           headers: withWorkspaceSelected(headers, input.workspaceId),
-          request: oauthRequest(headers)
+          request: oauthRequest(withWorkspaceSelected(headers, input.workspaceId))
         })
       )
     )
@@ -157,11 +157,13 @@ export async function grantOAuthConsentHandler(
   }
   const consented = redirect(
     decodeRedirect(
+      // Consent re-enters authorization and checks the workspace selection
+      // again through request.headers, independently of the parsed API headers.
       await sessionCall((api, headers) =>
         api.oauth2Consent({
           body: { accept: true, oauth_query: continued.parsed.search.slice(1) },
-          headers,
-          request: oauthRequest(headers)
+          headers: withWorkspaceSelected(headers, input.workspaceId),
+          request: oauthRequest(withWorkspaceSelected(headers, input.workspaceId))
         })
       )
     )

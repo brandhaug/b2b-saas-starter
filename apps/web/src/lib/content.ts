@@ -32,31 +32,31 @@ export function optionalProviderModules(): ReadonlyArray<OptionalProviderModule>
     {
       id: 'stripe',
       name: 'Stripe',
-      role: m.provider_stripe(),
+      role: m.provider_stripe_role(),
       icon: CreditCard
     },
     {
       id: 'sentry',
       name: 'Sentry',
-      role: m.provider_sentry(),
+      role: m.provider_sentry_role(),
       icon: Activity
     },
     {
       id: 'posthog',
       name: 'PostHog',
-      role: m.provider_posthog(),
+      role: m.provider_posthog_role(),
       icon: BarChart3
     },
     {
       id: 'cloudflare-email',
       name: 'Cloudflare Email',
-      role: m.provider_email(),
+      role: m.provider_email_role(),
       icon: Mail
     },
     {
       id: 'turnstile',
       name: 'Turnstile',
-      role: m.provider_turnstile(),
+      role: m.provider_turnstile_role(),
       icon: ShieldCheck
     }
   ]

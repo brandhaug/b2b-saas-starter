@@ -49,6 +49,7 @@ const cnf = Schema.optional(Schema.Unknown)
 export const McpAccessTokenClaims = Schema.Struct({
   /** Better Auth's `user.id` — the consenting Member. */
   sub: Schema.String,
+  aud: Schema.optionalKey(Schema.String),
   /** Space-separated OAuth scopes; must contain {@link MCP_READ_SCOPE}. */
   scope: Schema.String,
   client_id: Schema.optionalKey(Schema.String),
@@ -70,6 +71,7 @@ const decodeClaims = Schema.decodeUnknownResult(McpAccessTokenClaims)
  * the authority.
  */
 export type McpAccessTokenPrincipal = {
+  readonly resource?: string | undefined
   readonly clientId?: string | undefined
   readonly consentBinding?: string | undefined
   readonly sessionId?: string | undefined
@@ -116,6 +118,7 @@ export function mcpAccessTokenPrincipal(
   return {
     ok: true,
     principal: {
+      resource: claims.aud,
       userId: claims.sub,
       clientId: claims.client_id,
       consentBinding: claims[MCP_CONSENT_CLAIM],

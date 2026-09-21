@@ -37,6 +37,7 @@ export const McpClientConnection = Schema.Struct({
   client: McpClientSummary,
   /** `null` when the consented workspace has since been deleted. */
   workspace: Schema.NullOr(McpClientConnectionWorkspace),
+  resources: Schema.optionalKey(Schema.Array(Schema.String)),
   scopes: Schema.Array(Schema.String),
   grantedAt: Schema.String
 })
@@ -100,6 +101,7 @@ type McpClientConnectionsInterface = {
     readonly userId: string
     readonly clientId: string
     readonly workspaceId: string
+    readonly resource?: string | undefined
   }) => Effect.Effect<
     { readonly binding: string; readonly scopes: ReadonlyArray<string> } | null,
     CapabilityUnavailable

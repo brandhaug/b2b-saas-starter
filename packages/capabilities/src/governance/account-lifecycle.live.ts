@@ -1,3 +1,4 @@
+import { AssistantDirectory } from '../assistant/directory.ts'
 import { Database, RawD1 } from '@b2b-saas-starter/db/service'
 import {
   apiTokens,
@@ -53,12 +54,17 @@ const { callBinding } = makeBindingCaller<
 export function LiveAccountLifecycle(
   binding?: AccountLifecycleBinding,
   securityEvidence?: SecurityEvidenceSink
-): Layer.Layer<AccountLifecycle, never, Database | RawD1 | AuditEventLog> {
+): Layer.Layer<
+  AccountLifecycle,
+  never,
+  Database | RawD1 | AuditEventLog | AssistantDirectory
+> {
   return Layer.effect(AccountLifecycle)(
     Effect.gen(function* () {
       const db = yield* Database
       const d1 = yield* RawD1
       const audit = yield* AuditEventLog
+      const conversations = yield* AssistantDirectory
 
       const unavailable = orUnavailable('account-lifecycle')
 
@@ -142,6 +148,7 @@ export function LiveAccountLifecycle(
             new AccountDeletionRejected({ reason: 'unknown_user' })
           )
         }
+        yield* conversations.fence({ creatorUserId: userId })
         // Wire steps carry no internal row ids, so the leave binding reads the
         // membership row id from the kept memberships, keyed by workspace.
         const stepByWorkspace = new Map(
@@ -155,6 +162,7 @@ export function LiveAccountLifecycle(
             continue
           }
           if (step.action === 'delete_workspace') {
+            yield* conversations.fence({ workspaceId })
             yield* callBinding(binding, (bound) =>
               bound.deleteWorkspace({ workspaceId })
             )

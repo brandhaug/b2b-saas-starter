@@ -23,7 +23,10 @@ catalog:
   '@better-auth/passkey': 1.7.2
   '@better-auth/sso': 1.7.2
   '@better-auth/utils': 0.4.2
-  '@cloudflare/workers-types': 5.20260911.1
+  '@cloudflare/ai-chat': 0.12.0
+  agents: 0.24.0
+  ai: 7.0.101
+  '@cloudflare/workers-types': 5.20260918.1
   '@cloudflare/vitest-pool-workers': 0.22.0
   '@effect/platform-node': 4.0.0-rc.112
   '@effect/sql-d1': 4.0.0-rc.112
@@ -36,46 +39,50 @@ catalog:
   '@playwright/test': 1.63.0
   '@react-email/ui': 6.9.3
   '@rolldown/plugin-babel': 0.2.3
-  '@sentry/cloudflare': 10.74.0
-  '@sentry/react': 10.74.0
+  '@sentry/cloudflare': 10.75.0
+  '@sentry/react': 10.75.0
   '@tailwindcss/typography': 0.5.20
   '@tailwindcss/vite': 4.3.3
   '@tanstack/devtools-vite': 0.8.5
   '@tanstack/react-form': 1.33.5
-  '@tanstack/react-query': 5.102.8
+  '@tanstack/react-query': 5.103.0
   '@tanstack/react-router': 1.170.32
   '@tanstack/react-router-devtools': 1.167.1
   '@tanstack/react-router-ssr-query': 1.167.2
   '@tanstack/react-start': 1.168.49
-  '@tanstack/react-table': 9.2.3
+  '@tanstack/react-table': 9.2.4
   '@testing-library/dom': 10.4.1
   '@testing-library/react': 16.3.3
   '@types/mdx': 2.0.14
-  '@types/node': 26.4.0
+  '@types/node': 26.5.1
+  '@types/ws': 8.18.1
   '@types/react': 19.3.0
   '@types/react-dom': 19.3.0
   '@vitejs/plugin-react': 6.1.1
   '@vitest/coverage-v8': 4.1.11
+  ws: 8.21.0
+  miniflare: 5.20260917.0-alpha
+  esbuild: 0.28.2
   alchemy: 2.0.0-beta.77
   babel-plugin-react-compiler: 1.0.0
   better-auth: 1.7.2
   class-variance-authority: 0.7.1
   cmdk: 1.1.1
-  cn: 0.2.5
+  cn: 0.3.0
   drizzle-kit: 1.0.0-rc.5-ab785fc
   drizzle-orm: 1.0.0-rc.5-ab785fc
   standardwebhooks: 1.1.1
   effect: 4.0.0-rc.112
   effectful-better-auth: 1.0.0
   eslint-plugin-better-tailwindcss: 4.7.0
-  fallow: 3.24.1
-  jsdom: 30.0.1
+  fallow: 3.27.0
+  jsdom: 30.1.0
   jose: 6.2.10
-  lucide-react: 1.40.0
+  lucide-react: 1.47.0
   oxlint: 1.80.0
   oxlint-plugin-effect: 0.11.0
   oxlint-plugin-react-doctor: 0.9.12
-  posthog-js: 1.426.2
+  posthog-js: 1.434.0
   posthog-node: 5.52.1
   qrcode.react: ^4.2.0
   react: 19.3.0
@@ -94,11 +101,13 @@ catalog:
   ultracite: 7.11.1
   vite: npm:@voidzero-dev/vite-plus-core@0.3.0
   vitest: 4.1.11
-  wrangler: 4.131.0
+  wrangler: 4.134.0
   vite-plus: 0.3.0
 
 minimumReleaseAgeExclude:
   - effectful-better-auth@1.0.0
+  - '@ai-sdk/gateway@4.0.81'
+  - ai@7.0.101
 
 overrides:
   brace-expansion: 5.0.9

@@ -45,7 +45,9 @@ export function FormSubmitButton({
           aria-busy={isSubmitting}
           className="justify-self-start"
         >
-          {isSubmitting ? <Spinner data-icon="inline-start" /> : null}
+          <span className="inline-flex size-4 shrink-0" aria-hidden="true">
+            {isSubmitting ? <Spinner /> : null}
+          </span>
           {label}
         </Button>
       )}

@@ -50,6 +50,7 @@ import { Route as WorkspacesWorkspaceSlugSettingsRouteImport } from './routes/wo
 import { Route as WorkspacesWorkspaceSlugSuspendedRouteImport } from './routes/workspaces.$workspaceSlug.suspended'
 import { Route as WorkspacesWorkspaceSlugWebhooksRouteImport } from './routes/workspaces.$workspaceSlug.webhooks'
 import { Route as KnowledgeDocsCategorySlugRouteImport } from './routes/_knowledge.docs.$category.$slug'
+import { Route as ApiAssistantConversationIdConnectRouteImport } from './routes/api.assistant.$conversationId.connect'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -267,6 +268,12 @@ const KnowledgeDocsCategorySlugRoute =
     path: '/docs/$category/$slug',
     getParentRoute: () => KnowledgeRoute,
   } as any)
+const ApiAssistantConversationIdConnectRoute =
+  ApiAssistantConversationIdConnectRouteImport.update({
+    id: '/api/assistant/$conversationId/connect',
+    path: '/api/assistant/$conversationId/connect',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -309,6 +316,7 @@ export interface FileRoutesByFullPath {
   '/docs/': typeof KnowledgeDocsIndexRoute
   '/workspaces/$workspaceSlug/': typeof WorkspacesWorkspaceSlugIndexRoute
   '/docs/$category/$slug': typeof KnowledgeDocsCategorySlugRoute
+  '/api/assistant/$conversationId/connect': typeof ApiAssistantConversationIdConnectRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -349,6 +357,7 @@ export interface FileRoutesByTo {
   '/docs': typeof KnowledgeDocsIndexRoute
   '/workspaces/$workspaceSlug': typeof WorkspacesWorkspaceSlugIndexRoute
   '/docs/$category/$slug': typeof KnowledgeDocsCategorySlugRoute
+  '/api/assistant/$conversationId/connect': typeof ApiAssistantConversationIdConnectRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -393,6 +402,7 @@ export interface FileRoutesById {
   '/_knowledge/docs/': typeof KnowledgeDocsIndexRoute
   '/workspaces/$workspaceSlug/': typeof WorkspacesWorkspaceSlugIndexRoute
   '/_knowledge/docs/$category/$slug': typeof KnowledgeDocsCategorySlugRoute
+  '/api/assistant/$conversationId/connect': typeof ApiAssistantConversationIdConnectRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -437,6 +447,7 @@ export interface FileRouteTypes {
     | '/docs/'
     | '/workspaces/$workspaceSlug/'
     | '/docs/$category/$slug'
+    | '/api/assistant/$conversationId/connect'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -477,6 +488,7 @@ export interface FileRouteTypes {
     | '/docs'
     | '/workspaces/$workspaceSlug'
     | '/docs/$category/$slug'
+    | '/api/assistant/$conversationId/connect'
   id:
     | '__root__'
     | '/'
@@ -520,6 +532,7 @@ export interface FileRouteTypes {
     | '/_knowledge/docs/'
     | '/workspaces/$workspaceSlug/'
     | '/_knowledge/docs/$category/$slug'
+    | '/api/assistant/$conversationId/connect'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -549,6 +562,7 @@ export interface RootRouteChildren {
   SignInEmailCodeRoute: typeof SignInEmailCodeRoute
   HelpIndexRoute: typeof HelpIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiAssistantConversationIdConnectRoute: typeof ApiAssistantConversationIdConnectRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -840,6 +854,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KnowledgeDocsCategorySlugRouteImport
       parentRoute: typeof KnowledgeRoute
     }
+    '/api/assistant/$conversationId/connect': {
+      id: '/api/assistant/$conversationId/connect'
+      path: '/api/assistant/$conversationId/connect'
+      fullPath: '/api/assistant/$conversationId/connect'
+      preLoaderRoute: typeof ApiAssistantConversationIdConnectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -949,6 +970,8 @@ const rootRouteChildren: RootRouteChildren = {
   SignInEmailCodeRoute: SignInEmailCodeRoute,
   HelpIndexRoute: HelpIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiAssistantConversationIdConnectRoute:
+    ApiAssistantConversationIdConnectRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

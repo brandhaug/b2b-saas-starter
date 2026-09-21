@@ -256,7 +256,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT, excludeTestServices: true })(
           expect((yield* request(linkA.url)).status).toBe(404)
           // Expiry is enforced before the physical R2 object is removed.
           expect(storage.objects.size).toBe(2)
-        })
+        }),
+      30_000
     )
     it.effect(
       'human links recheck the issuing session, factor and membership before reading an artifact',
@@ -366,7 +367,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT, excludeTestServices: true })(
           yield* db.delete(session).where(eq(session.id, sessionId))
           expect((yield* download()).status).toBe(404)
           expect(storage.reads).toHaveLength(reads)
-        })
+        }),
+      30_000
     )
   }
 )

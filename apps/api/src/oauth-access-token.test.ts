@@ -1,3 +1,4 @@
+import { makeAssistantOAuthTokenVerifier } from './assistant-oauth-access-token.ts'
 import {
   MCP_WORKSPACE_ID_CLAIM,
   MCP_WORKSPACE_ROLE_CLAIM,
@@ -43,7 +44,11 @@ type Signer = {
   readonly jwks: JSONWebKeySet
   readonly sign: (
     payload: JWTPayload,
-    overrides?: { issuer?: string; audience?: string; expiresIn?: string }
+    overrides?: {
+      issuer?: string
+      audience?: string | Array<string>
+      expiresIn?: string
+    }
   ) => Promise<string>
 }
 
@@ -244,4 +249,113 @@ describe('resource configuration', () => {
     expect(looksLikeJwt('bsk_seed_0000000000000000')).toBe(false)
     expect(looksLikeJwt('aaa.bbb.ccc')).toBe(true)
   })
+})
+
+describe('assistant OAuth verifier', () => {
+  it.effect(
+    'accepts only the assistant audience and retains references without bearer secrets',
+    () =>
+      Effect.gen(function* () {
+        const signer = yield* makeSigner()
+        const verifier = makeAssistantOAuthTokenVerifier(
+          { issuer: ISSUER, audience: 'http://localhost:8787/assistant' },
+          createLocalJWKSet(signer.jwks)
+        )
+        const claims = {
+          ...goodPayload,
+          scope: 'assistant:read assistant:write',
+          client_id: 'client',
+          starter_session_id: 'session',
+          starter_consent_binding: 'consent:0'
+        }
+        const token = yield* Effect.promise(() =>
+          signer.sign(claims, { audience: 'http://localhost:8787/assistant' })
+        )
+        const principal = yield* verifier.verify(token)
+        expect(principal).toMatchObject({
+          kind: 'oauth',
+          userId: 'usr_demo',
+          sessionId: 'session',
+          workspaceId: 'wrk_starter',
+          clientId: 'client',
+          consentBinding: 'consent:0',
+          resource: 'http://localhost:8787/assistant'
+        })
+        expect(Object.values(principal)).not.toContain(token)
+        const mcpToken = yield* Effect.promise(() => signer.sign(claims))
+        expect((yield* Effect.result(verifier.verify(mcpToken)))._tag).toBe('Failure')
+        expect(
+          (yield* Effect.result(verifier.verify('bsk_workspace_token')))._tag
+        ).toBe('Failure')
+        const multiAudience = yield* Effect.promise(() =>
+          signer.sign(claims, {
+            audience: [AUDIENCE, 'http://localhost:8787/assistant']
+          })
+        )
+        expect((yield* Effect.result(verifier.verify(multiAudience)))._tag).toBe(
+          'Failure'
+        )
+        const mcpVerifier = makeOAuthTokenVerifier(
+          { issuer: ISSUER, audience: AUDIENCE },
+          createLocalJWKSet(signer.jwks)
+        )
+        expect((yield* Effect.result(mcpVerifier.verify(multiAudience)))._tag).toBe(
+          'Failure'
+        )
+        for (const target of [
+          {
+            audience: 'http://localhost:8787/assistant',
+            scope: 'openid assistant:read',
+            verify: (bearer: string) => verifier.verify(bearer).pipe(Effect.asVoid)
+          },
+          {
+            audience: AUDIENCE,
+            scope: 'openid mcp:read',
+            verify: (bearer: string) => mcpVerifier.verify(bearer).pipe(Effect.asVoid)
+          }
+        ]) {
+          for (const audience of [
+            [target.audience],
+            [target.audience, `${ISSUER}/oauth2/userinfo`],
+            [`${ISSUER}/oauth2/userinfo`, target.audience]
+          ]) {
+            const oidcToken = yield* Effect.promise(() =>
+              signer.sign({ ...claims, scope: target.scope }, { audience })
+            )
+            expect((yield* Effect.result(target.verify(oidcToken)))._tag).toBe(
+              'Success'
+            )
+          }
+          for (const audience of [
+            [target.audience, 'https://foreign.test/api/auth/oauth2/userinfo'],
+            [target.audience, target.audience],
+            [
+              target.audience,
+              `${ISSUER}/oauth2/userinfo`,
+              'https://other-resource.test'
+            ],
+            [target.audience, `${ISSUER}/oauth2/userinfo`, `${ISSUER}/oauth2/userinfo`]
+          ]) {
+            const rejected = yield* Effect.promise(() =>
+              signer.sign({ ...claims, scope: target.scope }, { audience })
+            )
+            expect((yield* Effect.result(target.verify(rejected)))._tag).toBe('Failure')
+          }
+          const noOpenId = yield* Effect.promise(() =>
+            signer.sign(
+              { ...claims, scope: target.scope.replace('openid ', '') },
+              { audience: [target.audience, `${ISSUER}/oauth2/userinfo`] }
+            )
+          )
+          expect((yield* Effect.result(target.verify(noOpenId)))._tag).toBe('Failure')
+        }
+        const expired = yield* Effect.promise(() =>
+          signer.sign(claims, {
+            audience: 'http://localhost:8787/assistant',
+            expiresIn: '-1s'
+          })
+        )
+        expect((yield* Effect.result(verifier.verify(expired)))._tag).toBe('Failure')
+      })
+  )
 })

@@ -172,7 +172,7 @@ Each request body has this shape:
 
 `kind` is one of `account_deleted`, `workspace_deleted`,
 `workspace_access_removed`, `api_token_revoked`, `oauth_grant_revoked`,
-`sessions_revoked`, or `credential_changed`. A role change uses
+`sessions_revoked`, `credential_changed`, or `assistant_conversation_deleted`. Conversation deletion records also include `creatorUserId` and `workspaceId`, which preserve the immutable object address even if the directory entry is absent from the restored database. A role change uses
 `workspace_access_removed`: after a restore, the sanitizer removes that
 membership for operator review so an older admin or owner role cannot reopen.
 The IDs are references only. Do not store passwords, tokens, email bodies, or
@@ -360,3 +360,25 @@ Local tests can prove policy decisions and safety guards. They cannot establish
 D1 Time Travel performance, independent account/key recovery, remote queue
 behavior or Sentry email delivery. Do not mark those checks passed without a
 live isolated drill and its evidence.
+
+## Private Assistant Conversation recovery
+
+D1 holds the conversation directory, deletion fences, admission reservations and
+personal archive manifests. The conversation Durable Object holds its transcript
+and replay state. A D1 SQL backup does not contain that object storage. Record
+which conversation storage was recovered alongside the selected D1 restore point;
+unrecovered transcripts remain unavailable and must never be regenerated as recovery.
+
+Keep dispatch and background generation closed while applying `recovery-security.ts`.
+It removes retained session authority and cached personal archives, releases old
+reservations, and reconstructs conversation tombstones from independent deletion
+evidence. Account and Workspace deletion triggers preserve their object cleanup
+addresses before removing parent rows. Apply this sanitation before allowing a
+restored object to serve content. Every object access still requires current D1
+identity, policy revision and membership; restored session snapshots grant nothing.
+
+The minute background tick retries fenced object deletion independently of the
+retention approval gate. Its `assistant_cleanup` event reports cleaned conversations
+and expired reservations, with a failed-conversation count when cleanup is incomplete.
+Inspect pending D1 cleanup rows to locate repeated failures. Keep a tombstone after cleanup so a stale object address cannot recreate
+content. A restored active answer becomes Interrupted and requires explicit Retry.

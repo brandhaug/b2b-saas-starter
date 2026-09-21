@@ -1,3 +1,4 @@
+import { cleanupAssistant } from './assistant-cleanup.ts'
 import { withTriggerScope } from '@b2b-saas-starter/logger'
 import { Effect } from 'effect'
 
@@ -55,7 +56,8 @@ export function scheduledRun(
       monitorSlug: 'b2b-saas-starter-background-billing-reconciliation',
       effects: [
         reconcileBillingEffect(env, scheduledTime),
-        monitorOperationalHealth(env, scheduledTime)
+        monitorOperationalHealth(env, scheduledTime),
+        cleanupAssistant(env, scheduledTime)
       ]
     }
   }

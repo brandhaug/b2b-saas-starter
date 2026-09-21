@@ -1,3 +1,4 @@
+import { AssistantDirectory } from '../assistant/directory.ts'
 import { Effect, Layer, Ref } from 'effect'
 
 import { AccountDeletionBlocked, AccountDeletionRejected } from '../errors.ts'
@@ -36,10 +37,15 @@ export function SeedAccountLifecycle(options: {
   readonly workspace: Workspace
   /** The same optional sink the Live adapter takes; see `SeedWorkspaceMembership`. */
   readonly securityEvidence?: SecurityEvidenceSink | undefined
-}): Layer.Layer<AccountLifecycle, never, AuditEventLog | WorkspaceSuspensionService> {
+}): Layer.Layer<
+  AccountLifecycle,
+  never,
+  AuditEventLog | WorkspaceSuspensionService | AssistantDirectory
+> {
   return Layer.effect(AccountLifecycle)(
     Effect.gen(function* () {
       const audit = yield* AuditEventLog
+      const conversations = yield* AssistantDirectory
       const suspension = yield* WorkspaceSuspensionService
       // Workspaces the seed deleted with an account. The roster empties with
       // them, so `planDeletion` for a later user answers from what is left.
@@ -82,9 +88,11 @@ export function SeedAccountLifecycle(options: {
             new AccountDeletionBlocked({ workspaces: blockingWorkspaces(plan) })
           )
         }
+        yield* conversations.fence({ creatorUserId: userId })
         for (const step of plan.steps) {
           const stepWorkspaceId = step.workspace.id
           if (step.action === 'delete_workspace') {
+            yield* conversations.fence({ workspaceId: stepWorkspaceId })
             yield* Ref.update(deletedWorkspaces, (ids) => [...ids, stepWorkspaceId])
             yield* Ref.set(options.roster, [])
             yield* recordSecurityEvidence(

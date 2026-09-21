@@ -2,6 +2,7 @@ import { cloudflareTest } from '@cloudflare/vitest-pool-workers'
 import { configDefaults, defineConfig } from 'vite-plus'
 
 import { listMigrations } from '../../packages/db/src/migrations-fs.ts'
+import { productionStage, stageResourceNames } from '../../infra/bindings.ts'
 
 // Two projects, one file set each: the existing `*.test.ts` suites keep the
 // plain Node runner they run under today, and only the `*.pool.test.ts`
@@ -43,7 +44,26 @@ export default defineConfig({
             // worker deploys with, simulated by miniflare.
             wrangler: { configPath: './wrangler.jsonc' },
             miniflare: {
-              bindings: { TEST_MIGRATIONS: migrations }
+              bindings: { TEST_MIGRATIONS: migrations },
+              // These queue suites never access private conversations. Resolve the
+              // cross-worker namespace and fail loudly if a queue path starts doing so;
+              // the actual SQLite host has its own native tests in apps/web.
+              workers: [
+                {
+                  name: stageResourceNames(productionStage).worker('web'),
+                  modules: true,
+                  script: `import { DurableObject } from 'cloudflare:workers';
+                    export class WorkspaceAssistantConversation extends DurableObject {
+                      fetch() { throw new Error('Unexpected conversation access in queue regression'); }
+                    }`,
+                  durableObjects: {
+                    ASSISTANT_CONVERSATIONS: {
+                      className: 'WorkspaceAssistantConversation',
+                      useSQLite: true
+                    }
+                  }
+                }
+              ]
             }
           })
         ],

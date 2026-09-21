@@ -35,7 +35,24 @@ export function DeveloperListToolbar({
           update({ query: event.target.value || undefined, page: undefined }, true)
         }}
       />
-      <TableViewControls fields={fields} view={view} onChange={onViewChange} />
+      <div className="hidden md:block">
+        <TableViewControls fields={fields} view={view} onChange={onViewChange} />
+      </div>
+      <details className="w-full md:hidden">
+        <summary className="flex min-h-11 cursor-pointer items-center justify-between rounded-md border border-border px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+          <span>{m.developer_list_filters()}</span>
+          {view.filters.length + view.sorts.length > 0 ? (
+            <span className="text-muted-foreground">
+              {m.developer_list_filter_count({
+                count: view.filters.length + view.sorts.length
+              })}
+            </span>
+          ) : null}
+        </summary>
+        <div className="pt-2">
+          <TableViewControls fields={fields} view={view} onChange={onViewChange} />
+        </div>
+      </details>
     </div>
   )
 }

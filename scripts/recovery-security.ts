@@ -78,6 +78,10 @@ export function buildRecoverySecuritySql(
     'PRAGMA foreign_keys = ON',
     // Restored login state and OAuth grants are never trusted.
     'DELETE FROM session',
+    // Retained run proof and cached archives are invalid after any restore.
+    'DELETE FROM assistant_session_authority',
+    'DELETE FROM personal_data_exports',
+    `UPDATE assistant_reservations SET released_at = ${freezeMillis} WHERE released_at IS NULL`,
     'DELETE FROM oauth_access_token',
     'DELETE FROM oauth_refresh_token',
     'DELETE FROM oauth_consent',
@@ -96,6 +100,16 @@ export function buildRecoverySecuritySql(
     const subject = sqlString(record.subjectId)
     if (record.kind === 'account_deleted') {
       statements.push(`DELETE FROM user WHERE id = ${subject}`)
+    } else if (record.kind === 'assistant_conversation_deleted') {
+      if (record.workspaceId !== null && record.creatorUserId !== undefined) {
+        statements.push(
+          `INSERT INTO assistant_conversations (id, workspace_id, creator_user_id, created_at, deleted_at) VALUES (${subject}, ${sqlString(record.workspaceId)}, ${sqlString(record.creatorUserId)}, ${sqlString(record.occurredAt)}, ${sqlString(record.occurredAt)}) ON CONFLICT(id) DO UPDATE SET deleted_at = excluded.deleted_at, cleaned_at = NULL, policy_revision = policy_revision + 1`
+        )
+      } else {
+        throw new Error(
+          `conversation deletion evidence ${record.id} has no immutable cleanup address`
+        )
+      }
     } else if (record.kind === 'workspace_deleted') {
       statements.push(`DELETE FROM workspaces WHERE id = ${subject}`)
     } else if (

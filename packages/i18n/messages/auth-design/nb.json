@@ -7,5 +7,7 @@
   "auth_design_capability_audit": "Etterprøvbare handlinger og webhooks",
   "auth_design_capability_cloudflare": "Bygget for Cloudflare Workers",
   "auth_design_account_access": "Kontotilgang",
-  "auth_design_explore_starter": "Utforsk starteren"
+  "auth_design_explore_starter": "Utforsk starteren",
+  "auth_design_email_verification_pending": "Sjekk innboksen",
+  "auth_design_email_verification_pending_description": "Bruk bekreftelseslenken i e-posten din for å bekrefte adressen."
 }
