@@ -1,3 +1,33 @@
+import {
+  type ConversationModel,
+  selectConversationModelLayer
+} from '@b2b-saas-starter/ai/conversation'
+import { makeSeedAssistantConversationHost } from './developer-platform/assistant-conversations.seed.ts'
+import {
+  type AssistantConversations,
+  AssistantConversationsLayer
+} from './developer-platform/assistant-conversations.ts'
+import { type AssistantConversationTransport } from './developer-platform/assistant-conversation-transport.ts'
+import {
+  type AssistantAuthority,
+  LiveAssistantAuthority,
+  SeedAssistantAuthority,
+  type AssistantAuthorityState
+} from './developer-platform/assistant-authority.ts'
+import {
+  type AssistantDirectory,
+  type ConversationInvalidationBinding
+} from './assistant/directory.ts'
+import { SeedAssistantDirectory } from './assistant/directory.seed.ts'
+import { LiveAssistantDirectory } from './assistant/directory.live.ts'
+import { type AssistantAdmission } from './assistant/admission.ts'
+import { SeedAssistantAdmission } from './assistant/admission.seed.ts'
+import { LiveAssistantAdmission } from './assistant/admission.live.ts'
+import {
+  AssistantConversationLifecycleLayer,
+  type AssistantConversationLifecycle,
+  type AssistantLifecycleBinding
+} from './assistant/lifecycle.ts'
 import { type WebhookInvestigationTasks } from './developer-platform/webhook-investigation-tasks.ts'
 import { SeedWebhookInvestigationTasks } from './developer-platform/webhook-investigation-tasks.seed.ts'
 import { LiveWebhookInvestigationTasks } from './developer-platform/webhook-investigation-tasks.live.ts'
@@ -7,7 +37,7 @@ import {
   BillingWebhookLayer
 } from './billing-adapters.ts'
 import { type Database, type RawD1 } from '@b2b-saas-starter/db/service'
-import { Effect, Layer, Ref } from 'effect'
+import { Clock, DateTime, Effect, Layer, Ref } from 'effect'
 import { type EmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery'
 import { SeedEmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery.seed'
 import { LiveEmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery.live'
@@ -92,7 +122,7 @@ import { type WorkspaceExports } from './governance/workspace-export.ts'
 import { type PersonalDataExports } from './governance/personal-data-export.ts'
 import { LivePersonalDataExports } from './governance/personal-data-export.live.ts'
 import { SeedPersonalDataExports } from './governance/personal-data-export.seed.ts'
-import { type WorkspaceSuspensionService } from './governance/workspace-suspension.ts'
+import { WorkspaceSuspensionService } from './governance/workspace-suspension.ts'
 import { LiveWorkspaceSuspension } from './governance/workspace-suspension.live.ts'
 import { SeedWorkspaceSuspension } from './governance/workspace-suspension.seed.ts'
 import { LiveSsoConnections } from './governance/workspace-sso-connections.live.ts'
@@ -151,10 +181,17 @@ import {
   seedUserAdminMemberships,
   seedWebhookEndpoints,
   seedWorkspaceExportFixture,
-  seedWorkspaceRecord
+  seedWorkspaceRecord,
+  demoUserIdentity,
+  seedAssistantSessionId
 } from './seed-fixture.ts'
 
 export type CapabilityServices =
+  | AssistantConversations
+  | AssistantAuthority
+  | AssistantDirectory
+  | AssistantAdmission
+  | AssistantConversationLifecycle
   | WebhookInvestigationTasks
   | EmailDelivery
   | AccountLifecycle
@@ -206,20 +243,83 @@ const SeedGovernance = Layer.unwrap(
       workspace: seedWorkspaceRecord,
       catalog,
       systemUsers: seedSystemUsers
-    }).pipe(Layer.provide(SeedAuditLog), Layer.provide(SeedNotifications))
+    }).pipe(
+      Layer.provide(SeedAuditLog),
+      Layer.provide(SeedNotifications),
+      Layer.provide(SeedAssistantDirectory)
+    )
+    const initializedAt = yield* Clock.currentTimeMillis
+    const authority = SeedAssistantAuthority(undefined, (input) =>
+      Effect.gen(function* () {
+        if (
+          input.credential.kind !== 'session' ||
+          input.credential.sessionId !== seedAssistantSessionId ||
+          input.credential.userId !== demoUserIdentity.id
+        ) {
+          return null
+        }
+        const members = yield* Ref.get(roster)
+        const member = members.find(
+          (candidate) => candidate.id === input.credential.userId
+        )
+        const workspaces = yield* Ref.get(catalog)
+        const workspace = workspaces.find(
+          (candidate) => candidate.id === input.workspaceId
+        )
+        if (!member || !workspace) {
+          return null
+        }
+        const state = yield* (yield* WorkspaceSuspensionService).get(workspace.id)
+        const proof = {
+          expiresAt: DateTime.toDate(DateTime.makeUnsafe(initializedAt + 43_200_000)),
+          impersonatedBy: null,
+          passwordVerifiedAt: null,
+          strongAuthAt: DateTime.toDate(DateTime.makeUnsafe(initializedAt)),
+          strongAuthMethod: 'passkey',
+          strongAuthCredentialId: 'seed-assistant-passkey',
+          recoveryUntil: null
+        }
+        return {
+          context: {
+            workspace,
+            actor: {
+              userId: member.id,
+              role: member.role,
+              systemRole: member.systemRole
+            },
+            actorType: 'user'
+          },
+          banned: false,
+          suspended: state.status === 'suspended',
+          currentSession: proof,
+          retainedSession: { ...proof, revokedAt: null },
+          totpId: null,
+          passkeyIds: ['seed-assistant-passkey'],
+          grant: null
+        } satisfies AssistantAuthorityState
+      }).pipe(
+        Effect.provide(suspension),
+        Effect.catchTag('WorkspaceSuspended', () => Effect.succeed(null))
+      )
+    )
     return Layer.mergeAll(
+      authority,
       // The account-lifecycle seed shares the roster so the ownership rule
       // reads the same membership state the membership and invitation seeds
       // write, and it writes its audit events into the shared fixture log
       // provided on the merged layer below.
       SeedAccountLifecycle({ roster, workspace: seedWorkspaceRecord }).pipe(
         Layer.provide(SeedAuditLog),
-        Layer.provide(suspension)
+        Layer.provide(suspension),
+        Layer.provide(SeedAssistantDirectory)
       ),
       SeedWorkspaceInvitations({ roster, workspace: seedWorkspaceRecord }),
-      SeedWorkspaceMembership(roster, seedWorkspaceRecord),
+      SeedWorkspaceMembership(roster, seedWorkspaceRecord).pipe(
+        Layer.provide(SeedAssistantDirectory)
+      ),
       SeedWorkspaceLifecycle({ roster, workspace: seedWorkspaceRecord, catalog }).pipe(
-        Layer.provide(suspension)
+        Layer.provide(suspension),
+        Layer.provide(SeedAssistantDirectory)
       ),
       /**
        * Billing rides the governance seed so its audit writes land in the
@@ -272,6 +372,8 @@ const SeedEntitlements = SeedResourceEntitlements().pipe(
 )
 
 const SeedCore = Layer.mergeAll(
+  SeedAssistantDirectory,
+  SeedAssistantAdmission.pipe(Layer.provide(SeedAssistantDirectory)),
   SeedRetention,
   SeedEmailDelivery(seedSystemUsers),
   // The mutating developer-platform capabilities write audit events and fan
@@ -316,30 +418,48 @@ const SeedCore = Layer.mergeAll(
  * value, provided here and merged below: Effect memoizes it, so the archive is
  * built from the same instances the rest of the fixture serves.
  */
-const SeedExports = SeedWorkspaceExports({
-  workspace: seedWorkspaceRecord,
-  fixture: seedWorkspaceExportFixture
-}).pipe(Layer.provide(SeedCore))
-const SeedPersonalExports = SeedPersonalDataExports(
-  seedAccountProfiles,
-  seedNotifications,
-  seedWorkspaceRecord.id,
-  seedPersonalAccountArtifacts
-).pipe(Layer.provide(SeedCore))
-
-const SeedEmailEligibility = NotificationEmailEligibilityLayer.pipe(
-  Layer.provide(SeedCore)
-)
-
-// oxlint-disable effect/noAs
-// SAFETY: SeedExports is built by providing SeedCore, so the merged layer supplies every capability service and has no runtime requirements.
-export const SeedLayer = Layer.mergeAll(
-  SeedCore,
-  SeedWebhookInvestigationTasks.pipe(Layer.provide(SeedCore)),
-  SeedExports,
-  SeedPersonalExports,
-  SeedEmailEligibility
-) /* SAFETY: SeedExports is built by providing SeedCore, so all runtime requirements are supplied. */ as CapabilitiesLayer
+/** A synthetic model is opt-in for tests and demos; ordinary Seed never generates automatically. */
+export function makeSeedCapabilitiesLayer(
+  options: { readonly conversationModel?: Layer.Layer<ConversationModel> } = {}
+): CapabilitiesLayer {
+  const tasks = SeedWebhookInvestigationTasks.pipe(Layer.provide(SeedCore))
+  const conversations = Layer.unwrap(
+    Effect.gen(function* () {
+      const host = yield* makeSeedAssistantConversationHost()
+      return Layer.merge(
+        AssistantConversationsLayer(host.transport),
+        AssistantConversationLifecycleLayer(host.lifecycle)
+      )
+    })
+  ).pipe(
+    Layer.provide(
+      Layer.mergeAll(
+        SeedCore,
+        tasks,
+        options.conversationModel ?? selectConversationModelLayer({})
+      )
+    )
+  )
+  const core = Layer.merge(SeedCore, conversations)
+  const exports = SeedWorkspaceExports({
+    workspace: seedWorkspaceRecord,
+    fixture: seedWorkspaceExportFixture
+  }).pipe(Layer.provide(core))
+  const personalExports = SeedPersonalDataExports(
+    seedAccountProfiles,
+    seedNotifications,
+    seedWorkspaceRecord.id,
+    seedPersonalAccountArtifacts
+  ).pipe(Layer.provide(core))
+  return Layer.mergeAll(
+    core,
+    tasks,
+    exports,
+    personalExports,
+    NotificationEmailEligibilityLayer.pipe(Layer.provide(core))
+  )
+}
+export const SeedLayer = makeSeedCapabilitiesLayer()
 
 /**
  * The optional provider ports and option bags `makeLiveCapabilitiesLayer`
@@ -354,6 +474,10 @@ export const SeedLayer = Layer.mergeAll(
  * an unset var).
  */
 export type CapabilityBindings = {
+  readonly assistantInvalidation?: ConversationInvalidationBinding | undefined
+  readonly assistantTransport?: AssistantConversationTransport | undefined
+  readonly assistantResource?: string | undefined
+  readonly assistantLifecycle?: AssistantLifecycleBinding | undefined
   /** Independent append-only recovery evidence. Absent in local development. */
   readonly securityEvidence?: SecurityEvidenceSink | undefined
   readonly webhookQueue?: WebhookQueueBinding | undefined
@@ -439,10 +563,14 @@ export function makeLiveCapabilitiesLayer(
   const accountPreferences = LiveAccountPreferences.pipe(
     Layer.provide(LiveAuditEventLog)
   )
+  const directory = LiveAssistantDirectory(
+    options.securityEvidence,
+    options.assistantInvalidation
+  ).pipe(Layer.provide(LiveAuditEventLog))
   const membership = LiveWorkspaceMembership(
     options.memberBinding,
     options.securityEvidence
-  )
+  ).pipe(Layer.provide(directory))
   // And for the feed: a mergeAll member the shell reads AND the layer
   // `PlatformUserAdmin` is provided so its impersonation `notifyUser` lands in
   // the same instance every other consumer reads.
@@ -456,6 +584,7 @@ export function makeLiveCapabilitiesLayer(
   )
   const entitlements = LiveResourceEntitlements.pipe(Layer.provide(billing))
   const suspension = LiveWorkspaceSuspension.pipe(
+    Layer.provide(directory),
     Layer.provide(LiveAuditEventLog),
     Layer.provide(feed)
   )
@@ -469,7 +598,23 @@ export function makeLiveCapabilitiesLayer(
     Layer.provide(entitlements),
     Layer.provide(billing)
   )
+  const conversationLifecycle = AssistantConversationLifecycleLayer(
+    options.assistantLifecycle
+  ).pipe(Layer.provide(directory))
   return Layer.mergeAll(
+    directory,
+    AssistantConversationsLayer(options.assistantTransport).pipe(
+      Layer.provide(
+        LiveAssistantAuthority(options.assistantResource).pipe(
+          Layer.provide(LiveMcpClientConnections(options.securityEvidence))
+        )
+      )
+    ),
+    LiveAssistantAuthority(options.assistantResource).pipe(
+      Layer.provide(LiveMcpClientConnections(options.securityEvidence))
+    ),
+    LiveAssistantAdmission.pipe(Layer.provide(LiveAuditEventLog)),
+    conversationLifecycle,
     LiveWebhookInvestigationTasks.pipe(Layer.provide(webhooks)),
     LiveRetention,
     LiveEmailDelivery,
@@ -508,6 +653,8 @@ export function makeLiveCapabilitiesLayer(
     suspension,
     seatSyncPublisher
   ).pipe(
+    Layer.provide(directory),
+    Layer.provide(conversationLifecycle),
     Layer.provide(BillingAuditLayer.pipe(Layer.provideMerge(LiveAuditEventLog))),
     // The user-admin capability notifies the impersonated user below its
     // interface, the export adapter notifies the requester below its, and the
