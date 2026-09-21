@@ -43,8 +43,8 @@ catalogs:
       specifier: 4.0.0-rc.115
       version: 4.0.0-rc.115
     '@effect/sql-d1':
-      specifier: 4.0.0-rc.115
-      version: 4.0.0-rc.115
+      specifier: 4.0.0-rc.116
+      version: 4.0.0-rc.116
     '@effect/vitest':
       specifier: 4.0.0-rc.115
       version: 4.0.0-rc.115
@@ -995,10 +995,10 @@ importers:
         version: link:../failure
       '@effect/sql-d1':
         specifier: 'catalog:'
-        version: 4.0.0-rc.115(effect@4.0.0-rc.115)
+        version: 4.0.0-rc.116(effect@4.0.0-rc.115)
       drizzle-orm:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20260918.1)(@effect/sql-d1@4.0.0-rc.115(effect@4.0.0-rc.115))(@effect/sql-sqlite-do@4.0.0-rc.116(effect@4.0.0-rc.115))(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(bun-types@1.4.0)(effect@4.0.0-rc.115)(valibot@1.4.2(typescript@7.0.2))(zod@4.5.4)
+        version: 1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20260918.1)(@effect/sql-d1@4.0.0-rc.116(effect@4.0.0-rc.115))(@effect/sql-sqlite-do@4.0.0-rc.116(effect@4.0.0-rc.115))(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(bun-types@1.4.0)(effect@4.0.0-rc.115)(valibot@1.4.2(typescript@7.0.2))(zod@4.5.4)
       effect:
         specifier: 'catalog:'
         version: 4.0.0-rc.115
@@ -2124,11 +2124,6 @@ packages:
     peerDependencies:
       effect: ^4.0.0-rc.115
       redis: '>=5.0.0 <7.0.0'
-
-  '@effect/sql-d1@4.0.0-rc.115':
-    resolution: {integrity: sha512-o2JkGjN02NBMxwDtJbwcC4teyMiOApqN085fdVMid4FUC6ixj/WyKyPpe51QGOMQQTTl2BkXccA/IwDIywGXlA==}
-    peerDependencies:
-      effect: ^4.0.0-rc.115
 
   '@effect/sql-d1@4.0.0-rc.116':
     resolution: {integrity: sha512-P7jhRWb64pBtCxUo4j319UDAR0DVLQ3t3rPMxTHWQINe4UV4VW6VFMK2KdTFs6SNsurzF4kZA2tVsGpMTIS/eQ==}
@@ -5261,10 +5256,6 @@ packages:
   '@tanstack/virtual-file-routes@1.162.0':
     resolution: {integrity: sha512-uhOeFyxLcU41HzvrxsGpiWdcMbScY1EDgbZ5K7DVRMYInbLYWAC0EA/kx9wXAoSM8q82bUG2hRl8+EAjE6XAbA==}
     engines: {node: '>=20.19'}
-
-  '@testing-library/dom@10.4.1':
-    resolution: {integrity: sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg==}
-    engines: {node: '>=18'}
 
   '@testing-library/dom@10.4.2':
     resolution: {integrity: sha512-yzr2S9HyAIdhz2/6qHgbs665Q7PKVcDF05vsOlHPxG1mo36gKVesdYVeDLnXgfjJ03CrKRk08knc6+E/9m8v2Q==}
@@ -10477,11 +10468,6 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@effect/sql-d1@4.0.0-rc.115(effect@4.0.0-rc.115)':
-    dependencies:
-      '@cloudflare/workers-types': 5.20260918.1
-      effect: 4.0.0-rc.115
-
   '@effect/sql-d1@4.0.0-rc.116(effect@4.0.0-rc.115)':
     dependencies:
       '@cloudflare/workers-types': 5.20260918.1
@@ -12904,17 +12890,6 @@ snapshots:
 
   '@tanstack/virtual-file-routes@1.162.0': {}
 
-  '@testing-library/dom@10.4.1':
-    dependencies:
-      '@babel/code-frame': 7.29.7
-      '@babel/runtime': 7.29.7
-      '@types/aria-query': 5.0.4
-      aria-query: 5.3.0
-      dom-accessibility-api: 0.5.16
-      lz-string: 1.5.0
-      picocolors: 1.1.1
-      pretty-format: 27.5.1
-
   '@testing-library/dom@10.4.2':
     dependencies:
       '@babel/code-frame': 7.29.7
@@ -12936,9 +12911,9 @@ snapshots:
       '@types/react': 19.3.0
       '@types/react-dom': 19.3.0(@types/react@19.3.0)
 
-  '@testing-library/user-event@14.6.6(@testing-library/dom@10.4.1)':
+  '@testing-library/user-event@14.6.6(@testing-library/dom@10.4.2)':
     dependencies:
-      '@testing-library/dom': 10.4.1
+      '@testing-library/dom': 10.4.2
 
   '@ts-morph/common@0.27.0':
     dependencies:
@@ -13103,8 +13078,8 @@ snapshots:
 
   '@vitest/browser-preview@4.1.11(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.5.1)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(vitest@4.1.11)':
     dependencies:
-      '@testing-library/dom': 10.4.1
-      '@testing-library/user-event': 14.6.6(@testing-library/dom@10.4.1)
+      '@testing-library/dom': 10.4.2
+      '@testing-library/user-event': 14.6.6(@testing-library/dom@10.4.2)
       '@vitest/browser': 4.1.11(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.5.1)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(vitest@4.1.11)
       vitest: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.5.1)(@vitest/browser-preview@4.1.11)(@vitest/coverage-v8@4.1.11)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.5.1)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(jsdom@30.1.0(@noble/hashes@2.4.0))
     transitivePeerDependencies:
@@ -13958,19 +13933,6 @@ snapshots:
       esbuild: 0.25.12
       get-tsconfig: 4.14.3
       jiti: 2.7.0
-
-  drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20260918.1)(@effect/sql-d1@4.0.0-rc.115(effect@4.0.0-rc.115))(@effect/sql-sqlite-do@4.0.0-rc.116(effect@4.0.0-rc.115))(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(bun-types@1.4.0)(effect@4.0.0-rc.115)(valibot@1.4.2(typescript@7.0.2))(zod@4.5.4):
-    optionalDependencies:
-      '@cloudflare/workers-types': 5.20260918.1
-      '@effect/sql-d1': 4.0.0-rc.115(effect@4.0.0-rc.115)
-      '@effect/sql-sqlite-do': 4.0.0-rc.116(effect@4.0.0-rc.115)
-      '@electric-sql/pglite': 0.3.15
-      '@libsql/client': 0.17.4
-      '@opentelemetry/api': 1.9.1
-      bun-types: 1.4.0
-      effect: 4.0.0-rc.115
-      valibot: 1.4.2(typescript@7.0.2)
-      zod: 4.5.4
 
   drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20260918.1)(@effect/sql-d1@4.0.0-rc.116(effect@4.0.0-rc.115))(@effect/sql-sqlite-do@4.0.0-rc.116(effect@4.0.0-rc.115))(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(bun-types@1.4.0)(effect@4.0.0-rc.115)(valibot@1.4.2(typescript@7.0.2))(zod@4.5.4):
     optionalDependencies:
