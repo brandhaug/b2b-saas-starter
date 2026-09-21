@@ -1,6 +1,6 @@
 # Resource entitlements
 
-This module owns creation counts and execution eligibility against Billing's request-time Effective Plan. Token admission counts current unrevoked, unexpired replacement leaves. Webhook admission counts all stored endpoints; execution counts enabled endpoints. Keep these purposes distinct. Workspace context proves identity, not current paid access.
+This module owns creation counts and execution eligibility against Billing's request-time Effective Plan. Token admission counts current unrevoked, unexpired replacement leaves. Webhook admission counts all stored endpoints; execution counts enabled endpoints. Keep these purposes distinct. Live creation uses billing-owned admission predicates inside the insert-and-audit batch, so concurrent creates cannot spend the same slot. Seed creation holds the inventory lock through admission and insertion. Workspace context proves identity, not current paid access.
 
 ## Contracts and ownership
 

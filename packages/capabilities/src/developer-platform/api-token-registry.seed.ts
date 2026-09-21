@@ -131,11 +131,8 @@ export function SeedApiTokenRegistry(
           const valid = yield* validateTokenCreation(input, DateTime.toEpochMillis(now))
           yield* assertWithinPlanLimit({
             resource: 'api_token',
-            used: activeIn(ctx.workspace.id).filter(
-              (entry) =>
-                entry.token.replacedByTokenId === null &&
-                !tokenIsExpired(entry.token.expiresAt, DateTime.toEpochMillis(now))
-            ).length
+            used: inventory.available(ctx.workspace.id, DateTime.toEpochMillis(now))
+              .apiTokenIds.length
           }).pipe(
             Effect.provideService(Billing, billing),
             Effect.provideService(BillingWorkspaceContext, ctx)

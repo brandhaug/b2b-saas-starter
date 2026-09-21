@@ -10,7 +10,7 @@ import {
 
 /**
  * The decision cores are pure; the one effectful wrapper (`enforceTwoFactorSignIn`)
- * reads a live session through `authRuntime`, which needs a worker and a D1 —
+ * reads a live session through the auth runtime, which needs a worker and D1 —
  * the plugin-level behavior it guards against is pinned by
  * `packages/auth/src/live-two-factor.test.ts` instead.
  */

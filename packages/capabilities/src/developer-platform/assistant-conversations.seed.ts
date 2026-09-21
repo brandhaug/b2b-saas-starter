@@ -1,7 +1,8 @@
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
-import { DateTime, Effect, Fiber, Schema, Semaphore, Stream } from 'effect'
-import { ConversationModel } from '@b2b-saas-starter/ai/conversation'
+import { Effect, Fiber, Schema, Semaphore } from 'effect'
+import { type ConversationModel } from '@b2b-saas-starter/ai/conversation'
 import { type AssistantCredentialReference } from '@b2b-saas-starter/authz/assistant-access-token'
+import { type AuditEventLog } from '../governance/audit-event-log.ts'
 import { AssistantDirectory } from '../assistant/directory.ts'
 import {
   AssistantAdmission,
@@ -9,10 +10,19 @@ import {
 } from '../assistant/admission.ts'
 import { type AssistantLifecycleBinding } from '../assistant/lifecycle.ts'
 import { ConversationInputRejected } from '@b2b-saas-starter/ai/conversation-context'
-import { AssistantAuthority, AssistantAuthorityDenied } from './assistant-authority.ts'
+import {
+  type AssistantAuthority,
+  AssistantAuthorityDenied
+} from './assistant-authority.ts'
 import { type WebhookInvestigationTasks } from './webhook-investigation-tasks.ts'
 import { type AssistantConversationTransport } from './assistant-conversation-transport.ts'
 import { acceptConversationAnswer } from './assistant-conversation-admission.ts'
+import {
+  authorizeConversation,
+  executeConversationAnswer,
+  finishConversationAttempt
+} from './assistant-conversation-execution.ts'
+import { observeConversationAttempt } from './assistant-conversation-events.ts'
 import { makeSeedConversationLedger } from './assistant-conversation-ledger.seed.ts'
 import {
   activeConversationAttempt,
@@ -95,9 +105,7 @@ function exportCredential(
 export const makeSeedAssistantConversationHost = Effect.fn('SeedConversationHost.make')(
   function* () {
     const directory = yield* AssistantDirectory
-    const authority = yield* AssistantAuthority
     const admission = yield* AssistantAdmission
-    const model = yield* ConversationModel
     const scope = yield* Effect.scope
     const context = yield* Effect.context<
       | AssistantDirectory
@@ -105,9 +113,11 @@ export const makeSeedAssistantConversationHost = Effect.fn('SeedConversationHost
       | AssistantAdmission
       | ConversationModel
       | WebhookInvestigationTasks
+      | AuditEventLog
     >()
     const run = Effect.runPromiseWith(context)
     type State = ReturnType<typeof makeSeedConversationLedger> & {
+      id: string
       lock: Semaphore.Semaphore
       fiber: Fiber.Fiber<void, CapabilityUnavailable | ConversationUnavailable> | null
       executing: boolean
@@ -120,6 +130,7 @@ export const makeSeedAssistantConversationHost = Effect.fn('SeedConversationHost
       }
       const created: State = {
         ...makeSeedConversationLedger(),
+        id,
         lock: Semaphore.makeUnsafe(1),
         fiber: null,
         executing: false
@@ -130,53 +141,9 @@ export const makeSeedAssistantConversationHost = Effect.fn('SeedConversationHost
     const authorized = Effect.fn('SeedConversationHost.authorize')(function* (
       id: string,
       credential: AssistantCredentialReference,
-      operation: 'read' | 'write',
-      attempt?: ConversationAttempt,
-      runAccessRevision?: number
+      operation: 'read' | 'write'
     ) {
-      const row = yield* directory.get(id)
-      if (row?.deletedAt !== null) {
-        return yield* new ConversationNotFound()
-      }
-      if (attempt !== undefined && row.runAccessRevision !== runAccessRevision) {
-        return yield* new ConversationUnavailable({ reason: 'authority' })
-      }
-      let mode:
-        | { mode: 'observe' }
-        | { mode: 'run'; acceptedAt: number; deadline: number } = { mode: 'observe' }
-      if (attempt !== undefined) {
-        mode = {
-          mode: 'run',
-          acceptedAt: Date.parse(attempt.createdAt),
-          deadline: attempt.deadline
-        }
-      }
-      yield* authority.authorize({
-        credential,
-        workspaceId: row.workspaceId,
-        creatorUserId: row.creatorUserId,
-        requiredPermissions: row.requiredPermissions,
-        operation,
-        ...mode
-      })
-      return row
-    })
-    const terminal = Effect.fn('SeedConversationHost.terminal')(function* (
-      store: State,
-      attempt: ConversationAttempt,
-      status: 'Stopped' | 'Interrupted' | 'Completed',
-      reason: string | null
-    ) {
-      if (
-        yield* store.ledger.update({
-          ...attempt,
-          status,
-          reason,
-          completedAt: DateTime.formatIso(yield* DateTime.now)
-        })
-      ) {
-        yield* admission.release(attempt.id)
-      }
+      return (yield* authorizeConversation(id, credential, operation)).row
     })
     const generate = Effect.fn('SeedConversationHost.generate')(function* (
       id: string,
@@ -184,86 +151,29 @@ export const makeSeedAssistantConversationHost = Effect.fn('SeedConversationHost
       accepted: ConversationAttempt
     ) {
       const execution = yield* store.execution(accepted.id)
-      let current: ConversationAttempt = { ...accepted, status: 'Running' }
-      yield* store.ledger.update(current)
-      const consume = model.stream(execution.prompt).pipe(
-        Stream.runForEach((event) =>
-          Effect.gen(function* () {
-            yield* authorized(
-              id,
-              execution.credential,
-              'write',
-              current,
-              execution.runAccessRevision
+      yield* executeConversationAnswer({
+        conversationId: id,
+        attempt: accepted,
+        execution,
+        ledger: store.ledger,
+        emit: (event) => {
+          if (event.type === 'text-delta') {
+            store.texts.set(
+              accepted.id,
+              (store.texts.get(accepted.id) ?? '') + event.text
             )
-            const saved = yield* store.ledger.attempt(current.id)
-            if (saved === null || !activeConversationAttempt(saved)) {
-              return yield* new ConversationNotFound()
-            }
-            if (event.type === 'text-delta') {
-              store.texts.set(
-                current.id,
-                (store.texts.get(current.id) ?? '') + event.text
-              )
-            } else if (event.type === 'metadata') {
-              current = {
-                ...current,
-                provider: event.provider,
-                modelId: event.modelId,
-                providerRequestId: event.providerRequestId ?? null
-              }
-              yield* store.ledger.update(current)
-            } else {
-              current = {
-                ...current,
-                finishReason: event.reason,
-                inputTokens: event.inputTokens ?? null,
-                outputTokens: event.outputTokens ?? null
-              }
-              yield* store.ledger.update(current)
-            }
-          })
-        )
-      )
-      const check = authorized(
-        id,
-        execution.credential,
-        'write',
-        accepted,
-        execution.runAccessRevision
-      )
-      const watch = Effect.sleep('15 seconds').pipe(
-        Effect.andThen(check),
-        Effect.forever
-      )
-      yield* check.pipe(
-        Effect.andThen(consume),
-        Effect.raceFirst(watch),
-        Effect.timeout(
-          Math.max(1, accepted.deadline - DateTime.toEpochMillis(yield* DateTime.now))
-        ),
-        Effect.matchEffect({
-          onFailure: (error) => {
-            let reason = 'provider'
-            if (
-              error._tag === 'ConversationModelFailure' &&
-              error.reason === 'output-limit'
-            ) {
-              reason = 'output_limit'
-            } else if (
-              error._tag === 'AssistantAuthorityDenied' ||
-              error._tag === 'ConversationNotFound' ||
-              (error._tag === 'ConversationUnavailable' && error.reason === 'authority')
-            ) {
-              reason = 'authority'
-            } else if (error._tag === 'TimeoutError') {
-              reason = 'deadline_or_stop'
-            }
-            return terminal(store, current, 'Interrupted', reason)
-          },
-          onSuccess: () => terminal(store, current, 'Completed', null)
-        })
-      )
+          }
+        },
+        persistOutput: Effect.void,
+        finish: (attempt, status, reason) =>
+          finishConversationAttempt(
+            store.ledger,
+            store.id,
+            attempt,
+            status,
+            reason
+          ).pipe(Effect.asVoid)
+      }).pipe(Effect.catch(() => Effect.void))
     })
     const history = Effect.fn('SeedConversationHost.history')(function* (
       id: string,
@@ -329,7 +239,13 @@ export const makeSeedAssistantConversationHost = Effect.fn('SeedConversationHost
           if (!activeConversationAttempt(attempt)) {
             return Response.json(attempt)
           }
-          yield* terminal(store, attempt, 'Stopped', 'stopped')
+          yield* finishConversationAttempt(
+            store.ledger,
+            store.id,
+            attempt,
+            'Stopped',
+            'stopped'
+          )
           if (store.fiber !== null) {
             yield* Fiber.interrupt(store.fiber)
             store.fiber = null
@@ -358,7 +274,13 @@ export const makeSeedAssistantConversationHost = Effect.fn('SeedConversationHost
             store.executing = true
             store.fiber = yield* generate(id, store, accepted.attempt).pipe(
               Effect.catch(() =>
-                terminal(store, accepted.attempt, 'Interrupted', 'provider')
+                finishConversationAttempt(
+                  store.ledger,
+                  store.id,
+                  accepted.attempt,
+                  'Interrupted',
+                  'provider'
+                ).pipe(Effect.asVoid)
               ),
               Effect.ensuring(
                 Effect.sync(() => {
@@ -398,36 +320,11 @@ export const makeSeedAssistantConversationHost = Effect.fn('SeedConversationHost
           }
         })
         yield* snapshot
-        const stream = Stream.unfold({ first: true, done: false }, (cursor) =>
-          Effect.gen(function* () {
-            if (cursor.done) {
-              return
-            }
-            if (!cursor.first) {
-              yield* Effect.sleep('25 millis')
-            }
-            const value = yield* snapshot
-            const done = !activeConversationAttempt(value.attempt)
-            const json = encodeJson(value)
-            let event = `event: snapshot\ndata: ${json}\n\n`
-            if (done) {
-              event += `event: terminal\ndata: ${json}\n\n`
-            }
-            return [event, { first: false, done }] satisfies [
-              string,
-              { first: boolean; done: boolean }
-            ]
-          })
-        ).pipe(
-          Stream.catch(() =>
-            Stream.succeed('event: terminal\ndata: {"error":"access_unavailable"}\n\n')
-          ),
-          Stream.map((text) => new TextEncoder().encode(text))
+        return yield* observeConversationAttempt(
+          id,
+          snapshot,
+          input.lastEventId ?? input.request?.headers.get('last-event-id') ?? null
         )
-        const body = yield* Stream.toReadableStreamEffect(stream)
-        return new Response(body, {
-          headers: { 'content-type': 'text/event-stream', 'cache-control': 'no-store' }
-        })
       }
       return yield* new ConversationUnavailable({ reason: 'configuration' })
     })

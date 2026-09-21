@@ -1,6 +1,8 @@
+import { Effect } from 'effect'
+import { localD1UnavailableResponse } from './auth-local-d1'
 import { Auth } from '@b2b-saas-starter/auth'
 import { handleWebRequest } from 'effectful-better-auth'
-import { authRuntime } from '@/lib/auth-runtime'
+import { authAvailability } from '@/lib/auth-runtime'
 import { withWebRequestScope } from '@/lib/observability'
 
 /**
@@ -13,7 +15,11 @@ import { withWebRequestScope } from '@/lib/observability'
  * happens), one wide event.
  */
 export function serveOAuthDiscovery(request: Request): Promise<Response> {
-  return authRuntime.runPromise(
+  const availability = authAvailability()
+  if (!availability.available) {
+    return Effect.runPromise(Effect.sync(localD1UnavailableResponse))
+  }
+  return availability.runtime.runPromise(
     withWebRequestScope(
       { event: 'auth.discovery' },
       handleWebRequest(Auth.Tag, request)

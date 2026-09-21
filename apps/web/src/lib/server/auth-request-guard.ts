@@ -1,3 +1,4 @@
+import { resolveAuthTarget } from './auth-audit/target'
 import { type Session } from '@b2b-saas-starter/auth'
 import { type ImpersonationForbiddenAction } from '@b2b-saas-starter/capabilities/governance/platform-user-admin'
 import { Effect } from 'effect'
@@ -165,8 +166,7 @@ export function classifyAuthRequest(exchange: AuthExchange): AuthRequestClassifi
     strongAuthentication = { kind: 'passkey' }
   }
   return {
-    auditContext:
-      needsPreHandlerActor(exchange) || exchange.pathname.endsWith('/unlink-account'),
+    auditContext: needsPreHandlerActor(exchange),
     impersonationAction,
     strongAuthentication
   }
@@ -308,6 +308,18 @@ export const runAuthRequestGuards = Effect.fn('AuthRequestGuard.run')(function* 
     return refused(disabledSsoResponse, audit)
   }
 
+  // Target reads must finish before a destructive plugin call consumes the
+  // token. A failed lookup refuses the mutation, preserving recovery evidence.
+  const resolvedAudit =
+    audit === undefined
+      ? undefined
+      : yield* resolveAuthTarget(exchange, audit).pipe(
+          Effect.catch(() => Effect.succeed(null))
+        )
+  if (resolvedAudit === null) {
+    yield* Effect.annotateLogsScoped({ outcome: 'auth_target_unavailable' })
+    return refused(authRefusal(503, 'session_unavailable'), audit)
+  }
   const response = yield* handlePluginRequest(request)
-  return allowed(response, audit)
+  return allowed(response, resolvedAudit)
 })

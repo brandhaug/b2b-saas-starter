@@ -17,11 +17,21 @@ const countFields = new Set([
   'failedConversations',
   'cleanedConversations',
   'expiredReservations',
-  'assistantAffectedConversations'
+  'assistantAffectedConversations',
+  'notificationEmailRecipients',
+  'notificationEmailEnqueued'
+])
+
+const publicationFailureFields = new Set([
+  'webhookPublish',
+  'webhookDeadLetterNotification',
+  'seatSyncPublish',
+  'notificationEmailEnqueue'
 ])
 
 const allowedFields = new Set([
   ...countFields,
+  ...publicationFailureFields,
   'assistantAuthorityNotification',
   'service',
   'event',
@@ -75,6 +85,7 @@ const allowedFields = new Set([
   'authenticated',
   'credential',
   'authReason',
+  'authAuditBodyErrorTag',
   'plan',
   'signal',
   'service.name',
@@ -149,6 +160,12 @@ export function diagnosticFields(fields: object) {
       continue
     }
     if (countFields.has(key) && typeof value !== 'number') {
+      continue
+    }
+    if (publicationFailureFields.has(key) && value !== 'failed') {
+      continue
+    }
+    if (key === 'authAuditBodyErrorTag' && value !== 'AuthAuditBodyUnreadable') {
       continue
     }
     if (key === 'assistantAuthorityNotification' && value !== 'host_unavailable') {

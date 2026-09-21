@@ -15,7 +15,7 @@ import { and, asc, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm'
 import { ResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements'
 import { WorkspaceContext as BillingWorkspaceContext } from '@b2b-saas-starter/billing/ports'
 import { Billing } from '@b2b-saas-starter/billing/billing'
-import { assertWithinPlanLimitFor } from '@b2b-saas-starter/billing/resource-admission'
+import { prepareResourceAdmission } from '@b2b-saas-starter/billing/resource-admission'
 import { auditedMutations } from '../governance/audited-mutation.ts'
 import {
   AuditEventLog,
@@ -136,9 +136,6 @@ export const LiveWebhookEndpoints: Layer.Layer<
     const entitlements = yield* ResourceEntitlements
     const history = yield* makeLiveAttemptHistory
 
-    // The shared mutate+audit combinator — one implementation of the batched
-    // write, its zero-match skip, and the phantom-audit caveat (see
-    // governance/audited-mutation.ts).
     const auditedMutation = yield* auditedMutations({
       prepareAuditRecord: audit.prepareRecord,
       unavailable
@@ -313,14 +310,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
         Effect.gen(function* () {
           yield* ensureValidWebhookUrl(input.url)
           const ctx = yield* WorkspaceContext
-          // Entitlement gate: the workspace's plan caps endpoint count.
-          yield* assertWithinPlanLimitFor({
-            resource: 'webhook_endpoint',
-            db,
-            capability: 'webhook-endpoints',
-            table: webhookEndpoints,
-            where: eq(webhookEndpoints.workspaceId, ctx.workspace.id)
-          }).pipe(
+          const admission = yield* prepareResourceAdmission('webhook_endpoint').pipe(
             Effect.provideService(Billing, billing),
             Effect.provideService(BillingWorkspaceContext, ctx)
           )
@@ -338,9 +328,8 @@ export const LiveWebhookEndpoints: Layer.Layer<
             events: [...input.events],
             createdAt: DateTime.formatIso(createdAt)
           }
-          // Insert + audit insert as one batch — the shared audited-mutation
-          // shape with an unconditional match.
-          yield* auditedMutation({
+          // The insert evaluates admission in the same batch as its audit.
+          const created = yield* auditedMutation({
             matched: Effect.succeed(true),
             auditEvent: {
               workspaceId: ctx.workspace.id,
@@ -351,8 +340,39 @@ export const LiveWebhookEndpoints: Layer.Layer<
               targetId: endpoint.id,
               metadata: { url: input.url, events: input.events }
             },
-            write: () => [db.insert(webhookEndpoints).values(endpoint)]
+            write: () => [
+              db.insert(webhookEndpoints).select(
+                db
+                  .select({
+                    id: sql<string>`${endpoint.id}`.as('id'),
+                    workspaceId: sql<string>`${endpoint.workspaceId}`.as('workspaceId'),
+                    url: sql<string>`${endpoint.url}`.as('url'),
+                    description: sql<string | null>`${endpoint.description ?? null}`.as(
+                      'description'
+                    ),
+                    signingSecret: sql<string>`${signingSecret}`.as('signingSecret'),
+                    previousSigningSecret: sql<string | null>`null`.as(
+                      'previousSigningSecret'
+                    ),
+                    previousSecretExpiresAt: sql<string | null>`null`.as(
+                      'previousSecretExpiresAt'
+                    ),
+                    enabled: sql<boolean>`1`.as('enabled'),
+                    consecutiveFailures: sql<number>`0`.as('consecutiveFailures'),
+                    events:
+                      sql`${sql.param(endpoint.events, webhookEndpoints.events)}`.as(
+                        'events'
+                      ),
+                    createdAt: sql<string>`${endpoint.createdAt}`.as('createdAt')
+                  })
+                  .from(sql`(select 1)`)
+                  .where(admission.condition)
+              )
+            ]
           })
+          if (!created) {
+            return yield* Effect.fail(admission.rejected)
+          }
           // Fan-out sits beside the audit write, below the interface: the
           // projection only — never the signing secret.
           yield* publishWebhookEventWith(publisher, {
@@ -540,9 +560,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
             ctx.workspace.id
           )
           if (projection === null) {
-            // The update matched but the row vanished before the read-back —
-            // the same phantom race the combinator documents. Not-found is the
-            // honest answer for a row that no longer exists.
+            // Another request deleted the endpoint after the committed update.
             return yield* Effect.fail(
               new WebhookEndpointNotFound({ endpointId: input.endpointId })
             )
@@ -560,7 +578,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
               new WebhookEndpointNotFound({ endpointId: input.endpointId })
             )
           }
-          yield* auditedMutation({
+          const applied = yield* auditedMutation({
             matched: Effect.succeed(true),
             auditEvent: {
               workspaceId: ctx.workspace.id,
@@ -577,6 +595,11 @@ export const LiveWebhookEndpoints: Layer.Layer<
                 .where(scopedEndpointWhere(input.endpointId, ctx.workspace.id))
             ]
           })
+          if (!applied) {
+            return yield* Effect.fail(
+              new WebhookEndpointNotFound({ endpointId: input.endpointId })
+            )
+          }
         }),
       replayDeliveryAsAdmin: Effect.fn('WebhookEndpoints.replayDeliveryAsAdmin')(
         function* (input) {
@@ -782,9 +805,8 @@ export const LiveWebhookEndpoints: Layer.Layer<
       rotateSecret: (input) =>
         Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
-          // The row is read before the mutation so the secret being replaced
-          // can move into the grace columns — a rotation is a shift, not an
-          // overwrite: the old secret keeps signing for the grace window.
+          // Reject missing endpoints before minting a replacement. The SQL
+          // update moves the current secret into its grace window atomically.
           const endpoint = yield* endpointRow(input.endpointId, ctx.workspace.id)
           if (!endpoint) {
             return yield* Effect.fail(
@@ -793,10 +815,9 @@ export const LiveWebhookEndpoints: Layer.Layer<
           }
           const rotatedAt = yield* DateTime.now
           const expiresAt = planSecretRotation(rotatedAt)
-          // The replacement secret is minted inside `write`, so a zero-match
-          // mutation still mints nothing.
+          // Return the replacement secret only if the update commits.
           let signingSecret = ''
-          yield* auditedMutation({
+          const applied = yield* auditedMutation({
             matched: Effect.succeed(true),
             auditEvent: {
               workspaceId: ctx.workspace.id,
@@ -814,13 +835,18 @@ export const LiveWebhookEndpoints: Layer.Layer<
                   .update(webhookEndpoints)
                   .set({
                     signingSecret,
-                    previousSigningSecret: endpoint.signingSecret,
+                    previousSigningSecret: sql`${webhookEndpoints.signingSecret}`,
                     previousSecretExpiresAt: expiresAt
                   })
                   .where(scopedEndpointWhere(input.endpointId, ctx.workspace.id))
               ]
             }
           })
+          if (!applied) {
+            return yield* Effect.fail(
+              new WebhookEndpointNotFound({ endpointId: input.endpointId })
+            )
+          }
           return { signingSecret }
         }),
       isDeliverySettled: (input) =>

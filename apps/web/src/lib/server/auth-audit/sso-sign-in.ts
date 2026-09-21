@@ -3,12 +3,10 @@ import {
   type RecordAuditEventInput
 } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { SsoConnections } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
-import { Auth } from '@b2b-saas-starter/auth'
 import { Effect, Option, type Scope } from 'effect'
 
-import { authRuntime } from '../../auth-runtime'
+import { readSessionForCookie } from '../auth-session-read'
 import { runCapabilities } from '../../capabilities'
-import { withWebRequestScope } from '../../observability'
 import { type RunAuditCapabilities } from './shared'
 
 /**
@@ -132,15 +130,7 @@ function readResponseSession(cookie: string): Promise<{
   readonly sessionId: string
 } | null> {
   return (
-    authRuntime
-      .runPromise(
-        withWebRequestScope(
-          { event: 'auth.sso_session' },
-          Effect.flatMap(Auth.Tag, (auth) =>
-            auth.api.getSession({ headers: new Headers({ cookie }) })
-          )
-        )
-      )
+    readSessionForCookie(cookie)
       .then((session) =>
         session ? { userId: session.user.id, sessionId: session.session.id } : null
       )
