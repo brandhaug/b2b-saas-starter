@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { expect, it } from '@effect/vitest'
 import { Effect, Fiber, Schedule } from 'effect'
+import { conversationObservationContract } from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversation-observation.contract'
 import { nativeObserver } from '../../../test/assistant/native-observer'
 import { provisionConversationHost } from '../../../test/assistant/host-harness'
 
@@ -170,6 +171,15 @@ it.live(
       expect(replay).toContain('event: snapshot')
       expect(replay).toContain('After disconnect')
       expect(replay).toContain('Completed')
+      yield* conversationObservationContract({
+        conversationId: 'observe',
+        history: yield* host.history('observe'),
+        observe: (lastEventId) =>
+          host.request('observe', `events?attemptId=${attemptId}`, undefined, {
+            'last-event-id': lastEventId
+          }),
+        expect
+      })
       expect(host.requests).toHaveLength(1)
     }).pipe(Effect.scoped),
   120_000

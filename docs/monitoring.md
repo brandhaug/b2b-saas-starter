@@ -12,6 +12,13 @@ consume the queue's retention and attempt budgets. `/ready` returns 503 while
 maintenance is enabled or its bounded D1 schema probe fails. Local Seed mode
 without D1 fails readiness.
 
+Best-effort webhook, seat synchronization, and notification-email publication
+failures retain `webhookPublish`, `seatSyncPublish`, or
+`notificationEmailEnqueue` with the value `failed` on the originating request
+event. The request can still have `status: ok` because its mutation committed.
+Notification email events also retain recipient and enqueue counts. Provider
+diagnostic strings remain excluded from exported telemetry.
+
 ## Monitor inventory
 
 Provision the runtime monitors below, the two [backup monitors](backup-recovery.md),

@@ -139,12 +139,16 @@ export function recordAuthAudit(
       actorUserId = yield* readAndReportBody(readResponseUserId(response))
     }
 
-    let targetUserId: string | null = null
+    let targetUserId: string | null = context?.targetUserId ?? null
     for (const source of row.targetFrom ?? []) {
       if (targetUserId !== null) {
         break
       }
-      if (source === 'request' && context?.request !== undefined) {
+      if (
+        source === 'request' &&
+        context?.targetUserId === undefined &&
+        context?.request !== undefined
+      ) {
         targetUserId = yield* readAndReportBody(readRequestUserId(context.request))
       } else if (source === 'response' && response.ok) {
         targetUserId = yield* readAndReportBody(readResponseUserId(response))

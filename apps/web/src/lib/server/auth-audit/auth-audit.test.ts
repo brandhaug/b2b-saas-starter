@@ -59,13 +59,13 @@ describe('exchangeRow', () => {
     expect(
       isAudited({
         method: 'POST',
-        pathname: '/api/auth/user/revoke-session'
+        pathname: '/api/auth/revoke-session'
       })
     ).toBe(true)
     expect(
       isAudited({
         method: 'POST',
-        pathname: '/api/auth/user/revoke-sessions'
+        pathname: '/api/auth/revoke-sessions'
       })
     ).toBe(true)
     expect(
@@ -122,8 +122,8 @@ describe('needsPreHandlerActor', () => {
   it('flags the session-ending rows and the admin mutations', () => {
     for (const pathname of [
       '/api/auth/sign-out',
-      '/api/auth/user/revoke-session',
-      '/api/auth/user/revoke-sessions',
+      '/api/auth/revoke-session',
+      '/api/auth/revoke-sessions',
       '/api/auth/admin/set-role'
     ]) {
       expect(needsPreHandlerActor({ method: 'POST', pathname })).toBe(true)
@@ -463,8 +463,8 @@ describe('authAuditInput', () => {
     // reasoning as the admin events.
     for (const pathname of [
       '/api/auth/sign-out',
-      '/api/auth/user/revoke-session',
-      '/api/auth/user/revoke-sessions'
+      '/api/auth/revoke-session',
+      '/api/auth/revoke-sessions'
     ]) {
       const input = authAuditInput({
         method: 'POST',
@@ -484,7 +484,7 @@ describe('authAuditInput', () => {
   it('records an unattributed session event when no pre-handler actor exists', () => {
     const input = authAuditInput({
       method: 'POST',
-      pathname: '/api/auth/user/revoke-sessions',
+      pathname: '/api/auth/revoke-sessions',
       status: 200,
       actorUserId: null
     })
@@ -1044,7 +1044,7 @@ describe('recordAuthAudit with a pre-handler context', () => {
   })
 
   it('records a session revocation attributed to the pre-handler actor', async () => {
-    const request = new Request('http://localhost/api/auth/user/revoke-session', {
+    const request = new Request('http://localhost/api/auth/revoke-session', {
       method: 'POST'
     })
     const response = new Response('{}', { status: 200 })

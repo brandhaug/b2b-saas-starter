@@ -13,3 +13,6 @@ Implementation guidance for `apps/web`. Auth handler modules live in `apps/web/s
 - `lib/rate-limit.ts` trusts only `cf-connecting-ip`; email-OTP, magic-link and reset sends, the second-factor checks, and the session-free SSO routing server fn share sign-in's `auth_sign_in` bucket (ADR 0030).
 
 - Non-disclosure is a rule: constant responses on `/forgot-password`, `disableSignUp` on email-OTP, one opaque failure on `/invitations/accept` and link landings.
+
+- `authAvailability()` selects the real plugin runtime only when D1 exists. Session reads answer anonymous without D1; auth and discovery HTTP handlers answer the local setup guidance 503. Plugin operations reject explicitly. Never fabricate a partial Better Auth service.
+- `auth-audit/exchanges.ts` owns endpoint attribution and recovery policies. The request guard resolves admin session-token targets before the plugin deletes them and shares that target with audit and recovery evidence. Installed Better Auth endpoint contracts are checked by `endpoint-contract.test.ts`.

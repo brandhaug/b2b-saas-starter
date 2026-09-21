@@ -62,6 +62,9 @@ Worker hosts one SQLite Durable Object per conversation using AIChatAgent for
 saved messages and replay. Web capabilities call it in-process through the host
 binding; member-OAuth REST and background cleanup use the same stage's host.
 Effect owns context preparation, streaming model execution and typed interruption.
+Capabilities owns the shared answer workflow, authorization, terminal transitions,
+and SSE replay protocol used by both Seed and the native host. The native host
+adapts SDK message persistence, sockets, and durable recovery scheduling.
 
 D1 holds the directory, immutable identities, monotonic evidence permissions and
 policy revision, export manifests, deletion fences and shared Member reservations.
@@ -141,6 +144,11 @@ Better Auth provides password, username, magic-link, email-code, passkey, social
 System Admin and Workspace owner/admin access require session-bound password plus verified TOTP, or server-verified user-verifying passkey authentication. Enforcement rereads current session and factor evidence, including for privileged MCP clients. See [privileged authentication and recovery](docs/strong-authentication.md).
 
 The auth catchall applies rate limiting, Turnstile where configured, SSO enforcement, impersonation restrictions, and audit capture. Cloudflare rate-limit bindings use `cf-connecting-ip`; local development and tests use the in-memory fallback. Production required-env checks reject insecure auth configuration.
+
+Auth availability is explicit at the web boundary. Without D1, session reads
+return anonymous and auth requests return setup guidance without constructing
+the plugin. The exchange catalog owns audit and recovery-evidence policy;
+destructive session operations resolve their target before the plugin deletes it.
 
 SSO connections belong to Workspaces. The app enforces enabled/required status at the auth boundary. Provisioning can assign member or admin, never owner. See [SSO decision](docs/adr/0069-workspace-scoped-sso.md) for domain-verification limitations.
 

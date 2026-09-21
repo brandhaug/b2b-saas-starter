@@ -541,9 +541,7 @@ export function SeedWebhookEndpoints(
           // cap can actually trip here instead of being unreachable.
           yield* assertWithinPlanLimit({
             resource: 'webhook_endpoint',
-            used: endpoints.filter(
-              (candidate) => candidate.workspaceId === ctx.workspace.id
-            ).length
+            used: inventory.known(ctx.workspace.id).webhookEndpointIds.length
           }).pipe(
             Effect.provideService(Billing, billing),
             Effect.provideService(BillingWorkspaceContext, ctx)

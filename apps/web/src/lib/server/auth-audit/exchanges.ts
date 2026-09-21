@@ -11,8 +11,9 @@ import { type AuditEventType } from '@b2b-saas-starter/capabilities/governance/a
  */
 export type ExchangeRow = {
   readonly method: 'POST' | 'GET'
-  /** Matched against the end of the request pathname. */
-  readonly suffix: string
+  /** Exact plugin path below the /api/auth mount. */
+  readonly path: string
+  readonly aliases?: ReadonlyArray<string>
   readonly success: AuditEventType
   /** `null` = one event regardless of outcome (the non-disclosing reset request). */
   readonly failure: AuditEventType | null
@@ -32,7 +33,7 @@ export type ExchangeRow = {
    * Where the acted-on user's id is read from, tried in this order — the first
    * that yields an id wins. Absent = the event names no target id.
    */
-  readonly targetFrom?: ReadonlyArray<'request' | 'response'>
+  readonly targetFrom?: ReadonlyArray<'request' | 'response' | 'session-token'>
   /**
    * Record nothing at all when no pre-handler context was gathered. Set on the
    * admin mutations: a `system_admin.` event that cannot name the admin who
@@ -54,6 +55,10 @@ export type ExchangeRow = {
    * (`credential-change-notification.ts`) can word the email without a
    * per-credential decode helper.
    */
+  readonly recovery?: {
+    readonly kind: 'account_deleted' | 'credential_changed' | 'sessions_revoked'
+    readonly subject: 'actor' | 'target' | 'all'
+  }
   readonly notifyOnSuccess?: CredentialChange
 }
 
@@ -70,11 +75,21 @@ export type CredentialChange =
   | { readonly kind: 'password' }
   | { readonly kind: 'backup-codes' }
 
-export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
+type EvidenceOnlyRow = Pick<
+  ExchangeRow,
+  'method' | 'path' | 'aliases' | 'actor' | 'recovery'
+> & { readonly success?: never; readonly notifyOnSuccess?: never }
+const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow | EvidenceOnlyRow> = [
+  {
+    method: 'POST',
+    path: '/unlink-account',
+    actor: 'session',
+    recovery: { kind: 'credential_changed', subject: 'actor' }
+  },
   // Account lifecycle.
   {
     method: 'POST',
-    suffix: '/sign-in/email',
+    path: '/sign-in/email',
     success: 'auth.sign_in',
     failure: 'auth.sign_in_failed',
     actor: 'response',
@@ -83,7 +98,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   },
   {
     method: 'POST',
-    suffix: '/sign-in/username',
+    path: '/sign-in/username',
     success: 'auth.sign_in',
     failure: 'auth.sign_in_failed',
     actor: 'response',
@@ -98,7 +113,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   // the user attribution for that path instead (see `social-account-audit`).
   {
     method: 'GET',
-    suffix: '/callback/github',
+    path: '/callback/github',
     success: 'auth.sign_in',
     failure: 'auth.sign_in_failed',
     actor: 'session',
@@ -108,7 +123,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   },
   {
     method: 'GET',
-    suffix: '/callback/google',
+    path: '/callback/google',
     success: 'auth.sign_in',
     failure: 'auth.sign_in_failed',
     actor: 'session',
@@ -124,7 +139,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
     // (`POST /sign-in/magic-link`) records nothing: it is non-disclosing by
     // design and answers `{ status: true }` whether or not the address exists.
     method: 'GET',
-    suffix: '/magic-link/verify',
+    path: '/magic-link/verify',
     success: 'auth.sign_in',
     failure: 'auth.sign_in_failed',
     actor: 'response',
@@ -134,7 +149,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   },
   {
     method: 'POST',
-    suffix: '/sign-up/email',
+    path: '/sign-up/email',
     success: 'auth.sign_up',
     failure: 'auth.sign_up_failed',
     actor: 'response',
@@ -142,7 +157,8 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   },
   {
     method: 'POST',
-    suffix: '/request-password-reset',
+    path: '/request-password-reset',
+    aliases: ['/email-otp/request-password-reset'],
     // One event per request, success or not: the endpoint's contract is to
     // answer identically whether the email exists, and the event matches it.
     success: 'auth.password_reset_requested',
@@ -152,7 +168,9 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   },
   {
     method: 'POST',
-    suffix: '/reset-password',
+    path: '/reset-password',
+    aliases: ['/email-otp/reset-password'],
+    recovery: { kind: 'credential_changed', subject: 'all' },
     success: 'auth.password_reset',
     failure: 'auth.password_reset_failed',
     actor: 'none',
@@ -160,7 +178,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   },
   {
     method: 'GET',
-    suffix: '/verify-email',
+    path: '/verify-email',
     success: 'auth.email_verified',
     failure: 'auth.email_verification_failed',
     // Only the no-callback branch of the success answers with a JSON body.
@@ -170,13 +188,12 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   },
   // Email one-time codes (the email-otp plugin). Two of the code endpoints
   // need their own rows; the code-based reset request and reset deliberately
-  // reuse the link-flow rows below — `/email-otp/request-password-reset` and
-  // `/email-otp/reset-password` end with the link rows' suffixes, and record
-  // the same events. The send endpoint records nothing: the sign-in,
+  // reuse the link-flow rows through explicit aliases and record the same
+  // events. The send endpoint records nothing: the sign-in,
   // verification, or reset it enables is the audited outcome.
   {
     method: 'POST',
-    suffix: '/sign-in/email-otp',
+    path: '/sign-in/email-otp',
     success: 'auth.sign_in',
     failure: 'auth.sign_in_failed',
     actor: 'response',
@@ -185,7 +202,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   },
   {
     method: 'POST',
-    suffix: '/email-otp/verify-email',
+    path: '/email-otp/verify-email',
     success: 'auth.email_verified',
     failure: 'auth.email_verification_failed',
     // The endpoint answers in JSON (never a redirect), so `response` is the
@@ -197,7 +214,8 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   // session read; without one the event still records, unattributed.
   {
     method: 'POST',
-    suffix: '/sign-out',
+    path: '/sign-out',
+    recovery: { kind: 'sessions_revoked', subject: 'actor' },
     success: 'auth.sign_out',
     failure: 'auth.sign_out_failed',
     actor: 'session',
@@ -205,7 +223,8 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   },
   {
     method: 'POST',
-    suffix: '/user/revoke-session',
+    path: '/revoke-session',
+    recovery: { kind: 'sessions_revoked', subject: 'actor' },
     success: 'auth.session_revoked',
     failure: 'auth.session_revocation_failed',
     actor: 'session',
@@ -213,7 +232,17 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   },
   {
     method: 'POST',
-    suffix: '/user/revoke-sessions',
+    path: '/revoke-sessions',
+    recovery: { kind: 'sessions_revoked', subject: 'actor' },
+    success: 'auth.session_revoked',
+    failure: 'auth.session_revocation_failed',
+    actor: 'session',
+    target: 'session'
+  },
+  {
+    method: 'POST',
+    path: '/revoke-other-sessions',
+    recovery: { kind: 'sessions_revoked', subject: 'actor' },
     success: 'auth.session_revoked',
     failure: 'auth.session_revocation_failed',
     actor: 'session',
@@ -226,7 +255,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   // worth attributing, which a response-scraped actor could never be.
   {
     method: 'POST',
-    suffix: '/change-password',
+    path: '/change-password',
     success: 'auth.password_changed',
     failure: 'auth.password_change_failed',
     actor: 'session',
@@ -244,7 +273,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
     // endpoint itself sends IS the holder-facing notice, and it covers both
     // addresses.
     method: 'POST',
-    suffix: '/change-email',
+    path: '/change-email',
     success: 'auth.email_changed',
     failure: 'auth.email_change_failed',
     actor: 'session',
@@ -255,7 +284,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
     // the account row, so they record without emailing — a name change the
     // holder did not make is a compromised-session clue, not an emergency.
     method: 'POST',
-    suffix: '/update-user',
+    path: '/update-user',
     success: 'auth.user_updated',
     failure: 'auth.user_update_failed',
     actor: 'session',
@@ -268,7 +297,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   // the user on success, and on failure there may be no session at all yet.
   {
     method: 'POST',
-    suffix: '/two-factor/enable',
+    path: '/two-factor/enable',
     success: 'auth.two_factor_enabled',
     failure: 'auth.two_factor_enabled_failed',
     actor: 'session',
@@ -277,7 +306,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   },
   {
     method: 'POST',
-    suffix: '/two-factor/disable',
+    path: '/two-factor/disable',
     success: 'auth.two_factor_disabled',
     failure: 'auth.two_factor_disable_failed',
     actor: 'session',
@@ -286,7 +315,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   },
   {
     method: 'POST',
-    suffix: '/two-factor/verify-totp',
+    path: '/two-factor/verify-totp',
     success: 'auth.two_factor_verified',
     failure: 'auth.two_factor_verification_failed',
     actor: 'response',
@@ -300,7 +329,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
     // is the new codes (never an actor), so the pre-handler actor applies,
     // and the impersonation guard already refuses it (ADR 0054).
     method: 'POST',
-    suffix: '/two-factor/generate-backup-codes',
+    path: '/two-factor/generate-backup-codes',
     success: 'auth.two_factor_backup_codes_rotated',
     failure: 'auth.two_factor_backup_codes_rotation_failed',
     actor: 'session',
@@ -315,7 +344,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   // method marker.
   {
     method: 'POST',
-    suffix: '/passkey/verify-registration',
+    path: '/passkey/verify-registration',
     success: 'auth.passkey_added',
     failure: 'auth.passkey_added_failed',
     actor: 'session',
@@ -324,7 +353,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   },
   {
     method: 'POST',
-    suffix: '/passkey/delete-passkey',
+    path: '/passkey/delete-passkey',
     success: 'auth.passkey_removed',
     failure: 'auth.passkey_removed_failed',
     actor: 'session',
@@ -333,7 +362,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   },
   {
     method: 'POST',
-    suffix: '/passkey/verify-authentication',
+    path: '/passkey/verify-authentication',
     success: 'auth.sign_in',
     failure: 'auth.sign_in_failed',
     actor: 'response',
@@ -345,7 +374,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   // pre-handler session read and the target is parsed off the request body.
   {
     method: 'POST',
-    suffix: '/admin/create-user',
+    path: '/admin/create-user',
     success: 'system_admin.user_created',
     failure: 'system_admin.user_creation_failed',
     actor: 'session',
@@ -356,7 +385,8 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   },
   {
     method: 'POST',
-    suffix: '/admin/remove-user',
+    path: '/admin/remove-user',
+    recovery: { kind: 'account_deleted', subject: 'target' },
     success: 'system_admin.user_removed',
     failure: 'system_admin.user_removal_failed',
     actor: 'session',
@@ -366,7 +396,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   },
   {
     method: 'POST',
-    suffix: '/admin/set-role',
+    path: '/admin/set-role',
     success: 'system_admin.user_role_changed',
     failure: 'system_admin.user_role_change_failed',
     actor: 'session',
@@ -376,7 +406,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   },
   {
     method: 'POST',
-    suffix: '/admin/ban-user',
+    path: '/admin/ban-user',
     success: 'system_admin.user_banned',
     failure: 'system_admin.user_ban_failed',
     actor: 'session',
@@ -386,7 +416,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   },
   {
     method: 'POST',
-    suffix: '/admin/unban-user',
+    path: '/admin/unban-user',
     success: 'system_admin.user_unbanned',
     failure: 'system_admin.user_unban_failed',
     actor: 'session',
@@ -396,7 +426,8 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   },
   {
     method: 'POST',
-    suffix: '/admin/set-user-password',
+    path: '/admin/set-user-password',
+    recovery: { kind: 'credential_changed', subject: 'target' },
     success: 'system_admin.user_password_set',
     failure: 'system_admin.user_password_set_failed',
     actor: 'session',
@@ -406,7 +437,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   },
   {
     method: 'POST',
-    suffix: '/admin/impersonate-user',
+    path: '/admin/impersonate-user',
     success: 'system_admin.impersonation_started',
     failure: 'system_admin.impersonation_start_failed',
     actor: 'session',
@@ -418,7 +449,7 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   // side; its request names nobody, so the event targets an unknown user.
   {
     method: 'POST',
-    suffix: '/admin/stop-impersonating',
+    path: '/admin/stop-impersonating',
     success: 'system_admin.impersonation_stopped',
     failure: 'system_admin.impersonation_stop_failed',
     actor: 'session',
@@ -428,17 +459,19 @@ export const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow> = [
   },
   {
     method: 'POST',
-    suffix: '/admin/revoke-user-session',
+    path: '/admin/revoke-user-session',
+    recovery: { kind: 'sessions_revoked', subject: 'target' },
     success: 'system_admin.user_session_revoked',
     failure: 'system_admin.user_session_revocation_failed',
     actor: 'session',
     target: 'user',
-    targetFrom: ['request'],
+    targetFrom: ['session-token'],
     requiresActorContext: true
   },
   {
     method: 'POST',
-    suffix: '/admin/revoke-user-sessions',
+    path: '/admin/revoke-user-sessions',
+    recovery: { kind: 'sessions_revoked', subject: 'target' },
     success: 'system_admin.user_session_revoked',
     failure: 'system_admin.user_session_revocation_failed',
     actor: 'session',
@@ -458,12 +491,21 @@ export type AuthExchange = {
  * The row for an auth catchall exchange, or `null` when it is not audit-worthy.
  * Cheap by design: `recordAuthAudit` runs it before touching any body.
  */
-export function exchangeRow(exchange: AuthExchange): ExchangeRow | null {
+function exchangePolicy(exchange: AuthExchange) {
   return (
     EXCHANGE_ROWS.find(
-      (row) => exchange.method === row.method && exchange.pathname.endsWith(row.suffix)
+      (row) =>
+        exchange.method === row.method &&
+        (exchange.pathname === `/api/auth${row.path}` ||
+          row.aliases?.some((path) => exchange.pathname === `/api/auth${path}`) ===
+            true)
     ) ?? null
   )
+}
+
+export function exchangeRow(exchange: AuthExchange): ExchangeRow | null {
+  const row = exchangePolicy(exchange)
+  return row?.success === undefined ? null : row
 }
 
 /**
@@ -474,5 +516,43 @@ export function exchangeRow(exchange: AuthExchange): ExchangeRow | null {
  * these exchanges.
  */
 export function needsPreHandlerActor(exchange: AuthExchange): boolean {
-  return exchangeRow(exchange)?.actor === 'session'
+  return exchangePolicy(exchange)?.actor === 'session'
+}
+
+/** Recovery policy shares the endpoint catalog with attribution and notifications. */
+export function recoveryEvidence(
+  exchange: AuthExchange,
+  context?: {
+    readonly actorUserId: string
+    readonly targetUserId?: string | null
+  }
+) {
+  const row = exchangePolicy(exchange)
+  const recovery: ExchangeRow['recovery'] =
+    row?.recovery ??
+    (row?.notifyOnSuccess === undefined
+      ? undefined
+      : { kind: 'credential_changed', subject: 'actor' })
+  if (recovery === undefined) {
+    return
+  }
+  let subjectId: string | null | undefined
+  switch (recovery.subject) {
+    case 'all': {
+      subjectId = '*'
+      break
+    }
+    case 'actor': {
+      subjectId = context?.actorUserId
+      break
+    }
+    case 'target': {
+      subjectId = context?.targetUserId
+      break
+    }
+  }
+  if (subjectId === null || subjectId === undefined) {
+    return
+  }
+  return { kind: recovery.kind, subjectId }
 }

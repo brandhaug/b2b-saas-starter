@@ -1,3 +1,4 @@
+import { admin } from 'better-auth/plugins/admin'
 import { type Session } from '@b2b-saas-starter/auth'
 import { type Context, Effect, Layer } from 'effect'
 import type * as RateLimitModule from '@/lib/rate-limit'
@@ -16,6 +17,7 @@ import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
  */
 const state = vi.hoisted(() => ({
   plugin: vi.fn(),
+  findSession: vi.fn<(token: string) => Promise<{ user: { id: string } } | null>>(),
   twoFactor: vi.fn(),
   audit: vi.fn(),
   ssoAudit: vi.fn(),
@@ -34,7 +36,14 @@ const testAuth = vi.hoisted(async () => {
   const { Context } = await import('effect')
   class TestAuth extends Context.Service<
     TestAuth,
-    { readonly api: { readonly getSession: () => Effect.Effect<Session> } }
+    {
+      readonly api: { readonly getSession: () => Effect.Effect<Session> }
+      readonly instance: {
+        readonly $context: Promise<{
+          internalAdapter: { findSession: typeof state.findSession }
+        }>
+      }
+    }
   >()('AuthHttpTest') {}
   return { TestAuth }
 })
@@ -47,23 +56,34 @@ vi.mock('@/lib/auth-runtime', async () => {
   const { TestAuth } = await testAuth
   const { fixtureSession } = await import('@/test/fixture-session')
   return {
-    authRuntime: {
-      runPromise: <A, E>(
-        effect: Effect.Effect<A, E, Context.Service.Identifier<typeof TestAuth>>
-      ) =>
-        // oxlint-disable-next-line starter/no-run-promise-in-tests -- bridges the HTTP handler's promise runtime with the test Auth service
-        Effect.runPromise(
-          effect.pipe(
-            Effect.provideService(TestAuth, {
-              api: {
-                getSession: () =>
-                  Effect.succeed(fixtureSession({ userId: 'usr_actor' }))
-              }
-            }),
-            Effect.scoped
+    authAvailability: () => ({
+      available: true,
+      runtime: {
+        runPromise: <A, E>(
+          effect: Effect.Effect<A, E, Context.Service.Identifier<typeof TestAuth>>
+        ) =>
+          // oxlint-disable-next-line starter/no-run-promise-in-tests -- bridges the HTTP handler's promise runtime with the test Auth service
+          Effect.runPromise(
+            effect.pipe(
+              Effect.provideService(TestAuth, {
+                instance: {
+                  // oxlint-disable-next-line starter/no-run-promise-in-tests -- implements the plugin promise context boundary
+                  $context: Effect.runPromise(
+                    Effect.succeed({
+                      internalAdapter: { findSession: state.findSession }
+                    })
+                  )
+                },
+                api: {
+                  getSession: () =>
+                    Effect.succeed(fixtureSession({ userId: 'usr_actor' }))
+                }
+              }),
+              Effect.scoped
+            )
           )
-        )
-    }
+      }
+    })
   }
 })
 vi.mock('@/lib/observability', () => ({
@@ -80,7 +100,9 @@ vi.mock('@/lib/rate-limit', async () => {
       })
   }
 })
-vi.mock('@/lib/capabilities', () => ({ runCapabilities: vi.fn() }))
+vi.mock('@/lib/capabilities', () => ({
+  runCapabilities: vi.fn().mockResolvedValue({ qualified: true, recent: true })
+}))
 vi.mock('@/lib/server/auth-audit/record', () => ({
   recordAuthAudit: state.audit
 }))
@@ -141,6 +163,8 @@ function request(pathname: string, headers: Record<string, string> = {}) {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks()
+  state.findSession.mockResolvedValue({ user: { id: 'usr_target' } })
   state.plugin.mockReturnValue(Effect.succeed(new Response('plugin')))
   state.twoFactor.mockReturnValue(Effect.succeed(null))
   state.audit.mockReturnValue(Effect.succeed('skipped'))
@@ -153,6 +177,44 @@ beforeEach(() => {
 })
 
 describe('auth HTTP handler', () => {
+  it('resolves the actual admin endpoint sessionToken before deletion and shares its target', async () => {
+    const endpoint = admin().endpoints.revokeUserSession
+    state.plugin.mockImplementation(() => {
+      expect(state.findSession).toHaveBeenCalledWith('target-token')
+      state.findSession.mockResolvedValue(null)
+      return Effect.succeed(new Response('{}'))
+    })
+    const response = await handleAuth(
+      new Request(`https://example.test/api/auth${endpoint.path}`, {
+        method: 'POST',
+        body: JSON.stringify({ sessionToken: 'target-token', userId: 'untrusted' })
+      })
+    )
+    expect(response.status).toBe(200)
+    expect(state.audit).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ actorUserId: 'usr_actor', targetUserId: 'usr_target' })
+    )
+    expect(state.evidence).toHaveBeenCalledWith('sessions_revoked', 'usr_target')
+    expect(state.findSession).toHaveBeenCalledOnce()
+  })
+
+  it('refuses destructive plugin calls when the token target lookup fails', async () => {
+    state.findSession.mockRejectedValue(new Error('database unavailable'))
+    const endpoint = admin().endpoints.revokeUserSession
+    const response = await handleAuth(
+      new Request(`https://example.test/api/auth${endpoint.path}`, {
+        method: 'POST',
+        body: JSON.stringify({ sessionToken: 'target-token' })
+      })
+    )
+    expect(response.status).toBe(503)
+    expect(state.plugin).not.toHaveBeenCalled()
+    expect(state.evidence).not.toHaveBeenCalled()
+  })
+
   it('returns a pre-handler refusal without running the plugin or post handlers', async () => {
     // A workspace mutation on the plugin's own HTTP surface: the guard
     // refuses it as a capability route.

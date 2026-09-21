@@ -7,7 +7,7 @@ import {
 } from '@b2b-saas-starter/db/schema'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer } from 'effect'
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { type AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
 
 import { AuditEventLog, recordCompletedAudit } from '../governance/audit-event-log.ts'
@@ -78,7 +78,7 @@ export function LiveMcpClientConnections(
       const db = yield* Database
       const audit = yield* AuditEventLog
       // The shared mutate+audit combinator (governance/audited-mutation.ts):
-      // one D1 batch, its zero-match skip, and the phantom-audit caveat.
+      // one D1 batch, with audit gated by the winning mutation.
       const auditedMutation = yield* auditedMutations({
         prepareAuditRecord: audit.prepareRecord,
         unavailable
@@ -220,17 +220,35 @@ export function LiveMcpClientConnections(
                 scopes: consent.scopes,
                 workspaceId
               }),
-              write: () => [
-                db.delete(oauthConsent).where(eq(oauthConsent.id, consent.id)),
-                db
-                  .update(oauthRefreshToken)
-                  .set({ revoked: revokedAt })
-                  .where(consentTokenWhere(oauthRefreshToken, tokenScope)),
-                db
-                  .update(oauthAccessToken)
-                  .set({ revoked: revokedAt })
-                  .where(consentTokenWhere(oauthAccessToken, tokenScope))
-              ]
+              transition: {
+                writeIndex: 2,
+                condition: sql`changes() > 0`,
+                alongside: []
+              },
+              write: () => {
+                const consentExists = sql`exists (select 1 from ${oauthConsent} where ${oauthConsent.id} = ${consent.id})`
+                return [
+                  db
+                    .update(oauthRefreshToken)
+                    .set({ revoked: revokedAt })
+                    .where(
+                      and(
+                        consentTokenWhere(oauthRefreshToken, tokenScope),
+                        consentExists
+                      )
+                    ),
+                  db
+                    .update(oauthAccessToken)
+                    .set({ revoked: revokedAt })
+                    .where(
+                      and(
+                        consentTokenWhere(oauthAccessToken, tokenScope),
+                        consentExists
+                      )
+                    ),
+                  db.delete(oauthConsent).where(eq(oauthConsent.id, consent.id))
+                ]
+              }
             })
             if (revoked) {
               yield* recordSecurityEvidence(

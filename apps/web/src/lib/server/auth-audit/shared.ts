@@ -126,6 +126,7 @@ function writeAuditEvent(
  */
 export type AuthAuditContext = {
   readonly actorUserId: string
+  readonly targetUserId?: string | null
   /**
    * The actor's address, from the same pre-handler session read as
    * `actorUserId`. The credential-change security notification mails it on a

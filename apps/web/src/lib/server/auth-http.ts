@@ -1,8 +1,9 @@
+import { localD1UnavailableResponse } from './auth-local-d1'
 import { Auth } from '@b2b-saas-starter/auth'
 import { env } from 'cloudflare:workers'
 import { Effect } from 'effect'
 import { handleWebRequest } from 'effectful-better-auth'
-import { authRuntime } from '@/lib/auth-runtime'
+import { authAvailability } from '@/lib/auth-runtime'
 import { withWebRequestScope } from '@/lib/observability'
 import {
   authRateLimitBucket,
@@ -12,13 +13,12 @@ import {
 } from '@/lib/rate-limit'
 import { runCapabilities } from '@/lib/capabilities'
 import {
-  exchangeRow,
+  recoveryEvidence,
   type AuthExchange,
   type CredentialChange
 } from '@/lib/server/auth-audit/exchanges'
 import { recordAuthAudit } from '@/lib/server/auth-audit/record'
 import { recordSsoSignInAudit } from '@/lib/server/auth-audit/sso-sign-in'
-import { readAndReportBody, readRequestUserId } from '@/lib/server/auth-audit/shared'
 import { enforceTwoFactorSignIn } from '@/lib/server/two-factor-sign-in-gate'
 import { makeTurnstileLayer } from '@/lib/server/turnstile.effects'
 import {
@@ -126,6 +126,10 @@ function verifyTurnstile(
 }
 
 export async function handleAuth(request: Request): Promise<Response> {
+  const auth = authAvailability()
+  if (!auth.available) {
+    return localD1UnavailableResponse()
+  }
   // The one URL parse per request: method and pathname are all the rate-limit
   // bucket, the Turnstile gate, the audit table and the two-factor
   // notification match on.
@@ -139,7 +143,7 @@ export async function handleAuth(request: Request): Promise<Response> {
   // The request scope (method, pathname, trace continuation, the canonical
   // line) is already open — `src/start.ts` runs it for every server request.
   // This adds the auth-specific span and folds its fields into that one event.
-  return authRuntime.runPromise(
+  return auth.runtime.runPromise(
     withWebRequestScope(
       { event: 'auth.request', metadata: { bucket } },
       Effect.gen(function* () {
@@ -209,56 +213,7 @@ export async function handleAuth(request: Request): Promise<Response> {
           context
         )
         if (finalResponse.ok) {
-          const row = exchangeRow(exchange)
-          let evidence:
-            | {
-                readonly kind:
-                  | 'account_deleted'
-                  | 'credential_changed'
-                  | 'sessions_revoked'
-                readonly subjectId: string
-              }
-            | undefined
-          if (row?.notifyOnSuccess !== undefined && context !== undefined) {
-            evidence = { kind: 'credential_changed', subjectId: context.actorUserId }
-          } else if (
-            exchange.pathname.endsWith('/admin/remove-user') ||
-            exchange.pathname.endsWith('/admin/set-user-password') ||
-            exchange.pathname.endsWith('/admin/revoke-user-session') ||
-            exchange.pathname.endsWith('/admin/revoke-user-sessions')
-          ) {
-            const target = context?.request
-              ? yield* readAndReportBody(readRequestUserId(context.request))
-              : null
-            if (target !== null) {
-              let kind: 'account_deleted' | 'credential_changed' | 'sessions_revoked' =
-                'credential_changed'
-              if (exchange.pathname.endsWith('/admin/remove-user')) {
-                kind = 'account_deleted'
-              } else if (exchange.pathname.includes('/revoke-user-')) {
-                kind = 'sessions_revoked'
-              }
-              evidence = {
-                kind,
-                subjectId: target
-              }
-            }
-          } else if (
-            exchange.pathname.endsWith('/sign-out') ||
-            exchange.pathname.endsWith('/user/revoke-session') ||
-            exchange.pathname.endsWith('/user/revoke-sessions')
-          ) {
-            if (context !== undefined) {
-              evidence = { kind: 'sessions_revoked', subjectId: context.actorUserId }
-            }
-          } else if (exchange.pathname.endsWith('/reset-password')) {
-            // Better Auth's anonymous reset response names no user. `*` makes
-            // restore sanitation invalidate every restored credential rather
-            // than risk reopening the password that this request replaced.
-            evidence = { kind: 'credential_changed', subjectId: '*' }
-          } else if (exchange.pathname.endsWith('/unlink-account') && context) {
-            evidence = { kind: 'credential_changed', subjectId: context.actorUserId }
-          }
+          const evidence = recoveryEvidence(exchange, context)
           if (evidence !== undefined) {
             yield* recordEvidence(evidence.kind, evidence.subjectId)
           }
