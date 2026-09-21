@@ -1,9 +1,10 @@
+import { withTriggerScope, WideEventLoggerLive } from '@b2b-saas-starter/logger'
 import { admin } from 'better-auth/plugins/admin'
 import { type Session } from '@b2b-saas-starter/auth'
-import { type Context, Effect, Layer } from 'effect'
+import { type Context, Effect, Layer, Schema } from 'effect'
 import type * as RateLimitModule from '@/lib/rate-limit'
 import type * as BetterAuthModule from 'effectful-better-auth'
-import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 
 /**
  * The catchall's own contract, and only that: the request reaches the plugin
@@ -87,7 +88,13 @@ vi.mock('@/lib/auth-runtime', async () => {
   }
 })
 vi.mock('@/lib/observability', () => ({
-  withWebRequestScope: (_metadata: unknown, effect: Effect.Effect<unknown>) => effect,
+  withWebRequestScope: (
+    metadata: { readonly event: string },
+    effect: Effect.Effect<unknown>
+  ) =>
+    withTriggerScope({ service: 'web', event: metadata.event }, effect).pipe(
+      Effect.provide(WideEventLoggerLive)
+    ),
   memoizePerRequest: <A>(_key: string, make: () => Promise<A>) => make()
 }))
 vi.mock('@/lib/rate-limit', async () => {
@@ -162,8 +169,19 @@ function request(pathname: string, headers: Record<string, string> = {}) {
   return new Request(`https://example.test${pathname}`, { method: 'POST', headers })
 }
 
+const CapturedLine = Schema.Struct({
+  message: Schema.String,
+  annotations: Schema.Record(Schema.String, Schema.Unknown)
+})
+const decodeLine = Schema.decodeUnknownSync(Schema.fromJsonString(CapturedLine))
+const lines: Array<typeof CapturedLine.Type> = []
+
 beforeEach(() => {
   vi.clearAllMocks()
+  lines.length = 0
+  vi.spyOn(console, 'log').mockImplementation((line: unknown) => {
+    lines.push(decodeLine(line))
+  })
   state.findSession.mockResolvedValue({ user: { id: 'usr_target' } })
   state.plugin.mockReturnValue(Effect.succeed(new Response('plugin')))
   state.twoFactor.mockReturnValue(Effect.succeed(null))
@@ -175,6 +193,8 @@ beforeEach(() => {
   state.turnstile.unavailable = false
   state.turnstileTokens = []
 })
+
+afterEach(() => vi.restoreAllMocks())
 
 describe('auth HTTP handler', () => {
   it('resolves the actual admin endpoint sessionToken before deletion and shares its target', async () => {
@@ -214,6 +234,33 @@ describe('auth HTTP handler', () => {
     expect(state.plugin).not.toHaveBeenCalled()
     expect(state.evidence).not.toHaveBeenCalled()
   })
+
+  it.each(['{', JSON.stringify({ sessionToken: 42 })])(
+    'reports unreadable token bodies in audit diagnostics while preserving the plugin rejection: %s',
+    async (body) => {
+      const endpoint = admin().endpoints.revokeUserSession
+      const rejection = new Response('{}', { status: 400 })
+      state.plugin.mockReturnValue(Effect.succeed(rejection))
+
+      const response = await handleAuth(
+        new Request(`https://example.test/api/auth${endpoint.path}`, {
+          method: 'POST',
+          body
+        })
+      )
+
+      const canonical = lines.find((line) => line.message === 'auth.request')
+      expect(canonical?.annotations).toMatchObject({
+        authAuditBodyErrorTag: 'AuthAuditBodyUnreadable'
+      })
+      expect(canonical?.annotations).not.toHaveProperty('authAuditBodyError')
+      expect(response).toBe(rejection)
+      expect(state.plugin).toHaveBeenCalledOnce()
+      expect(state.audit).toHaveBeenCalledOnce()
+      expect(state.findSession).not.toHaveBeenCalled()
+      expect(state.evidence).not.toHaveBeenCalled()
+    }
+  )
 
   it('returns a pre-handler refusal without running the plugin or post handlers', async () => {
     // A workspace mutation on the plugin's own HTTP surface: the guard

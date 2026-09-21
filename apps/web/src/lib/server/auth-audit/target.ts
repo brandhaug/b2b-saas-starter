@@ -1,9 +1,15 @@
 import { Auth } from '@b2b-saas-starter/auth'
+import { errorMessage } from '@b2b-saas-starter/failure'
 import { Effect, Schema } from 'effect'
 import { authAvailability } from '../../auth-runtime'
 import { MissingD1Binding } from '../auth-local-d1'
 import { exchangeRow, type AuthExchange } from './exchanges'
-import { readAndReportBody, readRequestUserId, type AuthAuditContext } from './shared'
+import {
+  AuthAuditBodyUnreadable,
+  readAndReportBody,
+  readRequestUserId,
+  type AuthAuditContext
+} from './shared'
 
 const TokenBody = Schema.Struct({ sessionToken: Schema.String })
 
@@ -19,9 +25,16 @@ export const resolveAuthTarget = Effect.fn('AuthAudit.resolveTarget')(function* 
   const request = context.request
   let targetUserId: string | null = null
   if (sources.includes('session-token')) {
-    const body = yield* Effect.tryPromise(() => request.json()).pipe(
-      Effect.flatMap(Schema.decodeUnknownEffect(TokenBody)),
-      Effect.catch(() => Effect.succeed(null))
+    const body = yield* readAndReportBody(
+      Effect.tryPromise(() => request.json()).pipe(
+        Effect.flatMap(Schema.decodeUnknownEffect(TokenBody)),
+        Effect.mapError(
+          (cause) =>
+            new AuthAuditBodyUnreadable({
+              reason: errorMessage(cause) ?? 'auth request body could not be read'
+            })
+        )
+      )
     )
     if (body === null) {
       return { ...context, targetUserId }

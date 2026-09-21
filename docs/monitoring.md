@@ -19,6 +19,9 @@ event. The request can still have `status: ok` because its mutation committed.
 Notification email events also retain recipient and enqueue counts. Provider
 diagnostic strings remain excluded from exported telemetry.
 
+Auth audit body failures retain `authAuditBodyErrorTag: AuthAuditBodyUnreadable`
+on the request event. Request bodies and parsing diagnostics remain excluded.
+
 ## Monitor inventory
 
 Provision the runtime monitors below, the two [backup monitors](backup-recovery.md),

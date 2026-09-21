@@ -42,6 +42,16 @@ function nestedFailure() {
 }
 
 describe('telemetry output policy', () => {
+  it('retains the auth audit body failure tag without body diagnostics', () => {
+    expect(
+      diagnosticFields({
+        authAuditBodyErrorTag: 'AuthAuditBodyUnreadable',
+        authAuditBodyError: secret
+      })
+    ).toEqual({ authAuditBodyErrorTag: 'AuthAuditBodyUnreadable' })
+    expect(diagnosticFields({ authAuditBodyErrorTag: secret })).toEqual({})
+  })
+
   it('exports publication outcomes and counts without provider diagnostics', () => {
     expect(
       diagnosticFields({

@@ -85,6 +85,7 @@ const allowedFields = new Set([
   'authenticated',
   'credential',
   'authReason',
+  'authAuditBodyErrorTag',
   'plan',
   'signal',
   'service.name',
@@ -162,6 +163,9 @@ export function diagnosticFields(fields: object) {
       continue
     }
     if (publicationFailureFields.has(key) && value !== 'failed') {
+      continue
+    }
+    if (key === 'authAuditBodyErrorTag' && value !== 'AuthAuditBodyUnreadable') {
       continue
     }
     if (key === 'assistantAuthorityNotification' && value !== 'host_unavailable') {
