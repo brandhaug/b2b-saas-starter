@@ -1,6 +1,9 @@
 import { expect, it } from '@effect/vitest'
 import { Effect } from 'effect'
-import { observeConversationAttempt, type AttemptSnapshot } from './conversation-events'
+import {
+  observeConversationAttempt,
+  type AttemptSnapshot
+} from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversation-events'
 
 const snapshot: AttemptSnapshot = {
   question: {

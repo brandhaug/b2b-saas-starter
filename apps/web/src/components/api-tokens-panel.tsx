@@ -47,8 +47,7 @@ import {
   DeveloperListToolbar
 } from '@/components/developer-list-controls'
 import { useDeveloperListView } from '@/lib/developer-list'
-import { applyTableView, type TableViewField } from '@/lib/table-view'
-import { useWorkspaceView } from '@/lib/workspace-view'
+import { type TableViewField } from '@/lib/table-view'
 
 function tokenListFields(): ReadonlyArray<TableViewField> {
   return [
@@ -61,8 +60,7 @@ function tokenListFields(): ReadonlyArray<TableViewField> {
       options: [
         { value: 'active', label: m.developer_list_active() },
         { value: 'expired', label: m.developer_list_expired() },
-        { value: 'replaced', label: m.developer_list_replaced() },
-        { value: 'unused', label: m.developer_list_unused() }
+        { value: 'replaced', label: m.developer_list_replaced() }
       ]
     },
     { id: 'createdAt', label: m.token_created_label(), kind: 'date' },
@@ -197,18 +195,10 @@ export function ApiTokensPanel({
 
   const list = useDeveloperListView({
     key: 'api-tokens',
-    fields
-  })
-  const { update } = useWorkspaceView()
-  const filteredTokens = (() => {
-    const needle = list.query.trim().toLocaleLowerCase()
-    const searched = tokens.filter((token) => {
-      return (
-        needle === '' ||
-        `${token.name} ${token.prefix}`.toLocaleLowerCase().includes(needle)
-      )
-    })
-    return applyTableView(searched, list.tableView, (token, field) => {
+    fields,
+    data: tokens,
+    searchText: (token) => `${token.name} ${token.prefix}`,
+    getValue: (token, field) => {
       const expired = token.expiresAt !== null && Date.parse(token.expiresAt) <= now
       let status = 'active'
       if (token.replacedByTokenId !== null) {
@@ -229,13 +219,9 @@ export function ApiTokensPanel({
         return token.prefix
       }
       return token.name
-    })
-  })()
-  const { page, pageCount } = list.pageFor(filteredTokens.length)
-  const visibleTokens = filteredTokens.slice(
-    (page - 1) * list.pageSize,
-    page * list.pageSize
-  )
+    }
+  })
+  const { page, pageCount, visibleData: visibleTokens } = list
 
   return (
     // No panel heading: the page header's h1 already says "API tokens", and
@@ -287,6 +273,7 @@ export function ApiTokensPanel({
         <>
           <DeveloperListToolbar
             query={list.query}
+            onQueryChange={list.setQuery}
             searchLabel={m.developer_list_search_tokens()}
             fields={fields}
             view={list.tableView}
@@ -298,13 +285,7 @@ export function ApiTokensPanel({
                 <EmptyTitle>{m.developer_list_no_matching_tokens()}</EmptyTitle>
               </EmptyHeader>
               <EmptyContent>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() =>
-                    update({ query: undefined, tableViews: undefined, page: undefined })
-                  }
-                >
+                <Button type="button" variant="outline" onClick={list.clear}>
                   {m.developer_list_clear_all()}
                 </Button>
               </EmptyContent>
@@ -402,7 +383,11 @@ export function ApiTokensPanel({
             </ItemGroup>
           )}
           {visibleTokens.length === 0 ? null : (
-            <DeveloperListPagination page={page} pageCount={pageCount} />
+            <DeveloperListPagination
+              page={page}
+              pageCount={pageCount}
+              onPageChange={list.setPage}
+            />
           )}
         </>
       )}

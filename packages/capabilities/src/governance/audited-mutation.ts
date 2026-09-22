@@ -1,33 +1,13 @@
 import { type BatchStatement, RawD1 } from '@b2b-saas-starter/db/service'
-import { type SQL } from 'drizzle-orm'
+import { and, sql, type SQL } from 'drizzle-orm'
 import { Effect } from 'effect'
 
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type RecordAuditEventInput } from './audit-event-log.ts'
 
-/**
- * One audited mutation: verify a row matches in this workspace, then run the
- * mutation and its audit insert as one D1 batch — commit or roll back together.
- *
- * This is the shape every mutating developer-platform capability used to
- * hand-copy (`auditedEndpointUpdate`, `ApiTokenRegistry.create`/`revoke`, the
- * terminal delivery-attempt write). The atomicity caveat travels with it:
- * this is check-then-act, not atomic across the lookup and the batch — a
- * concurrent delete between the two can leave a phantom audit row. D1 does
- * report each statement's change count, but only once the batch has already
- * committed, so the count cannot *gate* an unconditional audit insert from
- * inside the same batch. A mutation that can lose a race states a
- * {@link AuditedTransition} instead: the predicate travels into the audit
- * insert's own `WHERE`, so the audit row commits only where the write won,
- * and the change count is then read back to tell the winner from the loser.
- *
- * What every caller gets by construction is workspace scoping: the pre-check
- * and the write's own where clause must re-apply the workspace key, so a
- * foreign workspace's row is never mutated even when the pre-check goes
- * stale.
- *
- * Mutations that match zero rows skip both writes **and** the audit event —
- * no phantom revocation, no phantom disable.
+/** Mutation and audit commit together. The audit immediately follows the
+ * nominated write and requires its change count to be positive. The preliminary
+ * lookup only avoids unnecessary work; it never establishes mutation success.
  */
 
 /** What a Live layer hands over once: the audit preparer and its own `orUnavailable` wrapper (so a 503 names the failing capability). The raw binding comes from the {@link RawD1} service instead. */
@@ -49,31 +29,17 @@ type AuditedMutationInput = {
   readonly matched: Effect.Effect<boolean, CapabilityUnavailable>
   /** The audit event committed beside the write. Skipped entirely on no match. */
   readonly auditEvent: RecordAuditEventInput
-  /**
-   * The mutation statement(s), built lazily so a zero-match mutation never
-   * pays for them. Laziness is load-bearing: `rotateSecret` mints its
-   * replacement secret here, and the interface promises no secret is minted on
-   * no match. The list batches beside the one audit insert, so a mutation
-   * that needs several statements (a revoke that must also retire the tokens
-   * it mints) adds them here.
+  /** Built only after the optional lookup matches. Every statement commits or
+   * rolls back with the audit. Dependent writes must guard their own predicates.
    */
-  readonly write: () => ReadonlyArray<BatchStatement>
-  /**
-   * Present when the write is a conditional row transition that a
-   * concurrent request can win instead. See {@link AuditedTransition}.
-   */
+  readonly write: () => readonly [BatchStatement, ...Array<BatchStatement>]
+  /** Extra predicates and dependent statements for compound mutations. */
   readonly transition?: AuditedTransition
 }
 
-/**
- * A conditional row transition and everything that must commit only
- * with the request that won it.
- *
- * `condition` must be true exactly for the winning transition (in practice an
- * `EXISTS` naming a unique transition stamp, or `changes() > 0` when the winning write immediately precedes the audit). It gates the audit insert
- * and every statement in `alongside`, all in one batch with the write, so a
- * loser commits nothing at all. The mutation then resolves `false`, read off
- * the write's own change count — no racy re-read after the batch.
+/** Additional predicates and writes for a multi-statement transition.
+ * The audit always checks the nominated write's changes() before later writes
+ * can overwrite it. Alongside statements must carry their own stable predicate.
  */
 type AuditedTransition = {
   /** Index of the winning write when conditional prerequisite statements precede it. Defaults to zero. */
@@ -87,11 +53,7 @@ type AuditedTransition = {
   readonly alongside: ReadonlyArray<BatchStatement>
 }
 
-/**
- * One audited mutation. Without a `transition`: `true` when the batch ran,
- * `false` when the pre-check found nothing. With one: `true` only when this
- * request's write is the one that changed the row.
- */
+/** True only when the nominated write changed at least one row. */
 type AuditedMutation = (
   input: AuditedMutationInput
 ) => Effect.Effect<boolean, CapabilityUnavailable>
@@ -114,12 +76,20 @@ export function auditedMutations(
         }
         const auditStatement = yield* deps.prepareAuditRecord(
           input.auditEvent,
-          input.transition?.condition
+          and(sql`changes() > 0`, input.transition?.condition)
         )
+        const writes = input.write()
+        const writeIndex = input.transition?.writeIndex ?? 0
+        if (writes[writeIndex] === undefined) {
+          return yield* deps.unavailable(
+            Effect.fail('Invalid audited mutation write index')
+          )
+        }
         const statements: Array<BatchStatement> = [
-          ...input.write(),
-          ...(input.transition?.alongside ?? []),
-          auditStatement
+          ...writes.slice(0, writeIndex + 1),
+          auditStatement,
+          ...writes.slice(writeIndex + 1),
+          ...(input.transition?.alongside ?? [])
         ]
         const results = yield* deps.unavailable(
           Effect.tryPromise(() =>
@@ -131,12 +101,9 @@ export function auditedMutations(
             )
           )
         )
-        if (input.transition === undefined) {
-          return true
-        }
         // The nominated write's count distinguishes the winning transition.
         // Bulk lifecycle fences also succeed when they change several rows.
-        return (results[input.transition.writeIndex ?? 0]?.meta.changes ?? 0) > 0
+        return (results[writeIndex]?.meta.changes ?? 0) > 0
       })
   })
 }

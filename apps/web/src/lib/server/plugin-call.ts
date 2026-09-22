@@ -1,8 +1,9 @@
+import { MissingD1Binding } from './auth-local-d1'
 import { Auth, type AuthOptions } from '@b2b-saas-starter/auth'
 import { MissingRequestHeaders, runAuth, type Api } from 'effectful-better-auth'
 import { Effect } from 'effect'
 
-import { authRuntime } from '../auth-runtime'
+import { authAvailability } from '../auth-runtime'
 import { currentRequest } from '../request-context'
 
 /**
@@ -45,9 +46,13 @@ export function sessionCall<A, E>(
   if (headers === undefined) {
     return Effect.runPromise(Effect.fail(new MissingRequestHeaders()))
   }
+  const auth = authAvailability()
+  if (!auth.available) {
+    return Effect.runPromise(Effect.fail(new MissingD1Binding({ property: 'DB' })))
+  }
   return runAuth<AuthOptions, A, E>({
     tag: Auth.Tag,
-    runtime: authRuntime,
+    runtime: auth.runtime,
     headers,
     build: (api) => build(api, headers)
   })
@@ -62,5 +67,9 @@ export function sessionCall<A, E>(
 export function serverCall<A, E>(
   build: (api: AuthApi) => Effect.Effect<A, E>
 ): Promise<A> {
-  return runAuth({ tag: Auth.Tag, runtime: authRuntime, build })
+  const auth = authAvailability()
+  if (!auth.available) {
+    return Effect.runPromise(Effect.fail(new MissingD1Binding({ property: 'DB' })))
+  }
+  return runAuth({ tag: Auth.Tag, runtime: auth.runtime, build })
 }

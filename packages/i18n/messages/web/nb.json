@@ -969,7 +969,6 @@
   "members_no_filter_match": "Ingen medlemmer samsvarer med filtrene",
   "members_filter_hint": "Prøv et annet navn, en annen e-post eller rolle.",
   "members_change_role": "Endre rolle",
-  "developer_list.unused": "Ubrukte",
   "developer_list.more_actions": "Flere handlinger",
   "developer_list.more_actions_named": "Flere handlinger for {name}",
   "developer_list.status": "Status",

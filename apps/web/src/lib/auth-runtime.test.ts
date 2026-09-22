@@ -1,112 +1,52 @@
-import { Auth, type Session } from '@b2b-saas-starter/auth'
 import { isRedirect } from '@tanstack/react-router'
-import { Effect } from 'effect'
-import { beforeAll, describe, expect, it } from 'vite-plus/test'
-import { authRuntime } from './auth-runtime'
+import { describe, expect, it } from 'vite-plus/test'
+import { authAvailability } from './auth-runtime'
 import { requireSession } from './server/auth'
+import { readSessionFromHeaders } from './server/auth-session-read'
+import { handleAuth } from './server/auth-http'
+import { serveOAuthDiscovery } from './server/oauth-discovery'
+import { serverCall } from './server/plugin-call'
+import { Effect } from 'effect'
 
-/** A request carrying Better Auth's default session cookie, so a working layer would have a session to answer with. */
-const SESSION_COOKIE = new Headers({
-  cookie: 'better-auth.session_token=degraded-layer-probe'
-})
+const headers = new Headers({ cookie: 'better-auth.session_token=missing-db' })
 
-/**
- * The no-D1 state (fresh clone, preview build on the inert workers shim)
- * through the runtime: `api.getSession` must RESOLVE null — that is what the
- * route gates read as "redirect to /sign-in", which the `requireSession`
- * case asserts directly — while any other `api` property
- * still throws the `MissingD1Binding` sentinel, so nothing downstream can
- * mistake the degraded service for a half-built Better Auth.
- *
- * Vitest runs on the same shim the preview build bundles (`env.DB` is
- * undefined), so `authRuntime` builds the degraded layer here exactly as it
- * does there.
- */
-describe('authRuntime without a D1 binding', () => {
-  beforeAll(async () => {
-    // The first runtime call constructs the full server-side auth graph,
-    // including the email sender and capability layers. Warm it once so each
-    // behavior assertion keeps the normal test timeout.
-    await authRuntime.runPromise(
-      Effect.gen(function* () {
-        const auth = yield* Auth.Tag
-        return yield* auth.api.getSession({ headers: SESSION_COOKIE })
-      })
-    )
-  }, 30_000)
-
-  it('resolves getSession as null', async () => {
-    // The cookie makes this discriminate: a session-bearing request is the
-    // one a working layer could answer with a session, so the null is the
-    // degraded service's own answer, not what any layer says to an empty
-    // header set.
-    const session = await authRuntime.runPromise(
-      Effect.gen(function* () {
-        const auth = yield* Auth.Tag
-        return yield* auth.api.getSession({ headers: SESSION_COOKIE })
-      })
-    )
-    expect(session).toBeNull()
+describe('auth without D1', () => {
+  it('represents unavailable persistence without a plugin runtime', () => {
+    expect(authAvailability()).toEqual({ available: false })
   })
 
-  it('turns the degraded layer into the sign-in redirect (requireSession)', async () => {
-    // The real gate over the real degraded runtime: the sentinel must not
-    // escape through a route gate — null becomes the redirect.
-    function readOnDegradedRuntime(): Promise<Session | null> {
-      return authRuntime.runPromise(
-        Effect.gen(function* () {
-          const auth = yield* Auth.Tag
-          return yield* auth.api.getSession({ headers: SESSION_COOKIE })
-        })
-      )
-    }
-    const thrown = await requireSession('/demo', readOnDegradedRuntime).then(
+  it('answers anonymous even when a session cookie is supplied', async () => {
+    expect(await readSessionFromHeaders(headers)).toBeNull()
+  })
+
+  it('redirects protected pages to sign-in', async () => {
+    const refusal = await requireSession('/demo', () =>
+      readSessionFromHeaders(headers)
+    ).then(
       () => undefined,
       (error: unknown) => error
     )
-    expect(isRedirect(thrown)).toBe(true)
-    if (isRedirect(thrown)) {
-      expect(thrown.options.to).toBe('/sign-in')
-      expect(thrown.options.search).toEqual({ redirect: '/demo' })
+    expect(isRedirect(refusal)).toBe(true)
+  })
+
+  it('answers guidance at auth and discovery HTTP boundaries', async () => {
+    for (const handle of [handleAuth, serveOAuthDiscovery]) {
+      const response = await handle(
+        new Request('http://localhost/api/auth/sign-in/email')
+      )
+      expect(response.status).toBe(503)
+      expect(await response.json()).toMatchObject({ code: 'local_d1_unavailable' })
     }
   })
 
-  it('still refuses the rest of the api surface', async () => {
-    // Reaching past `getSession` on purpose: the property access itself must
-    // throw the sentinel (naming the property), not return a half-working
-    // surface. The refusal escapes as a rejected promise here — the same
-    // defect channel the catchall's pre-read folds into "no session".
-    // The sentinel identifies itself by shape: the tagged refusal naming the
-    // property that was reached for.
-    let refusalProperty: string | undefined
-    await authRuntime
-      .runPromise(
-        Effect.gen(function* () {
-          const auth = yield* Auth.Tag
-          // `signUpEmail` is on the typed api surface, so the access
-          // typechecks — the runtime refusal below is the degraded layer's,
-          // not a type-level shortcut.
-          void auth.api.signUpEmail
-          return null
-        })
-      )
-      .then(
-        () => undefined,
-        (error: unknown) => {
-          refusalProperty = sentinelProperty(error)
-        }
-      )
-    expect(refusalProperty).toBe('signUpEmail')
+  it('rejects plugin calls before running their callback', async () => {
+    let called = false
+    await expect(
+      serverCall(() => {
+        called = true
+        return Effect.void
+      })
+    ).rejects.toMatchObject({ _tag: 'MissingD1Binding' })
+    expect(called).toBe(false)
   })
 })
-
-/** The sentinel's `property` field, or `undefined` for anything else. */
-// oxlint-disable anti-slop/no-runtime-typeof -- a rejected promise's value is `unknown` by construction; this probe is the parse step
-function sentinelProperty(value: unknown): string | undefined {
-  if (typeof value !== 'object' || value === null || !('property' in value)) {
-    return undefined
-  }
-  const property = value.property
-  return typeof property === 'string' ? property : undefined
-}
-// oxlint-enable anti-slop/no-runtime-typeof

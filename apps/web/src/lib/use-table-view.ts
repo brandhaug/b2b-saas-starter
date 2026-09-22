@@ -42,6 +42,20 @@ function readViews(value: unknown): SerializedViews {
   }
 }
 
+/** Update one saved view while preserving the other lists' URL state. */
+export function updateTableViews(value: unknown, key: string, view: TableView) {
+  const views = readViews(value)
+  const serialized = serializeTableView(view)
+  if (serialized === undefined) {
+    const remaining = Object.fromEntries(
+      Object.entries(views).filter(([entryKey]) => entryKey !== key)
+    )
+    return Object.keys(remaining).length > 0 ? JSON.stringify(remaining) : undefined
+  }
+  views[key] = serialized
+  return JSON.stringify(views)
+}
+
 export function useTableView(
   key: string,
   fields: ReadonlyArray<TableViewField>,
@@ -61,22 +75,7 @@ export function useTableView(
       to: '.',
       search: (previous) => ({
         ...previous,
-        tableViews: (() => {
-          const nextViews = readViews(previous.tableViews)
-          const serialized = serializeTableView(nextView)
-          if (serialized === undefined) {
-            const remaining = Object.fromEntries(
-              Object.entries(nextViews).filter(([entryKey]) => entryKey !== key)
-            )
-            return Object.keys(remaining).length > 0
-              ? JSON.stringify(remaining)
-              : undefined
-          }
-          nextViews[key] = serialized
-          return Object.keys(nextViews).length > 0
-            ? JSON.stringify(nextViews)
-            : undefined
-        })(),
+        tableViews: updateTableViews(previous.tableViews, key, nextView),
         page: resetPage ? undefined : previous.page
       }),
       resetScroll: false,

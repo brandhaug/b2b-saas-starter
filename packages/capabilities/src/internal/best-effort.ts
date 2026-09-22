@@ -1,4 +1,5 @@
 import { Effect, Result } from 'effect'
+import { annotateWideEvent } from '@b2b-saas-starter/logger'
 
 /**
  * Runs `effect` for its side effect and refuses to fail: a rejection is
@@ -8,19 +9,19 @@ import { Effect, Result } from 'effect'
  * down. The outcome is returned for a caller that words the success path
  * differently.
  *
- * Shared by the webhook publisher, the seat-sync publisher, and the instant
- * email fan-out, which all hold the same contract: durable record first,
+ * Shared by webhook publication, delivery notifications, and instant email
+ * fan-out, which all hold the same contract: durable record first,
  * best-effort delivery after.
  */
 export function bestEffort<A, E, R>(
   effect: Effect.Effect<A, E, R>,
-  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Effect.annotateLogs takes an arbitrary annotation bag; the keys are caller-derived per producer
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- the logger sanitizes the caller-derived annotation bag
   onFailure: (failure: E) => Record<string, unknown>
 ): Effect.Effect<Result.Result<A, E>, never, R> {
   return Effect.gen(function* () {
     const outcome = yield* Effect.result(effect)
     if (Result.isFailure(outcome)) {
-      yield* Effect.void.pipe(Effect.annotateLogs(onFailure(outcome.failure)))
+      yield* annotateWideEvent(onFailure(outcome.failure))
     }
     return outcome
   })

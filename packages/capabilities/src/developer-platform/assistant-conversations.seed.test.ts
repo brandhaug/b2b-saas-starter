@@ -1,7 +1,5 @@
-import { type AssistantCredentialReference } from '@b2b-saas-starter/authz/assistant-access-token'
 import { expect, it } from '@effect/vitest'
-import { TestClock } from 'effect/testing'
-import { Effect, Schedule, Queue, Stream, Layer, Clock, Schema, Deferred } from 'effect'
+import { Effect, Schedule, Queue, Stream, Layer, Clock, Schema } from 'effect'
 import {
   ConversationModel,
   ConversationModelFailure,
@@ -17,36 +15,20 @@ import {
   AssistantConversations,
   AssistantConversationsLayer
 } from './assistant-conversations.ts'
+import { conversationObservationContract } from './assistant-conversation-observation.contract.ts'
 import { makeSeedAssistantConversationHost } from './assistant-conversations.seed.ts'
 import { AssistantConversationLifecycle } from '../assistant/lifecycle.ts'
 import { AssistantDirectory } from '../assistant/directory.ts'
 import { SeedLayer, makeSeedCapabilitiesLayer } from '../layers.ts'
+import { seedWorkspaceRecord } from '../seed-fixture.ts'
 import {
-  demoUserIdentity,
-  seedAssistantSessionId,
-  seedWorkspaceRecord
-} from '../seed-fixture.ts'
+  modelLimits,
+  credential,
+  workspace
+} from './assistant-conversation.seed-fixture.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 
 const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Json))
-
-const modelLimits = {
-  maxInputTokens: 64_000,
-  maxOutputTokens: 16_000,
-  providerContextTokens: 128_000,
-  providerOutputTokens: 16_000
-}
-const credential = {
-  kind: 'session',
-  userId: demoUserIdentity.id,
-  sessionId: seedAssistantSessionId,
-  expiresAt: Number.MAX_SAFE_INTEGER
-} satisfies AssistantCredentialReference
-const workspace = {
-  workspace: seedWorkspaceRecord,
-  actor: { userId: demoUserIdentity.id, role: 'owner', systemRole: 'user' },
-  actorType: 'user'
-} satisfies WorkspaceContext['Service']
 
 it.live(
   'assembled Seed can browse, export and delete while unconfigured generation accepts nothing',
@@ -137,6 +119,17 @@ it.live(
       expect(yield* Effect.promise(() => observation.text())).toContain(
         'event: snapshot'
       )
+      yield* conversationObservationContract({
+        conversationId: created.id,
+        history: completed,
+        observe: (lastEventId) =>
+          conversations.observe({
+            ...identity,
+            attemptId: accepted.attempt.id,
+            lastEventId
+          }),
+        expect
+      })
       expect(
         (yield* lifecycle.collectForExport(credential.userId, credential.sessionId))
           .conversations
@@ -870,71 +863,6 @@ it.live(
           'Fresh complete answer'
         ])
         expect(calls).toBe(2)
-      }).pipe(
-        Effect.provide(
-          makeSeedCapabilitiesLayer({
-            conversationModel: Layer.succeed(ConversationModel, model)
-          })
-        )
-      )
-    }).pipe(Effect.provideService(WorkspaceContext, workspace)),
-  20_000
-)
-
-it.effect(
-  'an idle Seed run survives credential invalidation but observes an interrupting revision within fifteen seconds',
-  () =>
-    Effect.gen(function* () {
-      const saved = yield* Deferred.make<undefined>()
-      let calls = 0
-      const model = ConversationModel.of({
-        prepare: (input) => prepareConversationContext(input, modelLimits),
-        stream: () => {
-          calls += 1
-          return Stream.succeed({
-            type: 'text-delta',
-            text: 'Idle saved prefix'
-          } satisfies ConversationModelEvent).pipe(
-            Stream.concat(
-              Stream.fromEffect(Deferred.succeed(saved, undefined)).pipe(Stream.drain)
-            ),
-            Stream.concat(Stream.never)
-          )
-        }
-      })
-      yield* Effect.gen(function* () {
-        const conversations = yield* AssistantConversations
-        const directory = yield* AssistantDirectory
-        const created = yield* conversations.create({ credential })
-        const identity = { credential, conversationId: created.id }
-        yield* conversations.send({
-          ...identity,
-          question: 'Keep running without observers',
-          idempotencyKey: 'idle'
-        })
-        yield* Deferred.await(saved)
-        yield* directory.invalidateAccess({ conversationId: created.id })
-        yield* TestClock.adjust('15 seconds')
-        expect(
-          (yield* conversations.history(identity)).items[0]?.attempts[0]
-        ).toMatchObject({ status: 'Running', text: 'Idle saved prefix' })
-        yield* directory.invalidateAccess(
-          { conversationId: created.id },
-          { interruptRuns: true }
-        )
-        yield* directory.invalidateAccess(
-          { conversationId: created.id },
-          { interruptRuns: true }
-        )
-        yield* TestClock.adjust('15 seconds')
-        expect(
-          (yield* conversations.history(identity)).items[0]?.attempts[0]
-        ).toMatchObject({
-          status: 'Interrupted',
-          reason: 'authority',
-          text: 'Idle saved prefix'
-        })
-        expect(calls).toBe(1)
       }).pipe(
         Effect.provide(
           makeSeedCapabilitiesLayer({

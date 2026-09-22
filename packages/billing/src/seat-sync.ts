@@ -6,7 +6,7 @@ import {
   type CapabilityUnavailable,
   orUnavailable
 } from '@b2b-saas-starter/failure/capability'
-import { currentTraceparent } from '@b2b-saas-starter/logger'
+import { annotateWideEvent, currentTraceparent } from '@b2b-saas-starter/logger'
 
 /**
  * The seat-sync half of per-seat billing: the queue message, the producer
@@ -207,12 +207,10 @@ export function publishSeatSyncWith(
 ): Effect.Effect<void> {
   return publisher.publish(input).pipe(
     Effect.catch((error) =>
-      Effect.void.pipe(
-        Effect.annotateLogs({
-          seatSyncPublish: 'failed',
-          seatSyncPublishReason: error.reason
-        })
-      )
+      annotateWideEvent({
+        seatSyncPublish: 'failed',
+        seatSyncPublishReason: error.reason
+      })
     )
   )
 }

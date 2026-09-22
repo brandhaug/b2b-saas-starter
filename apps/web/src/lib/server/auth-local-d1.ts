@@ -5,25 +5,7 @@ import {
 } from '../auth-error-copy'
 import { authRefusal } from './auth-refusal'
 
-/**
- * The local-D1-absent vocabulary, server half. `lib/auth-error-copy.ts`
- * owns the wire code and the sentence (the client half — the sign-in card
- * maps the code to the same sentence); this module owns what the server
- * answers with them: the 503 response, and the sentinel defect everything
- * else in the degraded state throws.
- *
- * Server-only by consumer, not by import: nothing here touches
- * `cloudflare:workers`, but only `lib/auth-runtime.ts` and the well-known
- * OAuth routes should import it.
- */
-
-/**
- * Defect raised when something reaches for an Auth surface the degraded
- * service does not provide. The degraded `getSession` resolves `null` rather
- * than throwing, so a reader never sees this for a session read; it is the
- * signal for everything that reaches past the handler. Tagged so the
- * wide-event logger reports `errorTag` instead of an opaque message.
- */
+/** Explicit failure for plugin operations when local persistence is absent. */
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
 export class MissingD1Binding extends Schema.TaggedError<MissingD1Binding>()(
   'MissingD1Binding',
@@ -31,7 +13,7 @@ export class MissingD1Binding extends Schema.TaggedError<MissingD1Binding>()(
 ) {}
 
 /**
- * Whether a thrown value is the sentinel, matched by tag — the repo's
+ * Whether a thrown value is the missing-binding error, matched by tag — the repo's
  * name-discriminant discipline (see `lib/capability-error.ts`): never
  * `instanceof` across module boundaries, never message text.
  */
@@ -60,9 +42,8 @@ export function localD1UnavailableResponse(): Response {
 /**
  * Runs a request handler, converting an escaped `MissingD1Binding` defect
  * into the guidance 503 rather than a stack-traced 500. Defense in depth for
- * the well-known OAuth routes: the degraded auth service answers the 503
- * from inside the handler, but anything that still throws the sentinel past
- * that must not become the crash loop a fresh clone sees today.
+ * the well-known OAuth routes. The HTTP boundary answers 503 directly;
+ * escaped plugin failures receive the same guidance.
  */
 // oxlint-disable anti-slop/no-unknown-parameters, effect/noNewPromise -- a rejected promise's value is `unknown` by construction and `isMissingD1Binding` is the parse step; the promise fold is the route-handler boundary `callServerFn` also works at, which is why this guard lives outside Effect
 export function answeringLocalD1(run: () => Promise<Response>): Promise<Response> {

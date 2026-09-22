@@ -70,14 +70,14 @@ const registry = new WeakMap<Request, RequestTelemetry>()
  * per-invocation, built inside `withHttpInvocation` (or
  * `withInvocationExporters` on the standalone path below).
  *
- * `authRuntime` (`./auth-runtime.ts`) is the one deliberate exception, and
+ * the auth runtime (`./auth-runtime.ts`) is the one deliberate exception, and
  * cannot fold into this one:
  *
  * - It exists to memoize a single Better Auth instance per isolate, and it
  *   holds only `Auth` by design — loggers and exporters belong to a request,
  *   which is why the auth gates join the request's scope instead of reading
  *   telemetry off that runtime.
- * - Merging `AuthLive` into this runtime would drag the whole Better Auth
+ * - Merging the Auth layer into this runtime would drag the whole Better Auth
  *   server into the browser bundle: `capabilities.ts` runs loaders on this
  *   runtime and is bundled for the client, exactly the reason the plugin
  *   bindings are passed per call rather than parked on `starterEnv`.
@@ -327,7 +327,7 @@ function record(
  * The loggers are provided here rather than taken from `webRuntime`, so the
  * returned Effect stays self-contained and does not depend on which runtime
  * the caller used. That is not redundancy left over from the bare-run days:
- * `readSession` runs on `authRuntime`, which holds `Auth` and nothing else, so
+ * `readSession` runs on the auth runtime, which holds `Auth` and nothing else, so
  * without this provide the one gate that runs first on every request would
  * emit its standalone event through Effect's default logger. `WideEventLoggerLive`
  * is `Logger.layer([...])`, which replaces the logger set, so providing it over

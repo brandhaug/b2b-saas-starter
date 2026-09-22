@@ -6,7 +6,7 @@ import { Database, type BatchStatement, type RawD1 } from '@b2b-saas-starter/db/
 import { DateTime, Effect, Layer } from 'effect'
 import { and, desc, eq, gt, isNull, or, sql, type SQL } from 'drizzle-orm'
 
-import { assertWithinPlanLimitFor } from '@b2b-saas-starter/billing/resource-admission'
+import { prepareResourceAdmission } from '@b2b-saas-starter/billing/resource-admission'
 import { ApiTokenNotRotatable, AuthorizationDenied } from '../errors.ts'
 import {
   mintApiToken,
@@ -81,9 +81,6 @@ export function LiveApiTokenRegistry(
       const publisher = yield* WebhookPublisher
       const entitlements = yield* ResourceEntitlements
 
-      // The shared mutate+audit combinator — one implementation of the batched
-      // write, its zero-match skip, and the phantom-audit caveat (see
-      // governance/audited-mutation.ts).
       const auditedMutation = yield* auditedMutations({
         prepareAuditRecord: audit.prepareRecord,
         unavailable
@@ -140,24 +137,7 @@ export function LiveApiTokenRegistry(
           const ctx = yield* WorkspaceContext
           const now = yield* DateTime.now
           const valid = yield* validateTokenCreation(input, DateTime.toEpochMillis(now))
-          // Entitlement gate: the workspace's plan caps token count. The
-          // rule and the counting both live in the billing capability, so no
-          // caller can forget the gate.
-          yield* assertWithinPlanLimitFor({
-            resource: 'api_token',
-            db,
-            capability: 'api-token-registry',
-            table: apiTokens,
-            where: and(
-              eq(apiTokens.workspaceId, ctx.workspace.id),
-              isNull(apiTokens.revokedAt),
-              isNull(apiTokens.replacedByTokenId),
-              or(
-                isNull(apiTokens.expiresAt),
-                gt(apiTokens.expiresAt, DateTime.formatIso(now))
-              )
-            )
-          }).pipe(
+          const admission = yield* prepareResourceAdmission('api_token').pipe(
             Effect.provideService(Billing, billing),
             Effect.provideService(BillingWorkspaceContext, ctx)
           )
@@ -177,9 +157,8 @@ export function LiveApiTokenRegistry(
             createdAt,
             createdByUserId: ctx.actor?.userId ?? null
           }
-          // Insert + audit insert as one batch — the shared audited-mutation
-          // shape with an unconditional match.
-          yield* auditedMutation({
+          // The insert evaluates admission in the same batch as its audit.
+          const created = yield* auditedMutation({
             matched: Effect.succeed(true),
             auditEvent: {
               workspaceId: ctx.workspace.id,
@@ -194,8 +173,35 @@ export function LiveApiTokenRegistry(
                 expiresAt: row.expiresAt
               }
             },
-            write: () => [db.insert(apiTokens).values(row)]
+            write: () => [
+              db.insert(apiTokens).select(
+                db
+                  .select({
+                    id: sql<string>`${row.id}`.as('id'),
+                    workspaceId: sql<string>`${row.workspaceId}`.as('workspaceId'),
+                    name: sql<string>`${row.name}`.as('name'),
+                    tokenPrefix: sql<string>`${row.tokenPrefix}`.as('tokenPrefix'),
+                    tokenHash: sql<string>`${row.tokenHash}`.as('tokenHash'),
+                    scopes: sql`${sql.param(row.scopes, apiTokens.scopes)}`.as(
+                      'scopes'
+                    ),
+                    lastUsedAt: sql<string | null>`null`.as('lastUsedAt'),
+                    expiresAt: sql<string | null>`${row.expiresAt}`.as('expiresAt'),
+                    replacedByTokenId: sql<string | null>`null`.as('replacedByTokenId'),
+                    revokedAt: sql<string | null>`null`.as('revokedAt'),
+                    createdAt: sql<string>`${row.createdAt}`.as('createdAt'),
+                    createdByUserId: sql<string | null>`${row.createdByUserId}`.as(
+                      'createdByUserId'
+                    )
+                  })
+                  .from(sql`(select 1)`)
+                  .where(admission.condition)
+              )
+            ]
           })
+          if (!created) {
+            return yield* Effect.fail(admission.rejected)
+          }
           // Fan-out sits beside the audit write, below the interface: the
           // projection only — never the minted secret.
           yield* publishWebhookEventWith(publisher, {
@@ -279,7 +285,7 @@ export function LiveApiTokenRegistry(
               }
             },
             write: () => {
-              const writes: Array<BatchStatement> = [
+              const writes: [BatchStatement, ...Array<BatchStatement>] = [
                 db
                   .update(apiTokens)
                   .set({
