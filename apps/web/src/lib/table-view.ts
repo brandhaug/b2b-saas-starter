@@ -44,11 +44,11 @@ const MAX_INPUT_LENGTH = 16_384
 const MAX_ITEMS = 32
 const operatorSet = new Set<string>(tableFilterOperators)
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- parsed JSON values are narrowed at this browser boundary.
 function isTableFilterOperator(value: unknown): value is TableFilterOperator {
   return typeof value === 'string' && operatorSet.has(value)
 }
 
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- sort direction is narrowed by the predicate.
 function isSortDirection(value: unknown): value is 'asc' | 'desc' {
   return value === 'asc' || value === 'desc'
 }
