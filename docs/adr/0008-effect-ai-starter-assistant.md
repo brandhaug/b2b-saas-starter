@@ -22,9 +22,21 @@ when the context budget is full.
 
 The persistent assistant design
 uses AIChatAgent for saved messages and reconnectable streaming in one conversation
-Durable Object. A small adapter maps Effect events to the AI SDK UI-message
-Response contract. SDK wire types stay at the host integration; existing Assistant
+Durable Object. The capability-owned execution workflow drives both SQLite and Seed hosts:
+current authority before generation and every event, metadata updates, deadlines,
+failure classification, terminal transitions and quota release. Each host supplies
+its ledger, event delivery and output persistence. Finalization persists partial
+output before recording the terminal outcome, including on cancellation. The
+SQLite adapter retains AIChatAgent hooks, pending-output recovery, sockets and
+scheduled authority checks. SDK wire types stay at that adapter; existing Assistant
 Tasks, approvals and application services retain their ownership.
+
+Both hosts use one SSE observation protocol with event IDs, incremental text and
+terminal snapshots. Last-Event-ID replays a saved suffix only when conversation,
+attempt and policy revision match; stale or malformed cursors receive an
+authoritative snapshot. Observation checks current authority before every batch.
+A shared transport contract verifies replay behavior against Seed and the native
+host.
 
 D1 owns the conversation directory, monotonic evidence permissions, deletion
 fences and shared Member quotas. The object owns durable accepted input, attempt

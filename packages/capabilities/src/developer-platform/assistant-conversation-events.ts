@@ -1,14 +1,16 @@
-import { Effect, Result, Schema, Stream } from 'effect'
+import { Effect, Encoding, Result, Schema, Stream } from 'effect'
 import {
   type ConversationAnswer,
   type ConversationQuestion
-} from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversation'
+} from './assistant-conversation.ts'
 
 export type AttemptSnapshot = {
   readonly question: ConversationQuestion
   readonly attempt: ConversationAnswer
   readonly policyRevision: number
 }
+
+const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Json))
 
 const decodeReplayCursor = Schema.decodeUnknownResult(
   Schema.fromJsonString(
@@ -30,7 +32,7 @@ function replayPosition(
   if (value === null) {
     return
   }
-  const decoded = Result.try(() => atob(value))
+  const decoded = Encoding.decodeBase64String(value)
   if (Result.isFailure(decoded)) {
     return
   }
@@ -62,7 +64,7 @@ function event(
         readonly policyRevision: number
       }
 ): string {
-  return `id: ${id}\nevent: ${kind}\ndata: ${JSON.stringify(data)}\n\n`
+  return `id: ${id}\nevent: ${kind}\ndata: ${encodeJson(data)}\n\n`
 }
 
 /** Replay expiry always falls back to an authoritative snapshot, never another model call. */
@@ -91,8 +93,8 @@ export function observeConversationAttempt<E, R>(
         const snapshot = yield* read
         const { attempt } = snapshot
         const done = attempt.status !== 'Accepted' && attempt.status !== 'Running'
-        const id = btoa(
-          JSON.stringify([
+        const id = Encoding.encodeBase64(
+          encodeJson([
             conversationId,
             attempt.id,
             snapshot.policyRevision,
@@ -100,9 +102,10 @@ export function observeConversationAttempt<E, R>(
             attempt.status
           ])
         )
-        const previous = cursor.first
-          ? replayPosition(lastEventId, conversationId, snapshot)
-          : cursor
+        let previous: Cursor | ReturnType<typeof replayPosition> = cursor
+        if (cursor.first) {
+          previous = replayPosition(lastEventId, conversationId, snapshot)
+        }
         let body = ': heartbeat\n\n'
         if (
           previous === undefined ||

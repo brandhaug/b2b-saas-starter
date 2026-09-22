@@ -162,6 +162,87 @@ describe('WebhooksPanel', () => {
     expect(screen.getByText(endpoint.url)).not.toBeNull()
   })
 
+  it('sorts before pagination and resets the page when searching', async () => {
+    const endpoints = Array.from({ length: 21 }, (_, index) => ({
+      ...endpoint,
+      id: `row_${index}`,
+      url: `https://example.com/${String(index).padStart(2, '0')}`
+    }))
+    const tableViews = encodeURIComponent(
+      JSON.stringify({
+        webhooks: JSON.stringify({
+          match: 'all',
+          filters: [],
+          sorts: [{ field: 'url', direction: 'desc' }]
+        })
+      })
+    )
+    const { router } = await renderPanel({
+      role: 'owner',
+      endpoints,
+      initialEntry: `/?page=2&tableViews=${tableViews}`
+    })
+    expect(screen.getByText('https://example.com/00')).not.toBeNull()
+    expect(screen.queryByText('https://example.com/20')).toBeNull()
+    const savedViews = router.state.location.search.tableViews
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search endpoints' }), {
+      target: { value: '20' }
+    })
+    await waitFor(() => expect(router.state.location.search.page).toBeUndefined())
+    expect(screen.getByText('https://example.com/20')).not.toBeNull()
+    expect(router.state.location.search.tableViews).toEqual(savedViews)
+  })
+
+  it('resets the page when changing a status filter', async () => {
+    const endpoints = Array.from({ length: 21 }, (_, index) => ({
+      ...endpoint,
+      id: `row_${index}`,
+      url: `https://example.com/${String(index).padStart(2, '0')}`
+    }))
+    const { router } = await renderPanel({
+      role: 'owner',
+      endpoints,
+      initialEntry: '/?page=2'
+    })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Status' })[0]!)
+    fireEvent.click(screen.getByRole('radio', { name: 'Enabled' }))
+    await waitFor(() => expect(router.state.location.search.page).toBeUndefined())
+    expect(screen.getByText('https://example.com/00')).not.toBeNull()
+    expect(screen.queryByText('https://example.com/20')).toBeNull()
+  })
+
+  it('clears this list without clearing another saved view or drawer state', async () => {
+    const other = JSON.stringify({
+      match: 'all',
+      filters: [],
+      sorts: [{ field: 'name', direction: 'asc' }]
+    })
+    const tableViews = encodeURIComponent(
+      JSON.stringify({
+        other,
+        webhooks: JSON.stringify({
+          match: 'all',
+          filters: [{ field: 'status', operator: 'is', value: 'disabled' }],
+          sorts: []
+        })
+      })
+    )
+    const { router } = await renderPanel({
+      role: 'owner',
+      initialEntry: `/?query=missing&page=3&record=keep&tableViews=${tableViews}`
+    })
+    fireEvent.click(
+      screen
+        .getAllByRole('button', { name: 'Clear all' })
+        .find((button) => button.closest('[data-slot="empty"]'))!
+    )
+    await waitFor(() => expect(screen.getByText(endpoint.url)).not.toBeNull())
+    expect(router.state.location.search.query).toBeUndefined()
+    expect(router.state.location.search.page).toBeUndefined()
+    expect(router.state.location.search.record).toBe('keep')
+    expect(router.state.location.search.tableViews).toBe(JSON.stringify({ other }))
+  })
+
   it('renders the delivery timestamp in UTC', async () => {
     await renderPanel({ role: 'owner' })
     expect(screen.getByText(/5\/16\/2026, 9:00:00 AM/)).not.toBeNull()

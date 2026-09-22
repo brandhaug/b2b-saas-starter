@@ -1,14 +1,9 @@
-import { type EffectDatabase } from '@b2b-saas-starter/db/service'
-import { Effect } from 'effect'
-import { count, type SQL } from 'drizzle-orm'
-import { type SQLiteTable } from 'drizzle-orm/sqlite-core'
-import {
-  type CapabilityUnavailable,
-  orUnavailable
-} from '@b2b-saas-starter/failure/capability'
+import { DateTime, Effect } from 'effect'
+import { apiTokens, webhookEndpoints } from '@b2b-saas-starter/db/schema'
+import { and, eq, gt, isNull, or, sql } from 'drizzle-orm'
 import { PlanLimitExceeded } from './errors.ts'
 
-import { type WorkspaceContext } from './ports.ts'
+import { WorkspaceContext } from './ports.ts'
 import { Billing } from './billing.ts'
 import { limitFor, type EntitlementResource } from './plan-catalog.ts'
 
@@ -29,31 +24,35 @@ export const assertWithinPlanLimit = Effect.fn(
   }
 })
 
-/**
- * The entitlement gate with its counting query beside it: counts the rows of
- * `table` matching `where` in the caller's store and asserts the workspace in
- * context is within the plan ceiling. Both mutating capabilities compose this,
- * so the "count active rows → compare against the plan" idiom exists once.
- */
-export function assertWithinPlanLimitFor(input: {
-  readonly resource: EntitlementResource
-  readonly db: EffectDatabase
-  /** Which capability name surfaces on a `CapabilityUnavailable` count failure. */
-  readonly capability: string
-  readonly table: SQLiteTable
-  readonly where?: SQL | undefined
-}): Effect.Effect<
-  void,
-  CapabilityUnavailable | PlanLimitExceeded,
-  WorkspaceContext | Billing
-> {
-  return Effect.gen(function* () {
-    const rows = yield* orUnavailable(input.capability)(
-      input.db.select({ value: count() }).from(input.table).where(input.where)
-    )
-    yield* assertWithinPlanLimit({
-      resource: input.resource,
-      used: rows[0]?.value ?? 0
-    })
-  })
+/** Current replacement leaves count for both admission and execution. */
+export function eligibleTokenWhere(workspaceId: string, now: string) {
+  return and(
+    eq(apiTokens.workspaceId, workspaceId),
+    isNull(apiTokens.revokedAt),
+    isNull(apiTokens.replacedByTokenId),
+    or(isNull(apiTokens.expiresAt), gt(apiTokens.expiresAt, now))
+  )
 }
+
+/** Prepare the named policy for use inside the resource's insert statement. */
+export const prepareResourceAdmission = Effect.fn('ResourceAdmission.prepare')(
+  function* (resource: EntitlementResource) {
+    const ctx = yield* WorkspaceContext
+    const billing = yield* Billing
+    const plan = yield* billing.currentPlan
+    const limit = limitFor(plan, resource)
+    const now = DateTime.formatIso(yield* DateTime.now)
+    let used = sql`(select count(*) from ${webhookEndpoints} where ${webhookEndpoints.workspaceId} = ${ctx.workspace.id})`
+    if (resource === 'api_token') {
+      used = sql`(select count(*) from ${apiTokens} where ${eligibleTokenWhere(ctx.workspace.id, now)})`
+    }
+    let condition = sql`true`
+    if (limit !== null) {
+      condition = sql`${used} < ${limit}`
+    }
+    return {
+      condition,
+      rejected: new PlanLimitExceeded({ planId: plan.id, resource, limit: limit ?? 0 })
+    }
+  }
+)

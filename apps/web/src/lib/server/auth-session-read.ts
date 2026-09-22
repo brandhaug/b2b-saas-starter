@@ -2,7 +2,7 @@ import { Auth, type Session } from '@b2b-saas-starter/auth'
 import { errorMessage } from '@b2b-saas-starter/failure'
 import { Effect, Schema } from 'effect'
 
-import { authRuntime } from '../auth-runtime'
+import { authAvailability } from '../auth-runtime'
 import { memoizePerRequest, withWebRequestScope } from '../observability'
 
 /**
@@ -13,7 +13,7 @@ import { memoizePerRequest, withWebRequestScope } from '../observability'
  * span, the `authenticated` annotation and the per-request memoization are one
  * decision instead of three near-identical copies.
  *
- * `authRuntime` carries the `Auth` service only, so the observability scope has
+ * the auth runtime carries the `Auth` service only, so the observability scope has
  * to come from the request: `withWebRequestScope` makes this a child span of
  * the request span and folds the read's outcome into that request's one wide
  * event.
@@ -34,7 +34,11 @@ export class SessionReadFailed extends Schema.TaggedError<SessionReadFailed>()(
 const READ_FAILED_REASON = 'the session read failed'
 
 function runSessionRead(headers: Headers): Promise<Session | null> {
-  return authRuntime.runPromise(
+  const availability = authAvailability()
+  if (!availability.available) {
+    return Effect.runPromise(Effect.succeed(null))
+  }
+  return availability.runtime.runPromise(
     withWebRequestScope(
       { event: 'auth.session' },
       Effect.gen(function* () {

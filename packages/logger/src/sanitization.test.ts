@@ -42,6 +42,48 @@ function nestedFailure() {
 }
 
 describe('telemetry output policy', () => {
+  it('retains the auth audit body failure tag without body diagnostics', () => {
+    expect(
+      diagnosticFields({
+        authAuditBodyErrorTag: 'AuthAuditBodyUnreadable',
+        authAuditBodyError: secret
+      })
+    ).toEqual({ authAuditBodyErrorTag: 'AuthAuditBodyUnreadable' })
+    expect(diagnosticFields({ authAuditBodyErrorTag: secret })).toEqual({})
+  })
+
+  it('exports publication outcomes and counts without provider diagnostics', () => {
+    expect(
+      diagnosticFields({
+        webhookPublish: 'failed',
+        webhookDeadLetterNotification: 'failed',
+        seatSyncPublish: 'failed',
+        notificationEmailEnqueue: 'failed',
+        notificationEmailRecipients: 3,
+        notificationEmailEnqueued: 2,
+        webhookPublishReason: 'private-diagnostic',
+        seatSyncPublishReason: 'private-diagnostic'
+      })
+    ).toEqual({
+      webhookPublish: 'failed',
+      webhookDeadLetterNotification: 'failed',
+      seatSyncPublish: 'failed',
+      notificationEmailEnqueue: 'failed',
+      notificationEmailRecipients: 3,
+      notificationEmailEnqueued: 2
+    })
+    expect(
+      diagnosticFields({
+        webhookPublish: 'private-diagnostic',
+        seatSyncPublish: 'private-diagnostic',
+        notificationEmailEnqueue: 'private-diagnostic',
+        webhookDeadLetterNotification: 'private-diagnostic',
+        notificationEmailRecipients: 'private-diagnostic',
+        notificationEmailEnqueued: Number.NaN
+      })
+    ).toEqual({})
+  })
+
   it('keeps safe audit-gap references in monitoring diagnostics', () => {
     expect(
       diagnosticFields({
