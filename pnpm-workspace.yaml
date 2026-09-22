@@ -17,11 +17,11 @@ catalog:
   '@base-ui/react': 1.8.0
   '@inlang/paraglide-js': 2.25.0
   '@inlang/plugin-message-format': 4.4.4
-  '@better-auth/cimd': 1.7.2
-  '@better-auth/mcp': 1.7.2
-  '@better-auth/oauth-provider': 1.7.2
-  '@better-auth/passkey': 1.7.2
-  '@better-auth/sso': 1.7.2
+  '@better-auth/cimd': 1.7.4
+  '@better-auth/mcp': 1.7.4
+  '@better-auth/oauth-provider': 1.7.4
+  '@better-auth/passkey': 1.7.4
+  '@better-auth/sso': 1.7.4
   '@better-auth/utils': 0.4.2
   '@cloudflare/ai-chat': 0.12.0
   agents: 0.24.0
@@ -63,9 +63,9 @@ catalog:
   ws: 8.21.0
   miniflare: 5.20260918.0-alpha
   esbuild: 0.28.2
-  alchemy: 2.0.0-beta.79
+  alchemy: 2.0.0-beta.77
   babel-plugin-react-compiler: 1.0.0
-  better-auth: 1.7.2
+  better-auth: 1.7.5
   class-variance-authority: 0.7.1
   cmdk: 1.1.1
   cn: 0.3.0
@@ -139,8 +139,7 @@ overrides:
   vitest@*: 'catalog:'
   '@hono/node-server@<1.19.13': 1.19.13
   '@hono/node-server@<1.19.15': 1.19.15
-patchedDependencies:
-  '@better-auth/oauth-provider@1.7.2': patches/@better-auth__oauth-provider@1.7.2.patch
+  hono@<4.13.5: 4.13.5
 peerDependencyRules:
   allowAny:
     - vite
