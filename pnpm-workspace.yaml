@@ -13,9 +13,9 @@ allowBuilds:
   workerd: true
 
 catalog:
-  '@babel/core': 8.0.1
+  '@babel/core': 8.0.5
   '@base-ui/react': 1.8.0
-  '@inlang/paraglide-js': 2.25.0
+  '@inlang/paraglide-js': 2.25.4
   '@inlang/plugin-message-format': 4.4.4
   '@better-auth/cimd': 1.7.2
   '@better-auth/mcp': 1.7.2
@@ -25,7 +25,7 @@ catalog:
   '@better-auth/utils': 0.4.2
   '@cloudflare/ai-chat': 0.12.0
   agents: 0.24.0
-  ai: 7.0.101
+  ai: 7.0.106
   '@cloudflare/workers-types': 5.20260918.1
   '@cloudflare/vitest-pool-workers': 0.22.0
   '@effect/platform-node': 4.0.0-rc.115
@@ -37,8 +37,8 @@ catalog:
   '@mdx-js/rollup': 3.1.1
   '@oxlint/plugins': 1.80.0
   '@playwright/test': 1.63.0
-  '@react-email/ui': 6.9.3
-  '@rolldown/plugin-babel': 0.2.3
+  '@react-email/ui': 6.9.5
+  '@rolldown/plugin-babel': 0.2.4
   '@sentry/cloudflare': 10.75.0
   '@sentry/react': 10.75.0
   '@tailwindcss/typography': 0.5.20
@@ -51,19 +51,19 @@ catalog:
   '@tanstack/react-router-ssr-query': 1.167.2
   '@tanstack/react-start': 1.168.49
   '@tanstack/react-table': 9.2.4
-  '@testing-library/dom': 10.4.1
+  '@testing-library/dom': 10.4.2
   '@testing-library/react': 16.3.3
   '@types/mdx': 2.0.14
-  '@types/node': 26.6.1
+  '@types/node': 26.5.1
   '@types/ws': 8.18.1
   '@types/react': 19.3.0
   '@types/react-dom': 19.3.0
   '@vitejs/plugin-react': 6.1.1
   '@vitest/coverage-v8': 4.1.11
-  ws: 8.21.0
-  miniflare: 5.20260918.0-alpha
+  ws: 8.21.3
+  miniflare: 5.20260917.0-alpha
   esbuild: 0.28.2
-  alchemy: 2.0.0-beta.79
+  alchemy: 2.0.0-beta.77
   babel-plugin-react-compiler: 1.0.0
   better-auth: 1.7.2
   class-variance-authority: 0.7.1
@@ -83,11 +83,11 @@ catalog:
   oxlint-plugin-effect: 0.11.0
   oxlint-plugin-react-doctor: 0.9.12
   posthog-js: 1.434.0
-  posthog-node: 5.52.1
+  posthog-node: 5.52.4
   qrcode.react: ^4.2.0
   react: 19.3.0
   react-dom: 19.3.0
-  react-email: 6.9.3
+  react-email: 6.9.5
   rehype-pretty-code: 0.14.5
   rehype-slug: 6.0.0
   remark-frontmatter: 5.0.0
@@ -101,7 +101,7 @@ catalog:
   ultracite: 7.10.7
   vite: npm:@voidzero-dev/vite-plus-core@0.3.0
   vitest: 4.1.11
-  wrangler: 4.135.0
+  wrangler: 4.134.0
   vite-plus: 0.3.0
 
 minimumReleaseAgeExclude:
@@ -139,6 +139,7 @@ overrides:
   vitest@*: 'catalog:'
   '@hono/node-server@<1.19.13': 1.19.13
   '@hono/node-server@<1.19.15': 1.19.15
+  hono@<4.13.5: 4.13.5
 patchedDependencies:
   '@better-auth/oauth-provider@1.7.2': patches/@better-auth__oauth-provider@1.7.2.patch
 peerDependencyRules:
