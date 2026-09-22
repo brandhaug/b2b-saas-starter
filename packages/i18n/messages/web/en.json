@@ -969,7 +969,6 @@
   "members_no_filter_match": "No members match those filters",
   "members_filter_hint": "Try a different name, email, or role.",
   "members_change_role": "Change role",
-  "developer_list.unused": "Unused",
   "developer_list.more_actions": "More actions",
   "developer_list.more_actions_named": "More actions for {name}",
   "developer_list.status": "Status",

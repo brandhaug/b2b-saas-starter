@@ -61,7 +61,7 @@ import {
   DeveloperListToolbar
 } from '@/components/developer-list-controls'
 import { useDeveloperListView } from '@/lib/developer-list'
-import { applyTableView, type TableViewField } from '@/lib/table-view'
+import { type TableViewField } from '@/lib/table-view'
 
 function webhookListFields(): ReadonlyArray<TableViewField> {
   return [
@@ -189,10 +189,6 @@ export function WebhooksPanel({
   const canCreate = viewerCan(viewer, { webhook: ['create'] })
   const canDisable = viewerCan(viewer, { webhook: ['update'] })
   const canRotate = viewerCan(viewer, { webhook: ['rotateSecret'] })
-  const list = useDeveloperListView({
-    key: 'webhooks',
-    fields
-  })
 
   // The loader owns the list, so the hook re-runs it on success rather than
   // mirroring the change into local state.
@@ -238,12 +234,12 @@ export function WebhooksPanel({
   const busyId = disable.pendingInput ?? rotate.pendingInput ?? null
   const drawerEndpoint =
     endpoints.find((endpoint) => endpoint.id === view.record) ?? null
-  const filteredEndpoints = (() => {
-    const needle = list.query.trim().toLocaleLowerCase()
-    const searched = endpoints.filter(
-      (endpoint) => needle === '' || endpoint.url.toLocaleLowerCase().includes(needle)
-    )
-    return applyTableView(searched, list.tableView, (endpoint, field) => {
+  const list = useDeveloperListView({
+    key: 'webhooks',
+    fields,
+    data: endpoints,
+    searchText: (endpoint) => endpoint.url,
+    getValue: (endpoint, field) => {
       if (field === 'status') {
         return endpoint.enabled ? 'enabled' : 'disabled'
       }
@@ -251,13 +247,9 @@ export function WebhooksPanel({
         return endpoint.successRate
       }
       return endpoint.url
-    })
-  })()
-  const { page, pageCount } = list.pageFor(filteredEndpoints.length)
-  const visibleEndpoints = filteredEndpoints.slice(
-    (page - 1) * list.pageSize,
-    page * list.pageSize
-  )
+    }
+  })
+  const { page, pageCount, visibleData: visibleEndpoints } = list
 
   return (
     // No panel heading: the page header's h1 already says "Webhook
@@ -290,6 +282,7 @@ export function WebhooksPanel({
         <>
           <DeveloperListToolbar
             query={list.query}
+            onQueryChange={list.setQuery}
             searchLabel={m.developer_list_search_endpoints()}
             fields={fields}
             view={list.tableView}
@@ -301,13 +294,7 @@ export function WebhooksPanel({
                 <EmptyTitle>{m.developer_list_no_matching_endpoints()}</EmptyTitle>
               </EmptyHeader>
               <EmptyContent>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() =>
-                    update({ query: undefined, tableViews: undefined, page: undefined })
-                  }
-                >
+                <Button type="button" variant="outline" onClick={list.clear}>
                   {m.developer_list_clear_all()}
                 </Button>
               </EmptyContent>
@@ -407,7 +394,11 @@ export function WebhooksPanel({
             </ItemGroup>
           )}
           {visibleEndpoints.length === 0 ? null : (
-            <DeveloperListPagination page={page} pageCount={pageCount} />
+            <DeveloperListPagination
+              page={page}
+              pageCount={pageCount}
+              onPageChange={list.setPage}
+            />
           )}
         </>
       )}

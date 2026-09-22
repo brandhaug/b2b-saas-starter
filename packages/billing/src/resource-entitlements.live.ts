@@ -1,3 +1,4 @@
+import { eligibleTokenWhere } from './resource-admission.ts'
 import {
   apiTokens,
   webhookEndpoints,
@@ -5,7 +6,7 @@ import {
 } from '@b2b-saas-starter/db/schema'
 import { batch, Database, RawD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer, Schema } from 'effect'
-import { and, eq, gt, isNull, or, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import { Billing } from './billing.ts'
 import { AuditEventLog, WorkspaceContext } from './ports.ts'
 import { orUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -24,14 +25,6 @@ import { ResourceEntitlements } from './resource-entitlements.ts'
 const decodeSelection = Schema.decodeUnknownEffect(ResourceSelection)
 const encodeIds = Schema.encodeSync(Schema.fromJsonString(Schema.Array(Schema.String)))
 const unavailable = orUnavailable('resource-entitlements')
-function eligibleTokenWhere(workspaceId: string, now: string) {
-  return and(
-    eq(apiTokens.workspaceId, workspaceId),
-    isNull(apiTokens.revokedAt),
-    isNull(apiTokens.replacedByTokenId),
-    or(isNull(apiTokens.expiresAt), gt(apiTokens.expiresAt, now))
-  )
-}
 const readSelection = Effect.fn('ResourceSelections.read')(function* (
   workspaceId: string
 ) {

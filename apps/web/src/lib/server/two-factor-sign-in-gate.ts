@@ -1,7 +1,7 @@
 import { Auth } from '@b2b-saas-starter/auth'
 import { Effect } from 'effect'
 
-import { authRuntime } from '../auth-runtime'
+import { authAvailability } from '../auth-runtime'
 import {
   TWO_FACTOR_REQUIRED_ERROR_CODE,
   twoFactorRequiredMessage
@@ -178,7 +178,11 @@ async function refuseMintedSession(
  */
 function revokeMintedSession(cookie: string): Promise<void> {
   const headers = new Headers({ cookie })
-  return authRuntime
+  const availability = authAvailability()
+  if (!availability.available) {
+    return Effect.runPromise(Effect.void)
+  }
+  return availability.runtime
     .runPromise(
       withWebRequestScope(
         { event: 'auth.two_factor_gate' },

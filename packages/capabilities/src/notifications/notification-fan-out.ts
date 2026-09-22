@@ -1,4 +1,5 @@
 import { Effect, Result } from 'effect'
+import { annotateWideEvent } from '@b2b-saas-starter/logger'
 
 import { bestEffort } from '../internal/best-effort.ts'
 import { withTraceparent } from '../internal/traceparent.ts'
@@ -78,8 +79,6 @@ export function enqueueInstantEmails(
     if (Result.isFailure(sent)) {
       return
     }
-    yield* Effect.void.pipe(
-      Effect.annotateLogs({ notificationEmailEnqueued: messages.length })
-    )
+    yield* annotateWideEvent({ notificationEmailEnqueued: messages.length })
   })
 }

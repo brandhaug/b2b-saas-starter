@@ -9,26 +9,27 @@ import {
   createUIMessageStreamResponse,
   type UIMessage
 } from 'ai'
-import { DateTime, Effect, Layer, ManagedRuntime, Stream, Semaphore } from 'effect'
+import { Effect, Layer, ManagedRuntime, Semaphore } from 'effect'
 import {
   WideEventLoggerLive,
   withHttpInvocation,
   withTriggerScope,
   makeOtlpLayer
 } from '@b2b-saas-starter/logger'
-import { recordConversationOutcome } from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversation-observability'
 import { type CapabilityServices } from '@b2b-saas-starter/capabilities/layers'
 import { type AssistantCredentialReference } from '@b2b-saas-starter/authz/assistant-access-token'
 import { AssistantDirectory } from '@b2b-saas-starter/capabilities/assistant/directory'
-import { AssistantAdmission } from '@b2b-saas-starter/capabilities/assistant/admission'
-import { AssistantAuthority } from '@b2b-saas-starter/capabilities/developer-platform/assistant-authority'
+import {
+  authorizeConversation,
+  executeConversationAnswer,
+  finishConversationAttempt
+} from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversation-execution'
 import {
   acceptConversationAnswer,
   ConversationExecution as Execution
 } from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversation-admission'
 import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import {
-  activeConversationAttempt,
   type ConversationSend,
   type ConversationRetry,
   ConversationNotFound,
@@ -37,12 +38,9 @@ import {
   conversationHistoryPage,
   type ConversationAttempt
 } from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversation'
-import {
-  ConversationModel,
-  selectConversationModelLayer
-} from '@b2b-saas-starter/ai/conversation'
+import { selectConversationModelLayer } from '@b2b-saas-starter/ai/conversation'
 import { ConversationLedger } from './conversation-ledger'
-import { observeConversationAttempt } from './conversation-events'
+import { observeConversationAttempt } from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversation-events'
 import { conversationLimits } from './conversation-config'
 import {
   allowedConversationRequest,
@@ -208,30 +206,13 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
   ) {
     return Effect.gen({ self: this }, function* () {
       const id = yield* this.ledger.identity()
-      const directory = yield* AssistantDirectory
-      const row = id === null ? null : yield* directory.get(id)
-      if (row?.deletedAt !== null) {
-        return yield* new ConversationNotFound()
-      }
-      if (attempt !== undefined && row.runAccessRevision !== runAccessRevision) {
-        return yield* new ConversationUnavailable({ reason: 'authority' })
-      }
-      const authority = yield* AssistantAuthority
-      const context = yield* authority.authorize({
+      return yield* authorizeConversation(
+        id,
         credential,
-        workspaceId: row.workspaceId,
-        creatorUserId: row.creatorUserId,
-        requiredPermissions: row.requiredPermissions,
         operation,
-        ...(attempt === undefined
-          ? { mode: 'observe' satisfies 'observe' }
-          : {
-              mode: 'run' satisfies 'run',
-              acceptedAt: Date.parse(attempt.createdAt),
-              deadline: attempt.deadline
-            })
-      })
-      return { row, context }
+        attempt,
+        runAccessRevision
+      )
     })
   }
 
@@ -445,26 +426,20 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
     reason: string | null
   ) {
     return Effect.gen({ self: this }, function* () {
-      const now = DateTime.formatIso(yield* DateTime.now)
-      const terminal = { ...attempt, status, reason, completedAt: now }
-      const changed = yield* this.ledger.update(terminal)
-      if (!changed) {
-        return
-      }
-      if (status !== 'Completed') {
-        if (this.run?.attemptId === attempt.id) {
-          this.run.controller.abort()
+      const terminal = yield* finishConversationAttempt(
+        this.ledger,
+        yield* this.ledger.identity(),
+        attempt,
+        status,
+        reason,
+        () => {
+          if (status !== 'Completed' && this.run?.attemptId === attempt.id) {
+            this.run.controller.abort()
+          }
         }
-      }
-      const admission = yield* AssistantAdmission
-      yield* admission.release(attempt.id)
-      const id = yield* this.ledger.identity()
-      const directory = yield* AssistantDirectory
-      const row = id === null ? null : yield* directory.get(id)
-      if (row !== null) {
-        yield* recordConversationOutcome(row.id, row.workspaceId, terminal).pipe(
-          Effect.catch(() => Effect.void)
-        )
+      )
+      if (terminal === null) {
+        return
       }
       this.publishSnapshot()
     })
@@ -734,16 +709,6 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
           return yield* new ConversationUnavailable({ reason: 'authority' })
         }
         const execution = yield* this.ledger.input(attempt.id, Execution)
-        yield* this.authorize(
-          execution.credential,
-          'write',
-          attempt,
-          execution.runAccessRevision
-        ).pipe(
-          Effect.tapError(() => this.terminal(attempt, 'Interrupted', 'authority'))
-        )
-        let current: ConversationAttempt = { ...attempt, status: 'Running' }
-        yield* this.ledger.update(current)
         const limits = yield* conversationLimits(this.env)
         const signal = AbortSignal.any([
           ...(options?.abortSignal ? [options.abortSignal] : []),
@@ -754,72 +719,38 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
           execute: ({ writer }) => {
             writer.write({ type: 'start', messageId: attempt.id })
             writer.write({ type: 'text-start', id: attempt.id })
-            let failureReason = 'provider'
             const consume = Effect.gen({ self: this }, function* () {
-              const model = yield* ConversationModel
-              yield* model.stream(execution.prompt).pipe(
-                Stream.runForEach((event) =>
-                  Effect.gen({ self: this }, function* () {
-                    yield* this.authorize(
-                      execution.credential,
-                      'write',
-                      attempt,
-                      execution.runAccessRevision
-                    )
-                    const stored = yield* this.ledger.attempt(attempt.id)
-                    if (stored === null || !activeConversationAttempt(stored)) {
-                      return yield* new ConversationUnavailable({ reason: 'authority' })
-                    }
-                    if (event.type === 'text-delta') {
-                      run.text += event.text
-                      writer.write({
-                        type: 'text-delta',
-                        id: attempt.id,
-                        delta: event.text
-                      })
-                    } else if (event.type === 'metadata') {
-                      current = {
-                        ...current,
-                        provider: event.provider,
-                        modelId: event.modelId,
-                        providerRequestId: event.providerRequestId ?? null
-                      }
-                      yield* this.ledger.update(current)
-                      writer.write({ type: 'message-metadata', messageMetadata: event })
-                    } else {
-                      current = {
-                        ...current,
-                        finishReason: event.reason,
-                        inputTokens: event.inputTokens ?? null,
-                        outputTokens: event.outputTokens ?? null
-                      }
-                      yield* this.ledger.update(current)
-                    }
-                  })
-                )
-              )
+              const id = yield* this.ledger.identity()
+              if (id === null) {
+                return yield* new ConversationNotFound()
+              }
+              yield* executeConversationAnswer({
+                conversationId: id,
+                attempt,
+                execution,
+                ledger: this.ledger,
+                emit: (event) => {
+                  if (event.type === 'text-delta') {
+                    run.text += event.text
+                    writer.write({
+                      type: 'text-delta',
+                      id: attempt.id,
+                      delta: event.text
+                    })
+                  } else if (event.type === 'metadata') {
+                    writer.write({ type: 'message-metadata', messageMetadata: event })
+                  }
+                },
+                persistOutput: Effect.tryPromise({
+                  try: () => this.persistOutput(run, attempt),
+                  catch: () => new ConversationUnavailable({ reason: 'storage' })
+                }),
+                finish: (current, status, reason) =>
+                  this.terminal(current, status, reason)
+              })
               writer.write({ type: 'text-end', id: attempt.id })
               writer.write({ type: 'finish', finishReason: 'stop' })
-            }).pipe(
-              Effect.tapError((error) =>
-                Effect.sync(() => {
-                  if (
-                    error._tag === 'ConversationModelFailure' &&
-                    error.reason === 'output-limit'
-                  ) {
-                    failureReason = 'output_limit'
-                  } else if (
-                    error._tag === 'AssistantAuthorityDenied' ||
-                    error._tag === 'ConversationNotFound' ||
-                    (error._tag === 'ConversationUnavailable' &&
-                      error.reason === 'authority')
-                  ) {
-                    failureReason = 'authority'
-                  }
-                })
-              ),
-              Effect.provide(selectConversationModelLayer(this.env, limits))
-            )
+            }).pipe(Effect.provide(selectConversationModelLayer(this.env, limits)))
             return this.runtime
               .runPromise(
                 withTriggerScope(
@@ -835,27 +766,16 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
                 ),
                 { signal }
               )
-              .then(
-                () => this.persistFinal(run, current, 'Completed', null),
-                () => {
-                  writer.write(
-                    signal.aborted
-                      ? { type: 'abort', reason: 'The answer was interrupted.' }
-                      : {
-                          type: 'error',
-                          errorText: 'The answer was interrupted. Retry explicitly.'
-                        }
-                  )
-                  let reason = failureReason
-                  if (current.finishReason === 'length') {
-                    reason = 'output_limit'
-                  }
-                  if (signal.aborted) {
-                    reason = 'deadline_or_stop'
-                  }
-                  return this.persistFinal(run, current, 'Interrupted', reason)
-                }
-              )
+              .catch(() => {
+                writer.write(
+                  signal.aborted
+                    ? { type: 'abort', reason: 'The answer was interrupted.' }
+                    : {
+                        type: 'error',
+                        errorText: 'The answer was interrupted. Retry explicitly.'
+                      }
+                )
+              })
           },
           onError: () => 'The answer was interrupted. Retry explicitly.'
         })
@@ -864,12 +784,7 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
     )
   }
 
-  private persistFinal(
-    run: ConversationRun,
-    attempt: ConversationAttempt,
-    status: 'Completed' | 'Interrupted',
-    reason: string | null
-  ) {
+  private persistOutput(run: ConversationRun, attempt: ConversationAttempt) {
     return this.persistMessages([
       ...this.messages.filter((message) => message.id !== attempt.id),
       {
@@ -877,13 +792,7 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
         role: 'assistant',
         parts: [{ type: 'text', text: run.text }]
       }
-    ]).then(() =>
-      this.runtime.runPromise(
-        this.ledger
-          .finishOutput(attempt.id)
-          .pipe(Effect.andThen(this.terminal(attempt, status, reason)))
-      )
-    )
+    ]).then(() => this.runtime.runPromise(this.ledger.finishOutput(attempt.id)))
   }
 
   protected override onChatRecovery(context: ChatRecoveryContext) {

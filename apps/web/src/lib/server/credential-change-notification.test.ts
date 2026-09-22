@@ -5,7 +5,7 @@ import {
   type CredentialChangeSender
 } from './credential-change-notification'
 
-const BASE = 'http://localhost:3071/api/auth'
+const BASE = '/api/auth'
 
 function post(pathname: string): AuthExchange {
   return { method: 'POST', pathname: `${BASE}${pathname}` }
@@ -161,5 +161,6 @@ describe('notifyCredentialChanged', () => {
         context('u@example.com')
       )
     ).resolves.toBeUndefined()
+    expect(send).toHaveBeenCalledOnce()
   })
 })

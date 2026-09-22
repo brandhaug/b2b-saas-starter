@@ -1,3 +1,4 @@
+import { annotateWideEvent } from '@b2b-saas-starter/logger'
 import {
   AuditEventLog,
   type RecordAuditEventInput
@@ -8,7 +9,7 @@ import { errorMessage } from '@b2b-saas-starter/failure'
 
 export type AuthAuditOutcome = 'skipped' | 'recorded' | 'dropped'
 
-/** A 2xx auth response whose body did not parse as JSON. */
+/** An auth request or response body that could not be read or decoded. */
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
 export class AuthAuditBodyUnreadable extends Schema.TaggedError<AuthAuditBodyUnreadable>()(
   'AuthAuditBodyUnreadable',
@@ -126,6 +127,7 @@ function writeAuditEvent(
  */
 export type AuthAuditContext = {
   readonly actorUserId: string
+  readonly targetUserId?: string | null
   /**
    * The actor's address, from the same pre-handler session read as
    * `actorUserId`. The credential-change security notification mails it on a
@@ -143,17 +145,17 @@ export type AuthAuditContext = {
 }
 
 /**
- * Reads an untrusted body value, reporting a decode failure on the wide event
- * (`authAuditBodyError`) instead of failing: a body that does not parse still
- * records an event — just an unattributed or untargeted one.
+ * Reads an untrusted body value without failing the auth exchange. The wide
+ * event retains the fixed error tag; log sanitization excludes the raw reason.
+ * An unreadable body still records an unattributed or untargeted audit event.
  */
 export function readAndReportBody<A>(
   reader: Effect.Effect<A, AuthAuditBodyUnreadable>
-): Effect.Effect<A | null, never, Scope.Scope> {
+): Effect.Effect<A | null> {
   return Effect.gen(function* () {
     const parsed = yield* Effect.result(reader)
     if (Result.isFailure(parsed)) {
-      yield* Effect.annotateLogsScoped({
+      yield* annotateWideEvent({
         authAuditBodyError: parsed.failure.reason,
         authAuditBodyErrorTag: parsed.failure._tag
       })

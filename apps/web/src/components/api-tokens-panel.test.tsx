@@ -153,6 +153,129 @@ describe('ApiTokensPanel', () => {
     expect(screen.getByText('Token 00')).not.toBeNull()
   })
 
+  it('clears this list without clearing another saved view', async () => {
+    const other = JSON.stringify({
+      match: 'all',
+      filters: [{ field: 'name', operator: 'contains', value: 'keep' }],
+      sorts: []
+    })
+    const tableViews = encodeURIComponent(
+      JSON.stringify({
+        other,
+        'api-tokens': JSON.stringify({
+          match: 'all',
+          filters: [{ field: 'status', operator: 'is', value: 'expired' }],
+          sorts: []
+        })
+      })
+    )
+    const { router } = await renderPanel({
+      role: 'owner',
+      initialEntry: `/?query=missing&page=3&record=keep&tableViews=${tableViews}`
+    })
+    fireEvent.click(
+      screen
+        .getAllByRole('button', { name: 'Clear all' })
+        .find((button) => button.closest('[data-slot="empty"]'))!
+    )
+    await waitFor(() => expect(screen.getByText('CI token')).not.toBeNull())
+    expect(router.state.location.search.query).toBeUndefined()
+    expect(router.state.location.search.page).toBeUndefined()
+    expect(router.state.location.search.record).toBe('keep')
+    expect(router.state.location.search.tableViews).toBe(JSON.stringify({ other }))
+  })
+
+  it('sorts before pagination and resets the page when searching', async () => {
+    const tokens = Array.from({ length: 21 }, (_, index) => ({
+      ...token,
+      id: `row_${index}`,
+      name: `Token ${String(index).padStart(2, '0')}`
+    }))
+    const tableViews = encodeURIComponent(
+      JSON.stringify({
+        'api-tokens': JSON.stringify({
+          match: 'all',
+          filters: [],
+          sorts: [{ field: 'name', direction: 'desc' }]
+        })
+      })
+    )
+    const { router } = await renderPanel({
+      role: 'owner',
+      tokens,
+      initialEntry: `/?page=2&tableViews=${tableViews}`
+    })
+    expect(screen.getByText('Token 00')).not.toBeNull()
+    expect(screen.queryByText('Token 20')).toBeNull()
+    const savedViews = router.state.location.search.tableViews
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search tokens' }), {
+      target: { value: '20' }
+    })
+    await waitFor(() => expect(router.state.location.search.page).toBeUndefined())
+    expect(screen.getByText('Token 20')).not.toBeNull()
+    expect(router.state.location.search.tableViews).toEqual(savedViews)
+  })
+
+  it('resets the page when changing a status filter', async () => {
+    const tokens = Array.from({ length: 21 }, (_, index) => ({
+      ...token,
+      id: `row_${index}`,
+      name: `Token ${String(index).padStart(2, '0')}`
+    }))
+    const { router } = await renderPanel({
+      role: 'owner',
+      tokens,
+      initialEntry: '/?page=2'
+    })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Status' })[0]!)
+    fireEvent.click(screen.getByRole('radio', { name: 'Active' }))
+    await waitFor(() => expect(router.state.location.search.page).toBeUndefined())
+    expect(screen.getByText('Token 00')).not.toBeNull()
+    expect(screen.queryByText('Token 20')).toBeNull()
+  })
+
+  it('finds never-used tokens independently of active, expired, and replaced status', async () => {
+    const tableViews = encodeURIComponent(
+      JSON.stringify({
+        'api-tokens': JSON.stringify({
+          match: 'all',
+          filters: [{ field: 'lastUsedAt', operator: 'isEmpty', value: '' }],
+          sorts: []
+        })
+      })
+    )
+    await renderPanel({
+      role: 'owner',
+      initialEntry: `/?tableViews=${tableViews}`,
+      tokens: [
+        token,
+        {
+          ...token,
+          id: 'expired',
+          name: 'Expired unused',
+          expiresAt: '2000-01-01T00:00:00.000Z'
+        },
+        {
+          ...token,
+          id: 'replaced',
+          name: 'Replaced unused',
+          replacedByTokenId: 'replacement'
+        },
+        { ...token, id: 'used', name: 'Used token', lastUsedAt: token.createdAt }
+      ]
+    })
+    expect(screen.getByText('CI token')).not.toBeNull()
+    expect(screen.getByText('Expired unused')).not.toBeNull()
+    expect(screen.getByText('Replaced unused')).not.toBeNull()
+    expect(screen.queryByText('Used token')).toBeNull()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Status' })[0]!)
+    expect(screen.queryByRole('radio', { name: 'Unused' })).toBeNull()
+    fireEvent.click(screen.getByRole('radio', { name: 'Active' }))
+    await waitFor(() => expect(screen.queryByText('Expired unused')).toBeNull())
+    expect(screen.queryByText('Replaced unused')).toBeNull()
+    expect(screen.getByText('CI token')).not.toBeNull()
+  })
+
   it('revokes on the second click and reports a failure once', async () => {
     revokeToken.mockRejectedValue(new Error('Token already revoked'))
     await renderPanel({ role: 'owner' })
