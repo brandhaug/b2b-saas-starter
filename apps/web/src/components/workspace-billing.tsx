@@ -265,7 +265,7 @@ export function BillingPlans({
         </div>
       </Panel>
       <BillingSynchronization status={synchronization.status} />
-      <BillingLifecycleStatus lifecycle={lifecycle} effectivePlanId={currentPlanId} />
+      <BillingLifecycleStatus lifecycle={lifecycle} />
       <BillingResourceAccess
         canManageBilling={canManageBilling}
         currentPlanId={currentPlanId}
@@ -504,58 +504,37 @@ function planPrice(plan: BillingPlan): string {
 }
 
 function BillingLifecycleStatus({
-  lifecycle,
-  effectivePlanId
+  lifecycle
 }: {
   readonly lifecycle: BillingLifecycle
-  readonly effectivePlanId: string
 }) {
-  if (lifecycle.status === 'unpaid') {
-    return (
-      <output className="block text-sm text-muted-foreground">
-        {m.billing_payment_unpaid()}
-      </output>
-    )
+  const { access } = lifecycle
+  let message: string | null = null
+  if (!access.paid && access.reason === 'unpaid') {
+    message = m.billing_payment_unpaid()
+  } else if (!access.paid && access.reason === 'incomplete') {
+    message = m.billing_payment_incomplete()
+  } else if (!access.paid && lifecycle.planId !== 'starter') {
+    message = m.billing_access_restricted()
+  } else if (access.reason === 'trialing' && access.endsAt) {
+    message = m.billing_trial({ date: formatBillingDate(access.endsAt) })
+  } else if (access.reason === 'grace' && access.endsAt) {
+    message = m.billing_payment_grace({ date: formatBillingDate(access.endsAt) })
   }
-  if (lifecycle.status === 'incomplete') {
-    return (
-      <output className="block text-sm text-muted-foreground">
-        {m.billing_payment_incomplete()}
-      </output>
-    )
-  }
-  if (effectivePlanId === 'starter' && lifecycle.planId !== 'starter') {
-    return (
-      <output className="block text-sm text-muted-foreground">
-        {m.billing_access_restricted()}
-      </output>
-    )
-  }
-  if (lifecycle.cancelAtPeriodEnd && lifecycle.currentPeriodEnd) {
-    return (
-      <output className="block text-sm text-muted-foreground">
-        {m.billing_cancel_at_period_end({
-          date: formatBillingDate(lifecycle.currentPeriodEnd)
-        })}
-      </output>
-    )
-  }
-  if (lifecycle.status === 'trialing' && lifecycle.trialEnd) {
-    return (
-      <output className="block text-sm text-muted-foreground">
-        {m.billing_trial({ date: formatBillingDate(lifecycle.trialEnd) })}
-      </output>
-    )
-  }
-  if (lifecycle.status === 'past_due' && lifecycle.graceEndsAt) {
-    return (
-      <output className="block text-sm text-muted-foreground">
-        {m.billing_payment_grace({ date: formatBillingDate(lifecycle.graceEndsAt) })}
-      </output>
-    )
-  }
-
-  return null
+  return (
+    <>
+      {message && (
+        <output className="block text-sm text-muted-foreground">{message}</output>
+      )}
+      {lifecycle.cancelAtPeriodEnd && lifecycle.currentPeriodEnd && (
+        <output className="block text-sm text-muted-foreground">
+          {m.billing_cancel_at_period_end({
+            date: formatBillingDate(lifecycle.currentPeriodEnd)
+          })}
+        </output>
+      )}
+    </>
+  )
 }
 
 function formatBillingDate(value: string): string {

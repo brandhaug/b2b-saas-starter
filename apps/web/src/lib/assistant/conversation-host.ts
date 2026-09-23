@@ -4,11 +4,7 @@ import {
   type OnChatMessageOptions
 } from '@cloudflare/ai-chat'
 import { type AgentContext, type Connection } from 'agents'
-import {
-  createUIMessageStream,
-  createUIMessageStreamResponse,
-  type UIMessage
-} from 'ai'
+import { createUIMessageStream, createUIMessageStreamResponse } from 'ai'
 import { Effect, Layer, ManagedRuntime, Semaphore } from 'effect'
 import {
   WideEventLoggerLive,
@@ -16,7 +12,10 @@ import {
   withTriggerScope,
   makeOtlpLayer
 } from '@b2b-saas-starter/logger'
-import { type CapabilityServices } from '@b2b-saas-starter/capabilities/layers'
+import {
+  makeConversationHostLayer,
+  type ConversationHostServices
+} from '@b2b-saas-starter/capabilities/assistant/runtime'
 import { type AssistantCredentialReference } from '@b2b-saas-starter/authz/assistant-access-token'
 import { AssistantDirectory } from '@b2b-saas-starter/capabilities/assistant/directory'
 import {
@@ -28,26 +27,23 @@ import {
   acceptConversationAnswer,
   ConversationExecution as Execution
 } from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversation-admission'
-import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import {
   type ConversationSend,
   type ConversationRetry,
   ConversationNotFound,
   ConversationUnavailable,
   conversationTitle,
-  conversationHistoryPage,
   type ConversationAttempt
 } from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversation'
 import { selectConversationModelLayer } from '@b2b-saas-starter/ai/conversation'
+import { readConversationHistory } from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversation-transcript'
 import { ConversationLedger } from './conversation-ledger'
 import { observeConversationAttempt } from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversation-events'
+import { installConversationProtocol } from './conversation-sdk'
 import { conversationLimits } from './conversation-config'
 import {
-  allowedConversationRequest,
   decodeConnectionState,
   decodeInvocation,
-  decodeObservation,
-  decodeFrame,
   decodeStop,
   decodeSend,
   decodeRetry,
@@ -65,20 +61,12 @@ type ConversationRun = {
   settled: boolean
 }
 
-function savedText(messages: ReadonlyArray<UIMessage>, id: string): string {
-  return (
-    messages
-      .find((message) => message.id === id)
-      ?.parts.flatMap((part) => (part.type === 'text' ? [part.text] : []))
-      .join('') ?? ''
-  )
-}
-
 /** The exported host owns SDK persistence/replay; every SDK entry and disclosure is gated here. */
 export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
+  private readonly protocol: ReturnType<typeof installConversationProtocol>
   private readonly ledger: ConversationLedger
   private readonly runtime: ReturnType<
-    typeof ManagedRuntime.make<CapabilityServices, never>
+    typeof ManagedRuntime.make<ConversationHostServices, ConversationUnavailable>
   >
   private recoveryAttemptId: string | undefined
   private run: ConversationRun | undefined
@@ -95,89 +83,58 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
     this.ledger = new ConversationLedger(ctx.storage)
     this.runtime = ManagedRuntime.make(
       Layer.merge(
-        selectCapabilitiesLayer({
+        makeConversationHostLayer({
           DB: env.DB,
           assistantResource: env.ASSISTANT_RESOURCE_URL
         }),
         WideEventLoggerLive
       )
     )
-    const fetch = this.fetch.bind(this)
-    this.fetch = (request) => {
-      if (!allowedConversationRequest(request)) {
-        return this.runtime.runPromise(
-          Effect.succeed(new Response(null, { status: 404 }))
-        )
-      }
-      if (request.headers.get('upgrade')?.toLowerCase() !== 'websocket') {
-        return fetch(request)
-      }
-      return this.respond(
-        request,
-        Effect.gen({ self: this }, function* () {
-          const invocation = yield* this.invocation(request)
-          yield* this.authorize(invocation.credential, 'read')
-          return yield* Effect.tryPromise({
-            try: () => fetch(request),
-            catch: () => new ConversationUnavailable({ reason: 'storage' })
-          })
-        })
-      )
-    }
-    const connect = this.onConnect.bind(this)
-    const message = this.onMessage.bind(this)
-    // AIChatAgent installs native protocol wrappers in super(). Replace the outer HTTP gate.
-    this.onRequest = (request) => this.respond(request, this.handle(request))
-    this.onConnect = (connection, context) =>
-      this.runtime
-        .runPromise(
+    this.protocol = installConversationProtocol(this, {
+      request: (request) => this.respond(request, this.handle(request)),
+      upgrade: (request, next) =>
+        this.respond(
+          request,
           Effect.gen({ self: this }, function* () {
-            const invocation = yield* this.invocation(context.request)
-            const { row } = yield* this.authorize(invocation.credential, 'read')
-            connection.setState({
-              credential: invocation.credential,
-              runAccessRevision: row.runAccessRevision
-            })
-            this.guardSend(connection)
-            yield* Effect.tryPromise({
-              try: async () => {
-                await connect(connection, context)
-              },
+            const invocation = yield* this.invocation(request)
+            yield* this.authorize(invocation.credential, 'read')
+            return yield* Effect.tryPromise({
+              try: next,
               catch: () => new ConversationUnavailable({ reason: 'storage' })
             })
+          })
+        ),
+      connect: (request) =>
+        this.runtime.runPromise(
+          Effect.gen({ self: this }, function* () {
+            const invocation = yield* this.invocation(request)
+            const { row } = yield* this.authorize(invocation.credential, 'read')
+            return {
+              credential: invocation.credential,
+              runAccessRevision: row.runAccessRevision
+            }
+          })
+        ),
+      authorize: (connection) =>
+        this.runtime.runPromise(this.authorizeObserver(connection).pipe(Effect.asVoid)),
+      connected: (connection, { credential }) =>
+        this.runtime.runPromise(
+          Effect.gen({ self: this }, function* () {
             connection.send(
               JSON.stringify({
                 type: 'conversation_snapshot',
-                history: yield* this.history(invocation.credential, null)
+                history: yield* this.history(credential, null)
               })
             )
             yield* this.watchAuthority()
           })
-        )
-        .catch(() => {
-          connection.close(1008, 'Access unavailable')
-        })
-    this.onMessage = (connection, frame) =>
-      this.runtime
-        .runPromise(
-          Effect.gen({ self: this }, function* () {
-            this.guardSend(connection)
-            yield* this.authorizeObserver(connection)
-            const allowed = decodeObservation(frame)
-            if (allowed._tag === 'Failure') {
-              return
-            }
-            yield* Effect.tryPromise({
-              try: async () => {
-                await message(connection, frame)
-              },
-              catch: () => new ConversationUnavailable({ reason: 'storage' })
-            })
-          })
-        )
-        .catch(() => {
-          connection.close(1008, 'Access unavailable')
-        })
+        ),
+      disclose: (frame) => {
+        this.disclosures.push(frame)
+        this.flushDisclosures()
+      },
+      changed: () => this.publishSnapshot()
+    })
   }
 
   private invocation(request: Request) {
@@ -226,27 +183,6 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
       return authorized
     })
   }
-
-  private guardSend(connection: Connection) {
-    if (this.guarded.has(connection)) {
-      return
-    }
-    this.guarded.add(connection)
-    const send = connection.send.bind(connection)
-    connection.send = (data) => {
-      if (connection.readyState !== WebSocket.OPEN) {
-        return
-      }
-      const frame = decodeFrame(data)
-      if (frame._tag === 'Failure') {
-        connection.close(1003, 'Unsupported response')
-        return
-      }
-      this.disclosures.push({ connection, data: frame.success, send })
-      this.flushDisclosures()
-    }
-  }
-  private readonly guarded = new WeakSet<Connection>()
 
   private flushDisclosures() {
     if (this.disclosurePending) {
@@ -303,45 +239,27 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
     this.ctx.waitUntil(flush)
   }
 
-  // Called by the AIChatAgent runtime through its lifecycle/protocol interface.
-  // fallow-ignore-next-line unused-class-member
-  override broadcast(
-    data: string | ArrayBuffer | ArrayBufferView,
-    without?: Array<string>
-  ) {
-    const excluded = new Set(without)
-    for (const connection of this.getConnections()) {
-      if (excluded.has(connection.id)) {
-        continue
-      }
-      this.guardSend(connection)
-      connection.send(data)
-    }
-    this.publishSnapshot()
-  }
-
-  private snapshotPending = false
-  private snapshotQueued = false
+  private snapshotPublication: 'idle' | 'publishing' | 'publish_again' = 'idle'
   private publishSnapshot() {
-    if (this.snapshotPending) {
-      this.snapshotQueued = true
+    if (this.snapshotPublication !== 'idle') {
+      this.snapshotPublication = 'publish_again'
       return
     }
     if ([...this.getConnections()].length === 0) {
       return
     }
-    this.snapshotPending = true
+    this.snapshotPublication = 'publishing'
     const publication = this.runtime
       .runPromise(
         Effect.gen({ self: this }, function* () {
           yield* Effect.sleep('100 millis')
           for (const connection of this.getConnections()) {
-            this.guardSend(connection)
             yield* decodeConnectionState(connection.state).pipe(
               Effect.flatMap(({ credential }) => this.history(credential, null)),
               Effect.tap((history) =>
                 Effect.sync(() =>
-                  connection.send(
+                  this.protocol.send(
+                    connection,
                     JSON.stringify({ type: 'conversation_snapshot', history })
                   )
                 )
@@ -354,9 +272,9 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
         })
       )
       .finally(() => {
-        this.snapshotPending = false
-        if (this.snapshotQueued) {
-          this.snapshotQueued = false
+        const repeat = this.snapshotPublication === 'publish_again'
+        this.snapshotPublication = 'idle'
+        if (repeat) {
           this.publishSnapshot()
         }
       })
@@ -445,6 +363,20 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
     })
   }
 
+  private savedText(id: string) {
+    return Effect.tryPromise({
+      try: () => this.sessions.session().getMessage(id),
+      catch: () => new ConversationUnavailable({ reason: 'storage' })
+    }).pipe(
+      Effect.map(
+        (message) =>
+          message?.parts
+            .flatMap((part) => (part.type === 'text' ? [part.text ?? ''] : []))
+            .join('') ?? ''
+      )
+    )
+  }
+
   private history(
     credential: AssistantCredentialReference,
     cursor: string | null,
@@ -452,18 +384,14 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
   ) {
     return Effect.gen({ self: this }, function* () {
       const { row } = yield* this.authorize(credential, 'read')
-      const questions = yield* this.ledger.questions()
-      const attempts = yield* this.ledger.attempts()
-      const page = conversationHistoryPage({
-        questions,
-        attempts,
+      const page = yield* readConversationHistory(this.ledger, {
         cursor,
         full,
         policyRevision: row.policyRevision,
         text: (attemptId) =>
           this.run?.attemptId === attemptId
-            ? this.run.text
-            : savedText(this.messages, attemptId)
+            ? Effect.succeed(this.run.text)
+            : this.savedText(attemptId)
       })
       // Content and required-permission revision must describe the same snapshot.
       const directory = yield* AssistantDirectory
@@ -549,7 +477,7 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
             const text =
               this.run?.attemptId === attempt.id
                 ? this.run.text
-                : savedText(this.messages, attempt.id)
+                : yield* this.savedText(attempt.id)
             const directory = yield* AssistantDirectory
             if (!(yield* directory.policyMatches(row.id, row.policyRevision))) {
               return yield* new ConversationUnavailable({ reason: 'authority' })
@@ -578,7 +506,7 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
         }
         if (action === 'read') {
           const { row } = yield* this.authorize(credential, 'read')
-          const questions = yield* this.ledger.questions()
+          const first = yield* this.ledger.firstQuestion()
           const activeAttempt = yield* this.ledger.active()
           const directory = yield* AssistantDirectory
           if (!(yield* directory.policyMatches(row.id, row.policyRevision))) {
@@ -586,8 +514,7 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
           }
           return Response.json({
             ...row,
-            title:
-              questions[0] === undefined ? null : conversationTitle(questions[0].text),
+            title: first === null ? null : conversationTitle(first.text),
             activeAttempt
           })
         }
@@ -644,7 +571,7 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
         executionBusy:
           (yield* this.ledger.pendingOutput()) !== null ||
           (this.run !== undefined && !this.run.settled),
-        savedText: (id) => savedText(this.messages, id),
+        savedText: (id) => this.savedText(id),
         limits
       }).pipe(Effect.provide(selectConversationModelLayer(this.env, limits)))
       if (acceptance.joined) {
@@ -804,7 +731,7 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
             : yield* this.ledger.attempt(this.recoveryAttemptId)
         if (
           attempt !== null &&
-          context.partialText.length > savedText(this.messages, attempt.id).length
+          context.partialText.length > (yield* this.savedText(attempt.id)).length
         ) {
           yield* Effect.tryPromise({
             try: () =>
@@ -832,29 +759,33 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
 
   private respond<A extends Response, E>(
     request: Request,
-    effect: Effect.Effect<A, E, CapabilityServices>
+    effect: Effect.Effect<A, E, ConversationHostServices>
   ) {
-    return this.runtime.runPromise(
-      withHttpInvocation(
-        { service: 'assistant', event: 'assistant.request', request, env: this.env },
-        effect.pipe(
-          Effect.catch((error) =>
-            Effect.sync(() => {
-              const tagged = decodeFailure(error)
-              if (tagged._tag === 'Failure') {
-                return Response.json(
-                  { error: 'ConversationUnavailable' },
-                  { status: 503 }
-                )
-              }
-              return failureResponse(tagged.success)
-            })
-          ),
-          Effect.tap((response) =>
-            Effect.annotateLogsScoped({ status: response.status })
+    return this.runtime
+      .runPromise(
+        withHttpInvocation(
+          { service: 'assistant', event: 'assistant.request', request, env: this.env },
+          effect.pipe(
+            Effect.catch((error) =>
+              Effect.sync(() => {
+                const tagged = decodeFailure(error)
+                if (tagged._tag === 'Failure') {
+                  return Response.json(
+                    { error: 'ConversationUnavailable' },
+                    { status: 503 }
+                  )
+                }
+                return failureResponse(tagged.success)
+              })
+            ),
+            Effect.tap((response) =>
+              Effect.annotateLogsScoped({ status: response.status })
+            )
           )
         )
       )
-    )
+      .catch(() =>
+        failureResponse(new ConversationUnavailable({ reason: 'configuration' }))
+      )
   }
 }

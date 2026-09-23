@@ -3,7 +3,11 @@ import { Schema } from 'effect'
 import { SubscriptionState } from './billing.ts'
 import { describe, expect, it } from 'vite-plus/test'
 
-import { effectivePlanDecision, emptySubscription } from './billing-state.ts'
+import {
+  billingLifecycle,
+  effectivePlanDecision,
+  emptySubscription
+} from './billing-state.ts'
 
 const decodeSubscription = Schema.decodeUnknownSync(SubscriptionState)
 
@@ -22,7 +26,7 @@ describe('effectivePlanDecision', () => {
         },
         now
       )
-    ).toEqual({ planId: 'starter', paid: false, reason: 'trial_expired' })
+    ).toEqual({ planId: 'starter', paid: false, reason: 'trial_expired', endsAt: null })
   })
 
   it('retains a previously paid plan only until its fixed grace deadline', () => {
@@ -49,7 +53,7 @@ describe('effectivePlanDecision', () => {
         },
         now
       )
-    ).toEqual({ planId: 'starter', paid: false, reason: 'past_due' })
+    ).toEqual({ planId: 'starter', paid: false, reason: 'past_due', endsAt: null })
   })
 
   it('ends access immediately for unpaid subscriptions', () => {
@@ -165,7 +169,8 @@ describe('cancellation at period end', () => {
     expect(effectivePlanDecision(canceling, '2026-09-07T00:00:00.000Z')).toEqual({
       planId: 'team',
       paid: true,
-      reason: 'active'
+      reason: 'active',
+      endsAt: null
     })
   })
 
@@ -176,5 +181,61 @@ describe('cancellation at period end', () => {
         '2026-09-09T00:00:00.000Z'
       ).paid
     ).toBe(false)
+  })
+})
+
+describe('billing access projection', () => {
+  const state = {
+    ...emptySubscription('cus_test'),
+    status: 'active',
+    subscribedPlanId: 'team',
+    lastPaymentAt: '2026-09-01T00:00:00.000Z',
+    graceEndsAt,
+    cancelAtPeriodEnd: true,
+    currentPeriodEnd: '2026-10-01T00:00:00.000Z'
+  } satisfies SubscriptionState
+
+  it.each(deadlines)(
+    'projects active-status grace $when its deadline',
+    ({ now: at, within }) => {
+      const lifecycle = billingLifecycle(state, 'starter', at)
+      if (within) {
+        expect(lifecycle.access).toEqual({
+          planId: 'team',
+          paid: true,
+          reason: 'grace',
+          endsAt: graceEndsAt
+        })
+      } else {
+        expect(lifecycle.access).toEqual({
+          planId: 'starter',
+          paid: false,
+          reason: 'active',
+          endsAt: null
+        })
+      }
+      expect(lifecycle.status).toBe('active')
+      expect(lifecycle.planId).toBe('team')
+      expect(lifecycle.cancelAtPeriodEnd).toBe(true)
+    }
+  )
+
+  it('expires the trial at the exact deadline without changing provider status', () => {
+    const lifecycle = billingLifecycle(
+      { ...state, status: 'trialing', lastPaymentAt: null, trialEnd: now },
+      'starter',
+      now
+    )
+    expect(lifecycle.status).toBe('trialing')
+    expect(lifecycle.access).toEqual({
+      planId: 'starter',
+      paid: false,
+      reason: 'trial_expired',
+      endsAt: null
+    })
+  })
+
+  it('retains provider-light workspace plans without inventing a subscription', () => {
+    expect(billingLifecycle(null, 'team', now).access.planId).toBe('team')
   })
 })

@@ -385,6 +385,7 @@ export const demoFixtures = {
     stripeConfigured: false,
     synchronization: { status: 'current', lastSyncedAt: '2026-05-16T07:30:05.000Z' },
     lifecycle: {
+      access: { planId: 'team', paid: true, reason: 'active', endsAt: null },
       status: 'active',
       planId: 'team',
       currentPeriodEnd: '2026-06-16T00:00:00.000Z',

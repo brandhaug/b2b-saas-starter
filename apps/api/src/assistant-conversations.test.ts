@@ -113,7 +113,14 @@ const fixture = Effect.fn('AssistantRestTest.fixture')(function* () {
         return Promise.resolve(Response.json(accepted, { status: 202 }))
       }
       if (input.action === 'stop') {
-        return Promise.resolve(Response.json({ ...attempt, status: 'Stopped' }))
+        return Promise.resolve(
+          Response.json({
+            ...attempt,
+            status: 'Stopped',
+            completedAt: '2026-09-15T12:00:01.000Z',
+            reason: 'stopped'
+          } satisfies ConversationAttempt)
+        )
       }
       if (input.action === 'history') {
         return Promise.resolve(

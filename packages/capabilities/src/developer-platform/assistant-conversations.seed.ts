@@ -14,7 +14,7 @@ import {
   type AssistantAuthority,
   AssistantAuthorityDenied
 } from './assistant-authority.ts'
-import { type WebhookInvestigationTasks } from './webhook-investigation-tasks.ts'
+import { type AssistantTaskEvidence } from './assistant-task-evidence.ts'
 import { type AssistantConversationTransport } from './assistant-conversation-transport.ts'
 import { acceptConversationAnswer } from './assistant-conversation-admission.ts'
 import {
@@ -23,6 +23,7 @@ import {
   finishConversationAttempt
 } from './assistant-conversation-execution.ts'
 import { observeConversationAttempt } from './assistant-conversation-events.ts'
+import { readConversationHistory } from './assistant-conversation-transcript.ts'
 import { makeSeedConversationLedger } from './assistant-conversation-ledger.seed.ts'
 import {
   activeConversationAttempt,
@@ -32,8 +33,7 @@ import {
   ConversationNotFound,
   ConversationConflict,
   ConversationUnavailable,
-  type ConversationAttempt,
-  conversationHistoryPage
+  type ConversationAttempt
 } from './assistant-conversation.ts'
 
 const decodeSend = Schema.decodeUnknownEffect(ConversationSend)
@@ -112,7 +112,7 @@ export const makeSeedAssistantConversationHost = Effect.fn('SeedConversationHost
       | AssistantAuthority
       | AssistantAdmission
       | ConversationModel
-      | WebhookInvestigationTasks
+      | AssistantTaskEvidence
       | AuditEventLog
     >()
     const run = Effect.runPromiseWith(context)
@@ -183,15 +183,11 @@ export const makeSeedAssistantConversationHost = Effect.fn('SeedConversationHost
     ) {
       const row = yield* authorized(id, credential, 'read')
       const store = state(id)
-      const questions = yield* store.ledger.questions()
-      const attempts = yield* store.ledger.attempts()
-      const page = conversationHistoryPage({
-        questions,
-        attempts,
+      const page = yield* readConversationHistory(store.ledger, {
         cursor: cursor ?? null,
         full,
         policyRevision: row.policyRevision,
-        text: (attemptId) => store.texts.get(attemptId) ?? ''
+        text: (attemptId) => Effect.sync(() => store.texts.get(attemptId) ?? '')
       })
       if (!(yield* directory.policyMatches(id, row.policyRevision))) {
         return yield* new ConversationUnavailable({ reason: 'authority' })
@@ -210,9 +206,9 @@ export const makeSeedAssistantConversationHost = Effect.fn('SeedConversationHost
       const row = yield* authorized(id, input.credential, permission)
       const store = state(id)
       if (input.action === 'read') {
-        const first = (yield* store.ledger.questions())[0]
+        const first = yield* store.ledger.firstQuestion()
         let title: string | null = null
-        if (first !== undefined) {
+        if (first !== null) {
           title = conversationTitle(first.text)
         }
         return Response.json({
@@ -267,7 +263,8 @@ export const makeSeedAssistantConversationHost = Effect.fn('SeedConversationHost
             operation,
             ledger: store.ledger,
             executionBusy: store.executing,
-            savedText: (attemptId) => store.texts.get(attemptId) ?? '',
+            savedText: (attemptId) =>
+              Effect.sync(() => store.texts.get(attemptId) ?? ''),
             limits: { deadlineMs: 300_000, activeLimit: 3, rateLimit: 20 }
           })
           if (!accepted.joined) {
@@ -298,25 +295,32 @@ export const makeSeedAssistantConversationHost = Effect.fn('SeedConversationHost
         }).pipe(store.lock.withPermits(1))
       }
       if (input.action === 'events') {
+        const attemptId = input.attemptId
+        if (attemptId === undefined) {
+          return yield* new ConversationNotFound()
+        }
         const snapshot = Effect.gen(function* () {
           const current = yield* directory.get(id)
           if (current?.runAccessRevision !== row.runAccessRevision) {
             return yield* new ConversationUnavailable({ reason: 'authority' })
           }
-          const page = yield* history(id, input.credential, undefined, true)
-          const exchange = page.items.find((item) =>
-            item.attempts.some((attempt) => attempt.id === input.attemptId)
-          )
-          const attempt = exchange?.attempts.find(
-            (candidate) => candidate.id === input.attemptId
-          )
-          if (exchange === undefined || attempt === undefined) {
+          const authorizedRow = yield* authorized(id, input.credential, 'read')
+          const attempt = yield* store.ledger.attempt(attemptId)
+          if (attempt === null) {
             return yield* new ConversationNotFound()
           }
+          const question = yield* store.ledger.question(attempt.questionId)
+          if (question === null) {
+            return yield* new ConversationNotFound()
+          }
+          const text = store.texts.get(attempt.id) ?? ''
+          if (!(yield* directory.policyMatches(id, authorizedRow.policyRevision))) {
+            return yield* new ConversationUnavailable({ reason: 'authority' })
+          }
           return {
-            question: exchange.question,
-            attempt,
-            policyRevision: page.policyRevision
+            question,
+            attempt: { ...attempt, text },
+            policyRevision: authorizedRow.policyRevision
           }
         })
         yield* snapshot

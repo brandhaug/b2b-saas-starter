@@ -66,6 +66,7 @@ vi.mock('../capabilities', () => ({
         lastSyncedAt: null
       } satisfies BillingSynchronizationStatus),
       lifecycleStatus: Effect.succeed({
+        access: { planId: 'starter', paid: false, reason: 'unpaid', endsAt: null },
         status: 'unpaid',
         planId: 'team',
         currentPeriodEnd: null,

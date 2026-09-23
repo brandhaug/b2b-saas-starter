@@ -178,7 +178,19 @@ export const SubscriptionState = Schema.Struct({
 })
 export type SubscriptionState = Schema.Schema.Type<typeof SubscriptionState>
 
+export const BillingAccessDecision = Schema.Struct({
+  planId: Schema.String,
+  paid: Schema.Boolean,
+  reason: Schema.Union([
+    SubscriptionStatus,
+    Schema.Literals(['grace', 'trial_expired'])
+  ]),
+  endsAt: Schema.NullOr(BillingTimestamp)
+})
+export type BillingAccessDecision = Schema.Schema.Type<typeof BillingAccessDecision>
+
 export const BillingLifecycle = Schema.Struct({
+  access: BillingAccessDecision,
   status: SubscriptionStatus,
   planId: Schema.String,
   currentPeriodEnd: Schema.NullOr(BillingTimestamp),

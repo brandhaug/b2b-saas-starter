@@ -660,11 +660,33 @@ export function developerPlatformContractCases(
             (row) => row.id === stable.deliveryId
           )
         ).toHaveLength(1)
+        const conflictingApproval = yield* webhooks
+          .replayDelivery({
+            deliveryId: 'whd_contract_failed',
+            replayDeliveryId: 'whr_contract_replay'
+          })
+          .pipe(Effect.match({ onFailure: (error) => error, onSuccess: () => null }))
+        expect(conflictingApproval).toMatchObject({
+          _tag: 'WebhookDispatchRejected',
+          reason: 'replay identity does not match the approved delivery'
+        })
         const inspected = yield* webhooks.inspectDelivery({
           deliveryId: 'whd_contract_failed'
         })
         expect(inspected.delivery.id).toBe('whd_contract_failed')
         expect(inspected.endpoint.url).toBe(endpoint.url)
+
+        const drifted = yield* webhooks
+          .replayDelivery({
+            deliveryId: 'whd_contract_failed',
+            expectedEndpointUrl: 'https://example.com/previous-destination',
+            expectedStatus: 'failed_permanent'
+          })
+          .pipe(Effect.match({ onFailure: (error) => error, onSuccess: () => null }))
+        expect(drifted).toMatchObject({
+          _tag: 'WebhookDispatchRejected',
+          reason: 'endpoint changed since investigation'
+        })
 
         // A delivered row offers no replay, and a foreign id reads as not found.
         const deliveredOutcome = yield* Effect.exit(

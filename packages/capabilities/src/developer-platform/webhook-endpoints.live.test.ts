@@ -20,6 +20,8 @@ import {
 } from './developer-platform.contract.ts'
 import { type WebhookDeliveryAttemptInput } from './webhook-delivery-plan.ts'
 import { WebhookEndpoints } from './webhook-endpoints.ts'
+import { WorkspaceContext } from '../workspace-context.ts'
+import { failureTag } from '../internal/failure-tag.ts'
 
 layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
   'live developer platform',
@@ -56,6 +58,81 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         )
       }
     })
+
+    it.effect(
+      'stable workspace replay survives queue failure and reserves one audit concurrently',
+      () => {
+        let rejectQueue = true
+        let enqueued = 0
+        return inWorkspace(
+          'dev-contract-lab',
+          Effect.gen(function* () {
+            const webhooks = yield* WebhookEndpoints
+            const ctx = yield* WorkspaceContext
+            const { endpoint } = yield* webhooks.create({
+              url: 'https://example.com/stable-outage',
+              events: []
+            })
+            yield* webhooks.recordDeliveryAttempt({
+              id: 'whd_stable_outage',
+              endpointId: endpoint.id,
+              workspaceId: ctx.workspace.id,
+              eventType: 'demo.event',
+              status: 'dead_lettered',
+              attempts: 6,
+              payload: { retry: true }
+            })
+            const input: Parameters<typeof webhooks.replayDelivery>[0] = {
+              deliveryId: 'whd_stable_outage',
+              replayDeliveryId: 'whd_stable_retry',
+              expectedEndpointUrl: endpoint.url,
+              expectedStatus: 'dead_lettered'
+            }
+            const failed = yield* Effect.exit(webhooks.replayDelivery(input))
+            expect(failureTag(failed)).toBe('CapabilityUnavailable')
+            expect(
+              (yield* webhooks.listDeliveries({ endpointId: endpoint.id })).filter(
+                (row) => row.id === input.replayDeliveryId
+              )
+            ).toHaveLength(1)
+            rejectQueue = false
+            const retried = yield* Effect.all(
+              [webhooks.replayDelivery(input), webhooks.replayDelivery(input)],
+              { concurrency: 'unbounded' }
+            )
+            expect(retried.map((row) => row.deliveryId)).toEqual([
+              'whd_stable_retry',
+              'whd_stable_retry'
+            ])
+            expect(enqueued).toBe(2)
+            const db = yield* Database
+            const audits = yield* db
+              .select()
+              .from(auditEvents)
+              .where(
+                and(
+                  eq(auditEvents.targetId, endpoint.id),
+                  eq(auditEvents.eventType, 'webhook.delivery_replayed')
+                )
+              )
+            expect(audits).toHaveLength(1)
+          }),
+          { userId: 'usr_owner' },
+          {
+            webhookQueue: {
+              send: () => {
+                if (rejectQueue) {
+                  return Promise.reject(new Error('queue unavailable'))
+                }
+                enqueued += 1
+                return Promise.resolve()
+              },
+              sendBatch: () => Promise.resolve()
+            }
+          }
+        )
+      }
+    )
 
     // Real-D1 coverage for the terminal-outcome audit contract: LiveWebhookEndpoints
     // batches the audit insert with the delivery row, so these assert the actual

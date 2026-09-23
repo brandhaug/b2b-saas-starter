@@ -408,18 +408,6 @@ export function SeedWorkspaceMembership(
           if (member.role === input.role) {
             return member
           }
-          // A role change can strip authority the old role carried, so the
-          // Live adapter files the same removal evidence — the fixture must
-          // not be the quieter of the two.
-          yield* recordSecurityEvidence(
-            {
-              kind: 'workspace_access_removed',
-              subjectId: input.userId,
-              workspaceId: workspace.id
-            },
-            securityEvidence,
-            'seed'
-          )
           yield* conversations.invalidateAccess(
             { workspaceId: workspace.id, creatorUserId: input.userId },
             { interruptRuns: true }
@@ -432,6 +420,18 @@ export function SeedWorkspaceMembership(
               }
               return candidate
             })
+          )
+          // A role change can strip authority the old role carried, so the
+          // Live adapter files the same removal evidence — the fixture must
+          // not be the quieter of the two.
+          yield* recordSecurityEvidence(
+            {
+              kind: 'workspace_access_removed',
+              subjectId: input.userId,
+              workspaceId: workspace.id
+            },
+            securityEvidence,
+            'seed'
           )
           const audit = yield* Effect.serviceOption(AuditEventLog)
           if (Option.isSome(audit)) {

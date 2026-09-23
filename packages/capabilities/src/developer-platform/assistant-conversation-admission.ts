@@ -1,15 +1,15 @@
 import { DateTime, Effect, Schema } from 'effect'
 import { AssistantCredentialReference } from '@b2b-saas-starter/authz/assistant-access-token'
-import { ConversationModel } from '@b2b-saas-starter/ai/conversation'
-import {
-  PreparedConversationPrompt,
-  type ConversationPrompt
-} from '@b2b-saas-starter/ai/conversation-context'
+import { PreparedConversationPrompt } from '@b2b-saas-starter/ai/conversation-context'
 import { AssistantAdmission } from '../assistant/admission.ts'
 import {
   AssistantDirectory,
   type ConversationDirectoryEntry
 } from '../assistant/directory.ts'
+import {
+  prepareTranscriptContext,
+  type ConversationTranscript
+} from './assistant-conversation-transcript.ts'
 import { hashSha256 } from '../crypto.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
@@ -34,9 +34,9 @@ export const ConversationExecution = Schema.Struct({
 })
 
 type Stored<A> = Effect.Effect<A, ConversationUnavailable>
-type FailureObservation = NonNullable<ConversationPrompt['failureObservations']>[number]
 /** The host supplies its atomic SQLite ledger and SDK-authoritative saved text. */
-export type ConversationAdmissionLedger = {
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- Fallow tracks class implementations through interface inheritance, but not intersected type aliases.
+export interface ConversationAdmissionLedger extends ConversationTranscript {
   latestAttempt(): Stored<ConversationAttempt | null>
   attempt(id: string): Stored<ConversationAttempt | null>
   active(): Stored<ConversationAttempt | null>
@@ -45,8 +45,6 @@ export type ConversationAdmissionLedger = {
     readonly acceptance: ConversationAcceptance
   } | null>
   question(id: string): Stored<ConversationQuestion | null>
-  questions(): Stored<ReadonlyArray<ConversationQuestion>>
-  attempts(): Stored<ReadonlyArray<ConversationAttempt>>
   accept(input: {
     readonly key: string
     readonly hash: string
@@ -64,7 +62,7 @@ export const acceptConversationAnswer = Effect.fn('AssistantConversation.accept'
     readonly operation: ConversationSend | ConversationRetry
     readonly executionBusy?: boolean
     readonly ledger: ConversationAdmissionLedger
-    readonly savedText: (attemptId: string) => string
+    readonly savedText: (attemptId: string) => Stored<string>
     readonly limits: {
       readonly deadlineMs: number
       readonly activeLimit: number
@@ -130,53 +128,15 @@ export const acceptConversationAnswer = Effect.fn('AssistantConversation.accept'
     const evidence = yield* assistantTaskEvidence(question.taskId).pipe(
       Effect.provideService(WorkspaceContext, context)
     )
-    const questions = yield* ledger.questions()
-    const attempts = yield* ledger.attempts()
-    const history = questions.flatMap((prior) => {
-      const completed = attempts.find(
-        (attempt) => attempt.questionId === prior.id && attempt.status === 'Completed'
-      )
-      if (completed === undefined) {
-        return []
-      }
-      const exchange: ConversationPrompt['history'][number] = {
-        questionId: prior.id,
-        question: prior.text,
-        answer: input.savedText(completed.id)
-      }
-      if (completed.evidence !== null) {
-        Object.assign(exchange, { evidence: completed.evidence })
-      }
-      return [exchange]
-    })
-    const model = yield* ConversationModel
-    const request: ConversationPrompt = {
+    let promptInput: Parameters<typeof prepareTranscriptContext>[1] = {
       workspaceSlug: context.workspace.slug,
       question: question.text,
-      history,
-      failureObservations: attempts
-        .flatMap<FailureObservation>((attempt) => {
-          if (attempt.status !== 'Interrupted' && attempt.status !== 'Stopped') {
-            return []
-          }
-          // Stored reasons may contain adapter diagnostics. Only these fixed
-          // application categories can enter model context, never partial text.
-          let reason: FailureObservation['reason'] = 'interrupted'
-          if (attempt.status === 'Stopped') {
-            reason = 'stopped'
-          } else if (attempt.reason === 'output_limit') {
-            reason = 'output_limit'
-          } else if (attempt.reason === 'provider') {
-            reason = 'provider'
-          }
-          return [{ questionId: attempt.questionId, attemptId: attempt.id, reason }]
-        })
-        .slice(-3)
+      text: input.savedText
     }
     if (evidence !== null) {
-      Object.assign(request, { evidence })
+      promptInput = { ...promptInput, evidence }
     }
-    const prompt = yield* model.prepare(request)
+    const prompt = yield* prepareTranscriptContext(ledger, promptInput)
     const directory = yield* AssistantDirectory
     if (evidence !== null) {
       yield* directory.raisePolicy(row.id, ['webhook:list'])

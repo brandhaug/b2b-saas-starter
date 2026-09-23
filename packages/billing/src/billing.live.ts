@@ -23,13 +23,12 @@ import { billingConfigured, type BillingOptions } from './billing-config.ts'
 import { billableSeatQuantity, planById } from './plan-catalog.ts'
 import { displayedBillingPlans, validatedStripePrice } from './stripe-pricing.ts'
 import { decodeSubscriptionRow } from './subscription-row.ts'
-import { effectivePlanDecision } from './billing-state.ts'
+import { billingLifecycle } from './billing-state.ts'
 import {
   Billing,
   billingStoreUnavailable,
   type BillingInterface,
   type BillingSynchronizationStatus,
-  type SubscriptionState,
   type CheckoutInput
 } from './billing.ts'
 
@@ -97,16 +96,15 @@ export function LiveBilling(
         return rows[0]
       })
 
-      const currentPlanForWorkspace = Effect.fn('Billing.currentPlanForWorkspace')(
+      const lifecycleForWorkspace = Effect.fn('Billing.lifecycleForWorkspace')(
         function* (workspaceId: string) {
           const row = yield* readSubscription(workspaceId)
           if (row !== undefined) {
-            const subscription = yield* unavailable(decodeSubscriptionRow(row))
-            return planById(
-              effectivePlanDecision(
-                subscription,
-                DateTime.formatIso(yield* DateTime.now)
-              ).planId
+            const state = yield* unavailable(decodeSubscriptionRow(row))
+            return billingLifecycle(
+              state,
+              'starter',
+              DateTime.formatIso(yield* DateTime.now)
             )
           }
           const rows = yield* unavailable(
@@ -116,7 +114,16 @@ export function LiveBilling(
               .where(eq(workspaces.id, workspaceId))
               .limit(1)
           )
-          return planById(rows[0]?.planId ?? 'starter')
+          return billingLifecycle(
+            null,
+            rows[0]?.planId ?? 'starter',
+            DateTime.formatIso(yield* DateTime.now)
+          )
+        }
+      )
+      const currentPlanForWorkspace = Effect.fn('Billing.currentPlanForWorkspace')(
+        function* (workspaceId: string) {
+          return planById((yield* lifecycleForWorkspace(workspaceId)).access.planId)
         }
       )
       const service: BillingInterface = {
@@ -127,19 +134,7 @@ export function LiveBilling(
           return yield* currentPlanForWorkspace((yield* WorkspaceContext).workspace.id)
         })(),
         lifecycleStatus: Effect.fn('Billing.lifecycleStatus')(function* () {
-          const row = yield* readSubscription((yield* WorkspaceContext).workspace.id)
-          let state: SubscriptionState | null = null
-          if (row !== undefined) {
-            state = yield* unavailable(decodeSubscriptionRow(row))
-          }
-          return {
-            status: state?.status ?? 'canceled',
-            planId: state?.subscribedPlanId ?? 'starter',
-            currentPeriodEnd: state?.currentPeriodEnd ?? null,
-            cancelAtPeriodEnd: state?.cancelAtPeriodEnd ?? false,
-            trialEnd: state?.trialEnd ?? null,
-            graceEndsAt: state?.graceEndsAt ?? null
-          }
+          return yield* lifecycleForWorkspace((yield* WorkspaceContext).workspace.id)
         })(),
         displayedPlans: displayedBillingPlans(options),
         synchronizationStatus: Effect.fn('Billing.synchronizationStatus')(function* () {
