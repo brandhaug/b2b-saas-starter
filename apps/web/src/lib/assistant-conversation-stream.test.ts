@@ -1,3 +1,4 @@
+import { type ConversationAnswer } from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversation'
 import { describe, expect, it } from 'vite-plus/test'
 import { type ConversationHistory } from './server/assistant-conversations'
 import {
@@ -9,6 +10,39 @@ function page(
   status: 'Running' | 'Completed' | 'Interrupted' = 'Running',
   text = 'Saved answer'
 ): ConversationHistory {
+  const saved = {
+    id: 'a1',
+    questionId: 'q1',
+    createdAt: '2026-09-15T10:00:00Z',
+    text,
+    deadline: 100,
+    provider: null,
+    modelId: null,
+    providerRequestId: null,
+    finishReason: null,
+    inputTokens: null,
+    outputTokens: null,
+    omittedExchanges: 0,
+    evidence: null
+  }
+  let attempt: ConversationAnswer
+  if (status === 'Running') {
+    attempt = { ...saved, status, reason: null, completedAt: null }
+  } else if (status === 'Completed') {
+    attempt = {
+      ...saved,
+      status,
+      reason: null,
+      completedAt: '2026-09-15T10:01:00.000Z'
+    }
+  } else {
+    attempt = {
+      ...saved,
+      status,
+      reason: 'provider',
+      completedAt: '2026-09-15T10:01:00.000Z'
+    }
+  }
   return {
     policyRevision: 1,
     nextCursor: 'older',
@@ -20,26 +54,7 @@ function page(
           text: 'Question',
           taskId: null
         },
-        attempts: [
-          {
-            id: 'a1',
-            questionId: 'q1',
-            createdAt: '2026-09-15T10:00:00Z',
-            status,
-            text,
-            deadline: 100,
-            reason: null,
-            completedAt: null,
-            provider: null,
-            modelId: null,
-            providerRequestId: null,
-            finishReason: null,
-            inputTokens: null,
-            outputTokens: null,
-            omittedExchanges: 0,
-            evidence: null
-          }
-        ]
+        attempts: [attempt]
       }
     ]
   }
@@ -56,6 +71,28 @@ describe('conversation observer frames', () => {
     expect(
       readConversationSnapshot(
         JSON.stringify({ type: 'conversation_snapshot', history: { items: [{}] } })
+      )
+    ).toBeNull()
+  })
+
+  it.each([
+    { status: 'Accepted', reason: 'provider', completedAt: null },
+    { status: 'Running', reason: null, completedAt: '2026-09-15T10:01:00.000Z' },
+    { status: 'Completed', reason: null, completedAt: null },
+    { status: 'Interrupted', reason: null, completedAt: '2026-09-15T10:01:00.000Z' },
+    { status: 'Stopped', reason: 'user', completedAt: 'yesterday' }
+  ])('rejects invalid $status phase facts in snapshots', (phase) => {
+    const current = page()
+    const history = {
+      ...current,
+      items: current.items.map((item) => ({
+        question: item.question,
+        attempts: item.attempts.map((attempt) => ({ ...attempt, ...phase }))
+      }))
+    }
+    expect(
+      readConversationSnapshot(
+        JSON.stringify({ type: 'conversation_snapshot', history })
       )
     ).toBeNull()
   })

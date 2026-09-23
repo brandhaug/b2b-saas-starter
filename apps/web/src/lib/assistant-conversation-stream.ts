@@ -23,6 +23,28 @@ function nullableStrings(
 function number(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
 }
+/** Mirrors the persisted phase contract without importing the server schema runtime. */
+function phase(value: Record<string, unknown>): boolean {
+  if (value.status === 'Accepted' || value.status === 'Running') {
+    return value.reason === null && value.completedAt === null
+  }
+  if (typeof value.completedAt !== 'string') {
+    return false
+  }
+  const time = Date.parse(value.completedAt)
+  if (!Number.isFinite(time) || new Date(time).toISOString() !== value.completedAt) {
+    return false
+  }
+  if (value.status === 'Completed') {
+    return value.reason === null
+  }
+  return (
+    (value.status === 'Interrupted' || value.status === 'Stopped') &&
+    typeof value.reason === 'string' &&
+    value.reason.length > 0
+  )
+}
+
 function answer(value: unknown): value is ConversationAnswer {
   if (
     !record(value) ||
@@ -40,11 +62,7 @@ function answer(value: unknown): value is ConversationAnswer {
   ) {
     return false
   }
-  if (
-    !['Accepted', 'Running', 'Completed', 'Interrupted', 'Stopped'].includes(
-      String(value.status)
-    )
-  ) {
+  if (!phase(value)) {
     return false
   }
   if (

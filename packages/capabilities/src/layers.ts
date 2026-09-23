@@ -1,4 +1,8 @@
 import {
+  AssistantTaskEvidenceLayer,
+  type AssistantTaskEvidence
+} from './developer-platform/assistant-task-evidence.ts'
+import {
   type ConversationModel,
   selectConversationModelLayer
 } from '@b2b-saas-starter/ai/conversation'
@@ -188,6 +192,7 @@ import {
 
 export type CapabilityServices =
   | AssistantConversations
+  | AssistantTaskEvidence
   | AssistantAuthority
   | AssistantDirectory
   | AssistantAdmission
@@ -423,6 +428,7 @@ export function makeSeedCapabilitiesLayer(
   options: { readonly conversationModel?: Layer.Layer<ConversationModel> } = {}
 ): CapabilitiesLayer {
   const tasks = SeedWebhookInvestigationTasks.pipe(Layer.provide(SeedCore))
+  const evidence = AssistantTaskEvidenceLayer.pipe(Layer.provide(tasks))
   const conversations = Layer.unwrap(
     Effect.gen(function* () {
       const host = yield* makeSeedAssistantConversationHost()
@@ -436,6 +442,7 @@ export function makeSeedCapabilitiesLayer(
       Layer.mergeAll(
         SeedCore,
         tasks,
+        evidence,
         options.conversationModel ?? selectConversationModelLayer({})
       )
     )
@@ -454,6 +461,7 @@ export function makeSeedCapabilitiesLayer(
   return Layer.mergeAll(
     core,
     tasks,
+    evidence,
     exports,
     personalExports,
     NotificationEmailEligibilityLayer.pipe(Layer.provide(core))
@@ -598,6 +606,7 @@ export function makeLiveCapabilitiesLayer(
     Layer.provide(entitlements),
     Layer.provide(billing)
   )
+  const tasks = LiveWebhookInvestigationTasks.pipe(Layer.provide(webhooks))
   const conversationLifecycle = AssistantConversationLifecycleLayer(
     options.assistantLifecycle
   ).pipe(Layer.provide(directory))
@@ -615,7 +624,8 @@ export function makeLiveCapabilitiesLayer(
     ),
     LiveAssistantAdmission.pipe(Layer.provide(LiveAuditEventLog)),
     conversationLifecycle,
-    LiveWebhookInvestigationTasks.pipe(Layer.provide(webhooks)),
+    tasks,
+    AssistantTaskEvidenceLayer.pipe(Layer.provide(tasks)),
     LiveRetention,
     LiveEmailDelivery,
     LiveAccountLifecycle(options.accountLifecycleBinding, options.securityEvidence),

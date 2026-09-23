@@ -15,6 +15,7 @@ import {
 } from './assistant-conversation-admission.ts'
 import {
   activeConversationAttempt,
+  terminalConversationAttempt,
   ConversationNotFound,
   ConversationUnavailable,
   type ConversationAttempt
@@ -72,11 +73,15 @@ export const finishConversationAttempt = Effect.fn('AssistantConversation.finish
     reason: string | null,
     onCommitted?: () => void
   ) {
-    const terminal = {
-      ...attempt,
-      status,
-      reason,
-      completedAt: DateTime.formatIso(yield* DateTime.now)
+    const completedAt = DateTime.formatIso(yield* DateTime.now)
+    let terminal: ConversationAttempt
+    if (status === 'Completed') {
+      terminal = terminalConversationAttempt(attempt, { status, completedAt })
+    } else {
+      if (reason === null || reason.length === 0) {
+        return yield* new ConversationUnavailable({ reason: 'storage' })
+      }
+      terminal = terminalConversationAttempt(attempt, { status, reason, completedAt })
     }
     if (!(yield* ledger.update(terminal))) {
       return null
@@ -113,7 +118,12 @@ export const executeConversationAnswer = Effect.fn('AssistantConversation.execut
       reason: string | null
     ) => Effect.Effect<void, ConversationUnavailable | CapabilityUnavailable, R>
   }) {
-    let current: ConversationAttempt = { ...input.attempt, status: 'Running' }
+    let current: ConversationAttempt = {
+      ...input.attempt,
+      status: 'Running',
+      reason: null,
+      completedAt: null
+    }
     const check = authorizeConversation(
       input.conversationId,
       input.execution.credential,

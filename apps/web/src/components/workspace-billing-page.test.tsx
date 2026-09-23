@@ -71,6 +71,7 @@ function fixture(): WorkspaceBillingPayload {
     stripeConfigured: false,
     synchronization: { status: 'current', lastSyncedAt: null },
     lifecycle: {
+      access: { planId: 'team', paid: true, reason: 'active', endsAt: null },
       status: 'canceled',
       planId: 'starter',
       currentPeriodEnd: null,
@@ -479,7 +480,7 @@ const statuses: ReadonlyArray<{
     status: 'active',
     effectivePlan: 'team',
     cancelAtPeriodEnd: true,
-    expected: /Access continues until then/
+    expected: /Cancellation is scheduled for/
   }
 ]
 
@@ -492,6 +493,15 @@ it.each(statuses)(
       currentPlanId: scenario.effectivePlan,
       lifecycle: {
         ...data.lifecycle,
+        access: {
+          planId: scenario.effectivePlan,
+          paid: scenario.effectivePlan !== 'starter',
+          reason:
+            scenario.status === 'past_due' && scenario.effectivePlan === 'team'
+              ? 'grace'
+              : scenario.status,
+          endsAt: scenario.effectivePlan === 'team' ? '2026-09-02T00:00:00.000Z' : null
+        },
         status: scenario.status,
         planId: 'team',
         cancelAtPeriodEnd: scenario.cancelAtPeriodEnd ?? false,

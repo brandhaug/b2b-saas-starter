@@ -1,5 +1,10 @@
 import { DateTime } from 'effect'
-import { type SubscriptionState, type SubscriptionStatus } from './billing.ts'
+import {
+  type BillingAccessDecision,
+  type BillingLifecycle,
+  type SubscriptionState,
+  type SubscriptionStatus
+} from './billing.ts'
 import { PLANS, STARTER_PLAN } from './plan-catalog.ts'
 import {
   isCurrentSubscriptionStatus,
@@ -55,13 +60,17 @@ export function emptySubscription(customerId: string): SubscriptionState {
 }
 
 /** The sole access policy, evaluated both on synchronization and on every read. */
-export function effectivePlanDecision(state: SubscriptionState, now: string) {
+export function effectivePlanDecision(
+  state: SubscriptionState,
+  now: string
+): BillingAccessDecision {
   const time = Date.parse(now)
   function future(deadline: string | null) {
     return deadline !== null && Date.parse(deadline) > time
   }
   const periodEnded = state.cancelAtPeriodEnd && !future(state.currentPeriodEnd)
-  let reason: string = state.status
+  let reason: BillingAccessDecision['reason'] = state.status
+  let endsAt: string | null = null
   let paid = false
   if (!periodEnded) {
     if (state.status === 'active') {
@@ -69,6 +78,9 @@ export function effectivePlanDecision(state: SubscriptionState, now: string) {
     }
     if (state.status === 'trialing') {
       paid = future(state.trialEnd)
+      if (paid) {
+        endsAt = state.trialEnd
+      }
       if (!paid) {
         reason = 'trial_expired'
       }
@@ -84,13 +96,14 @@ export function effectivePlanDecision(state: SubscriptionState, now: string) {
     ) {
       paid = true
       reason = 'grace'
+      endsAt = state.graceEndsAt
     }
   }
   let planId = STARTER_PLAN.id
   if (paid) {
     planId = state.subscribedPlanId
   }
-  return { planId, paid, reason }
+  return { planId, paid, reason, endsAt }
 }
 
 /** Event fields never grant access: this receives only a verified provider snapshot. */
@@ -198,5 +211,31 @@ export function resolveBillingState(input: {
     lifecycleStatus: state.status,
     verified: true,
     subscription: state
+  }
+}
+
+/** A single subscription snapshot and clock reading own access and display. */
+export function billingLifecycle(
+  state: SubscriptionState | null,
+  fallbackPlanId: string,
+  now: string
+): BillingLifecycle {
+  let access: BillingAccessDecision = {
+    planId: fallbackPlanId,
+    paid: fallbackPlanId !== 'starter',
+    reason: 'active',
+    endsAt: null
+  }
+  if (state !== null) {
+    access = effectivePlanDecision(state, now)
+  }
+  return {
+    access,
+    status: state?.status ?? 'canceled',
+    planId: state?.subscribedPlanId ?? fallbackPlanId,
+    currentPeriodEnd: state?.currentPeriodEnd ?? null,
+    cancelAtPeriodEnd: state?.cancelAtPeriodEnd ?? false,
+    trialEnd: state?.trialEnd ?? null,
+    graceEndsAt: state?.graceEndsAt ?? null
   }
 }

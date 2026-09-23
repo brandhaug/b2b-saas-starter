@@ -1,10 +1,10 @@
 import { describe, expect, it } from '@effect/vitest'
-import { Effect } from 'effect'
+import { Effect, Schema } from 'effect'
 import {
   admitConversationOperation,
   conversationHistoryPage,
   canonicalConversationOperation,
-  type ConversationAttempt,
+  ConversationAttempt,
   type ConversationAcceptance
 } from './assistant-conversation.ts'
 
@@ -15,7 +15,7 @@ const attempt: ConversationAttempt = {
   deadline: 600_000,
   status: 'Interrupted',
   reason: 'provider',
-  completedAt: null,
+  completedAt: '2026-09-15T12:01:00.000Z',
   provider: null,
   modelId: null,
   providerRequestId: null,
@@ -44,7 +44,13 @@ describe('conversation admission', () => {
         const result = yield* admitConversationOperation({
           payloadHash: 'same',
           previous: { payloadHash: 'same', acceptance },
-          active: { ...attempt, id: 'another', status: 'Running' }
+          active: {
+            ...attempt,
+            id: 'another',
+            status: 'Running',
+            reason: null,
+            completedAt: null
+          }
         })
         expect(result?.attempt.id).toBe('answer')
         expect(result?.joined).toBe(true)
@@ -65,7 +71,7 @@ describe('conversation admission', () => {
       const result = yield* admitConversationOperation({
         payloadHash: 'new',
         previous: null,
-        active: { ...attempt, status: 'Running' }
+        active: { ...attempt, status: 'Running', reason: null, completedAt: null }
       }).pipe(Effect.flip)
       expect(result.reason).toBe('busy')
     })
@@ -112,7 +118,8 @@ describe('conversation history pages', () => {
       ...attempt,
       id: 'completed',
       questionId: 'question-30',
-      status: 'Completed' satisfies ConversationAttempt['status']
+      status: 'Completed' satisfies ConversationAttempt['status'],
+      reason: null
     }
   ]
   const input = {
@@ -153,5 +160,40 @@ describe('conversation history pages', () => {
       conversationHistoryPage({ ...input, full: true, cursor: 'missing' }).items
     ).toHaveLength(31)
     expect(conversationHistoryPage({ ...input, questions: [] }).items).toEqual([])
+  })
+})
+
+describe('persisted attempt phases', () => {
+  const decode = Schema.decodeUnknownSync(ConversationAttempt)
+
+  it.each([
+    { status: 'Accepted', reason: 'provider', completedAt: null },
+    { status: 'Running', reason: null, completedAt: '2026-09-15T12:01:00.000Z' },
+    { status: 'Completed', reason: null, completedAt: null },
+    { status: 'Completed', reason: null, completedAt: 'yesterday' },
+    {
+      status: 'Completed',
+      reason: 'provider',
+      completedAt: '2026-09-15T12:01:00.000Z'
+    },
+    { status: 'Interrupted', reason: 'provider', completedAt: null },
+    { status: 'Stopped', reason: null, completedAt: '2026-09-15T12:01:00.000Z' }
+  ])('refuses malformed $status records', (phase) => {
+    expect(() => decode({ ...attempt, ...phase })).toThrow(/Expected/)
+  })
+
+  it.each([
+    { status: 'Accepted', reason: null, completedAt: null },
+    { status: 'Running', reason: null, completedAt: null },
+    { status: 'Completed', reason: null, completedAt: '2026-09-15T12:01:00.000Z' },
+    {
+      status: 'Interrupted',
+      reason: 'provider',
+      completedAt: '2026-09-15T12:01:00.000Z'
+    },
+    { status: 'Stopped', reason: 'user', completedAt: '2026-09-15T12:01:00.000Z' }
+  ])('restores valid $status records without changing saved evidence', (phase) => {
+    const saved = { ...attempt, ...phase }
+    expect(decode(saved)).toEqual(saved)
   })
 })

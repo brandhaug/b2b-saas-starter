@@ -11,7 +11,7 @@ const answer: ConversationAnswer = {
   text: 'Saved partial',
   deadline: 100,
   reason: 'output_limit',
-  completedAt: null,
+  completedAt: '2026-09-15T10:01:00.000Z',
   provider: 'Workers AI',
   modelId: null,
   providerRequestId: null,
@@ -90,7 +90,14 @@ describe('saved conversation attempts', () => {
     const stop = vi.fn()
     render(
       <ConversationHistoryList
-        items={[{ question, attempts: [{ ...answer, status: 'Running' }] }]}
+        items={[
+          {
+            question,
+            attempts: [
+              { ...answer, status: 'Running', reason: null, completedAt: null }
+            ]
+          }
+        ]}
         configured={false}
         pending={false}
         taskIds={[]}

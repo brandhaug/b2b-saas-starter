@@ -1,3 +1,4 @@
+import { makeWebhookReplay } from './webhook-replay.ts'
 import { deliveryView, cutDeliveryViewPage } from './webhook-delivery-view.ts'
 import { deliveryViewQuery } from './webhook-delivery-view.live.ts'
 import { makeLiveAttemptHistory } from './webhook-attempt-history.live.ts'
@@ -29,9 +30,7 @@ import {
   activeSigningSecrets,
   DELIVERIES_PAGE_SIZE,
   deliverySuccessRate,
-  isReplayableDeliveryStatus,
   planPendingDispatch,
-  planReplayedDelivery,
   planSecretRotation,
   WEBHOOK_FAILURE_AUTO_DISABLE_AT,
   type PendingDispatchPlan
@@ -634,137 +633,56 @@ export const LiveWebhookEndpoints: Layer.Layer<
           return { deliveryId: replay.deliveryId }
         }
       ),
-      replayDelivery: (input) =>
-        Effect.gen(function* () {
-          const ctx = yield* WorkspaceContext
-          // Workspace-scoped join: a foreign delivery id matches no row and
-          // reads as not found, same as every other mutation here.
-          const rows = yield* unavailable(
-            db
-              .select({
-                id: webhookDeliveries.id,
-                endpointId: webhookDeliveries.endpointId,
-                eventType: webhookDeliveries.eventType,
-                status: webhookDeliveries.status,
-                payload: webhookDeliveries.payload,
-                enabled: webhookEndpoints.enabled,
-                endpointUrl: webhookEndpoints.url
-              })
-              .from(webhookDeliveries)
-              .innerJoin(
-                webhookEndpoints,
-                eq(webhookEndpoints.id, webhookDeliveries.endpointId)
+      replayDelivery: makeWebhookReplay(
+        {
+          source: (deliveryId, workspaceId) =>
+            Effect.gen(function* () {
+              const rows = yield* unavailable(
+                db
+                  .select({
+                    id: webhookDeliveries.id,
+                    endpointId: webhookDeliveries.endpointId,
+                    eventType: webhookDeliveries.eventType,
+                    status: webhookDeliveries.status,
+                    payload: webhookDeliveries.payload,
+                    enabled: webhookEndpoints.enabled,
+                    endpointUrl: webhookEndpoints.url
+                  })
+                  .from(webhookDeliveries)
+                  .innerJoin(
+                    webhookEndpoints,
+                    eq(webhookEndpoints.id, webhookDeliveries.endpointId)
+                  )
+                  .where(
+                    and(
+                      eq(webhookDeliveries.id, deliveryId),
+                      eq(webhookEndpoints.workspaceId, workspaceId)
+                    )
+                  )
+                  .limit(1)
               )
-              .where(
-                and(
-                  eq(webhookDeliveries.id, input.deliveryId),
-                  eq(webhookEndpoints.workspaceId, ctx.workspace.id)
-                )
-              )
-              .limit(1)
-          )
-          const source = rows[0]
-          if (!source) {
-            return yield* Effect.fail(
-              new WebhookDeliveryNotFound({ deliveryId: input.deliveryId })
-            )
-          }
-          if (
-            input.expectedEndpointUrl !== undefined &&
-            source.endpointUrl !== input.expectedEndpointUrl
-          ) {
-            return yield* Effect.fail(
-              new WebhookDispatchRejected({
-                reason: 'endpoint changed since investigation'
-              })
-            )
-          }
-          if (
-            input.expectedStatus !== undefined &&
-            source.status !== input.expectedStatus
-          ) {
-            return yield* Effect.fail(
-              new WebhookDispatchRejected({
-                reason: 'delivery status changed since investigation'
-              })
-            )
-          }
-          if (!isReplayableDeliveryStatus(source.status)) {
-            return yield* Effect.fail(
-              new WebhookDispatchRejected({
-                reason: `delivery is ${source.status}, only failed deliveries replay`
-              })
-            )
-          }
-          if (!source.enabled) {
-            return yield* Effect.fail(
-              new WebhookDispatchRejected({ reason: 'endpoint is disabled' })
-            )
-          }
-          const deliveryId = input.replayDeliveryId ?? (yield* newCapabilityId('whd'))
-          const payload = source.payload
-          yield* recordOperatorDispatch({
-            deliveryId,
-            workspaceId: ctx.workspace.id,
-            approvedEndpointUrl: input.expectedEndpointUrl,
-            plan: planReplayedDelivery({
-              id: source.id,
-              endpointId: source.endpointId,
-              eventType: source.eventType,
-              payload
+              return rows[0] ?? null
             }),
-            auditEvent: {
-              workspaceId: ctx.workspace.id,
-              actorUserId: ctx.actor?.userId ?? null,
-              actorType: ctx.actorType,
-              eventType: 'webhook.delivery_replayed',
-              targetType: 'webhook_endpoint',
-              targetId: source.endpointId,
-              metadata: {
-                deliveryId,
-                replayedFrom: source.id,
-                eventType: source.eventType
-              }
-            }
-          })
-          const reserved = yield* unavailable(
-            db
-              .select({
-                endpointId: webhookDeliveries.endpointId,
-                replayedFrom: webhookDeliveries.replayedFrom,
-                approvedEndpointUrl: webhookDeliveries.approvedEndpointUrl,
-                status: webhookDeliveries.status
-              })
-              .from(webhookDeliveries)
-              .where(eq(webhookDeliveries.id, deliveryId))
-              .limit(1)
-          )
-          const replay = reserved[0]
-          if (
-            !replay ||
-            replay.endpointId !== source.endpointId ||
-            replay.replayedFrom !== source.id ||
-            replay.approvedEndpointUrl !== (input.expectedEndpointUrl ?? null)
-          ) {
-            return yield* new WebhookDispatchRejected({
-              reason: 'replay identity does not match the approved delivery'
+          reserve: (input) =>
+            Effect.gen(function* () {
+              yield* recordOperatorDispatch(input)
+              const rows = yield* unavailable(
+                db
+                  .select({
+                    endpointId: webhookDeliveries.endpointId,
+                    replayedFrom: webhookDeliveries.replayedFrom,
+                    approvedEndpointUrl: webhookDeliveries.approvedEndpointUrl,
+                    status: webhookDeliveries.status
+                  })
+                  .from(webhookDeliveries)
+                  .where(eq(webhookDeliveries.id, input.deliveryId))
+                  .limit(1)
+              )
+              return rows[0] ?? null
             })
-          }
-          if (replay.status !== 'pending') {
-            return { deliveryId }
-          }
-          // The enqueue rides after the row: a queue outage fails the replay
-          // visibly (`CapabilityUnavailable`) instead of leaving the operator
-          // believing it was sent. The pending row stays until they retry.
-          yield* publisher.enqueue({
-            endpointId: source.endpointId,
-            workspaceId: ctx.workspace.id,
-            eventType: source.eventType,
-            deliveryId,
-            payload
-          })
-          return { deliveryId }
-        }),
+        },
+        publisher
+      ),
       sendTestEvent: (input) =>
         Effect.gen(function* () {
           const ctx = yield* WorkspaceContext

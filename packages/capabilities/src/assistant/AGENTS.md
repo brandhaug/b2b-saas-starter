@@ -14,6 +14,8 @@ The directory owns immutable conversation addresses and content policy revisions
 - Execution policy belongs in `developer-platform/assistant-conversation-execution.ts`: current authority, metadata, deadline and failure outcomes, terminal writes and quota release. Host adapters supply ledger operations, event delivery and output persistence; SQLite also owns SDK recovery and sockets. Finalization persists partial output before terminal completion and preserves an already committed Stop or interruption.
 - SSE changes belong in `developer-platform/assistant-conversation-events.ts`. Seed and SQLite share replay IDs, suffix events, snapshot fallback and terminal refusal output.
 
+- Native conversation hosts use `runtime.ts` for directory, admission, current authority and task evidence. A missing D1 binding is a configuration refusal. The full reference application keeps `layers.ts`; its task evidence adapter shares the task instance used by mutations. Host evidence reads scope both the task and replay endpoint to the current Workspace, and use the same outcome and sanitization rules as that adapter.
+
 ## Verification
 
 The shared directory and lifecycle contracts run against Seed and migrated local D1. The observation contract runs against Seed and the native host. Keep concurrent admission, deadline expiry, policy races, export invalidation, identity-owned deletion and failed cleanup cases equivalent. Seed membership and suspension use the same directory instance as the conversation services.

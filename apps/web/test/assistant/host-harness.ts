@@ -12,11 +12,22 @@ import {
   Response as MiniflareResponse
 } from 'miniflare'
 import { Effect, Schema, Schedule } from 'effect'
+import { PreparedConversationPrompt } from '@b2b-saas-starter/ai/conversation-context'
 import { ConversationPage } from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversation'
 import { AssistantReservation } from '@b2b-saas-starter/capabilities/assistant/admission'
 import { listMigrations } from '../../../../packages/db/src/migrations-fs.ts'
 
 const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Json))
+const decodeProbe = Schema.decodeUnknownEffect(
+  Schema.Struct({
+    page: ConversationPage,
+    prepared: PreparedConversationPrompt,
+    reference: PreparedConversationPrompt,
+    historyDecoded: Schema.Number,
+    hydratedMessages: Schema.Number,
+    promptDecoded: Schema.Number
+  })
+)
 const decodeHistory = Schema.decodeUnknownEffect(ConversationPage)
 const decodeReservations = Schema.decodeUnknownEffect(
   Schema.Array(AssistantReservation)
@@ -161,8 +172,19 @@ export const provisionConversationHost = Effect.fn('ConversationHostTest.provisi
         )
       )
     })
-    const history = Effect.fn('ConversationHostTest.history')(function* (id: string) {
-      const response = yield* request(id, 'history')
+    const history = Effect.fn('ConversationHostTest.history')(function* (
+      id: string,
+      cursor: string | null = null,
+      full = false
+    ) {
+      let action = 'history'
+      if (full) {
+        action = 'export'
+      }
+      if (cursor !== null) {
+        action += `?cursor=${encodeURIComponent(cursor)}`
+      }
+      const response = yield* request(id, action)
       if (!response.ok) {
         return yield* Effect.die(
           `History ${response.status}: ${yield* Effect.promise(() => response.text())}`
@@ -277,7 +299,14 @@ export const provisionConversationHost = Effect.fn('ConversationHostTest.provisi
       }),
       Effect.timeout('5 seconds')
     )
+    const transcriptProbe = Effect.fn('ConversationHostTest.transcriptProbe')(
+      function* (id: string) {
+        const response = yield* request(id, 'transcript-read-probe')
+        return yield* decodeProbe(yield* Effect.promise(() => response.json()))
+      }
+    )
     return {
+      transcriptProbe,
       waitForRelease,
       waitForPersistedText,
       create,

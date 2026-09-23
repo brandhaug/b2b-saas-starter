@@ -39,6 +39,11 @@ records or persist simulated changes. See the [showcase decision](docs/adr/0016-
 
 Stripe owns the verified subscription and price; application membership determines Seat Quantity. D1 retains subscription, payment, cancellation, and synchronization evidence. Access uses the Effective Plan evaluated at request time, so stale stored state cannot extend paid access during an outage.
 
+Billing exposes the access reason and deadline alongside provider status. The page
+uses that decision and its Effective Plan from one evaluation; provider status
+alone cannot distinguish renewal grace from current paid access. Scheduled
+cancellation remains separate evidence.
+
 Previously paying subscriptions get a fixed seven-day renewal grace period. An unconverted trial expires without grace; unpaid or canceled subscriptions end paid access sooner. Recovery restores subscribed entitlements without lifting independent administrative suspension.
 
 When the effective plan is Starter, members and stored resources remain. The
@@ -64,7 +69,11 @@ binding; member-OAuth REST and background cleanup use the same stage's host.
 Effect owns context preparation, streaming model execution and typed interruption.
 Capabilities owns the shared answer workflow, authorization, terminal transitions,
 and SSE replay protocol used by both Seed and the native host. The native host
-adapts SDK message persistence, sockets, and durable recovery scheduling.
+adapts SDK message persistence, sockets, and durable recovery scheduling. A single
+protocol adapter contains SDK lifecycle interception. Retaining SDK persistence
+and replay avoids replacing tested recovery behavior; authority checks remain
+application-owned at every entry and disclosure. The host composes only directory,
+admission, authority, read-only task evidence, and audit services.
 
 D1 holds the directory, immutable identities, monotonic evidence permissions and
 policy revision, export manifests, deletion fences and shared Member reservations.
@@ -73,6 +82,10 @@ Acceptance reserves shared quota, saves input, then commits before provider work
 One answer runs per conversation; duplicate deliveries join its accepted attempt.
 Provider or process interruption requires explicit Retry, with saved partial output.
 The latest displayed, unflushed tail may be lost. Reconnect never invokes a provider.
+History selects a bounded question page in storage and reads durable answer text
+by attempt ID. Context loads completed exchanges newest-first until its budget is
+filled; only explicit exports load the complete transcript. Stored attempt phases
+require terminal completion facts and reject those facts on active attempts.
 
 Current ownership, membership, permissions, assurance, consent and suspension apply
 to every snapshot and stream batch. Policy revisions prevent older authorization

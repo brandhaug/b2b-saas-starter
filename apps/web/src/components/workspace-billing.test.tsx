@@ -1,3 +1,7 @@
+import {
+  effectivePlanDecision,
+  emptySubscription
+} from '@b2b-saas-starter/billing/billing-state'
 import { type BillingSynchronizationStatus } from '@b2b-saas-starter/billing/billing'
 import { fireEvent, screen } from '@testing-library/react'
 import { useState } from 'react'
@@ -70,6 +74,8 @@ async function renderPlans(options?: {
     | 'unpaid'
     | 'paused'
     | 'canceled'
+  readonly now?: string
+  readonly trialEnd?: string | null
   readonly graceEndsAt?: string | null
   readonly subscribedPlanId?: string
   readonly selectResources?: SelectBillingResources
@@ -92,6 +98,22 @@ async function renderPlans(options?: {
       plans={options?.plans ?? PLANS}
       pricingUnavailable={options?.pricingUnavailable ?? false}
       lifecycle={{
+        access: effectivePlanDecision(
+          {
+            ...emptySubscription('cus_test'),
+            subscribedPlanId:
+              options?.subscribedPlanId ?? options?.currentPlanId ?? 'team',
+            status: options?.lifecycleStatus ?? 'active',
+            paymentVerified:
+              (options?.currentPlanId ?? 'team') !== 'starter' && !options?.graceEndsAt,
+            lastPaymentAt: '2026-01-01T00:00:00.000Z',
+            graceEndsAt: options?.graceEndsAt ?? null,
+            trialEnd: options?.trialEnd ?? null,
+            cancelAtPeriodEnd: options?.cancelAtPeriodEnd ?? false,
+            currentPeriodEnd: options?.currentPeriodEnd ?? null
+          },
+          options?.now ?? '2026-09-23T00:00:00.000Z'
+        ),
         status: options?.lifecycleStatus ?? 'active',
         planId: options?.subscribedPlanId ?? options?.currentPlanId ?? 'team',
         currentPeriodEnd: options?.currentPeriodEnd ?? null,
@@ -153,6 +175,12 @@ function PollingBillingPlans() {
         plans={PLANS}
         pricingUnavailable={false}
         lifecycle={{
+          access: {
+            planId: 'starter',
+            paid: false,
+            reason: 'incomplete',
+            endsAt: null
+          },
           status: 'incomplete',
           planId: 'starter',
           currentPeriodEnd: null,
@@ -392,6 +420,48 @@ describe('BillingPlans', () => {
         .getByRole('checkbox', { name: 'Second token' })
         .getAttribute('aria-checked')
     ).toBe('true')
+  })
+
+  it('shows active-status renewal grace alongside scheduled cancellation', async () => {
+    await renderPlans({
+      lifecycleStatus: 'active',
+      graceEndsAt: '2027-01-31T00:00:00.000Z',
+      cancelAtPeriodEnd: true,
+      currentPeriodEnd: '2027-02-01T00:00:00.000Z'
+    })
+    expect(screen.getByText(/Paid access remains available until/)).not.toBeNull()
+    expect(screen.getByText(/cancel/i, { selector: 'output' })).not.toBeNull()
+  })
+
+  it.each([
+    {
+      name: 'active grace at its deadline',
+      lifecycleStatus: 'active',
+      graceEndsAt: '2026-09-23T00:00:00.000Z',
+      trialEnd: null
+    },
+    {
+      name: 'trial at its deadline',
+      lifecycleStatus: 'trialing',
+      graceEndsAt: null,
+      trialEnd: '2026-09-23T00:00:00.000Z'
+    }
+  ] satisfies ReadonlyArray<{
+    name: string
+    lifecycleStatus: 'active' | 'trialing'
+    graceEndsAt: string | null
+    trialEnd: string | null
+  }>)('shows restricted access for $name', async (scenario) => {
+    await renderPlans({
+      ...scenario,
+      currentPlanId: 'starter',
+      subscribedPlanId: 'team'
+    })
+    expect(
+      screen.getByText(/Paid access is unavailable for this subscription/)
+    ).not.toBeNull()
+    expect(screen.queryByText(/Paid access remains available until/)).toBeNull()
+    expect(screen.queryByText(/This verified trial ends/)).toBeNull()
   })
 
   it('prioritizes ended unpaid access over a retained grace deadline', async () => {

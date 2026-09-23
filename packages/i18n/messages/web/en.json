@@ -232,7 +232,7 @@
   "billing_access_restricted": "Paid access is unavailable for this subscription.",
   "billing_payment_unpaid": "Stripe marked this subscription unpaid. Paid access is restricted until payment recovers.",
   "billing_trial": "This verified trial ends {date}. If it does not convert, the workspace returns to Starter without renewal grace.",
-  "billing_cancel_at_period_end": "Cancellation is scheduled for {date}. Access continues until then and can be restored in the Billing Portal.",
+  "billing_cancel_at_period_end": "Cancellation is scheduled for {date}. Manage the subscription in the Billing Portal.",
   "billing_restricted_contact_admin": "Some workspace features are restricted by billing. Contact an owner or admin for help.",
   "billing_resource_selection_title": "Choose resources to keep active",
   "billing_resource_selection_description": "Downgrading keeps all data and members. Select up to two API tokens and one webhook endpoint to remain active on Starter.",

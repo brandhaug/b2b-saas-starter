@@ -1,13 +1,6 @@
-import { Effect, Schema } from 'effect'
+import { DateTime, Effect, Schema } from 'effect'
 
-export const ConversationStatus = Schema.Literals([
-  'Accepted',
-  'Running',
-  'Completed',
-  'Interrupted',
-  'Stopped'
-])
-export type ConversationStatus = typeof ConversationStatus.Type
+export type ConversationStatus = ConversationAttempt['status']
 
 export const ConversationQuestion = Schema.Struct({
   id: Schema.String,
@@ -17,14 +10,11 @@ export const ConversationQuestion = Schema.Struct({
 })
 export type ConversationQuestion = typeof ConversationQuestion.Type
 
-export const ConversationAttempt = Schema.Struct({
+const attemptFields = {
   id: Schema.String,
   questionId: Schema.String,
   createdAt: Schema.String,
   deadline: Schema.Number,
-  status: ConversationStatus,
-  reason: Schema.NullOr(Schema.String),
-  completedAt: Schema.NullOr(Schema.String),
   provider: Schema.NullOr(Schema.String),
   modelId: Schema.NullOr(Schema.String),
   providerRequestId: Schema.NullOr(Schema.String),
@@ -40,13 +30,65 @@ export const ConversationAttempt = Schema.Struct({
       text: Schema.String
     })
   )
-})
+}
+const completionTimestamp = Schema.String.check(
+  Schema.makeFilter(
+    (value) => {
+      const time = Date.parse(value)
+      return (
+        Number.isFinite(time) && DateTime.formatIso(DateTime.makeUnsafe(time)) === value
+      )
+    },
+    { message: 'Expected a valid conversation completion timestamp' }
+  )
+)
+
+const activePhase = {
+  status: Schema.Literals(['Accepted', 'Running']),
+  reason: Schema.Null,
+  completedAt: Schema.Null
+}
+const completedPhase = {
+  status: Schema.Literal('Completed'),
+  reason: Schema.Null,
+  completedAt: completionTimestamp
+}
+const interruptedPhase = {
+  status: Schema.Literals(['Interrupted', 'Stopped']),
+  reason: Schema.String.check(Schema.isMinLength(1)),
+  completedAt: completionTimestamp
+}
+
+/** Persisted and disclosed attempts carry only fields valid for their phase. */
+export const ConversationAttempt = Schema.Union([
+  Schema.Struct({ ...attemptFields, ...activePhase }),
+  Schema.Struct({ ...attemptFields, ...completedPhase }),
+  Schema.Struct({ ...attemptFields, ...interruptedPhase })
+])
 export type ConversationAttempt = typeof ConversationAttempt.Type
 
-export const ConversationAnswer = Schema.Struct({
-  ...ConversationAttempt.fields,
-  text: Schema.String
-})
+/** Terminal facts are supplied by execution; restoration never invents them. */
+export function terminalConversationAttempt(
+  attempt: ConversationAttempt,
+  phase:
+    | { readonly status: 'Completed'; readonly completedAt: string }
+    | {
+        readonly status: 'Interrupted' | 'Stopped'
+        readonly completedAt: string
+        readonly reason: string
+      }
+): ConversationAttempt {
+  if (phase.status === 'Completed') {
+    return { ...attempt, ...phase, reason: null }
+  }
+  return { ...attempt, ...phase }
+}
+
+export const ConversationAnswer = Schema.Union([
+  Schema.Struct({ ...attemptFields, ...activePhase, text: Schema.String }),
+  Schema.Struct({ ...attemptFields, ...completedPhase, text: Schema.String }),
+  Schema.Struct({ ...attemptFields, ...interruptedPhase, text: Schema.String })
+])
 export type ConversationAnswer = typeof ConversationAnswer.Type
 
 export const ConversationExchange = Schema.Struct({

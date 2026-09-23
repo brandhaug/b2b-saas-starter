@@ -232,7 +232,7 @@
   "billing_access_restricted": "Betalt tilgang er ikke tilgjengelig for dette abonnementet.",
   "billing_payment_unpaid": "Stripe har markert dette abonnementet som ubetalt. Betalt tilgang er begrenset til betalingen er gjenopprettet.",
   "billing_trial": "Denne bekreftede prøveperioden slutter {date}. Hvis den ikke konverteres, går arbeidsområdet tilbake til Starter uten gjenopprettingsperiode.",
-  "billing_cancel_at_period_end": "Oppsigelsen gjelder fra {date}. Tilgangen fortsetter fram til da og kan gjenopprettes i faktureringsportalen.",
+  "billing_cancel_at_period_end": "Oppsigelsen gjelder fra {date}. Administrer abonnementet i faktureringsportalen.",
   "billing_restricted_contact_admin": "Noen funksjoner i arbeidsområdet er begrenset av faktureringen. Kontakt en eier eller administrator for hjelp.",
   "billing_resource_selection_title": "Velg ressurser som skal forbli aktive",
   "billing_resource_selection_description": "Nedgraderingen beholder alle data og medlemmer. Velg opptil to API-tokener og ett webhook-endepunkt som skal forbli aktive på Starter.",

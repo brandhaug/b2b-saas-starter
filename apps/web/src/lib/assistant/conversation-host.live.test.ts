@@ -907,3 +907,58 @@ for (const change of [
     120_000
   )
 }
+
+it.live(
+  'pages SQLite transcript rows and preserves durable text beyond the SDK hydration window',
+  () =>
+    Effect.gen(function* () {
+      const host = yield* provisionConversationHost(true)
+      yield* host.create('large-transcript')
+      expect(
+        (yield* host.request('large-transcript', 'seed-transcript', {
+          conversationId: 'large-transcript'
+        })).status
+      ).toBe(204)
+      yield* host.restart()
+      const newest = yield* host.history('large-transcript')
+      expect(newest.items).toHaveLength(30)
+      expect(newest.items[0]?.question.id).toBe('q-070')
+      expect(newest.items.at(-1)?.question.id).toBe('q-099')
+      expect(newest.nextCursor).toBe('q-070')
+      expect(newest.items[0]?.attempts[0]?.text).toBe('Answer '.repeat(100))
+      expect(
+        newest.items
+          .find((item) => item.question.id === 'q-090')
+          ?.attempts.map((attempt) => [attempt.status, attempt.text])
+      ).toEqual([
+        ['Interrupted', 'Saved incomplete answer'],
+        ['Completed', 'Answer '.repeat(100)]
+      ])
+      const older = yield* host.history('large-transcript', newest.nextCursor)
+      expect(older.items).toHaveLength(30)
+      expect(older.items[0]?.question.id).toBe('q-040')
+      expect(older.items.at(-1)?.question.id).toBe('q-069')
+      expect(older.nextCursor).toBe('q-040')
+      expect((yield* host.history('large-transcript', 'unknown-cursor')).items).toEqual(
+        []
+      )
+      const exported = yield* host.history('large-transcript', null, true)
+      expect(exported.items).toHaveLength(100)
+      expect(exported.nextCursor).toBeNull()
+      expect(exported.items[0]?.question.id).toBe('q-000')
+      expect(exported.items[0]?.attempts[0]?.text).toBe('Answer '.repeat(100))
+      const probe = yield* host.transcriptProbe('large-transcript')
+      expect(probe.page.items).toEqual(newest.items)
+      expect(probe.hydratedMessages).toBeLessThan(10)
+      expect(probe.historyDecoded).toBe(62)
+      expect(probe.promptDecoded).toBeLessThanOrEqual(33)
+      expect(probe.prepared).toEqual(probe.reference)
+      expect(probe.prepared.omittedExchanges).toBeGreaterThan(90)
+      expect(host.requests).toHaveLength(0)
+      expect(
+        (yield* host.request('large-transcript', 'corrupt-terminal-attempt')).status
+      ).toBe(204)
+      expect((yield* host.request('large-transcript', 'history')).status).toBe(503)
+    }).pipe(Effect.scoped),
+  120_000
+)

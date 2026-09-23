@@ -109,6 +109,22 @@ export type InvestigationTaskStore = {
   ) => Effect.Effect<boolean, CapabilityUnavailable, WorkspaceContext>
 }
 
+/** A replay's current delivery status is the authority for its task outcome. */
+export function investigationReplayOutcome(
+  status: string | null
+): WebhookInvestigationTask['outcome'] {
+  if (status === null) {
+    return 'unavailable'
+  }
+  if (status === 'delivered') {
+    return 'delivered'
+  }
+  if (status === 'pending' || status === 'failed') {
+    return 'pending'
+  }
+  return 'failed'
+}
+
 export function makeInvestigationTasks(store: InvestigationTaskStore) {
   return Effect.gen(function* () {
     const webhooks = yield* WebhookEndpoints
@@ -144,15 +160,7 @@ export function makeInvestigationTasks(store: InvestigationTaskStore) {
       const result = yield* webhooks
         .inspectDelivery({ deliveryId: task.replayDeliveryId })
         .pipe(
-          Effect.map(({ delivery }): WebhookInvestigationTask['outcome'] => {
-            if (delivery.status === 'delivered') {
-              return 'delivered'
-            }
-            if (delivery.status === 'pending' || delivery.status === 'failed') {
-              return 'pending'
-            }
-            return 'failed'
-          }),
+          Effect.map(({ delivery }) => investigationReplayOutcome(delivery.status)),
           Effect.catchTag('WebhookDeliveryNotFound', () =>
             Effect.succeed<WebhookInvestigationTask['outcome']>('unavailable')
           )

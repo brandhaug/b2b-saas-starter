@@ -16,7 +16,7 @@ import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 
 import { billableSeatQuantity, planById, PLANS } from './plan-catalog.ts'
 import {
-  effectivePlanDecision,
+  billingLifecycle,
   emptySubscription,
   resolveBillingState,
   type PaymentEvidence
@@ -440,20 +440,23 @@ export function SeedBilling(options?: {
         )
       })
 
-      const currentPlanForWorkspace = Effect.fn('Billing.currentPlanForWorkspace')(
+      const lifecycleForWorkspace = Effect.fn('Billing.lifecycleForWorkspace')(
         function* (workspaceId: string) {
           const current =
             (yield* Ref.get(planOverrides)).get(workspaceId) ??
             workspacePlans[workspaceId] ??
             'starter'
           const subscription = (yield* Ref.get(subscriptions)).get(workspaceId)
-          if (subscription === undefined) {
-            return planById(current)
-          }
-          return planById(
-            effectivePlanDecision(subscription, DateTime.formatIso(yield* DateTime.now))
-              .planId
+          return billingLifecycle(
+            subscription ?? null,
+            current,
+            DateTime.formatIso(yield* DateTime.now)
           )
+        }
+      )
+      const currentPlanForWorkspace = Effect.fn('Billing.currentPlanForWorkspace')(
+        function* (workspaceId: string) {
+          return planById((yield* lifecycleForWorkspace(workspaceId)).access.planId)
         }
       )
       const processProviderEvent = Effect.fn('Billing.processProviderEvent')(function* (
@@ -555,17 +558,7 @@ export function SeedBilling(options?: {
           return yield* currentPlanForWorkspace(ctx.workspace.id)
         })(),
         lifecycleStatus: Effect.fn('Billing.lifecycleStatus')(function* () {
-          const row = (yield* Ref.get(subscriptions)).get(
-            (yield* WorkspaceContext).workspace.id
-          )
-          return {
-            status: row?.status ?? 'canceled',
-            planId: row?.subscribedPlanId ?? 'starter',
-            currentPeriodEnd: row?.currentPeriodEnd ?? null,
-            cancelAtPeriodEnd: row?.cancelAtPeriodEnd ?? false,
-            trialEnd: row?.trialEnd ?? null,
-            graceEndsAt: row?.graceEndsAt ?? null
-          }
+          return yield* lifecycleForWorkspace((yield* WorkspaceContext).workspace.id)
         })(),
         displayedPlans: Effect.forEach(PLANS, (plan) =>
           Effect.succeed({ ...plan, providerPrice: plan.price })

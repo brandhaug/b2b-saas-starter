@@ -1,5 +1,5 @@
 import { expect, it } from '@effect/vitest'
-import { Effect, Stream } from 'effect'
+import { DateTime, Effect, Stream } from 'effect'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type AssistantCredentialReference } from '@b2b-saas-starter/authz/assistant-access-token'
 import {
@@ -111,7 +111,7 @@ const setup = Effect.fn('ConversationAdmissionTest.setup')(function* (
         operation,
         ledger,
         executionBusy,
-        savedText: (id) => store.texts.get(id) ?? '',
+        savedText: (id) => Effect.sync(() => store.texts.get(id) ?? ''),
         limits: {
           deadlineMs: 300_000,
           activeLimit: options.activeLimit ?? 3,
@@ -191,6 +191,7 @@ it.effect(
       yield* host.store.ledger.update({
         ...failed.attempt,
         status: 'Interrupted',
+        completedAt: DateTime.formatIso(yield* DateTime.now),
         reason: 'provider'
       })
       host.store.texts.set(failed.attempt.id, 'Partial failed answer')
@@ -208,7 +209,12 @@ it.effect(
           reason: 'provider'
         }
       ])
-      yield* host.store.ledger.update({ ...retry.attempt, status: 'Completed' })
+      yield* host.store.ledger.update({
+        ...retry.attempt,
+        status: 'Completed',
+        reason: null,
+        completedAt: DateTime.formatIso(yield* DateTime.now)
+      })
       host.store.texts.set(retry.attempt.id, 'Successful answer')
       yield* host.admission.release(retry.attempt.id)
       yield* host.accept({ question: 'Follow up', idempotencyKey: 'follow-up' })
@@ -242,6 +248,7 @@ it.effect(
         yield* host.store.ledger.update({
           ...accepted.attempt,
           status,
+          completedAt: DateTime.formatIso(yield* DateTime.now),
           reason,
           evidence: {
             taskId: 'private-task',
@@ -281,6 +288,7 @@ it.effect(
       yield* host.store.ledger.update({
         ...first.attempt,
         status: 'Interrupted',
+        completedAt: DateTime.formatIso(yield* DateTime.now),
         reason: 'output_limit'
       })
       yield* host.admission.release(first.attempt.id)
@@ -362,7 +370,12 @@ it.effect(
       const policy = yield* (yield* AssistantDirectory).get(host.row.id)
       expect(policy?.requiredPermissions).toContain('webhook:list')
       expect(policy?.policyRevision).toBeGreaterThan(0)
-      yield* host.store.ledger.update({ ...accepted.attempt, status: 'Completed' })
+      yield* host.store.ledger.update({
+        ...accepted.attempt,
+        status: 'Completed',
+        reason: null,
+        completedAt: DateTime.formatIso(yield* DateTime.now)
+      })
       host.store.texts.set(accepted.attempt.id, 'Task explanation')
       yield* host.admission.release(accepted.attempt.id)
       yield* host.accept({ question: 'What changed?', idempotencyKey: 'follow-up' })
@@ -384,7 +397,12 @@ it.effect(
     Effect.gen(function* () {
       const host = yield* setup({ rateLimit: 1 })
       const first = yield* host.accept({ question: 'Hello', idempotencyKey: 'first' })
-      yield* host.store.ledger.update({ ...first.attempt, status: 'Completed' })
+      yield* host.store.ledger.update({
+        ...first.attempt,
+        status: 'Completed',
+        reason: null,
+        completedAt: DateTime.formatIso(yield* DateTime.now)
+      })
       yield* host.admission.release(first.attempt.id)
       expect(
         yield* host
@@ -430,9 +448,19 @@ it.effect(
           .pipe(Effect.flip))._tag
       ).toBe('ConversationUnavailable')
       expect(yield* host.store.ledger.questions()).toHaveLength(1)
-      yield* host.store.ledger.update({ ...accepted.attempt, status: 'Stopped' })
+      yield* host.store.ledger.update({
+        ...accepted.attempt,
+        status: 'Stopped',
+        reason: 'stopped',
+        completedAt: DateTime.formatIso(yield* DateTime.now)
+      })
       expect(
-        yield* host.store.ledger.update({ ...accepted.attempt, status: 'Completed' })
+        yield* host.store.ledger.update({
+          ...accepted.attempt,
+          status: 'Completed',
+          reason: null,
+          completedAt: DateTime.formatIso(yield* DateTime.now)
+        })
       ).toBe(false)
       expect(
         yield* host.store.ledger.update({ ...accepted.attempt, id: 'absent' })
@@ -458,7 +486,12 @@ it.effect(
         question: 'Saved question',
         idempotencyKey: 'original'
       })
-      yield* fixture.store.ledger.update({ ...accepted.attempt, status: 'Interrupted' })
+      yield* fixture.store.ledger.update({
+        ...accepted.attempt,
+        status: 'Interrupted',
+        reason: 'provider',
+        completedAt: DateTime.formatIso(yield* DateTime.now)
+      })
       yield* fixture.admission.release(accepted.attempt.id)
       const before = fixture.calls.length
       const missingQuestion = {

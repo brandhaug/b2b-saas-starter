@@ -192,12 +192,12 @@ export function LiveWorkspaceMembership(
             return yield* Effect.fail(new MembershipChangeRejected({ reason: refusal }))
           }
           const memberId = yield* resolveMemberId(ctx.workspace.id, input.userId)
-          yield* callBinding(binding, (bound) =>
-            bound.removeMember({ workspaceId: ctx.workspace.id, memberId })
-          )
           yield* conversations.invalidateAccess(
             { workspaceId: ctx.workspace.id, creatorUserId: input.userId },
             { interruptRuns: true }
+          )
+          yield* callBinding(binding, (bound) =>
+            bound.removeMember({ workspaceId: ctx.workspace.id, memberId })
           )
           yield* recordSecurityEvidence(
             {
@@ -251,12 +251,12 @@ export function LiveWorkspaceMembership(
           }
           // The plugin's leave endpoint resolves the member from the session,
           // so no row id is resolved here — the session IS the address.
-          yield* callBinding(binding, (bound) =>
-            bound.leave({ workspaceId: ctx.workspace.id })
-          )
           yield* conversations.invalidateAccess(
             { workspaceId: ctx.workspace.id, creatorUserId: actor.userId },
             { interruptRuns: true }
+          )
+          yield* callBinding(binding, (bound) =>
+            bound.leave({ workspaceId: ctx.workspace.id })
           )
           yield* recordSecurityEvidence(
             {
@@ -303,18 +303,16 @@ export function LiveWorkspaceMembership(
             return yield* readMember(ctx.workspace.id, input.userId)
           }
           const memberId = yield* resolveMemberId(ctx.workspace.id, input.userId)
+          yield* conversations.invalidateAccess(
+            { workspaceId: ctx.workspace.id, creatorUserId: input.userId },
+            { interruptRuns: true }
+          )
           yield* callBinding(binding, (bound) =>
             bound.changeRole({
               workspaceId: ctx.workspace.id,
               memberId,
               role: input.role
             })
-          )
-          // A restored role may carry more authority than this change left in
-          // place. Conservatively remove the restored membership for review.
-          yield* conversations.invalidateAccess(
-            { workspaceId: ctx.workspace.id, creatorUserId: input.userId },
-            { interruptRuns: true }
           )
           yield* recordSecurityEvidence(
             {

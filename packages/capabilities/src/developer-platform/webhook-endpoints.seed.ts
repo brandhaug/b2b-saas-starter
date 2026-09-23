@@ -1,3 +1,4 @@
+import { makeWebhookReplay } from './webhook-replay.ts'
 import { seedDeliveryViewPage } from './webhook-delivery-view.ts'
 import { seedOperatorDispatch } from './webhook-operator-dispatch.seed.ts'
 import {
@@ -30,10 +31,8 @@ import {
   failureLadderAction,
   DELIVERIES_PAGE_SIZE,
   deliverySuccessRate,
-  isReplayableDeliveryStatus,
   nextConsecutiveFailures,
   planPendingDispatch,
-  planReplayedDelivery,
   planSecretRotation,
   terminalDeliveryAuditEventType,
   WEBHOOK_FAILURE_AUTO_DISABLE_AT,
@@ -748,92 +747,67 @@ export function SeedWebhookEndpoints(
             return { deliveryId: replay.deliveryId }
           }
         ),
-        replayDelivery: (input) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            const owned = new Set<string>()
-            for (const endpoint of endpoints) {
-              if (endpoint.workspaceId === ctx.workspace.id) {
-                owned.add(endpoint.id)
-              }
-            }
-            const source = deliveries.find(
-              (row) => row.id === input.deliveryId && owned.has(row.endpointId)
-            )
-            if (!source) {
-              return yield* Effect.fail(
-                new WebhookDeliveryNotFound({ deliveryId: input.deliveryId })
-              )
-            }
-            if (
-              input.expectedStatus !== undefined &&
-              source.status !== input.expectedStatus
-            ) {
-              return yield* Effect.fail(
-                new WebhookDispatchRejected({
-                  reason: 'delivery status changed since investigation'
-                })
-              )
-            }
-            if (!isReplayableDeliveryStatus(source.status)) {
-              return yield* Effect.fail(
-                new WebhookDispatchRejected({
-                  reason: `delivery is ${source.status}, only failed deliveries replay`
-                })
-              )
-            }
-            const endpoint = endpointFor(source.endpointId, ctx.workspace.id)
-            if (!endpoint || !endpoint.enabled) {
-              return yield* Effect.fail(
-                new WebhookDispatchRejected({ reason: 'endpoint is disabled' })
-              )
-            }
-            if (
-              input.expectedEndpointUrl !== undefined &&
-              endpoint.url !== input.expectedEndpointUrl
-            ) {
-              return yield* Effect.fail(
-                new WebhookDispatchRejected({
-                  reason: 'endpoint changed since investigation'
-                })
-              )
-            }
-            const deliveryId = input.replayDeliveryId ?? (yield* newCapabilityId('whd'))
-            const prior = deliveries.find((row) => row.id === deliveryId)
-            if (
-              prior &&
-              approvedDestinations.get(deliveryId) !== input.expectedEndpointUrl
-            ) {
-              return yield* new WebhookDispatchRejected({
-                reason: 'replay identity does not match the approved delivery'
-              })
-            }
-            yield* recordOperatorDispatch({
-              deliveryId,
-              workspaceId: ctx.workspace.id,
-              plan: planReplayedDelivery({
-                id: source.id,
-                endpointId: source.endpointId,
-                eventType: source.eventType,
-                payload: source.payload
+        replayDelivery: makeWebhookReplay(
+          {
+            source: (deliveryId, workspaceId) =>
+              Effect.sync(() => {
+                const source = deliveries.find(
+                  (row) =>
+                    row.id === deliveryId &&
+                    endpointFor(row.endpointId, workspaceId) !== null
+                )
+                if (!source) {
+                  return null
+                }
+                const endpoint = endpointFor(source.endpointId, workspaceId)
+                if (!endpoint) {
+                  return null
+                }
+                return {
+                  ...source,
+                  enabled: endpoint.enabled,
+                  endpointUrl: endpoint.url
+                }
               }),
-              auditEventType: 'webhook.delivery_replayed'
-            })
-            if (input.expectedEndpointUrl !== undefined) {
-              approvedDestinations.set(deliveryId, input.expectedEndpointUrl)
-            }
-            if (prior && prior.status !== 'pending') {
-              return { deliveryId }
-            }
-            yield* publisher.enqueue({
-              endpointId: source.endpointId,
-              workspaceId: ctx.workspace.id,
-              eventType: source.eventType,
-              deliveryId,
-              payload: source.payload
-            })
-            return { deliveryId }
-          }),
+            reserve: (input) =>
+              Effect.gen(function* () {
+                const now = DateTime.formatIso(yield* DateTime.now)
+                const inserted = yield* Effect.sync(() => {
+                  if (deliveries.some((row) => row.id === input.deliveryId)) {
+                    return false
+                  }
+                  deliveries.push({
+                    ...input.plan,
+                    id: input.deliveryId,
+                    workspaceId: input.workspaceId,
+                    lastAttemptAt: now,
+                    requestHeaders: null,
+                    responseBody: null
+                  })
+                  if (input.approvedEndpointUrl !== undefined) {
+                    approvedDestinations.set(
+                      input.deliveryId,
+                      input.approvedEndpointUrl
+                    )
+                  }
+                  return true
+                })
+                if (inserted) {
+                  yield* audit.record(input.auditEvent)
+                }
+                const reserved = deliveries.find((row) => row.id === input.deliveryId)
+                if (!reserved) {
+                  return null
+                }
+                return {
+                  ...reserved,
+                  approvedEndpointUrl:
+                    approvedDestinations.get(input.deliveryId) ?? null
+                }
+              })
+          },
+          publisher
+        ),
         sendTestEvent: (input) =>
           Effect.gen(function* () {
             const ctx = yield* WorkspaceContext
