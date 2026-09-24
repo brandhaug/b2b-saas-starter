@@ -50,6 +50,12 @@ Run `pnpm run check` before committing and after `check:fix`; the pre-commit hoo
 7. Declaration merges belong in `.d.ts`; module declarations need a top-level import.
 8. Seed and Live adapters stay equivalent for the demo identity. `packages/capabilities/src/seed-fixture.ts` owns `usr_demo` / `starter-lab`; `scripts/seed.ts` adds only the password. SPA membership uses the fixture; identity drift can break navigation while full-page loads succeed.
 
+## Testing
+
+- NEVER write unit tests after you write code.
+- Highly prefer E2E tests as the sole testing mechanism. Use them to verify complex features work. At the end of E2E tests, produce a verifiable and repeatable artifact with the reproduction command and observed results.
+- If you must test a system in isolation, FIRST write all the ways it could fail, THEN write the code.
+
 ## Agent execution
 
 Read only the intent nodes and skill branches needed for the task. Save verbose command output to a log and inspect summaries and failures.
