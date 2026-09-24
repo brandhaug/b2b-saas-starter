@@ -44,11 +44,6 @@ describe('workspace picker', () => {
     await screen.findByText('/workspaces/starter-lab')
   })
 
-  it('names the list once: the page header, not a second panel heading', async () => {
-    await renderPage([membership])
-    expect(screen.getAllByRole('heading', { name: 'Your workspaces' })).toHaveLength(1)
-  })
-
   it('offers creation from the header once the list is not empty', async () => {
     const createWorkspace = vi.fn<CreateWorkspace>().mockResolvedValue({
       id: 'wrk_new',

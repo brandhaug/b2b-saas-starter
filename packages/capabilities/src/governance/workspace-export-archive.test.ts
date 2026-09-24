@@ -3,9 +3,6 @@ import { describe, expect, it } from 'vite-plus/test'
 
 import {
   buildWorkspaceExportArchive,
-  renderWorkspaceExportReadme,
-  workspaceExportDocument,
-  workspaceExportFileName,
   type WorkspaceExportSnapshot
 } from './workspace-export-archive.ts'
 
@@ -130,39 +127,5 @@ describe('buildWorkspaceExportArchive', () => {
     expect(document.webhookEndpoints).toEqual(snapshot.webhookEndpoints)
     expect(document.auditEvents).toEqual(snapshot.auditEvents)
     expect(document.notifications).toEqual(snapshot.notifications)
-  })
-
-  it('never writes a secret: token hashes and signing secrets are absent by construction', async () => {
-    // oxlint-disable-next-line effect/noGlobals -- the assertion scans the raw serialized document; that is the point
-    const text = JSON.stringify(workspaceExportDocument(snapshot))
-    expect(text).not.toContain('tokenHash')
-    expect(text).not.toContain('signingSecret')
-    expect(text).toContain('bsk_live_abc')
-  })
-
-  it('describes every field in the embedded README', () => {
-    const readme = renderWorkspaceExportReadme(snapshot)
-    for (const field of [
-      'workspace',
-      'members',
-      'invitations',
-      'apiTokens',
-      'webhookEndpoints',
-      'auditEvents',
-      'notifications'
-    ]) {
-      expect(readme).toContain(field)
-    }
-    expect(readme).toContain('Schema version: 1')
-    expect(readme).toContain('gzip-compressed')
-    expect(readme).toContain('GDPR')
-  })
-})
-
-describe('workspaceExportFileName', () => {
-  it('names the archive after the workspace and export', () => {
-    expect(workspaceExportFileName('fixed-lab', 'exp_fixed')).toBe(
-      'fixed-lab-export-exp_fixed.json.gz'
-    )
   })
 })

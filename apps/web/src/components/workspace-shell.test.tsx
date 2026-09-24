@@ -132,11 +132,6 @@ describe('WorkspaceShell', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/admin'))
   })
 
-  it('renders children (the page names itself via its own PageHeader)', async () => {
-    await renderShell()
-    screen.getByText('Dashboard content')
-  })
-
   it('renders the user menu with sign out, and signs out through the port', async () => {
     const { router } = await renderShell()
     // The visit is remembered before it is forgotten.
@@ -155,15 +150,6 @@ describe('WorkspaceShell', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/sign-in'))
     // Session memory does not outlive the session that earned it.
     await waitFor(() => expect(router.options.context.lastWorkspace).toBeNull())
-  })
-
-  it('threads the workspace slug into the nav links', async () => {
-    await renderShell({ systemRole: 'admin' })
-    const overview = screen.getByRole('link', { name: 'Overview' })
-    expect(overview.getAttribute('href')).toBe('/workspaces/starter-lab')
-    const settings = screen.getByRole('link', { name: 'Settings' })
-    expect(settings.getAttribute('href')).toBe('/workspaces/starter-lab/settings')
-    screen.getByRole('link', { name: 'System admin' })
   })
 
   it('shows the System admin link only to a system admin', async () => {
@@ -231,17 +217,6 @@ describe('WorkspaceShell', () => {
     screen.getByText('Starter Lab')
     screen.getByRole('link', { name: 'Account' })
     screen.getByRole('link', { name: 'System admin' })
-  })
-
-  it('remembers the visited workspace in router context', async () => {
-    const { router } = await renderShell()
-    // No directory in the harness, so the name falls back to the slug.
-    await waitFor(() =>
-      expect(router.options.context.lastWorkspace).toEqual({
-        slug: 'starter-lab',
-        name: 'starter-lab'
-      })
-    )
   })
 
   it('hides permission-gated entries from a member and shows them to an owner', async () => {

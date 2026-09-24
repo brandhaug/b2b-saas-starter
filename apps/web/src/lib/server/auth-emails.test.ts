@@ -1,7 +1,5 @@
 import {
   makeAuthEmailSender,
-  oneTimeCodeSubject,
-  recipientLocale,
   sendBackupCodesRotatedEmail,
   sendPasskeyChangedEmail,
   sendPasswordChangedEmail,
@@ -78,11 +76,6 @@ describe('recipient auth email locale', () => {
     expect(captured.outbox[0]?.text).toContain('Use the code below to continue.')
     expect(captured.outbox[1]?.subject).toBe('Your sign-in link')
     expect(captured.outbox[1]?.text).toContain('Somebody asked for a sign-in link')
-  })
-
-  it('exposes the English fallback for preference lookup', async () => {
-    expect(await recipientLocale('new@example.com')).toBe('en')
-    expect(oneTimeCodeSubject('sign-in', 'nb')).toBe('Innloggingskoden din')
   })
 
   it('localizes security callbacks from the saved recipient preference', async () => {

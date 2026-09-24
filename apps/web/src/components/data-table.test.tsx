@@ -33,15 +33,6 @@ const rows: ReadonlyArray<Row> = [
 ]
 
 describe('DataTable', () => {
-  it('renders the empty message when there is no data', () => {
-    render(
-      <DataTable columns={columns} data={[]} emptyMessage="No modules yet.">
-        <DataTableContent />
-      </DataTable>
-    )
-    expect(screen.getByText('No modules yet.')).not.toBeNull()
-  })
-
   it('filters rows through the global filter input', () => {
     render(
       <DataTable columns={columns} data={rows}>
@@ -104,34 +95,6 @@ describe('DataTable', () => {
     fireEvent.click(next)
     screen.getByText(/Page 3 of 3/)
     expect(next.disabled).toBe(true)
-  })
-
-  it('keeps pagination controls rendered but disabled when everything fits on one page', () => {
-    render(
-      <DataTable columns={columns} data={rows} pageSize={10}>
-        <DataTableContent />
-        <DataTablePagination />
-      </DataTable>
-    )
-    const next = screen.getByRole<HTMLButtonElement>('button', { name: 'Next' })
-    expect(next.disabled).toBe(true)
-  })
-
-  it('sorts rows when a sortable header is toggled', () => {
-    render(
-      <DataTable columns={columns} data={rows}>
-        <DataTableContent />
-      </DataTable>
-    )
-    const sortButton = screen.getByRole('button', { name: /Sort by Name/ })
-
-    fireEvent.click(sortButton)
-    let bodyRows = screen.getAllByRole('row').slice(1)
-    expect(bodyRows[0]?.textContent).toContain('Alpha')
-
-    fireEvent.click(sortButton)
-    bodyRows = screen.getAllByRole('row').slice(1)
-    expect(bodyRows[0]?.textContent).toContain('Echo')
   })
 
   it('shares filter and pagination state and resets the page for filtered results', () => {

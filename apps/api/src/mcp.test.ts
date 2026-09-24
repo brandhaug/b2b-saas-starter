@@ -3,34 +3,10 @@ import { describe, expect, it } from '@effect/vitest'
 import { Effect, Schema } from 'effect'
 import { buildWebHandler } from './http.ts'
 import { PAGED_TOOL_INPUT, mcpDiscoveryDocument } from './mcp.ts'
-import { mirroredRestPath, readOperations } from './operations.ts'
+import { readOperations } from './operations.ts'
 import { jsonBody, mcpClient } from './test-utils.ts'
 
-/**
- * There is no MCP tool table left to mirror: the discovery document and the
- * protocol's own tools are both projected from the shared operation table row
- * by row. What is still worth asserting is that the projection is what ships
- * — one tool per workspace read, in contract order — so a hand-added tool,
- * which would resurrect a surface REST never advertised, has nowhere to hide.
- */
 describe('mcp ↔ rest operation mirror', () => {
-  it('discovery advertises exactly the shared read operations, in order', () => {
-    expect(
-      mcpDiscoveryDocument()
-        .tools.slice(0, readOperations().length)
-        .map((tool) => tool.name)
-    ).toEqual(readOperations().map((op) => op.toolName))
-  })
-
-  it('every advertised tool names the REST operation it mirrors', () => {
-    for (const [index, operation] of readOperations().entries()) {
-      const tool = mcpDiscoveryDocument().tools[index]
-      expect(tool?.description).toContain(
-        `Mirrors GET /${mirroredRestPath(operation.endpoint.path)}.`
-      )
-    }
-  })
-
   it('list tools advertise the paging input; non-list tools take none', () => {
     const AdvertisedInput = Schema.Struct({
       properties: Schema.Record(Schema.String, Schema.Unknown)

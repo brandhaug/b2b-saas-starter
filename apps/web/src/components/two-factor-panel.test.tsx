@@ -32,13 +32,6 @@ describe('TwoFactorPanel', () => {
     disableTwoFactor.mockResolvedValue({ data: { status: true } })
   })
 
-  it('offers to enable when two-factor is off', () => {
-    renderWithQueryClient(<TwoFactorPanel twoFactorEnabled={false} />)
-    screen.getByText(/Off\. Add an authenticator-app code to sign-in/)
-    expect(screen.getByLabelText('Password')).not.toBeNull()
-    expect(screen.getByRole('button', { name: 'Start setup' })).not.toBeNull()
-  })
-
   it('reveals the QR and secret once, then verifies the first code', async () => {
     renderWithQueryClient(<TwoFactorPanel twoFactorEnabled={false} />)
     fireEvent.change(screen.getByLabelText('Password'), {

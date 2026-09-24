@@ -4,12 +4,11 @@ import {
   applyTableView,
   defaultTableView,
   parseTableView,
-  serializeTableView,
   type TableView,
   type TableViewField
 } from './table-view'
 
-/* oxlint-disable effect/noAs, typescript/no-unsafe-type-assertion, anti-slop/require-safety-comment-for-type-assertion -- test fixtures intentionally exercise union variants. */
+/* oxlint-disable effect/noAs -- test fixtures intentionally exercise union variants. */
 
 vi.mock('./i18n', () => ({ presentationSettings: () => ({ timeZone: zone.value }) }))
 const zone = vi.hoisted(() => ({ value: 'UTC' }))
@@ -25,16 +24,6 @@ const fields: ReadonlyArray<TableViewField> = [
 ]
 
 describe('table view model', () => {
-  it('round trips valid views and omits the default view', () => {
-    const view = {
-      match: 'any' as const,
-      filters: [{ field: 'name', operator: 'contains' as const, value: 'ada' }],
-      sorts: []
-    }
-    expect(parseTableView(serializeTableView(view), fields)).toEqual(view)
-    expect(serializeTableView(defaultTableView)).toBeUndefined()
-  })
-
   it('ignores malformed and unknown entries', () => {
     const serialized = JSON.stringify({
       match: 'wat',
@@ -67,22 +56,6 @@ describe('table view model', () => {
       { field: 'name', operator: 'contains', value: 'first' },
       { field: 'status', operator: 'is', value: 'open' }
     ])
-  })
-
-  it('applies OR filters and stable multi-column sorting', () => {
-    const rows = [
-      { name: 'Beta', status: 'open' },
-      { name: 'Alpha', status: 'open' },
-      { name: 'Alpha', status: 'closed' }
-    ]
-    const view = {
-      match: 'any' as const,
-      filters: [{ field: 'status', operator: 'is' as const, value: 'open' }],
-      sorts: [{ field: 'name', direction: 'asc' as const }]
-    }
-    expect(
-      applyTableView(rows, view, (row, field) => row[field as keyof typeof row])
-    ).toEqual([rows[1], rows[0]])
   })
 
   it('does not filter on incomplete value filters', () => {

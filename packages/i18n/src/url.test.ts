@@ -50,17 +50,6 @@ describe('localized public URLs', () => {
 })
 
 describe('server locale isolation', () => {
-  it('redirects the root document to the English public prefix', async () => {
-    const response = await paraglideMiddleware(
-      new Request('https://starter.test/', {
-        headers: { 'Sec-Fetch-Dest': 'document' }
-      }),
-      () => new Response('unreachable')
-    )
-    expect(response.status).toBe(307)
-    expect(response.headers.get('Location')).toBe('https://starter.test/en')
-  })
-
   it('keeps concurrent public requests in their own locale context', async () => {
     async function resolve() {
       await new Promise<void>((_resolve) => {

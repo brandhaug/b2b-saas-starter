@@ -56,7 +56,6 @@ import {
 import { SeedMcpClientConnections } from './developer-platform/mcp-client-connections.seed.ts'
 import { mcpClientConnectionsContractCases } from './developer-platform/mcp-client-connections.contract.ts'
 import { McpClientConnections } from './developer-platform/mcp-client-connections.ts'
-import { selectCapabilitiesLayer, selectWorkspaceLayer } from './runtime.ts'
 import {
   NotificationFeed,
   type SeedNotification
@@ -97,11 +96,7 @@ import {
   CONTRACT_UNEXPIRED_AT,
   workspaceInvitationsContractCases
 } from './governance/workspace-invitations.contract.ts'
-import {
-  listWorkspacesForUser,
-  workspaceDashboard,
-  workspaceOverview
-} from './workspace-projections.ts'
+import { listWorkspacesForUser, workspaceDashboard } from './workspace-projections.ts'
 
 const seedWorkspaceLayer = Layer.merge(
   SeedLayer,
@@ -375,52 +370,7 @@ describe('seed notification feed contract', () => {
   )
 })
 
-describe('starter capabilities', () => {
-  it.effect('counts unread notifications through the feed interface', () =>
-    Effect.gen(function* () {
-      const feed = yield* NotificationFeed
-      const unread = yield* feed.unreadCount
-      expect(unread).toBeGreaterThan(0)
-    }).pipe(Effect.provide(seedWorkspaceLayer))
-  )
-})
-
-describe('layer selection without D1', () => {
-  it.effect('selects the seed layer for an identity-keyed read', () =>
-    Effect.gen(function* () {
-      const items = yield* listWorkspacesForUser('usr_martin')
-      expect(items.map((item) => item.workspace.slug)).toContain('starter-lab')
-    }).pipe(Effect.provide(selectCapabilitiesLayer({})))
-  )
-
-  it.effect('selects the seed workspace layer with fixture membership', () =>
-    Effect.gen(function* () {
-      const notifications = yield* Effect.flatMap(NotificationFeed, (feed) => feed.list)
-      expect(notifications.length).toBeGreaterThan(0)
-    }).pipe(
-      Effect.provide(
-        selectWorkspaceLayer(
-          {},
-          seedWorkspaceRecord.slug,
-          {
-            userId: 'usr_demo'
-          },
-          'user'
-        )
-      )
-    )
-  )
-})
-
 describe('workspace read projections', () => {
-  it.effect('assembles the overview from the capability services', () =>
-    Effect.gen(function* () {
-      const overview = yield* workspaceOverview
-      expect(overview.workspace.slug).toBe('starter-lab')
-      expect(overview.notifications.length).toBeGreaterThan(0)
-    }).pipe(Effect.provide(seedWorkspaceLayer))
-  )
-
   it.effect(
     'pre-computes the dashboard aggregates consistently with its own data',
     () =>

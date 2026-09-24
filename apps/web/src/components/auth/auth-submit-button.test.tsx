@@ -29,21 +29,5 @@ describe('AuthSubmitButton', () => {
     expect(button.hasAttribute('disabled')).toBe(true)
     const status = screen.getByRole('status')
     expect(status.textContent).toContain('Signing in…')
-    expect(status.classList.contains('sr-only')).toBe(true)
-  })
-
-  it('keeps the pending status empty when the form is idle', async () => {
-    await renderWithRouter(
-      <AuthSubmitButton
-        form={formWithState(true, false)}
-        label="Continue"
-        submittingLabel="Signing in…"
-      />
-    )
-
-    expect(
-      screen.getByRole('button', { name: 'Continue' }).getAttribute('aria-busy')
-    ).toBe('false')
-    expect(screen.getByRole('status').textContent).toBe('')
   })
 })

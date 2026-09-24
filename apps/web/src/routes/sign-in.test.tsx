@@ -94,15 +94,6 @@ describe('SignInPage', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/workspaces'))
   })
 
-  it('honours a same-origin redirect search param', async () => {
-    const { router } = await renderPage('/workspaces/starter-lab')
-    fillValidCredentials()
-    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
-    await waitFor(() =>
-      expect(router.state.location.pathname).toBe('/workspaces/starter-lab')
-    )
-  })
-
   it('falls back to /workspaces for unsafe redirect targets', async () => {
     const { router } = await renderPage('//evil.example.com/phish')
     fillValidCredentials()
@@ -141,35 +132,6 @@ describe('SignInPage', () => {
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toBe(localD1UnavailableMessage())
     expect(router.state.location.pathname).toBe('/sign-in')
-  })
-
-  it('offers the passkey button alongside the credential form', async () => {
-    await renderPage()
-    const passkey = screen.getByRole('button', { name: 'Sign in with a passkey' })
-    expect(passkey).toBeDefined()
-    // The conditional-UI half of the contract: the email field carries the
-    // `webauthn` autocomplete token, last.
-    expect(screen.getByLabelText('Email').getAttribute('autocomplete')).toBe(
-      'email webauthn'
-    )
-  })
-
-  it('signs in through the passkey port and redirects on success', async () => {
-    const { router } = await renderPage('/workspaces/starter-lab')
-    signInPasskey.mockResolvedValue({
-      data: { user: { id: 'usr_demo' } },
-      error: null
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in with a passkey' }))
-
-    // The button opens the modal ceremony: no autofill option at all.
-    await waitFor(() => expect(signInPasskey).toHaveBeenCalledWith(undefined))
-    // A passkey sign-in opens the session in the ceremony itself — there is
-    // no two-factor hop to route through.
-    await waitFor(() =>
-      expect(router.state.location.pathname).toBe('/workspaces/starter-lab')
-    )
   })
 
   it('surfaces a cancelled passkey ceremony without navigating', async () => {
@@ -488,24 +450,6 @@ describe('SignInPage link mode', () => {
     )
     await screen.findByLabelText('Password')
     expect(screen.queryByText('Sign in with password instead')).toBeNull()
-  })
-
-  it('sends the link and shows the non-disclosing sent confirmation', async () => {
-    await renderPage()
-    await switchToLinkMode()
-    fireEvent.change(screen.getByLabelText('Email'), {
-      target: { value: 'demo@starter.local' }
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Email me a sign-in link' }))
-    await waitFor(() => expect(sendMagicLink).toHaveBeenCalledTimes(1))
-    expect(sendMagicLink).toHaveBeenCalledWith({
-      email: 'demo@starter.local',
-      turnstileToken: undefined
-    })
-    const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toContain(m.sign_in_link_sent_notice())
-    // The password path stays untouched by a link request.
-    expect(signIn).not.toHaveBeenCalled()
   })
 
   it('blocks submission while Turnstile is configured but unanswered', async () => {

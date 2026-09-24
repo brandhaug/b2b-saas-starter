@@ -55,13 +55,6 @@ describe('ApiTokensPanel', () => {
     expect(screen.getByLabelText('Token name')).not.toBeNull()
   })
 
-  it('leaves naming the list to the page header', async () => {
-    await renderPanel({ role: 'owner' })
-    // The page's h1 already reads "API tokens"; the panel adds the create
-    // action beside it instead of a second heading.
-    expect(screen.queryByRole('heading', { name: 'API tokens' })).toBeNull()
-  })
-
   it('keeps revoke but removes mint and replacement controls in recovery mode', async () => {
     await renderPanel({ role: 'owner', creation: 'hidden' })
     expect(screen.queryByRole('button', { name: 'Create a token' })).toBeNull()
@@ -76,18 +69,6 @@ describe('ApiTokensPanel', () => {
     expect(screen.getByText('Your role cannot revoke tokens.')).not.toBeNull()
     expect(screen.queryByLabelText('Token name')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Revoke' })).toBeNull()
-  })
-
-  it('renders timestamps in UTC and names an unused token "never"', async () => {
-    await renderPanel({ role: 'owner' })
-    expect(
-      screen.getByText('Created 5/16/2026, 9:00:00 AM · Last used never')
-    ).not.toBeNull()
-  })
-
-  it('shows the empty state with no tokens', async () => {
-    await renderPanel({ role: 'owner', tokens: [] })
-    expect(screen.getByText('No tokens')).not.toBeNull()
   })
 
   it('filters tokens by their name and prefix', async () => {

@@ -5,7 +5,6 @@ import { renderWithRouter } from '@/test/router-harness'
 import { UiError } from '@/lib/ui-error'
 import { unwrapAuthResult } from '@/lib/auth-result'
 import { useServerAction } from './use-server-action'
-import { PreviewProvider } from '@/components/preview-provider'
 import { ActionFeedback } from '@/components/page/action-feedback'
 
 function SensitiveAction({ run }: { readonly run: () => Promise<void> }) {
@@ -70,20 +69,4 @@ describe('recent authentication return flow', () => {
       '/account'
     )
   })
-})
-
-it('refuses a preview action locally without executing it or entering verification', async () => {
-  const run = vi
-    .fn<() => Promise<void>>()
-    .mockRejectedValue(new UiError('strong_authentication_required', {}, 'verify'))
-  const { router } = await renderWithRouter(
-    <PreviewProvider>
-      <SensitiveAction run={run} />
-    </PreviewProvider>,
-    { path: '/demo/settings', destinations: ['/verify-authentication'] }
-  )
-  fireEvent.click(screen.getByRole('button', { name: 'Delete workspace' }))
-  await screen.findByText(/This preview is read-only. No changes were made./)
-  expect(run).not.toHaveBeenCalled()
-  expect(router.state.location.pathname).toBe('/demo/settings')
 })

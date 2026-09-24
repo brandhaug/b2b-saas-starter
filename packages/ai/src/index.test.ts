@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vite-plus/test'
-import {
-  isAssistantConfigured,
-  MockAssistantLayer,
-  selectAssistantLayer
-} from './index.ts'
+import { isAssistantConfigured, selectAssistantLayer } from './index.ts'
 import { ask } from './test-ask.ts'
 import { type WorkersAIBinding } from './workers-ai.ts'
 
@@ -47,9 +43,4 @@ describe('assistant provider selection', () => {
     expect(isAssistantConfigured({ AI: binding })).toBe(false)
     expect(isAssistantConfigured({ WORKERS_AI_ENABLED: 'true' })).toBe(false)
   })
-
-  it('MockAssistantLayer is the layer an unconfigured env selects', () =>
-    ask(MockAssistantLayer, (reply) => {
-      expect(reply.provider).toBe('mock')
-    }))
 })

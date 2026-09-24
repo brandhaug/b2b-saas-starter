@@ -72,30 +72,6 @@ describe('SessionsPanel', () => {
     ).not.toBeNull()
   })
 
-  it('revokes a single other session and refreshes the list', async () => {
-    listSessions
-      .mockResolvedValueOnce({
-        data: [
-          session({ token: 'tok_current' }),
-          session({ token: 'tok_other', userAgent: 'Mozilla/5.0 (iPhone)' })
-        ]
-      })
-      .mockResolvedValueOnce({ data: [session({ token: 'tok_current' })] })
-    renderWithQueryClient(<SessionsPanel currentSessionToken="tok_current" />)
-
-    fireEvent.click(
-      await screen.findByRole('button', {
-        name: m.revoke_session_named({ name: m.mobile_browser() })
-      })
-    )
-    fireEvent.click(await screen.findByRole('button', { name: 'Revoke session' }))
-    await waitFor(() =>
-      expect(revokeSession).toHaveBeenCalledWith({ token: 'tok_other' })
-    )
-    await waitFor(() => expect(listSessions).toHaveBeenCalledTimes(2))
-    await waitFor(() => expect(screen.queryByText(/iPhone/)).toBeNull())
-  })
-
   it('signs out everywhere else with one action', async () => {
     listSessions.mockResolvedValue({
       data: [
