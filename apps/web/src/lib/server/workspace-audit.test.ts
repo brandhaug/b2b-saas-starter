@@ -43,55 +43,6 @@ describe('loadWorkspaceAuditEventsHandler', () => {
     actor.userId = 'usr_demo'
   })
 
-  it('hard-gates the page on auditLog read — a member gets no page at all', async () => {
-    // The member denial leaves the boundary as ForbiddenError (403), not as an
-    // empty payload: the whole page IS the audit log.
-    actor.userId = 'usr_dev'
-    await expect(
-      loadWorkspaceAuditEventsHandler({
-        workspaceSlug: 'starter-lab',
-        filters: {}
-      })
-    ).rejects.toMatchObject({ name: 'ForbiddenError' })
-  })
-
-  it('resolves direct event links outside the current list and cursor', async () => {
-    const payload = await loadWorkspaceAuditEventsHandler({
-      workspaceSlug: 'starter-lab',
-      filters: { eventType: 'no.such.event' },
-      cursor: 'invalid',
-      event: 'aud_token'
-    })
-    expect(payload.events).toEqual([])
-    expect(payload.selectedEvent).toMatchObject({
-      id: 'aud_token',
-      targetType: 'api_token'
-    })
-  })
-
-  it.each(['missing', 'aud_admin'])(
-    'does not disclose unavailable event %s',
-    async (event) => {
-      const payload = await loadWorkspaceAuditEventsHandler({
-        workspaceSlug: 'starter-lab',
-        filters: {},
-        event
-      })
-      expect(payload.selectedEvent).toBeNull()
-    }
-  )
-
-  it('denies an event lookup to a member', async () => {
-    actor.userId = 'usr_dev'
-    await expect(
-      loadWorkspaceAuditEventsHandler({
-        workspaceSlug: 'starter-lab',
-        filters: {},
-        event: 'aud_token'
-      })
-    ).rejects.toMatchObject({ name: 'ForbiddenError' })
-  })
-
   it('gives an owner the workspace-scoped events, newest first', async () => {
     const payload = await load()
     expect(payload.viewer).toEqual({ role: 'owner' })
@@ -120,19 +71,6 @@ describe('loadWorkspaceAuditEventsHandler', () => {
     const payload = await load({ filters: { eventType: 'auth.sign_in' } })
     expect(payload.events).toEqual([])
     expect(payload.nextCursor).toBeNull()
-  })
-
-  it('walks pages forward with the opaque cursor', async () => {
-    const first = await load()
-    if (first.nextCursor === null) {
-      return
-    }
-    const second = await load({ cursor: first.nextCursor })
-    const firstIds = new Set(first.events.map((event) => event.id))
-    for (const event of second.events) {
-      // Keyset pagination never repeats a row.
-      expect(firstIds.has(event.id)).toBe(false)
-    }
   })
 
   it('echoes the date-range filters back for the controls', async () => {

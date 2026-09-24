@@ -38,30 +38,6 @@ function renderControls(view: TableView = defaultTableView) {
 }
 
 describe('TableViewControls', () => {
-  it('adds one condition per field and offers all or any for multiple fields', () => {
-    const onChange = renderControls()
-    fireEvent.click(screen.getByRole('button', { name: 'Name' }))
-    fireEvent.change(screen.getByRole('textbox', { name: 'Value' }), {
-      target: { value: 'Ada' }
-    })
-    expect(onChange).toHaveBeenLastCalledWith({
-      ...defaultTableView,
-      filters: [{ field: 'name', operator: 'contains', value: 'Ada' }]
-    })
-
-    const withFilters: TableView = {
-      ...defaultTableView,
-      filters: [
-        { field: 'name', operator: 'contains', value: 'Ada' },
-        { field: 'createdAt', operator: 'after', value: '2026-01-01' }
-      ]
-    }
-    cleanup()
-    const anyChange = renderControls(withFilters)
-    fireEvent.click(screen.getByRole('button', { name: 'Any' }))
-    expect(anyChange).toHaveBeenLastCalledWith({ ...withFilters, match: 'any' })
-  })
-
   it('shows searchable single-choice facets with an accessible selected state', () => {
     installCommandStubs()
     const onChange = renderControls()

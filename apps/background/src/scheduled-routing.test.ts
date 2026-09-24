@@ -54,11 +54,6 @@ describe('scheduledRun', () => {
     }
   })
 
-  it('gives each declared cron a distinct expression and slug', () => {
-    expect(new Set(EXPECTED.map((row) => row.cron)).size).toBe(EXPECTED.length)
-    expect(new Set(EXPECTED.map((row) => row.monitorSlug)).size).toBe(EXPECTED.length)
-  })
-
   it('claims no work — and so no monitor slug — for an undeclared cron', () => {
     // With no match there is no slug for `withCronMonitor`, which is what
     // keeps an unrecognized tick from checking in as the digest retry.

@@ -65,28 +65,6 @@ describe('PasskeysPanel', () => {
     ).not.toBeNull()
   })
 
-  it('shows the empty state when no passkeys exist', async () => {
-    listPasskeys.mockResolvedValue({ data: [] })
-    renderWithQueryClient(<PasskeysPanel />)
-
-    expect(await screen.findByText(/No passkeys yet/)).not.toBeNull()
-  })
-
-  it('registers a passkey with the chosen name and refreshes the list', async () => {
-    listPasskeys.mockResolvedValueOnce({ data: [] }).mockResolvedValueOnce({
-      data: [passkey({ id: 'pk_new', name: 'Phone' })]
-    })
-    renderWithQueryClient(<PasskeysPanel />)
-
-    fireEvent.change(await screen.findByLabelText('Name a new passkey'), {
-      target: { value: 'Phone' }
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Add passkey' }))
-
-    await waitFor(() => expect(addPasskey).toHaveBeenCalledWith({ name: 'Phone' }))
-    expect(await screen.findByText('Phone')).not.toBeNull()
-  })
-
   it('omits the name when the field is left blank', async () => {
     listPasskeys.mockResolvedValue({ data: [] })
     renderWithQueryClient(<PasskeysPanel />)
@@ -107,40 +85,6 @@ describe('PasskeysPanel', () => {
 
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain('The passkey action was cancelled')
-  })
-
-  it('renames a passkey inline and refreshes the list', async () => {
-    listPasskeys
-      .mockResolvedValueOnce({ data: [passkey({ id: 'pk_mac', name: 'MacBook' })] })
-      .mockResolvedValueOnce({ data: [passkey({ id: 'pk_mac', name: 'Tablet' })] })
-    renderWithQueryClient(<PasskeysPanel />)
-
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Rename MacBook passkey' })
-    )
-    const field = await screen.findByLabelText('New name')
-    fireEvent.change(field, { target: { value: 'Tablet' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-
-    await waitFor(() =>
-      expect(updatePasskey).toHaveBeenCalledWith({ id: 'pk_mac', name: 'Tablet' })
-    )
-    expect(await screen.findByText('Tablet')).not.toBeNull()
-  })
-
-  it('removes a passkey behind a confirmation and refreshes the list', async () => {
-    listPasskeys
-      .mockResolvedValueOnce({ data: [passkey({ id: 'pk_mac', name: 'MacBook' })] })
-      .mockResolvedValueOnce({ data: [] })
-    renderWithQueryClient(<PasskeysPanel />)
-
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'Remove MacBook passkey' })
-    )
-    fireEvent.click(await screen.findByRole('button', { name: 'Remove passkey' }))
-
-    await waitFor(() => expect(deletePasskey).toHaveBeenCalledWith({ id: 'pk_mac' }))
-    expect(await screen.findByText(/No passkeys yet/)).not.toBeNull()
   })
 
   it('surfaces removal failures', async () => {

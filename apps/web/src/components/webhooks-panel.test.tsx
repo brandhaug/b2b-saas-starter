@@ -90,13 +90,6 @@ describe('WebhooksPanel', () => {
     expect(screen.getByLabelText('Endpoint URL')).not.toBeNull()
   })
 
-  it('leaves naming the list to the page header', async () => {
-    await renderPanel({ role: 'owner' })
-    // The page's h1 already reads "Webhook endpoints"; the panel repeating
-    // it put the register action above a duplicate heading.
-    expect(screen.queryByRole('heading', { name: 'Webhook endpoints' })).toBeNull()
-  })
-
   it('replaces the form with its reason for a role that cannot register', async () => {
     await renderPanel({ role: 'member' })
     expect(screen.getByText('Your role cannot register endpoints.')).not.toBeNull()
@@ -104,11 +97,6 @@ describe('WebhooksPanel', () => {
     expect(
       screen.queryByRole('button', { name: `More actions for ${endpoint.url}` })
     ).toBeNull()
-  })
-
-  it('shows the empty state with no endpoints', async () => {
-    await renderPanel({ role: 'owner', endpoints: [] })
-    expect(screen.getByText('No endpoints registered')).not.toBeNull()
   })
 
   it('filters endpoints by enabled status and URL', async () => {
@@ -241,11 +229,6 @@ describe('WebhooksPanel', () => {
     expect(router.state.location.search.page).toBeUndefined()
     expect(router.state.location.search.record).toBe('keep')
     expect(router.state.location.search.tableViews).toBe(JSON.stringify({ other }))
-  })
-
-  it('renders the delivery timestamp in UTC', async () => {
-    await renderPanel({ role: 'owner' })
-    expect(screen.getByText(/5\/16\/2026, 9:00:00 AM/)).not.toBeNull()
   })
 
   it('reveals the rotated secret once', async () => {

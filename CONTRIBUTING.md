@@ -4,7 +4,7 @@ Changes should improve the Starter for adopters. Discuss substantial changes in 
 
 ## Development
 
-Follow [local setup](docs/setup.md), then branch from `master`. Keep each PR to one logical change and test behavior changes.
+Follow [local setup](docs/setup.md), then branch from `master`. Keep each PR to one logical change and follow the [testing policy](AGENTS.md#testing).
 
 Run `pnpm run check` before committing and after `pnpm run check:fix`. The pre-commit hook only formats staged files. Run `pnpm run validate` before PR handoff; [validation prerequisites](docs/setup.md#validation) include Chromium and local Worker process access.
 

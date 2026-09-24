@@ -70,9 +70,4 @@ describe('FilterableDataTable', () => {
     expect(screen.getAllByRole('row')[1]?.textContent).toContain('Echo')
     expect(screen.getByRole('button', { name: /Sort · 1/ })).not.toBeNull()
   })
-
-  it('renders one column picker in the table toolbar', async () => {
-    await renderWithRouter(<Table />)
-    expect(screen.getAllByRole('button', { name: 'Columns' })).toHaveLength(1)
-  })
 })

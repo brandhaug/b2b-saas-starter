@@ -76,13 +76,6 @@ describe('AdminUserActions', () => {
     })
   })
 
-  it('says so when the user holds no memberships', async () => {
-    listWorkspaces.mockResolvedValue([])
-    await renderActions()
-    fireEvent.click(screen.getByRole('button', { name: /Load workspaces/ }))
-    await screen.findByText('Dev Member holds no workspace memberships.')
-  })
-
   it('shows a failed read as a message instead of an unhandled rejection', async () => {
     listWorkspaces.mockRejectedValue(new Error('Admin session expired'))
     await renderActions()

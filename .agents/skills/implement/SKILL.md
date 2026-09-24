@@ -43,7 +43,9 @@ user request.
 
 3. Apply `effect` with [repo examples](../../../docs/agents/effect-examples.md),
    `codebase-design` for module interfaces, `effect-service-design` for service
-   ownership/Layers, and `impeccable` for UI. Use `tdd` at agreed behavior seams.
+   ownership/Layers, and `impeccable` for UI. Follow the
+   [root testing policy](../../../AGENTS.md#testing) when choosing tests and
+   implementation order.
    If a supporting skill is missing, follow [skills setup](../../../docs/agents/skills.md).
 4. Docs and mechanical edits get one targeted reviewer. For behavior changes, use
    `code-review` against a fixed base/head and the agreed spec, with its separate

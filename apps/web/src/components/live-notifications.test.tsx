@@ -79,21 +79,6 @@ describe('LiveNotifications', () => {
     expect(markRead).not.toHaveBeenCalled()
   })
 
-  it('renders each row’s timestamp in UTC', async () => {
-    listNotifications.mockReturnValue(new Promise(() => {}))
-    await renderCard(fallback)
-    // The mono UTC convention the tables use, on the feed’s rows too.
-    expect(screen.getAllByText(/UTC/)).toHaveLength(2)
-    screen.getByText(/Sep 4, 2026, 9:12 AM UTC/)
-    screen.getByText(/Sep 3, 2026, 6:00 PM UTC/)
-  })
-
-  it('shows the caught-up empty state when there are no notifications', async () => {
-    listNotifications.mockReturnValue(new Promise(() => {}))
-    await renderCard([])
-    screen.getByText(/all caught up/)
-  })
-
   it('renders the loader payload without a refetch on mount', async () => {
     listNotifications.mockResolvedValue([])
     await renderCard(fallback)

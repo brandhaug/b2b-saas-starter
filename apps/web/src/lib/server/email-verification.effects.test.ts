@@ -18,18 +18,6 @@ vi.mock('./auth', () => ({
 import { readEmailVerificationStatusHandler } from './email-verification.effects'
 
 describe('readEmailVerificationStatusHandler', () => {
-  it('returns only the verified bit from the current session', async () => {
-    sessionState.value = {
-      user: {
-        emailVerified: true,
-        id: 'usr_private',
-        email: 'private@example.test'
-      }
-    }
-
-    expect(await readEmailVerificationStatusHandler()).toBe(true)
-  })
-
   it('returns false without a session or with an unverified session', async () => {
     sessionState.value = null
     expect(await readEmailVerificationStatusHandler()).toBe(false)

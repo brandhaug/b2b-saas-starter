@@ -41,4 +41,4 @@ Before changing auth HTTP handling, session reads, workspace authentication gate
 - Locale resolution must run inside the request observability scope before rendering. Use request-scoped runtime messages, never cache translated copy at module scope. Public URLs carry locales; app/auth paths use account preferences or the guest cookie (ADR 0029). See [i18n contribution rules](../../docs/i18n.md) when adding copy, formats, or content.
 
 - Non-disclosure is a rule: constant responses on `/forgot-password`, `disableSignUp` on email-OTP, one opaque failure on `/invitations/accept` and link landings.
-- Test server-fn authorization with `fixtureSession(actor)` and client auth with `fakeAuthClient()`. Use plain `it`: `it.effect` uses an epoch-zero `TestClock`, making post-1970 expiry fixtures future-dated.
+- When isolation is necessary under the [root testing policy](../../AGENTS.md#testing), use `fixtureSession(actor)` for server-fn authorization and `fakeAuthClient()` for client auth. Use plain `it`: `it.effect` uses an epoch-zero `TestClock`, making post-1970 expiry fixtures future-dated.

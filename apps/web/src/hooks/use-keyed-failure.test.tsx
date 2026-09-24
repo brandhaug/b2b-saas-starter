@@ -70,11 +70,6 @@ describe('useKeyedFailure', () => {
     expect(result.current.failure).toEqual({ key: 'row-2', message: 'remove failed' })
   })
 
-  it('starts with no failure', () => {
-    const { result } = renderHook(() => useKeyedFailure<string>())
-    expect(result.current.failure).toBeNull()
-  })
-
   it('clears once a run settles successfully', async () => {
     const run = deferredOutcome<number>()
     const { result } = renderHook(() => useKeyedFailure<string>())

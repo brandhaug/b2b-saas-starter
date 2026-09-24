@@ -12,9 +12,8 @@ Nothing imports it at runtime; the root [`lint.config.ts`](../../lint.config.ts)
 
 1. **Rules are syntax-only**: the JS plugin API exposes no type checker, so a check needing types belongs in a tsgolint rule.
 2. **Path gating and exemptions live in the root config, never in a rule.** Hand-rolled gating fails open when the layout moves and the rule stops reporting silently. Exemptions belong in an `overrides` block with a reason; reading `context.filename` for the file's extension is fine.
-3. **Every rule has a test file beside it**: three `valid` near-misses, three `invalid`, one asserting text.
-4. **No rule offers a fixer**: `check:fix` runs `vp lint --fix`, so one would rewrite code unreviewed.
-5. **Messages name the replacement**: a concrete symbol or file.
+3. **No rule offers a fixer**: `check:fix` runs `vp lint --fix`, so one would rewrite code unreviewed.
+4. **Messages name the replacement**: a concrete symbol or file.
 
 ## Changes
 

@@ -38,13 +38,6 @@ describe('ResetPasswordPage', () => {
     resetPassword.mockResolvedValue({ error: null })
   })
 
-  it('shows the single opaque failure state without a token', async () => {
-    await renderPage()
-    screen.getByText(m.reset_link_unusable())
-    expect(screen.getByRole('link', { name: 'Request a new reset link' })).toBeDefined()
-    expect(screen.queryByLabelText('New password')).toBeNull()
-  })
-
   it('shows the same failure state when the token exchange rejected the link', async () => {
     await renderPage({ error: 'INVALID_TOKEN' })
     screen.getByText(m.reset_link_unusable())

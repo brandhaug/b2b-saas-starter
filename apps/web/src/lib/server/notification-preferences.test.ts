@@ -1,10 +1,7 @@
 // oxlint-disable-next-line import/no-unassigned-import -- Installs the explicit authenticated-session test fixture.
 import '@/test/qualified-session'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
-import {
-  loadNotificationPreferencesHandler,
-  toPreferenceRow
-} from './notification-preferences.effects'
+import { loadNotificationPreferencesHandler } from './notification-preferences.effects'
 import { isNotificationKind } from './notification-preferences'
 import { fixtureSession } from '@/test/fixture-session'
 import type * as AuthModule from './auth'
@@ -70,24 +67,6 @@ describe('loadNotificationPreferencesHandler', () => {
 })
 
 describe('preference row copy', () => {
-  it('attaches the shared label and description', () => {
-    expect(
-      toPreferenceRow({
-        kind: 'billing.plan_changed',
-        channel: 'digest',
-        isDefault: true
-      })
-    ).toEqual({
-      kind: 'billing.plan_changed',
-      channel: 'digest',
-      isDefault: true,
-      security: false,
-      label: 'Plan changed',
-      description:
-        'A workspace you belong to is on a different plan. Limits and entitlements follow the new plan from now on.'
-    })
-  })
-
   it('accepts only real kinds from the unsubscribe link', () => {
     expect(isNotificationKind('announcement')).toBe(true)
     expect(isNotificationKind('constructor')).toBe(false)

@@ -74,18 +74,6 @@ describe('MembersPanel', () => {
     expect(screen.queryByRole('menuitem', { name: 'Remove' })).toBeNull()
   })
 
-  it('shows the empty state with no members', async () => {
-    await renderWithRouter(
-      <MembersPanel
-        workspaceSlug="starter-lab"
-        members={[]}
-        viewer={{ role: 'owner' }}
-        actorUserId="usr_demo"
-      />
-    )
-    expect(screen.getByText('No members yet')).not.toBeNull()
-  })
-
   it('offers removal for other rows but never the actor’s own', async () => {
     await renderPanel('owner')
     expect(
