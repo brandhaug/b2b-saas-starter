@@ -61,7 +61,7 @@ catalog:
   '@vitejs/plugin-react': 6.1.1
   '@vitest/coverage-v8': 4.1.11
   ws: 8.21.3
-  miniflare: 5.20260918.0-alpha
+  miniflare: 5.20260921.0-alpha
   esbuild: 0.28.2
   alchemy: 2.0.0-beta.79
   babel-plugin-react-compiler: 1.0.0
