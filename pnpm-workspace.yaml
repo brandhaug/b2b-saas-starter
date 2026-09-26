@@ -92,7 +92,7 @@ catalog:
   rehype-slug: 6.0.0
   remark-frontmatter: 5.0.0
   remark-gfm: 4.0.1
-  remark-mdx-frontmatter: 5.2.0
+  remark-mdx-frontmatter: 6.0.0
   shadcn: 4.21.0
   sonner: 2.0.8
   tailwindcss: 4.3.3
