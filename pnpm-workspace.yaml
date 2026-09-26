@@ -13,7 +13,7 @@ allowBuilds:
   workerd: true
 
 catalog:
-  '@babel/core': 8.0.5
+  '@babel/core': 8.0.6
   '@base-ui/react': 1.8.0
   '@inlang/paraglide-js': 2.25.4
   '@inlang/plugin-message-format': 4.4.4
@@ -25,12 +25,12 @@ catalog:
   '@better-auth/utils': 0.4.2
   '@cloudflare/ai-chat': 0.12.0
   agents: 0.24.0
-  ai: 7.0.106
+  ai: 7.0.112
   '@cloudflare/workers-types': 5.20260923.1
   '@cloudflare/vitest-pool-workers': 0.22.0
-  '@effect/platform-node': 4.0.0-rc.115
-  '@effect/sql-d1': 4.0.0-rc.116
-  '@effect/vitest': 4.0.0-rc.115
+  '@effect/platform-node': 4.0.0-rc.117
+  '@effect/sql-d1': 4.0.0-rc.117
+  '@effect/vitest': 4.0.0-rc.117
   '@fontsource-variable/geist': 5.3.0
   '@fontsource-variable/geist-mono': 5.3.0
   '@fontsource-variable/newsreader': 5.3.0
@@ -39,17 +39,17 @@ catalog:
   '@playwright/test': 1.63.0
   '@react-email/ui': 6.9.5
   '@rolldown/plugin-babel': 0.2.4
-  '@sentry/cloudflare': 10.75.0
-  '@sentry/react': 10.75.0
+  '@sentry/cloudflare': 10.75.2
+  '@sentry/react': 10.75.2
   '@tailwindcss/typography': 0.5.20
   '@tailwindcss/vite': 4.3.3
   '@tanstack/devtools-vite': 0.8.5
   '@tanstack/react-form': 1.33.5
-  '@tanstack/react-query': 5.103.0
-  '@tanstack/react-router': 1.170.32
-  '@tanstack/react-router-devtools': 1.167.1
-  '@tanstack/react-router-ssr-query': 1.167.2
-  '@tanstack/react-start': 1.168.49
+  '@tanstack/react-query': 5.103.2
+  '@tanstack/react-router': 1.170.38
+  '@tanstack/react-router-devtools': 1.167.2
+  '@tanstack/react-router-ssr-query': 1.167.3
+  '@tanstack/react-start': 1.168.57
   '@tanstack/react-table': 9.2.4
   '@testing-library/dom': 10.4.2
   '@testing-library/react': 16.3.3
@@ -72,18 +72,18 @@ catalog:
   drizzle-kit: 1.0.0-rc.5-ab785fc
   drizzle-orm: 1.0.0-rc.5-ab785fc
   standardwebhooks: 1.1.1
-  effect: 4.0.0-rc.115
-  effectful-better-auth: 1.0.0
+  effect: 4.0.0-rc.117
+  effectful-better-auth: 1.0.3
   eslint-plugin-better-tailwindcss: 4.7.0
   fallow: 3.28.0
-  jsdom: 30.1.0
-  jose: 6.2.10
+  jsdom: 30.1.1
+  jose: 6.2.12
   lucide-react: 1.47.0
   oxlint: 1.80.0
   oxlint-plugin-effect: 0.11.0
   oxlint-plugin-react-doctor: 0.9.12
-  posthog-js: 1.434.0
-  posthog-node: 5.52.4
+  posthog-js: 1.434.11
+  posthog-node: 5.52.5
   qrcode.react: ^4.2.0
   react: 19.3.0
   react-dom: 19.3.0
@@ -101,7 +101,7 @@ catalog:
   ultracite: 7.10.7
   vite: npm:@voidzero-dev/vite-plus-core@0.3.0
   vitest: 4.1.11
-  wrangler: 4.136.2
+  wrangler: 4.136.3
   vite-plus: 0.3.0
 
 minimumReleaseAgeExclude:
