@@ -37,7 +37,7 @@ catalog:
   '@mdx-js/rollup': 3.1.1
   '@oxlint/plugins': 1.80.0
   '@playwright/test': 1.63.0
-  '@react-email/ui': 6.9.5
+  '@react-email/ui': 6.11.0
   '@rolldown/plugin-babel': 0.2.4
   '@sentry/cloudflare': 10.75.0
   '@sentry/react': 10.75.0
@@ -87,7 +87,7 @@ catalog:
   qrcode.react: ^4.2.0
   react: 19.3.0
   react-dom: 19.3.0
-  react-email: 6.9.5
+  react-email: 6.11.0
   rehype-pretty-code: 0.14.5
   rehype-slug: 6.0.0
   remark-frontmatter: 5.0.0
