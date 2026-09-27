@@ -39,8 +39,8 @@ catalog:
   '@playwright/test': 1.63.0
   '@react-email/ui': 6.9.5
   '@rolldown/plugin-babel': 0.2.4
-  '@sentry/cloudflare': 10.75.0
-  '@sentry/react': 10.75.0
+  '@sentry/cloudflare': 11.0.0
+  '@sentry/react': 11.0.0
   '@tailwindcss/typography': 0.5.20
   '@tailwindcss/vite': 4.3.3
   '@tanstack/devtools-vite': 0.8.5
