@@ -26,7 +26,7 @@ catalog:
   '@cloudflare/ai-chat': 0.12.0
   agents: 0.24.0
   ai: 7.0.106
-  '@cloudflare/workers-types': 5.20260924.1
+  '@cloudflare/workers-types': 5.20260925.1
   '@cloudflare/vitest-pool-workers': 0.22.0
   '@effect/tsgo': 0.46.1
   '@effect/platform-node': 4.0.0-rc.115
@@ -62,7 +62,7 @@ catalog:
   '@vitejs/plugin-react': 6.1.1
   '@vitest/coverage-v8': 4.1.11
   ws: 8.21.3
-  miniflare: 5.20260921.1-alpha
+  miniflare: 5.20260923.0-alpha
   esbuild: 0.28.2
   alchemy: 2.0.0-beta.79
   babel-plugin-react-compiler: 1.0.0
@@ -84,7 +84,7 @@ catalog:
   oxlint-plugin-effect: 0.11.0
   oxlint-plugin-react-doctor: 0.9.12
   posthog-js: 1.434.0
-  posthog-node: 5.53.0
+  posthog-node: 5.54.0
   qrcode.react: ^4.2.0
   react: 19.3.0
   react-dom: 19.3.0
@@ -102,7 +102,7 @@ catalog:
   ultracite: 7.10.7
   vite: npm:@voidzero-dev/vite-plus-core@0.3.0
   vitest: 4.1.11
-  wrangler: 4.138.0
+  wrangler: 4.140.0
   vite-plus: 0.3.0
 
 minimumReleaseAgeExclude:
