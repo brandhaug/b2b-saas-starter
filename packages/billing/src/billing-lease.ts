@@ -22,15 +22,14 @@ function billingFailure(reason: string) {
   return new CapabilityUnavailable({ capability: 'billing', reason })
 }
 
+function stored<A, E, R>(effect: Effect.Effect<A, E, R>) {
+  return effect.pipe(Effect.mapError(() => billingFailure('billing_store_unavailable')))
+}
+
 /** Captures the database once; every invocation claims a distinct, durable owner. */
 export const makeBillingLease = Effect.fn('Billing.makeLease')(function* () {
   const db = yield* Database
   const d1 = yield* RawD1
-  function stored<A, E, R>(effect: Effect.Effect<A, E, R>) {
-    return effect.pipe(
-      Effect.mapError(() => billingFailure('billing_store_unavailable'))
-    )
-  }
 
   const acquire = Effect.fn('Billing.acquireLease')(function* (workspaceId: string) {
     const now = yield* DateTime.now

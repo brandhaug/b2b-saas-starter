@@ -29,6 +29,24 @@ unavailable and still lets users copy support details.
 For transactional email, complete the [delivery-event setup and smoke test](email-delivery.md)
 after configuring the sender domain.
 
+## Toolchain upgrades
+
+Read the target release notes and [migration guide](https://viteplus.dev/guide/migrate)
+before changing toolchain dependencies. Keep the current manifests, lockfile and
+installed packages until the target migrator can identify the old test runner.
+Run the target CLI from the workspace root, for example:
+
+```bash
+pnpm dlx --package=vite-plus@1.0.0 vp migrate --no-interactive
+vp install
+pnpm run validate
+```
+
+Review every migration warning and the catalog, overrides, test configuration and
+lockfile diff. `vp upgrade` updates the global CLI only. Keep the CI installer in
+`.github/actions/setup/action.yml` aligned with the project release, including its
+immutable commit and checksum described in [CI security](ci-security.md).
+
 ## Validation
 
 Install Chromium once, then run the final validation command:

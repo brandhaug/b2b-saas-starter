@@ -80,47 +80,47 @@ export function healthGroup(env: ApiEnv) {
 }
 
 export function workspaceGroup(env: ApiEnv) {
-  return HttpApiBuilder.group(StarterApi, 'workspace', (handlers) => {
-    // Infer each concrete row's input, success, errors, and requirements rather
-    // than widening to the union of reads. HttpApiBuilder checks the result
-    // against that endpoint's contract. Parameterized reads require their declared path ID.
-    function workspaceRead<
-      Args extends { readonly endpointId?: string; readonly deliveryId?: string },
-      A,
-      E,
-      R
-    >(
-      op: {
-        readonly endpoint: { readonly identifier: string }
-        readonly permission: PermissionRequest
-        readonly read: (
-          page: ListPageInput | undefined,
-          args: Args
-        ) => Effect.Effect<A, E, R>
-      },
-      params: Args & { readonly slug: string },
-      query: ListPageInput | undefined,
-      request: HttpServerRequest.HttpServerRequest
-    ) {
-      // The decoded `query` rides along: paged list rows page on it (ADR
-      // 0057), the overview row ignores it — one shape for every row of the
-      // table. An endpoint read names which endpoint it served, the
-      // same way the write handlers annotate ids below.
-      return workspaceOperation(
-        env,
-        `workspace.${op.endpoint.identifier}`,
-        op.permission,
-        params.slug,
-        request,
-        Effect.gen(function* () {
-          if (params.endpointId !== undefined) {
-            yield* Effect.annotateLogsScoped({ endpointId: params.endpointId })
-          }
-          return yield* op.read(query, params)
-        })
-      )
-    }
+  // Infer each concrete row's input, success, errors, and requirements rather
+  // than widening to the union of reads. HttpApiBuilder checks the result
+  // against that endpoint's contract. Parameterized reads require their declared path ID.
+  function workspaceRead<
+    Args extends { readonly endpointId?: string; readonly deliveryId?: string },
+    A,
+    E,
+    R
+  >(
+    op: {
+      readonly endpoint: { readonly identifier: string }
+      readonly permission: PermissionRequest
+      readonly read: (
+        page: ListPageInput | undefined,
+        args: Args
+      ) => Effect.Effect<A, E, R>
+    },
+    params: Args & { readonly slug: string },
+    query: ListPageInput | undefined,
+    request: HttpServerRequest.HttpServerRequest
+  ) {
+    // The decoded `query` rides along: paged list rows page on it (ADR
+    // 0057), the overview row ignores it — one shape for every row of the
+    // table. An endpoint read names which endpoint it served, the
+    // same way the write handlers annotate ids below.
+    return workspaceOperation(
+      env,
+      `workspace.${op.endpoint.identifier}`,
+      op.permission,
+      params.slug,
+      request,
+      Effect.gen(function* () {
+        if (params.endpointId !== undefined) {
+          yield* Effect.annotateLogsScoped({ endpointId: params.endpointId })
+        }
+        return yield* op.read(query, params)
+      })
+    )
+  }
 
+  return HttpApiBuilder.group(StarterApi, 'workspace', (handlers) => {
     // Every read composes gate + capability from the shared operation
     // table (operations.ts) — the same rows the MCP tools are derived from,
     // so the two Capability Interfaces cannot disagree about permissions.

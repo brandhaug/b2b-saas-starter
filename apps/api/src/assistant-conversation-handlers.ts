@@ -44,35 +44,35 @@ function readError(error: ConversationError) {
 }
 
 export function assistantConversationsGroup(env: ApiEnv) {
+  function read<A, R>(
+    request: HttpServerRequest.HttpServerRequest,
+    event: string,
+    operation: Effect.Effect<A, ConversationError, R>
+  ) {
+    return observed(
+      env,
+      request,
+      `assistant-conversations.${event}`,
+      {},
+      operation.pipe(Effect.mapError(readError))
+    )
+  }
+  function generate<A, R>(
+    request: HttpServerRequest.HttpServerRequest,
+    event: string,
+    operation: Effect.Effect<A, ConversationError, R>
+  ) {
+    return observed(
+      env,
+      request,
+      `assistant-conversations.${event}`,
+      {},
+      operation.pipe(Effect.mapError(routeError))
+    )
+  }
   return HttpApiBuilder.group(StarterApi, 'assistant-conversations', (handlers) =>
     Effect.gen(function* () {
       const conversations = yield* AssistantConversations
-      function read<A, R>(
-        request: HttpServerRequest.HttpServerRequest,
-        event: string,
-        operation: Effect.Effect<A, ConversationError, R>
-      ) {
-        return observed(
-          env,
-          request,
-          `assistant-conversations.${event}`,
-          {},
-          operation.pipe(Effect.mapError(readError))
-        )
-      }
-      function generate<A, R>(
-        request: HttpServerRequest.HttpServerRequest,
-        event: string,
-        operation: Effect.Effect<A, ConversationError, R>
-      ) {
-        return observed(
-          env,
-          request,
-          `assistant-conversations.${event}`,
-          {},
-          operation.pipe(Effect.mapError(routeError))
-        )
-      }
       const selectWorkspace = Effect.fn('AssistantRest.selectWorkspace')(function* (
         slug: string
       ) {
