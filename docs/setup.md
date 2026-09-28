@@ -29,6 +29,28 @@ unavailable and still lets users copy support details.
 For transactional email, complete the [delivery-event setup and smoke test](email-delivery.md)
 after configuring the sender domain.
 
+## Effect diagnostics
+
+`vp install` patches the workspace TypeScript compiler with the pinned
+`@effect/tsgo` release. The existing `prepare` hook also configures Vite+.
+Effect errors fail `pnpm run typecheck`; warnings and suggestions remain visible
+without failing the command. All workspace tsconfigs inherit the language-service
+configuration from `tsconfig.base.json`.
+
+Use the workspace TypeScript version in your editor to get Effect diagnostics,
+hover information, and refactors. The checked-in VS Code settings select the
+native compiler and prompt to use the workspace version. Accept that prompt
+in VS Code or a compatible editor such as Cursor. For other
+editors, follow the [Effect language-service setup](https://github.com/Effect-TS/tsgo).
+Run one TypeScript language server per project to avoid duplicate diagnostics.
+
+The existing `oxlint-plugin-effect` rules still enforce repository conventions.
+Effect diagnostics run through TypeScript because the current Vite+ and Oxlint
+versions do not all have matching `@effect/tsgo` patch binaries. When upgrading
+TypeScript, check that the pinned `@effect/tsgo` supports its version and verify
+`vp install --frozen-lockfile` followed by `pnpm run check`. A patch failure fails
+the install instead of silently disabling the diagnostics.
+
 ## Validation
 
 Install Chromium once, then run the final validation command:

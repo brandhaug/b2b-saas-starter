@@ -630,7 +630,7 @@ function writeAndExecute(sql: string) {
       child.on('error', () => resume(Effect.succeed(1)))
     })
     if (code !== 0) {
-      yield* Effect.sync(() => process.exit(code))
+      return yield* Effect.sync(() => process.exit(code))
     }
   })
 }
