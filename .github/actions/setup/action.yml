@@ -19,9 +19,9 @@ runs:
         installer="$(mktemp)"
         trap 'rm -f "$installer"' EXIT
         # The public bootstrap changes independently of the pinned CLI release.
-        curl -fsSL https://raw.githubusercontent.com/voidzero-dev/vite-plus/b2d15e3899dcc8adedfd45d98de9d30046a624f4/packages/cli/install.sh -o "$installer" # v0.3.0
-        echo '3dd88cedb6d9b2665c305eda5413971417c8f183a819386148131b66a2cc6b2e  '"$installer" | shasum -a 256 -c -
-        VP_VERSION=0.3.0 VP_NODE_MANAGER=yes bash "$installer"
+        curl -fsSL https://raw.githubusercontent.com/voidzero-dev/vite-plus/fc287d7b1c0dc008dbc65d1d2b2f51a44e2a5ea4/packages/cli/install.sh -o "$installer" # v1.0.0
+        echo 'e79e48da3b2817c179f581c943e2e1ccf0c690d32d0ed11b8cbfbebd7196918f  '"$installer" | shasum -a 256 -c -
+        VP_VERSION=1.0.0 VP_NODE_MANAGER=yes bash "$installer"
         # The installer does not touch PATH, so expose its bin dir (vp + managed
         # node/npm/corepack) to later steps.
         echo "$HOME/.local/share/vite-plus/bin" >> "$GITHUB_PATH"

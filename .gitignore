@@ -34,3 +34,4 @@ packages/i18n/.generated/
 /.impeccable/live/app-root.json
 /.impeccable/hook.cache.json
 /.impeccable/review/
+.vitest/
