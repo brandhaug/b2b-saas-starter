@@ -29,6 +29,17 @@ unavailable and still lets users copy support details.
 For transactional email, complete the [delivery-event setup and smoke test](email-delivery.md)
 after configuring the sender domain.
 
+## Effect diagnostics
+
+`vp install` patches TypeScript with `@effect/tsgo`. Effect errors fail
+`pnpm run typecheck`; warnings and suggestions are advisory.
+
+Accept VS Code's workspace TypeScript prompt. For other editors, follow the
+[Effect setup guide](https://github.com/Effect-TS/tsgo).
+
+Keep TypeScript and `@effect/tsgo` versions compatible. Verify upgrades with
+`vp install --frozen-lockfile` and `pnpm run check`.
+
 ## Validation
 
 Install Chromium once, then run the final validation command:
