@@ -61,7 +61,7 @@ catalog:
   '@types/react-dom': 19.3.0
   '@vitejs/plugin-react': 6.1.1
   '@vitest/coverage-v8': 4.1.11
-  ws: 8.21.3
+  ws: 8.22.0
   miniflare: 5.20260925.0-alpha
   esbuild: 0.28.2
   alchemy: 2.0.0-beta.79
