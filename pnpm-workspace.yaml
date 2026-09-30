@@ -140,7 +140,17 @@ overrides:
   vitest@*: 'catalog:'
   '@hono/node-server@<1.19.13': 1.19.13
   '@hono/node-server@<1.19.15': 1.19.15
-  hono@<4.13.5: 4.13.5
+  undici@>=7.28.0 <7.29.1: 7.29.1
+  undici@>=7.11.0 <7.29.1: 7.29.1
+  undici@>=7.0.0 <7.29.1: 7.29.1
+  undici@>=7.15.0 <7.29.1: 7.29.1
+  undici@>=7.24.1 <7.29.1: 7.29.1
+  fast-uri@>=3.0.0 <3.1.7: 3.1.7
+  fast-uri@>=3.0.0 <3.1.8: 3.1.8
+  brace-expansion@>=4.0.0 <5.0.12: 5.0.12
+  brace-expansion@>=4.0.0 <5.0.11: 5.0.11
+  brace-expansion@>=4.0.0 <5.0.10: 5.0.10
+  engine.io@>=6.6.0 <6.6.10: 6.6.10
 patchedDependencies:
   '@better-auth/oauth-provider@1.7.2': patches/@better-auth__oauth-provider@1.7.2.patch
 peerDependencyRules:
