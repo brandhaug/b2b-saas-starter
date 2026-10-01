@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@effect/vitest'
 import { Deferred, Effect, Fiber, Result } from 'effect'
 import { TestClock } from 'effect/testing'
-import { HttpClientRequest, HttpClientResponse } from 'effect/unstable/http'
+import { HttpClientRequest, HttpClientResponse } from 'effect/http'
 
 import { readWebhookResponse } from './webhook-response.ts'
 

@@ -6,8 +6,8 @@ import { WorkspaceExports } from '@b2b-saas-starter/capabilities/governance/work
 import { ApiPrincipal, StarterApi } from '@b2b-saas-starter/api'
 import { AssistantService, isAssistantConfigured } from '@b2b-saas-starter/ai'
 import { Context, Effect } from 'effect'
-import { type HttpServerRequest } from 'effect/unstable/http'
-import { HttpApiBuilder } from 'effect/unstable/httpapi'
+import { type HttpServerRequest } from 'effect/http'
+import { HttpApiBuilder } from 'effect/http-api'
 
 import { type ApiEnv } from './env.ts'
 import {

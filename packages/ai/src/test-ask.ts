@@ -1,5 +1,5 @@
 import { Effect, Layer } from 'effect'
-import { type LanguageModel, type Model } from 'effect/unstable/ai'
+import { type LanguageModel, type Model } from 'effect/ai'
 
 import {
   AssistantLive,

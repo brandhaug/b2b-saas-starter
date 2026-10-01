@@ -1,5 +1,5 @@
 import { Effect, Stream } from 'effect'
-import { type HttpClientResponse } from 'effect/unstable/http'
+import { type HttpClientResponse } from 'effect/http'
 
 /** Stop pulling after a bounded prefix, including when the receiver streams forever. */
 export const readWebhookResponse = Effect.fn('Webhooks.readResponse')(function* (

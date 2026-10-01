@@ -1,7 +1,7 @@
 import { gunzipSync } from 'node:zlib'
 import { expect, layer } from '@effect/vitest'
 import { Deferred, Effect, Fiber, Layer, Option, Result, Schema } from 'effect'
-import { HttpClient, HttpClientResponse } from 'effect/unstable/http'
+import { HttpClient, HttpClientResponse } from 'effect/http'
 import { Database } from '@b2b-saas-starter/db/service'
 import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema'
 import { eq } from 'drizzle-orm'

@@ -13,25 +13,25 @@ allowBuilds:
   workerd: true
 
 catalog:
-  '@babel/core': 8.0.5
+  '@babel/core': 8.0.6
   '@base-ui/react': 1.8.0
   '@inlang/paraglide-js': 2.25.4
   '@inlang/plugin-message-format': 4.4.4
-  '@better-auth/cimd': 1.7.2
-  '@better-auth/mcp': 1.7.2
-  '@better-auth/oauth-provider': 1.7.2
-  '@better-auth/passkey': 1.7.2
-  '@better-auth/sso': 1.7.2
-  '@better-auth/utils': 0.4.2
+  '@better-auth/cimd': 1.7.6
+  '@better-auth/mcp': 1.7.6
+  '@better-auth/oauth-provider': 1.7.6
+  '@better-auth/passkey': 1.7.6
+  '@better-auth/sso': 1.7.6
+  '@better-auth/utils': 0.5.0
   '@cloudflare/ai-chat': 0.12.0
   agents: 0.24.0
-  ai: 7.0.106
+  ai: 7.0.118
   '@cloudflare/workers-types': 5.20260927.1
   '@cloudflare/vitest-pool-workers': 0.22.0
   '@effect/tsgo': 0.46.1
-  '@effect/platform-node': 4.0.0-rc.115
-  '@effect/sql-d1': 4.0.0-rc.116
-  '@effect/vitest': 4.0.0-rc.115
+  '@effect/platform-node': 4.0.0
+  '@effect/sql-d1': 4.0.0
+  '@effect/vitest': 4.0.0
   '@fontsource-variable/geist': 5.3.0
   '@fontsource-variable/geist-mono': 5.3.0
   '@fontsource-variable/newsreader': 5.3.0
@@ -47,15 +47,15 @@ catalog:
   '@tanstack/devtools-vite': 0.8.5
   '@tanstack/react-form': 1.33.5
   '@tanstack/react-query': 5.104.0
-  '@tanstack/react-router': 1.170.32
-  '@tanstack/react-router-devtools': 1.167.1
-  '@tanstack/react-router-ssr-query': 1.167.2
-  '@tanstack/react-start': 1.168.49
+  '@tanstack/react-router': 1.170.39
+  '@tanstack/react-router-devtools': 1.167.2
+  '@tanstack/react-router-ssr-query': 1.167.3
+  '@tanstack/react-start': 1.168.58
   '@tanstack/react-table': 9.2.4
   '@testing-library/dom': 10.4.2
   '@testing-library/react': 16.3.3
   '@types/mdx': 2.0.14
-  '@types/node': 26.6.2
+  '@types/node': 26.6.3
   '@types/ws': 8.18.1
   '@types/react': 19.3.0
   '@types/react-dom': 19.3.0
@@ -66,25 +66,25 @@ catalog:
   esbuild: 0.28.2
   alchemy: 2.0.0-beta.79
   babel-plugin-react-compiler: 1.0.0
-  better-auth: 1.7.2
+  better-auth: 1.7.6
   class-variance-authority: 0.7.1
   cmdk: 1.1.1
   cn: 0.4.0
   drizzle-kit: 1.0.0-rc.5-ab785fc
   drizzle-orm: 1.0.0-rc.5-ab785fc
   standardwebhooks: 1.1.1
-  effect: 4.0.0-rc.115
-  effectful-better-auth: 1.0.0
+  effect: 4.0.0
+  effectful-better-auth: 1.0.4
   eslint-plugin-better-tailwindcss: 4.7.0
   fallow: 3.30.0
-  jsdom: 30.1.0
-  jose: 6.2.10
+  jsdom: 30.1.1
+  jose: 6.2.12
   lucide-react: 1.48.0
   oxlint: 1.80.0
   oxlint-plugin-effect: 0.11.0
   oxlint-plugin-react-doctor: 0.9.12
-  posthog-js: 1.434.0
-  posthog-node: 5.54.0
+  posthog-js: 1.434.15
+  posthog-node: 5.54.1
   qrcode.react: ^4.2.0
   react: 19.3.0
   react-dom: 19.3.0
@@ -93,26 +93,38 @@ catalog:
   rehype-slug: 6.0.0
   remark-frontmatter: 5.0.0
   remark-gfm: 4.0.1
-  remark-mdx-frontmatter: 5.2.0
+  remark-mdx-frontmatter: 6.0.0
   shadcn: 4.21.0
   sonner: 2.0.8
   tailwindcss: 4.3.3
   tw-animate-css: 1.4.0
   typescript: 7.0.2
-  ultracite: 7.10.7
+  ultracite: 7.11.1
   vite: npm:@voidzero-dev/vite-plus-core@0.3.0
   vitest: 4.1.11
   wrangler: 4.141.0
   vite-plus: 0.3.0
 
 minimumReleaseAgeExclude:
-  - effectful-better-auth@1.0.0
+  - effectful-better-auth@1.0.4
   - '@ai-sdk/gateway@4.0.81'
   - ai@7.0.101
+  - '@effect/platform-node-shared@4.0.0'
+  - '@effect/platform-node@4.0.0'
+  - '@effect/sql-d1@4.0.0'
+  - '@effect/vitest@4.0.0'
+  - effect@4.0.0
+  - '@effect/sql-sqlite-do@4.0.0'
 
 overrides:
-  brace-expansion: 5.0.9
-  fast-uri: 3.1.6
+  '@effect/sql-d1': 'catalog:'
+  '@effect/vitest': 'catalog:'
+  '@effect/sql-sqlite-do': 4.0.0
+  jose: 'catalog:'
+  '@better-auth/utils': 'catalog:'
+  engine.io@>=6.6.0 <6.6.10: 6.6.10
+  brace-expansion: 5.0.12
+  fast-uri: 3.1.8
   hono: 4.12.34
   ip-address: 10.5.0
   js-yaml: 4.3.2
@@ -122,13 +134,8 @@ overrides:
   sharp: 0.35.4
   shell-quote: 1.9.0
   socket.io-parser: 4.2.7
-  next: 16.3.3
-  # GHSA-82x6-q7mm-w9cf / GHSA-v5mp-jgw5-2x6j (prototype pollution in toml
-  # <4). Pulled in transitively via remark-mdx-frontmatter's TOML frontmatter
-  # support; no checked-in content uses `+++` frontmatter, so the override
-  # only has to resolve and export `parse`.
-  toml: 5.0.0
-  undici: 7.29.0
+  next: 16.3.6
+  undici: 7.29.1
   # GHSA-5qjj-4xww-7phc: Alchemy's Prisma dev tool pins vulnerable 1.2.0.
   # Remove when @prisma/dev updates its own dependency to >=1.4.2.
   '@prisma/dev>valibot': 1.4.2
@@ -142,7 +149,7 @@ overrides:
   '@hono/node-server@<1.19.15': 1.19.15
   hono@<4.13.5: 4.13.5
 patchedDependencies:
-  '@better-auth/oauth-provider@1.7.2': patches/@better-auth__oauth-provider@1.7.2.patch
+  '@better-auth/oauth-provider@1.7.6': patches/@better-auth__oauth-provider@1.7.6.patch
 peerDependencyRules:
   allowAny:
     - vite

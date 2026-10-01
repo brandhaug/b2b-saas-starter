@@ -4,7 +4,7 @@ import {
 } from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversation'
 import { type ConversationHistory } from './server/assistant-conversations'
 
-/* oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, anti-slop/no-unsafe-dictionary-type -- Browser-only WebSocket boundary probes validate the server frame without shipping Effect Schema. */
+/* oxlint-disable anti-slop/no-runtime-typeof, anti-slop/no-unsafe-dictionary-type -- Browser-only WebSocket boundary probes validate the server frame without shipping Effect Schema. */
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }

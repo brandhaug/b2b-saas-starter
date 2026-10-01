@@ -16,8 +16,8 @@ Callers inside the workspace import the contract and derive what they need. Call
 
 ```ts
 import { StarterApi } from '@b2b-saas-starter/api'
-import { FetchHttpClient, HttpClient, HttpClientRequest } from 'effect/unstable/http'
-import { HttpApiClient } from 'effect/unstable/httpapi'
+import { FetchHttpClient, HttpClient, HttpClientRequest } from 'effect/http'
+import { HttpApiClient } from 'effect/http-api'
 import { Effect } from 'effect'
 
 type StarterApiClient = HttpApiClient.ForApi<typeof StarterApi>

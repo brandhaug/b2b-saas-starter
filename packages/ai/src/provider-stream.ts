@@ -1,6 +1,6 @@
 import { Effect, Schema, Stream } from 'effect'
-import { AiError, type Response } from 'effect/unstable/ai'
-import { Sse } from 'effect/unstable/encoding'
+import { AiError, type Response } from 'effect/ai'
+import { Sse } from 'effect/encoding'
 
 const TokenCount = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 const Usage = Schema.Struct({

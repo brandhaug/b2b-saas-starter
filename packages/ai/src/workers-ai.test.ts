@@ -1,6 +1,6 @@
 import { Deferred, Effect, Fiber, Stream } from 'effect'
 import { AssistantService } from './index.ts'
-import { LanguageModel, Prompt } from 'effect/unstable/ai'
+import { LanguageModel, Prompt } from 'effect/ai'
 import { describe, expect, it } from '@effect/vitest'
 import { ask, askFails, assistantOn } from './test-ask.ts'
 import { makeWorkersAIModel, type WorkersAIBinding } from './workers-ai.ts'

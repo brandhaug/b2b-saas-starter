@@ -47,6 +47,7 @@ export const uiErrorAdapter = createSerializationAdapter({
   }
 })
 
-export function isStrongAuthenticationError(error: Error): boolean {
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- TanStack error boundaries accept arbitrary thrown values; this predicate validates the UI error class.
+export function isStrongAuthenticationError(error: unknown): boolean {
   return error instanceof UiError && error.code === 'strong_authentication_required'
 }

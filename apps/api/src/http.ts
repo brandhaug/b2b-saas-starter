@@ -7,13 +7,8 @@ import { selectAssistantLayer } from '@b2b-saas-starter/ai'
 import { apiFallbackLimits, apiRateLimitBindingNames } from '@b2b-saas-starter/infra'
 import { makeRateLimiter } from '@b2b-saas-starter/rate-limit'
 import { FileSystem, Layer, Path, Effect } from 'effect'
-import {
-  Etag,
-  HttpPlatform,
-  HttpRouter,
-  HttpServerResponse
-} from 'effect/unstable/http'
-import { HttpApiBuilder, HttpApiScalar } from 'effect/unstable/httpapi'
+import { Etag, HttpPlatform, HttpRouter, HttpServerResponse } from 'effect/http'
+import { HttpApiBuilder, HttpApiScalar } from 'effect/http-api'
 import { starterEnv, type ApiEnv } from './env.ts'
 import {
   apiTokenGroup,

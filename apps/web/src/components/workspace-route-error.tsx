@@ -43,7 +43,7 @@ export type WorkspaceRouteErrorCopy = {
  * different authorization contract. Left as is deliberately.
  */
 export function workspaceRouteError(copy: WorkspaceRouteErrorCopy) {
-  function WorkspaceRouteError({ error }: { readonly error: Error }) {
+  function WorkspaceRouteError({ error }: { readonly error: unknown }) {
     const router = useRouter()
     // Read leniently: the boundary can also mount above the matched route,
     // where the slug param does not exist. The shell then anchors its sidebar
@@ -52,7 +52,12 @@ export function workspaceRouteError(copy: WorkspaceRouteErrorCopy) {
     if (isStrongAuthenticationError(error)) {
       return <StrongAuthenticationNotice />
     }
-    const forbidden = error.name === FORBIDDEN_ERROR_NAME
+    const forbidden =
+      error !== null &&
+      // oxlint-disable-next-line anti-slop/no-runtime-typeof -- The router boundary may receive a serialized error object or any thrown value.
+      typeof error === 'object' &&
+      'name' in error &&
+      error.name === FORBIDDEN_ERROR_NAME
     return (
       <WorkspaceShell workspaceSlug={workspaceSlug ?? null} viewer={null}>
         <Empty>

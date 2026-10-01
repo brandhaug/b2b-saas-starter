@@ -1,4 +1,5 @@
-import { Encoding, Option, Result, Schema } from 'effect'
+import { Option, Result, Schema } from 'effect'
+import { Base64 } from 'effect/encoding'
 import { type GlobalWebhookDelivery } from './webhook-endpoints.ts'
 import {
   clampPageLimit,
@@ -99,7 +100,7 @@ export function deliveryViewCursor(
   if (cursor.length > 32_768) {
     return null
   }
-  const decoded = Encoding.decodeBase64String(cursor)
+  const decoded = Base64.decodeString(cursor)
   if (Result.isFailure(decoded)) {
     return null
   }
@@ -234,7 +235,7 @@ export function cutDeliveryViewPage(
   const last = items.at(-1)
   let nextCursor: string | null = null
   if (rows.length > limit && last) {
-    nextCursor = Encoding.encodeBase64(encodeCursor(positionOf(last, view)))
+    nextCursor = Base64.encode(encodeCursor(positionOf(last, view)))
   }
   return { items, nextCursor }
 }
