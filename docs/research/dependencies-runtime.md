@@ -59,6 +59,14 @@ The server uses `traceId` as PostHog `distinctId`, so these events represent req
 
 `patches/@better-auth__oauth-provider@1.7.6.patch` changes only `.d.mts` declarations, removing inferred optional properties whose type is `undefined`. It does not modify authentication runtime behavior. The declarations in 1.7.6 still require this patch under `exactOptionalPropertyTypes`. A future Better Auth upgrade should attempt removal and run typecheck plus auth/OAuth tests. Replacing the auth stack to avoid this patch has far higher cost than the patch itself. Do not assert the patch is obsolete without testing the replacement release.
 
+### Keep deployment dependencies compatible with stable Effect
+
+The 2026-10-01 stable Effect upgrade exposed imports that Alchemy 2.0.0-beta.79 still emits under `effect/unstable/*`, plus uses of the removed `effect/Encoding` module. The application build does not load the deployment CLI, so its passing result did not establish deployment compatibility.
+
+Version-specific patches migrate Alchemy, `@alchemy.run/cloudflare-runtime` 2.0.0-beta.79, and `@distilled.cloud/core` 1.0.0-rc.12 to the stable import paths. Alchemy's Base64 calls use the corresponding `Base64` and `Base64Url` modules. The patches cover Node runtime files, exported source entry points, and generated declarations; they do not change infrastructure resources or provider behavior.
+
+The root build runs `pnpm run infra:check`, which starts `alchemy --help` with a temporary `ALCHEMY_HOME` and imports `alchemy.run.ts` with a placeholder auth secret. The temporary profile is removed after the check. CI runs the same build script. Importing the stack constructs its Effect program without executing a deployment. These checks require no provider credentials. Remove the patches when replacement releases pass both checks, full validation, and the deployment workflow.
+
 ### Review MCP revision support as an explicit feature decision
 
 The API serves and tests session-based `2025-11-25`; a test offers `2026-07-28` and expects negotiation back to the served version. Auth independently uses CIMD profile `mcp-2026-07-28`. Better Auth's current guide describes the newer stateless protocol and an official SDK handler. These are separate transport and auth choices. A client that requires the newer transport will not gain support from updating the auth plugin alone. [MCP guide](https://better-auth.com/docs/plugins/mcp)
