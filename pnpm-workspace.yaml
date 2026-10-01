@@ -122,7 +122,6 @@ overrides:
   '@effect/sql-sqlite-do': 4.0.0
   jose: 'catalog:'
   '@better-auth/utils': 'catalog:'
-  engine.io@>=6.6.0 <6.6.10: 6.6.10
   brace-expansion: 5.0.12
   fast-uri: 3.1.8
   hono: 4.12.34
@@ -147,7 +146,7 @@ overrides:
   vitest@*: 'catalog:'
   '@hono/node-server@<1.19.13': 1.19.13
   '@hono/node-server@<1.19.15': 1.19.15
-  hono@<4.13.5: 4.13.5
+  hono@<4.13.7: 4.13.7
 patchedDependencies:
   '@better-auth/oauth-provider@1.7.6': patches/@better-auth__oauth-provider@1.7.6.patch
 peerDependencyRules:
