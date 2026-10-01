@@ -1,4 +1,5 @@
-import { Encoding, Option, Result, Schema } from 'effect'
+import { Option, Result, Schema } from 'effect'
+import { Base64 } from 'effect/encoding'
 
 export const AuditViewField = Schema.Literals([
   'eventType',
@@ -122,7 +123,7 @@ export function normalizeAuditView(view: AuditView | undefined): AuditView {
   return { match: view.match, filters, sorts: view.sorts }
 }
 export function encodeAuditCursor(cursor: AuditCursor): string {
-  return Encoding.encodeBase64(encodeCursor(cursor))
+  return Base64.encode(encodeCursor(cursor))
 }
 export function decodeAuditCursor(
   cursor: string | undefined,
@@ -132,7 +133,7 @@ export function decodeAuditCursor(
   if (cursor === undefined) {
     return
   }
-  const decoded = Encoding.decodeBase64String(cursor)
+  const decoded = Base64.decodeString(cursor)
   if (Result.isFailure(decoded)) {
     return null
   }

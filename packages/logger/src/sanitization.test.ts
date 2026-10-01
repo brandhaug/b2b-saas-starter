@@ -3,7 +3,7 @@
 // oxlint-disable effect/noAsyncFunction, effect/noGlobals, starter/no-run-promise-in-tests
 import { CloudflareClient, Scope, linkedErrorsIntegration } from '@sentry/cloudflare'
 import { Effect, Metric } from 'effect'
-import { HttpClient, FetchHttpClient } from 'effect/unstable/http'
+import { HttpClient, FetchHttpClient } from 'effect/http'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { withHttpInvocation } from './invocation.ts'
 import { makeOtlpLayer } from './otlp.ts'

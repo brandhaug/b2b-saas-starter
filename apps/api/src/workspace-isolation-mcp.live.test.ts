@@ -8,7 +8,7 @@ import {
 import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { expect, layer } from '@effect/vitest'
 import { Effect, Layer, Schema } from 'effect'
-import { HttpRouter } from 'effect/unstable/http'
+import { HttpRouter } from 'effect/http'
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from 'jose'
 import { mcpProtocolLayer } from './mcp.ts'
 import { makeOAuthTokenVerifier, OAuthTokenVerifier } from './oauth-access-token.ts'

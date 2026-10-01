@@ -52,7 +52,7 @@ import {
   HttpApiSchema,
   HttpApiSecurity,
   OpenApi
-} from 'effect/unstable/httpapi'
+} from 'effect/http-api'
 
 import { AssistantConversationsApi } from './assistant-conversations.ts'
 

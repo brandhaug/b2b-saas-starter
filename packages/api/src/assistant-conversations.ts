@@ -23,7 +23,7 @@ import {
   HttpApiMiddleware,
   HttpApiSchema,
   HttpApiSecurity
-} from 'effect/unstable/httpapi'
+} from 'effect/http-api'
 import { RateLimited, Unauthorized } from './errors.ts'
 
 export class AssistantApiPrincipal extends Context.Service<

@@ -1,4 +1,5 @@
-import { Effect, Encoding, Schema } from 'effect'
+import { Effect, Schema } from 'effect'
+import { Base64 } from 'effect/encoding'
 import {
   ConversationUnavailable,
   type conversationHistoryPage
@@ -31,7 +32,7 @@ export const conversationObservationContract = Effect.fn(
   }
   const attemptId = attempt.id
   function cursor(conversationId: string, revision: number) {
-    return Encoding.encodeBase64(
+    return Base64.encode(
       encodeJson([conversationId, attemptId, revision, 1, 'Running'])
     )
   }

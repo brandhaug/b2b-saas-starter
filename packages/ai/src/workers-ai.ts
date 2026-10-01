@@ -1,6 +1,6 @@
 import { failureMessage } from '@b2b-saas-starter/failure'
 import { Effect, Layer, Schema, Stream } from 'effect'
-import { AiError, LanguageModel, Model, type Response } from 'effect/unstable/ai'
+import { AiError, LanguageModel, Model, type Response } from 'effect/ai'
 import { type ChatMessage, plainChat } from './text-model.ts'
 import { providerStreamError, providerTextStream } from './provider-stream.ts'
 

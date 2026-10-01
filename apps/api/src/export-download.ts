@@ -9,7 +9,7 @@ import { memberPrincipal } from '@b2b-saas-starter/authz/client'
 import { requirePermission } from '@b2b-saas-starter/authz/guard'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { Effect, Option, Result, Schema } from 'effect'
-import { HttpRouter, HttpServerResponse } from 'effect/unstable/http'
+import { HttpRouter, HttpServerResponse } from 'effect/http'
 
 import { type ApiEnv } from './env.ts'
 import { enforceRateLimit, observed, provideWorkspace } from './request-guards.ts'

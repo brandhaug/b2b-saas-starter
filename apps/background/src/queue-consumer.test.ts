@@ -2,7 +2,7 @@
 import { createServer } from 'node:http'
 import { describe, expect, it, vi } from '@effect/vitest'
 import { DateTime, Effect, Result } from 'effect'
-import { HttpClient } from 'effect/unstable/http'
+import { HttpClient } from 'effect/http'
 
 import { consumeBatch, runInvocation } from './queue-consumer.ts'
 

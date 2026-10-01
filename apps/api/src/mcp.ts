@@ -39,22 +39,31 @@ import {
   GuardFailure
 } from '@b2b-saas-starter/api/errors'
 import { RateLimiter, type McpDiscovery } from '@b2b-saas-starter/api'
-import { Context, Effect, Layer, Result, Schema, SchemaIssue, type Types } from 'effect'
-import { HttpRouter, HttpServerRequest, HttpServerResponse } from 'effect/unstable/http'
+import {
+  Context,
+  Effect,
+  Layer,
+  Result,
+  Schema,
+  SchemaIssue,
+  Scope,
+  type Types
+} from 'effect'
+import { HttpRouter, HttpServerRequest, HttpServerResponse } from 'effect/http'
 import {
   McpServer,
   layerHttp as mcpLayerHttp,
   registerResource
-} from 'effect/unstable/ai/McpServer'
-import { v2025_11_25 } from 'effect/unstable/ai/McpProtocol'
+} from 'effect/ai/McpServer'
+import { v2025_11_25 } from 'effect/ai/McpProtocol'
 import {
   CallToolResult,
   InternalError,
   InvalidParams,
   Tool as McpTool,
-  type ToolJsonSchema,
-  ToolJsonSchema as ToolJsonSchemaCodec
-} from 'effect/unstable/ai/McpSchema'
+  type ToolJson,
+  ToolJson as ToolJsonCodec
+} from 'effect/ai/McpSchema'
 
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 
@@ -165,20 +174,20 @@ const ENDPOINT_ID_TOOL_INPUT = Schema.Struct({
 })
 
 /** The protocol's own check on what a tool descriptor may advertise. */
-const decodeToolJsonSchema = Schema.decodeUnknownSync(ToolJsonSchemaCodec)
+const decodeToolJson = Schema.decodeUnknownSync(ToolJsonCodec)
 
 /**
  * The advertised JSON Schema for a registered input: the input schema run
  * through Effect's JSON Schema generator, decoded against the protocol's own
- * `ToolJsonSchema` so what ships is exactly what the protocol accepts. A
+ * `ToolJson` so what ships is exactly what the protocol accepts. A
  * struct with no fields generates no object root, so the empty input
  * advertises the literal object shape.
  */
-function advertisedInputSchema(schema: Schema.Constraint): ToolJsonSchema {
-  return decodeToolJsonSchema(Schema.toJsonSchemaDocument(schema).schema)
+function advertisedInputSchema(schema: Schema.Constraint): ToolJson {
+  return decodeToolJson(Schema.toJsonSchemaDocument(schema).schema)
 }
 
-const NO_TOOL_INPUT_SCHEMA: ToolJsonSchema = decodeToolJsonSchema({
+const NO_TOOL_INPUT_SCHEMA: ToolJson = decodeToolJson({
   type: 'object',
   properties: {}
 })
@@ -200,7 +209,7 @@ const TOOL_INPUTS = {
 }
 
 /** The advertised input schema an operation registers with, derived from its row shape. */
-function toolInput(operation: WorkspaceReadOperation): ToolJsonSchema {
+function toolInput(operation: WorkspaceReadOperation): ToolJson {
   if (operation.param !== undefined) {
     return TOOL_INPUTS[operation.input]
   }
@@ -522,7 +531,7 @@ const CurrentMcpInvocation = Context.Reference<McpInvocation | undefined>(
   { defaultValue: () => undefined }
 )
 
-function mutationInputSchema(input: Schema.Constraint): ToolJsonSchema {
+function mutationInputSchema(input: Schema.Constraint): ToolJson {
   if (Schema.toJsonSchemaDocument(input).schema.type === undefined) {
     return NO_TOOL_INPUT_SCHEMA
   }
@@ -734,7 +743,7 @@ function makeGate(
   ) => Effect.Effect<
     HttpServerResponse.HttpServerResponse,
     Types.unhandled,
-    HttpServerRequest.HttpServerRequest
+    HttpServerRequest.HttpServerRequest | Scope.Scope
   >,
   never,
   GateServices
@@ -746,6 +755,7 @@ function makeGate(
     return (httpEffect) =>
       Effect.gen(function* () {
         const request = yield* HttpServerRequest.HttpServerRequest
+        const requestScope = yield* Scope.Scope
         return yield* Effect.catchIf(
           observed(
             env,
@@ -757,6 +767,9 @@ function makeGate(
               const bearer = bearerToken(request)
               const caller = yield* verifyMcpCredential(bearer)
               return yield* httpEffect.pipe(
+                // The HTTP handler transfers this scope to the response stream.
+                // The observation scope closes as soon as the response is returned.
+                Effect.provideService(Scope.Scope, requestScope),
                 Effect.provideService(CurrentMcpCaller, caller),
                 Effect.provideService(CurrentMcpInvocation, {
                   origin: new URL(webRequest(request).url).origin,

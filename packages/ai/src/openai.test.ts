@@ -5,7 +5,7 @@ import { failureMessage } from '@b2b-saas-starter/failure'
 import { createServer } from 'node:http'
 import { afterEach, describe, expect, it, vi } from '@effect/vitest'
 import { Effect, Schema, Stream } from 'effect'
-import { LanguageModel, Prompt } from 'effect/unstable/ai'
+import { LanguageModel, Prompt } from 'effect/ai'
 import { type OpenAIConfig, makeOpenAIModel } from './openai.ts'
 import { ask, askFails, assistantOn } from './test-ask.ts'
 

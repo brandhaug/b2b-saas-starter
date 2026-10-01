@@ -57,7 +57,7 @@ The server uses `traceId` as PostHog `distinctId`, so these events represent req
 
 ### Keep the OAuth declaration patch until upstream types replace it
 
-`patches/@better-auth__oauth-provider@1.7.2.patch` changes only `.d.mts` declarations, removing inferred optional properties whose type is `undefined`. It does not modify authentication runtime behavior. A future Better Auth upgrade should attempt removal and run typecheck plus auth/OAuth tests. Replacing the auth stack to avoid this patch has far higher cost than the patch itself. Do not assert the patch is obsolete without testing the replacement release.
+`patches/@better-auth__oauth-provider@1.7.6.patch` changes only `.d.mts` declarations, removing inferred optional properties whose type is `undefined`. It does not modify authentication runtime behavior. The declarations in 1.7.6 still require this patch under `exactOptionalPropertyTypes`. A future Better Auth upgrade should attempt removal and run typecheck plus auth/OAuth tests. Replacing the auth stack to avoid this patch has far higher cost than the patch itself. Do not assert the patch is obsolete without testing the replacement release.
 
 ### Review MCP revision support as an explicit feature decision
 

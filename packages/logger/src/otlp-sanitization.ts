@@ -1,8 +1,8 @@
 // OTLP is a vendor wire format; this serializer handles only its structural fields and scalar attributes.
 // oxlint-disable anti-slop/no-runtime-typeof, effect/noGlobals
 import { Layer } from 'effect'
-import { HttpBody } from 'effect/unstable/http'
-import { OtlpSerialization, type OtlpResource } from 'effect/unstable/observability'
+import { HttpBody } from 'effect/http'
+import { OtlpSerialization, type OtlpResource } from 'effect/observability'
 import { diagnosticFields, diagnosticLabel } from './sanitization.ts'
 
 function sanitizeAttribute(value: unknown) {

@@ -11,7 +11,6 @@ export const DEFAULT_LOCALE: Locale = 'en'
 const LOCALE_VALUES: ReadonlySet<unknown> = new Set<unknown>(LOCALES)
 
 /** True when a value is one of the locales supported by the starter. */
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- this is the parser at the untrusted input boundary
 export function isLocale(value: unknown): value is Locale {
   return LOCALE_VALUES.has(value)
 }
