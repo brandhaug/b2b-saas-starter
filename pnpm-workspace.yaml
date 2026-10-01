@@ -134,7 +134,7 @@ overrides:
   sharp: 0.35.4
   shell-quote: 1.9.0
   socket.io-parser: 4.2.7
-  next: 16.3.3
+  next: 16.3.6
   undici: 7.29.1
   # GHSA-5qjj-4xww-7phc: Alchemy's Prisma dev tool pins vulnerable 1.2.0.
   # Remove when @prisma/dev updates its own dependency to >=1.4.2.
