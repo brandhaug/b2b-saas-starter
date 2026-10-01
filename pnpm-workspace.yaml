@@ -149,7 +149,11 @@ overrides:
 patchedDependencies:
   '@alchemy.run/cloudflare-runtime@2.0.0-beta.79': patches/@alchemy.run__cloudflare-runtime@2.0.0-beta.79.patch
   '@better-auth/oauth-provider@1.7.6': patches/@better-auth__oauth-provider@1.7.6.patch
+  '@distilled.cloud/aws@1.0.0-rc.12': patches/@distilled.cloud__aws@1.0.0-rc.12.patch
   '@distilled.cloud/core@1.0.0-rc.12': patches/@distilled.cloud__core@1.0.0-rc.12.patch
+  '@distilled.cloud/fly-io@1.0.0-rc.12': patches/@distilled.cloud__fly-io@1.0.0-rc.12.patch
+  '@distilled.cloud/railway@1.0.0-rc.12': patches/@distilled.cloud__railway@1.0.0-rc.12.patch
+  '@distilled.cloud/stripe@1.0.0-rc.12': patches/@distilled.cloud__stripe@1.0.0-rc.12.patch
   alchemy@2.0.0-beta.79: patches/alchemy@2.0.0-beta.79.patch
 peerDependencyRules:
   allowAny:
