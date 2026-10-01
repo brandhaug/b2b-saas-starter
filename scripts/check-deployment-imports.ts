@@ -14,7 +14,7 @@ const checkEnvironment = {
 }
 
 try {
-  await exec(join(root, 'node_modules', '.bin', 'alchemy'), ['--help'], {
+  await exec(join(root, 'node_modules', '.bin', 'alchemy'), ['deploy', '--help'], {
     cwd: root,
     env: checkEnvironment
   })
