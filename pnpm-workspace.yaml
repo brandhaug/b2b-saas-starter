@@ -102,7 +102,7 @@ catalog:
   ultracite: 7.12.1
   vite: npm:@voidzero-dev/vite-plus-core@0.3.0
   vitest: 4.1.11
-  wrangler: 4.141.0
+  wrangler: 4.142.0
   vite-plus: 0.3.0
 
 minimumReleaseAgeExclude:
@@ -124,8 +124,9 @@ overrides:
   '@better-auth/utils': 'catalog:'
   brace-expansion: 5.0.12
   fast-uri: 3.1.8
-  hono: 4.12.34
-  ip-address: 10.5.0
+  dompurify@<3.4.16: 3.4.16
+  hono: 4.13.7
+  ip-address: 10.7.1
   js-yaml: 4.3.2
   lodash: 4.18.1
   nanoid: 3.3.18
@@ -138,16 +139,18 @@ overrides:
   # GHSA-5qjj-4xww-7phc: Alchemy's Prisma dev tool pins vulnerable 1.2.0.
   # Remove when @prisma/dev updates its own dependency to >=1.4.2.
   '@prisma/dev>valibot': 1.4.2
-  # CVE-2026-29087: @prisma/dev pins a vulnerable node-server release.
-  # Remove when @prisma/dev updates its own dependency to >=1.19.10.
-  '@prisma/dev>@hono/node-server': 1.19.10
+  # @prisma/dev pins a node-server release affected by path traversal advisories.
+  # Remove when @prisma/dev updates its own dependency to >=1.19.15.
+  '@prisma/dev>@hono/node-server': 1.19.15
   ws: 8.21.0
   vite@*: 'catalog:'
   vitest@*: 'catalog:'
-  '@hono/node-server@<1.19.13': 1.19.13
   '@hono/node-server@<1.19.15': 1.19.15
 patchedDependencies:
+  '@alchemy.run/cloudflare-runtime@2.0.0-beta.79': patches/@alchemy.run__cloudflare-runtime@2.0.0-beta.79.patch
   '@better-auth/oauth-provider@1.7.6': patches/@better-auth__oauth-provider@1.7.6.patch
+  '@distilled.cloud/core@1.0.0-rc.12': patches/@distilled.cloud__core@1.0.0-rc.12.patch
+  alchemy@2.0.0-beta.79: patches/alchemy@2.0.0-beta.79.patch
 peerDependencyRules:
   allowAny:
     - vite
