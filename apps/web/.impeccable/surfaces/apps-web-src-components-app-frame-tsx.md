@@ -21,15 +21,15 @@ Members navigate existing workspace tasks and account settings. Retain permissio
 
 ## Direction
 
-User-pinned six-region layout: narrow icon rail; workspace navigation sidebar; related route tabs; main task content; contextual right sidebar; bottom bar. Keep Catppuccin Mocha, Geist and existing shadcn Base UI controls. Code-led implementation of a schematic, no illustrative assets needed.
+User-pinned layout: narrow icon rail; workspace navigation sidebar; related route tabs; main task content; bottom bar. After reviewing the implementation, the user asked to remove the permanent right panel and reserve it for drawers and sheets opened on demand. Keep Catppuccin Mocha, Geist and existing shadcn Base UI controls. Code-led implementation of a schematic, no illustrative assets needed.
 
 ## First viewport
 
-At 1440px: 60px rail, 220px sidebar, flexible central task column, 264px contextual column. Fine borders define the full-height regions. Route tabs open the center column. The overview's real onboarding checklist moves to the right column. Other pages retain actual content and gain scope/support context.
+At 1440px: 60px rail, 220px sidebar, flexible main task column. Fine borders define the full-height regions. Route tabs open the main column. The overview opens its onboarding checklist from a page-header action in a right-side sheet. Other pages retain their actual content without generic context panels.
 
 ## Interaction
 
-Navigation retains active states and keyboard focus. Related-route tabs are semantic links; content tabs keep existing keyboard behavior. Search uses the existing command palette. Below desktop, navigation moves into the existing sheet and context follows main content; all actions remain reachable.
+Navigation retains active states and keyboard focus. Related-route tabs are semantic links; content tabs keep existing keyboard behavior. Search uses the existing command palette. Below desktop, navigation moves into the existing sheet; all actions remain reachable. Setup is closed initially, fits mobile, and restores trigger focus when closed with Escape.
 
 ## Evidence and constraints
 

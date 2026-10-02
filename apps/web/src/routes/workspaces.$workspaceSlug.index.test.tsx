@@ -122,6 +122,8 @@ describe('WorkspaceDashboardPage', () => {
 
   it('shows the owner the Seed Workspace checklist with a dismiss control', async () => {
     await renderDashboard(await loadDashboard())
+    fireEvent.click(screen.getByRole('button', { name: 'Set up your workspace' }))
+    await screen.findByRole('dialog', { name: 'Set up your workspace' })
     screen.getByText('1 of 2')
     screen.getByRole('button', { name: 'Dismiss' })
   })
@@ -129,6 +131,8 @@ describe('WorkspaceDashboardPage', () => {
   it('shows a member the checklist read-only, without the developer-platform steps', async () => {
     actor.userId = 'usr_dev'
     await renderDashboard(await loadDashboard())
+    fireEvent.click(screen.getByRole('button', { name: 'Set up your workspace' }))
+    await screen.findByRole('dialog', { name: 'Set up your workspace' })
     expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull()
     expect(screen.queryByText('Create an API token')).toBeNull()
   })

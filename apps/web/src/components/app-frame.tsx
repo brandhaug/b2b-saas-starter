@@ -31,7 +31,6 @@ export function AppFrame({
   unreadCount,
   accountMenu,
   banner,
-  context,
   support,
   layout = 'standard'
 }: {
@@ -42,7 +41,6 @@ export function AppFrame({
   readonly unreadCount?: number | undefined
   readonly accountMenu?: ReactNode
   readonly banner?: ReactNode
-  readonly context?: ReactNode
   readonly support?: ReactNode
   readonly layout?: 'standard' | 'wide' | undefined
 }) {
@@ -162,6 +160,14 @@ export function AppFrame({
           <div className="app-account-menu">{accountMenu}</div>
         </header>
         <AppRouteTabs workspace={workspace} viewer={viewer} systemRole={systemRole} />
+        {preview ? (
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-border px-4 py-2 text-sm text-muted-foreground sm:px-8">
+            <p>{m.demo_preview_notice()}</p>
+            <Link to="/sign-in" className={buttonVariants({ variant: 'ghost' })}>
+              {m.demo_try_sign_in()}
+            </Link>
+          </div>
+        ) : null}
         <main id="main-content" tabIndex={-1} className="app-main">
           <div
             className={cn(
@@ -170,37 +176,10 @@ export function AppFrame({
             )}
           >
             {children}
+            {support === undefined ? null : <footer>{support}</footer>}
           </div>
         </main>
       </div>
-      <aside className="app-context" aria-label={m.app_context()}>
-        <div className="flex flex-col gap-6">
-          <section className="flex flex-col gap-3">
-            <h2 className="text-sm font-semibold">{m.app_context()}</h2>
-            <p className="text-sm text-muted-foreground">
-              {preview ? m.demo_preview_notice() : m.app_context_description()}
-            </p>
-            {preview ? (
-              <Link to="/sign-in" className={buttonVariants({ variant: 'outline' })}>
-                {m.demo_try_sign_in()}
-              </Link>
-            ) : null}
-          </section>
-          {context}
-          <Separator />
-          <section className="flex flex-col gap-3">
-            <h2 className="text-sm font-semibold">{m.app_resources()}</h2>
-            <Link to="/docs" className="app-resource-link">
-              <BookOpenIcon className="size-4" />
-              {m.app_read_documentation()}
-            </Link>
-            <Link to="/help" reloadDocument className="app-resource-link">
-              {m.public_meta_support()}
-            </Link>
-            {support}
-          </section>
-        </div>
-      </aside>
       <footer className="app-bottom-bar">
         <span className="truncate">B2B SaaS Starter</span>
         <span className="ml-auto truncate">

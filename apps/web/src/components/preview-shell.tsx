@@ -11,13 +11,11 @@ const viewer = { role: 'owner' } satisfies WorkspaceViewer
 export function PreviewShell({
   children,
   layout,
-  unreadCount,
-  context
+  unreadCount
 }: {
   readonly layout?: 'standard' | 'wide' | undefined
   readonly children: ReactNode
   readonly unreadCount?: number | undefined
-  readonly context?: ReactNode
 }) {
   return (
     <CommandPaletteProvider viewer={viewer}>
@@ -26,7 +24,6 @@ export function PreviewShell({
         viewer={viewer}
         layout={layout}
         unreadCount={unreadCount}
-        context={context}
       >
         {children}
       </AppFrame>

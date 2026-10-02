@@ -300,3 +300,70 @@ test('member forbidden workspace evidence', async ({ page }) => {
     )
   }
 })
+
+async function captureSetupSheet(page: Page, path: string, name: string) {
+  await page.goto(path)
+  await page
+    .locator('header [data-slot="select-trigger"]:enabled')
+    .waitFor({ state: 'attached' })
+  await expect(page.locator('aside.app-context')).toHaveCount(0)
+  const main = page.getByRole('main')
+  const bounds = await main.boundingBox()
+  expect(bounds).not.toBeNull()
+  expect((bounds?.x ?? 0) + (bounds?.width ?? 0)).toBeGreaterThanOrEqual(
+    (page.viewportSize()?.width ?? 0) - 1
+  )
+  const setup = page.getByRole('button', { name: 'Set up your workspace', exact: true })
+  const sheet = page.getByRole('dialog', { name: 'Set up your workspace', exact: true })
+  await expect(sheet).toBeHidden()
+  await setup.click()
+  await expect(sheet).toBeVisible()
+  await expect(sheet.getByText('Invite a member', { exact: true })).toBeVisible()
+  await expect(sheet).toBeInViewport({ ratio: 1 })
+  await expect
+    .poll(() => sheet.evaluate((element) => element.scrollWidth - element.clientWidth))
+    .toBeLessThanOrEqual(1)
+  await page.evaluate(() => document.fonts.ready)
+  await page.screenshot({
+    path: resolve(output, 'after', `${name}.png`),
+    animations: 'disabled'
+  })
+  if ((page.viewportSize()?.width ?? 0) < 768) {
+    await page.setViewportSize({ width: 390, height: 400 })
+    const developerSetup = sheet.getByText('Developer setup', { exact: true })
+    await developerSetup.scrollIntoViewIfNeeded()
+    await expect(developerSetup).toBeInViewport({ ratio: 1 })
+    await developerSetup.click()
+    const lastStep = sheet.getByRole('link').last()
+    await lastStep.scrollIntoViewIfNeeded()
+    await expect(lastStep).toBeInViewport({ ratio: 1 })
+  }
+  await page.keyboard.press('Escape')
+  await expect(sheet).toBeHidden()
+  await expect(setup).toBeFocused()
+}
+
+for (const viewport of [
+  { name: 'desktop', width: 1440, height: 1000 },
+  { name: 'mobile', width: 390, height: 844 }
+]) {
+  test.describe(`on-demand setup ${viewport.name}`, () => {
+    test.use({ viewport: { width: viewport.width, height: viewport.height } })
+    test.beforeEach(() => {
+      test.skip(
+        phase !== 'after',
+        'Verifies the on-demand setup sheet replacing inline setup.'
+      )
+    })
+    test('demo', async ({ page }) => {
+      await captureSetupSheet(page, '/demo', `demo-setup-open-${viewport.name}`)
+    })
+    test('workspace', async ({ ownerPage }) => {
+      await captureSetupSheet(
+        ownerPage,
+        '/workspaces/starter-lab',
+        `workspace-setup-open-${viewport.name}`
+      )
+    })
+  })
+}

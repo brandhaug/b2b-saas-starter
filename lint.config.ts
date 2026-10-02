@@ -674,7 +674,7 @@ const { lint = {} } = defineConfig({
                 '^not-prose$',
                 '^dark$',
                 '^marketing$',
-                '^app-(frame|skip-link|rail|brand|sidebar|center|toolbar|account-menu|main|context|resource-link|bottom-bar|route-tabs|route-tab|rail-actions)$',
+                '^app-(frame|skip-link|rail|brand|sidebar|center|toolbar|account-menu|main|bottom-bar|route-tabs|route-tab|rail-actions)$',
                 '^workspace-(brand|choice|navigation)$',
                 '^toaster$',
                 '^ui-(popup|sheet|backdrop|pressable)$',

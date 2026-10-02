@@ -1,9 +1,5 @@
 {
   "app_global_navigation": "Global navigation",
-  "app_context": "About this view",
-  "app_context_description": "Workspace actions follow your membership permissions. Account settings apply across your workspaces.",
-  "app_resources": "Resources",
-  "app_read_documentation": "Read the documentation",
   "app_related_pages": "Related pages",
   "app_open_page": "Open {page}",
   "app_sample_data": "Sample data · read-only",

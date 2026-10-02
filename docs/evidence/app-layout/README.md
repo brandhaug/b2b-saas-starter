@@ -1,8 +1,8 @@
 # App layout evidence
 
-Before screenshots use commit `2de7e5dc94ad4a7b0bb49f399175a5df2267b193`. After screenshots use this PR's working tree after the Settings rail link and accessibility fixes for the short desktop rail and mobile footer. The scope is workspace, account, admin, and demo pages. Public and authentication layouts are unchanged; the two embedded public preview images now show the new app layout.
+Before screenshots use commit `2de7e5dc94ad4a7b0bb49f399175a5df2267b193`. After screenshots use this PR's working tree after replacing the permanent right sidebar with an on-demand setup sheet, plus the Settings rail link and short-window accessibility fixes. The scope is workspace, account, admin, and demo pages. Public and authentication layouts are unchanged; the two embedded public preview images now show the new app layout.
 
-The [supplied wireframe](reference.png) defines the layout regions.
+The [supplied wireframe](reference.png) defines the layout regions. The follow-up design keeps the right side free until a task opens a drawer or sheet.
 
 ## Reproduce
 
@@ -20,15 +20,28 @@ The suite skips unless `EVIDENCE_PHASE` is set. `EVIDENCE_SUSPENDED=1` explicitl
 
 - Baseline matrix on 2026-10-02: 64 tests passed in 32.8 seconds, including authentication setup and cleanup. All 62 route captures passed.
 - Baseline recovery and forbidden pages: 4 tests passed in 10.0 seconds using an isolated archive of the baseline commit and a copied local database. The workspace was restored to active.
-- Final working-tree matrix on 2026-10-02: 70 tests passed in 39.9 seconds, including authentication setup and cleanup, 68 captures, navigation smoke, and short-window/touch-target checks. The suspended workspace was restored to active.
+- Initial layout revision on 2026-10-02: 70 tests passed in 39.9 seconds, including authentication setup and cleanup, 68 captures, navigation smoke, and short-window/touch-target checks. The suspended workspace was restored to active.
+- Final on-demand drawer revision on 2026-10-02: 74 tests passed in 45.2 seconds, including authentication setup and cleanup, all 72 after captures, the setup-sheet checks, navigation smoke, and short-window/touch-target checks. The temporary suspension was reversed.
 
 Each capture checks the expected heading, hydrated controls, selected tab when applicable, and absence of horizontal document overflow. Screenshots use dark mode and reduced motion. The navigation smoke uses 12 browser actions to open rail Search, navigate through related-page and Settings links, observe a local demo write refusal, and reach the mobile navigation sign-in exit at 320 × 400. Additional checks verify Settings and the account menu do not overlap at 1440 × 400, and the footer Support target is at least 44 × 44 at widths 390 and 700.
 
-## Integrated validation and review
+## Validation and review
 
-`pnpm run validate` passed on 2026-10-02 after the final layout and accessibility repairs. It includes typechecking, lint, formatting, dead-code and translation checks, existing test suites, production builds, Wrangler drift checks, local migration/seeding, and browser regression tests. The regular browser run passed 53 tests in 41.4 seconds and skipped the 68 opt-in evidence cases, which passed separately in the capture run above. The script suite also has 11 existing opt-in skips.
+`pnpm run validate` passed on 2026-10-02 for the final on-demand sheet implementation. It includes typechecking, lint, formatting, dead-code and translation checks, existing test suites, production builds, Wrangler drift checks, local migration/seeding, and browser regression tests. The regular browser run passed 53 tests in 41.6 seconds and skipped the 72 opt-in evidence cases, which passed separately in the capture run above. The script suite also has 11 existing opt-in skips.
 
-Independent Standards, Spec, and Impeccable reviews completed. The short-window rail overlap and footer touch-target findings were repaired and re-reviewed. No remaining blockers were reported.
+Independent Standards, Spec, and fresh Impeccable reviews completed for the final revision with no remaining blockers. The existing owner and member checklist tests now open the setup sheet before their assertions; all five dashboard tests pass.
+
+## On-demand setup check
+
+Before the drawer implementation, the focused command below failed as expected because `aside.app-context` still existed. The demo desktop case observed one persistent aside instead of zero; the runner stopped before the other three cases.
+
+```sh
+E2E_PORT=3097 EVIDENCE_PHASE=after pnpm exec playwright test e2e/app-layout-evidence.spec.ts --project=chromium --workers=1 --grep 'on-demand setup' --max-failures=1
+```
+
+The first post-change focused run passed all 6 tests in 16.6 seconds, including authentication setup and cleanup. The final full run also waits for hydration before clicking the setup trigger and expands the developer steps to verify scrolling in a short mobile window.
+
+The check requires no permanent right aside, a main column extending to the right viewport edge, an initially closed setup sheet, visible checklist content after opening, no sheet overflow, reachable content at 390 × 400, and Escape closing the sheet with focus restored to its trigger.
 
 ## Reading the images
 
@@ -79,3 +92,12 @@ Each contact sheet shows all full-page and preview captures at one viewport. Ope
 | workspace-suspended        | [Before](before/workspace-suspended-desktop.png)        | [After](after/workspace-suspended-desktop.png)        | [Before](before/workspace-suspended-mobile.png)        | [After](after/workspace-suspended-mobile.png)        |
 | workspace-webhook-delivery | [Before](before/workspace-webhook-delivery-desktop.png) | [After](after/workspace-webhook-delivery-desktop.png) | [Before](before/workspace-webhook-delivery-mobile.png) | [After](after/workspace-webhook-delivery-mobile.png) |
 | workspace-webhooks         | [Before](before/workspace-webhooks-desktop.png)         | [After](after/workspace-webhooks-desktop.png)         | [Before](before/workspace-webhooks-mobile.png)         | [After](after/workspace-webhooks-mobile.png)         |
+
+## Setup sheet comparisons
+
+The original baseline displayed the checklist inline on the overview. These pairs deliberately compare that original overview with the newly opened setup sheet; there was no baseline drawer state. The ordinary overview pairs above show the new closed state.
+
+| Workspace | Desktop before, inline                          | Desktop after, sheet open                       | Mobile before, inline                          | Mobile after, sheet open                       |
+| --------- | ----------------------------------------------- | ----------------------------------------------- | ---------------------------------------------- | ---------------------------------------------- |
+| Demo      | [Before](before/demo-overview-desktop.png)      | [After](after/demo-setup-open-desktop.png)      | [Before](before/demo-overview-mobile.png)      | [After](after/demo-setup-open-mobile.png)      |
+| Signed in | [Before](before/workspace-overview-desktop.png) | [After](after/workspace-setup-open-desktop.png) | [Before](before/workspace-overview-mobile.png) | [After](after/workspace-setup-open-mobile.png) |

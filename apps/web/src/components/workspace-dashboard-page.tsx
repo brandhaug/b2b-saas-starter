@@ -9,6 +9,8 @@ import {
   OnboardingChecklist,
   type DismissOnboardingChecklist
 } from '@/components/onboarding-checklist'
+import { Button } from '@/components/ui/button'
+import { Sheet, SheetTrigger, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { attentionItems } from '@/lib/attention'
 import { PageHeader } from '@/components/page/page-header'
 import { WorkspaceShell } from '@/components/workspace-shell'
@@ -52,21 +54,31 @@ export function WorkspaceDashboardPage({
       systemRole={systemRole}
       unreadCount={unreadCount}
       viewer={viewer}
-      context={
-        <OnboardingChecklist
-          workspaceSlug={workspace.slug}
-          progress={progress}
-          viewer={viewer}
-          dismissalHint={dismissalHint}
-          {...(ports?.dismissOnboardingChecklist === undefined
-            ? {}
-            : { dismiss: ports.dismissOnboardingChecklist })}
-        />
-      }
     >
       <PageHeader
         title={workspace.name}
         description={m.dashboard_attention_description()}
+        actions={
+          progress.dismissedAt === null ? (
+            <Sheet>
+              <SheetTrigger render={<Button variant="outline" />}>
+                {m.setup_workspace()}
+              </SheetTrigger>
+              <SheetContent className="overflow-y-auto px-4 pt-16 pb-6 data-[side=right]:w-full data-[side=right]:sm:max-w-md">
+                <SheetTitle className="sr-only">{m.setup_workspace()}</SheetTitle>
+                <OnboardingChecklist
+                  workspaceSlug={workspace.slug}
+                  progress={progress}
+                  viewer={viewer}
+                  dismissalHint={dismissalHint}
+                  {...(ports?.dismissOnboardingChecklist === undefined
+                    ? {}
+                    : { dismiss: ports.dismissOnboardingChecklist })}
+                />
+              </SheetContent>
+            </Sheet>
+          ) : undefined
+        }
       />
       <div className="grid gap-6">
         <div className="grid min-w-0 gap-6">

@@ -1,9 +1,5 @@
 {
   "app_global_navigation": "Global navigasjon",
-  "app_context": "Om denne visningen",
-  "app_context_description": "Handlinger i arbeidsområdet følger medlemstillatelsene dine. Kontoinnstillinger gjelder på tvers av arbeidsområdene dine.",
-  "app_resources": "Ressurser",
-  "app_read_documentation": "Les dokumentasjonen",
   "app_related_pages": "Relaterte sider",
   "app_open_page": "Åpne {page}",
   "app_sample_data": "Eksempeldata · skrivebeskyttet",

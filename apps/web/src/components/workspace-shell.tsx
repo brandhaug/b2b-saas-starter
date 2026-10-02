@@ -39,11 +39,7 @@ export function WorkspaceShell(
 ) {
   const preview = usePreview()
   return preview ? (
-    <PreviewShell
-      unreadCount={props.unreadCount}
-      layout={props.layout}
-      context={props.context}
-    >
+    <PreviewShell unreadCount={props.unreadCount} layout={props.layout}>
       {props.children}
     </PreviewShell>
   ) : (
@@ -53,7 +49,6 @@ export function WorkspaceShell(
 
 function AuthenticatedWorkspaceShell({
   children,
-  context,
   layout = 'standard',
   unreadCount,
   workspaceSlug,
@@ -62,7 +57,6 @@ function AuthenticatedWorkspaceShell({
   stopImpersonating
 }: {
   readonly children: ReactNode
-  readonly context?: ReactNode
   readonly layout?: 'standard' | 'wide' | undefined
   /**
    * Unread-notification badge count. Omit on surfaces without a workspace
@@ -142,7 +136,6 @@ function AuthenticatedWorkspaceShell({
         systemRole={systemRole}
         unreadCount={unreadCount}
         layout={layout}
-        context={context}
         accountMenu={
           <UserMenu
             workspaceSlug={workspaceSlug}
