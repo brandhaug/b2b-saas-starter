@@ -16,7 +16,6 @@ import {
   captureMonitoringSignal,
   captureOperationalSnapshot
 } from '@b2b-saas-starter/logger/providers'
-import { hasValue } from '@b2b-saas-starter/env/server'
 import { DateTime, Effect, Metric, Result } from 'effect'
 import { type Env } from './queue-consumer.ts'
 
@@ -32,13 +31,9 @@ const retentionLastSuccess = Metric.gauge('starter.retention.last_success_unix_m
 })
 
 function captureRetentionFailure(
-  env: Env,
   target: string | undefined,
   error: RetentionPolicyError | CapabilityUnavailable
 ) {
-  if (!hasValue(env.SENTRY_DSN)) {
-    return Effect.void
-  }
   return Effect.promise(() =>
     captureMonitoringSignal('retention_run_failed', {
       target: target ?? 'missing',
@@ -47,14 +42,7 @@ function captureRetentionFailure(
   )
 }
 
-function captureRetentionSnapshot(
-  env: Env,
-  backlog: number,
-  lastSuccess: number | undefined
-) {
-  if (!hasValue(env.SENTRY_DSN)) {
-    return Effect.void
-  }
+function captureRetentionSnapshot(backlog: number, lastSuccess: number | undefined) {
   if (lastSuccess !== undefined) {
     return Effect.promise(() =>
       captureOperationalSnapshot({
@@ -102,7 +90,7 @@ export function cleanRetention(env: Env, scheduledTime: number) {
         })
       )
       if (Result.isFailure(attempt)) {
-        yield* captureRetentionFailure(env, databaseTarget, attempt.failure)
+        yield* captureRetentionFailure(databaseTarget, attempt.failure)
         yield* Metric.update(
           Metric.withAttributes(retentionRunCount, { status: 'failed' }),
           1
@@ -128,7 +116,7 @@ export function cleanRetention(env: Env, scheduledTime: number) {
       if (result.status === 'success') {
         lastSuccess = scheduledTime
       }
-      yield* captureRetentionSnapshot(env, result.backlog, lastSuccess)
+      yield* captureRetentionSnapshot(result.backlog, lastSuccess)
       if (result.status === 'success') {
         yield* Metric.update(retentionLastSuccess, scheduledTime)
       }
@@ -137,7 +125,7 @@ export function cleanRetention(env: Env, scheduledTime: number) {
           capability: 'retention',
           reason: 'retention_rule_query_failed'
         })
-        yield* captureRetentionFailure(env, databaseTarget, failure)
+        yield* captureRetentionFailure(databaseTarget, failure)
         return yield* Effect.fail(failure)
       }
     }).pipe(Effect.provide(selectCapabilitiesLayer(starterEnv(env))))

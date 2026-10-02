@@ -33,7 +33,7 @@ export function previewSummary(env: NodeJS.ProcessEnv): string {
     `| api | ${apiUrl}/health |`,
     `| background | ${backgroundUrl} |`,
     '',
-    `Deployed \`${commit}\`. The stage has its own D1 seeded with the Seed Workspace (\`starter-lab\`; demo sign-in in \`docs/setup.md\`). Env-gated providers (Turnstile, Stripe, Sentry, PostHog, email, AI) are off. The stage is destroyed when this PR closes.`,
+    `Deployed \`${commit}\`. The stage has its own D1 seeded with the Seed Workspace (\`starter-lab\`; demo sign-in in \`docs/setup.md\`). Env-gated providers (Turnstile, Stripe, PostHog, email, AI) are off. The stage is destroyed when this PR closes.`,
     ''
   ].join('\n')
 }

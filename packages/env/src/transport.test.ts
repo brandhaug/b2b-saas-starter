@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vite-plus/test'
 import {
   auditSecureEndpoints,
   enforceSecureEndpoints,
-  isSecureDsn,
   isSecureEndpoint,
   minimumTlsResponse,
   type SecureEndpointKey,
@@ -71,8 +70,6 @@ describe('transport security gates', () => {
     expect(isSecureEndpoint('http://evidence.example/v1')).toBe(false)
     expect(isSecureEndpoint('https://user:pass@evidence.example/v1')).toBe(false)
     expect(isSecureEndpoint('not a URL')).toBe(false)
-    expect(isSecureDsn('https://public@sentry.example/1')).toBe(true)
-    expect(isSecureDsn('https://public:secret@sentry.example/1')).toBe(false)
   })
 
   const insecureEndpoints = [
@@ -81,7 +78,6 @@ describe('transport security gates', () => {
     ['API_PUBLIC_URL', 'http://api.example.test'],
     ['MCP_RESOURCE_URL', 'http://api.example.test/mcp'],
     ['MCP_OAUTH_ISSUER', 'http://auth.example.test/api/auth'],
-    ['SENTRY_DSN', 'http://public@sentry.example.test/1'],
     ['POSTHOG_HOST', 'http://analytics.example.test'],
     ['OTEL_EXPORTER_OTLP_ENDPOINT', 'http://telemetry.example.test/v1'],
     ['OPENAI_BASE_URL', 'http://ai.example.test/v1'],
@@ -102,7 +98,6 @@ describe('transport security gates', () => {
 
   it.each([
     ['POSTHOG_HOST', '%%%'],
-    ['SENTRY_DSN', 'https://[broken'],
     ['BETTER_AUTH_TRUSTED_ORIGINS', 'https://trusted.example.test,%%%']
   ] satisfies ReadonlyArray<readonly [SecureEndpointKey, string]>)(
     'reports malformed configured endpoint %s',

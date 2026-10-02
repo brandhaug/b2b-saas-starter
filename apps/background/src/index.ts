@@ -1,10 +1,8 @@
 import { withTriggerScope } from '@b2b-saas-starter/logger'
 import {
-  makeSentryOptions,
   wireWideEventProviders,
   withCronMonitor
 } from '@b2b-saas-starter/logger/providers'
-import * as Sentry from '@sentry/cloudflare'
 import { Effect, Result } from 'effect'
 import { isMaintenanceMode } from '@b2b-saas-starter/env/server'
 import {
@@ -48,18 +46,11 @@ function ackUnroutableBatch(env: Env, batch: MessageBatch<unknown>): Promise<voi
   )
 }
 
-function makeBackgroundSentryOptions(env: Env) {
-  enforceSecureEndpoints(env)
-  return makeSentryOptions('background', env)
-}
-
-export default Sentry.withSentry(makeBackgroundSentryOptions, {
+export default {
   // Pure platform adapter: routing, signature checks, and Stripe processing
   // live in `stripe-endpoint.ts`, the same way queue logic stays out of here.
   // oxlint-disable-next-line effect/noAsyncFunction -- the Workers fetch handler contract is a plain async function; this is the platform adapter boundary
   async fetch(request: Request, env: Env): Promise<Response> {
-    // Sentry deliberately skips its options callback for HEAD and OPTIONS.
-    // Keep the gate at the actual Worker seam too, before provider wiring.
     enforceSecureEndpoints(env)
     const tlsResponse = minimumTlsResponse(request, env.ENVIRONMENT)
     if (tlsResponse !== undefined) {
@@ -118,4 +109,4 @@ export default Sentry.withSentry(makeBackgroundSentryOptions, {
       )
     )
   }
-})
+}

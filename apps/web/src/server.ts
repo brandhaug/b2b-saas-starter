@@ -1,39 +1,21 @@
 // Node preview's upgrade bridge uses the same authenticated boundary as the route.
 export { connectAssistantConversation } from './lib/server/assistant-conversation-socket'
-import {
-  makeSentryOptions,
-  wireWideEventProviders
-} from '@b2b-saas-starter/logger/providers'
+import { wireWideEventProviders } from '@b2b-saas-starter/logger/providers'
 import StartServerEntry from '@tanstack/react-start/server-entry'
 import { env as cloudflareEnv } from 'cloudflare:workers'
-import * as Sentry from '@sentry/cloudflare'
 import { enforceSecureEndpoints } from '@b2b-saas-starter/env/transport'
 import { minimumWebTlsResponse } from './lib/public-key-transport'
 
-// The TanStack Start entry's `fetch` carries Start's own handler signature;
-// the adapter below re-shapes it into a plain Workers `ExportedHandler` so
-// `Sentry.withSentry` can wrap it at the platform boundary.
 const worker = {
   fetch(request: Request): Promise<Response> | Response {
-    // Sentry deliberately skips its options callback for HEAD and OPTIONS.
-    // Keep the gate at the actual Worker seam too, before application code.
     enforceSecureEndpoints(cloudflareEnv)
     const tlsResponse = minimumWebTlsResponse(request, cloudflareEnv.ENVIRONMENT)
     if (tlsResponse !== undefined) {
       return tlsResponse
     }
+    wireWideEventProviders(cloudflareEnv)
     return StartServerEntry.fetch(request)
   }
 }
 
-export default Sentry.withSentry(() => {
-  enforceSecureEndpoints(cloudflareEnv)
-  // Point the wide-event sinks (Sentry errors, PostHog events) at this
-  // invocation's env; unset vars keep both providers fully inert. Runs per
-  // request so a binding added between requests takes effect without an
-  // isolate restart. See packages/logger/src/providers.ts.
-  wireWideEventProviders(cloudflareEnv)
-  // Without SENTRY_DSN this returns empty options and the SDK initializes a
-  // disabled client — provider-light deployments are unchanged.
-  return makeSentryOptions('web', cloudflareEnv)
-}, worker)
+export default worker

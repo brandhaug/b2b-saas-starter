@@ -72,12 +72,6 @@ catalogs:
     '@rolldown/plugin-babel':
       specifier: 0.2.4
       version: 0.2.4
-    '@sentry/cloudflare':
-      specifier: 11.1.0
-      version: 11.1.0
-    '@sentry/react':
-      specifier: 11.1.0
-      version: 11.1.0
     '@tailwindcss/typography':
       specifier: 0.5.20
       version: 0.5.20
@@ -296,6 +290,7 @@ patchedDependencies:
   '@alchemy.run/cloudflare-runtime@2.0.0-beta.79': d5a0d6ac12f55d2485faeb07072648a47df5a5eaf174bea8e49017d17eb21c80
   '@better-auth/oauth-provider@1.7.6': bc6c5daee6c928c802fceb9db5862dc11ad0f13fe4f8c6bfc6effc98efdba3c8
   '@distilled.cloud/aws@1.0.0-rc.12': c11be3fdc611600552a368b0a4248445b78f47c62e706cdbc44da1ffe98cfd5d
+  '@distilled.cloud/cloudflare@1.0.0-rc.12': 1c5329d037f57102fd466330154df5e6469251f40930239b4429080a63426a2d
   '@distilled.cloud/core@1.0.0-rc.12': f1985737f1a003646731fefc8a80a12a52a5b3d5bfd8dbfe84b5bf17a52a70e8
   '@distilled.cloud/fly-io@1.0.0-rc.12': 4e8d289148ff2f76f2965db4b9d2a2202d1541733926f41aa114284476a974ca
   '@distilled.cloud/railway@1.0.0-rc.12': c58258c570c317620a718b496df8519587ae874f5a1157f4ebfe9a48a746c8bb
@@ -406,9 +401,6 @@ importers:
       '@b2b-saas-starter/rate-limit':
         specifier: workspace:*
         version: link:../../packages/rate-limit
-      '@sentry/cloudflare':
-        specifier: 'catalog:'
-        version: 11.1.0(@cloudflare/workers-types@5.20260929.1)(wrangler@4.143.0(@cloudflare/workers-types@5.20260929.1)(@types/node@26.6.3))
       effect:
         specifier: 'catalog:'
         version: 4.0.0
@@ -470,9 +462,6 @@ importers:
       '@b2b-saas-starter/logger':
         specifier: workspace:*
         version: link:../../packages/logger
-      '@sentry/cloudflare':
-        specifier: 'catalog:'
-        version: 11.1.0(@cloudflare/workers-types@5.20260929.1)(wrangler@4.143.0(@cloudflare/workers-types@5.20260929.1)(@types/node@26.6.3))
       effect:
         specifier: 'catalog:'
         version: 4.0.0
@@ -576,12 +565,6 @@ importers:
       '@fontsource-variable/newsreader':
         specifier: 'catalog:'
         version: 5.3.0
-      '@sentry/cloudflare':
-        specifier: 'catalog:'
-        version: 11.1.0(@cloudflare/workers-types@5.20260929.1)(wrangler@4.143.0(@cloudflare/workers-types@5.20260929.1)(@types/node@26.6.3))
-      '@sentry/react':
-        specifier: 'catalog:'
-        version: 11.1.0(react@19.3.0)
       '@tanstack/react-form':
         specifier: 'catalog:'
         version: 1.33.5(@tanstack/react-start@1.168.59(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(rolldown@1.2.5)(rollup@4.63.1)(supports-color@10.2.2))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -1173,9 +1156,6 @@ importers:
       '@b2b-saas-starter/failure':
         specifier: workspace:*
         version: link:../failure
-      '@sentry/cloudflare':
-        specifier: 'catalog:'
-        version: 11.1.0(@cloudflare/workers-types@5.20260929.1)(wrangler@4.143.0(@cloudflare/workers-types@5.20260929.1)(@types/node@26.6.3))
       effect:
         specifier: 'catalog:'
         version: 4.0.0
@@ -4806,66 +4786,6 @@ packages:
 
   '@selderee/plugin-htmlparser2@0.11.0':
     resolution: {integrity: sha512-P33hHGdldxGabLFjPPpaTxVolMrzrcegejx+0GxjrIb9Zv48D8yAIA/QTDR2dFl7Uz7urX8aX6+5bCZslr+gWQ==}
-
-  '@sentry/browser-utils@11.1.0':
-    resolution: {integrity: sha512-1Bcv2FOKQUXKCSfGmCUMTthQZbmyxoWkiePFQzF7hrchdLlwsgYKJic1t1QwxBMZCBCA+352C4/5tZ9/DWgOVw==}
-    engines: {node: '>=20.19.0 <22.0.0 || >=22.12.0 <23.0.0 || >=23.2.0'}
-
-  '@sentry/browser@11.1.0':
-    resolution: {integrity: sha512-9uXvMg5U8q6hcyzRUYywDJKdaQu1PqjVoqKJ7owwlLFSXjzYihYnfAUmUUalJUQ7Hibe8PydyOV/8r9aL6m72A==}
-    engines: {node: '>=20.19.0 <22.0.0 || >=22.12.0 <23.0.0 || >=23.2.0'}
-
-  '@sentry/cloudflare@11.1.0':
-    resolution: {integrity: sha512-Y/1nNLES7IcHrtkecss381Qpr5NXwdbi6QCNYx2he5FShRRzrIKnpa+N1FByMqJO7joFAmdMj/PgCeG/nJyKEw==}
-    engines: {node: '>=20.19.0 <22.0.0 || >=22.12.0 <23.0.0 || >=23.2.0'}
-    peerDependencies:
-      '@cloudflare/workers-types': ^4.x || ^5.x
-      wrangler: ^4.x
-    peerDependenciesMeta:
-      '@cloudflare/workers-types':
-        optional: true
-      wrangler:
-        optional: true
-
-  '@sentry/conventions@0.24.0':
-    resolution: {integrity: sha512-pmmF2mLy7A23z8gnLRG87lYu4SSPIBColtfqu9cfkh1omn/0CI3w0/AqZ/uf/VGAtM/wJMN61J58Ks/IWBCHpQ==}
-    engines: {node: '>=14'}
-
-  '@sentry/core@11.1.0':
-    resolution: {integrity: sha512-ObM47oMWxRQiVxUdkV6bs2BeHxPVWim571hw1iT3suyAc8iRfJ27f+QdIdmDKZtvHFGJ0Vh/LpeTZP5Z8FXyEA==}
-    engines: {node: '>=20.19.0 <22.0.0 || >=22.12.0 <23.0.0 || >=23.2.0'}
-
-  '@sentry/feedback@11.1.0':
-    resolution: {integrity: sha512-ZHZwmJEWcvxJP/rvaJlrO6NFpGHkewsxVmvHLJHkbd1XSChtwgdUI8W/+Gu4jcGXRz0JJPFrpRFNuVTp1QWCjg==}
-    engines: {node: '>=20.19.0 <22.0.0 || >=22.12.0 <23.0.0 || >=23.2.0'}
-
-  '@sentry/opentelemetry@11.1.0':
-    resolution: {integrity: sha512-ZFRwYDSuTIzpS1yOFTMn6p568tQW8k7KIjwzlI8VMOYYAEDkXQK+D/ZUGedSA/iu9fbiZXX+/wFfKqk7AYIiGg==}
-    engines: {node: '>=20.19.0 <22.0.0 || >=22.12.0 <23.0.0 || >=23.2.0'}
-    peerDependencies:
-      '@opentelemetry/api': ^1.9.0
-
-  '@sentry/react@11.1.0':
-    resolution: {integrity: sha512-Xa+URJBG2r5jE9z5sYEvWA5KmYhtNNTKQXYMYysogGW4WRM8z5xipVo1WLDwDCtA4EqC/ybEVfM7N0Ta3331DQ==}
-    engines: {node: '>=20.19.0 <22.0.0 || >=22.12.0 <23.0.0 || >=23.2.0'}
-    peerDependencies:
-      react: 17.x || 18.x || 19.x
-      react-router: 6.x || 7.x || 8.x
-    peerDependenciesMeta:
-      react-router:
-        optional: true
-
-  '@sentry/replay-canvas@11.1.0':
-    resolution: {integrity: sha512-nHWrcN5B6tkxSNvFkI1xT9llNi3NJfUV5JUGhUTtt9urcL55dIMtT7GSflub2fBtrsE//FzeoL1T3Wt4r8+CMQ==}
-    engines: {node: '>=20.19.0 <22.0.0 || >=22.12.0 <23.0.0 || >=23.2.0'}
-
-  '@sentry/replay@11.1.0':
-    resolution: {integrity: sha512-11J/iTBOHqYXQxu9b/KRPxUeHakFdLPnHmDz4hrJ198R4QQQeY245tnYxL8o/1yaQdSo0AMEWJ38lo9GtIWfhg==}
-    engines: {node: '>=20.19.0 <22.0.0 || >=22.12.0 <23.0.0 || >=23.2.0'}
-
-  '@sentry/server-utils@11.1.0':
-    resolution: {integrity: sha512-5IQtU8SommZyTZgJxZFunQQHay8Vq78D8P0qP9ggQ1hTa6GU6kQKBDDN8eNayUA/Hl2qPei/LAmvmyiZNDIJ0Q==}
-    engines: {node: '>=20.19.0 <22.0.0 || >=22.12.0 <23.0.0 || >=23.2.0'}
 
   '@shaderfrog/glsl-parser@7.0.1':
     resolution: {integrity: sha512-8mpfsoPeRhesY3pOrzNZBL8uG6N5GVX1EHLBYbd4gzKs+c7vaEIqpTNK5VrffU33qQN4cwpP2v3u4aPPBU32sw==}
@@ -9480,11 +9400,11 @@ snapshots:
     dependencies:
       json-schema: 0.4.0
 
-  '@alchemy.run/cloudflare-runtime@2.0.0-beta.79(patch_hash=d5a0d6ac12f55d2485faeb07072648a47df5a5eaf174bea8e49017d17eb21c80)(@distilled.cloud/cloudflare@1.0.0-rc.12(effect@4.0.0))(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.2.1(@opentelemetry/api@1.9.1)))(@types/node@26.6.3)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(effect@4.0.0)(rolldown@1.2.5)(typescript@7.0.2)':
+  '@alchemy.run/cloudflare-runtime@2.0.0-beta.79(patch_hash=d5a0d6ac12f55d2485faeb07072648a47df5a5eaf174bea8e49017d17eb21c80)(@distilled.cloud/cloudflare@1.0.0-rc.12(patch_hash=1c5329d037f57102fd466330154df5e6469251f40930239b4429080a63426a2d)(effect@4.0.0))(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.2.1(@opentelemetry/api@1.9.1)))(@types/node@26.6.3)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(effect@4.0.0)(rolldown@1.2.5)(typescript@7.0.2)':
     dependencies:
       '@alchemy.run/node-utils': 2.0.0-beta.79
       '@cloudflare/unenv-preset': 2.16.2(unenv@2.0.0-rc.24)(workerd@1.20260901.1)
-      '@distilled.cloud/cloudflare': 1.0.0-rc.12(effect@4.0.0)
+      '@distilled.cloud/cloudflare': 1.0.0-rc.12(patch_hash=1c5329d037f57102fd466330154df5e6469251f40930239b4429080a63426a2d)(effect@4.0.0)
       '@puppeteer/browsers': 3.2.1(yauzl@3.4.0)
       capnp-es: 0.0.16(typescript@7.0.2)
       effect: 4.0.0
@@ -10487,7 +10407,7 @@ snapshots:
       '@distilled.cloud/core': 1.0.0-rc.12(patch_hash=f1985737f1a003646731fefc8a80a12a52a5b3d5bfd8dbfe84b5bf17a52a70e8)(effect@4.0.0)
       effect: 4.0.0
 
-  '@distilled.cloud/cloudflare@1.0.0-rc.12(effect@4.0.0)':
+  '@distilled.cloud/cloudflare@1.0.0-rc.12(patch_hash=1c5329d037f57102fd466330154df5e6469251f40930239b4429080a63426a2d)(effect@4.0.0)':
     dependencies:
       '@distilled.cloud/core': 1.0.0-rc.12(patch_hash=f1985737f1a003646731fefc8a80a12a52a5b3d5bfd8dbfe84b5bf17a52a70e8)(effect@4.0.0)
       effect: 4.0.0
@@ -11469,7 +11389,8 @@ snapshots:
 
   '@oozcitak/util@10.0.0': {}
 
-  '@opentelemetry/api@1.9.1': {}
+  '@opentelemetry/api@1.9.1':
+    optional: true
 
   '@opentelemetry/semantic-conventions@1.43.0': {}
 
@@ -12414,72 +12335,6 @@ snapshots:
     dependencies:
       domhandler: 5.0.3
       selderee: 0.11.0
-
-  '@sentry/browser-utils@11.1.0':
-    dependencies:
-      '@sentry/conventions': 0.24.0
-      '@sentry/core': 11.1.0
-      web-vitals: 6.2.1
-
-  '@sentry/browser@11.1.0':
-    dependencies:
-      '@sentry/browser-utils': 11.1.0
-      '@sentry/conventions': 0.24.0
-      '@sentry/core': 11.1.0
-      '@sentry/feedback': 11.1.0
-      '@sentry/replay': 11.1.0
-      '@sentry/replay-canvas': 11.1.0
-
-  '@sentry/cloudflare@11.1.0(@cloudflare/workers-types@5.20260929.1)(wrangler@4.143.0(@cloudflare/workers-types@5.20260929.1)(@types/node@26.6.3))':
-    dependencies:
-      '@opentelemetry/api': 1.9.1
-      '@sentry/conventions': 0.24.0
-      '@sentry/core': 11.1.0
-      '@sentry/opentelemetry': 11.1.0(@opentelemetry/api@1.9.1)
-      '@sentry/server-utils': 11.1.0
-      magic-string: 0.30.21
-    optionalDependencies:
-      '@cloudflare/workers-types': 5.20260929.1
-      wrangler: 4.143.0(@cloudflare/workers-types@5.20260929.1)(@types/node@26.6.3)
-
-  '@sentry/conventions@0.24.0': {}
-
-  '@sentry/core@11.1.0':
-    dependencies:
-      '@sentry/conventions': 0.24.0
-
-  '@sentry/feedback@11.1.0':
-    dependencies:
-      '@sentry/core': 11.1.0
-
-  '@sentry/opentelemetry@11.1.0(@opentelemetry/api@1.9.1)':
-    dependencies:
-      '@opentelemetry/api': 1.9.1
-      '@sentry/conventions': 0.24.0
-      '@sentry/core': 11.1.0
-
-  '@sentry/react@11.1.0(react@19.3.0)':
-    dependencies:
-      '@sentry/browser': 11.1.0
-      '@sentry/conventions': 0.24.0
-      '@sentry/core': 11.1.0
-      react: 19.3.0
-
-  '@sentry/replay-canvas@11.1.0':
-    dependencies:
-      '@sentry/core': 11.1.0
-      '@sentry/replay': 11.1.0
-
-  '@sentry/replay@11.1.0':
-    dependencies:
-      '@sentry/browser-utils': 11.1.0
-      '@sentry/core': 11.1.0
-
-  '@sentry/server-utils@11.1.0':
-    dependencies:
-      '@opentelemetry/api': 1.9.1
-      '@sentry/conventions': 0.24.0
-      '@sentry/core': 11.1.0
 
   '@shaderfrog/glsl-parser@7.0.1': {}
 
@@ -13525,14 +13380,14 @@ snapshots:
 
   alchemy@2.0.0-beta.79(patch_hash=f7f0d0454deeb1fa8eef6d06ab17226d5a02c42b5206fbf7a5b9924c53be2938)(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.2.1(@opentelemetry/api@1.9.1)))(@types/node@26.6.3)(@types/react@19.3.0)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20260929.1)(@effect/sql-d1@4.0.0(effect@4.0.0))(@effect/sql-sqlite-do@4.0.0(effect@4.0.0))(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(bun-types@1.4.0)(effect@4.0.0)(valibot@1.4.2(typescript@7.0.2))(zod@4.5.4))(effect@4.0.0)(typescript@7.0.2)(vitest@4.1.11)(ws@8.21.0):
     dependencies:
-      '@alchemy.run/cloudflare-runtime': 2.0.0-beta.79(patch_hash=d5a0d6ac12f55d2485faeb07072648a47df5a5eaf174bea8e49017d17eb21c80)(@distilled.cloud/cloudflare@1.0.0-rc.12(effect@4.0.0))(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.2.1(@opentelemetry/api@1.9.1)))(@types/node@26.6.3)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(effect@4.0.0)(rolldown@1.2.5)(typescript@7.0.2)
+      '@alchemy.run/cloudflare-runtime': 2.0.0-beta.79(patch_hash=d5a0d6ac12f55d2485faeb07072648a47df5a5eaf174bea8e49017d17eb21c80)(@distilled.cloud/cloudflare@1.0.0-rc.12(patch_hash=1c5329d037f57102fd466330154df5e6469251f40930239b4429080a63426a2d)(effect@4.0.0))(@effect/platform-node@4.0.0(effect@4.0.0)(redis@6.2.1(@opentelemetry/api@1.9.1)))(@types/node@26.6.3)(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(effect@4.0.0)(rolldown@1.2.5)(typescript@7.0.2)
       '@alchemy.run/floci': 2.0.0-beta.79(effect@4.0.0)
       '@alchemy.run/node-utils': 2.0.0-beta.79
       '@alchemy.run/sigil': 0.0.0-alpha.11(@types/react@19.3.0)
       '@aws-sdk/credential-providers': 3.1121.0
       '@distilled.cloud/aws': 1.0.0-rc.12(patch_hash=c11be3fdc611600552a368b0a4248445b78f47c62e706cdbc44da1ffe98cfd5d)(effect@4.0.0)
       '@distilled.cloud/axiom': 1.0.0-rc.12(effect@4.0.0)
-      '@distilled.cloud/cloudflare': 1.0.0-rc.12(effect@4.0.0)
+      '@distilled.cloud/cloudflare': 1.0.0-rc.12(patch_hash=1c5329d037f57102fd466330154df5e6469251f40930239b4429080a63426a2d)(effect@4.0.0)
       '@distilled.cloud/core': 1.0.0-rc.12(patch_hash=f1985737f1a003646731fefc8a80a12a52a5b3d5bfd8dbfe84b5bf17a52a70e8)(effect@4.0.0)
       '@distilled.cloud/fly-io': 1.0.0-rc.12(patch_hash=4e8d289148ff2f76f2965db4b9d2a2202d1541733926f41aa114284476a974ca)(effect@4.0.0)
       '@distilled.cloud/hetzner': 1.0.0-rc.12(effect@4.0.0)

@@ -1,0 +1,39 @@
+--- a/src/services/workers.ts
++++ b/src/services/workers.ts
+@@ -11272,10 +11272,14 @@
+   headSamplingRate?: number | null;
+   logs?: PutScriptObservabilityLogs | null;
+   traces?: PutScriptObservabilityTraces | null;
++  issues?: { enabled?: boolean };
++  redactQueryString?: boolean;
+ }
+ export const PutScriptMetadataObservability = /*@__PURE__*/ S.suspend(() =>
+   S.Struct({
+     enabled: S.Boolean,
++    issues: S.optional(S.Struct({ enabled: S.optional(S.Boolean) })),
++    redactQueryString: S.optional(S.Boolean.pipe(T.Body("redact_query_string"))),
+     headSamplingRate: S.optional(
+       S.NullOr(S.Number).pipe(T.Body("head_sampling_rate")),
+     ),
+--- a/lib/services/workers.js
++++ b/lib/services/workers.js
+@@ -4319,6 +4319,8 @@
+ });
+ export const PutScriptMetadataObservability = /*@__PURE__*/ S.suspend(() => S.Struct({
+     enabled: S.Boolean,
++    issues: S.optional(S.Struct({ enabled: S.optional(S.Boolean) })),
++    redactQueryString: S.optional(S.Boolean.pipe(T.Body("redact_query_string"))),
+     headSamplingRate: S.optional(S.NullOr(S.Number).pipe(T.Body("head_sampling_rate"))),
+     logs: S.optional(S.NullOr(PutScriptObservabilityLogs)),
+     traces: S.optional(S.NullOr(PutScriptObservabilityTraces)),
+--- a/lib/services/workers.d.ts
++++ b/lib/services/workers.d.ts
+@@ -4102,6 +4102,8 @@
+     headSamplingRate?: number | null;
+     logs?: PutScriptObservabilityLogs | null;
+     traces?: PutScriptObservabilityTraces | null;
++    issues?: { enabled?: boolean };
++    redactQueryString?: boolean;
+ }
+ export declare const PutScriptMetadataObservability: S.Schema<PutScriptMetadataObservability>;
+ export type PutScriptPlacementSmartMode = "smart";

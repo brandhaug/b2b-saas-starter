@@ -33,17 +33,19 @@ available, so an environment-only flag leaves the jobs skipped. See
 | `BACKUP_DATABASE` variable                                          | Production D1 name, default `b2b-saas-starter`          |
 | `BACKUP_S3_PREFIX` variable                                         | Object prefix, default `d1`                             |
 | `BACKUP_S3_REGION` variable                                         | S3 region, default `us-east-1`                          |
-| `SENTRY_DSN` secret                                                 | Sentry project DSN used to submit cron check-ins        |
-| `SENTRY_BACKUP_MONITOR_SLUG` variable                               | Existing nightly backup monitor slug                    |
-| `SENTRY_BACKUP_FRESHNESS_MONITOR_SLUG` variable                     | Existing independent freshness monitor slug             |
 
-Configure both Sentry monitors with the committed schedules, a suitable check-in
-margin, failure notification, and recovery notification. Route notifications to
-operator email and the optional paging integration. Those routes must not use
-the application's transactional email provider. The script requires a DSN and
-the applicable explicit slug together, which prevents a typo from silently
-creating an unintended monitor. Treat a disabled workflow, missing check-in, or
-quota-disabled monitor as unhealthy.
+Command failures fail the GitHub Actions job. Configure operator notifications
+for failed Actions runs and verify delivery to both operators independently of
+the application's transactional email provider. These jobs run outside Workers,
+so Cloudflare Workers Issues does not collect their output.
+
+The freshness job detects a stale backup only when it runs. GitHub failure
+notifications do not detect disabled workflows or a missed schedule. Before
+production approval, configure an independent scheduler/watchdog that checks
+both workflows' latest successful run times, with a daily deadline and allowance
+for GitHub scheduling delays. Alert on missing, cancelled, skipped, or overdue
+runs, and verify recovery notification delivery. This watchdog is operator
+configuration; the repository does not provision it.
 
 Keep backup access and the decryption key recoverable outside production, with
 the key separate from bucket credentials. Follow the
@@ -75,8 +77,8 @@ completion record is encrypted and authenticated with the same recovery key.
 D1 export can block database requests. `exportDurationMs` measures the
 `wrangler d1 export` child process, a conservative upper bound on that interval. Upload and
 pruning time appear only in `durationMs`. The command preserves a completed
-backup but exits nonzero if export exceeds 60 seconds, so Sentry opens an
-incident. Revise and retest the backup approach before production approval if
+backup but exits nonzero if export exceeds 60 seconds, which fails the
+workflow job. Revise and retest the backup approach before production approval if
 the measured interval exceeds the budget.
 
 ## Prepare for recovery

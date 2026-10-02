@@ -40,8 +40,6 @@ catalog:
   '@playwright/test': 1.63.0
   '@react-email/ui': 6.11.0
   '@rolldown/plugin-babel': 0.2.4
-  '@sentry/cloudflare': 11.1.0
-  '@sentry/react': 11.1.0
   '@tailwindcss/typography': 0.5.20
   '@tailwindcss/vite': 4.3.3
   '@tanstack/devtools-vite': 0.8.5
@@ -147,6 +145,7 @@ overrides:
   vitest@*: 'catalog:'
   '@hono/node-server@<1.19.15': 1.19.15
 patchedDependencies:
+  '@distilled.cloud/cloudflare@1.0.0-rc.12': patches/@distilled.cloud__cloudflare@1.0.0-rc.12.patch
   '@alchemy.run/cloudflare-runtime@2.0.0-beta.79': patches/@alchemy.run__cloudflare-runtime@2.0.0-beta.79.patch
   '@better-auth/oauth-provider@1.7.6': patches/@better-auth__oauth-provider@1.7.6.patch
   '@distilled.cloud/aws@1.0.0-rc.12': patches/@distilled.cloud__aws@1.0.0-rc.12.patch

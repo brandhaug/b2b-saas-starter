@@ -8,13 +8,7 @@
 // This CLI coordinates Node child-process and timer promises outside the app runtime.
 // oxlint-disable effect/noNewPromise
 import { execFile } from 'node:child_process'
-import {
-  createCipheriv,
-  createDecipheriv,
-  createHash,
-  randomBytes,
-  randomUUID
-} from 'node:crypto'
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -22,7 +16,7 @@ import { setTimeout as sleep } from 'node:timers/promises'
 import { parseArgs, promisify } from 'node:util'
 
 import { Predicate, Schema } from 'effect'
-import { isSecureDsn, isSecureEndpoint } from '../packages/env/src/transport.ts'
+import { isSecureEndpoint } from '../packages/env/src/transport.ts'
 import { remoteDatabaseIdFromList } from '../packages/db/scripts/wrangler-d1.ts'
 import { requiredEnv } from './lib/env.ts'
 
@@ -88,14 +82,6 @@ type RestoreOptions = {
   drill?: boolean
   confirmTarget?: string
   database?: string
-}
-
-type SentryCheckInPayload = {
-  check_in_id: string
-  monitor_slug: string
-  status: 'in_progress' | 'ok' | 'error'
-  environment: string
-  duration?: number
 }
 
 type S3Object = {
@@ -678,114 +664,6 @@ export async function pitrDrill(
   console.log(JSON.stringify({ pitrDrill: true, database, timestamp }))
 }
 
-function sentryConfiguration(
-  slugVariable: string
-): { readonly dsn: string; readonly slug: string } | undefined {
-  const dsn = process.env.SENTRY_DSN
-  const slug = process.env[slugVariable]
-  if (dsn === undefined && slug === undefined) {
-    return undefined
-  }
-  if (dsn === undefined || slug === undefined || slug.trim().length === 0) {
-    throw new Error(`SENTRY_DSN and ${slugVariable} must be configured together`)
-  }
-  if (!isSecureDsn(dsn)) {
-    throw new Error('SENTRY_DSN must be an HTTPS URL without a password')
-  }
-  return { dsn, slug }
-}
-
-function sentryEnvelopeUrl(dsn: string): string {
-  const parsed = new URL(dsn)
-  const projectId = parsed.pathname.split('/').findLast((segment) => segment.length > 0)
-  if (parsed.username.length === 0 || projectId === undefined) {
-    throw new Error('SENTRY_DSN is invalid')
-  }
-  const prefix = parsed.pathname.slice(0, -(projectId.length + 1))
-  const endpoint = new URL(`${prefix}/api/${projectId}/envelope/`, parsed.origin)
-  endpoint.searchParams.set('sentry_version', '7')
-  endpoint.searchParams.set('sentry_key', parsed.username)
-  endpoint.searchParams.set('sentry_client', 'b2b-saas-starter-backup/1')
-  return endpoint.href
-}
-
-async function sendCheckIn(
-  configuration: { readonly dsn: string; readonly slug: string },
-  checkInId: string,
-  status: 'in_progress' | 'ok' | 'error',
-  duration?: number
-): Promise<void> {
-  const payload: SentryCheckInPayload = {
-    check_in_id: checkInId,
-    monitor_slug: configuration.slug,
-    status,
-    environment: process.env.SENTRY_ENVIRONMENT ?? 'production'
-  }
-  if (duration !== undefined) {
-    payload.duration = duration
-  }
-  const envelope = [
-    JSON.stringify({ sent_at: new Date().toISOString() }),
-    JSON.stringify({ type: 'check_in' }),
-    JSON.stringify(payload)
-  ].join('\n')
-  const response = await fetch(sentryEnvelopeUrl(configuration.dsn), {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-sentry-envelope' },
-    body: envelope,
-    signal: AbortSignal.timeout(10_000)
-  })
-  if (!response.ok) {
-    throw new Error(`Sentry check-in failed (${response.status})`)
-  }
-}
-
-export async function runWithSentryCronMonitor(
-  slugVariable: string,
-  operation: () => Promise<void>
-): Promise<void> {
-  const configuration = sentryConfiguration(slugVariable)
-  if (configuration === undefined) {
-    await operation()
-    return
-  }
-  const checkInId = randomUUID().replaceAll('-', '')
-  const started = Date.now()
-  let monitoringFailure: unknown
-  try {
-    await sendCheckIn(configuration, checkInId, 'in_progress')
-  } catch (error) {
-    monitoringFailure = error
-    console.error('failed to start Sentry check-in', error)
-  }
-  try {
-    await operation()
-  } catch (error) {
-    try {
-      await sendCheckIn(
-        configuration,
-        checkInId,
-        'error',
-        (Date.now() - started) / 1000
-      )
-    } catch (notificationError) {
-      console.error('failed to report command failure to Sentry', notificationError)
-    }
-    throw error
-  }
-  try {
-    await sendCheckIn(configuration, checkInId, 'ok', (Date.now() - started) / 1000)
-  } catch (error) {
-    if (monitoringFailure === undefined) {
-      throw error
-    }
-    console.error('failed to finish Sentry check-in', error)
-  }
-  if (monitoringFailure !== undefined) {
-    throw monitoringFailure
-  }
-}
-
 async function main(args: ReadonlyArray<string>): Promise<void> {
   const parsed = parseArgs({
     args,
@@ -799,9 +677,7 @@ async function main(args: ReadonlyArray<string>): Promise<void> {
   })
   const [command, input] = parsed.positionals
   if (command === 'backup') {
-    await runWithSentryCronMonitor('SENTRY_BACKUP_MONITOR_SLUG', async () => {
-      await backup(parsed.values.database)
-    })
+    await backup(parsed.values.database)
     return
   }
   if (command === 'prune') {
@@ -809,9 +685,7 @@ async function main(args: ReadonlyArray<string>): Promise<void> {
     return
   }
   if (command === 'freshness') {
-    await runWithSentryCronMonitor('SENTRY_BACKUP_FRESHNESS_MONITOR_SLUG', async () => {
-      await freshness(parsed.values.database)
-    })
+    await freshness(parsed.values.database)
     return
   }
   if (command === 'restore' && input !== undefined) {

@@ -329,8 +329,6 @@
   ],
   "endpoint_register_denied": "Rollen din kan ikke registrere endepunkter.",
   "not_recorded": "Ikke registrert",
-  "provider_sentry": "Sentry",
-  "provider_sentry_role": "Feilrapportering",
   "notifications_title": "Varsler",
   "audit_webhook_endpoint_deleted": "Webhook-endepunkt slettet",
   "backup_codes_save_all_once": "Lagre alle reservekodene nå. De vises bare én gang, og alle tidligere koder er nå ugyldige.",

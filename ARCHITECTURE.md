@@ -138,7 +138,7 @@ Each stage has isolated resources. `pr-<number>` stages disable optional provide
 
 [packages/logger](packages/logger/AGENTS.md) owns one wide event per request or job, trace propagation, and request metrics. Handlers add business context to the existing scope. Queue messages carry trace context across the asynchronous boundary.
 
-Console logging stays available without providers. Configured OTLP export is scoped per invocation so background export work does not outlive the Worker request. Sentry supplies independent operational alerts; PostHog supplies optional analytics. [Monitoring](docs/monitoring.md) owns metric names, monitor configuration, and response thresholds.
+Console logging stays available without providers. Configured OTLP export is scoped per invocation so background export work does not outlive the Worker request. Cloudflare Workers Logs and Issues capture server failures without an SDK. PostHog supplies optional analytics. Native Issues shares the application's Cloudflare failure domain; external availability and heartbeat checks remain deployment requirements. [Monitoring](docs/monitoring.md) owns metric names, monitor configuration, and response thresholds.
 
 ### Recovery operations
 

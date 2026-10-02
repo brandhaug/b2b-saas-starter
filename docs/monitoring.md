@@ -1,63 +1,95 @@
 # Production monitoring
 
-Configure Sentry for the production environment and route alerts to the primary
-operator's email and the backup operator. Add an optional paging/chat integration
-webhook in Sentry. Sentry delivers these notifications independently of the
-application's transactional email transport.
+Workers Logs and Workers Issues collect runtime failures on Cloudflare. The
+committed Worker configuration enables them; no application telemetry secret or
+SDK is required. Local development writes the same sanitized events to the
+console. [Workers Issues](https://developers.cloudflare.com/workers/observability/issues/)
+groups uncaught exceptions, failed invocations, HTTP 5xx responses, and error
+logs. It requires Wrangler 4.134.0 or later and processes new traffic after enablement.
 
-`SENTRY_DSN` enables runtime telemetry. Unset it for provider-free local work.
+In the Issues dashboard, configure an occurrence-threshold automation and a
+recurrence-after-inactivity automation for each production Worker. Route them to
+the operator's incident-management service or HTTPS webhook, with the backup
+operator included. An occurrence threshold triggers once when crossed, not on
+every later occurrence. Verify delivery at the destination; a successful
+automation run only confirms acceptance by Cloudflare Notifications.
+See [Issues automations](https://developers.cloudflare.com/workers/observability/issues/automations/).
+
+Cloudflare's [October 2 observability announcement](https://blog.cloudflare.com/one-observability-platform/)
+adds custom SQL Alerts in beta for Workers events and other observability data.
+Use these for windowed counts, ratios and snapshot thresholds below. The
+repository emits the evidence but does not provision alert rules or destinations.
+Create each rule in the account's Alerts dashboard, inspect an actual event to
+select the dataset and field paths, and record its query and evaluation window
+in the deployment's operator record. Verify account availability and behavior
+before treating a rule as operational.
+
 Set `MAINTENANCE_MODE=true` on all three Workers to close customer requests and
 business scheduled work. Pause provider queue delivery as well, since retries
 consume the queue's retention and attempt budgets. `/ready` returns 503 while
 maintenance is enabled or its bounded D1 schema probe fails. Local Seed mode
 without D1 fails readiness.
 
+## Runtime evidence and alert policy
+
+These are the required deployment policies. Issues detection alone does not
+implement ratio gates, stale-data checks, uptime probes or recovery notifications.
+Keep logs unsampled when using event counts to evaluate these policies.
+
+| Monitor                     | Evidence and condition                                                                                                                           | Recovery                                                                      |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| Web and API readiness       | External GET `<WEB_URL>/ready` and `<API_URL>/ready` every minute, 10-second timeout; five consecutive failures                                  | One success                                                                   |
+| HTTP errors, per service    | Native HTTP invocation records: failed invocations or HTTP 5xx divided by all HTTP invocations in five minutes; ratio >0.05 and denominator >=20 | Ratio <=0.05 or traffic below the gate, with telemetry present                |
+| Overdue billing             | Latest `operations.snapshot` value `billing.overdue_workspaces` >0                                                                               | Fresh value 0                                                                 |
+| Systemic email send failure | Latest snapshot value `email.recent_transport_failures` >=3, covering five minutes                                                               | Fresh value below 3                                                           |
+| Pending email backlog       | Latest snapshot value `email.overdue_pending` >0, covering messages pending acceptance for >=15 minutes                                          | Fresh value 0                                                                 |
+| Terminal queue work         | `operations.failure`, `signal=queue_exhausted`; any occurrence                                                                                   | Operator disposition of the affected job                                      |
+| Observed old queue work     | `operations.failure`, `signal=queue_backlog_age`; any delivered message >=15 minutes old                                                         | Provider backlog drained                                                      |
+| Email event processing      | `operations.failure`, `signal=email_event_processing_failed`; >=3 events in five minutes                                                         | Processing resumes and window clears                                          |
+| Security evidence gap       | `operations.failure`, `signal=security_evidence_gap`; any occurrence                                                                             | Evidence recovered or uncertain access revoked/reset                          |
+| Completed action audit gap  | `operations.failure`, `signal=audit_write_gap`; any occurrence                                                                                   | Authoritative state reviewed and audit repaired or affected access restricted |
+
+Snapshot values are fields inside `values`, including explicit zeros after
+recovery. Failure details are inside sanitized `evidence`; snapshot service is
+`background`. For HTTP ratios, select the deployed web or API Worker and use native
+invocation outcomes and response statuses. Count each invocation once, including
+requests rejected by maintenance, readiness, or other entry-point gates. Application
+wide events do not cover every gate and cannot supply the complete denominator.
+Verify the dataset includes failed invocations with no HTTP response, and count
+those as errors. Inspect actual native field names before configuring the query.
+Issue occurrences are grouped errors, not request totals.
+
 Best-effort webhook, seat synchronization, and notification-email publication
 failures retain `webhookPublish`, `seatSyncPublish`, or
 `notificationEmailEnqueue` with the value `failed` on the originating request
 event. The request can still have `status: ok` because its mutation committed.
 Notification email events also retain recipient and enqueue counts. Provider
-diagnostic strings remain excluded from exported telemetry.
+diagnostic strings remain excluded from application telemetry.
 
 Auth audit body failures retain `authAuditBodyErrorTag: AuthAuditBodyUnreadable`
 on the request event. Request bodies and parsing diagnostics remain excluded.
 
-## Monitor inventory
+## Scheduled work and missing evidence
 
-Provision the runtime monitors below, the two [backup monitors](backup-recovery.md),
-and the external queue monitor. Include every deployed queue and dead-letter
-queue. Budget for the complete inventory and verify monitors remain active after
-billing changes.
+Scheduled work emits `event=cron.check_in`, a `monitorSlug`, and `status` of
+`in_progress`, `ok`, or `error`. Errors use `console.error` for Issues detection.
+These are structured logs, not a provider cron-monitor check-in API.
 
-| Monitor                                         | Configuration                                                                                                           | Incident and recovery                                                                              |
-| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Web readiness                                   | GET `<WEB_URL>/ready`, every minute, 10-second timeout                                                                  | Five consecutive failures; recover after one success                                               |
-| API readiness                                   | GET `<API_URL>/ready`, same timing                                                                                      | Five consecutive failures; recover after one success                                               |
-| Daily digest                                    | Cron `b2b-saas-starter-background-digest`, `0 8 * * *`, UTC                                                             | 5-minute grace and maximum runtime; failure threshold 1, recovery threshold 1                      |
-| Retention cleanup                               | Cron `b2b-saas-starter-background-retention`, `0 * * * *`, UTC                                                          | 5-minute grace and maximum runtime; failure threshold 1, recovery threshold 1                      |
-| Digest retry                                    | Cron `b2b-saas-starter-background-digest-retry`, `*/15 8-14 * * *`, UTC                                                 | 5-minute grace/runtime; failure 1, recovery 1                                                      |
-| Billing reconciliation and operational snapshot | Cron `b2b-saas-starter-background-billing-reconciliation`, `* * * * *`, UTC                                             | 2-minute grace/runtime; failure 1, recovery 1                                                      |
-| HTTP errors, per web/API service                | Metric `http.requests`, sum counts for `server_error=true` divided by sum of all counts in a rolling five-minute window | Ratio >0.05 AND denominator >=20; recover when ratio <=0.05 or traffic falls below gate            |
-| Overdue billing                                 | Gauge `billing.overdue_workspaces`, latest value                                                                        | >0; recover at 0                                                                                   |
-| Systemic email send failure                     | Gauge `email.recent_transport_failures`, latest value                                                                   | >=3 messages over the five-minute evidence window; recover below 3                                 |
-| Pending email backlog                           | Gauge `email.overdue_pending`, latest value                                                                             | >0 messages pending before acceptance for >=15 minutes; recover at 0                               |
-| Terminal queue work                             | Counter `operations.failures`, `signal=queue_exhausted`                                                                 | Any event; notify on new/regressed incident, require operator disposition before resolving         |
-| Observed old queue work                         | Same counter, `signal=queue_backlog_age`                                                                                | Any message observed >=15 minutes old; inspect provider backlog, resolve after it drains           |
-| Email event processing                          | Same counter, `signal=email_event_processing_failed`                                                                    | >=3 retries in five minutes; recover when processing resumes and window clears                     |
-| Security evidence gap                           | Sentry issue `security_evidence_gap`                                                                                    | Any gap; resolve only after evidence has been recovered or uncertain access is revoked/reset       |
-| Completed action audit gap                      | Sentry issue `audit_write_gap`                                                                                          | Any gap; inspect authoritative plugin/provider state, repair the audit or restrict affected access |
+| Monitor slug                                         | UTC schedule      | Grace and maximum runtime |
+| ---------------------------------------------------- | ----------------- | ------------------------- |
+| `b2b-saas-starter-background-digest`                 | `0 8 * * *`       | 5 minutes                 |
+| `b2b-saas-starter-background-retention`              | `0 * * * *`       | 5 minutes                 |
+| `b2b-saas-starter-background-digest-retry`           | `*/15 8-14 * * *` | 5 minutes                 |
+| `b2b-saas-starter-background-billing-reconciliation` | `* * * * *`       | 2 minutes                 |
 
-Provision the cron monitors with these schedules before relying on check-ins:
-SDK check-ins name the monitor but do not replace the operator's schedule and
-notification setup. Configure missing telemetry as unknown/alerting, never as
-healthy. In particular, a missed operational snapshot cannot clear billing or
-email incidents. The snapshot emits zeros after failures resolve.
-
-Use Sentry's metric monitor editor to apply the error-ratio denominator gate. If
-the account's editor cannot express the combined condition, route the equivalent
-metric query through an operator-managed rule that can; do not enable an
-ungated percentage alert and call the policy complete. Verify the exact rule in
-the controlled drill, including low traffic and recovery.
+Alert on a failed run, a missing expected run, or an `in_progress` event without
+a completion within its runtime limit. Require a fresh successful run to recover.
+The billing reconciliation run also emits the operational snapshot. Treat a
+snapshot older than two minutes as unknown/alerting; absence cannot clear billing
+or email incidents. Configure a SQL absence rule only after verifying that it
+actually evaluates a window with no events. Otherwise use an independent
+watchdog. Keep external readiness probes and missed-run monitoring independent
+of the application's transactional email and production Cloudflare account.
 
 ## Provider queue monitoring
 
@@ -66,13 +98,12 @@ Consumer telemetry sees only delivered messages. The independent
 [queue metrics API](https://developers.cloudflare.com/queues/observability/metrics/)
 every five minutes without consuming messages. A nonempty queue fails when its
 oldest message is at least fifteen minutes old or the age is unknown. Any
-positive dead-letter count fails. A drained queue returns a successful check-in.
+positive dead-letter count fails. A drained queue returns a successful job.
 
 Set repository variable `OPS_MONITORING_ENABLED=true`. Create an
 `operations-monitoring` GitHub environment without deployment approval waits,
 with least-privilege queue-read credentials in `CLOUDFLARE_ACCOUNT_ID` and
-`CLOUDFLARE_API_TOKEN`, plus `SENTRY_DSN`. Set environment variables
-`SENTRY_QUEUE_MONITOR_SLUG` and `OPS_QUEUES`, for example:
+`CLOUDFLARE_API_TOKEN`. Set environment variable `OPS_QUEUES`, for example:
 
 ```json
 [
@@ -82,23 +113,24 @@ with least-privilege queue-read credentials in `CLOUDFLARE_ACCOUNT_ID` and
 ```
 
 Inventory all physical queues in `stageResourceNames` from `infra/bindings.ts`.
-Configure the Sentry cron slug with `*/5 * * * *`, UTC, ten-minute grace, five-minute
-maximum runtime, failure threshold one and recovery threshold one. The grace
-allows GitHub scheduling delays; it does not extend queue retention. A failure
-or missed run must notify the operator independently of transactional email.
-`node scripts/queue-health.ts` runs the same check from an operator shell.
+Configure GitHub Actions failure notifications for operators. Use an independent
+watchdog to detect a missing successful run after ten minutes, allowing for
+GitHub scheduling delays. A five-minute job timeout bounds an individual run.
+GitHub failure notifications alone cannot detect a disabled workflow or missed
+schedule. These Node scripts run outside Workers and do not send logs to Workers
+Issues. `node scripts/queue-health.ts` runs the same check from an operator shell.
 
 The metric API reports approximate backlog. Keep unknown results actionable and
-verify recovery at the provider before replaying or discarding jobs.
+verify recovery at the provider before replaying or discarding jobs. Configure
+the two [backup jobs and their missed-run monitoring](backup-recovery.md) too.
 
 ## Evidence and first response
 
-Runtime events contain queue/message IDs and attempt counts in Sentry event
-context. Metric dimensions and event fingerprints stay stable across messages.
-Use those IDs to inspect the existing durable delivery and billing records.
+Runtime failure evidence includes queue/message IDs and attempt counts. Use
+those IDs to inspect the existing durable delivery and billing records.
 For overdue billing, use [billing operator commands](billing-operator-runbook.md)
-to find affected Workspaces and inspect current Stripe state. The gauge uses the
-persisted first unresolved timestamp, including work waiting behind backoff;
+to find affected Workspaces and inspect current Stripe state. The snapshot uses
+the persisted first unresolved timestamp, including work waiting behind backoff;
 repaired drift does not increment it.
 
 Email transport counts exclude provider acceptance and recipient bounces,
@@ -108,17 +140,18 @@ codes or links. Send failures, event-consumer failures, scheduled failures and
 terminal queue work require different first checks; see the
 [response table](operations.md#alert-ownership-and-response).
 
-For metric and uptime incidents, enable opening and recovery notifications and
-deduplicate by environment, service and monitor. For terminal jobs and security
-evidence gaps, an operator resolves the issue after reviewing durable evidence;
-a successful later unrelated job does not repair the exhausted job. Configure a
-resolved-issue notification for that manual recovery too.
+Configure opening and recovery notifications at the alert destination and
+deduplicate by environment, service and monitor. A later unrelated success does
+not repair an exhausted job or a security evidence gap. Resolve those only after
+reviewing durable evidence and notify the operators of the disposition.
 
 ## Verification
 
 Run the [isolated drill](operations.md#drill-evidence), using its
-[record template](operations/drill-record.md). Keep both delivered opening and
-recovery notifications with timestamps. Local tests exercise the HTTP counting,
-cron lifecycle, retry budgets, persisted fifteen-minute billing threshold,
-recipient-bounce exclusion and recovery gauges. They do not prove provider
-configuration, queue metrics, notification routing, budget activation or delivery.
+[record template](operations/drill-record.md). Keep delivered opening and recovery
+notifications with timestamps. Include an uncaught Worker exception, handled
+error log, HTTP 5xx, low-traffic ratio gate, restored zero snapshot, absent
+snapshot, stopped schedule, and failed/missed GitHub job. Local tests verify
+emitted evidence and domain thresholds; they do not prove Cloudflare issue
+grouping, configured SQL rules, external probes, notification delivery or
+missed-run detection. Record those as unverified until the provider drill passes.

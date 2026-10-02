@@ -7,7 +7,7 @@ import { captureMonitoringSignal } from '@b2b-saas-starter/logger/providers'
 
 import { type ApiEnv } from './env.ts'
 
-/** API-worker adapter for the independent append store and Sentry gap alert. */
+/** API-worker adapter for the independent append store and Workers Issues gap alert. */
 export function securityEvidenceSink(env: ApiEnv): SecurityEvidenceSink | undefined {
   if (!hasValue(env.SECURITY_EVIDENCE_URL) || !hasValue(env.SECURITY_EVIDENCE_TOKEN)) {
     return undefined

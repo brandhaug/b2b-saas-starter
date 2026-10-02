@@ -6,16 +6,16 @@ Keep customer data, SQL dumps, secrets and raw provider payloads out of this rec
 
 ## Identity and boundaries
 
-| Field                                             | Observed value |
-| ------------------------------------------------- | -------------- |
-| Operator and witness                              |                |
-| UTC date and Git revision                         |                |
-| Isolated Cloudflare account / stage / D1 ID       |                |
-| Confirmation this is not a production target      |                |
-| Independent backup provider / bucket / object key |                |
-| Separate key/configuration recovery source        |                |
-| Sentry project / environment / alert destinations |                |
-| Tested D1 size and row counts                     |                |
+| Field                                                 | Observed value |
+| ----------------------------------------------------- | -------------- |
+| Operator and witness                                  |                |
+| UTC date and Git revision                             |                |
+| Isolated Cloudflare account / stage / D1 ID           |                |
+| Confirmation this is not a production target          |                |
+| Independent backup provider / bucket / object key     |                |
+| Separate key/configuration recovery source            |                |
+| Monitoring account / environment / alert destinations |                |
+| Tested D1 size and row counts                         |                |
 
 ## Recovery evidence
 

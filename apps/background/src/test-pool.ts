@@ -7,7 +7,6 @@ import {
 import { env } from 'cloudflare:workers'
 
 import worker from './index.ts'
-import { type Env } from './queue-consumer.ts'
 
 /**
  * The scaffolding every `*.pool.test.ts` suite shares, so the next pool test
@@ -18,15 +17,6 @@ import { type Env } from './queue-consumer.ts'
  * applied to that D1. Queue-specific fixtures — message builders, table
  * seeds — stay beside their suite.
  */
-
-// SAFETY: `Sentry.withSentry` types the wrapped `queue` handler as
-// (batch, env), but its queue instrumentation reads the runtime's third
-// argument (`ctx.waitUntil`, instrumentQueue.ts), and production always
-// passes one — the cast only restores the ExportedHandlerQueueHandler
-// contract the wrapper's own type dropped, and the bind keeps the method's
-// own receiver. No value changes hands.
-// oxlint-disable-next-line effect/noAs -- see SAFETY above
-const queueHandler = worker.queue.bind(worker) as ExportedHandlerQueueHandler<Env>
 
 /** D1 hands text and integer columns back as strings, numbers, or null. */
 export type PoolRow = Readonly<Record<string, string | number | null>>
@@ -52,7 +42,7 @@ export async function consume<M>(
 ): Promise<FetcherQueueResult> {
   const batch = createMessageBatch(queueName, [...messages])
   const ctx = createExecutionContext()
-  await queueHandler(batch, env, ctx)
+  await worker.queue(batch, env)
   return getQueueResult(batch, ctx)
 }
 // oxlint-enable effect/noAsyncFunction

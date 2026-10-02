@@ -45,7 +45,7 @@ The tests also reject tampered backups and incomplete completion evidence,
 exercise retention and freshness policies, and check destructive target guards.
 
 Independent S3 upload/download and key recovery, a lost-account rebuild,
-Sentry failure/recovery notification delivery and deduplication, remote queue
+Operator failure/recovery notification delivery and deduplication, remote queue
 failure drills, and full recovery-time/data-loss targets remain unverified.
 Use [the complete drill record](drill-record.md) for the deployment's evidence.
 This record does not approve destructive cleanup for customer data.

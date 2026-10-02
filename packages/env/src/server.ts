@@ -27,7 +27,6 @@ export type ServerEnv = {
   readonly STRIPE_WEBHOOK_SECRET?: string | undefined
   readonly STRIPE_PRICE_ID_TEAM?: string | undefined
   readonly STRIPE_PRICE_ID_ENTERPRISE?: string | undefined
-  readonly SENTRY_DSN?: string | undefined
   /** Append-only recovery evidence store outside the production Cloudflare account. */
   readonly SECURITY_EVIDENCE_URL?: string | undefined
   /** Bearer credential for the independent recovery evidence store. */
@@ -136,7 +135,6 @@ export const optionalModuleEnvSecretKeys = [
 
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const optionalModuleEnvPlainKeys = [
-  'SENTRY_DSN',
   'SECURITY_EVIDENCE_URL',
   'POSTHOG_KEY',
   'POSTHOG_HOST',

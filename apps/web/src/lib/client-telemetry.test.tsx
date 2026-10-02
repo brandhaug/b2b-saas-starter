@@ -1,96 +1,36 @@
-import { type init as sentryInit } from '@sentry/react'
 import { type default as posthog, type PostHog } from 'posthog-js'
 import { act, render, waitFor } from '@testing-library/react'
 import { expect, it, vi } from 'vite-plus/test'
 import { ClientTelemetry } from './client-telemetry'
 
-const providers = vi.hoisted(() => {
-  let finishDownload: (() => void) | undefined
-  const sentryDownload = new Promise<void>((resolve) => {
-    finishDownload = resolve
-  })
-  if (finishDownload === undefined) {
-    throw new Error('Promise executor did not run synchronously')
-  }
-  return {
-    sentryDownload,
-    finishDownload,
-    sentryInit: vi.fn<typeof sentryInit>(),
-    posthogInit: vi.fn<typeof posthog.init>()
-  }
-})
-
-vi.mock('@sentry/react', async () => {
-  await providers.sentryDownload
-  return { getClient: () => undefined, init: providers.sentryInit }
-})
+const providers = vi.hoisted(() => ({ posthogInit: vi.fn<typeof posthog.init>() }))
 
 vi.mock('posthog-js', () => ({
   default: { __loaded: false, init: providers.posthogInit }
 }))
 
-it('starts analytics while error reporting downloads and cancels initialization on unmount', async () => {
-  const { rerender, unmount } = render(
-    <ClientTelemetry
-      config={{ sentryDsn: undefined, posthogKey: undefined, posthogHost: undefined }}
-    />
+it('leaves unconfigured browser analytics inactive', async () => {
+  const { unmount } = render(
+    <ClientTelemetry config={{ posthogKey: undefined, posthogHost: undefined }} />
   )
   await act(async () => {})
   expect(providers.posthogInit).not.toHaveBeenCalled()
-  expect(providers.sentryInit).not.toHaveBeenCalled()
-
-  rerender(
-    <ClientTelemetry
-      config={{
-        sentryDsn: 'https://public@example.com/1',
-        posthogKey: 'public-key',
-        posthogHost: undefined
-      }}
-    />
-  )
-  await waitFor(() => expect(providers.posthogInit).toHaveBeenCalledTimes(1))
-  expect(providers.sentryInit).not.toHaveBeenCalled()
-
   unmount()
-  await act(async () => {
-    providers.finishDownload()
-    await vi.dynamicImportSettled()
-  })
-  expect(providers.sentryInit).not.toHaveBeenCalled()
 })
 
-it('emits minimal page analytics and scrubs browser error reports', async () => {
+it('emits minimal page analytics', async () => {
   const { unmount } = render(
     <ClientTelemetry
       config={{
-        sentryDsn: 'https://public@example.com/1',
         posthogKey: 'public-key',
         posthogHost: undefined
       }}
     />
   )
-  await waitFor(() => expect(providers.sentryInit).toHaveBeenCalledTimes(1))
-  const sentryOptions = providers.sentryInit.mock.calls[0]?.[0]
+  await waitFor(() => expect(providers.posthogInit).toHaveBeenCalled())
   const posthogOptions = providers.posthogInit.mock.calls.at(-1)?.[1]
-  expect(sentryOptions).toBeDefined()
   expect(posthogOptions).toBeDefined()
   const secret = 'BROWSER_SENSITIVE_SENTINEL'
-  const output = sentryOptions?.beforeSend?.(
-    {
-      type: undefined,
-      message: secret,
-      request: {
-        url: `https://app.example?token=${secret}`,
-        cookies: { session: secret }
-      },
-      user: { email: `${secret}@example.com` },
-      breadcrumbs: [{ message: secret }],
-      exception: { values: [{ type: 'TypeError', value: secret }] }
-    },
-    {}
-  )
-  expect(JSON.stringify(output)).not.toContain(secret)
-  expect(JSON.stringify(output)).toContain('TypeError')
   const payloads: Array<string> = []
   const fetch = vi.fn<typeof globalThis.fetch>(async (_input, init) => {
     payloads.push(await new Response(init?.body).text())

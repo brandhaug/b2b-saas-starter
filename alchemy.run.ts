@@ -155,7 +155,7 @@ const optionalProviderEnv = {
 }
 
 // Preview stages carry only the deploy identity. Every env-gated provider
-// (Turnstile, Stripe, Sentry, PostHog, OTLP, OpenAI, Workers AI, email) stays
+// (Turnstile, Stripe, PostHog, OTLP, OpenAI, Workers AI, email) stays
 // unset on a `pr-<number>` stage even when the deploying shell has the values,
 // so a preview can never charge a card, page an on-call, or send real mail.
 // `ENVIRONMENT` defaults to `preview` so the required-env gate runs in its
@@ -194,7 +194,9 @@ function emailFromForStage(stage: string): string | undefined {
 
 const observability: Cloudflare.WorkerObservability = {
   enabled: true,
-  logs: { enabled: true, invocationLogs: true }
+  logs: { enabled: true, invocationLogs: true, headSamplingRate: 1 },
+  issues: { enabled: true },
+  redactQueryString: true
 }
 
 // Smart placement moves a worker near its data. It belongs to the worker-only

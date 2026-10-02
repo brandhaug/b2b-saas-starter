@@ -1,6 +1,5 @@
 import { databaseIsReady } from '@b2b-saas-starter/db/service'
 import { isMaintenanceMode } from '@b2b-saas-starter/env/server'
-import { withHttpMonitor } from '@b2b-saas-starter/logger/providers'
 import { Effect } from 'effect'
 import { localizeRequest } from '@/lib/server/i18n-middleware'
 import { uiErrorAdapter } from '@/lib/ui-error'
@@ -24,14 +23,12 @@ import { env as cloudflareEnv } from 'cloudflare:workers'
  */
 const observabilityMiddleware = createMiddleware({ type: 'request' }).server(
   ({ request, next, handlerType, serverFnMeta }) =>
-    withHttpMonitor('web', () =>
-      runWebRequestScope(
-        { request, handlerType, serverFnId: serverFnMeta?.name },
-        async () => {
-          const result = await next()
-          return result.response
-        }
-      )
+    runWebRequestScope(
+      { request, handlerType, serverFnId: serverFnMeta?.name },
+      async () => {
+        const result = await next()
+        return result.response
+      }
     )
 )
 

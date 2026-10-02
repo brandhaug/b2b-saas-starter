@@ -31,7 +31,8 @@ isolated database.
 ## Operator configuration
 
 Assign a primary operator and backup operator. Record their email destinations,
-Sentry organization/project/environment, optional paging integration, and the
+Cloudflare account/Worker/environment, notification destinations, independent
+availability and heartbeat monitors, and the
 secret-manager locations below in the deployment's private operations record.
 Do not commit secrets or customer backup contents.
 
@@ -48,7 +49,7 @@ Keep these recoverable outside the production Cloudflare account:
   backup bucket and production account.
 - Independent deletion and credential-revocation evidence, including any known
   periods when evidence writes failed.
-- Sentry configuration, alert routing, monitor inventory and approved budget.
+- Cloudflare Issues configuration, alert routing, external monitor inventory and approved budget.
 
 Restore credentials into the isolated environment using its own URLs and keys.
 Do not enable live Stripe writes, email delivery or customer webhooks in a drill.
@@ -122,7 +123,7 @@ a privileged-role change or incident, and on the deployment's chosen recurring
 schedule. The operator records that schedule and the systems in scope privately.
 
 1. Export or inspect current privileged access for Cloudflare, GitHub Actions,
-   Sentry, backup and evidence stores, identity providers, billing, and other
+   monitoring, backup and evidence stores, identity providers, billing, and other
    enabled vendors. Include application System Admins, Workspace owners, admins,
    and members, API tokens, MCP grants, break-glass accounts, service tokens,
    and recovery contacts.
@@ -203,13 +204,13 @@ time maintenance stopped writes:
 
 The evidence write has a three-second timeout and never rolls back the live
 security mutation. Any failed append emits `security_evidence_gap` through the
-independent Sentry path with the evidence ID, kind, subject reference, Workspace
+Cloudflare error-log path with the evidence ID, kind, subject reference, Workspace
 reference, service, and environment. Investigate every event. If the mutation
 can be reconstructed, append its record and document the gap as resolved before
 export. Otherwise include the sanitized reference in `gaps`; the recovery
 sanitizer then revokes every API token, removes account credentials and passkeys,
 and bans restored users pending verification. Keep maintenance enabled until an
-operator has reset or verified the affected access and closed the Sentry alert.
+operator has reset or verified the affected access and resolved the corresponding incident.
 
 An application audit write that follows a completed plugin or provider action
 uses the same bounded gap procedure. It emits `audit_write_gap` with the
@@ -297,9 +298,12 @@ of these differences and the operator's resolution for each.
 
 ## Alert ownership and response
 
-Sentry sends operator email directly. Its optional paging/chat integration must
-also be independent of the application's transactional email provider. Configure
-notifications for both incident opening and recovery. Group repeated events by
+Configure Cloudflare Issues automations to a verified operator destination.
+Notification delivery must be independent of the application's transactional
+email provider. Issues shares Cloudflare's failure domain, so retain independent
+availability and heartbeat monitors outside that account. Configure and test
+incident opening and recovery notifications in the chosen monitor; enabling
+Issues alone does not supply these policies. Group repeated events by
 service, environment and failure kind, preserving request/job/provider IDs as
 evidence rather than incident keys. A missing check-in or deactivated monitor
 is not a healthy result.
@@ -321,15 +325,15 @@ Individual recipient bounces remain delivery diagnostics. They should not page
 operators as systemic email outages. Never attach raw email bodies, tokens,
 secret links, payment details or raw provider payloads to alerts.
 
-See [monitor configuration](monitoring.md) for exact runtime metric names,
+See [monitor configuration](monitoring.md) for runtime event names,
 cron slugs, initial thresholds and provider setup gaps.
 
 ## External monitors and budget
 
-[Monitoring configuration](monitoring.md) owns the uptime, cron, metric, and
+[Monitoring configuration](monitoring.md) owns the uptime, heartbeat, operational signal, and
 queue monitor inventory. Record the deployment's current provider quote and
 approved budget privately. Verify active monitors and failure/recovery routing
-after adding jobs or changing the budget; a DSN alone configures neither.
+after adding jobs or changing the budget; enabling telemetry collection alone configures neither.
 
 ## Drill evidence
 
@@ -358,7 +362,7 @@ During the email failure, operator notifications must still arrive.
 
 Local tests can prove policy decisions and safety guards. They cannot establish
 D1 Time Travel performance, independent account/key recovery, remote queue
-behavior or Sentry email delivery. Do not mark those checks passed without a
+behavior or notification delivery. Do not mark those checks passed without a
 live isolated drill and its evidence.
 
 ## Private Assistant Conversation recovery

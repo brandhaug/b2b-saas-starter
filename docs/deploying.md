@@ -149,7 +149,7 @@ other PRs.
 
 Previews are provider-light on purpose. A `pr-<number>` stage drops
 every optional provider value even if the deploying shell has one
-(Turnstile, Stripe, Sentry, PostHog, OTLP, OpenAI, Workers AI, email)
+(Turnstile, Stripe, PostHog, OTLP, OpenAI, Workers AI, email)
 and sets `ENVIRONMENT=preview`. A preview is publicly reachable and
 signs in with the documented demo credentials, so never point one at
 real data.

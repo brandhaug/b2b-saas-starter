@@ -94,7 +94,12 @@ type WorkerDefaults = {
   readonly preview_urls: false
   readonly compatibility_date: string
   readonly compatibility_flags: ReadonlyArray<string>
-  readonly observability: { readonly enabled: true; readonly head_sampling_rate: 1 }
+  readonly observability: {
+    readonly enabled: true
+    readonly head_sampling_rate: 1
+    readonly issues: { readonly enabled: true }
+    readonly redact_query_string: true
+  }
   readonly d1_databases: ReadonlyArray<{
     readonly binding: string
     readonly database_name: string
@@ -175,7 +180,12 @@ function workerDefaults(name: string, entry: string): WorkerDefaults {
     preview_urls: false,
     compatibility_date: workerCompatibility.date,
     compatibility_flags: workerCompatibility.flags,
-    observability: { enabled: true, head_sampling_rate: 1 },
+    observability: {
+      enabled: true,
+      head_sampling_rate: 1,
+      issues: { enabled: true },
+      redact_query_string: true
+    },
     d1_databases: [
       {
         binding: 'DB',

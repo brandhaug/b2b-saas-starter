@@ -10,7 +10,6 @@
     { "name": "better-auth", "patterns": ["better-auth", "@better-auth/*"] },
     { "name": "drizzle", "patterns": ["drizzle-orm", "drizzle-kit"] },
     { "name": "react-email", "patterns": ["react-email", "@react-email/*"] },
-    { "name": "sentry", "patterns": ["@sentry/*"] },
     {
       "name": "tanstack-router",
       "patterns": [

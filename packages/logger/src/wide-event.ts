@@ -106,8 +106,8 @@ type WideEventOutcome =
   | ({ readonly status: 'error' } & WideEventFailure)
 
 /**
- * What one finished wide-event scope looks like to external sinks (Sentry,
- * PostHog — see `providers.ts`). Every field is already scrubbed: a sink is
+ * What one finished wide-event scope looks like to the optional PostHog sink
+ * in `providers.ts`. Every field is already scrubbed: a sink is
  * vendor glue, not a second sanitization boundary.
  */
 export type WideEventRecord = {
@@ -388,19 +388,29 @@ export function withTriggerScope<A, E, R>(
  * ingests; `tracerLogger` copies each record onto the active span so a wide
  * event is visible from the trace even when no log backend is configured.
  */
+const sanitizedLogger = Logger.map(Logger.formatStructured, (record) =>
+  // oxlint-disable-next-line effect/noGlobals -- sanitized JSON is the platform log format
+  JSON.stringify({
+    level: record.level,
+    timestamp: record.timestamp,
+    fiberId: record.fiberId,
+    message: diagnosticLabel(record.annotations['event']),
+    annotations: diagnosticAnnotations(record.annotations),
+    ...(record.cause !== undefined && { cause: '[omitted]' })
+  })
+)
+
 export const WideEventLoggerLive: Layer.Layer<never> = Logger.layer([
-  Logger.withConsoleLog(
-    Logger.map(Logger.formatStructured, (record) =>
-      // oxlint-disable-next-line effect/noGlobals -- console JSON is the output boundary
-      JSON.stringify({
-        level: record.level,
-        timestamp: record.timestamp,
-        fiberId: record.fiberId,
-        message: diagnosticLabel(record.annotations['event']),
-        annotations: diagnosticAnnotations(record.annotations),
-        ...(record.cause !== undefined && { cause: '[omitted]' })
-      })
-    )
-  ),
+  Logger.make((options) => {
+    // Workers Issues recognizes console severity, not a JSON level field.
+    if (
+      (options.logLevel === 'Error' || options.logLevel === 'Fatal') &&
+      !Cause.hasInterruptsOnly(options.cause)
+    ) {
+      Logger.withConsoleError(sanitizedLogger).log(options)
+    } else {
+      Logger.withConsoleLog(sanitizedLogger).log(options)
+    }
+  }),
   Logger.tracerLogger
 ])
