@@ -1,14 +1,13 @@
 // Exercise serialized vendor outputs with real SDKs; fetch/transport are the capture boundaries.
-// Effect runtime bridges the promise-native fetch and Sentry transport under test.
+// Effect runtime bridges the promise-native telemetry HTTP transports under test.
 // oxlint-disable effect/noAsyncFunction, effect/noGlobals, starter/no-run-promise-in-tests
-import { CloudflareClient, Scope, linkedErrorsIntegration } from '@sentry/cloudflare'
 import { Effect, Metric } from 'effect'
 import { HttpClient, FetchHttpClient } from 'effect/http'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { withHttpInvocation } from './invocation.ts'
 import { makeOtlpLayer } from './otlp.ts'
 import { WideEventLoggerLive, withRequestScope } from './wide-event.ts'
-import { makeSentryOptions, wireWideEventProviders } from './providers.ts'
+import { wireWideEventProviders } from './providers.ts'
 import { diagnosticErrorSummary, diagnosticFields } from './sanitization.ts'
 
 async function requestBody(init: RequestInit | undefined): Promise<string> {
@@ -118,7 +117,7 @@ describe('telemetry output policy', () => {
       ].join('\n')
     )
     expect(summary).toBe('TypeError-queue-consumer.ts-118-9')
-    // The summary is scalar-allowlist shaped, so it survives to Sentry's tags
+    // The summary is scalar-allowlist shaped, so it survives console and OTLP serialization
     // instead of being dropped alongside the message it deliberately omits.
     expect(diagnosticFields({ errorSummary: summary })).toEqual({
       errorSummary: 'TypeError-queue-consumer.ts-118-9'
@@ -142,6 +141,9 @@ describe('telemetry output policy', () => {
     const payloads: Array<{ url: string; body: string }> = []
     const output = vi
       .spyOn(console, 'log')
+      .mockImplementation((line: string) => consoleLines.push(line))
+    const errorOutput = vi
+      .spyOn(console, 'error')
       .mockImplementation((line: string) => consoleLines.push(line))
     const fetch = vi.fn<typeof globalThis.fetch>(async (input, init) => {
       let url: string
@@ -211,6 +213,7 @@ describe('telemetry output policy', () => {
         )
       )
       expect(consoleLines).toHaveLength(1)
+      expect(errorOutput).toHaveBeenCalledTimes(1)
       expect(consoleLines.join(',')).not.toContain(secret)
       expect(consoleLines.join(',')).toContain('ws_1')
       expect(consoleLines.join(',')).toContain('capability.export')
@@ -228,6 +231,7 @@ describe('telemetry output policy', () => {
       expect(emitted).toContain('duration.ms')
       expect(emitted).toContain('request.export')
     } finally {
+      errorOutput.mockRestore()
       output.mockRestore()
       vi.unstubAllGlobals()
     }
@@ -241,6 +245,9 @@ describe('telemetry output policy', () => {
     const payloads: Array<{ url: string; body: string }> = []
     const output = vi
       .spyOn(console, 'log')
+      .mockImplementation((line: string) => consoleLines.push(line))
+    const errorOutput = vi
+      .spyOn(console, 'error')
       .mockImplementation((line: string) => consoleLines.push(line))
     const fetch = vi.fn<typeof globalThis.fetch>(async (input, init) => {
       let url: string
@@ -282,79 +289,10 @@ describe('telemetry output policy', () => {
         expect(payload?.body).toContain('request.canonical')
       }
     } finally {
+      errorOutput.mockRestore()
       output.mockRestore()
       vi.unstubAllGlobals()
     }
-  })
-
-  it('sanitizes actual Sentry envelopes including SDK context and nested exceptions', async () => {
-    const envelopes: Array<string> = []
-    const client = new CloudflareClient({
-      ...makeSentryOptions('api', { SENTRY_DSN: 'https://public@sentry.example/1' }),
-      integrations: [linkedErrorsIntegration()],
-      stackParser: () => [
-        { filename: `https://example.com/${secret}`, context_line: secret }
-      ],
-      transport: () => ({
-        send: (envelope) => {
-          envelopes.push(JSON.stringify(envelope))
-          return Promise.resolve({ statusCode: 200 })
-        },
-        flush: () => Promise.resolve(true)
-      })
-    })
-    client.init()
-    const scope = new Scope()
-    scope.setUser({ email: `${secret}@example.com`, ip_address: secret, id: secret })
-    scope.setExtras({
-      ...sensitive,
-      workspaceId: 'ws_1',
-      evidenceId: 'evidence-1',
-      queue: 'starter-webhooks-dlq',
-      attempts: 4,
-      nested: sensitive
-    })
-    scope.setContext('trace', { trace_id: traceId, span_id: 'b7ad6b7169203331' })
-    scope.setContext('customer', sensitive)
-    client.captureException(nestedFailure(), {}, scope)
-    client.captureEvent(
-      {
-        request: {
-          url: sensitive.signedUrl,
-          headers: { authorization: sensitive.authorization },
-          data: sensitive
-        },
-        breadcrumbs: [{ message: secret, data: sensitive }],
-        exception: {
-          values: [
-            {
-              type: 'ProviderFailure',
-              value: secret,
-              stacktrace: {
-                frames: [
-                  {
-                    filename: sensitive.signedUrl,
-                    vars: sensitive,
-                    context_line: secret
-                  }
-                ]
-              }
-            }
-          ]
-        }
-      },
-      {},
-      scope
-    )
-    await client.flush(2000)
-    client.dispose()
-    expect(envelopes).toHaveLength(2)
-    expect(envelopes.join(',')).not.toContain(secret)
-    expect(envelopes.join(',')).toContain('ProviderFailure')
-    expect(envelopes.join(',')).toContain(traceId)
-    expect(envelopes.join(',')).toContain('ws_1')
-    expect(envelopes.join(',')).toContain('evidence-1')
-    expect(envelopes.join(',')).toContain('starter-webhooks-dlq')
   })
 
   it('leaves unconfigured providers inert and bounds configured PostHog payloads', async () => {

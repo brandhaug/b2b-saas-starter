@@ -35,8 +35,6 @@
     "@fontsource-variable/geist": "catalog:",
     "@fontsource-variable/geist-mono": "catalog:",
     "@fontsource-variable/newsreader": "catalog:",
-    "@sentry/cloudflare": "catalog:",
-    "@sentry/react": "catalog:",
     "@tanstack/react-form": "catalog:",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "catalog:",

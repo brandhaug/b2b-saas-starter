@@ -11,7 +11,7 @@ import { type ClientTelemetryConfig } from './telemetry-config'
  */
 
 /**
- * Absent, null, and empty all count as unset — no empty-string DSNs reach an
+ * Absent, null, and empty all count as unset — no empty-string keys reach an
  * SDK. (Worker env keys for unset optional providers arrive as `null` from
  * deploys that forward them explicitly, so `undefined` alone is not enough.)
  * The test itself is `hasValue` from `@b2b-saas-starter/env` — the one
@@ -25,9 +25,8 @@ function nonEmptyEnvValue(value: string | null | undefined): string | undefined 
 /** Runs on the server only — it reads the worker's env bag. */
 export function readClientTelemetryConfigHandler(): ClientTelemetryConfig {
   return {
-    // DSNs and PostHog project keys are public ingest identifiers by design;
+    // PostHog project keys are public ingest identifiers by design;
     // no secret ever reaches this object.
-    sentryDsn: nonEmptyEnvValue(cloudflareEnv.SENTRY_DSN),
     posthogKey: nonEmptyEnvValue(cloudflareEnv.POSTHOG_KEY),
     posthogHost: nonEmptyEnvValue(cloudflareEnv.POSTHOG_HOST)
   }

@@ -19,7 +19,6 @@
     "@b2b-saas-starter/i18n": "workspace:*",
     "@b2b-saas-starter/infra": "workspace:*",
     "@b2b-saas-starter/logger": "workspace:*",
-    "@sentry/cloudflare": "catalog:",
     "effect": "catalog:"
   },
   "devDependencies": {

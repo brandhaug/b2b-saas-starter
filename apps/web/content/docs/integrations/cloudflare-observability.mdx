@@ -1,0 +1,43 @@
+---
+title: Cloudflare observability and PostHog
+description: Native Worker error tracking and optional analytics.
+category: integrations
+order: 30
+tags: [cloudflare, posthog, observability]
+---
+
+## Cloudflare Workers Logs and Issues
+
+All three Workers enable native logs and Issues through deployment configuration.
+No error-reporting credentials or SDK are needed. Failed application scopes emit
+sanitized JSON through `console.error`; successful scopes use `console.log`.
+[Issues](https://developers.cloudflare.com/workers/observability/issues/) groups
+Worker exceptions, failed invocations, HTTP 5xx responses, and logged errors.
+Issues is an open beta and processes traffic after activation.
+
+Inspect errors in Cloudflare's Issues dashboard. Configure notification destinations
+and automations separately in the account, then verify receipt with a synthetic
+failure. Enabling Issues alone does not configure paging, availability checks,
+missing-cron detection, or recovery notifications. Native monitoring shares the
+application's Cloudflare failure domain.
+
+Application telemetry omits arbitrary exception messages, stack traces, URLs and
+customer content. Platform-generated exception and request metadata is collected
+outside that filter and needs its own privacy review. Native request URLs have
+query-string redaction enabled; URL paths and exception text still need review. Browser exceptions have no
+remote capture in this starter; Workers Issues observes server execution.
+
+`OTEL_EXPORTER_OTLP_ENDPOINT` optionally exports sanitized Effect traces, metrics,
+and canonical logs to a collector. It remains scoped to each Worker invocation.
+PostHog is optional and stays inactive without its variables.
+
+## PostHog
+
+| Variable       | Where it works                                                  |
+| -------------- | --------------------------------------------------------------- |
+| `POSTHOG_KEY`  | web browser analytics + server-side capture                     |
+| `POSTHOG_HOST` | Optional; `.env.example` defaults to `https://us.i.posthog.com` |
+
+Server-side follows PostHog's documented [Cloudflare Workers pattern](https://posthog.com/docs/libraries/cloudflare-workers): the official `posthog-node` client with `flushAt: 1` / `flushInterval: 0`, created per invocation and shut down before the invocation ends: the same invocation-scoped I/O rule ADR 0050 applies to OTLP export. One event per wide-event scope is captured, keyed by the trace id, with `service`, `status`, and `durationMs` properties.
+
+In the browser, `posthog-js` initializes from the same root-route loader data, with history-based page-view capture suited to the SPA router.

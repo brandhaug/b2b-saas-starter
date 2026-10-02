@@ -9,7 +9,7 @@ import { hasValue } from '@b2b-saas-starter/env/server'
 import { captureMonitoringSignal } from '@b2b-saas-starter/logger/providers'
 import { env } from 'cloudflare:workers'
 
-/** Server-only adapter: external append store plus Sentry as the independent gap path. */
+/** Server-only adapter: external append store plus Workers Issues as the independent gap path. */
 export function makeSecurityEvidenceSink(): SecurityEvidenceSink | undefined {
   if (!hasValue(env.SECURITY_EVIDENCE_URL) || !hasValue(env.SECURITY_EVIDENCE_TOKEN)) {
     return undefined

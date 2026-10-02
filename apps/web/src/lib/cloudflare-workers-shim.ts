@@ -13,7 +13,6 @@ export const env = {
   // deployed worker receives.
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
   STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
-  SENTRY_DSN: process.env.SENTRY_DSN,
   SECURITY_EVIDENCE_URL: process.env.SECURITY_EVIDENCE_URL,
   SECURITY_EVIDENCE_TOKEN: process.env.SECURITY_EVIDENCE_TOKEN,
   POSTHOG_KEY: process.env.POSTHOG_KEY,

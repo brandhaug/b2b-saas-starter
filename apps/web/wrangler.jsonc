@@ -12,7 +12,11 @@
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "observability": {
     "enabled": true,
-    "head_sampling_rate": 1
+    "head_sampling_rate": 1,
+    "issues": {
+      "enabled": true
+    },
+    "redact_query_string": true
   },
   "d1_databases": [
     {

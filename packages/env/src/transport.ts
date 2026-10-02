@@ -56,29 +56,17 @@ export function minimumTlsResponse(
   )
 }
 
-/**
- * HTTPS with no credentials in the URL. Sentry DSNs are the one exception:
- * they carry the public key in userinfo, so `dsn` allows a username while a
- * password stays forbidden everywhere.
- */
-function isSecureUrl(parsed: URL, dsn: boolean): boolean {
+/** HTTPS with no credentials in the URL. */
+function isSecureUrl(parsed: URL): boolean {
   return (
-    parsed.protocol === 'https:' &&
-    parsed.password === '' &&
-    (dsn || parsed.username === '')
+    parsed.protocol === 'https:' && parsed.password === '' && parsed.username === ''
   )
 }
 
 /** Absolute HTTPS endpoint validation for configured outbound services. */
 export function isSecureEndpoint(value: string): boolean {
   const parsed = URL.parse(value)
-  return parsed !== null && isSecureUrl(parsed, false)
-}
-
-/** Sentry DSNs carry the public key in URL userinfo; passwords remain forbidden. */
-export function isSecureDsn(value: string): boolean {
-  const parsed = URL.parse(value)
-  return parsed !== null && isSecureUrl(parsed, true)
+  return parsed !== null && isSecureUrl(parsed)
 }
 
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
@@ -88,7 +76,6 @@ const secureEndpointKeys = [
   'API_PUBLIC_URL',
   'MCP_RESOURCE_URL',
   'MCP_OAUTH_ISSUER',
-  'SENTRY_DSN',
   'POSTHOG_HOST',
   'OTEL_EXPORTER_OTLP_ENDPOINT',
   'OPENAI_BASE_URL',
@@ -117,11 +104,7 @@ export function auditSecureEndpoints(
     return []
   }
   const problems: Array<SecureEndpointProblem> = []
-  function check(
-    key: SecureEndpointKey,
-    value: string | null | undefined,
-    dsn = false
-  ): void {
+  function check(key: SecureEndpointKey, value: string | null | undefined): void {
     if (!hasValue(value)) {
       return
     }
@@ -130,13 +113,13 @@ export function auditSecureEndpoints(
       problems.push({ key, reason: 'malformed' })
       return
     }
-    if (!isSecureUrl(parsed, dsn)) {
+    if (!isSecureUrl(parsed)) {
       problems.push({ key, reason: 'insecure' })
     }
   }
   for (const key of secureEndpointKeys) {
     if (key !== 'BETTER_AUTH_TRUSTED_ORIGINS') {
-      check(key, source[key], key === 'SENTRY_DSN')
+      check(key, source[key])
     }
   }
   const origins = source.BETTER_AUTH_TRUSTED_ORIGINS

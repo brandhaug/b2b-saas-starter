@@ -315,7 +315,7 @@ export type WebBindingName =
  * (alchemy.run.ts) and local dev (each generated wrangler.jsonc) must run the
  * same runtime behavior, so changing the date cannot leave one worker behind.
  * Public fetch routing lets API JWKS and OAuth client metadata resolve Workers URLs.
- * `nodejs_compat` is required: `@sentry/cloudflare` needs AsyncLocalStorage
+ * `nodejs_compat` is required: `The Effect runtime` needs AsyncLocalStorage
  * (see packages/logger/src/providers.ts).
  */
 export type WorkerCompatibility = {

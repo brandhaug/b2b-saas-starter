@@ -1,5 +1,5 @@
 import { type ComponentType, type SVGProps } from 'react'
-import { Activity, BarChart3, CreditCard, Mail, ShieldCheck } from 'lucide-react'
+import { BarChart3, CreditCard, Mail, ShieldCheck } from 'lucide-react'
 import { DEPLOY_COMMAND } from '@/lib/toolchain'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
@@ -34,12 +34,6 @@ export function optionalProviderModules(): ReadonlyArray<OptionalProviderModule>
       name: 'Stripe',
       role: m.provider_stripe_role(),
       icon: CreditCard
-    },
-    {
-      id: 'sentry',
-      name: 'Sentry',
-      role: m.provider_sentry_role(),
-      icon: Activity
     },
     {
       id: 'posthog',

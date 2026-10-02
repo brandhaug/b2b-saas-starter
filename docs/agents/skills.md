@@ -1,8 +1,18 @@
 # Shared skills
 
-The repo owns `.agents/skills/implement`. Codex and OpenCode read that directory;
+The repo owns the skills in `.agents/skills`. Codex and OpenCode read that directory;
 Claude Code reads it through the `.claude/skills` symlink. `CLAUDE.md` links to
 `AGENTS.md` for shared repo instructions. Supporting skills install globally.
+
+## Repository skills
+
+- [implement](../../.agents/skills/implement/SKILL.md) takes an agreed issue through
+  implementation, review, and a PR ready to merge.
+- [investigate-cloudflare](../../.agents/skills/investigate-cloudflare/SKILL.md)
+  investigates deployed failures and missing operational signals using existing
+  Cloudflare access. It records bounded, sanitized evidence and checks recurrence
+  against the deployed version. Use `$investigate-cloudflare` or name its file.
+  An investigation does not authorize alert changes, replay, or deployment.
 
 ## Setup
 
@@ -32,7 +42,7 @@ local execution when necessary.
 ## Updates
 
 Ask an agent to update the pinned commits in `scripts/agent-skills.json`, review
-upstream instruction and executable changes, and open a PR. Keep `implement`
+upstream instruction and executable changes, and open a PR. Keep the repository skills above
 repo-owned. After accepting a pin update, run:
 
 ```bash

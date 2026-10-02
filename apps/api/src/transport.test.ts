@@ -4,7 +4,7 @@ import worker from './index.ts'
 
 describe('API Worker transport boundary', () => {
   it.each(['HEAD', 'OPTIONS'])(
-    'audits production endpoints on %s requests that Sentry does not instrument',
+    'audits production endpoints on %s requests',
     (method) => {
       expect(() =>
         worker.fetch(new Request('https://api.example.test/health', { method }), {

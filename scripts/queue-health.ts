@@ -1,7 +1,6 @@
 // Node operator CLI: Promise-native fetch/process boundary; no application runtime.
 // oxlint-disable effect/noNewPromise
 import { Schema } from 'effect'
-import { runWithSentryCronMonitor } from './d1-backup.ts'
 import { requiredEnv } from './lib/env.ts'
 
 const QueueTarget = Schema.Struct({
@@ -94,17 +93,15 @@ export async function inspectQueues(
 
 if (import.meta.main) {
   try {
-    await runWithSentryCronMonitor('SENTRY_QUEUE_MONITOR_SLUG', async () => {
-      const observations = await inspectQueues(process.env)
-      console.log(
-        JSON.stringify({ observedAt: new Date().toISOString(), queues: observations })
-      )
-      if (observations.some((queue) => !queue.healthy)) {
-        throw new Error('Queue backlog requires operator recovery')
-      }
-    })
+    const observations = await inspectQueues(process.env)
+    console.log(
+      JSON.stringify({ observedAt: new Date().toISOString(), queues: observations })
+    )
+    if (observations.some((queue) => !queue.healthy)) {
+      throw new Error('Queue backlog requires operator recovery')
+    }
   } catch {
-    console.error('Queue monitoring failed; inspect the run and Sentry check-in')
+    console.error('Queue monitoring failed; inspect the workflow run')
     process.exitCode = 1
   }
 }
