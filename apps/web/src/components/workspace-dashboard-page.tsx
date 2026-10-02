@@ -52,13 +52,24 @@ export function WorkspaceDashboardPage({
       systemRole={systemRole}
       unreadCount={unreadCount}
       viewer={viewer}
+      context={
+        <OnboardingChecklist
+          workspaceSlug={workspace.slug}
+          progress={progress}
+          viewer={viewer}
+          dismissalHint={dismissalHint}
+          {...(ports?.dismissOnboardingChecklist === undefined
+            ? {}
+            : { dismiss: ports.dismissOnboardingChecklist })}
+        />
+      }
     >
       <PageHeader
         title={workspace.name}
         description={m.dashboard_attention_description()}
       />
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(18rem,0.8fr)] lg:items-start">
-        <div className="grid min-w-0 gap-6 lg:col-start-1 lg:row-start-1">
+      <div className="grid gap-6">
+        <div className="grid min-w-0 gap-6">
           <AttentionFeed
             workspaceSlug={workspace.slug}
             items={attentionItems({
@@ -69,20 +80,7 @@ export function WorkspaceDashboardPage({
             })}
           />
         </div>
-        {/* Derived from live state on every load; renders nothing once an
-            owner or admin dismissed it for the workspace. */}
-        <div className="min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1">
-          <OnboardingChecklist
-            workspaceSlug={workspace.slug}
-            progress={progress}
-            viewer={viewer}
-            dismissalHint={dismissalHint}
-            {...(ports?.dismissOnboardingChecklist === undefined
-              ? {}
-              : { dismiss: ports.dismissOnboardingChecklist })}
-          />
-        </div>
-        <div className="min-w-0 lg:col-start-1 lg:row-start-2">
+        <div className="min-w-0">
           <LiveNotifications
             workspaceSlug={workspace.slug}
             fallback={notifications}

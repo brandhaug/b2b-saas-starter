@@ -66,9 +66,25 @@ function isMacPlatform(): boolean {
   return platform.toUpperCase().includes('MAC')
 }
 
-export function SearchButton() {
+export function SearchButton({ compact = false }: { readonly compact?: boolean }) {
   const value = use(CommandPaletteContext)
   const isMac = useClientValue(isMacPlatform, true)
+
+  if (compact) {
+    return (
+      <Button
+        variant="ghost"
+        size="icon-lg"
+        onClick={() => value?.setOpen(true)}
+        onMouseEnter={preloadCommandPalette}
+        onFocus={preloadCommandPalette}
+        aria-label={m.common_search()}
+        title={m.common_search()}
+      >
+        <SearchIcon />
+      </Button>
+    )
+  }
 
   return (
     <>

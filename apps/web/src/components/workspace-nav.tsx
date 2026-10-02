@@ -106,7 +106,7 @@ export function WorkspaceNav({
       <Link
         to="/"
         onClick={onNavigate}
-        className="flex items-center gap-2 font-semibold"
+        className="workspace-brand flex items-center gap-2 font-semibold"
       >
         <img
           src="/assets/starter-logo.png"
@@ -121,7 +121,7 @@ export function WorkspaceNav({
           renders the same component, so both close on pick. Without a
           workspace in play the slot becomes the picker's doorway — the column
           keeps its shape instead of collapsing to a logo. */}
-      <div className="mt-6">
+      <div className="workspace-choice mt-6">
         {preview ? (
           <div className="rounded-md border border-sidebar-border px-3 py-2 text-sm font-medium">
             {seedWorkspaceRecord.name}
@@ -130,7 +130,10 @@ export function WorkspaceNav({
           <WorkspaceChoice workspace={workspace} onNavigate={onNavigate} />
         )}
       </div>
-      <nav aria-label={m.main_navigation()} className="mt-6 flex flex-1 flex-col gap-1">
+      <nav
+        aria-label={m.main_navigation()}
+        className="workspace-navigation mt-6 flex flex-1 flex-col gap-1"
+      >
         {navRows}
         <div className="mt-auto grid gap-1 pt-8">{utilityRows}</div>
       </nav>

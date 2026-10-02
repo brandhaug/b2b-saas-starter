@@ -39,7 +39,11 @@ Use sentence case. Keep input text at 16px on mobile to avoid focus zoom. Micro 
 
 Use the four-pixel spacing scale through Tailwind utilities. Public layouts cap at `max-w-7xl`, articles at `max-w-3xl`, and workspace forms and overview at `max-w-4xl`. Member, audit, token, and webhook lists use `max-w-7xl` so comparable records have room to align. Sticky content clears the shared header; anchor offsets must leave headings visible.
 
-The workspace sidebar has a fixed desktop width, independent scrolling, and a mobile sheet. Separate workspace activity, administration, developer tools, and personal navigation. Personal navigation stays at the sidebar foot. Active navigation uses a one-pixel inset mauve border over its filled background; keyboard focus keeps its separate ring. Settings names the configuration destination; General names its identity tab. Touch controls render at least 44px tall below `md`. Desktop controls use 36px by default; 32px variants are limited to dense row/menu actions.
+Workspace, account, System Admin, and demo pages share an application frame. At 1280px and wider, it has a 60px icon rail, a 220px navigation sidebar, a flexible main column, and a 264px contextual sidebar. One-pixel borders separate the regions. A fixed bottom bar spans the viewport, with matching clearance beneath the content. It is 40px tall on desktop and 48px below 768px. The navigation and contextual sidebars stay within the available viewport height and scroll independently.
+
+The icon rail and navigation sidebar appear at 1024px. Below that width, navigation opens in a mobile sheet and the account menu stays in the toolbar. Below 1280px, contextual content follows the main content. At desktop widths, the account menu sits at the icon rail's foot. The rail's navigation scrolls independently above a reserved account-menu area on short windows. Separate workspace activity, administration, developer tools, and personal navigation within the navigation sidebar.
+
+Related-route links form a horizontally scrollable tab strip between the toolbar and main content. They navigate to pages; each page's content tabs keep their own behavior. The current route uses mauve text and a two-pixel top inset line. Active sidebar navigation uses a one-pixel inset mauve border over its filled background; keyboard focus keeps its separate ring. Settings names the configuration destination; General names its identity tab. Touch controls render at least 44px tall below `md`. Desktop controls use 36px by default; 32px variants are limited to dense row/menu actions.
 
 Panels and dialogs have square corners. Controls use the softer `rounded-md` radius. Use separators between resource rows and contextual menus for secondary row actions. Search, filters, and pagination belong above or below the list, with selected views retained in the URL. Keep panels flat with one-pixel borders; reserve restrained shadows for floating menus and tooltips, and blur for overlays. Use `bg-muted` for nested content instead of nesting cards.
 
@@ -57,7 +61,7 @@ records and translate the controls with the rest of the app.
 
 ## Page composition
 
-The overview gives attention the main column and setup a narrower secondary column on wide screens. Notifications use a quieter separated list. Setup progress is a native progress element styled with the shared primary and muted tokens in both Chromium and Firefox; optional developer guidance opens in a disclosure.
+The overview keeps attention and notifications in the main column and places the onboarding checklist in the frame's contextual sidebar. Below 1280px, the checklist follows the main content. Notifications use a quieter separated list. Setup progress is a native progress element styled with the shared primary and muted tokens in both Chromium and Firefox; optional developer guidance opens in a disclosure. Other application pages use the contextual region for scope and support information.
 
 Settings align the field explanation and a bounded control on desktop, stacking them on mobile. Save actions sit in a consistent footer. Separate destructive actions from everyday edits without making them the brightest region. Member rows group initials, name, and email; role and actions align at the end.
 

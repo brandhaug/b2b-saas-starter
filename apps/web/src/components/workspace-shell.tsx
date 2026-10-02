@@ -1,9 +1,7 @@
-import { cn } from '@/lib/utils'
 import { SupportDetails } from '@/components/support-details'
-import { type ComponentProps, type ReactNode, useEffect, useState } from 'react'
-import { Link, useRouter } from '@tanstack/react-router'
-import { BellIcon, LogOutIcon, ShieldIcon, UserRoundIcon } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import { type ComponentProps, type ReactNode, useEffect } from 'react'
+import { useRouter } from '@tanstack/react-router'
+import { LogOutIcon, ShieldIcon, UserRoundIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -17,7 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useServerAction } from '@/hooks/use-server-action'
 import { authClient } from '@/lib/auth-client'
-import { SearchButton, CommandPaletteProvider } from '@/components/command-palette'
+import { CommandPaletteProvider } from '@/components/command-palette'
 import { ImpersonationBanner } from '@/components/impersonation-banner'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { useImpersonation, type StopImpersonating } from '@/lib/impersonation'
@@ -29,12 +27,10 @@ import {
   useWorkspaceDirectory,
   type SidebarWorkspace
 } from '@/lib/workspace-directory'
-import { WorkspaceNav } from '@/components/workspace-nav'
+import { AppFrame } from '@/components/app-frame'
 import { PreviewShell } from '@/components/preview-shell'
-import { MobileNavSheet } from '@/components/mobile-nav-sheet'
 import { usePreview } from '@/lib/preview-context'
 import { m } from '@b2b-saas-starter/i18n/messages'
-import { LanguageSwitcher } from '@/components/language-switcher'
 
 export { type StopImpersonating }
 
@@ -43,7 +39,11 @@ export function WorkspaceShell(
 ) {
   const preview = usePreview()
   return preview ? (
-    <PreviewShell unreadCount={props.unreadCount} layout={props.layout}>
+    <PreviewShell
+      unreadCount={props.unreadCount}
+      layout={props.layout}
+      context={props.context}
+    >
       {props.children}
     </PreviewShell>
   ) : (
@@ -53,6 +53,7 @@ export function WorkspaceShell(
 
 function AuthenticatedWorkspaceShell({
   children,
+  context,
   layout = 'standard',
   unreadCount,
   workspaceSlug,
@@ -61,6 +62,7 @@ function AuthenticatedWorkspaceShell({
   stopImpersonating
 }: {
   readonly children: ReactNode
+  readonly context?: ReactNode
   readonly layout?: 'standard' | 'wide' | undefined
   /**
    * Unread-notification badge count. Omit on surfaces without a workspace
@@ -92,7 +94,6 @@ function AuthenticatedWorkspaceShell({
   /** The impersonation banner's one server call, forwarded for tests. */
   readonly stopImpersonating?: StopImpersonating | undefined
 }) {
-  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   // Read off the route context rather than threaded in: every gated route
   // carries `session`, and the banner has to show on all of them (ADR 0054).
   const impersonation = useImpersonation()
@@ -134,106 +135,49 @@ function AuthenticatedWorkspaceShell({
     rememberWorkspace(router, { slug: workspaceSlug, name: workspaceName })
   }, [router, workspaceSlug, workspaceName])
   return (
-    // prettier-ignore
     <CommandPaletteProvider viewer={viewer} systemRole={systemRole}>
-      <div className="grid min-h-dvh bg-background lg:grid-cols-[16rem_1fr]">
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-primary px-3 py-2 text-sm focus:text-primary-foreground"
-      >
-        {m.common_skip_to_content()}
-      </a>
-      <aside className="sticky top-0 hidden h-dvh overflow-y-auto border-r border-sidebar-border bg-sidebar text-sidebar-foreground p-4 lg:block">
-        <WorkspaceNav
-          workspace={sidebarWorkspace}
-          viewer={viewer}
-          systemRole={systemRole}
-        />
-      </aside>
-      <div className="min-w-0">
-        {impersonation === null ? null : (
-          <ImpersonationBanner
-            impersonation={impersonation}
-            {...(stopImpersonating === undefined ? {} : { stopImpersonating })}
+      <AppFrame
+        workspace={sidebarWorkspace}
+        viewer={viewer}
+        systemRole={systemRole}
+        unreadCount={unreadCount}
+        layout={layout}
+        context={context}
+        accountMenu={
+          <UserMenu
+            workspaceSlug={workspaceSlug}
+            signingOut={signingOut}
+            systemRole={systemRole}
           />
-        )}
-        <div>
-          <header className="flex min-h-16 items-center gap-4 border-b border-border px-4 sm:px-6">
-            <MobileNavSheet
-              open={mobileNavOpen}
-              onOpenChange={setMobileNavOpen}
-              workspace={sidebarWorkspace}
-              viewer={viewer}
-              systemRole={systemRole}
-            />
-            {workspaceSlug === null ? (
-              <div className="min-w-0 flex-1" />
-            ) : (
-              <Link
-                to="/workspaces/$workspaceSlug"
-                params={{ workspaceSlug }}
-                className="min-w-0 flex-1 truncate text-sm text-muted-foreground hover:text-foreground hover:underline underline-offset-4 lg:invisible"
-                title={workspaceName ?? workspaceSlug}
-              >
-                {workspaceName}
-              </Link>
-            )}
-            {/* The secondary controls move into the mobile sheet below md. */}
-            <div className="hidden shrink-0 md:block">
-              <LanguageSwitcher />
-            </div>
-            <div className="hidden shrink-0 md:block">
-              <SearchButton />
-            </div>
-            {unreadCount === undefined ? null : (
-              // The badge is the notification feed's one always-visible entry
-              // point: it lands on the user-level notifications route, where
-              // the unread kinds are managed — same count, same label, now
-              // clickable.
-              <Badge
-                variant="neutral"
-                className="gap-1 font-mono tabular-nums max-md:min-h-11 max-md:min-w-11"
-                render={
-                  <Link
-                    to="/account/notifications"
-                    aria-label={m.unread_notifications({ count: unreadCount })}
-                  />
-                }
-              >
-                <BellIcon className="size-3" />
-                {unreadCount}
-              </Badge>
-            )}
-            <UserMenu
-              workspaceSlug={workspaceSlug}
-              signingOut={signingOut}
-              systemRole={systemRole}
-            />
-          </header>
-          {signingOut.error === null ? null : (
-            <div className="border-b border-border px-4 py-2 sm:px-6">
-              <ActionFeedback error={signingOut.error} />
-            </div>
-          )}
-        </div>
-        {/* Forms keep a reading width; operational lists can use the available space. */}
-        <main id="main-content" tabIndex={-1} className="px-4 py-8 sm:px-8 outline-none">
-          <div className={cn('mx-auto grid w-full gap-8', layout === 'wide' ? 'max-w-7xl' : 'max-w-4xl')}>
-            {children}
-            <footer className="border-t border-border pt-6">
-              <SupportDetails
-                routeName={workspaceSlug === null ? 'application' : 'workspace'}
-                workspaceId={
-                  workspaceSlug === null
-                    ? undefined
-                    : findWorkspace(directory, workspaceSlug)?.id
-                }
+        }
+        banner={
+          <>
+            {impersonation === null ? null : (
+              <ImpersonationBanner
+                impersonation={impersonation}
+                {...(stopImpersonating === undefined ? {} : { stopImpersonating })}
               />
-            </footer>
-          </div>
-        </main>
-      </div>
-      </div>
+            )}
+            {signingOut.error === null ? null : (
+              <div className="border-b border-border px-4 py-2 sm:px-6">
+                <ActionFeedback error={signingOut.error} />
+              </div>
+            )}
+          </>
+        }
+        support={
+          <SupportDetails
+            routeName={workspaceSlug === null ? 'application' : 'workspace'}
+            workspaceId={
+              workspaceSlug === null
+                ? undefined
+                : findWorkspace(directory, workspaceSlug)?.id
+            }
+          />
+        }
+      >
+        {children}
+      </AppFrame>
     </CommandPaletteProvider>
   )
 }
