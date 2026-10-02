@@ -99,3 +99,25 @@ The marketing page's illustrative `env.OBSERVABILITY` snippets are not this
 starter's API contract. Implementation uses documented Wrangler configuration,
 console output, and the official query tools above.
 [Product page](https://www.cloudflare.com/products/workers-observability/)
+
+## Local validation evidence
+
+On 2026-10-02, implementation commit `2e84dbd1` passed:
+
+```sh
+CI=true pnpm run validate
+```
+
+This ran the repository check, production build, generated Wrangler drift check,
+local D1 migration and seed, and Chromium E2E suite. All 53 browser tests passed.
+The repeatable browser report is generated at
+`apps/web/playwright-report/results.json`; retain that artifact with the run log.
+The SDK metadata regression and logger serialization checks ran as part of the
+repository check. Existing assistant cancellation integration tests emitted
+interrupt-only evidence on stdout, while failure/defect serialization checks
+verified error output and privacy filtering.
+
+Independent Standards and Spec reviews found no remaining behavioral blockers
+after repair. Local evidence does not verify Cloudflare ingestion, issue grouping,
+SQL alert delivery, or independent missed-run monitors. Those require the
+[deployment drill](../monitoring.md#verification).
