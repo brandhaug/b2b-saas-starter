@@ -1,4 +1,3 @@
-import { wireWideEventProviders } from '@b2b-saas-starter/logger/providers'
 import { isMaintenanceMode } from '@b2b-saas-starter/env/server'
 import {
   enforceSecureEndpoints,
@@ -24,7 +23,6 @@ const worker = {
       return Promise.resolve(tlsResponse)
     }
     // Optional analytics reads this invocation's bindings.
-    wireWideEventProviders(env)
     // Keep liveness and readiness reachable while the shared database is
     // paused for an operator-led restore. Customer traffic is rejected by
     // the handler layer below; probes remain useful during maintenance.

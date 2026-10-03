@@ -6,7 +6,6 @@ Cloudflare Worker for queued, scheduled and inbound-provider work: webhook fan-o
 
 ## Entry Points & Contracts
 
-- Every entry wires wide-event providers before running work.
 - `src/queue-consumer.ts` is the shared boundary; never hand-roll around it. `consumerInvocation` is the one consumer entry: trace continuation, `withTriggerScope` with the attempt count, capability layers, one named fold to `'retry' | 'ack'`. `onFailure` also takes an `(attempts) => outcome` function, which is how the dead-letter entries bound a defect instead of acking it on first delivery.
 - `src/queue-routing.ts` owns queue name → consumer. Physical names are
   `stageResourceNames`, so every stage but `prod` prefixes them: match the

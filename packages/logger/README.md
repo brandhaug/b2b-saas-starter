@@ -1,6 +1,6 @@
 # Telemetry data policy
 
-These output-boundary filtering rules cover application telemetry after SDKs
+These output-boundary filtering rules cover server application telemetry after SDKs
 have added their own context. Native Cloudflare runtime records use separate
 collection rules.
 Existing provider error classification and Effect `Redacted` credentials
@@ -72,22 +72,14 @@ text in a remote service.
   request URLs. This does not scrub URL paths, exception text, or arbitrary
   application strings. Inspect platform records before production use.
   Browser exceptions have no remote capture in this starter.
-- Server PostHog emits only operation name, service, status, duration, environment,
-  and trace ID, using that per-request trace as the distinct ID. It creates and
-  flushes a client within the invocation. No `POSTHOG_KEY` means no analytics client
-  or traffic. `POSTHOG_HOST` selects the deployment's ingestion region.
-- Browser PostHog retains only `$pageview` and `$pageleave`, a fresh event UUID,
-  the public ingestion token, and a false person-profile flag. It uses the event
-  UUID as its distinct ID. The output hook rebuilds the payload, dropping URL,
-  referrer, DOM, user, and custom properties, and drops all other event types.
-  Autocapture, exception capture, recording, person profiles, feature-flag requests,
-  and external dependency loading are off. Persistence is memory-only.
-  Without a key the SDK is not loaded. New analytics data requires an explicit
-  addition to this small contract and output-boundary tests.
+- Optional Cloudflare Web Analytics is a browser beacon owned by the web app,
+  outside this logger and its allowlist. It collects page paths, referrers and
+  performance measurements when configured. See the
+  [integration guide](../../apps/web/content/docs/integrations/cloudflare-observability.mdx).
+  There is no server analytics sink.
 
-Regression tests capture console output, actual OTLP HTTP bodies, and decompressed PostHog HTTP bodies with sensitive
-sentinels in nested/provider failures. Browser tests exercise real PostHog HTTP output. These are local serialization checks, not proof about a deployed vendor's
-retention, access controls, ingestion IP metadata, or historical data. Operators
-must configure those settings and verify their deployment separately. No current
-exploit is inferred merely from the former raw-error paths. This document defines
-the field and provider contract.
+Regression tests capture console output and actual OTLP HTTP bodies with sensitive
+sentinels in nested/provider failures. These are local serialization checks, not
+proof about a deployed provider's retention, access controls, ingestion IP metadata,
+or historical data. Operators must configure those settings and verify their
+deployment separately. This document defines the server field and provider contract.

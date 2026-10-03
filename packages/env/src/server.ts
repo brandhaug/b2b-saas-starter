@@ -31,8 +31,8 @@ export type ServerEnv = {
   readonly SECURITY_EVIDENCE_URL?: string | undefined
   /** Bearer credential for the independent recovery evidence store. */
   readonly SECURITY_EVIDENCE_TOKEN?: string | undefined
-  readonly POSTHOG_KEY?: string | undefined
-  readonly POSTHOG_HOST?: string | undefined
+  /** Public beacon token provisioned by Alchemy, bound only to the web Worker. */
+  readonly CLOUDFLARE_WEB_ANALYTICS_TOKEN?: string | undefined
   readonly CLOUDFLARE_EMAIL_FROM?: string | undefined
   readonly TURNSTILE_SITE_KEY?: string | undefined
   readonly TURNSTILE_SECRET_KEY?: string | undefined
@@ -136,8 +136,6 @@ export const optionalModuleEnvSecretKeys = [
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const optionalModuleEnvPlainKeys = [
   'SECURITY_EVIDENCE_URL',
-  'POSTHOG_KEY',
-  'POSTHOG_HOST',
   'STRIPE_PRICE_ID_TEAM',
   'STRIPE_PRICE_ID_ENTERPRISE',
   'TURNSTILE_SITE_KEY',

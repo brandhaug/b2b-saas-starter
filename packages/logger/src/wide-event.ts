@@ -45,11 +45,6 @@ export const annotateWideEvent = Effect.fn('Logger.annotateWideEvent')(function*
   }
 })
 
-/** The mutable draft `withRequestScope` fills before the sinks read it. */
-type WideEventRecordDraft = {
-  -readonly [K in keyof WideEventRecord]: WideEventRecord[K]
-}
-
 /**
  * The failure half of a wide event's outcome, classified from the `Cause`.
  * Fields the cause cannot supply stay absent rather than `undefined`, so a
@@ -104,56 +99,6 @@ export type WideEventScopeOptions = TraceContinuation & {
 type WideEventOutcome =
   | { readonly status: 'ok' }
   | ({ readonly status: 'error' } & WideEventFailure)
-
-/**
- * What one finished wide-event scope looks like to the optional PostHog sink
- * in `providers.ts`. Every field is already scrubbed: a sink is
- * vendor glue, not a second sanitization boundary.
- */
-export type WideEventRecord = {
-  readonly service: string
-  readonly event: string
-  /** Always present: the scope's own OTel trace id, or the caller override. */
-  readonly traceId: string
-  readonly spanId: string
-  readonly durationMs: number
-  readonly status: 'ok' | 'error'
-  readonly errorKind?: 'fail' | 'interrupt' | 'defect' | undefined
-  /** The failure's `_tag`, when the failure carried one. */
-  readonly errorTag?: string | undefined
-  /** Defects only: the scrubbed `Name-file.ts-line-column` handle. */
-  readonly errorSummary?: string | undefined
-  readonly environment?: WideEventEnvironment | undefined
-}
-
-type WideEventSink = (record: WideEventRecord) => Promise<void> | void
-
-/** The one sink, set by `wireWideEventProviders` (providers.ts). */
-let wideEventSink: WideEventSink | undefined
-
-/**
- * Install the sink invoked once per completed wide-event scope. The sink must
- * not throw (rejections are swallowed) and must finish within the invocation —
- * the same ADR 0050 rule the OTLP exporters follow.
- */
-export function setWideEventSink(sink: WideEventSink): void {
-  wideEventSink = sink
-}
-
-// Sink dispatch is promise-native vendor glue (see providers.ts); wrapping it
-// in Effect would only re-wrap the same awaits one layer down. The sink runs
-// behind a catch: a failing vendor must never fail the request it reported on.
-// oxlint-disable effect/noAsyncFunction, effect/noTryCatch
-async function runWideEventSink(
-  sink: WideEventSink,
-  record: WideEventRecord
-): Promise<void> {
-  try {
-    await sink(record)
-  } catch {
-    // ignored by contract above
-  }
-}
 
 function outcomeMetadata(exit: Exit.Exit<unknown, unknown>): WideEventOutcome {
   if (Exit.isFailure(exit)) {
@@ -229,7 +174,7 @@ export function withRequestScope<A, E, R>(
           const facts: Record<string, unknown> = {}
           return yield* body.pipe(
             Effect.onExit((exit) =>
-              emitWideEvent(options, span, traceId, startedAt, exit).pipe(
+              emitWideEvent(options, span, startedAt, exit).pipe(
                 Effect.annotateLogs(facts)
               )
             ),
@@ -251,7 +196,6 @@ export function withRequestScope<A, E, R>(
 function emitWideEvent(
   options: WideEventScopeOptions,
   span: Tracer.Span,
-  traceId: string,
   startedAt: number,
   exit: Exit.Exit<unknown, unknown>
 ): Effect.Effect<void> {
@@ -276,30 +220,6 @@ function emitWideEvent(
       yield* Effect.logError(options.event, exit.cause).pipe(annotated)
     } else {
       yield* Effect.log(options.event).pipe(annotated)
-    }
-    const sink = wideEventSink
-    if (sink !== undefined) {
-      const record: WideEventRecordDraft = {
-        service: options.service,
-        event: options.event,
-        traceId,
-        spanId: span.spanId,
-        durationMs,
-        status: outcome.status
-      }
-      if (outcome.status === 'error') {
-        record.errorKind = outcome.errorKind
-        if (outcome.errorTag !== undefined) {
-          record.errorTag = outcome.errorTag
-        }
-        if (outcome.errorSummary !== undefined) {
-          record.errorSummary = outcome.errorSummary
-        }
-      }
-      if (options.environment) {
-        record.environment = options.environment
-      }
-      yield* Effect.promise(() => runWideEventSink(sink, record))
     }
   })
 }

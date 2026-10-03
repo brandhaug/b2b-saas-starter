@@ -36,9 +36,9 @@ export function optionalProviderModules(): ReadonlyArray<OptionalProviderModule>
       icon: CreditCard
     },
     {
-      id: 'posthog',
-      name: 'PostHog',
-      role: m.provider_posthog_role(),
+      id: 'cloudflare-web-analytics',
+      name: 'Cloudflare Web Analytics',
+      role: m.provider_web_analytics_role(),
       icon: BarChart3
     },
     {

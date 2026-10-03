@@ -60,9 +60,9 @@ type RouterAppContext = {
 }
 
 export const Route = createRootRouteWithContext<RouterAppContext>()({
-  // Server-side only: hands the browser SDKs their public config, and tells
+  // Server-side only: hands the browser beacon their public config, and tells
   // the public header whether the visitor is signed in. Undefined telemetry
-  // fields keep PostHog inactive in the browser (see
+  // fields keep Cloudflare Web Analytics inactive in the browser (see
   // lib/client-telemetry.tsx). The payload crosses through a server fn whose
   // env-bag and session reads live behind a dynamic import — the root route
   // is the one route the code splitter cannot split, so a static import of
