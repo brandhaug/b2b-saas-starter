@@ -25,7 +25,7 @@ catalog:
   '@better-auth/utils': 0.5.0
   '@cloudflare/ai-chat': 0.12.0
   agents: 0.24.0
-  ai: 7.0.123
+  ai: 7.0.124
   '@cloudflare/workers-types': 5.20260930.2
   '@cloudflare/vitest-pool-workers': 0.22.0
   '@effect/tsgo': 0.46.1
@@ -45,10 +45,10 @@ catalog:
   '@tanstack/devtools-vite': 0.8.5
   '@tanstack/react-form': 1.33.5
   '@tanstack/react-query': 5.104.0
-  '@tanstack/react-router': 1.170.40
+  '@tanstack/react-router': 1.170.41
   '@tanstack/react-router-devtools': 1.167.2
   '@tanstack/react-router-ssr-query': 1.167.3
-  '@tanstack/react-start': 1.168.59
+  '@tanstack/react-start': 1.168.60
   '@tanstack/react-table': 9.2.4
   '@testing-library/dom': 10.4.2
   '@testing-library/react': 16.3.3
