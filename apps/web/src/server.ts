@@ -1,6 +1,5 @@
 // Node preview's upgrade bridge uses the same authenticated boundary as the route.
 export { connectAssistantConversation } from './lib/server/assistant-conversation-socket'
-import { wireWideEventProviders } from '@b2b-saas-starter/logger/providers'
 import StartServerEntry from '@tanstack/react-start/server-entry'
 import { env as cloudflareEnv } from 'cloudflare:workers'
 import { enforceSecureEndpoints } from '@b2b-saas-starter/env/transport'
@@ -13,7 +12,6 @@ const worker = {
     if (tlsResponse !== undefined) {
       return tlsResponse
     }
-    wireWideEventProviders(cloudflareEnv)
     return StartServerEntry.fetch(request)
   }
 }

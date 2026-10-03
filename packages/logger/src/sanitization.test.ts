@@ -7,7 +7,6 @@ import { describe, expect, it, vi } from 'vite-plus/test'
 import { withHttpInvocation } from './invocation.ts'
 import { makeOtlpLayer } from './otlp.ts'
 import { WideEventLoggerLive, withRequestScope } from './wide-event.ts'
-import { wireWideEventProviders } from './providers.ts'
 import { diagnosticErrorSummary, diagnosticFields } from './sanitization.ts'
 
 async function requestBody(init: RequestInit | undefined): Promise<string> {
@@ -291,46 +290,6 @@ describe('telemetry output policy', () => {
     } finally {
       errorOutput.mockRestore()
       output.mockRestore()
-      vi.unstubAllGlobals()
-    }
-  })
-
-  it('leaves unconfigured providers inert and bounds configured PostHog payloads', async () => {
-    const payloads: Array<string> = []
-    const fetch = vi.fn<typeof globalThis.fetch>(async (_input, init) => {
-      payloads.push(await requestBody(init))
-      return new Response('{}', { status: 200 })
-    })
-    vi.stubGlobal('fetch', fetch)
-    try {
-      wireWideEventProviders({})
-      await Effect.runPromise(
-        Effect.exit(
-          withRequestScope(
-            { service: 'api', event: 'provider.failure' },
-            Effect.fail(nestedFailure())
-          )
-        ).pipe(Effect.provide(WideEventLoggerLive))
-      )
-      expect(fetch).not.toHaveBeenCalled()
-      wireWideEventProviders({
-        POSTHOG_KEY: 'project-key',
-        POSTHOG_HOST: 'https://analytics.example'
-      })
-      await Effect.runPromise(
-        Effect.exit(
-          withRequestScope(
-            { service: 'api', event: 'provider.failure', traceId, metadata: sensitive },
-            Effect.fail(nestedFailure())
-          )
-        ).pipe(Effect.provide(WideEventLoggerLive))
-      )
-      expect(payloads.length).toBeGreaterThan(0)
-      expect(payloads.join(',')).not.toContain(secret)
-      expect(payloads.join(',')).toContain(traceId)
-      expect(payloads.join(',')).toContain('provider.failure')
-    } finally {
-      wireWideEventProviders({})
       vi.unstubAllGlobals()
     }
   })

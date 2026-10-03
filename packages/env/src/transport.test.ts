@@ -78,7 +78,6 @@ describe('transport security gates', () => {
     ['API_PUBLIC_URL', 'http://api.example.test'],
     ['MCP_RESOURCE_URL', 'http://api.example.test/mcp'],
     ['MCP_OAUTH_ISSUER', 'http://auth.example.test/api/auth'],
-    ['POSTHOG_HOST', 'http://analytics.example.test'],
     ['OTEL_EXPORTER_OTLP_ENDPOINT', 'http://telemetry.example.test/v1'],
     ['OPENAI_BASE_URL', 'http://ai.example.test/v1'],
     ['SECURITY_EVIDENCE_URL', 'http://evidence.example.test/v1']
@@ -97,7 +96,6 @@ describe('transport security gates', () => {
   )
 
   it.each([
-    ['POSTHOG_HOST', '%%%'],
     ['BETTER_AUTH_TRUSTED_ORIGINS', 'https://trusted.example.test,%%%']
   ] satisfies ReadonlyArray<readonly [SecureEndpointKey, string]>)(
     'reports malformed configured endpoint %s',

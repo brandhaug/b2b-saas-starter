@@ -1,8 +1,5 @@
 import { withTriggerScope } from '@b2b-saas-starter/logger'
-import {
-  wireWideEventProviders,
-  withCronMonitor
-} from '@b2b-saas-starter/logger/providers'
+import { withCronMonitor } from '@b2b-saas-starter/logger/providers'
 import { Effect, Result } from 'effect'
 import { isMaintenanceMode } from '@b2b-saas-starter/env/server'
 import {
@@ -56,7 +53,6 @@ export default {
     if (tlsResponse !== undefined) {
       return tlsResponse
     }
-    wireWideEventProviders(env)
     if (isMaintenanceMode(env.MAINTENANCE_MODE)) {
       return Response.json({ error: 'maintenance_mode' }, { status: 503 })
     }
@@ -70,7 +66,6 @@ export default {
   // `dead_lettered` evidence is not lost to a store blip.
   queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
     enforceSecureEndpoints(env)
-    wireWideEventProviders(env)
     const consume = queueConsumerFor(batch.queue)
     if (consume === undefined) {
       return ackUnroutableBatch(env, batch)
@@ -85,7 +80,6 @@ export default {
   // visible to the worker's existing observability.
   scheduled(controller: ScheduledController, env: Env): Promise<void> {
     enforceSecureEndpoints(env)
-    wireWideEventProviders(env)
     if (isMaintenanceMode(env.MAINTENANCE_MODE)) {
       // oxlint-disable-next-line effect/noNewPromise -- the scheduled entry point returns a promise; there is no Effect left to run
       return Promise.resolve()

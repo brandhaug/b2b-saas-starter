@@ -443,8 +443,8 @@
   "verify_with_code": "Verify with code",
   "audit_passkey_add_failed": "Passkey add failed",
   "audit_user_unbanned": "User unbanned",
-  "provider_posthog": "PostHog",
-  "provider_posthog_role": "Product analytics",
+  "provider_web_analytics": "Cloudflare Web Analytics",
+  "provider_web_analytics_role": "Website analytics",
   "active_sessions": "Active sessions",
   "no_passkeys_description": "No passkeys yet. Add one to sign in with a fingerprint, face, or security key",
   "unread_notifications": [

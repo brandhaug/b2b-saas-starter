@@ -1,5 +1,11 @@
 # Cloudflare observability assessment
 
+> Current implementation: PostHog has been removed. Optional browser analytics
+> uses an Alchemy-managed Cloudflare Web Analytics site; server telemetry retains
+> Workers Logs/Issues and optional Effect OTLP. PostHog findings below describe
+> the earlier audit snapshot and are not implementation recommendations. See the
+> [current integration guide](../../apps/web/content/docs/integrations/cloudflare-observability.mdx).
+
 Reviewed 2026-10-02 for the move to native Worker error tracking. Deployment configuration and
 [monitoring](../monitoring.md) define the implemented behavior. This note records
 which new capabilities fit the starter and which still require account setup or

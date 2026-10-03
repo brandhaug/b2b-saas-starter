@@ -1,5 +1,11 @@
 # Runtime dependency audit
 
+> Current implementation: PostHog has been removed. Optional browser analytics
+> uses an Alchemy-managed Cloudflare Web Analytics site; server telemetry retains
+> Workers Logs/Issues and optional Effect OTLP. PostHog findings below describe
+> the earlier audit snapshot and are not implementation recommendations. See the
+> [current integration guide](../../apps/web/content/docs/integrations/cloudflare-observability.mdx).
+
 Audited 2026-09-07 against checked-in manifests, catalog and lockfile, relevant intent nodes, architecture, and ADRs 0002, 0039, 0050, 0062 and 0068. Versions below are repository pins, not claims about the latest registry release. This is a fit assessment, not a penetration test or a complete transitive vulnerability scan.
 
 Keep the backend's main libraries. They support the explicit requirements with little duplication. Replacing Effect, Better Auth, Drizzle, or Alchemy would rewrite working contracts without an identified starter benefit. The worthwhile changes concern React Email package consolidation, integration and stale configuration.
