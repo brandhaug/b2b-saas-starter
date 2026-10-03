@@ -325,7 +325,11 @@ export type WorkerCompatibility = {
 
 export const workerCompatibility = {
   date: '2026-05-16',
-  flags: ['nodejs_compat', 'global_fetch_strictly_public']
+  flags: [
+    'nodejs_compat',
+    'global_fetch_strictly_public',
+    'durable_object_io_tasks_prevent_eviction'
+  ]
 } satisfies WorkerCompatibility
 
 // Shape matches Alchemy's `QueueConsumer` settings input. Wrangler spells the
