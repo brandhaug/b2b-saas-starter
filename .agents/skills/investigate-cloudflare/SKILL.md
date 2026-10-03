@@ -49,8 +49,11 @@ result requires it. Do not infer a Worker dataset name from an HTTP request exam
 
 Start with counts by service, event, outcome, and version when those fields exist.
 Inspect representative failures and correlate opaque trace, request, job, or
-evidence IDs. Native trace IDs and Effect trace IDs are separate unless returned
-records prove a relationship. Inspect Issues occurrences and recurrence, not only
+evidence IDs. For missing spans, runtime/dependency timing, or custom
+instrumentation decisions, read [trace investigation](references/tracing.md).
+It verifies deployed collection and representative automatic spans, and selects
+native or existing sanitized Effect evidence for the question. Native trace IDs
+and Effect trace IDs are separate unless returned records prove a relationship. Inspect Issues occurrences and recurrence, not only
 the issue's open/resolved label.
 
 For missing scheduled work, compare expected runs with `cron.check_in` and

@@ -12,6 +12,9 @@ Claude Code reads it through the `.claude/skills` symlink. `CLAUDE.md` links to
   investigates deployed failures and missing operational signals using existing
   Cloudflare access. It records bounded, sanitized evidence and checks recurrence
   against the deployed version. Use `$investigate-cloudflare` or name its file.
+  For missing spans or instrumentation decisions, its
+  [tracing reference](../../.agents/skills/investigate-cloudflare/references/tracing.md)
+  checks deployed collection and selects native or sanitized Effect evidence.
   An investigation does not authorize alert changes, replay, or deployment.
 
 ## Setup
