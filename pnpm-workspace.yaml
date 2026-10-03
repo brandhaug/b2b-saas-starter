@@ -81,7 +81,7 @@ catalog:
   oxlint: 1.80.0
   oxlint-plugin-effect: 0.11.0
   oxlint-plugin-react-doctor: 0.9.12
-  posthog-js: 1.434.18
+  posthog-js: 1.435.2
   posthog-node: 5.54.1
   qrcode.react: ^4.2.0
   react: 19.3.0
