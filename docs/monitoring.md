@@ -17,12 +17,14 @@ See [Issues automations](https://developers.cloudflare.com/workers/observability
 
 Cloudflare's [October 2 observability announcement](https://blog.cloudflare.com/one-observability-platform/)
 adds custom SQL Alerts in beta for Workers events and other observability data.
-Use these for windowed counts, ratios and snapshot thresholds below. The
-repository emits the evidence but does not provision alert rules or destinations.
-Create each rule in the account's Alerts dashboard, inspect an actual event to
-select the dataset and field paths, and record its query and evaluation window
-in the deployment's operator record. Verify account availability and behavior
-before treating a rule as operational.
+Use these for windowed counts, ratios and snapshot thresholds below. Follow
+[configure-cloudflare-monitoring](../.agents/skills/configure-cloudflare-monitoring/SKILL.md)
+to set up or reconcile the shared three-Worker dashboard and account-specific
+rules. Its setup reference covers SDK support, schema discovery, chart definitions,
+repeatable updates and rollback; its verification scenarios cover gates, freshness,
+no-data behavior and delivery. The repository supplies this configuration procedure,
+not provisioned account rules or destinations. Keep exact queries, resource IDs and
+verified settings in the deployment's private operations record.
 
 Set `MAINTENANCE_MODE=true` on all three Workers to close customer requests and
 business scheduled work. Pause provider queue delivery as well, since retries

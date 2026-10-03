@@ -36,6 +36,11 @@ availability and heartbeat monitors, and the
 secret-manager locations below in the deployment's private operations record.
 Do not commit secrets or customer backup contents.
 
+Use [configure-cloudflare-monitoring](../.agents/skills/configure-cloudflare-monitoring/SKILL.md)
+for initial alert/dashboard setup, drift reconciliation and scenario verification.
+Record provider resource IDs and read-back settings so a rerun updates the same
+resources. Retain independent availability and heartbeat monitors.
+
 Keep these recoverable outside the production Cloudflare account:
 
 - Git revision, lockfile, migration history, deployment instructions and Alchemy
