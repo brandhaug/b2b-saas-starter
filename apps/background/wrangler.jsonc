@@ -9,7 +9,11 @@
   "workers_dev": true,
   "preview_urls": false,
   "compatibility_date": "2026-05-16",
-  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "compatibility_flags": [
+    "nodejs_compat",
+    "global_fetch_strictly_public",
+    "durable_object_io_tasks_prevent_eviction"
+  ],
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1,

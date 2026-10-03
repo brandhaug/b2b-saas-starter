@@ -143,6 +143,10 @@ overrides:
   ws: 8.21.0
   vite@*: 'catalog:'
   vitest@*: 'catalog:'
+  # The test pool's August runtime rejects durable_object_io_tasks_prevent_eviction.
+  # Keep its runtime/config reader on the catalog until its own pins catch up.
+  '@cloudflare/vitest-pool-workers>miniflare': 'catalog:'
+  '@cloudflare/vitest-pool-workers>wrangler': 'catalog:'
   '@hono/node-server@<1.19.15': 1.19.15
 patchedDependencies:
   '@distilled.cloud/cloudflare@1.0.0-rc.12': patches/@distilled.cloud__cloudflare@1.0.0-rc.12.patch
