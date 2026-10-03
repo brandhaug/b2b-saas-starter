@@ -28,7 +28,7 @@ an Effect peer dependency of `^4.0.0`, matching our pinned major version.
 We already have named capability spans, request scopes, HTTP and queue trace
 continuation, RED metrics, and optional per-invocation OTLP export. Without a
 collector, console events remain available but the optional exporter is inactive.
-Native tracing is disabled by default in deployment configuration. See
+Native automatic tracing is enabled in deployment configuration. See
 [logger guidance](../../packages/logger/AGENTS.md),
 [trace continuation](../../packages/logger/src/trace.ts),
 [OTLP configuration](../../packages/logger/src/otlp.ts), and
@@ -69,8 +69,8 @@ demonstrated compatibility with our export requirements. Owning a full tracer
 means maintaining fiber context, span lifecycle, sampling, and failure behavior.
 Avoid that maintenance without a concrete diagnostic benefit.
 
-First trial automatic native tracing on a preview Worker after reviewing its
-collection policy. It may answer the diagnostic question without a bridge.
+Inspect automatic native traces before adding an application bridge. The native
+spans may answer the diagnostic question on their own.
 
 If application spans are still needed, trial a narrow, optional adapter
 inside `packages/logger`. Keep the existing Effect trace context authoritative,
@@ -83,23 +83,21 @@ Before shipping, a deployed test must show correct duration and parentage across
 an async suspension, parallel fibers, failure, interruption, and an HTTP-to-queue
 handoff. Inspect exported attributes and exceptions for sensitive data, verify
 sampling and disabled-provider behavior, and confirm OTLP logs and metrics still
-arrive. Enable native tracing only after reviewing automatic platform records,
-which also bypass the application sanitizer. The existing
+arrive. Review automatic platform records too; they bypass the application
+sanitizer. The existing
 [Cloudflare observability assessment](./cloudflare-observability.md) records that
 separate collection decision.
 
-## Local trial preparation
+## Automatic tracing configuration
 
-The follow-up trial is prepared through Alchemy's native `observability.traces`
-configuration. `CLOUDFLARE_TRACING_TRIAL_STAGE` must exactly match the deployed
-`pr-<number>` stage. All other stages explicitly disable tracing. The selected
-preview enables persistent automatic spans at 100% sampling, without an Effect
-adapter. [Deployment and rollback commands](../deploying.md#trial-automatic-tracing)
-describe how to run the bounded trial.
+Alchemy and generated Wrangler configurations enable persisted automatic traces
+at 100% sampling on all three Workers in every stage, including production.
+There is no feature flag and no Effect adapter. Normal deployment applies these
+settings. [Deployment guidance](../deploying.md#automatic-tracing) describes the
+collection boundary and verification.
 
 On 2026-10-03, the existing Wrangler login could read Worker settings and
 deployments, but telemetry key discovery returned HTTP 403 with authentication
-error code 10000. No connected Observability tool was available. The user selected
-local configuration preparation, so no Worker settings were changed and no
-preview was deployed. There is no live trace window or captured trace evidence.
-The deployed trial and output inspection remain outstanding.
+error code 10000. No connected Observability tool was available. No Worker was
+deployed or reconfigured during this work. Live span capture and output inspection
+remain unverified.

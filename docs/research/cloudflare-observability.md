@@ -72,8 +72,10 @@ Cloudflare's official server endpoint is
 
 Native Workers tracing automatically records fetch, binding, RPC, and handler
 operations. It has independent head sampling and seven-day retention. Those
-records bypass this repository's application allowlist. Native tracing stays disabled in this migration. Review captured request
-metadata and binding attributes before opting in. The existing per-invocation
+records bypass this repository's application allowlist. Alchemy and generated
+Wrangler configurations enable persisted native traces at 100% sampling for all
+three Workers in every stage. Inspect captured request metadata and binding
+attributes in the deployed account. The existing per-invocation
 Effect OTLP exporter remains useful for sanitized application spans.
 [Workers traces](https://developers.cloudflare.com/workers/observability/traces/)
 

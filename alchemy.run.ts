@@ -195,6 +195,7 @@ function emailFromForStage(stage: string): string | undefined {
 const observability: Cloudflare.WorkerObservability = {
   enabled: true,
   logs: { enabled: true, invocationLogs: true, headSamplingRate: 1 },
+  traces: { enabled: true, headSamplingRate: 1, persist: true },
   issues: { enabled: true },
   redactQueryString: true
 }
@@ -209,7 +210,7 @@ const smartPlacement: Cloudflare.WorkerPlacement = { mode: 'smart' }
 // runtime behavior than local dev — a date that silently dropped off the web
 // worker once already (it defaulted to Alchemy's fallback while wrangler dev
 // pinned one).
-const workerBase = {
+const workerDefaults = {
   // Keep the stable workers.dev address as the default public host when a
   // deployment has no custom domain, without publishing per-version previews.
   workersDev: { enabled: true, previewsEnabled: false },
@@ -230,20 +231,6 @@ export const Stack = Alchemy.Stack(
     // `prod` keeps the historical names; any other stage gets its own D1,
     // queues, and Workers under `b2b-saas-starter-<stage>-…` (infra/bindings.ts).
     const stage = yield* Alchemy.Stage
-    // A deploy-only opt-in for one preview; never collect native traces in prod.
-    const workerDefaults = {
-      ...workerBase,
-      observability: {
-        ...observability,
-        traces: {
-          enabled:
-            isPreviewStage(stage) &&
-            readEnv('CLOUDFLARE_TRACING_TRIAL_STAGE') === stage,
-          headSamplingRate: 1,
-          persist: true
-        }
-      }
-    }
     const names = stageResourceNames(stage)
     const providerEnv = providerEnvForStage(stage)
     const emailFrom = emailFromForStage(stage)

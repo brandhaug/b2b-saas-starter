@@ -97,6 +97,11 @@ type WorkerDefaults = {
   readonly observability: {
     readonly enabled: true
     readonly head_sampling_rate: 1
+    readonly traces: {
+      readonly enabled: true
+      readonly head_sampling_rate: 1
+      readonly persist: true
+    }
     readonly issues: { readonly enabled: true }
     readonly redact_query_string: true
   }
@@ -183,6 +188,7 @@ function workerDefaults(name: string, entry: string): WorkerDefaults {
     observability: {
       enabled: true,
       head_sampling_rate: 1,
+      traces: { enabled: true, head_sampling_rate: 1, persist: true },
       issues: { enabled: true },
       redact_query_string: true
     },
