@@ -178,8 +178,8 @@ catalogs:
       specifier: 30.1.1
       version: 30.1.1
     lucide-react:
-      specifier: 1.48.0
-      version: 1.48.0
+      specifier: 1.49.0
+      version: 1.49.0
     miniflare:
       specifier: 5.20260926.1-alpha
       version: 5.20260926.1-alpha
@@ -612,7 +612,7 @@ importers:
         version: 1.0.4(better-auth@1.7.6(@opentelemetry/api@1.9.1)(@tanstack/react-start@1.168.59(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(rolldown@1.2.5)(rollup@4.63.1)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20260929.1)(@effect/sql-d1@4.0.0(effect@4.0.0))(@effect/sql-sqlite-do@4.0.0(effect@4.0.0))(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(bun-types@1.4.0)(effect@4.0.0)(valibot@1.4.2(typescript@7.0.2))(zod@4.5.4))(next@16.3.6(@babel/core@8.0.6)(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@26.6.3)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(vitest@4.1.11))(effect@4.0.0)
       lucide-react:
         specifier: 'catalog:'
-        version: 1.48.0(react@19.3.0)
+        version: 1.49.0(@types/react@19.3.0)(react@19.3.0)
       posthog-js:
         specifier: 'catalog:'
         version: 1.434.18(@types/react@19.3.0)(react@19.3.0)
@@ -7620,10 +7620,14 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
-  lucide-react@1.48.0:
-    resolution: {integrity: sha512-R0CIKY/fXiC6y9xRBADgsK+VW2p/pcTJOMhLZf1T+uG+vJUvyUR02nGOgmIIC7MPkiNK4Ox8QDnbqF8rJYWPZQ==}
+  lucide-react@1.49.0:
+    resolution: {integrity: sha512-ApfaNM4/7jBrVopqLJ84Jz8TMQ1Q1JeZ1PmKh25aeS3E1FTVcMkSh1bEQB7dfzdIrwXRP8p3z4AJjTIHHb5IIA==}
     peerDependencies:
+      '@types/react': '*'
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
 
   lz-string@1.5.0:
     resolution: {integrity: sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ==}
@@ -15099,9 +15103,11 @@ snapshots:
     dependencies:
       yallist: 3.1.1
 
-  lucide-react@1.48.0(react@19.3.0):
+  lucide-react@1.49.0(@types/react@19.3.0)(react@19.3.0):
     dependencies:
       react: 19.3.0
+    optionalDependencies:
+      '@types/react': 19.3.0
 
   lz-string@1.5.0: {}
 
