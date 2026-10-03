@@ -200,6 +200,19 @@ the form `pr-<number>` get the preview rules above (providers dropped,
 URL derived). A stage such as `dev_martin` gets isolated resources but
 otherwise deploys like production, so it needs `BETTER_AUTH_URL`.
 
+### Automatic tracing
+
+Alchemy and the generated Wrangler configurations enable persistent native traces
+at 100% sampling for all three Workers in every stage, including production.
+Normal deployment applies the setting; no feature flag or tracing SDK is needed.
+Logs, Issues, query-string redaction, and existing Effect exporters retain their
+configuration. Native platform spans and Effect spans remain separate.
+
+Inspect the deployed traces in the Cloudflare dashboard to verify binding spans
+and captured attributes. Native telemetry bypasses the application sanitizer;
+query-string redaction does not remove URL paths, SQL text, or exception messages.
+See the [tracing assessment](research/cloudflare-effect-tracer.md).
+
 ## Verifying the first deploy
 
 1. Open `BETTER_AUTH_URL` and confirm the landing page renders.

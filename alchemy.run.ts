@@ -195,6 +195,7 @@ function emailFromForStage(stage: string): string | undefined {
 const observability: Cloudflare.WorkerObservability = {
   enabled: true,
   logs: { enabled: true, invocationLogs: true, headSamplingRate: 1 },
+  traces: { enabled: true, headSamplingRate: 1, persist: true },
   issues: { enabled: true },
   redactQueryString: true
 }
