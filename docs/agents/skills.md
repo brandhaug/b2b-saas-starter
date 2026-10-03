@@ -8,6 +8,10 @@ Claude Code reads it through the `.claude/skills` symlink. `CLAUDE.md` links to
 
 - [implement](../../.agents/skills/implement/SKILL.md) takes an agreed issue through
   implementation, review, and a PR ready to merge.
+- [protected-local-preview](../../.agents/skills/protected-local-preview/SKILL.md)
+  shares a temporary local UI demo with an explicit email/domain allowlist,
+  verifies the browser challenge and app, and stops access after review.
+  Use `$protected-local-preview` or name its file.
 - [investigate-cloudflare](../../.agents/skills/investigate-cloudflare/SKILL.md)
   investigates deployed failures and missing operational signals using existing
   Cloudflare access. It records bounded, sanitized evidence and checks recurrence

@@ -22,6 +22,11 @@ preview does not perform the action. Use `/sign-in` and the seeded accounts belo
 to exercise real actions. The preview uses guest language preferences even when
 you have an active account session.
 
+For a private browser review of your local UI, use the
+[protected-local-preview skill](../.agents/skills/protected-local-preview/SKILL.md).
+It requires an explicit email/domain allowlist and a CLI with protected Quick
+Tunnel support. Deployed Alchemy PR previews remain a separate workflow.
+
 For customer support, configure the optional [support destinations](deploying.md)
 for `/help`. With no contact configured, the page says contact information is
 unavailable and still lets users copy support details.
