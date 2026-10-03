@@ -6,12 +6,20 @@ Claude Code reads it through the `.claude/skills` symlink. `CLAUDE.md` links to
 
 ## Repository skills
 
+- [configure-cloudflare-monitoring](../../.agents/skills/configure-cloudflare-monitoring/SKILL.md)
+  sets up or reconciles SQL alerts and a shared Worker dashboard for an account
+  and stage. It discovers schemas, preserves existing monitor policies, checks
+  repeatability and verifies no-data/recovery behavior. Use it for initial setup,
+  configuration drift, new monitoring scenarios or a delivery drill.
 - [implement](../../.agents/skills/implement/SKILL.md) takes an agreed issue through
   implementation, review, and a PR ready to merge.
 - [investigate-cloudflare](../../.agents/skills/investigate-cloudflare/SKILL.md)
   investigates deployed failures and missing operational signals using existing
   Cloudflare access. It records bounded, sanitized evidence and checks recurrence
   against the deployed version. Use `$investigate-cloudflare` or name its file.
+  For missing spans or instrumentation decisions, its
+  [tracing reference](../../.agents/skills/investigate-cloudflare/references/tracing.md)
+  checks deployed collection and selects native or sanitized Effect evidence.
   An investigation does not authorize alert changes, replay, or deployment.
 
 ## Setup

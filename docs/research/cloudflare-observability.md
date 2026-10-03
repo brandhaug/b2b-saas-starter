@@ -74,6 +74,27 @@ Cloudflare's official server endpoint is
 `https://observability.mcp.cloudflare.com/mcp`.
 [Agent setup](https://developers.cloudflare.com/agent-setup/devin/)
 
+## Alert and dashboard setup support
+
+Checked 2026-10-03 against installed `alchemy@2.0.0-beta.79` and
+`@distilled.cloud/cloudflare@1.0.0-rc.12`. Alchemy has notification policies,
+webhooks and silences, but its policy and underlying request schema expose no
+SQL query/evaluation-window properties. No Custom Dashboard resource was found.
+The reusable [configuration skill](../../.agents/skills/configure-cloudflare-monitoring/SKILL.md)
+therefore uses schema discovery and the supported dashboard workflow. Recheck
+installed SDK support before adding declarative resources; a generic notification
+policy is not proof of SQL alert support.
+
+Cloudflare documents Workers Logs and Traces as custom-dashboard sources.
+Account-specific payload fields and alert behavior still need verification.
+[Dashboard release](https://developers.cloudflare.com/changelog/post/2026-10-02-workers-observability-in-custom-dashboards/)
+
+No live rules, dashboards or deliveries were verified for this setup work. The
+reported Wrangler telemetry discovery attempt returned 403; this session had no
+Observability connector or identified delivery destination. Deployment access does
+not establish telemetry access. Query compilation, scheduled no-data behavior,
+account reconciliation and opening/recovery delivery remain live checks.
+
 ## Keep tracing separate
 
 Native Workers tracing automatically records fetch, binding, RPC, and handler
