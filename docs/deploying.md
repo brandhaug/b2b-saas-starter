@@ -200,6 +200,36 @@ the form `pr-<number>` get the preview rules above (providers dropped,
 URL derived). A stage such as `dev_martin` gets isolated resources but
 otherwise deploys like production, so it needs `BETTER_AUTH_URL`.
 
+### Trial automatic tracing
+
+Set the deploy-only `CLOUDFLARE_TRACING_TRIAL_STAGE` to the same `pr-<number>`
+stage being deployed to enable native tracing for its three Workers:
+
+```bash
+CLOUDFLARE_TRACING_TRIAL_STAGE=pr-42 ALCHEMY_STAGE=pr-42 pnpm run deploy:stage
+```
+
+Alchemy enables persistent traces at 100% sampling for that preview. Other stages,
+including `prod`, explicitly disable traces. Logs, Issues, query-string redaction,
+and the existing Effect telemetry configuration retain their settings. This adds
+automatic platform spans only; it does not install an Effect tracing bridge.
+
+Use synthetic preview traffic and inspect the resulting native spans in the
+Cloudflare dashboard. Native attributes bypass the application telemetry
+sanitizer. Record the active version, UTC window, request outcomes, captured
+binding spans, and sensitive-field inspection before deciding on wider use.
+See the [tracing assessment](research/cloudflare-effect-tracer.md).
+
+End the trial by redeploying the same stage with the opt-in unset:
+
+```bash
+env -u CLOUDFLARE_TRACING_TRIAL_STAGE ALCHEMY_STAGE=pr-42 pnpm run deploy:stage
+```
+
+Verify the deployed trace setting is disabled. Disabling capture does not delete
+previously retained traces. The trial option is not forwarded to Worker bindings
+or automatically enabled by the preview workflow.
+
 ## Verifying the first deploy
 
 1. Open `BETTER_AUTH_URL` and confirm the landing page renders.

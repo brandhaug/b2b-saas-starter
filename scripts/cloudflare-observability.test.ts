@@ -2,8 +2,8 @@ import { execFileSync } from 'node:child_process'
 import { expect, it } from 'vite-plus/test'
 
 // Failure modes: the deployment SDK drops unknown Issues settings, or fails to
-// translate query redaction to the API field, despite valid Wrangler config.
-it('preserves native error tracking and query redaction in the Worker upload metadata', () => {
+// translate query redaction, or strips trace settings from Worker uploads.
+it('preserves native error tracking, query redaction, and tracing in the Worker upload metadata', () => {
   const encoded = execFileSync(
     process.execPath,
     [
@@ -18,7 +18,8 @@ it('preserves native error tracking and query redaction in the Worker upload met
       enabled: true,
       issues: { enabled: true },
       redactQueryString: true,
-      logs: { enabled: true, invocationLogs: true, headSamplingRate: 1 }
+      logs: { enabled: true, invocationLogs: true, headSamplingRate: 1 },
+      traces: { enabled: true, headSamplingRate: 1, persist: true }
     });
     process.stdout.write(JSON.stringify(encoded));
   `
@@ -29,6 +30,7 @@ it('preserves native error tracking and query redaction in the Worker upload met
     enabled: true,
     issues: { enabled: true },
     redactQueryString: true,
-    logs: { enabled: true, invocationLogs: true, headSamplingRate: 1 }
+    logs: { enabled: true, invocationLogs: true, headSamplingRate: 1 },
+    traces: { enabled: true, headSamplingRate: 1, persist: true }
   })
 })
