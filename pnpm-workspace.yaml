@@ -25,7 +25,7 @@ catalog:
   '@better-auth/utils': 0.5.0
   '@cloudflare/ai-chat': 0.12.0
   agents: 0.24.0
-  ai: 7.0.124
+  ai: 7.0.126
   '@cloudflare/workers-types': 5.20260930.2
   '@cloudflare/vitest-pool-workers': 0.22.0
   '@effect/tsgo': 0.46.1
