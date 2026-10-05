@@ -72,7 +72,7 @@ catalog:
   drizzle-orm: 1.0.0-rc.5-ab785fc
   standardwebhooks: 1.1.1
   effect: 4.0.0
-  effectful-better-auth: 1.0.4
+  effectful-better-auth: 1.0.5
   eslint-plugin-better-tailwindcss: 4.7.0
   fallow: 3.31.0
   jsdom: 30.1.1
