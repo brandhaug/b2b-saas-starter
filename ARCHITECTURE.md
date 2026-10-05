@@ -95,6 +95,12 @@ exports exclude private transcripts. Deletion fences block access before cleanup
 immutable addresses survive parent removal so the background worker can retry.
 See [the conversation guide](apps/web/content/docs/capability-interfaces/assistant-conversations.mdx).
 
+The shared Worker configuration opts into `durable_object_io_tasks_prevent_eviction`
+without advancing the compatibility date. It protects pending answer, publication
+and flush work registered with `ctx.waitUntil` after clients disconnect. The
+[Durable Object decision](docs/adr/0009-no-durable-objects-without-coordination-need.md) records the time and
+billing limits; Stop, authority checks, deadlines and process recovery still apply.
+
 Local contract tests cover application persistence, admission and lifecycle.
 Deployed recovery and real-provider streaming/cancellation require separate evidence.
 

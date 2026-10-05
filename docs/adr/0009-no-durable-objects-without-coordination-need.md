@@ -7,6 +7,21 @@ disconnection. One SQLite Durable Object with AIChatAgent owns each conversation
 The web Worker exports the host class; API and background Workers bind to that
 same host within their isolated stage.
 
+The shared Worker configuration enables `durable_object_io_tasks_prevent_eviction`
+at compatibility date `2026-05-16`, in Alchemy and generated Wrangler configs for
+every stage. No application feature flag is needed. The host already registers
+answer completion, publication and flush promises with `ctx.waitUntil`.
+[Cloudflare's pending-I/O protection](https://developers.cloudflare.com/changelog/post/2026-10-01-pending-io-keep-alive/)
+keeps those operations, service binding requests, Durable Object RPC and timers
+from idle eviction after clients disconnect. External `fetch()` already prevents
+eviction. Each pending operation protects for up to 15 minutes; later operations
+can extend total residency, and duration billing continues during protection.
+
+The default answer deadline remains 10 minutes. Explicit Stop, current-authority
+checks and deadline aborts still terminate application work. This runtime behavior
+does not provide durable crash recovery. `onStart` still records active attempts
+as Interrupted with a process reason, and only explicit Retry starts new inference.
+
 D1 keeps immutable creator and Workspace identity, required permissions and policy
 revision, deletion fences, export manifests and shared Member admission. A single
 conditional insert enforces active-answer and rolling-minute limits across
