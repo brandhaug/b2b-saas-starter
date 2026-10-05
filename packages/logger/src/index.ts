@@ -5,7 +5,7 @@
  * - `./trace.ts` — trace continuation: `traceparent` encode/decode,
  *   `currentTraceparent` / `currentTraceId`, `TraceContinuation`.
  * - `./wide-event.ts` — the wide-event scopes (`withRequestScope` and both
- *   envelopes), sinks, RED metrics, `WideEventLoggerLive`.
+ *   envelopes), RED metrics, `WideEventLoggerLive`.
  * - `./environment.ts` — deployment-identity mining (`readWideEventEnvironment`,
  *   cf colo hints).
  * - `./otlp.ts` — per-invocation OTLP export (`makeOtlpLayer`).

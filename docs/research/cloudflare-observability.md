@@ -1,5 +1,11 @@
 # Cloudflare observability assessment
 
+> Current implementation: PostHog has been removed. Optional browser analytics
+> uses an Alchemy-managed Cloudflare Web Analytics site; server telemetry retains
+> Workers Logs/Issues and optional Effect OTLP. PostHog findings below describe
+> the earlier audit snapshot and are not implementation recommendations. See the
+> [current integration guide](../../apps/web/content/docs/integrations/cloudflare-observability.mdx).
+
 Reviewed 2026-10-02 for the move to native Worker error tracking. Deployment configuration and
 [monitoring](../monitoring.md) define the implemented behavior. This note records
 which new capabilities fit the starter and which still require account setup or
@@ -67,6 +73,27 @@ Cloudflare CLI. Tool availability and telemetry access remain local prerequisite
 Cloudflare's official server endpoint is
 `https://observability.mcp.cloudflare.com/mcp`.
 [Agent setup](https://developers.cloudflare.com/agent-setup/devin/)
+
+## Alert and dashboard setup support
+
+Checked 2026-10-03 against installed `alchemy@2.0.0-beta.79` and
+`@distilled.cloud/cloudflare@1.0.0-rc.12`. Alchemy has notification policies,
+webhooks and silences, but its policy and underlying request schema expose no
+SQL query/evaluation-window properties. No Custom Dashboard resource was found.
+The reusable [configuration skill](../../.agents/skills/configure-cloudflare-monitoring/SKILL.md)
+therefore uses schema discovery and the supported dashboard workflow. Recheck
+installed SDK support before adding declarative resources; a generic notification
+policy is not proof of SQL alert support.
+
+Cloudflare documents Workers Logs and Traces as custom-dashboard sources.
+Account-specific payload fields and alert behavior still need verification.
+[Dashboard release](https://developers.cloudflare.com/changelog/post/2026-10-02-workers-observability-in-custom-dashboards/)
+
+No live rules, dashboards or deliveries were verified for this setup work. The
+reported Wrangler telemetry discovery attempt returned 403; this session had no
+Observability connector or identified delivery destination. Deployment access does
+not establish telemetry access. Query compilation, scheduled no-data behavior,
+account reconciliation and opening/recovery delivery remain live checks.
 
 ## Keep tracing separate
 

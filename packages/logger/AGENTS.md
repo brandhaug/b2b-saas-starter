@@ -1,6 +1,6 @@
 # @b2b-saas-starter/logger
 
-The one observability seam for all three workers: wide events, OTel traces, RED metrics, OTLP export (ADR 0007, ADR 0050). Nothing else constructs a logger, tracer, or span. Vendor glue: `./providers`.
+The one observability seam for all three workers: wide events, OTel traces, RED metrics, OTLP export (ADR 0007, ADR 0050). Nothing else constructs a logger, tracer, or span. Native operational signals: `./providers`.
 
 ## Changes
 
@@ -22,6 +22,5 @@ The one observability seam for all three workers: wide events, OTel traces, RED 
 - Don't build `traceparent` by hand (`currentTraceparent` encodes it) or set it outbound; `HttpClient` injects it.
 - Don't hoist `makeOtlpLayer` to module scope (invariant 3).
 - Failed canonical events use `console.error` so Cloudflare Issues detects handled failures. Interrupt-only scopes retain their event evidence through `console.log`, avoiding Issues for cancellation. Both console methods use the same allowlisted payload.
-- `wireWideEventProviders` installs the one PostHog sink, with one client per invocation and no export without its env vars. A second sink replaces the first.
 - Don't import `./providers` from code reaching the browser bundle.
 - Don't mint a correlation id by hand; `currentTraceId` is the only source.

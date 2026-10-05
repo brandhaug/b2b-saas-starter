@@ -1,5 +1,11 @@
 # Dependency audit
 
+> Current implementation: PostHog has been removed. Optional browser analytics
+> uses an Alchemy-managed Cloudflare Web Analytics site; server telemetry retains
+> Workers Logs/Issues and optional Effect OTLP. PostHog findings below describe
+> the earlier audit snapshot and are not implementation recommendations. See the
+> [current integration guide](../../apps/web/content/docs/integrations/cloudflare-observability.mdx).
+
 Reviewed 2026-09-07, starting at `ef17c133`. The audit covers all 19 workspace
 manifests and their 88 distinct direct external dependencies, plus the lockfile's
 advisories, deprecations, overrides, peer compatibility and direct-package license

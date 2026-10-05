@@ -25,9 +25,9 @@ function nonEmptyEnvValue(value: string | null | undefined): string | undefined 
 /** Runs on the server only — it reads the worker's env bag. */
 export function readClientTelemetryConfigHandler(): ClientTelemetryConfig {
   return {
-    // PostHog project keys are public ingest identifiers by design;
-    // no secret ever reaches this object.
-    posthogKey: nonEmptyEnvValue(cloudflareEnv.POSTHOG_KEY),
-    posthogHost: nonEmptyEnvValue(cloudflareEnv.POSTHOG_HOST)
+    // Cloudflare's beacon token is a public ingest identifier, not an API secret.
+    cloudflareWebAnalyticsToken: nonEmptyEnvValue(
+      cloudflareEnv.CLOUDFLARE_WEB_ANALYTICS_TOKEN
+    )
   }
 }

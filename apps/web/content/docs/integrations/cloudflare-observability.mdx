@@ -1,9 +1,9 @@
 ---
-title: Cloudflare observability and PostHog
+title: Cloudflare observability and Web Analytics
 description: Native Worker error tracking and optional analytics.
 category: integrations
 order: 30
-tags: [cloudflare, posthog, observability]
+tags: [cloudflare, analytics, observability]
 ---
 
 ## Cloudflare Workers Logs and Issues
@@ -29,15 +29,34 @@ remote capture in this starter; Workers Issues observes server execution.
 
 `OTEL_EXPORTER_OTLP_ENDPOINT` optionally exports sanitized Effect traces, metrics,
 and canonical logs to a collector. It remains scoped to each Worker invocation.
-PostHog is optional and stays inactive without its variables.
 
-## PostHog
+## Optional Web Analytics
 
-| Variable       | Where it works                                                  |
-| -------------- | --------------------------------------------------------------- |
-| `POSTHOG_KEY`  | web browser analytics + server-side capture                     |
-| `POSTHOG_HOST` | Optional; `.env.example` defaults to `https://us.i.posthog.com` |
+Set `CLOUDFLARE_WEB_ANALYTICS_ENABLED=true` for an Alchemy deployment to
+provision a Cloudflare RUM site for the hostname in `BETTER_AUTH_URL`. Alchemy
+passes its public site token to the web Worker as
+`CLOUDFLARE_WEB_ANALYTICS_TOKEN`. API and background Workers receive no token.
+Local development and deployments without a token load no beacon. PR preview
+stages never provision the site or receive its token.
 
-Server-side follows PostHog's documented [Cloudflare Workers pattern](https://posthog.com/docs/libraries/cloudflare-workers): the official `posthog-node` client with `flushAt: 1` / `flushInterval: 0`, created per invocation and shut down before the invocation ends: the same invocation-scoped I/O rule ADR 0050 applies to OTLP export. One event per wide-event scope is captured, keyed by the trace id, with `service`, `status`, and `durationMs` properties.
+Alchemy disables automatic injection. The app embeds one script from
+`https://static.cloudflareinsights.com/beacon.min.js`; do not enable a second
+copy in the dashboard. The beacon handles SPA navigation automatically.
+[Cloudflare's FAQ](https://developers.cloudflare.com/web-analytics/faq/) describes
+manual embedding, route measurements, and delivery limitations.
 
-In the browser, `posthog-js` initializes from the same root-route loader data, with history-based page-view capture suited to the SPA router.
+When enabled, the beacon runs across the public site and authenticated app.
+It sends page views and browser performance measurements to Cloudflare, with
+[dimensions](https://developers.cloudflare.com/web-analytics/data-metrics/dimensions/)
+including paths, referrers, browser, device and country. Paths can contain
+Workspace slugs or other identifying values. The application logger's URL and
+identity filtering does not apply to this browser beacon. Review actual network
+payloads and deployment privacy copy before enabling it.
+Cloudflare documents its
+[data collection](https://developers.cloudflare.com/web-analytics/data-metrics/data-origin-and-collection/)
+and says it does not log query strings in its FAQ.
+
+Web Analytics supplies traffic and performance measurements. It does not replace
+server error monitoring or add browser exception reporting, custom product events,
+session replay, or feature flags. The starter has no Analytics Engine dataset;
+add one only when a concrete custom-event use case needs it.
