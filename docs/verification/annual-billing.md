@@ -25,13 +25,32 @@ test's directory under `apps/web/test-results`. The machine-readable report is
 
 ## Observed local results
 
-- Production build passed, including the browser/server import boundary check.
-- Initial focused checks passed: 44 billing policy/price/claim assertions,
-  18 Live/D1 checkout/lifecycle tests, and 28 web/component tests. The final
-  interval-display repair is being revalidated separately.
-- Broad validation encountered unrelated authentication tests exceeding their
-  five-second deadlines under concurrent worktree load. No test timeout was
-  changed to hide those failures.
+Verified on 2026-10-06 against implementation commit `95d37c05`:
+
+| Check                                                              | Result                |
+| ------------------------------------------------------------------ | --------------------- |
+| Production build and client/server import boundary                 | Passed                |
+| Typecheck, lint, formatting, dead-code regression, unused messages | Passed                |
+| Billing package                                                    | 70 tests passed       |
+| Focused Live/D1 checkout and lifecycle                             | 18 tests passed       |
+| Billing UI, page, and server handlers                              | 50 tests passed       |
+| Script checks                                                      | 59 passed, 11 skipped |
+| Generated Wrangler drift, local migration and seed                 | Passed                |
+| Chromium annual-pricing smoke on port 3103                         | Passed                |
+
+The complete `validate`/`check` path did not finish green. Broad test runs hit an
+unrelated `live-totp-replay` five-second timeout and a capability-suite process
+exit 137. Focused billing suites passed afterward. No timeout or coverage gate
+was weakened. The PR records the latest CI results separately.
+
+The annual view was inspected at desktop and mobile widths:
+
+- [Desktop screenshot](annual-billing/desktop.png)
+- [Mobile screenshot](annual-billing/mobile.png)
+
+The dependency audit reports existing advisories in `braces`, `proxy-addr`,
+`source-map-js`, and `tinypool`. This branch changes neither the lockfile nor
+dependency versions. Those findings require separate dependency maintenance.
 
 ## Evidence scope
 
