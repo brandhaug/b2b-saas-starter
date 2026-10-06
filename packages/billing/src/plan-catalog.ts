@@ -1,3 +1,4 @@
+import { type billingIntervals } from '@b2b-saas-starter/db/enums'
 import { Schema } from 'effect'
 
 /**
@@ -6,6 +7,14 @@ import { Schema } from 'effect'
  * per Member, so the provider subscription item's quantity mirrors the
  * workspace's member count (see `billing.ts`'s seat sync).
  */
+export type BillingInterval = (typeof billingIntervals)[number]
+
+export type BillingPrice = {
+  readonly amount: number
+  readonly currency: string
+  readonly interval: BillingInterval
+}
+
 type PlanPricing = 'flat' | 'per_seat'
 
 /**
@@ -17,7 +26,8 @@ type PlanPricing = 'flat' | 'per_seat'
 export type Plan = {
   readonly id: string
   readonly name: string
-  readonly price: { readonly amount: number; readonly currency: string } | null
+  readonly price: BillingPrice | null
+  readonly annualPrice?: BillingPrice | undefined
   readonly descriptionKey:
     | 'shell_plan_starter_description'
     | 'shell_plan_team_description'
@@ -59,7 +69,7 @@ export type Plan = {
 export const STARTER_PLAN: Plan = {
   id: 'starter',
   name: 'Starter',
-  price: { amount: 0, currency: 'USD' },
+  price: { amount: 0, currency: 'USD', interval: 'month' },
   descriptionKey: 'shell_plan_starter_description',
   pricing: 'flat',
   limits: { apiTokens: 2, webhookEndpoints: 1, seats: 3 },
@@ -72,7 +82,8 @@ export const PLANS: ReadonlyArray<Plan> = [
   {
     id: 'team',
     name: 'Team',
-    price: { amount: 12, currency: 'USD' },
+    price: { amount: 12, currency: 'USD', interval: 'month' },
+    annualPrice: { amount: 144, currency: 'USD', interval: 'year' },
     descriptionKey: 'shell_plan_team_description',
     pricing: 'per_seat',
     limits: { apiTokens: null, webhookEndpoints: null, seats: null },

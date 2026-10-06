@@ -189,6 +189,7 @@ export async function startCheckoutHandler(
       const backTo = `${base}/workspaces/${encodeURIComponent(input.workspaceSlug)}/billing`
       return yield* billing.startCheckout({
         planId: input.planId,
+        interval: input.interval,
         successUrl: `${backTo}?checkout=success`,
         cancelUrl: `${backTo}?checkout=canceled`
       })

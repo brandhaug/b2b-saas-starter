@@ -5,6 +5,7 @@ import {
   accountLocales,
   billingCheckoutStatuses,
   billingLifecycleStatuses,
+  billingIntervals,
   billingProviderEventStatuses,
   billingSynchronizationStatuses,
   deliveryStatuses,
@@ -979,6 +980,7 @@ export const workspaceSubscriptions = sqliteTable(
       .default('canceled')
       .notNull(),
     stripePriceId: text('stripe_price_id'),
+    interval: text('interval', { enum: billingIntervals }),
     subscribedPlanId: text('subscribed_plan_id').default('starter').notNull(),
     currentPeriodStart: text('current_period_start'),
     currentPeriodEnd: text('current_period_end'),

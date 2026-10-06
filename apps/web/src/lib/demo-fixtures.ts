@@ -275,24 +275,26 @@ const billingPlans = [
   {
     id: 'starter',
     name: 'Starter',
-    price: { amount: 0, currency: 'USD' },
+    price: { amount: 0, currency: 'USD', interval: 'month' },
     descriptionKey: 'shell_plan_starter_description',
     pricing: 'flat',
     limits: { apiTokens: 2, webhookEndpoints: 1, seats: 3 },
     stripePriceEnv: null,
     purchase: 'downgrade',
-    providerPrice: { amount: 0, currency: 'USD' }
+    providerPrice: { amount: 0, currency: 'USD', interval: 'month' }
   },
   {
     id: 'team',
     name: 'Team',
-    price: { amount: 12, currency: 'USD' },
+    price: { amount: 12, currency: 'USD', interval: 'month' },
     descriptionKey: 'shell_plan_team_description',
     pricing: 'per_seat',
     limits: { apiTokens: null, webhookEndpoints: null, seats: null },
     stripePriceEnv: 'STRIPE_PRICE_ID_TEAM',
     purchase: 'self_serve',
-    providerPrice: { amount: 12, currency: 'USD' }
+    providerPrice: { amount: 12, currency: 'USD', interval: 'month' },
+    annualPrice: { amount: 144, currency: 'USD', interval: 'year' },
+    annualProviderPrice: { amount: 144, currency: 'USD', interval: 'year' }
   },
   {
     id: 'enterprise',
@@ -385,6 +387,7 @@ export const demoFixtures = {
     stripeConfigured: false,
     synchronization: { status: 'current', lastSyncedAt: '2026-05-16T07:30:05.000Z' },
     lifecycle: {
+      interval: null,
       access: { planId: 'team', paid: true, reason: 'active', endsAt: null },
       status: 'active',
       planId: 'team',

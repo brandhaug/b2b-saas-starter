@@ -49,7 +49,10 @@ const selectResources: SelectBillingResources = vi.fn(async () => ({
 function withProviderPrice(plan: BillingPlan): BillingPlan {
   return {
     ...plan,
-    providerPrice: plan.id === 'team' ? { amount: 12.5, currency: 'USD' } : plan.price
+    providerPrice:
+      plan.id === 'team'
+        ? { amount: 12.5, currency: 'USD', interval: 'month' }
+        : plan.price
   }
 }
 
@@ -74,6 +77,7 @@ async function renderPlans(options?: {
     | 'unpaid'
     | 'paused'
     | 'canceled'
+  readonly interval?: 'month' | 'year' | null
   readonly now?: string
   readonly trialEnd?: string | null
   readonly graceEndsAt?: string | null
@@ -114,6 +118,7 @@ async function renderPlans(options?: {
           },
           options?.now ?? '2026-09-23T00:00:00.000Z'
         ),
+        interval: options?.interval ?? 'month',
         status: options?.lifecycleStatus ?? 'active',
         planId: options?.subscribedPlanId ?? options?.currentPlanId ?? 'team',
         currentPeriodEnd: options?.currentPeriodEnd ?? null,
@@ -175,6 +180,7 @@ function PollingBillingPlans() {
         plans={PLANS}
         pricingUnavailable={false}
         lifecycle={{
+          interval: null,
           access: {
             planId: 'starter',
             paid: false,
@@ -522,4 +528,33 @@ describe('BillingPlans', () => {
     })
     expect(screen.queryByText(/Some workspace features are restricted/)).toBeNull()
   })
+})
+
+// The selected offer must not mislabel the subscription's verified interval.
+it.each(['month', 'year'] satisfies ReadonlyArray<'month' | 'year'>)(
+  'marks only the verified %s subscription offer as current',
+  async (interval) => {
+    await renderPlans({
+      interval,
+      plans: PLANS.map((plan) => ({ ...plan, annualProviderPrice: plan.annualPrice }))
+    })
+    const selected = interval === 'year' ? 'Annual' : 'Monthly'
+    const other = interval === 'year' ? 'Monthly' : 'Annual'
+    await screen.findByRole('button', { name: selected })
+    expect(
+      screen.getByRole('button', { name: selected }).getAttribute('aria-pressed')
+    ).toBe('true')
+    expect(screen.getByText('Current', { exact: true })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: other }))
+    expect(screen.queryByText('Current', { exact: true })).toBeNull()
+  }
+)
+
+it('does not substitute an example annual amount when that provider price is unavailable', async () => {
+  await renderPlans({
+    interval: 'year',
+    stripeConfigured: true,
+    plans: PLANS.map(withProviderPrice)
+  })
+  expect(screen.queryByText('$144.00/seat/year', { exact: true })).toBeNull()
 })

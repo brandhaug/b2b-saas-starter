@@ -1,3 +1,5 @@
+import { type StripeSubscriptionResponse } from './stripe.ts'
+import { testItem, testPrice } from './provider-test-fixtures.ts'
 import { billingLifecycleStatuses } from '@b2b-saas-starter/db/enums'
 import { Schema } from 'effect'
 import { SubscriptionState } from './billing.ts'
@@ -5,6 +7,7 @@ import { describe, expect, it } from 'vite-plus/test'
 
 import {
   billingLifecycle,
+  resolveBillingState,
   effectivePlanDecision,
   emptySubscription
 } from './billing-state.ts'
@@ -238,4 +241,68 @@ describe('billing access projection', () => {
   it('retains provider-light workspace plans without inventing a subscription', () => {
     expect(billingLifecycle(null, 'team', now).access.planId).toBe('team')
   })
+})
+
+// Failure cases: unknown annual price, monthly substitution, invented period,
+// cancellation extended past the provider boundary, and grace extended by retries.
+it('reconciles annual periods and keeps cancellation and renewal grace deadlines', () => {
+  const end = '2027-09-01T00:00:00.000Z'
+  const subscription: StripeSubscriptionResponse = {
+    id: 'sub_year',
+    customer: 'cus_test',
+    status: 'active',
+    metadata: { workspaceId: 'wrk_year' },
+    trial_end: null,
+    cancel_at_period_end: true,
+    latest_invoice: null,
+    items: {
+      data: [
+        {
+          ...testItem,
+          price: {
+            ...testPrice,
+            id: 'price_year',
+            recurring: { ...testPrice.recurring, interval: 'year' }
+          },
+          current_period_end: Date.parse(end) / 1000
+        }
+      ]
+    }
+  }
+  const input = {
+    workspaceId: 'wrk_year',
+    customerId: 'cus_test',
+    subscriptions: [subscription],
+    hasMore: false,
+    priceIds: { team: 'price_team' },
+    annualPriceIds: { team: 'price_year' },
+    previous: null,
+    payment: { lastPaymentAt: now, firstFailedAt: null },
+    now
+  }
+  const resolved = resolveBillingState(input)
+  expect(resolved.kind).toBe('resolved')
+  if (resolved.kind !== 'resolved') {
+    return
+  }
+  expect(resolved.subscription.currentPeriodEnd).toBe(end)
+  expect(resolved.subscription.priceId).toBe('price_year')
+  expect(resolved.subscription.interval).toBe('year')
+  expect(effectivePlanDecision(resolved.subscription, end).planId).toBe('starter')
+  const renewal = resolveBillingState({
+    ...input,
+    previous: resolved.subscription,
+    subscriptions: [{ ...subscription, cancel_at_period_end: false }],
+    payment: { lastPaymentAt: now, firstFailedAt: end },
+    now: end
+  })
+  expect(renewal.kind).toBe('resolved')
+  if (renewal.kind !== 'resolved') {
+    return
+  }
+  expect(renewal.subscription.graceEndsAt).toBe('2027-09-08T00:00:00.000Z')
+  expect(
+    effectivePlanDecision(renewal.subscription, '2027-09-08T00:00:00.000Z').planId
+  ).toBe('starter')
+  expect(resolveBillingState({ ...input, annualPriceIds: {} }).kind).toBe('conflict')
 })

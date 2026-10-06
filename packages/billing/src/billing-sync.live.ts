@@ -264,6 +264,7 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
               subscriptions: listed.data,
               hasMore: listed.has_more,
               priceIds: options.priceIds ?? {},
+              annualPriceIds: options.annualPriceIds,
               previous,
               payment,
               now

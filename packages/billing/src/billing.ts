@@ -1,10 +1,10 @@
-import { billingLifecycleStatuses } from '@b2b-saas-starter/db/enums'
+import { billingLifecycleStatuses, billingIntervals } from '@b2b-saas-starter/db/enums'
 import { type JsonObject } from '@b2b-saas-starter/db/schema'
 import { Context, DateTime, Effect, Schema, type Effect as EffectType } from 'effect'
 
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type WorkspaceContext } from './ports.ts'
-import { type Plan } from './plan-catalog.ts'
+import { type Plan, type BillingInterval } from './plan-catalog.ts'
 
 /** Maps billing storage failures to a stable public reason. */
 export function billingStoreUnavailable<A, E, R>(
@@ -43,6 +43,7 @@ export function seatChangeMetadata(quantity: number, detail?: JsonObject): JsonO
 
 /** The checkout handoff: where Stripe should send the browser afterwards. */
 export type CheckoutInput = {
+  readonly interval?: BillingInterval | undefined
   readonly planId: string
   readonly successUrl: string
   readonly cancelUrl: string
@@ -167,6 +168,7 @@ export const SubscriptionState = Schema.Struct({
   status: SubscriptionStatus,
   subscribedPlanId: Schema.String,
   priceId: Schema.NullOr(Schema.String),
+  interval: Schema.NullOr(Schema.Literals(billingIntervals)),
   currentPeriodStart: Schema.NullOr(BillingTimestamp),
   currentPeriodEnd: Schema.NullOr(BillingTimestamp),
   cancelAtPeriodEnd: Schema.Boolean,
@@ -191,6 +193,7 @@ export type BillingAccessDecision = Schema.Schema.Type<typeof BillingAccessDecis
 
 export const BillingLifecycle = Schema.Struct({
   access: BillingAccessDecision,
+  interval: Schema.NullOr(Schema.Literals(billingIntervals)),
   status: SubscriptionStatus,
   planId: Schema.String,
   currentPeriodEnd: Schema.NullOr(BillingTimestamp),
@@ -200,7 +203,10 @@ export const BillingLifecycle = Schema.Struct({
 })
 export type BillingLifecycle = Schema.Schema.Type<typeof BillingLifecycle>
 
-export type DisplayedPlan = Plan & { readonly providerPrice: Plan['price'] }
+export type DisplayedPlan = Plan & {
+  readonly providerPrice: Plan['price']
+  readonly annualProviderPrice?: Plan['price'] | undefined
+}
 
 export type BillingInterface = {
   /**

@@ -689,4 +689,53 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('durable checkout', (it) =>
       )
     )
   })
+  it.effect(
+    'creates annual checkout with current seats and fences monthly competition',
+    () => {
+      const fixture = stripeFixture()
+      return withStripe(
+        fixture,
+        inWorkspace(
+          'live-lab',
+          Effect.gen(function* () {
+            yield* reset
+            const billing = yield* Billing
+            yield* billing.startCheckout({
+              planId: 'team',
+              interval: 'year',
+              successUrl: 'https://example.test/success',
+              cancelUrl: 'https://example.test/cancel'
+            })
+            const body = new URLSearchParams(fixture.state.checkoutBodies[0])
+            expect(body.get('line_items[0][price]')).toBe('price_team_annual')
+            expect(Number(body.get('line_items[0][quantity]'))).toBeGreaterThan(0)
+            const db = yield* Database
+            const claims = yield* db
+              .select()
+              .from(billingCheckoutClaims)
+              .where(eq(billingCheckoutClaims.workspaceId, workspaceId))
+            expect(claims[0]?.priceId).toBe('price_team_annual')
+            const error = yield* Effect.flip(
+              billing.startCheckout({
+                planId: 'team',
+                interval: 'month',
+                successUrl: 'https://example.test/success',
+                cancelUrl: 'https://example.test/cancel'
+              })
+            )
+            expect(error.reason).toBe('checkout_in_progress')
+            expect(fixture.state.checkoutCreates).toBe(1)
+          }),
+          undefined,
+          {
+            billing: {
+              secretKey,
+              priceIds: { team: 'price_team' },
+              annualPriceIds: { team: 'price_team_annual' }
+            }
+          }
+        )
+      )
+    }
+  )
 })
