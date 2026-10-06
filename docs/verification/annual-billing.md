@@ -12,8 +12,8 @@ and port access. Install Chromium as described in [setup](../setup.md#validation
 ```sh
 vp test run packages/billing/src/stripe-pricing.test.ts packages/billing/src/checkout-claims.test.ts packages/billing/src/billing-state.test.ts
 pnpm -C packages/capabilities exec vp test run src/billing/billing-lifecycle.live.test.ts src/billing/checkout.live.test.ts
-pnpm -C apps/web exec vp test run src/components/workspace-billing.test.tsx src/lib/server/billing.effects.test.ts
-E2E_PORT=3103 pnpm -C apps/web exec playwright test e2e/annual-pricing.spec.ts
+pnpm -C apps/web exec vp test run src/components/workspace-billing.test.tsx src/components/workspace-billing-page.test.tsx src/lib/server/billing.effects.test.ts
+E2E_PORT=3103 pnpm -C apps/web exec playwright test e2e/annual-pricing.spec.ts --project=chromium --no-deps
 E2E_PORT=3103 pnpm run validate
 ```
 
