@@ -265,13 +265,13 @@ export function BillingPlans({
                 : `: ${entitlementSentence(currentPlan)}`}
             </p>
           </div>
-          {lifecycle.interval !== null ? (
+          {lifecycle.interval === null ? null : (
             <p className="text-sm text-muted-foreground">
               {lifecycle.interval === 'year'
                 ? m.billing_subscription_annual()
                 : m.billing_subscription_monthly()}
             </p>
-          ) : null}
+          )}
           <dl className="grid gap-3 border-t border-border pt-4 sm:grid-cols-2">
             <div className="grid gap-1">
               <dt className="text-xs text-muted-foreground">{m.seats()}</dt>
