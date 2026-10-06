@@ -20,9 +20,11 @@ export { type SendVerificationEmail }
  */
 export function EmailVerificationBanner({
   email,
+  callbackPath,
   sendVerificationEmail = sendVerificationEmailWithAuthClient,
   turnstileSiteKey = null
 }: {
+  readonly callbackPath?: string | undefined
   readonly email: string
   readonly sendVerificationEmail?: SendVerificationEmail
   /**
@@ -57,6 +59,7 @@ export function EmailVerificationBanner({
     }
     const result = await sendVerificationEmail({
       email,
+      callbackPath,
       turnstileToken: challenge.token
     })
     challenge.consume()

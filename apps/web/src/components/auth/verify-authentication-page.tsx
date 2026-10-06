@@ -103,6 +103,12 @@ export function VerifyAuthenticationPage({
           </Button>
           <Link
             to="/account"
+            search={{
+              redirect:
+                redirect && safeRedirect(redirect) !== '/account'
+                  ? safeRedirect(redirect)
+                  : undefined
+            }}
             className="inline-flex items-center text-sm underline underline-offset-4 max-md:min-h-11"
           >
             {m.security_manage_factors()}

@@ -8,11 +8,11 @@ import { authClient } from '@/lib/auth-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { getEmailVerificationStatusServerFn } from '@/lib/server/email-verification'
 import { getTurnstileSiteKey } from '@/lib/server/turnstile'
-import { pickOptionalStrings } from '@/lib/utils'
+import { pickOptionalStrings, safeRedirect } from '@/lib/utils'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 export const Route = createFileRoute('/verify-email')({
-  validateSearch: (search) => pickOptionalStrings(search, ['error']),
+  validateSearch: (search) => pickOptionalStrings(search, ['error', 'redirect']),
   // Server-only reads. Project only the verification bit into the loader
   // payload; identity fields never cross the SSR boundary for this public
   // landing page.
@@ -40,11 +40,12 @@ export const Route = createFileRoute('/verify-email')({
  * verify.
  */
 function VerifyEmailRoute() {
-  const { error } = Route.useSearch()
+  const { error, redirect } = Route.useSearch()
   const { turnstileSiteKey, emailVerified } = Route.useLoaderData()
   return (
     <VerifyEmailPage
       error={error}
+      redirect={redirect}
       emailVerified={emailVerified}
       turnstileSiteKey={turnstileSiteKey}
     />
@@ -53,9 +54,11 @@ function VerifyEmailRoute() {
 
 export function VerifyEmailPage({
   error,
+  redirect,
   emailVerified = false,
   turnstileSiteKey = null
 }: {
+  readonly redirect?: string | undefined
   readonly error?: string | undefined
   /** Server-confirmed session state; defaults to neutral when absent. */
   readonly emailVerified?: boolean | undefined
@@ -111,10 +114,10 @@ export function VerifyEmailPage({
             {copy}
             <p className="text-center text-sm text-muted-foreground">
               <Link
-                to="/workspaces"
+                to={safeRedirect(redirect)}
                 className="inline-flex items-center text-primary underline underline-offset-4 max-md:min-h-11"
               >
-                {m.go_to_workspaces()}
+                {redirect ? m.continue_action() : m.go_to_workspaces()}
               </Link>
             </p>
           </CardContent>
@@ -129,7 +132,7 @@ export function VerifyEmailPage({
               // autoSignInAfterVerification means the verify response carries
               // the session cookie; a reload picks it up. The workspaces index
               // is where the session lands everywhere else.
-              router.history.push('/workspaces')
+              router.history.push(safeRedirect(redirect))
             }}
             codeSentNotice={m.email_code_sent_notice()}
             codeSubmitLabel={m.verify_email()}

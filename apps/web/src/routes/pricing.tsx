@@ -6,12 +6,6 @@ import { Button } from '@/components/ui/button'
 import { PublicBillingPlans } from '@/components/workspace-billing'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
-/**
- * Public pricing only renders the shared offer list (ADR 0023). Workspace
- * lifecycle, recovery, and resource controls belong to an authenticated
- * workspace, so the page carries one way in rather than a fake buy button
- * per plan.
- */
 export const Route = createFileRoute('/pricing')({
   loader: () => loadPublicPricingServerFn(),
   component: PricingPage,

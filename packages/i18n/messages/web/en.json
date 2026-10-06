@@ -1047,5 +1047,16 @@
   "assistant_conversations_task_unavailable": "Task {taskId} is unavailable. No fresh evidence is included.",
   "assistant_conversations_account_description": "Delete your saved conversations here, including conversations from workspaces you can no longer access. Conversation content is available only with current workspace access.",
   "assistant_conversations_output_limit": "This answer reached the output limit. The saved text is incomplete; retry starts a separate attempt.",
-  "assistant_conversations_deadline": "This answer reached its time limit or was stopped. Retry starts a separate attempt."
+  "assistant_conversations_deadline": "This answer reached its time limit or was stopped. Retry starts a separate attempt.",
+  "purchase_title": "Continue purchase",
+  "purchase_plan": "Continue with {name}",
+  "purchase_choose_workspace": "Choose a workspace or create one for this plan.",
+  "purchase_no_workspace": "You have no workspace where you can manage billing. Create one to continue.",
+  "purchase_invalid": "Choose a plan from pricing to continue.",
+  "purchase_cancel": "Cancel purchase",
+  "purchase_confirmation": "Continue for {workspace}. Current member count: {count}. Checkout uses the current membership when it starts.",
+  "purchase_portal_note": "If this workspace already has a subscription, you will continue to the billing portal.",
+  "purchase_checkout": "Continue to checkout",
+  "purchase_refused": "Only workspace owners and admins can continue this purchase.",
+  "purchase_change_workspace": "Change workspace"
 }

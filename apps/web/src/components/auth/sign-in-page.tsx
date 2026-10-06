@@ -523,7 +523,7 @@ function signInFooter({
         {m.no_account_yet()}{' '}
         <Link
           to="/sign-up"
-          search={{}}
+          search={{ redirect }}
           className="inline-flex items-center text-primary underline underline-offset-4 max-md:min-h-11"
         >
           {m.create_one()}
