@@ -183,6 +183,9 @@ export function LiveBilling(
           let priceId: string | undefined
           if (plan.stripePriceEnv !== null) {
             priceId = options.priceIds?.[input.planId]
+            if (input.interval === 'year') {
+              priceId = options.annualPriceIds?.[input.planId]
+            }
           }
           if (priceId === undefined || priceId.length === 0) {
             return yield* Effect.fail(
@@ -192,7 +195,12 @@ export function LiveBilling(
               })
             )
           }
-          yield* validatedStripePrice(secretKey, priceId)
+          yield* validatedStripePrice(
+            secretKey,
+            priceId,
+            'purchase',
+            input.interval ?? 'month'
+          )
           let quantity = 1
           if (plan.pricing === 'per_seat') {
             quantity = billableSeatQuantity(yield* countMembers(ctx.workspace.id))

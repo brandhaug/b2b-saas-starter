@@ -56,6 +56,7 @@ export type SeedSubscriptionFixture = {
   readonly paymentVerified?: boolean | undefined
   readonly currentPeriodStart?: string | null | undefined
   readonly status?: SubscriptionStatus | undefined
+  readonly interval?: 'month' | 'year' | null | undefined
   readonly priceId?: string | null | undefined
   readonly currentPeriodEnd?: string | null | undefined
   readonly trialEnd?: string | null | undefined
@@ -76,6 +77,7 @@ export type SeedProviderSubscriptionFixture = SeedSubscriptionFixture & {
 }
 
 type CheckoutClaim = {
+  readonly interval: 'month' | 'year'
   readonly planId: string
   readonly quantity: number
   readonly successUrl: string
@@ -92,6 +94,7 @@ function toSeedSubscription(fixture: SeedSubscriptionFixture): SubscriptionState
     status: fixture.status ?? 'active',
     subscribedPlanId: fixture.subscribedPlanId ?? 'team',
     priceId: fixture.priceId ?? null,
+    interval: fixture.interval ?? null,
     currentPeriodStart: fixture.currentPeriodStart ?? null,
     currentPeriodEnd: fixture.currentPeriodEnd ?? null,
     trialEnd: fixture.trialEnd ?? null,
@@ -233,6 +236,10 @@ export function SeedBilling(options?: {
           if (provider.trialEnd !== null && provider.trialEnd !== undefined) {
             trialEnd = Date.parse(provider.trialEnd) / 1000
           }
+          let providerPriceId = provider.planId ?? ''
+          if (provider.interval === 'year') {
+            providerPriceId = `${provider.planId}_annual`
+          }
           let providerSnapshot: ReadonlyArray<StripeSubscriptionResponse> = []
           if (isCurrentSubscriptionStatus(provider.status ?? 'active')) {
             providerSnapshot = [
@@ -254,14 +261,14 @@ export function SeedBilling(options?: {
                       current_period_end:
                         Date.parse(provider.currentPeriodEnd ?? now) / 1000,
                       price: {
-                        id: provider.planId ?? '',
+                        id: providerPriceId,
                         active: true,
                         currency: 'usd',
                         unit_amount: 1200,
                         billing_scheme: 'per_unit',
                         transform_quantity: null,
                         recurring: {
-                          interval: 'month',
+                          interval: provider.interval ?? 'month',
                           interval_count: 1,
                           usage_type: 'licensed'
                         }
@@ -278,6 +285,9 @@ export function SeedBilling(options?: {
             subscriptions: providerSnapshot,
             hasMore: false,
             priceIds: Object.fromEntries(PLANS.map((plan) => [plan.id, plan.id])),
+            annualPriceIds: Object.fromEntries(
+              PLANS.map((plan) => [plan.id, `${plan.id}_annual`])
+            ),
             previous: stored ?? null,
             now,
             payment: provider.payment ?? {
@@ -561,7 +571,11 @@ export function SeedBilling(options?: {
           return yield* lifecycleForWorkspace((yield* WorkspaceContext).workspace.id)
         })(),
         displayedPlans: Effect.forEach(PLANS, (plan) =>
-          Effect.succeed({ ...plan, providerPrice: plan.price })
+          Effect.succeed({
+            ...plan,
+            providerPrice: plan.price,
+            annualProviderPrice: plan.annualPrice
+          })
         ),
         synchronizationStatus: Effect.fn('Billing.synchronizationStatus')(function* () {
           const ctx = yield* WorkspaceContext
@@ -673,7 +687,10 @@ export function SeedBilling(options?: {
                 }
                 const existing = (yield* Ref.get(checkoutClaims)).get(ctx.workspace.id)
                 if (existing !== undefined) {
-                  if (existing.planId !== input.planId) {
+                  if (
+                    existing.planId !== input.planId ||
+                    existing.interval !== (input.interval ?? 'month')
+                  ) {
                     return yield* Effect.fail(
                       new CapabilityUnavailable({
                         capability: 'billing',
@@ -688,6 +705,7 @@ export function SeedBilling(options?: {
                   quantity = billableSeatQuantity(yield* memberCount)
                 }
                 const claim: CheckoutClaim = {
+                  interval: input.interval ?? 'month',
                   planId: input.planId,
                   quantity,
                   successUrl: input.successUrl,

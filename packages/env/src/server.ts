@@ -25,6 +25,8 @@ export type ServerEnv = {
   readonly BETTER_AUTH_TRUSTED_ORIGINS?: string | undefined
   readonly STRIPE_SECRET_KEY?: string | undefined
   readonly STRIPE_WEBHOOK_SECRET?: string | undefined
+  readonly STRIPE_PRICE_ID_TEAM_ANNUAL?: string | undefined
+  readonly STRIPE_PRICE_ID_ENTERPRISE_ANNUAL?: string | undefined
   readonly STRIPE_PRICE_ID_TEAM?: string | undefined
   readonly STRIPE_PRICE_ID_ENTERPRISE?: string | undefined
   /** Append-only recovery evidence store outside the production Cloudflare account. */
@@ -137,6 +139,8 @@ export const optionalModuleEnvSecretKeys = [
 export const optionalModuleEnvPlainKeys = [
   'SECURITY_EVIDENCE_URL',
   'STRIPE_PRICE_ID_TEAM',
+  'STRIPE_PRICE_ID_TEAM_ANNUAL',
+  'STRIPE_PRICE_ID_ENTERPRISE_ANNUAL',
   'STRIPE_PRICE_ID_ENTERPRISE',
   'TURNSTILE_SITE_KEY',
   'CLOUDFLARE_EMAIL_FROM',

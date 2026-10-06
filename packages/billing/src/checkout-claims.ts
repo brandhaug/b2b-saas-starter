@@ -36,8 +36,8 @@ export type CheckoutClaimDecision =
 
 /**
  * Decides a workspace checkout without contacting Stripe. Stored claim values
- * are authoritative on retries; request URLs, quantity, and price changes are
- * ignored for the same plan. A pending claim with no session is retryable
+ * are authoritative on retries; request URLs, and quantity changes are
+ * ignored for the same plan and price. A pending claim with no session is retryable
  * because Stripe's idempotency layer makes the provider write safe.
  */
 export function decideCheckoutClaim(
@@ -51,7 +51,7 @@ export function decideCheckoutClaim(
   if (existing === undefined) {
     return { outcome: 'claim' }
   }
-  if (existing.planId !== input.planId) {
+  if (existing.planId !== input.planId || existing.priceId !== input.priceId) {
     return { outcome: 'conflict', reason: 'checkout_in_progress' }
   }
   if (existing.status === 'created' && existing.stripeSessionId !== null) {

@@ -12,6 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import {
   type Plan,
+  type BillingInterval,
   type ResourceEntitlement,
   type ResourceSelection,
   type SeatUsage
@@ -33,7 +34,11 @@ import { m } from '@b2b-saas-starter/i18n/messages'
 
 /** The server function the Upgrade button calls; a test supplies its own. */ export type StartCheckout =
   (input: {
-    readonly data: { readonly workspaceSlug: string; readonly planId: string }
+    readonly data: {
+      readonly workspaceSlug: string
+      readonly planId: string
+      readonly interval?: BillingInterval
+    }
   }) => Promise<{ url: string }>
 
 /** The server function the Manage-billing button calls; a test supplies its own. */
@@ -69,7 +74,10 @@ const EMPTY_WEBHOOKS: ReadonlyArray<{ readonly id: string; readonly url: string 
  * — including `purchase`, which is what decides a card's action, so no
  * component branches on a plan id.
  */
-export type BillingPlan = Plan & { readonly providerPrice?: Plan['price'] }
+export type BillingPlan = Plan & {
+  readonly providerPrice?: Plan['price']
+  readonly annualProviderPrice?: Plan['price'] | undefined
+}
 
 /** Public pricing deliberately has no workspace, lifecycle, or recovery state. */
 export function PublicBillingPlans({
@@ -81,8 +89,15 @@ export function PublicBillingPlans({
   readonly pricingUnavailable: boolean
   readonly stripeConfigured: boolean
 }) {
+  const [interval, setInterval] = useState<BillingInterval>('month')
   return (
     <Panel title={m.plans_title()}>
+      <BillingIntervalPicker
+        plans={plans}
+        stripeConfigured={stripeConfigured}
+        interval={interval}
+        onChange={setInterval}
+      />
       {pricingUnavailable ? (
         <p className="mb-4 rounded-md border border-dashed p-4 text-sm text-muted-foreground">
           {m.billing_pricing_unavailable()}
@@ -93,6 +108,7 @@ export function PublicBillingPlans({
           <PlanTile
             key={plan.id}
             plan={plan}
+            interval={interval}
             priceNote={stripeConfigured ? null : m.billing_example_price()}
           >
             {plan.purchase === 'self_serve' && purchaseIntent(plan.id) ? (
@@ -186,11 +202,17 @@ export function BillingPlans({
   readonly startPortalSession?: StartPortalSession
   readonly selectBillingResources?: SelectBillingResources
 }) {
+  const [interval, setInterval] = useState<BillingInterval>(
+    lifecycle.interval === 'year' &&
+      plans.some((plan) => plan.annualProviderPrice !== undefined)
+      ? 'year'
+      : 'month'
+  )
   // The server function rejects when the capability fails; the hook folds that
   // rejection into a displayable message via `checkoutErrorText`. Checkout
   // leaves the app, so there is no loader to re-run.
   const upgrade = useServerAction(
-    (planId: string) => startCheckout({ data: { workspaceSlug, planId } }),
+    (planId: string) => startCheckout({ data: { workspaceSlug, planId, interval } }),
     {
       failureMessage: m.checkout_failed(),
       describeFailure: checkoutErrorText,
@@ -253,6 +275,13 @@ export function BillingPlans({
                 : `: ${entitlementSentence(currentPlan)}`}
             </p>
           </div>
+          {lifecycle.interval === null ? null : (
+            <p className="text-sm text-muted-foreground">
+              {lifecycle.interval === 'year'
+                ? m.billing_subscription_annual()
+                : m.billing_subscription_monthly()}
+            </p>
+          )}
           <dl className="grid gap-3 border-t border-border pt-4 sm:grid-cols-2">
             <div className="grid gap-1">
               <dt className="text-xs text-muted-foreground">{m.seats()}</dt>
@@ -276,6 +305,9 @@ export function BillingPlans({
       </Panel>
       <BillingSynchronization status={synchronization.status} />
       <BillingLifecycleStatus lifecycle={lifecycle} />
+      {stripeConfigured && canManageBilling && lifecycle.planId !== 'starter' ? (
+        <p className="text-sm text-muted-foreground">{m.billing_interval_portal()}</p>
+      ) : null}
       <BillingResourceAccess
         canManageBilling={canManageBilling}
         currentPlanId={currentPlanId}
@@ -302,6 +334,13 @@ export function BillingPlans({
       )}
       <ActionFeedback error={upgrade.error} />
       <Panel title={m.plans_title()}>
+        <BillingIntervalPicker
+          plans={plans}
+          stripeConfigured={stripeConfigured}
+          interval={interval}
+          onChange={setInterval}
+          disabled={upgrade.pending}
+        />
         {pricingUnavailable ? (
           <p className="mb-4 rounded-md border border-dashed p-4 text-sm text-muted-foreground">
             {m.billing_pricing_unavailable()}
@@ -312,12 +351,17 @@ export function BillingPlans({
             <PlanTile
               key={plan.id}
               plan={plan}
-              isCurrent={plan.id === currentPlanId}
+              interval={interval}
+              isCurrent={
+                plan.id === currentPlanId &&
+                (plan.purchase !== 'self_serve' || lifecycle.interval === interval)
+              }
               priceNote={stripeConfigured ? null : m.billing_example_price()}
             >
               <PlanAction
                 plan={plan}
                 currentPlanId={currentPlanId}
+                interval={interval}
                 canManageBilling={canManageBilling}
                 stripeConfigured={stripeConfigured}
                 pendingPlan={upgrade.pendingInput ?? null}
@@ -337,11 +381,13 @@ export function BillingPlans({
  */
 function PlanTile({
   plan,
+  interval = 'month',
   isCurrent = false,
   priceNote,
   children
 }: {
   readonly plan: BillingPlan
+  readonly interval?: BillingInterval
   readonly isCurrent?: boolean
   readonly priceNote: ReactNode
   readonly children?: ReactNode
@@ -357,7 +403,7 @@ function PlanTile({
         {isCurrent ? <Badge variant="neutral">{m.common_current()}</Badge> : null}
       </div>
       <p className="text-2xl font-semibold">
-        <PlanPrice plan={plan} />
+        <PlanPrice plan={plan} interval={interval} />
       </p>
       {priceNote ? <p className="text-xs text-muted-foreground">{priceNote}</p> : null}
       <p className="text-sm text-muted-foreground">{planDescription(plan)}</p>
@@ -392,6 +438,7 @@ function PlanTile({
 function PlanAction({
   plan,
   currentPlanId,
+  interval,
   canManageBilling,
   stripeConfigured,
   pendingPlan,
@@ -399,6 +446,7 @@ function PlanAction({
 }: {
   readonly plan: BillingPlan
   readonly currentPlanId: string | null
+  readonly interval: BillingInterval
   readonly canManageBilling: boolean
   readonly stripeConfigured: boolean
   readonly pendingPlan: string | null
@@ -408,6 +456,17 @@ function PlanAction({
     return null
   }
   if (plan.purchase === 'self_serve') {
+    if (
+      stripeConfigured &&
+      interval === 'year' &&
+      plan.annualProviderPrice === undefined
+    ) {
+      return (
+        <p className="text-sm text-muted-foreground">
+          {m.billing_pricing_unavailable()}
+        </p>
+      )
+    }
     // A self-serve plan on a deployment without Stripe has no sales motion to
     // fall back on; say checkout is unavailable rather than invent a sales team.
     return stripeConfigured ? (
@@ -501,14 +560,32 @@ function seatPhrase(plan: BillingPlan): string {
   })
 }
 
-export function PlanPrice({ plan }: { readonly plan: BillingPlan }): string {
+export function PlanPrice({
+  plan,
+  interval = 'month'
+}: {
+  readonly plan: BillingPlan
+  readonly interval?: BillingInterval
+}): string {
   if (plan.price === null) {
     return m.shell_plan_custom()
   }
-  const price = plan.providerPrice ?? plan.price
+  const price =
+    interval === 'year' && plan.purchase === 'self_serve'
+      ? (plan.annualProviderPrice ??
+        (plan.providerPrice === undefined ? plan.annualPrice : undefined))
+      : (plan.providerPrice ?? plan.price)
+  if (price === undefined) {
+    return m.billing_pricing_unavailable()
+  }
   const amount = formatCurrency(price.amount, price.currency, getLocale())
   if (price.amount === 0) {
     return amount
+  }
+  if (price.interval === 'year') {
+    return plan.pricing === 'per_seat'
+      ? m.shell_plan_annual_seat_price({ amount })
+      : m.shell_plan_year_price({ amount })
   }
   return plan.pricing === 'per_seat'
     ? m.shell_plan_seat_price({ amount })
@@ -854,4 +931,47 @@ function BillingSynchronization({
     }
   }
   return <output className="block text-sm text-muted-foreground">{message}</output>
+}
+
+function BillingIntervalPicker({
+  plans,
+  stripeConfigured,
+  interval,
+  onChange,
+  disabled = false
+}: {
+  readonly plans: ReadonlyArray<BillingPlan>
+  readonly stripeConfigured: boolean
+  readonly interval: BillingInterval
+  readonly onChange: (interval: BillingInterval) => void
+  readonly disabled?: boolean
+}) {
+  const hasAnnual = plans.some((plan) =>
+    stripeConfigured
+      ? plan.annualProviderPrice !== undefined && plan.annualProviderPrice !== null
+      : plan.annualPrice !== undefined
+  )
+  if (!hasAnnual) {
+    return null
+  }
+  return (
+    <fieldset className="mb-4 flex gap-2" aria-label={m.billing_interval()}>
+      <Button
+        variant="outline"
+        aria-pressed={interval === 'month'}
+        disabled={disabled}
+        onClick={() => onChange('month')}
+      >
+        {m.billing_monthly()}
+      </Button>
+      <Button
+        variant="outline"
+        aria-pressed={interval === 'year'}
+        disabled={disabled}
+        onClick={() => onChange('year')}
+      >
+        {m.billing_annual()}
+      </Button>
+    </fieldset>
+  )
 }

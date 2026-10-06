@@ -71,6 +71,7 @@ function fixture(): WorkspaceBillingPayload {
     stripeConfigured: false,
     synchronization: { status: 'current', lastSyncedAt: null },
     lifecycle: {
+      interval: null,
       access: { planId: 'team', paid: true, reason: 'active', endsAt: null },
       status: 'canceled',
       planId: 'starter',

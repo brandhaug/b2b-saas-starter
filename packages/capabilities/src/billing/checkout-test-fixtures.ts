@@ -137,6 +137,16 @@ export function stripeFixture(options: FixtureOptions = {}) {
     ) => {
       const url = new URL(requestUrl)
       if (url.pathname.startsWith('/v1/prices/')) {
+        if (url.pathname.endsWith('/price_team_annual')) {
+          return Promise.resolve(
+            Response.json({
+              ...testPrice,
+              id: 'price_team_annual',
+              unit_amount: 14_400,
+              recurring: { ...testPrice.recurring, interval: 'year' }
+            })
+          )
+        }
         return Promise.resolve(Response.json(testPrice))
       }
       if (url.pathname === '/v1/invoices/in_paid') {

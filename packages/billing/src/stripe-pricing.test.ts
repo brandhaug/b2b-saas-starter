@@ -19,30 +19,34 @@ it.effect(
       const plans = yield* displayedBillingPlans(options)
       expect(plans.find((plan) => plan.id === 'team')?.providerPrice).toEqual({
         amount: 27.5,
-        currency: 'NOK'
+        currency: 'NOK',
+        interval: 'month'
       })
       expect(plans.find((plan) => plan.id === 'enterprise')?.purchase).toBe('sales')
       price = { ...price, unit_amount: 2500, currency: 'jpy' }
       expect(yield* validatedStripePrice('sk_test', 'price_team')).toEqual({
         amount: 2500,
-        currency: 'JPY'
+        currency: 'JPY',
+        interval: 'month'
       })
       price = { ...price, unit_amount: 12_345, currency: 'kwd' }
       expect(yield* validatedStripePrice('sk_test', 'price_team')).toEqual({
         amount: 12.345,
-        currency: 'KWD'
+        currency: 'KWD',
+        interval: 'month'
       })
       price = { ...price, unit_amount: 120_000, currency: 'isk' }
       expect(yield* validatedStripePrice('sk_test', 'price_team')).toEqual({
         amount: 1200,
-        currency: 'ISK'
+        currency: 'ISK',
+        interval: 'month'
       })
     }).pipe(Effect.ensuring(Effect.sync(() => vi.unstubAllGlobals())))
   }
 )
 
 it.effect(
-  'rejects annual, metered, tiered and transformed prices instead of displaying example pricing',
+  'rejects weekly, metered, tiered and transformed prices instead of displaying example pricing',
   () => {
     let price: unknown = testPrice
     vi.stubGlobal(
@@ -51,7 +55,7 @@ it.effect(
     )
     return Effect.gen(function* () {
       for (const unsupported of [
-        { ...testPrice, recurring: { ...testPrice.recurring, interval: 'year' } },
+        { ...testPrice, recurring: { ...testPrice.recurring, interval: 'week' } },
         { ...testPrice, recurring: { ...testPrice.recurring, usage_type: 'metered' } },
         { ...testPrice, recurring: { ...testPrice.recurring, interval_count: 2 } },
         { ...testPrice, billing_scheme: 'tiered' },
@@ -77,6 +81,38 @@ it.effect('recognizes archived subscription prices but refuses new purchases', (
     ).toBe('unsupported_price')
     expect(
       yield* validatedStripePrice('sk_test', 'price_team', 'subscription')
-    ).toEqual({ amount: 12, currency: 'USD' })
+    ).toEqual({ amount: 12, currency: 'USD', interval: 'month' })
   }).pipe(Effect.ensuring(Effect.sync(() => vi.unstubAllGlobals())))
 })
+
+// Failure cases: wrong configured interval, unsupported recurrence, and a silently
+// substituted monthly amount. Provider fixtures are local protocol evidence only.
+it.effect(
+  'displays the full annual currency amount and rejects interval mismatches',
+  () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(
+          Response.json({
+            ...testPrice,
+            id: 'price_annual',
+            unit_amount: 12_345,
+            currency: 'nok',
+            recurring: { ...testPrice.recurring, interval: 'year' }
+          })
+        )
+      )
+    )
+    return Effect.gen(function* () {
+      expect(
+        yield* validatedStripePrice('sk_test', 'price_annual', 'purchase', 'year')
+      ).toEqual({ amount: 123.45, currency: 'NOK', interval: 'year' })
+      expect(
+        (yield* Effect.flip(
+          validatedStripePrice('sk_test', 'price_annual', 'purchase', 'month')
+        )).reason
+      ).toBe('unsupported_price')
+    }).pipe(Effect.ensuring(Effect.sync(() => vi.unstubAllGlobals())))
+  }
+)

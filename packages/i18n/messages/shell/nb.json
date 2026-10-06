@@ -154,5 +154,13 @@
   "shell_trace_workspace_group": "HttpApiEndpoint · arbeidsområdegruppen",
   "shell_trace_overview": "Effect · oversiktsprojeksjonen",
   "demo_preview_notice": "Forhåndsvisning med eksempeldata. Handlinger gjør ingen endringer.",
-  "demo_try_sign_in": "Prøv innlogging"
+  "demo_try_sign_in": "Prøv innlogging",
+  "shell_plan_annual_seat_price": "{amount}/medlem/år",
+  "shell_plan_year_price": "{amount}/år",
+  "billing_interval": "Faktureringsintervall",
+  "billing_monthly": "Månedlig",
+  "billing_annual": "Årlig",
+  "billing_interval_portal": "Bruk Administrer fakturering for å endre faktureringsintervallet. Stripe bekrefter beløp og nye faktureringsdatoer.",
+  "billing_subscription_annual": "Årlig abonnement",
+  "billing_subscription_monthly": "Månedlig abonnement"
 }

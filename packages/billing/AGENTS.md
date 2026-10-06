@@ -15,7 +15,7 @@ Stripe lifecycle, checkout recovery, seat billing, and resource entitlements (AD
 
 ## Patterns & Pitfalls
 
-- Stripe periods belong to subscription items; trial end is nullable. Configured prices must be monthly, licensed, per-unit prices. Display provider amounts using Stripe's currency units.
+- Stripe periods belong to subscription items; trial end is nullable. Configured prices must be single-month or single-year licensed, per-unit prices; each must match its configured interval. Display provider amounts using Stripe's currency units.
 - Seats count current members, including owners/admins. Invitations do not count. Membership queues quantity synchronization; additions and removals use next-invoice prorations.
 - Cancellation retains the customer for invoice history. Restricting product access must preserve authorized billing recovery.
 

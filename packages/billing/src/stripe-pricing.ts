@@ -1,7 +1,7 @@
 import { Effect } from 'effect'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type BillingOptions, billingConfigured } from './billing-config.ts'
-import { PLANS } from './plan-catalog.ts'
+import { PLANS, type BillingInterval, type BillingPrice } from './plan-catalog.ts'
 import { readStripeObject, StripePriceResponse } from './stripe.ts'
 
 /** Stripe uses hundredths for ISK/UGX charges despite their currency display exponent. */
@@ -37,7 +37,8 @@ function stripeUnitAmount(amount: number, currency: string): number {
 export const validatedStripePrice = Effect.fn('Billing.validatePrice')(function* (
   secretKey: string,
   priceId: string,
-  purpose: 'purchase' | 'subscription' = 'purchase'
+  purpose: 'purchase' | 'subscription' = 'purchase',
+  expectedInterval?: BillingInterval
 ) {
   const price = yield* readStripeObject(
     secretKey,
@@ -53,7 +54,8 @@ export const validatedStripePrice = Effect.fn('Billing.validatePrice')(function*
     !/^[a-z]{3}$/.test(price.currency) ||
     price.billing_scheme !== 'per_unit' ||
     price.transform_quantity !== null ||
-    price.recurring?.interval !== 'month' ||
+    (price.recurring?.interval !== 'month' && price.recurring?.interval !== 'year') ||
+    (expectedInterval !== undefined && price.recurring.interval !== expectedInterval) ||
     price.recurring.interval_count !== 1 ||
     price.recurring.usage_type !== 'licensed'
   ) {
@@ -63,15 +65,20 @@ export const validatedStripePrice = Effect.fn('Billing.validatePrice')(function*
   }
   return {
     amount: stripeUnitAmount(price.unit_amount, price.currency),
-    currency: price.currency.toUpperCase()
-  }
+    currency: price.currency.toUpperCase(),
+    interval: price.recurring.interval
+  } satisfies BillingPrice
 })
 
 export const displayedBillingPlans = Effect.fn('Billing.displayedPlans')(function* (
   options: BillingOptions
 ) {
   if (!billingConfigured(options) || options.secretKey === undefined) {
-    return PLANS.map((plan) => ({ ...plan, providerPrice: plan.price }))
+    return PLANS.map((plan) => ({
+      ...plan,
+      providerPrice: plan.price,
+      annualProviderPrice: plan.annualPrice
+    }))
   }
   const secretKey = options.secretKey
   return yield* Effect.forEach(PLANS, (plan) =>
@@ -88,7 +95,26 @@ export const displayedBillingPlans = Effect.fn('Billing.displayedPlans')(functio
           })
         )
       }
-      return { ...plan, providerPrice: yield* validatedStripePrice(secretKey, priceId) }
+      const annualId = options.annualPriceIds?.[plan.id]
+      let annualProviderPrice: BillingPrice | undefined
+      if (annualId !== undefined) {
+        annualProviderPrice = yield* validatedStripePrice(
+          secretKey,
+          annualId,
+          'purchase',
+          'year'
+        )
+      }
+      return {
+        ...plan,
+        providerPrice: yield* validatedStripePrice(
+          secretKey,
+          priceId,
+          'purchase',
+          'month'
+        ),
+        annualProviderPrice
+      }
     })
   )
 })
