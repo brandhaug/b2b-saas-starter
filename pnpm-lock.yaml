@@ -219,6 +219,9 @@ catalogs:
     remark-mdx-frontmatter:
       specifier: 6.0.0
       version: 6.0.0
+    seroval:
+      specifier: 1.6.8
+      version: 1.6.8
     shadcn:
       specifier: 4.21.1
       version: 4.21.1
@@ -702,6 +705,9 @@ importers:
       remark-mdx-frontmatter:
         specifier: 'catalog:'
         version: 6.0.0
+      seroval:
+        specifier: 'catalog:'
+        version: 1.6.8
       tailwindcss:
         specifier: 'catalog:'
         version: 4.3.3

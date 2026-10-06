@@ -1,3 +1,4 @@
+import { redirectSearch } from '@/lib/utils'
 import { loadOwnedConversationsServerFn } from '@/lib/server/account-conversations'
 import { createFileRoute } from '@tanstack/react-router'
 import { AccountPage } from '@/components/account-page'
@@ -13,6 +14,7 @@ import { m } from '@b2b-saas-starter/i18n/messages'
 // (same reasoning as /invitations/accept). There is no workspace to resolve —
 // and nothing to be a member of.
 export const Route = createFileRoute('/account')({
+  validateSearch: redirectSearch,
   beforeLoad: async ({ location }) => {
     const session = await requireSession(location.href)
     return { session }
@@ -42,6 +44,7 @@ export const Route = createFileRoute('/account')({
  */
 function AccountRoute() {
   const { session } = Route.useRouteContext()
+  const { redirect } = Route.useSearch()
   const { deletionPlan, preferences, connections, ownedConversations } =
     Route.useLoaderData()
   // The current session token never rides the SSR payload (see `RouteSession`
@@ -50,6 +53,7 @@ function AccountRoute() {
   return (
     <AccountPage
       session={session}
+      redirect={redirect}
       deletionPlan={deletionPlan}
       preferences={preferences}
       connections={connections}

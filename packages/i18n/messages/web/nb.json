@@ -1047,5 +1047,16 @@
   "assistant_conversations_task_unavailable": "Oppgave {taskId} er utilgjengelig. Ingen ny dokumentasjon er inkludert.",
   "assistant_conversations_account_description": "Slett lagrede samtaler her, også samtaler fra arbeidsområder du ikke lenger har tilgang til. Samtaleinnhold er bare tilgjengelig med gjeldende tilgang til arbeidsområdet.",
   "assistant_conversations_output_limit": "Svaret nådde lengdegrensen. Den lagrede teksten er ufullstendig. Et nytt forsøk starter et eget svar.",
-  "assistant_conversations_deadline": "Svaret nådde tidsgrensen eller ble stoppet. Et nytt forsøk starter et eget svar."
+  "assistant_conversations_deadline": "Svaret nådde tidsgrensen eller ble stoppet. Et nytt forsøk starter et eget svar.",
+  "purchase_title": "Fortsett kjøpet",
+  "purchase_plan": "Fortsett med {name}",
+  "purchase_choose_workspace": "Velg et arbeidsområde eller opprett et for dette abonnementet.",
+  "purchase_no_workspace": "Du har ingen arbeidsområder der du kan administrere fakturering. Opprett et for å fortsette.",
+  "purchase_invalid": "Velg et abonnement på prissiden for å fortsette.",
+  "purchase_cancel": "Avbryt kjøpet",
+  "purchase_confirmation": "Fortsett for {workspace}. Nåværende medlemstall: {count}. Betalingen bruker gjeldende medlemstall når den starter.",
+  "purchase_portal_note": "Hvis arbeidsområdet allerede har et abonnement, fortsetter du til faktureringsportalen.",
+  "purchase_checkout": "Fortsett til betaling",
+  "purchase_refused": "Bare eiere og administratorer kan fortsette dette kjøpet.",
+  "purchase_change_workspace": "Bytt arbeidsområde"
 }

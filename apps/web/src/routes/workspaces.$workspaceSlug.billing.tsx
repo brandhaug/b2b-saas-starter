@@ -1,3 +1,4 @@
+import { purchaseIntent } from '@/lib/purchase-intent'
 import { createFileRoute } from '@tanstack/react-router'
 import { pageTitle } from '@/components/page/page-title'
 import { RoutePending } from '@/components/route-pending'
@@ -6,12 +7,18 @@ import { loadWorkspaceBillingServerFn } from '@/lib/server/billing'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { pickOptionalStrings } from '@/lib/utils'
 
-type BillingSearch = { readonly checkout?: string | undefined }
+type BillingSearch = {
+  readonly checkout?: string | undefined
+  readonly purchase?: string | undefined
+}
 
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the router hands the search record to this plain shape probe
 function decodeBillingSearch(search: unknown): BillingSearch {
-  const picked = pickOptionalStrings(search, ['checkout'])
-  return picked.checkout === 'success' ? picked : {}
+  const picked = pickOptionalStrings(search, ['checkout', 'purchase'])
+  return {
+    checkout: picked.checkout === 'success' ? 'success' : undefined,
+    purchase: purchaseIntent(picked.purchase)?.planId
+  }
 }
 
 // The auth gate lives on the /workspaces layout route (workspaces.tsx);
@@ -39,11 +46,12 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/billing')({
  */
 function WorkspaceBillingRoute() {
   const { workspaceSlug } = Route.useParams()
-  const { checkout } = Route.useSearch()
+  const { checkout, purchase } = Route.useSearch()
   const data = Route.useLoaderData()
   const systemRole = Route.useRouteContext().session.user.role
   return (
     <WorkspaceBillingPage
+      purchaseIntent={purchaseIntent(purchase)}
       workspaceSlug={workspaceSlug}
       data={data}
       checkoutReturn={checkout === 'success'}

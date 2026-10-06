@@ -17,6 +17,8 @@
     "/magic-link",
     "/invitations",
     "/oauth",
+    "/purchase",
+    "/verify-authentication",
     "/account",
     "/admin",
     "/workspaces"
