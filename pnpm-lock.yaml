@@ -178,8 +178,8 @@ catalogs:
       specifier: 30.1.1
       version: 30.1.1
     lucide-react:
-      specifier: 1.50.0
-      version: 1.50.0
+      specifier: 1.51.0
+      version: 1.51.0
     miniflare:
       specifier: 5.20261001.0-alpha
       version: 5.20261001.0-alpha
@@ -613,7 +613,7 @@ importers:
         version: 1.0.5(better-auth@1.7.7(@opentelemetry/api@1.9.1)(@tanstack/react-start@1.168.60(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(rolldown@1.2.5)(rollup@4.63.1)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261003.1)(@effect/sql-d1@4.0.0(effect@4.0.0))(@effect/sql-sqlite-do@4.0.0(effect@4.0.0))(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(bun-types@1.4.0)(effect@4.0.0)(valibot@1.4.2(typescript@7.0.2))(zod@4.5.4))(next@16.3.6(@babel/core@8.0.6)(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@26.6.3)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(vitest@4.1.11))(effect@4.0.0)
       lucide-react:
         specifier: 'catalog:'
-        version: 1.50.0(@types/react@19.3.0)(react@19.3.0)
+        version: 1.51.0(@types/react@19.3.0)(react@19.3.0)
       qrcode.react:
         specifier: 'catalog:'
         version: 4.2.0(react@19.3.0)
@@ -1972,9 +1972,6 @@ packages:
     engines: {node: '>=16'}
     cpu: [x64]
     os: [win32]
-
-  '@cloudflare/workers-types@5.20261002.1':
-    resolution: {integrity: sha512-4DJVJoQrKkB/Q1IJJE5hd793Nupqmn2J+zuikAh2isHq/1s44G5drucgL/RtCa7/7UeJ3y6J7cmhrCZcIVfNVg==}
 
   '@cloudflare/workers-types@5.20261003.1':
     resolution: {integrity: sha512-Uii0J5qUd/R6lIDK/u0Sw8dEi7oI3ljXw7EDybuPntoXg2Yy5Y9H9UeNQ5R87oQ/Q4jq6uEJmYOOFQ3Z7C94lA==}
@@ -7579,8 +7576,8 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
-  lucide-react@1.50.0:
-    resolution: {integrity: sha512-RqHPQtKX6S9IE1xOL4oTHHsVQbcwJWTnmlxI6AdI9IpOwKiy7q+COPCQyMepI/Qu1x3h7sunpyEMvqtgFbgNiQ==}
+  lucide-react@1.51.0:
+    resolution: {integrity: sha512-9929jimol5y7VbXUlVKcgURMSeIxFJB7dtWCkRAaNnF7KiCRkSkhmqWPUmAmUFYPezNawFk6qvz3Mu0gEnfI4g==}
     peerDependencies:
       '@types/react': '*'
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
@@ -10218,8 +10215,6 @@ snapshots:
   '@cloudflare/workerd-windows-64@1.20261001.1':
     optional: true
 
-  '@cloudflare/workers-types@5.20261002.1': {}
-
   '@cloudflare/workers-types@5.20261003.1': {}
 
   '@cspotcode/source-map-support@0.8.1':
@@ -10354,7 +10349,7 @@ snapshots:
 
   '@effect/sql-d1@4.0.0(effect@4.0.0)':
     dependencies:
-      '@cloudflare/workers-types': 5.20261002.1
+      '@cloudflare/workers-types': 5.20261003.1
       effect: 4.0.0
 
   '@effect/sql-sqlite-do@4.0.0(effect@4.0.0)':
@@ -14944,7 +14939,7 @@ snapshots:
     dependencies:
       yallist: 3.1.1
 
-  lucide-react@1.50.0(@types/react@19.3.0)(react@19.3.0):
+  lucide-react@1.51.0(@types/react@19.3.0)(react@19.3.0):
     dependencies:
       react: 19.3.0
     optionalDependencies:
