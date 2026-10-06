@@ -32,3 +32,5 @@ Local contracts establish application behavior, not deployed recovery or real-pr
 - [Public documentation](/en/docs)
 
 These text files are maintained alongside the source docs; the build does not regenerate them.
+
+The first-business-feature tutorial at /en/docs/getting-started/first-business-feature walks through workspace notes using a companion patch. Notes are reader-added code, not a baseline feature. It covers schema generation, Seed/Live Effect adapters, permissions, authenticated UI, REST/MCP wiring, and repeatable persistence and authorization checks.
