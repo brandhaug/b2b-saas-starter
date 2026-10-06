@@ -1,0 +1,306 @@
+---
+title: Rebranding and removing sections
+description: Replace the starter identity, adapt the public site, and remove functionality with its dependencies.
+category: getting-started
+order: 50
+tags: [customization, branding, removal]
+---
+
+Start with visible identity and public content. Keep internal package names and
+cloud resource names until you have a reason to change them. There is no single
+app-name setting or general feature switch. The files below are the current
+customization points; paths are relative to the repository root.
+
+This recipe changes a checkout and validates it locally. It does not provision,
+deploy, rename, or delete cloud resources. Follow the [Quickstart](/docs/getting-started/quickstart)
+first, preserving any existing `.env`.
+
+## Required edits for your product
+
+For an example product called Acme Workspace, make these edits together before
+showing the app to customers. Keep the existing asset filenames to avoid changing
+every image reference.
+
+| Identity                 | Sources to edit                                                                                                                                              | Example and check                                                                                                                                                                                       |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Visible name             | `apps/web/src/components/public-layout.tsx`, `apps/web/src/components/auth/auth-shell.tsx`, `apps/web/src/components/workspace-nav.tsx`                      | Replace the literal B2B SaaS Starter with Acme Workspace. Check public, auth, and signed-in layouts.                                                                                                    |
+| Page titles and metadata | `apps/web/src/components/page/page-title.ts`, `apps/web/src/routes/__root.tsx`, `apps/web/src/lib/json-ld.ts`                                                | Change the site title, `og:site_name`, and structured-data publisher. Individual route `head` functions can override root metadata.                                                                     |
+| Logo and browser icon    | `apps/web/public/assets/starter-logo.png`, `apps/web/public/assets/favicon.png`                                                                              | Replace both images. Root metadata references the favicon; the three layouts above reference the logo. Check contrast and small sizes.                                                                  |
+| Product and auth copy    | `packages/i18n/messages/web/en.json`, `packages/i18n/messages/web/nb.json`, plus the `public`, `shell`, `auth-design`, and `showcase-design` domain catalogs | Replace repository promotion and descriptions in both languages. Search all catalogs for other visible starter wording.                                                                                 |
+| Authenticator identity   | `packages/auth/src/index.ts`                                                                                                                                 | Change the two-factor `issuer` and passkey `rpName`. The passkey `rpID` and origin derive from `BETTER_AUTH_URL`; changing that hostname affects credential identity.                                   |
+| Email identity           | `packages/email/src/templates.tsx`, `packages/i18n/messages/backend/en.json`, `packages/i18n/messages/backend/nb.json`                                       | Replace logo URL, logo alt text, copyright name, subjects, and account copy. The logo URL is an absolute URL to the original deployment; replacing the local PNG alone does not change email images.    |
+| Contact and policies     | `.env`, `apps/web/src/routes/privacy.tsx`, `apps/web/src/routes/terms.tsx`, `packages/i18n/messages/public/en.json`, `packages/i18n/messages/public/nb.json` | Set your support destinations and replace example policies with your actual product commitments. Keep support accessible when workspace access is restricted.                                           |
+| Repository links         | `apps/web/src/lib/github-url.ts`, root `package.json`, `README.md`                                                                                           | Set your repository, homepage, issue URL, description, and author as appropriate. Preserve the upstream MIT notice in `LICENSE`. Search content and public text files for hardcoded upstream links too. |
+
+Inventory remaining references after editing. Matches in internal imports and
+historical attribution can be intentional; do not globally replace every hit.
+
+```bash
+rg -n 'B2B SaaS Starter|brandhaug|starter-logo|favicon|starter.local' apps packages infra scripts .github README.md package.json .env.example
+rg -n 'landing_|public_|site_footer|shell_description' packages/i18n/messages
+pnpm -C packages/i18n generate
+```
+
+Visual tokens and font rules live in `apps/web/src/index.css`; `DESIGN.md`
+describes their intent. Update the tokens and check both public and application
+layouts before changing individual component styles. There is no need to add a
+theme platform to replace the palette.
+
+## Domains, authentication, and sender configuration
+
+Local branding can retain the localhost values in `.env.example`. For a deployed
+product, coordinate the following values with your deployment configuration.
+See [Cloudflare deployment](/docs/getting-started/cloudflare-deployment) and
+[Optional providers](/docs/getting-started/optional-providers) for provisioning
+instructions; those operations are separate from this recipe.
+
+- `BETTER_AUTH_URL` is the web origin. `BETTER_AUTH_TRUSTED_ORIGINS` lists the
+  origins allowed to make auth requests. Keep the list explicit rather than
+  weakening the origin check to make a new domain work.
+- Update GitHub and Google callback registrations to the new web origin plus
+  `/api/auth/callback/github` and `/api/auth/callback/google` when enabled.
+  Review configured SSO callbacks too. A passkey enrolled for the old relying
+  party hostname does not become a credential for the new hostname by renaming
+  its display label. Plan account access before moving an existing deployment.
+- `MCP_RESOURCE_URL` points to the API Worker's `/mcp` endpoint;
+  `MCP_OAUTH_ISSUER` points to the web Worker's `/api/auth` issuer.
+  `API_PUBLIC_URL` is the API origin for export download links. These are distinct
+  from the web origin. Keep token audience and issuer validation intact.
+- `CLOUDFLARE_EMAIL_FROM` supplies the sender. Use an address on your verified
+  sender domain and update the absolute logo URL in the email template.
+  `SUPPORT_EMAIL`, `SUPPORT_HELPDESK_URL`, and `SUPPORT_HELP_CENTER_URL` supply
+  support destinations. Verify actual delivery separately when email is enabled.
+
+`packages/env/src/server.ts` validates configuration, while `alchemy.run.ts`
+passes it to deployed Workers. Setting an auth URL does not attach a custom
+domain to a Worker. `apps/web/src/lib/i18n-seo.ts` creates localized canonical and
+alternate URLs from request URLs; check these and structured data on your target
+origin. Review `apps/web/public/robots.txt`, `apps/web/public/llms.txt`, and
+`apps/web/public/llms-full.txt` for retained repository content.
+
+## Replace the public site and preview
+
+`apps/web/src/routes/index.tsx` composes the homepage out of
+`apps/web/src/components/landing/` sections. Replace the hero, FAQ, provider
+explanation, and closing copy with your product's claims. Replace screenshots in
+`apps/web/public/images/` or remove their references with the section that uses
+them. Do not describe an inactive provider as an enabled product feature.
+
+For a homepage with no reference-application data:
+
+1. Remove `DemoStrip` and `RequestTraceSection` from `index.tsx`, including their
+   imports. Both consume the showcase result.
+2. Remove `loadDemoShowcaseServerFn` from the loader and imports, remove `demo`
+   from its result and `useLoaderData`, and keep only the documentation metadata
+   read if `KnowledgeSection` remains. If you remove that section too, remove
+   `getAllDocMeta`, `recentDocs`, and the now-unused loader.
+3. Remove demo calls to action from the landing components and
+   `apps/web/src/components/public-layout.tsx`. Inspect their localized labels
+   and targets together.
+4. To remove the public preview itself, remove `apps/web/src/routes/demo.tsx`
+   and `apps/web/src/routes/demo_.$section.tsx`, then trace references to
+   `apps/web/src/components/demo-renderer.tsx`,
+   `apps/web/src/components/preview-shell.tsx`,
+   `apps/web/src/lib/preview-navigation.ts`, and `apps/web/src/lib/demo-fixtures.ts`.
+   Remove code that has no remaining consumer. Retain shared workspace page
+   components used by authenticated routes.
+
+```bash
+rg -n 'DemoStrip|RequestTraceSection|loadDemoShowcase|/demo|demo-renderer|preview-shell' apps/web
+rg -n 'showcase|starter-lab|usr_demo' packages/capabilities/src apps/api/src scripts
+```
+
+The homepage's actorless read is pinned to the showcase workspace. Never point
+it at a customer's workspace to obtain more realistic statistics. Removing the
+homepage read does not remove the API's public overview; inspect its contract
+and handler in `packages/api/src/index.ts` and `apps/api/src/` if you also want
+that public interface gone.
+
+Public navigation comes from `apps/web/src/lib/content.ts` and the header/footer
+in `apps/web/src/components/public-layout.tsx`. Knowledge navigation lives in
+`apps/web/src/routes/_knowledge.tsx`. Documentation articles under
+`apps/web/content/docs/` are discovered by `apps/web/src/lib/docs.ts` and
+`apps/web/src/lib/docs.effects.ts`; frontmatter controls order within a category.
+Keep this guide there or replace it with your product docs. Removing an article
+also requires removing incoming links. For whole changelog/docs sections,
+trace their `_knowledge` routes and links before removing content.
+
+After route removal, run the web build to regenerate
+`apps/web/src/routeTree.gen.ts`; do not maintain that generated file by hand.
+Search static crawler text, content links, and E2E expectations as well as JSX.
+A route that returns 404 while the header still links to it is unfinished work.
+
+## Optional internal renames
+
+If you expose the developer interfaces, also change the OpenAPI title in
+`packages/api/src/index.ts` and `MCP_SERVER_NAME` in `apps/api/src/mcp.ts`.
+These names identify your API to clients; they do not rename cloud resources.
+
+The `@b2b-saas-starter/*` package scope is internal and can remain after a visible
+rebrand. If you rename it, change package manifest names, workspace dependency
+keys, imports, package exports where relevant, and tool filters together. Check
+`pnpm-workspace.yaml`, `tsconfig.json`, `apps/web/components.json`, and
+`.github/workflows/ci.yml` as well as nested manifests and configuration.
+
+```bash
+rg -n 'b2b-saas-starter' --glob '!pnpm-lock.yaml' --glob '!*.gen.ts'
+vp install
+pnpm run check
+```
+
+Use `vp install` to regenerate the lockfile after manifest edits. A scope rename
+does not require a cloud resource rename. Keep internal service identifiers
+consistent if you elect to change those too.
+
+Cloud names are infrastructure identity, not display text. `alchemy.run.ts`
+contains the stack name and logical resource IDs. `infra/bindings.ts` owns
+`stageResourceNames`, queue names, and export bucket names.
+`infra/write-wrangler.ts` also contains local D1 and Worker names and emits
+`apps/web/wrangler.jsonc`, `apps/api/wrangler.jsonc`, and
+`apps/background/wrangler.jsonc`.
+
+Changing stack, stage, logical IDs, or physical names can select different
+infrastructure or create replacements on a later deployment. It does not move
+D1 data, queue messages, R2 exports, or conversation storage. For an existing
+deployment, treat a rename as a separate infrastructure migration with recovery
+planning. Do not run deploy or destroy as a branding check.
+
+For an undeployed fork that deliberately chooses new resource names, update all
+of the sources above, then inspect database defaults in `packages/db/scripts/`,
+`scripts/seed.ts`, `scripts/d1-backup.ts`, root `package.json`, and
+`.github/workflows/backup.yml`. Review preview naming and expected names in
+`infra/bindings.test.ts`. Preserve the stage isolation and queue-routing suffix
+conventions. Generate and inspect local configuration without provisioning:
+
+```bash
+pnpm run infra:check
+pnpm run infra:wrangler
+git diff -- apps/web/wrangler.jsonc apps/api/wrangler.jsonc apps/background/wrangler.jsonc
+```
+
+## Localization and plan customization
+
+English and Bokmål catalogs are paired under `packages/i18n/messages/`.
+Edit source messages, never `packages/i18n/src/generated/`. Preserve placeholder
+sets in both languages. `packages/i18n/src/locale.ts`,
+`packages/i18n/project.inlang/settings.json`, `packages/i18n/routes.json`, and
+`packages/i18n/scripts/compile.mjs` control supported locales and URL behavior.
+Removing a language requires reconciling those files, account preferences,
+language controls, and tests, not merely deleting its JSON files. Public MDX
+content is shared; translating chrome does not translate the article body.
+
+`packages/billing/src/plan-catalog.ts` owns plan names, display prices, limits,
+pricing shape, and purchase mode. The public pricing page and workspace billing
+UI share it. Start by changing names and description messages while retaining
+plan IDs. Changing an ID requires tracing stored plans, fixture values, provider
+price mappings, and tests. Unknown plan IDs fall back to Starter.
+
+Configured Stripe prices must match the supported monthly, licensed, per-unit
+model. Team is self-serve per-seat billing; Enterprise is operator-provisioned.
+Changing display amounts does not change a Stripe price. Keep
+`STRIPE_PRICE_ID_TEAM` and optional `STRIPE_PRICE_ID_ENTERPRISE` aligned with the
+catalog and provider validation. Do not add annual-price copy or promise that a
+public pricing choice continues through sign-in: those flows are not supplied
+by this recipe. See [Stripe billing](/docs/integrations/stripe-billing).
+
+Keep verified payment, renewal grace, current-member seat counts, and resource
+selection enforcement when changing plan copy or removing billing navigation.
+Hiding the billing page must not strand authorized customers without recovery.
+
+## Remove functionality through every caller
+
+Leaving an optional provider unconfigured is the smallest supported change.
+Removing a navigation item changes discoverability; it does not disable a route,
+API, MCP tool, scheduled job, or server function. Choose explicitly between
+leaving a capability inactive and deleting it.
+
+| Area                            | Supported inactive configuration                            | Additional removal dependencies                                                                                                                                                                                    |
+| ------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Social login                    | Leave both credentials for an unwanted provider unset       | Auth provider configuration, sign-in/link-account UI, callback tests and docs. Preserve the local auth paths.                                                                                                      |
+| Model generation                | Leave `WORKERS_AI_ENABLED` false and `OPENAI_API_KEY` unset | Saved conversations still work. Full assistant removal also reaches conversation routes, sockets, task tools, account/workspace deletion, cleanup jobs, local Worker host, and `ASSISTANT_CONVERSATIONS` bindings. |
+| Stripe                          | Leave Stripe credentials/prices unset                       | Free-plan entitlements remain. Full removal includes checkout/portal interfaces, membership seat-sync producers, subscription reconciliation, inbound provider endpoint, queues, notices, and recovery workflows.  |
+| Email provider                  | Leave `CLOUDFLARE_EMAIL_FROM` unset                         | Keep local auth email behavior. Removing notification emails separately reaches preferences, outbox producers, digest/retry schedules, queue consumers, templates, delivery evidence, and retention.               |
+| Workspace exports               | Leave `WORKSPACE_EXPORTS_ENABLED` unset                     | Remove request/download interfaces, generation consumers, export bucket/queue bindings, cleanup, and stored export records together. Personal data export is a separate capability.                                |
+| Analytics or Turnstile          | Leave their optional configuration unset                    | Remove the corresponding UI/server integration and deployment configuration only if you want the implementation gone. Never remove auth rate limits along with a CAPTCHA.                                          |
+| REST, MCP, API tokens, webhooks | No single global removal switch                             | Trace contracts, handlers, scopes, assistant tools, billing entitlements, resource selection, outbound producers, queues, dead letters, and seed records before deleting a package.                                |
+
+For each deletion, work through this sequence in one branch:
+
+1. Remove entry points and navigation. Workspace sidebar and command palette
+   share `apps/web/src/lib/workspace-nav.tsx`; demo navigation has its own mapping.
+   Follow route imports into `apps/web/src/lib/server/` and its `.effects.ts`
+   handlers. Keep session, workspace, suspension, and permission gates for the
+   surviving operations.
+2. Remove external contracts and adapters together. Inspect
+   `packages/api/src/index.ts`, `apps/api/src/`, and their REST/MCP consumers.
+   Update SDK usage documented in
+   `apps/web/content/docs/capability-interfaces/sdk.mdx` and remove assistant tools,
+   rather than leaving an advertised operation with no handler.
+3. Remove the owning capability's service and both Seed and Live adapters from
+   `packages/capabilities/src/layers.ts`. Check
+   `packages/capabilities/src/runtime.ts`, package exports, dependency manifests,
+   projections, and all callers. Keep business behavior in Effect capabilities.
+4. Reconcile permissions in `packages/authz/src/statements.ts` and
+   `packages/authz/src/roles.ts`, with stored scope/role vocabulary in
+   `packages/db/src/enums.ts`. Better Auth's organization, member, invitation,
+   team, and access-control statements are required by its plugin. Do not remove
+   them as apparently unused application UI permissions. System admin status
+   must not become a workspace permission bypass.
+5. Remove producers before assuming a job is unused. Reconcile
+   `apps/background/src/queue-routing.ts`,
+   `apps/background/src/scheduled-routing.ts`, their consumers, monitoring, and
+   `infra/bindings.ts` with `alchemy.run.ts`. Regenerate Wrangler configuration.
+   Check binding types and `apps/web/scripts/local-worker-runtime.mjs` too. An unknown
+   queue is acknowledged by the router; leaving a producer behind can lose work.
+6. Reconcile schema, export/deletion/retention logic, and fixtures. Edit
+   `packages/db/src/schema.ts` and run `pnpm run db:generate` if tables change.
+   `packages/capabilities/src/seed-fixture.ts` owns `usr_demo` and `starter-lab`;
+   `scripts/seed.ts` adds the password. Update Seed and Live together. Removing
+   public preview does not justify removing membership fixtures still used by
+   local sign-in and browser tests. Restart the dev server after local database
+   setup changes.
+7. Remove unused message keys in both languages, docs, assets, tests that solely
+   cover deleted behavior, and dependencies with no remaining consumers. Retain
+   tests for surviving authorization and billing invariants. Run the checks
+   below; fix findings instead of adding broad dead-code exclusions.
+
+Use a search term belonging to the feature you are removing, for example:
+
+```bash
+rg -n 'ASSISTANT_CONVERSATIONS|assistant-conversation|assistant_cleanup' apps packages infra scripts alchemy.run.ts
+pnpm -C packages/i18n generate
+pnpm run check
+pnpm run build
+```
+
+## Verification checklist
+
+Run from the repository root after edits. These commands use local data and
+processes; validation migrates and seeds local D1. Install Chromium once and use
+an unused E2E port when several worktrees are running.
+
+```bash
+pnpm -C apps/web exec playwright install chromium
+E2E_PORT=3105 pnpm run validate
+```
+
+- Check the new name, logo, favicon, title, description, Open Graph metadata, and
+  structured-data publisher on public, auth, docs, and workspace pages. Check
+  both languages and a narrow viewport. Open this article through `/docs` to
+  verify discovery and navigation.
+- Inspect auth and notification emails for the new name, subjects, logo URL,
+  sender, and links. Local rendering/logs do not prove external delivery.
+- Follow header, footer, command palette, workspace, and demo links. Removed
+  sections should have no incoming links. Request deleted routes directly and
+  verify their absence; hiding a link is insufficient.
+- Sign in as the seeded owner and member after required factor setup. Check
+  workspace navigation using both a full reload and client-side navigation.
+  Exercise surviving operations and verify outsider/member refusals where
+  authority is restricted. Check billing recovery and resource limits if kept.
+- With optional provider values absent, verify the app still starts and reports
+  unavailable operations honestly. For enabled providers, run their documented
+  smoke tests separately against the intended environment.
+- Inspect generated Wrangler diffs and route output. Search remaining brand and
+  removed-feature references and explain intentional matches. Record the commit,
+  commands, exit statuses, and observed browser paths in the PR. A passing build
+  alone does not prove that a customer domain or external provider works.

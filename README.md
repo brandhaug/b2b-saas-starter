@@ -44,6 +44,8 @@ pnpm run validate   # check, build, generated configs, local DB setup, and E2E
 
 ## Documentation
 
+- [Rebranding and removal](apps/web/content/docs/getting-started/rebranding-and-removal.mdx): product identity, public content, and safe removal dependencies.
+
 - [Deployment](docs/deploying.md): Cloudflare credentials, CI, previews, and verification.
 - [Operations](docs/operations.md): monitoring, backups, and recovery before customer use.
 - [Retention](docs/retention.md): approved record-expiry policy and operator workflow.
