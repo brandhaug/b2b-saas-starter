@@ -93,6 +93,9 @@ export function SignUpPage({
         return
       }
       const result = await signUp({
+        callbackPath: redirect
+          ? `/verify-email?redirect=${encodeURIComponent(safeRedirect(redirect))}`
+          : undefined,
         name: value.name,
         email: value.email,
         password: value.password,
@@ -133,6 +136,7 @@ export function SignUpPage({
           {m.already_have_account()}{' '}
           <Link
             to="/sign-in"
+            search={{ redirect }}
             className="inline-flex items-center text-primary underline underline-offset-4 max-md:min-h-11"
           >
             {m.form_sign_in()}

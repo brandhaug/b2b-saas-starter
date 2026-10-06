@@ -14,3 +14,5 @@ Cloudflare-first repository using TanStack Start, Effect v4, Drizzle D1, SQLite 
 - [Documentation index](/en/docs)
 - [Repository context](/llms-full.txt)
 - [Current architectural decisions](https://github.com/brandhaug/b2b-saas-starter/tree/master/docs/adr)
+
+- [First business feature](/en/docs/getting-started/first-business-feature): workspace resource tutorial with a runnable companion patch.

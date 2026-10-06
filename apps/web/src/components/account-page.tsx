@@ -1,3 +1,4 @@
+import { safeRedirect } from '@/lib/utils'
 import { AccountConversationsPanel } from '@/components/account-conversations-panel'
 import {
   deleteOwnedConversationServerFn,
@@ -43,6 +44,7 @@ const NO_CONNECTIONS: ReadonlyArray<McpClientConnection> = []
  * deletion flow need not stub the preference kinds.
  */
 export function AccountPage({
+  redirect,
   session,
   deletionPlan,
   preferences,
@@ -50,6 +52,7 @@ export function AccountPage({
   currentSessionToken,
   ownedConversations
 }: {
+  readonly redirect?: string | undefined
   readonly session: RouteSession
   readonly deletionPlan: AccountDeletionPlan
   readonly preferences?: ReadonlyArray<NotificationPreferenceRow>
@@ -59,9 +62,18 @@ export function AccountPage({
 }) {
   return (
     <WorkspaceShell viewer={null} systemRole={session.user.role} workspaceSlug={null}>
+      {redirect ? (
+        <Link
+          to={safeRedirect(redirect)}
+          className="text-sm underline underline-offset-4"
+        >
+          {m.continue_action()}
+        </Link>
+      ) : null}
       <PageHeader title={m.page_account()} description={m.page_account_description()} />
       <Link
         to="/verify-authentication"
+        search={{ redirect }}
         className="inline-flex items-center text-primary underline underline-offset-4 max-md:min-h-11"
       >
         {m.security_verify_title()}

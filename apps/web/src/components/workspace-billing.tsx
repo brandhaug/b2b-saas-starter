@@ -1,3 +1,4 @@
+import { purchaseIntent } from '@/lib/purchase-intent'
 import {
   type BillingLifecycle,
   type BillingSynchronizationStatus
@@ -109,7 +110,16 @@ export function PublicBillingPlans({
             plan={plan}
             interval={interval}
             priceNote={stripeConfigured ? null : m.billing_example_price()}
-          />
+          >
+            {plan.purchase === 'self_serve' && purchaseIntent(plan.id) ? (
+              <Button
+                nativeButton={false}
+                render={<Link to="/purchase" search={{ plan: plan.id }} />}
+              >
+                {m.purchase_plan({ name: plan.name })}
+              </Button>
+            ) : null}
+          </PlanTile>
         ))}
       </div>
     </Panel>
@@ -392,7 +402,9 @@ function PlanTile({
         <h3 className="font-semibold">{plan.name}</h3>
         {isCurrent ? <Badge variant="neutral">{m.common_current()}</Badge> : null}
       </div>
-      <p className="text-2xl font-semibold">{planPrice(plan, interval)}</p>
+      <p className="text-2xl font-semibold">
+        <PlanPrice plan={plan} interval={interval} />
+      </p>
       {priceNote ? <p className="text-xs text-muted-foreground">{priceNote}</p> : null}
       <p className="text-sm text-muted-foreground">{planDescription(plan)}</p>
       <ul className="grid gap-1 text-sm text-muted-foreground">
@@ -548,7 +560,13 @@ function seatPhrase(plan: BillingPlan): string {
   })
 }
 
-function planPrice(plan: BillingPlan, interval: BillingInterval): string {
+export function PlanPrice({
+  plan,
+  interval = 'month'
+}: {
+  readonly plan: BillingPlan
+  readonly interval?: BillingInterval
+}): string {
   if (plan.price === null) {
     return m.shell_plan_custom()
   }

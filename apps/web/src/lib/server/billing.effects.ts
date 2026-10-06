@@ -1,3 +1,6 @@
+import { requireEmailVerification } from '@b2b-saas-starter/env/server'
+import { UnverifiedEmailError } from '../capability-error'
+import { type PurchaseIntent } from '../purchase-intent'
 import { Billing, type ReconcileResult } from '@b2b-saas-starter/billing/billing'
 import { ResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
@@ -174,9 +177,17 @@ export async function loadPublicPricingHandler(): Promise<PublicPricingPayload> 
  * the checkout handoff into an open redirect.
  */
 export async function startCheckoutHandler(
-  input: StartCheckoutInput
+  input: StartCheckoutInput,
+  purchase?: PurchaseIntent
 ): Promise<{ url: string }> {
   const session = await requireRequestSession()
+  if (
+    requireEmailVerification(cloudflareEnv.ENVIRONMENT) &&
+    !session.user.emailVerified
+  ) {
+    // oxlint-disable-next-line effect/noThrowStatement -- server functions serialize typed UI refusals.
+    throw new UnverifiedEmailError()
+  }
   const base = cloudflareEnv.BETTER_AUTH_URL.replace(/\/$/, '')
   return runWorkspaceCapabilities(
     input.workspaceSlug,
@@ -191,7 +202,7 @@ export async function startCheckoutHandler(
         planId: input.planId,
         interval: input.interval,
         successUrl: `${backTo}?checkout=success`,
-        cancelUrl: `${backTo}?checkout=canceled`
+        cancelUrl: `${backTo}?checkout=canceled${purchase ? `&purchase=${purchase.planId}` : ''}`
       })
     }),
     { userId: session.user.id }

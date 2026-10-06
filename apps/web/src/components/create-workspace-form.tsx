@@ -1,3 +1,4 @@
+import { useClientValue } from '@/lib/client-only-value'
 import { type CreatedWorkspace } from '@b2b-saas-starter/capabilities/governance/workspace-lifecycle'
 import { useRef, useState } from 'react'
 import { useForm } from '@tanstack/react-form'
@@ -51,6 +52,7 @@ export function CreateWorkspaceForm({
   readonly onCreated?: (workspace: CreatedWorkspace) => void
   readonly createWorkspace?: CreateWorkspace
 }) {
+  const hydrated = useClientValue(() => true, false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   // The slug mirrors the name until the visitor edits it — then their choice
   // wins and the name stops suggesting. A ref, not state: nothing renders from
@@ -75,6 +77,8 @@ export function CreateWorkspaceForm({
 
   return (
     <form
+      method="post"
+      data-hydrated={hydrated ? 'true' : undefined}
       onSubmit={(event) => {
         event.preventDefault()
         event.stopPropagation()
@@ -82,47 +86,49 @@ export function CreateWorkspaceForm({
       }}
       className="grid gap-4"
     >
-      <form.Field
-        name="name"
-        validators={{ onChange: ({ value }) => validateWorkspaceName(value) }}
-      >
-        {(field) => (
-          <FormTextField
-            name={field.name}
-            label={m.form_workspace_name()}
-            value={field.state.value}
-            errors={field.state.meta.errors}
-            onBlur={field.handleBlur}
-            onChange={(next) => {
-              field.handleChange(next)
-              if (!slugEdited.current) {
-                form.setFieldValue('slug', suggestSlug(next))
-              }
-            }}
-            placeholder={m.workspace_name_placeholder()}
-          />
-        )}
-      </form.Field>
-      <form.Field
-        name="slug"
-        validators={{ onChange: ({ value }) => validateSlug(value) }}
-      >
-        {(field) => (
-          <FormTextField
-            name={field.name}
-            label={m.form_workspace_url()}
-            value={field.state.value}
-            errors={field.state.meta.errors}
-            onBlur={field.handleBlur}
-            onChange={(next) => {
-              slugEdited.current = true
-              field.handleChange(next)
-            }}
-            placeholder={m.workspace_slug_placeholder()}
-          />
-        )}
-      </form.Field>
-      <FormSubmitButton form={form} label={m.form_create_workspace()} />
+      <fieldset disabled={!hydrated} className="contents">
+        <form.Field
+          name="name"
+          validators={{ onChange: ({ value }) => validateWorkspaceName(value) }}
+        >
+          {(field) => (
+            <FormTextField
+              name={field.name}
+              label={m.form_workspace_name()}
+              value={field.state.value}
+              errors={field.state.meta.errors}
+              onBlur={field.handleBlur}
+              onChange={(next) => {
+                field.handleChange(next)
+                if (!slugEdited.current) {
+                  form.setFieldValue('slug', suggestSlug(next))
+                }
+              }}
+              placeholder={m.workspace_name_placeholder()}
+            />
+          )}
+        </form.Field>
+        <form.Field
+          name="slug"
+          validators={{ onChange: ({ value }) => validateSlug(value) }}
+        >
+          {(field) => (
+            <FormTextField
+              name={field.name}
+              label={m.form_workspace_url()}
+              value={field.state.value}
+              errors={field.state.meta.errors}
+              onBlur={field.handleBlur}
+              onChange={(next) => {
+                slugEdited.current = true
+                field.handleChange(next)
+              }}
+              placeholder={m.workspace_slug_placeholder()}
+            />
+          )}
+        </form.Field>
+        <FormSubmitButton form={form} label={m.form_create_workspace()} />
+      </fieldset>
       {submitError ? (
         <Alert variant="destructive">
           <AlertDescription>{submitError}</AlertDescription>

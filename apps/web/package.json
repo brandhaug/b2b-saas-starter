@@ -84,6 +84,7 @@
     "remark-frontmatter": "catalog:",
     "remark-gfm": "catalog:",
     "remark-mdx-frontmatter": "catalog:",
+    "seroval": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

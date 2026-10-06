@@ -196,3 +196,33 @@ billing-evidence pruning is not implemented.
 After a retry or dead-letter recovery, inspect the workspace again and confirm
 that `status` is `current`, `last_synced_at` has advanced, and the provider
 event or audit trail contains the operator action.
+
+## Purchase continuation
+
+Public pricing links self-service Team to `/purchase?plan=team`. After sign-in,
+select an eligible workspace or create one, complete privileged authentication,
+and confirm on the workspace billing page. Production requires verified email;
+local development does not add a mail-provider requirement. Unconfigured Stripe
+leaves the continuation inspectable and checkout disabled. Starter and Enterprise
+are not purchase intents. Existing subscriptions continue through the billing
+portal; a selected plan never overrides that policy.
+
+Browser regression reproduction on an isolated local database:
+
+```bash
+pnpm run db:migrate:local
+pnpm run db:seed
+E2E_PORT=3102 pnpm -C apps/web exec playwright test e2e/purchase-continuation.spec.ts --workers=1
+```
+
+On a host running several worktrees, prefix the browser command with
+`E2E_EXPECT_TIMEOUT=20000 E2E_STARTUP_TIMEOUT=600000` to allow for shared CPU
+contention. The default assertion and startup deadlines remain unchanged.
+
+The suite covers auth return paths, the real email verification exchange,
+privileged verification, workspace creation, member and foreign-workspace
+refusal, invalid plans, and inactive checkout. Its
+confirmation screenshot and Playwright JSON report are repeatable artifacts under
+`apps/web/test-results` and `apps/web/playwright-report`. Provider subscription,
+seat quantity, and durable retry contracts remain in the existing Billing tests.
+Hosted Stripe completion requires a configured Stripe test account.
