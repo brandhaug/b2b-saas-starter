@@ -145,10 +145,10 @@ overrides:
   # Keep its runtime/config reader on the catalog until its own pins catch up.
   '@cloudflare/vitest-pool-workers>miniflare': 'catalog:'
   '@cloudflare/vitest-pool-workers>wrangler': 'catalog:'
-  source-map-js@>=1.0.0 <1.2.2: 1.2.2
-  proxy-addr@>=1.1.0 <2.0.8: 2.0.8
-  postcss-selector-parser@<7.1.6: 7.1.6
-  tinypool@<2.1.2: 2.1.2
+  sharp@<0.35.5: 0.35.5
+  shell-quote@>=1.8.4 <1.11.0: 1.11.0
+  "@modelcontextprotocol/client@>=2.0.0 <2.2.0": 2.2.0
+  "@modelcontextprotocol/sdk@>=1.12.0 <1.31.0": 1.31.0
 patchedDependencies:
   '@distilled.cloud/cloudflare@1.0.0-rc.12': patches/@distilled.cloud__cloudflare@1.0.0-rc.12.patch
   '@alchemy.run/cloudflare-runtime@2.0.0-beta.79': patches/@alchemy.run__cloudflare-runtime@2.0.0-beta.79.patch
