@@ -26,7 +26,7 @@ catalog:
   '@cloudflare/ai-chat': 0.12.1
   agents: 0.26.0
   ai: 7.0.127
-  '@cloudflare/workers-types': 5.20261003.1
+  '@cloudflare/workers-types': 5.20261004.1
   '@cloudflare/vitest-pool-workers': 0.22.0
   '@effect/tsgo': 0.46.1
   '@effect/platform-node': 4.0.0
