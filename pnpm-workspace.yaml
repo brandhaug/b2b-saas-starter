@@ -19,7 +19,7 @@ catalog:
   '@inlang/plugin-message-format': 4.4.4
   '@better-auth/cimd': 1.7.7
   '@better-auth/mcp': 1.7.7
-  '@better-auth/oauth-provider': 1.7.6
+  '@better-auth/oauth-provider': 1.7.7
   '@better-auth/passkey': 1.7.7
   '@better-auth/sso': 1.7.7
   '@better-auth/utils': 0.5.0
@@ -147,20 +147,20 @@ overrides:
   '@cloudflare/vitest-pool-workers>wrangler': 'catalog:'
   sharp@<0.35.5: 0.35.5
   shell-quote@>=1.8.4 <1.11.0: 1.11.0
-  "@modelcontextprotocol/client@>=2.0.0 <2.2.0": 2.2.0
-  "@modelcontextprotocol/sdk@>=1.12.0 <1.31.0": 1.31.0
+  '@modelcontextprotocol/client@>=2.0.0 <2.2.0': 2.2.0
+  '@modelcontextprotocol/sdk@>=1.12.0 <1.31.0': 1.31.0
   next@>=16.3.0 <16.3.8: 16.3.8
   next@>=16.0.0 <16.3.8: 16.3.8
 patchedDependencies:
   '@distilled.cloud/cloudflare@1.0.0-rc.12': patches/@distilled.cloud__cloudflare@1.0.0-rc.12.patch
   '@alchemy.run/cloudflare-runtime@2.0.0-beta.79': patches/@alchemy.run__cloudflare-runtime@2.0.0-beta.79.patch
-  '@better-auth/oauth-provider@1.7.6': patches/@better-auth__oauth-provider@1.7.6.patch
   '@distilled.cloud/aws@1.0.0-rc.12': patches/@distilled.cloud__aws@1.0.0-rc.12.patch
   '@distilled.cloud/core@1.0.0-rc.12': patches/@distilled.cloud__core@1.0.0-rc.12.patch
   '@distilled.cloud/fly-io@1.0.0-rc.12': patches/@distilled.cloud__fly-io@1.0.0-rc.12.patch
   '@distilled.cloud/railway@1.0.0-rc.12': patches/@distilled.cloud__railway@1.0.0-rc.12.patch
   '@distilled.cloud/stripe@1.0.0-rc.12': patches/@distilled.cloud__stripe@1.0.0-rc.12.patch
   alchemy@2.0.0-beta.79: patches/alchemy@2.0.0-beta.79.patch
+  '@better-auth/oauth-provider@1.7.7': patches/@better-auth__oauth-provider@1.7.7.patch
 peerDependencyRules:
   allowAny:
     - vite
