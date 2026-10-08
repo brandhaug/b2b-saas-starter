@@ -16,8 +16,8 @@ catalogs:
       specifier: 1.7.7
       version: 1.7.7
     '@better-auth/mcp':
-      specifier: 1.7.6
-      version: 1.7.6
+      specifier: 1.7.7
+      version: 1.7.7
     '@better-auth/oauth-provider':
       specifier: 1.7.6
       version: 1.7.6
@@ -822,7 +822,7 @@ importers:
         version: 1.7.7(65275537c3d9ca1db5d42f81905934cc)
       '@better-auth/mcp':
         specifier: 'catalog:'
-        version: 1.7.6(0f3fd04e13b961f59205652bab536a86)
+        version: 1.7.7(0f3fd04e13b961f59205652bab536a86)
       '@better-auth/passkey':
         specifier: 'catalog:'
         version: 1.7.7(f2d82a4f0f6a9669ad827cd9bb63d468)
@@ -1698,11 +1698,11 @@ packages:
       kysely:
         optional: true
 
-  '@better-auth/mcp@1.7.6':
-    resolution: {integrity: sha512-SgwrXMYAvvNax+I1Ms6bNgKNozEL1DD2WEmWFSI83WtsCx0jETu4hDjpMait/Ej18pOnSgiwiz6GMxavnEncjA==}
+  '@better-auth/mcp@1.7.7':
+    resolution: {integrity: sha512-BZm8gHfPef7qXuEY61rBpVkBIuUOJ+dx2ese/JpHUnbw2/SteZ/UvHTIot5twE+C+dtEhqQYL2CEVkuPCBJeQg==}
     peerDependencies:
-      '@better-auth/core': ^1.7.6
-      better-auth: ^1.7.6
+      '@better-auth/core': ^1.7.7
+      better-auth: ^1.7.7
       better-call: 1.4.0
 
   '@better-auth/memory-adapter@1.7.7':
@@ -9973,10 +9973,10 @@ snapshots:
     optionalDependencies:
       kysely: 0.29.5
 
-  '@better-auth/mcp@1.7.6(0f3fd04e13b961f59205652bab536a86)':
+  '@better-auth/mcp@1.7.7(0f3fd04e13b961f59205652bab536a86)':
     dependencies:
       '@better-auth/core': 1.7.7(@better-auth/utils@0.5.0)(@better-fetch/fetch@1.3.2)(@opentelemetry/api@1.9.1)(better-call@1.4.0(zod@4.6.5))(jose@6.2.12)(kysely@0.29.5)(nanostores@1.5.2)
-      '@better-auth/oauth-provider': 1.7.6(patch_hash=bc6c5daee6c928c802fceb9db5862dc11ad0f13fe4f8c6bfc6effc98efdba3c8)(0f3fd04e13b961f59205652bab536a86)
+      '@better-auth/oauth-provider': 1.7.7(0f3fd04e13b961f59205652bab536a86)
       better-auth: 1.7.7(@opentelemetry/api@1.9.1)(@tanstack/react-start@1.168.60(@voidzero-dev/vite-plus-core@0.3.0(@types/node@26.6.3)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(rolldown@1.2.5)(rollup@4.63.1)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261005.1)(@effect/sql-d1@4.0.0(effect@4.0.0))(@effect/sql-sqlite-do@4.0.0(effect@4.0.0))(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(bun-types@1.4.0)(effect@4.0.0)(valibot@1.4.2(typescript@7.0.2))(zod@4.5.4))(next@16.3.8(@babel/core@8.0.6)(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@26.6.3)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(vitest@4.1.11)
       better-call: 1.4.0(zod@4.6.5)
       jose: 6.2.12

@@ -18,7 +18,7 @@ catalog:
   '@inlang/paraglide-js': 2.25.4
   '@inlang/plugin-message-format': 4.4.4
   '@better-auth/cimd': 1.7.7
-  '@better-auth/mcp': 1.7.6
+  '@better-auth/mcp': 1.7.7
   '@better-auth/oauth-provider': 1.7.6
   '@better-auth/passkey': 1.7.7
   '@better-auth/sso': 1.7.7
