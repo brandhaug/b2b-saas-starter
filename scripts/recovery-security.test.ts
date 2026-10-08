@@ -88,7 +88,7 @@ describe('recovery security sanitation', () => {
 
   it('requires an account identity before remote target confirmation', async () => {
     const environment = { ...process.env }
-    delete environment.CLOUDFLARE_ACCOUNT_ID
+    Reflect.deleteProperty(environment, 'CLOUDFLARE_ACCOUNT_ID')
     await expect(
       run(
         'node',
