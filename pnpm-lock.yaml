@@ -52,8 +52,8 @@ catalogs:
       specifier: 2.25.4
       version: 2.25.4
     '@inlang/plugin-message-format':
-      specifier: 4.4.4
-      version: 4.4.4
+      specifier: 4.4.5
+      version: 4.4.5
     '@mdx-js/rollup':
       specifier: 3.1.1
       version: 3.1.1
@@ -1116,7 +1116,7 @@ importers:
     devDependencies:
       '@inlang/plugin-message-format':
         specifier: 'catalog:'
-        version: 4.4.4
+        version: 4.4.5
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -2887,8 +2887,8 @@ packages:
       vite:
         optional: true
 
-  '@inlang/plugin-message-format@4.4.4':
-    resolution: {integrity: sha512-50tkyH/qMFudcIOZSCRdi+BeCVuJQo3BWbvfRTVKr8pEslBiRaZDTKBC1NkCI3ivmkyqzK8k+ktBci3NtDu3Lg==}
+  '@inlang/plugin-message-format@4.4.5':
+    resolution: {integrity: sha512-g3WpG00mx3Wq/3zulz4uuT+HhdBRB7UMz2hVbfSm+E4RJHXNYyFyvS0elPETX7gEz8yiTd0KbyukZGJHetmkZA==}
 
   '@inlang/recommend-sherlock@0.2.1':
     resolution: {integrity: sha512-ckv8HvHy/iTqaVAEKrr+gnl+p3XFNwe5D2+6w6wJk2ORV2XkcRkKOJ/XsTUJbPSiyi4PI+p+T3bqbmNx/rDUlg==}
@@ -10499,8 +10499,10 @@ snapshots:
       typescript: 7.0.2
       vite: '@voidzero-dev/vite-plus-core@1.0.0(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1)'
 
-  '@inlang/plugin-message-format@4.4.4':
+  '@inlang/plugin-message-format@4.4.5':
     dependencies:
+      '@inlang/sdk': 3.1.0
+      '@sinclair/typebox': 0.31.30
       flat: 6.0.1
 
   '@inlang/recommend-sherlock@0.2.1':

@@ -16,7 +16,7 @@ catalog:
   '@babel/core': 8.0.6
   '@base-ui/react': 1.8.0
   '@inlang/paraglide-js': 2.25.4
-  '@inlang/plugin-message-format': 4.4.4
+  '@inlang/plugin-message-format': 4.4.5
   '@better-auth/cimd': 1.7.7
   '@better-auth/mcp': 1.7.7
   '@better-auth/oauth-provider': 1.7.7
