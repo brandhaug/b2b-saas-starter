@@ -1,7 +1,7 @@
-diff --git a/dist/oauth-CJ85_W0W.d.mts b/dist/oauth-CJ85_W0W.d.mts
-index 4e3c1a512ab3a3658e4a22516d2dfcea0b001ac5..5f983bdf298c2adeafef6895d387cacbef3a8a8e 100644
---- a/dist/oauth-CJ85_W0W.d.mts
-+++ b/dist/oauth-CJ85_W0W.d.mts
+diff --git a/dist/oauth-Dtt-caL2.d.mts b/dist/oauth-Dtt-caL2.d.mts
+index 7dc7a3b92fe1a7df8a8561992059ba37f9668d50..b0713ac61d38c55562452c3e0b7661aaec6f22e0 100644
+--- a/dist/oauth-Dtt-caL2.d.mts
++++ b/dist/oauth-Dtt-caL2.d.mts
 @@ -110,7 +110,6 @@ declare function buildOAuthDeviceGrant(): {
      resource: {
        oneOf: ({
@@ -65,14 +65,20 @@ index 4e3c1a512ab3a3658e4a22516d2dfcea0b001ac5..5f983bdf298c2adeafef6895d387cacb
                        } | {
                          type: string;
                          items: {
-@@ -1393,10 +1379,8 @@ declare const oauthProvider: <O extends OAuthOptions<Scope[]>>(options: O) => {
+@@ -1391,12 +1377,10 @@ declare const oauthProvider: <O extends OAuthOptions<Scope[]>>(options: O) => {
+         allowedMediaTypes: string[];
+         openapi: {
            description: string;
-           security: ({
-             bearerAuth: never[];
+-          security: ({
+-            bearerAuth: never[];
 -            OAuth2?: undefined;
-           } | {
-             OAuth2: string[];
+-          } | {
+-            OAuth2: string[];
 -            bearerAuth?: undefined;
++            security: ({
++              bearerAuth: never[];
++            } | {
++              OAuth2: string[];
            })[];
            parameters: {
              name: string;
