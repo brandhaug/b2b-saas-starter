@@ -15,7 +15,33 @@ import { productionStage, stageResourceNames } from '../../infra/bindings.ts'
 const migrations = await readPoolMigrations()
 
 export default defineConfig({
+  run: {
+    tasks: {
+      'test:coverage': {
+        command: 'vp test run --coverage',
+        cache: {
+          // Keep reports and pnpm install timestamps out of source inputs.
+          input: [
+            { auto: true },
+            { pattern: '!node_modules/.modules.yaml', base: 'workspace' },
+            { pattern: 'pnpm-lock.yaml', base: 'workspace' },
+            { pattern: 'pnpm-workspace.yaml', base: 'workspace' },
+            '!coverage/**'
+          ],
+          output: ['coverage/**']
+        }
+      }
+    }
+  },
   test: {
+    coverage: {
+      provider: 'v8',
+      reporter: ['text-summary', 'json-summary', 'html'],
+      include: ['src/**/*.ts'],
+      exclude: ['src/**/*.test.ts', 'src/**/*.d.ts', 'src/test-pool.ts'],
+      // Report-only baseline across Node and workerd. No coverage gate yet.
+      reportsDirectory: 'coverage'
+    },
     // Vitest v4 compatibility: keep separate Vite servers for inline projects.
     // Remove when plugins and config hooks can run once for shared projects.
     // https://viteplus.dev/guide/vitest-v5#remove-unneeded-compatibility-settings
