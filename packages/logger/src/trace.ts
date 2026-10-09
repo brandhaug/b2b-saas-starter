@@ -1,5 +1,5 @@
 import { Effect, Option, type Tracer } from 'effect'
-import { Headers, HttpTraceContext } from 'effect/unstable/http'
+import { Headers, HttpTraceContext } from 'effect/http'
 
 export const TRACE_HEADER = 'x-trace-id'
 

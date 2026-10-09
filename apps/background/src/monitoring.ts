@@ -7,7 +7,6 @@ import {
   captureMonitoringSignal,
   captureOperationalSnapshot
 } from '@b2b-saas-starter/logger/providers'
-import { hasValue } from '@b2b-saas-starter/env/server'
 import { Clock, Effect, Layer } from 'effect'
 import {
   billingConsumerSettings,
@@ -84,7 +83,7 @@ export function monitorQueueOutcome(
 
 /** Snapshot zeros clear metric incidents after persisted failures recover. */
 export function monitorOperationalHealth(env: Env, scheduledTime: number) {
-  if (!hasValue(env.SENTRY_DSN) || env.DB === undefined) {
+  if (env.DB === undefined) {
     return Effect.void
   }
   return Effect.gen(function* () {

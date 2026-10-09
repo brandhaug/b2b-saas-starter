@@ -91,15 +91,18 @@ stored for later recovery.
 | ---------------------------- | ------------------------------------------------------------------------ |
 | `STRIPE_SECRET_KEY`          | API key used for checkout, the Billing Portal, and seat-quantity updates |
 | `STRIPE_WEBHOOK_SECRET`      | Signing secret of the webhook endpoint pointing at the background Worker |
-| `STRIPE_PRICE_ID_TEAM`       | Stripe price id for the self-serve Team plan (a per-seat Price)          |
-| `STRIPE_PRICE_ID_ENTERPRISE` | Stripe price id used by an operator-created Enterprise subscription      |
+| `STRIPE_PRICE_ID_TEAM`       | Monthly licensed per-seat Team price                                     |
+| `STRIPE_PRICE_ID_ENTERPRISE` | Monthly operator-provisioned Enterprise price                            |
 
-All four are optional fields in `packages/env/src/server.ts`. Team is required
+| `STRIPE_PRICE_ID_TEAM_ANNUAL` | Optional yearly licensed per-seat Team price |
+| `STRIPE_PRICE_ID_ENTERPRISE_ANNUAL` | Optional yearly operator-provisioned Enterprise price |
+
+All six are optional fields in `packages/env/src/server.ts`. Team is required
 for complete self-serve Stripe configuration; Enterprise is required before an
 operator can provision Enterprise. Unset, checkout and the portal answer
 `provider_not_configured` (and the webhook route answers 503) while plan
 display, seat usage, and entitlements stay fully functional; `syncSeats` is an
-no-op. The provider rejects unsupported intervals and pricing models
+no-op. The adapter accepts one-month and one-year licensed per-unit prices and rejects other intervals and pricing models
 instead of displaying inaccurate customer-facing prices.
 
 ## Queue topology

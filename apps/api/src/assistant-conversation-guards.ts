@@ -16,7 +16,7 @@ import { ConversationNotFound } from '@b2b-saas-starter/capabilities/developer-p
 import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { Effect, Layer, Redacted } from 'effect'
-import { HttpServerRequest, HttpServerResponse } from 'effect/unstable/http'
+import { HttpServerRequest, HttpServerResponse } from 'effect/http'
 import { AssistantOAuthTokenVerifier } from './assistant-oauth-access-token.ts'
 import { type ApiEnv } from './env.ts'
 import { enforceRateLimit, observed } from './request-guards.ts'

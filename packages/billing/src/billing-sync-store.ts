@@ -294,6 +294,7 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
       seatQuantity: next.seatQuantity,
       status: lifecycleStatus,
       stripePriceId: next.priceId,
+      interval: next.interval,
       subscribedPlanId: next.subscribedPlanId,
       currentPeriodStart: next.currentPeriodStart ?? null,
       currentPeriodEnd: next.currentPeriodEnd ?? null,

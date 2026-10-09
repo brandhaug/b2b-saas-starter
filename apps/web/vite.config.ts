@@ -170,7 +170,7 @@ export default defineConfig(({ command, mode }) => {
     // build bundles node_modules (the injected Cloudflare plugin resolves
     // with `noExternal`, since workerd cannot resolve bare specifiers).
     // Unminified, the bundled server tree blew the free Workers size limit;
-    // minified, it still carried client-only vendor graphs (@sentry/react)
+    // minified, it still carried client-only vendor graphs (browser analytics)
     // emitted as never-executed lazy chunks.
     // ADR 0063 strips those at the source and is the rule for any new
     // browser-only dynamic import.

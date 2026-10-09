@@ -1,4 +1,5 @@
-import { Effect, Encoding, Result, Schema, Stream } from 'effect'
+import { Effect, Result, Schema, Stream } from 'effect'
+import { Base64 } from 'effect/encoding'
 import {
   type ConversationAnswer,
   type ConversationQuestion
@@ -32,7 +33,7 @@ function replayPosition(
   if (value === null) {
     return
   }
-  const decoded = Encoding.decodeBase64String(value)
+  const decoded = Base64.decodeString(value)
   if (Result.isFailure(decoded)) {
     return
   }
@@ -93,7 +94,7 @@ export function observeConversationAttempt<E, R>(
         const snapshot = yield* read
         const { attempt } = snapshot
         const done = attempt.status !== 'Accepted' && attempt.status !== 'Running'
-        const id = Encoding.encodeBase64(
+        const id = Base64.encode(
           encodeJson([
             conversationId,
             attempt.id,

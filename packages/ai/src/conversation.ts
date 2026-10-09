@@ -1,5 +1,5 @@
 import { Context, Effect, Layer, Schema, Stream } from 'effect'
-import { LanguageModel, Model, Prompt, Response } from 'effect/unstable/ai'
+import { LanguageModel, Model, Prompt, Response } from 'effect/ai'
 import { selectProvider, type ProviderEnv } from './provider-selection.ts'
 import {
   ConversationModelLimits,

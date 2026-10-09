@@ -154,5 +154,13 @@
   "shell_trace_workspace_group": "HttpApiEndpoint · the workspace group",
   "shell_trace_overview": "Effect · the overview projection",
   "demo_preview_notice": "Preview with sample data. Actions do not make changes.",
-  "demo_try_sign_in": "Try sign-in"
+  "demo_try_sign_in": "Try sign-in",
+  "shell_plan_annual_seat_price": "{amount}/seat/year",
+  "shell_plan_year_price": "{amount}/year",
+  "billing_interval": "Billing interval",
+  "billing_monthly": "Monthly",
+  "billing_annual": "Annual",
+  "billing_interval_portal": "Use Manage billing to change the billing interval. Stripe confirms charges and the new billing dates.",
+  "billing_subscription_annual": "Subscribed annually",
+  "billing_subscription_monthly": "Subscribed monthly"
 }

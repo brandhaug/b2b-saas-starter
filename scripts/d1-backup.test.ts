@@ -5,15 +5,14 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { promisify } from 'node:util'
 
-import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
+import { afterEach, describe, expect, it } from 'vite-plus/test'
 
 import {
   decryptBackup,
   encryptBackup,
   type BackupEvidence,
   type CompletedBackup,
-  retentionPlan,
-  runWithSentryCronMonitor
+  retentionPlan
 } from './d1-backup.ts'
 
 const run = promisify(execFile)
@@ -287,113 +286,6 @@ fi
     expect(invocations).toContain('d1 time-travel restore database-uuid')
     expect(invocations).toContain('--timestamp=2026-09-07T12:00:00Z --json')
     expect(invocations).not.toContain('--remote')
-  })
-})
-
-describe('Sentry cron check-ins', () => {
-  it.each([
-    'http://public@example.test/42',
-    'https://public:secret@example.test/42',
-    'not a URL'
-  ])(
-    'rejects insecure Sentry configuration before running the operation',
-    async (dsn) => {
-      const previousDsn = process.env.SENTRY_DSN
-      const previousSlug = process.env.TEST_MONITOR_SLUG
-      const operation = vi.fn(async () => undefined)
-      process.env.SENTRY_DSN = dsn
-      process.env.TEST_MONITOR_SLUG = 'backup-test'
-      try {
-        await expect(
-          runWithSentryCronMonitor('TEST_MONITOR_SLUG', operation)
-        ).rejects.toThrow(/SENTRY_DSN must be an HTTPS URL without a password/)
-      } finally {
-        if (previousDsn === undefined) {
-          delete process.env.SENTRY_DSN
-        } else {
-          process.env.SENTRY_DSN = previousDsn
-        }
-        if (previousSlug === undefined) {
-          delete process.env.TEST_MONITOR_SLUG
-        } else {
-          process.env.TEST_MONITOR_SLUG = previousSlug
-        }
-      }
-      expect(operation).not.toHaveBeenCalled()
-    }
-  )
-
-  it('emits linked failure and recovery check-ins under the configured slug', async () => {
-    const bodies = new Array<string>()
-    const previousDsn = process.env.SENTRY_DSN
-    const previousSlug = process.env.TEST_MONITOR_SLUG
-    process.env.SENTRY_DSN = 'https://public@example.test/42'
-    process.env.TEST_MONITOR_SLUG = 'backup-test'
-    vi.stubGlobal('fetch', async (_input: RequestInfo | URL, init?: RequestInit) => {
-      bodies.push(await new Response(init?.body).text())
-      return new Response(null, { status: 200 })
-    })
-    try {
-      await expect(
-        runWithSentryCronMonitor('TEST_MONITOR_SLUG', async () => {
-          throw new Error('controlled backup failure')
-        })
-      ).rejects.toThrow('controlled backup failure')
-      await runWithSentryCronMonitor('TEST_MONITOR_SLUG', async () => {})
-    } finally {
-      vi.unstubAllGlobals()
-      if (previousDsn === undefined) {
-        delete process.env.SENTRY_DSN
-      } else {
-        process.env.SENTRY_DSN = previousDsn
-      }
-      if (previousSlug === undefined) {
-        delete process.env.TEST_MONITOR_SLUG
-      } else {
-        process.env.TEST_MONITOR_SLUG = previousSlug
-      }
-    }
-    expect(bodies).toHaveLength(4)
-    expect(bodies[0]).toContain('"monitor_slug":"backup-test"')
-    expect(bodies[0]).toContain('"status":"in_progress"')
-    expect(bodies[1]).toContain('"status":"error"')
-    expect(bodies[2]).toContain('"status":"in_progress"')
-    expect(bodies[3]).toContain('"status":"ok"')
-  })
-
-  it('runs the operation before surfacing a Sentry outage', async () => {
-    const previousDsn = process.env.SENTRY_DSN
-    const previousSlug = process.env.TEST_MONITOR_SLUG
-    const signals = new Array<AbortSignal | null | undefined>()
-    let ran = false
-    process.env.SENTRY_DSN = 'https://public@example.test/42'
-    process.env.TEST_MONITOR_SLUG = 'backup-test'
-    vi.stubGlobal('fetch', async (_input: RequestInfo | URL, init?: RequestInit) => {
-      signals.push(init?.signal)
-      return new Response(null, { status: 503 })
-    })
-    try {
-      await expect(
-        runWithSentryCronMonitor('TEST_MONITOR_SLUG', async () => {
-          ran = true
-        })
-      ).rejects.toThrow('Sentry check-in failed (503)')
-    } finally {
-      vi.unstubAllGlobals()
-      if (previousDsn === undefined) {
-        delete process.env.SENTRY_DSN
-      } else {
-        process.env.SENTRY_DSN = previousDsn
-      }
-      if (previousSlug === undefined) {
-        delete process.env.TEST_MONITOR_SLUG
-      } else {
-        process.env.TEST_MONITOR_SLUG = previousSlug
-      }
-    }
-    expect(ran).toBe(true)
-    expect(signals).toHaveLength(2)
-    expect(signals.every((signal) => signal !== undefined)).toBe(true)
   })
 })
 

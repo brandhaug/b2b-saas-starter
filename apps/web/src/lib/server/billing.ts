@@ -1,3 +1,4 @@
+import { billingIntervals } from '@b2b-saas-starter/db/enums'
 import {
   type BillingLifecycle,
   type BillingSynchronizationStatus,
@@ -67,6 +68,7 @@ const WorkspaceBillingInput = Schema.Struct({
 })
 
 const StartCheckoutInput = Schema.Struct({
+  interval: Schema.optionalKey(Schema.Literals(billingIntervals)),
   workspaceSlug: Schema.NonEmptyString,
   planId: Schema.NonEmptyString
 })

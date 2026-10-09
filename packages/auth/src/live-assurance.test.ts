@@ -137,7 +137,7 @@ describe('session evidence lifecycle', () => {
   )
 
   it.live(
-    'requires verification of an in-place replacement before leaving recovery',
+    'refuses in-place TOTP replacement without changing recovery evidence',
     () =>
       run(
         Effect.gen(function* () {
@@ -149,33 +149,29 @@ describe('session evidence lifecycle', () => {
           })
           const headers = headersOf(recovered.headers)
           const original = yield* readSession(headers)
-          const replacement = yield* auth.api.enableTwoFactor({
-            body: { password: PASSWORD },
-            headers
-          })
-          if (replacement.method !== 'totp') {
-            return yield* Effect.die('Expected TOTP')
-          }
-          const secret = new URL(replacement.totpURI).searchParams.get('secret')
-          if (!secret) {
-            return yield* Effect.die('Expected secret')
-          }
-          const [pending] = yield* Effect.promise(() =>
+          const [factorBefore] = yield* Effect.promise(() =>
             provisioned.db
               .select()
               .from(twoFactor)
               .where(eq(twoFactor.userId, challenge.userId))
           )
-          expect(pending?.verified).toBe(false)
-          expect((yield* readSession(headers)).recoveryUntil).toEqual(
-            original.recoveryUntil
+          const replacementError = yield* auth.api
+            .enableTwoFactor({ body: { password: PASSWORD }, headers })
+            .pipe(
+              Effect.match({ onSuccess: () => null, onFailure: (error) => error.code })
+            )
+          expect(replacementError).toBe('TOTP_ALREADY_ENABLED')
+          const [factorAfter] = yield* Effect.promise(() =>
+            provisioned.db
+              .select()
+              .from(twoFactor)
+              .where(eq(twoFactor.userId, challenge.userId))
           )
-          const { code } = yield* nextTotpCode(decodeUriSecret(secret))
-          yield* auth.api.verifyTOTP({ body: { code }, headers })
-          const completed = yield* readSession(headers)
-          expect(completed.recoveryUntil).toBeNull()
-          expect(completed.strongAuthMethod).toBe('totp')
-          expect(completed.strongAuthCredentialId).toBe(pending?.id)
+          expect(factorAfter).toEqual(factorBefore)
+          const stillRecovering = yield* readSession(headers)
+          expect(stillRecovering.recoveryUntil).toEqual(original.recoveryUntil)
+          expect(stillRecovering.strongAuthAt).toBeNull()
+          expect(stillRecovering.strongAuthCredentialId).toBeNull()
         })
       ),
     { timeout: 30_000 }

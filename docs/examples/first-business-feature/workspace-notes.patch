@@ -1,0 +1,1315 @@
+diff --git a/apps/api/src/handlers.ts b/apps/api/src/handlers.ts
+index 2efc266d..3b8d1178 100644
+--- a/apps/api/src/handlers.ts
++++ b/apps/api/src/handlers.ts
+@@ -1,3 +1,4 @@
++import { WorkspaceNotes } from '@b2b-saas-starter/capabilities/notes/workspace-notes'
+ import { tokenPrincipal, type PermissionRequest } from '@b2b-saas-starter/authz/client'
+ import { type ListPageInput } from '@b2b-saas-starter/capabilities/internal/keyset-cursor'
+ import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+@@ -125,6 +126,9 @@ export function workspaceGroup(env: ApiEnv) {
+     // table (operations.ts) — the same rows the MCP tools are derived from,
+     // so the two Capability Interfaces cannot disagree about permissions.
+     return handlers
++      .handle('notes', ({ params, query, request }) =>
++        workspaceRead(READ_OPERATIONS.notes, params, query, request)
++      )
+       .handle('overview', ({ params, request }) =>
+         workspaceRead(READ_OPERATIONS.overview, params, undefined, request)
+       )
+@@ -291,3 +295,13 @@ export function workspaceExportGroup(env: ApiEnv) {
+     })
+   )
+ }
++
++export function workspaceNotesGroup(env: ApiEnv) {
++  return HttpApiBuilder.group(StarterApi, 'workspace-notes', (handlers) =>
++    Effect.gen(function* () {
++      const notes = yield* WorkspaceNotes
++      const write = workspaceWrites(env, Context.make(WorkspaceNotes, notes), 'notes')
++      return handlers.handle('create', write(MUTATION_OPERATIONS['notes.create']))
++    })
++  )
++}
+diff --git a/apps/api/src/http.ts b/apps/api/src/http.ts
+index 76ba8a3c..62b3b232 100644
+--- a/apps/api/src/http.ts
++++ b/apps/api/src/http.ts
+@@ -11,6 +11,7 @@ import { Etag, HttpPlatform, HttpRouter, HttpServerResponse } from 'effect/http'
+ import { HttpApiBuilder, HttpApiScalar } from 'effect/http-api'
+ import { starterEnv, type ApiEnv } from './env.ts'
+ import {
++  workspaceNotesGroup,
+   apiTokenGroup,
+   assistantGroup,
+   healthGroup,
+@@ -131,6 +132,7 @@ function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRou
+   const groups = Layer.mergeAll(
+     healthGroup(env),
+     workspaceGroup(env),
++    workspaceNotesGroup(env),
+     apiTokenGroup(env),
+     webhookGroup(env),
+     workspaceExportGroup(env),
+diff --git a/apps/api/src/mcp-mutations.test.ts b/apps/api/src/mcp-mutations.test.ts
+index 43a2d389..5798f476 100644
+--- a/apps/api/src/mcp-mutations.test.ts
++++ b/apps/api/src/mcp-mutations.test.ts
+@@ -64,6 +64,7 @@ function success<S extends Schema.Top>(
+
+ // Independent expectations: these names and payloads are not derived from the catalog.
+ const writes = [
++  { name: 'create_workspace_note', args: { body: 'From MCP' } },
+   { name: 'create_api_token', args: { name: 'CI', scopes: ['read'] } },
+   {
+     name: 'replace_api_token',
+@@ -84,7 +85,7 @@ const writes = [
+ ] satisfies ReadonlyArray<{ name: string; args: Schema.Json }>
+
+ describe('MCP workspace mutations over streamable HTTP', () => {
+-  it.effect('advertises all eleven typed tools with honest annotations', () =>
++  it.effect('advertises all typed mutation tools with honest annotations', () =>
+     Effect.gen(function* () {
+       const client = mcpClient(buildWebHandler(env).handler, `Bearer ${SEED_API_TOKEN}`)
+       yield* Effect.promise(() => client.initialize())
+@@ -114,7 +115,9 @@ describe('MCP workspace mutations over streamable HTTP', () => {
+         )
+         expect(tool).toBeDefined()
+         expect(tool?.annotations.readOnlyHint).toBe(false)
+-        expect(tool?.annotations.openWorldHint).toBe(true)
++        expect(tool?.annotations.openWorldHint).toBe(
++          write.name !== 'create_workspace_note'
++        )
+         expect(tool?.annotations.idempotentHint).toBe(write.name === 'delete_api_token')
+         expect(tool?.annotations.destructiveHint).toBe(
+           [
+diff --git a/apps/api/src/mcp-mutations.ts b/apps/api/src/mcp-mutations.ts
+index 2b2e8e65..269fbdf5 100644
+--- a/apps/api/src/mcp-mutations.ts
++++ b/apps/api/src/mcp-mutations.ts
+@@ -1,3 +1,4 @@
++import { CreateWorkspaceNote } from '@b2b-saas-starter/capabilities/notes/workspace-notes'
+ import {
+   CreateApiTokenPayload,
+   ReplaceApiTokenPayload
+@@ -64,6 +65,22 @@ const endpointInput = Schema.Struct({ endpointId: Schema.String })
+
+ /** Exhaustive over the catalog: removing a projection leaves a type error. */
+ const projections = {
++  'notes.create': projection(
++    MUTATION_OPERATIONS['notes.create'],
++    CreateWorkspaceNote,
++    (payload) => ({ params: {}, payload }),
++    {
++      toolName: 'create_workspace_note',
++      toolDescription:
++        'Save a workspace note and audit its creation. Retrying creates another note.',
++      annotations: {
++        readOnlyHint: false,
++        destructiveHint: false,
++        idempotentHint: false,
++        openWorldHint: false
++      }
++    }
++  ),
+   'api-tokens.create': projection(
+     MUTATION_OPERATIONS['api-tokens.create'],
+     CreateApiTokenPayload,
+diff --git a/apps/api/src/mcp.test.ts b/apps/api/src/mcp.test.ts
+index 44244fc8..62afba49 100644
+--- a/apps/api/src/mcp.test.ts
++++ b/apps/api/src/mcp.test.ts
+@@ -128,7 +128,7 @@ describe('POST /mcp protocol', () => {
+       const response = yield* Effect.promise(() => client.rpc('tools/list', {}))
+       const body = yield* jsonBody(response, Ok(ToolListResult))
+       // This is the permitted public tool contract, independent of catalog rows.
+-      expect(body.result.tools).toHaveLength(19)
++      expect(body.result.tools).toHaveLength(21)
+       expect(
+         body.result.tools
+           .filter((tool) => tool.annotations.readOnlyHint)
+@@ -142,7 +142,8 @@ describe('POST /mcp protocol', () => {
+         'list_notifications',
+         'list_webhook_deliveries',
+         'list_webhook_delivery_attempts',
+-        'list_webhooks'
++        'list_webhooks',
++        'list_workspace_notes'
+       ])
+     })
+   )
+@@ -157,10 +158,10 @@ describe('POST /mcp protocol', () => {
+       const body = yield* jsonBody(listed, Ok(ToolListResult))
+       // `tools/list` and the discovery document are both projected from the
+       // shared operation table, so both surfaces answer with one list.
+-      expect(body.result.tools.slice(0, 8).map((tool) => tool.name)).toEqual(
++      expect(body.result.tools.slice(0, 9).map((tool) => tool.name)).toEqual(
+         readOperations().map((op) => op.toolName)
+       )
+-      expect(mcpDiscoveryDocument().tools).toHaveLength(19)
++      expect(mcpDiscoveryDocument().tools).toHaveLength(21)
+
+       const called = yield* Effect.promise(() =>
+         client.rpc('tools/call', {
+diff --git a/apps/api/src/mcp.ts b/apps/api/src/mcp.ts
+index f1c2ee45..c697d5fb 100644
+--- a/apps/api/src/mcp.ts
++++ b/apps/api/src/mcp.ts
+@@ -1,3 +1,4 @@
++import { WorkspaceNotes } from '@b2b-saas-starter/capabilities/notes/workspace-notes'
+ import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
+ import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
+ import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
+@@ -468,6 +469,7 @@ function registerTools(env: ApiEnv) {
+       CapabilityReadServices | McpClientConnections
+     >()).pipe(
+       Context.pick(
++        WorkspaceNotes,
+         NotificationFeed,
+         WorkspaceMembership,
+         ApiTokenRegistry,
+@@ -549,6 +551,7 @@ function registerMutationTools(env: ApiEnv) {
+       | McpClientConnections
+     >()).pipe(
+       Context.pick(
++        WorkspaceNotes,
+         ApiTokenRegistry,
+         WebhookEndpoints,
+         WorkspaceExports,
+diff --git a/apps/api/src/operations.ts b/apps/api/src/operations.ts
+index 5b216397..4fb0d58b 100644
+--- a/apps/api/src/operations.ts
++++ b/apps/api/src/operations.ts
+@@ -1,5 +1,7 @@
++import { WorkspaceNotes } from '@b2b-saas-starter/capabilities/notes/workspace-notes'
+ import { requireTokenScopes } from '@b2b-saas-starter/authz/guard'
+ import {
++  WorkspaceNotesApi,
+   ApiTokenApi,
+   WebhookApi,
+   WorkspaceApi,
+@@ -72,6 +74,7 @@ export type CapabilityReadError =
+  * carry them across the SDK's promise seam (see `mcp.ts`).
+  */
+ export type CapabilityReadServices =
++  | WorkspaceNotes
+   | WorkspaceSuspensionService
+   | NotificationFeed
+   | WorkspaceMembership
+@@ -172,6 +175,14 @@ export function mirroredRestPath(path: string): string {
+  * the invariant the handler and the MCP callback both rely on.
+  */
+ export const READ_OPERATIONS = {
++  notes: {
++    endpoint: WorkspaceApi.endpoints.notes,
++    permission: { workspaceNote: ['list'] },
++    read: (page) => Effect.flatMap(WorkspaceNotes, (notes) => notes.listPage(page)),
++    paged: true,
++    toolName: 'list_workspace_notes',
++    toolDescription: 'List workspace notes, newest first.'
++  },
+   overview: {
+     endpoint: WorkspaceApi.endpoints.overview,
+     permission: { notification: ['read'] },
+@@ -280,6 +291,7 @@ export type CapabilityMutationError =
+
+ /** Stable services, separate from the request's workspace, actor and scope. */
+ export type CapabilityMutationServices =
++  | WorkspaceNotes
+   | WorkspaceSuspensionService
+   | ApiTokenRegistry
+   | WebhookEndpoints
+@@ -345,6 +357,13 @@ const WEBHOOK_DELETED = { status: 'deleted' } satisfies DeletedResponse
+ /** Signed downloads use this request's origin, never the layer-build context. */
+ /** Keys are existing wide-event names; rows follow contract group order. */
+ export const MUTATION_OPERATIONS = {
++  'notes.create': {
++    endpoint: WorkspaceNotesApi.endpoints.create,
++    permission: { workspaceNote: ['create'] },
++    samplePayload: { body: 'A workspace note' },
++    run: (options: OperationInput<typeof WorkspaceNotesApi.endpoints.create>) =>
++      Effect.flatMap(WorkspaceNotes, (notes) => notes.create(options.payload))
++  },
+   'api-tokens.create': {
+     endpoint: ApiTokenApi.endpoints.create,
+     permission: { apiToken: ['create'] },
+diff --git a/apps/api/src/permission-matrix.test.ts b/apps/api/src/permission-matrix.test.ts
+index b9aa0868..f76dbc5c 100644
+--- a/apps/api/src/permission-matrix.test.ts
++++ b/apps/api/src/permission-matrix.test.ts
+@@ -223,6 +223,7 @@ describe('permission matrix', () => {
+     ).toEqual([
+       'DELETE /workspaces/:slug/webhooks/:endpointId',
+       'PATCH /workspaces/:slug/webhooks/:endpointId',
++      'POST /workspaces/:slug/notes',
+       'POST /workspaces/:slug/webhooks',
+       'POST /workspaces/:slug/webhooks/:endpointId/rotate-secret',
+       'POST /workspaces/:slug/webhooks/:endpointId/test-event',
+@@ -241,6 +242,8 @@ describe('permission matrix', () => {
+         ])
+       )
+     ).toEqual({
++      'GET /workspaces/{slug}/notes': { workspaceNote: ['list'] },
++      'POST /workspaces/{slug}/notes': { workspaceNote: ['create'] },
+       'GET /workspaces/{slug}/overview': { notification: ['read'] },
+       'GET /workspaces/{slug}/members': { ac: ['read'] },
+       'GET /workspaces/{slug}/notifications': { notification: ['read'] },
+diff --git a/apps/web/package.json b/apps/web/package.json
+index 3729c14e..8ecfe1c4 100644
+--- a/apps/web/package.json
++++ b/apps/web/package.json
+@@ -10,7 +10,8 @@
+     "serve": "vp preview --port 3071",
+     "typecheck": "tsc --noEmit",
+     "test": "vp test run",
+-    "test:e2e": "playwright test"
++    "test:e2e": "playwright test",
++    "test:e2e:notes": "playwright test --config playwright.notes.config.ts"
+   },
+   "dependencies": {
+     "@b2b-saas-starter/ai": "workspace:*",
+diff --git a/apps/web/src/routeTree.gen.ts b/apps/web/src/routeTree.gen.ts
+index 191c81b5..fb833b7f 100644
+--- a/apps/web/src/routeTree.gen.ts
++++ b/apps/web/src/routeTree.gen.ts
+@@ -46,6 +46,7 @@ import { Route as WorkspacesWorkspaceSlugAssistantRouteImport } from './routes/w
+ import { Route as WorkspacesWorkspaceSlugAuditRouteImport } from './routes/workspaces.$workspaceSlug.audit'
+ import { Route as WorkspacesWorkspaceSlugBillingRouteImport } from './routes/workspaces.$workspaceSlug.billing'
+ import { Route as WorkspacesWorkspaceSlugMembersRouteImport } from './routes/workspaces.$workspaceSlug.members'
++import { Route as WorkspacesWorkspaceSlugNotesRouteImport } from './routes/workspaces.$workspaceSlug.notes'
+ import { Route as WorkspacesWorkspaceSlugSettingsRouteImport } from './routes/workspaces.$workspaceSlug.settings'
+ import { Route as WorkspacesWorkspaceSlugSuspendedRouteImport } from './routes/workspaces.$workspaceSlug.suspended'
+ import { Route as WorkspacesWorkspaceSlugWebhooksRouteImport } from './routes/workspaces.$workspaceSlug.webhooks'
+@@ -244,6 +245,12 @@ const WorkspacesWorkspaceSlugMembersRoute =
+     path: '/members',
+     getParentRoute: () => WorkspacesWorkspaceSlugRoute,
+   } as any)
++const WorkspacesWorkspaceSlugNotesRoute =
++  WorkspacesWorkspaceSlugNotesRouteImport.update({
++    id: '/notes',
++    path: '/notes',
++    getParentRoute: () => WorkspacesWorkspaceSlugRoute,
++  } as any)
+ const WorkspacesWorkspaceSlugSettingsRoute =
+   WorkspacesWorkspaceSlugSettingsRouteImport.update({
+     id: '/settings',
+@@ -310,6 +317,7 @@ export interface FileRoutesByFullPath {
+   '/workspaces/$workspaceSlug/audit': typeof WorkspacesWorkspaceSlugAuditRoute
+   '/workspaces/$workspaceSlug/billing': typeof WorkspacesWorkspaceSlugBillingRoute
+   '/workspaces/$workspaceSlug/members': typeof WorkspacesWorkspaceSlugMembersRoute
++  '/workspaces/$workspaceSlug/notes': typeof WorkspacesWorkspaceSlugNotesRoute
+   '/workspaces/$workspaceSlug/settings': typeof WorkspacesWorkspaceSlugSettingsRoute
+   '/workspaces/$workspaceSlug/suspended': typeof WorkspacesWorkspaceSlugSuspendedRoute
+   '/workspaces/$workspaceSlug/webhooks': typeof WorkspacesWorkspaceSlugWebhooksRoute
+@@ -351,6 +359,7 @@ export interface FileRoutesByTo {
+   '/workspaces/$workspaceSlug/audit': typeof WorkspacesWorkspaceSlugAuditRoute
+   '/workspaces/$workspaceSlug/billing': typeof WorkspacesWorkspaceSlugBillingRoute
+   '/workspaces/$workspaceSlug/members': typeof WorkspacesWorkspaceSlugMembersRoute
++  '/workspaces/$workspaceSlug/notes': typeof WorkspacesWorkspaceSlugNotesRoute
+   '/workspaces/$workspaceSlug/settings': typeof WorkspacesWorkspaceSlugSettingsRoute
+   '/workspaces/$workspaceSlug/suspended': typeof WorkspacesWorkspaceSlugSuspendedRoute
+   '/workspaces/$workspaceSlug/webhooks': typeof WorkspacesWorkspaceSlugWebhooksRoute
+@@ -396,6 +405,7 @@ export interface FileRoutesById {
+   '/workspaces/$workspaceSlug/audit': typeof WorkspacesWorkspaceSlugAuditRoute
+   '/workspaces/$workspaceSlug/billing': typeof WorkspacesWorkspaceSlugBillingRoute
+   '/workspaces/$workspaceSlug/members': typeof WorkspacesWorkspaceSlugMembersRoute
++  '/workspaces/$workspaceSlug/notes': typeof WorkspacesWorkspaceSlugNotesRoute
+   '/workspaces/$workspaceSlug/settings': typeof WorkspacesWorkspaceSlugSettingsRoute
+   '/workspaces/$workspaceSlug/suspended': typeof WorkspacesWorkspaceSlugSuspendedRoute
+   '/workspaces/$workspaceSlug/webhooks': typeof WorkspacesWorkspaceSlugWebhooksRoute
+@@ -441,6 +451,7 @@ export interface FileRouteTypes {
+     | '/workspaces/$workspaceSlug/audit'
+     | '/workspaces/$workspaceSlug/billing'
+     | '/workspaces/$workspaceSlug/members'
++    | '/workspaces/$workspaceSlug/notes'
+     | '/workspaces/$workspaceSlug/settings'
+     | '/workspaces/$workspaceSlug/suspended'
+     | '/workspaces/$workspaceSlug/webhooks'
+@@ -482,6 +493,7 @@ export interface FileRouteTypes {
+     | '/workspaces/$workspaceSlug/audit'
+     | '/workspaces/$workspaceSlug/billing'
+     | '/workspaces/$workspaceSlug/members'
++    | '/workspaces/$workspaceSlug/notes'
+     | '/workspaces/$workspaceSlug/settings'
+     | '/workspaces/$workspaceSlug/suspended'
+     | '/workspaces/$workspaceSlug/webhooks'
+@@ -526,6 +538,7 @@ export interface FileRouteTypes {
+     | '/workspaces/$workspaceSlug/audit'
+     | '/workspaces/$workspaceSlug/billing'
+     | '/workspaces/$workspaceSlug/members'
++    | '/workspaces/$workspaceSlug/notes'
+     | '/workspaces/$workspaceSlug/settings'
+     | '/workspaces/$workspaceSlug/suspended'
+     | '/workspaces/$workspaceSlug/webhooks'
+@@ -826,6 +839,13 @@ declare module '@tanstack/react-router' {
+       preLoaderRoute: typeof WorkspacesWorkspaceSlugMembersRouteImport
+       parentRoute: typeof WorkspacesWorkspaceSlugRoute
+     }
++    '/workspaces/$workspaceSlug/notes': {
++      id: '/workspaces/$workspaceSlug/notes'
++      path: '/notes'
++      fullPath: '/workspaces/$workspaceSlug/notes'
++      preLoaderRoute: typeof WorkspacesWorkspaceSlugNotesRouteImport
++      parentRoute: typeof WorkspacesWorkspaceSlugRoute
++    }
+     '/workspaces/$workspaceSlug/settings': {
+       id: '/workspaces/$workspaceSlug/settings'
+       path: '/settings'
+@@ -886,6 +906,7 @@ interface WorkspacesWorkspaceSlugRouteChildren {
+   WorkspacesWorkspaceSlugAuditRoute: typeof WorkspacesWorkspaceSlugAuditRoute
+   WorkspacesWorkspaceSlugBillingRoute: typeof WorkspacesWorkspaceSlugBillingRoute
+   WorkspacesWorkspaceSlugMembersRoute: typeof WorkspacesWorkspaceSlugMembersRoute
++  WorkspacesWorkspaceSlugNotesRoute: typeof WorkspacesWorkspaceSlugNotesRoute
+   WorkspacesWorkspaceSlugSettingsRoute: typeof WorkspacesWorkspaceSlugSettingsRoute
+   WorkspacesWorkspaceSlugSuspendedRoute: typeof WorkspacesWorkspaceSlugSuspendedRoute
+   WorkspacesWorkspaceSlugWebhooksRoute: typeof WorkspacesWorkspaceSlugWebhooksRoute
+@@ -901,6 +922,7 @@ const WorkspacesWorkspaceSlugRouteChildren: WorkspacesWorkspaceSlugRouteChildren
+     WorkspacesWorkspaceSlugAuditRoute: WorkspacesWorkspaceSlugAuditRoute,
+     WorkspacesWorkspaceSlugBillingRoute: WorkspacesWorkspaceSlugBillingRoute,
+     WorkspacesWorkspaceSlugMembersRoute: WorkspacesWorkspaceSlugMembersRoute,
++    WorkspacesWorkspaceSlugNotesRoute: WorkspacesWorkspaceSlugNotesRoute,
+     WorkspacesWorkspaceSlugSettingsRoute: WorkspacesWorkspaceSlugSettingsRoute,
+     WorkspacesWorkspaceSlugSuspendedRoute:
+       WorkspacesWorkspaceSlugSuspendedRoute,
+diff --git a/packages/api/src/index.ts b/packages/api/src/index.ts
+index 4ac540c6..a0a4d992 100644
+--- a/packages/api/src/index.ts
++++ b/packages/api/src/index.ts
+@@ -1,3 +1,7 @@
++import {
++  WorkspaceNote,
++  CreateWorkspaceNote
++} from '@b2b-saas-starter/capabilities/notes/workspace-notes'
+ import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
+ import {
+   ApiToken,
+@@ -79,6 +83,7 @@ export class RateLimiter extends Context.Service<
+
+ /** Authenticated groups and their abuse buckets; health alone is public. */
+ type GatedGroup =
++  | 'workspace-notes'
+   | 'workspace'
+   | 'api-token-registry'
+   | 'webhook-endpoints'
+@@ -88,6 +93,7 @@ type GatedGroup =
+   | 'mcp'
+
+ const GROUP_BUCKETS = {
++  'workspace-notes': 'rest_write',
+   workspace: 'rest_read',
+   'api-token-registry': 'rest_write',
+   'webhook-endpoints': 'rest_write',
+@@ -225,7 +231,26 @@ export const HealthApi = HttpApiGroup.make('health').add(
+   })
+ )
+
++export const WorkspaceNotesApi = HttpApiGroup.make('workspace-notes')
++  .add(
++    HttpApiEndpoint.post('create', '/workspaces/:slug/notes', {
++      params: SlugParams,
++      payload: CreateWorkspaceNote,
++      success: WorkspaceNote,
++      error: WORKSPACE_ERRORS
++    })
++  )
++  .middleware(BearerAuth)
++
+ export const WorkspaceApi = HttpApiGroup.make('workspace')
++  .add(
++    HttpApiEndpoint.get('notes', '/workspaces/:slug/notes', {
++      params: SlugParams,
++      query: ListPageQuery,
++      success: PageDto(WorkspaceNote),
++      error: WORKSPACE_ERRORS
++    })
++  )
+   .add(
+     HttpApiEndpoint.get('overview', '/workspaces/:slug/overview', {
+       params: SlugParams,
+@@ -476,6 +501,7 @@ export const McpApi = HttpApiGroup.make('mcp')
+   .middleware(BearerAuth)
+
+ export const StarterApi = HttpApi.make('b2b-saas-starter')
++  .add(WorkspaceNotesApi)
+   .add(HealthApi)
+   .add(WorkspaceApi)
+   .add(ApiTokenApi)
+diff --git a/packages/authz/src/index.test.ts b/packages/authz/src/index.test.ts
+index 8bdfe40c..c75c7e09 100644
+--- a/packages/authz/src/index.test.ts
++++ b/packages/authz/src/index.test.ts
+@@ -19,6 +19,8 @@ type Permission = { readonly label: string; readonly request: PermissionRequest
+  * exhaustiveness test below can prove the two agree.
+  */
+ const PERMISSIONS = [
++  { label: 'workspaceNote:list', request: { workspaceNote: ['list'] } },
++  { label: 'workspaceNote:create', request: { workspaceNote: ['create'] } },
+   { label: 'organization:update', request: { organization: ['update'] } },
+   { label: 'organization:delete', request: { organization: ['delete'] } },
+   { label: 'member:create', request: { member: ['create'] } },
+@@ -75,6 +77,7 @@ it('requires session assurance only on the privileged role axis', () => {
+
+ /** Read access to the workspace's own content — the floor of every grant set. */
+ const READ_ONLY = [
++  'workspaceNote:list',
+   'ac:read',
+   'apiToken:list',
+   'webhook:list',
+@@ -104,7 +107,14 @@ const GRANTS: ReadonlyArray<{
+   {
+     name: 'member role',
+     principal: memberPrincipal('member'),
+-    granted: ['ac:read', 'notification:read', 'assistant:read', 'mcp:read']
++    granted: [
++      'workspaceNote:list',
++      'workspaceNote:create',
++      'ac:read',
++      'notification:read',
++      'assistant:read',
++      'mcp:read'
++    ]
+   },
+   { name: 'read scope', principal: tokenPrincipal(['read']), granted: READ_ONLY },
+   {
+@@ -112,6 +122,7 @@ const GRANTS: ReadonlyArray<{
+     principal: tokenPrincipal(['write']),
+     granted: [
+       ...READ_ONLY,
++      'workspaceNote:create',
+       'invitation:create',
+       'webhook:create',
+       'webhook:update',
+diff --git a/packages/authz/src/roles.ts b/packages/authz/src/roles.ts
+index 38b80c2b..e58fdc70 100644
+--- a/packages/authz/src/roles.ts
++++ b/packages/authz/src/roles.ts
+@@ -82,12 +82,14 @@ export const adminRole = accessControl.newRole({
+ })
+
+ /**
+- * Read access to the workspace's own content only. The empty lists are
++ * Members may read and create workspace notes. Other grants remain read-only.
++ * The empty lists are
+  * deliberate and load-bearing: a member cannot read the audit log or list API
+  * tokens, because both leak the workspace's security posture.
+  */
+ export const memberRole = accessControl.newRole({
+   ...memberAc.statements,
++  workspaceNote: ['list', 'create'],
+   apiToken: [],
+   webhook: [],
+   auditLog: [],
+@@ -118,6 +120,7 @@ export const workspaceRoleAccess = {
+  */
+ // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+ const readScopeStatements = {
++  workspaceNote: ['list'],
+   ac: ['read'],
+   apiToken: ['list'],
+   webhook: ['list'],
+@@ -150,6 +153,7 @@ export const readScopeRole = accessControl.newRole(readScopeStatements)
+  */
+ export const writeScopeRole = accessControl.newRole({
+   ...readScopeStatements,
++  workspaceNote: ['list', 'create'],
+   invitation: ['create'],
+   // Extends the read set — restating it would silently drop any read action
+   // later added to the `webhook` statements.
+diff --git a/packages/authz/src/statements.ts b/packages/authz/src/statements.ts
+index e8245228..8262195a 100644
+--- a/packages/authz/src/statements.ts
++++ b/packages/authz/src/statements.ts
+@@ -18,6 +18,7 @@ import { defaultStatements } from 'better-auth/plugins/organization/access'
+  */
+ // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+ export const starterResources = {
++  workspaceNote: ['list', 'create'],
+   apiToken: ['list', 'create', 'revoke'],
+   webhook: ['list', 'create', 'update', 'delete', 'rotateSecret', 'replay', 'test'],
+   auditLog: ['read'],
+diff --git a/packages/capabilities/package.json b/packages/capabilities/package.json
+index 2b534f94..cd614349 100644
+--- a/packages/capabilities/package.json
++++ b/packages/capabilities/package.json
+@@ -3,6 +3,7 @@
+   "private": true,
+   "type": "module",
+   "exports": {
++    "./notes/*": "./src/notes/*.ts",
+     "./developer-platform/*": "./src/developer-platform/*.ts",
+     "./governance/*": "./src/governance/*.ts",
+     "./internal/keyset-cursor": "./src/internal/keyset-cursor.ts",
+diff --git a/packages/capabilities/src/developer-platform/webhook-events.ts b/packages/capabilities/src/developer-platform/webhook-events.ts
+index 1d2995c0..4562b210 100644
+--- a/packages/capabilities/src/developer-platform/webhook-events.ts
++++ b/packages/capabilities/src/developer-platform/webhook-events.ts
+@@ -7,6 +7,7 @@ export type AuditEventPublicationDecision = 'webhook' | 'audit-only'
+
+ /** Every audit event has an explicit publication disposition. */
+ export const AUDIT_EVENT_PUBLICATION_POLICY = {
++  'workspace_note.created': 'audit-only',
+   'api_token.created': 'webhook',
+   'api_token.revoked': 'webhook',
+   'api_token.replaced': 'audit-only',
+diff --git a/packages/capabilities/src/governance/audit-event-taxonomy.ts b/packages/capabilities/src/governance/audit-event-taxonomy.ts
+index 934c159a..323f0d55 100644
+--- a/packages/capabilities/src/governance/audit-event-taxonomy.ts
++++ b/packages/capabilities/src/governance/audit-event-taxonomy.ts
+@@ -22,6 +22,7 @@
+ /** Every audit event type, for UI dropdowns; the union derives from it. */
+ // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+ export const AUDIT_EVENT_TYPES = [
++  'workspace_note.created',
+   // developer-platform
+   'api_token.created',
+   'api_token.revoked',
+@@ -161,6 +162,7 @@ export type AuditEventType = (typeof AUDIT_EVENT_TYPES)[number]
+  */
+ // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
+ const AUDIT_TARGET_TYPES = [
++  'workspace_note',
+   'user',
+   'session',
+   'api_token',
+diff --git a/packages/capabilities/src/layers.ts b/packages/capabilities/src/layers.ts
+index ec1addc9..ccaeb218 100644
+--- a/packages/capabilities/src/layers.ts
++++ b/packages/capabilities/src/layers.ts
+@@ -1,3 +1,8 @@
++import {
++  type WorkspaceNotes,
++  SeedWorkspaceNotes,
++  LiveWorkspaceNotes
++} from './notes/workspace-notes.ts'
+ import {
+   AssistantTaskEvidenceLayer,
+   type AssistantTaskEvidence
+@@ -191,6 +196,7 @@ import {
+ } from './seed-fixture.ts'
+
+ export type CapabilityServices =
++  | WorkspaceNotes
+   | AssistantConversations
+   | AssistantTaskEvidence
+   | AssistantAuthority
+@@ -377,6 +383,7 @@ const SeedEntitlements = SeedResourceEntitlements().pipe(
+ )
+
+ const SeedCore = Layer.mergeAll(
++  SeedWorkspaceNotes,
+   SeedAssistantDirectory,
+   SeedAssistantAdmission.pipe(Layer.provide(SeedAssistantDirectory)),
+   SeedRetention,
+@@ -626,6 +633,7 @@ export function makeLiveCapabilitiesLayer(
+     conversationLifecycle,
+     tasks,
+     AssistantTaskEvidenceLayer.pipe(Layer.provide(tasks)),
++    LiveWorkspaceNotes,
+     LiveRetention,
+     LiveEmailDelivery,
+     LiveAccountLifecycle(options.accountLifecycleBinding, options.securityEvidence),
+diff --git a/packages/db/src/schema.ts b/packages/db/src/schema.ts
+index eda5db84..8b9dd25d 100644
+--- a/packages/db/src/schema.ts
++++ b/packages/db/src/schema.ts
+@@ -454,6 +454,23 @@ export const workspaceSsoConnections = sqliteTable(
+   ]
+ )
+
++export const workspaceNotes = sqliteTable(
++  'workspace_notes',
++  {
++    id: id(),
++    workspaceId: workspaceRef(),
++    body: text('body').notNull(),
++    createdAt: isoCreatedAt()
++  },
++  (table) => [
++    index('workspace_notes_workspace_created_idx').on(
++      table.workspaceId,
++      table.createdAt,
++      table.id
++    )
++  ]
++)
++
+ export const apiTokens = sqliteTable(
+   'api_tokens',
+   {
+diff --git a/apps/api/src/workspace-notes.test.ts b/apps/api/src/workspace-notes.test.ts
+new file mode 100644
+index 00000000..d41a6496
+--- /dev/null
++++ b/apps/api/src/workspace-notes.test.ts
+@@ -0,0 +1,139 @@
++import { Effect } from 'effect'
++import { expect, it } from '@effect/vitest'
++import { hashSha256 } from '@b2b-saas-starter/capabilities/crypto'
++import { provisionTestD1 } from '@b2b-saas-starter/db/testing'
++import {
++  SEED_API_TOKEN,
++  SEED_READONLY_API_TOKEN
++} from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
++import { buildWebHandler } from './http.ts'
++import { type ApiEnv } from './env.ts'
++
++function application(env: ApiEnv) {
++  return Effect.acquireRelease(
++    Effect.sync(() => buildWebHandler(env)),
++    (app) => Effect.promise(() => app.dispose())
++  )
++}
++function request(slug: string, method: string, token?: string, body?: string) {
++  const headers = new Headers({ 'content-type': 'application/json' })
++  if (token !== undefined) {
++    headers.set('authorization', `Bearer ${token}`)
++  }
++  return new Request(`https://api.test/workspaces/${slug}/notes`, {
++    method,
++    headers,
++    body: body ?? null
++  })
++}
++
++// Failure cases: missing credential; read token mutation; wrong workspace;
++// invalid body; cross-workspace disclosure; lost write after handler recreation.
++it.live(
++  'persists notes through REST and refuses unauthorized requests',
++  () =>
++    Effect.scoped(
++      Effect.gen(function* () {
++        const database = yield* Effect.acquireRelease(
++          Effect.promise(provisionTestD1),
++          (db) => Effect.promise(() => db.dispose())
++        )
++        yield* Effect.promise(() =>
++          database.d1
++            .prepare(
++              "INSERT INTO workspaces (id, slug, name) VALUES ('wrk_notes', 'notes-lab', 'Notes lab'), ('wrk_other_notes', 'other-notes', 'Other notes')"
++            )
++            .run()
++        )
++        const hash = yield* Effect.promise(() => hashSha256('notes-test-secret'))
++        yield* Effect.promise(() =>
++          database.d1
++            .prepare(
++              "INSERT INTO api_tokens (id, workspace_id, name, token_hash, token_prefix, scopes, created_at) VALUES ('tok_notes', 'wrk_notes', 'Notes', ?, 'notes', ?, '2026-01-01T00:00:00.000Z')"
++            )
++            .bind(hash, '["write"]')
++            .run()
++        )
++        yield* Effect.promise(() =>
++          database.d1
++            .prepare(
++              "INSERT INTO workspace_notes (id, workspace_id, body, created_at) VALUES ('note_other', 'wrk_other_notes', 'Other workspace secret', '2026-01-01T00:00:00.000Z')"
++            )
++            .run()
++        )
++        const first = yield* application({ DB: database.d1 })
++        function send(slug: string, method: string, token?: string, body?: string) {
++          return Effect.promise(() => first.handler(request(slug, method, token, body)))
++        }
++        const anonymous = yield* send('notes-lab', 'GET')
++        expect(anonymous.status).toBe(401)
++        const wrongRead = yield* send('other-notes', 'GET', 'notes-test-secret')
++        expect(wrongRead.status).toBe(403)
++        const wrongWrite = yield* send(
++          'other-notes',
++          'POST',
++          'notes-test-secret',
++          '{"body":"No"}'
++        )
++        expect(wrongWrite.status).toBe(403)
++        const invalid = yield* send(
++          'notes-lab',
++          'POST',
++          'notes-test-secret',
++          '{"body":""}'
++        )
++        expect(invalid.status).toBe(400)
++        const created = yield* send(
++          'notes-lab',
++          'POST',
++          'notes-test-secret',
++          '{"body":"Persistent note"}'
++        )
++        expect(created.status).toBe(200)
++        const second = yield* application({ DB: database.d1 })
++        const read = yield* Effect.promise(() =>
++          second.handler(request('notes-lab', 'GET', 'notes-test-secret'))
++        )
++        const text = yield* Effect.promise(() => read.text())
++        expect(text).toContain('Persistent note')
++        expect(text).not.toContain('Other workspace secret')
++        const rows = yield* Effect.promise(() =>
++          database.d1
++            .prepare('SELECT body FROM workspace_notes WHERE workspace_id = ?')
++            .bind('wrk_notes')
++            .all()
++        )
++        expect(rows.results).toEqual([{ body: 'Persistent note' }])
++        const audit = yield* Effect.promise(() =>
++          database.d1
++            .prepare(
++              "SELECT actor_type FROM audit_events WHERE event_type = 'workspace_note.created'"
++            )
++            .all()
++        )
++        expect(audit.results).toEqual([{ actor_type: 'api_token' }])
++      })
++    ),
++  60_000
++)
++
++it.live('Seed preserves create/list behavior and read scopes cannot create', () =>
++  Effect.scoped(
++    Effect.gen(function* () {
++      const app = yield* application({})
++      const body = '{"body":"Seed note"}'
++      const refused = yield* Effect.promise(() =>
++        app.handler(request('starter-lab', 'POST', SEED_READONLY_API_TOKEN, body))
++      )
++      expect(refused.status).toBe(403)
++      const created = yield* Effect.promise(() =>
++        app.handler(request('starter-lab', 'POST', SEED_API_TOKEN, body))
++      )
++      expect(created.status).toBe(200)
++      const read = yield* Effect.promise(() =>
++        app.handler(request('starter-lab', 'GET', SEED_READONLY_API_TOKEN))
++      )
++      expect(yield* Effect.promise(() => read.text())).toContain('Seed note')
++    })
++  )
++)
+diff --git a/apps/web/e2e/workspace-notes.spec.ts b/apps/web/e2e/workspace-notes.spec.ts
+new file mode 100644
+index 00000000..242d3fdd
+--- /dev/null
++++ b/apps/web/e2e/workspace-notes.spec.ts
+@@ -0,0 +1,61 @@
++import { expect, test } from '@playwright/test'
++import { signInWithPassword } from './authentication'
++
++// Failure cases: anonymous access, outsider disclosure, writes lost on reload.
++test('member creates a persistent note and an outsider cannot read it', async ({
++  page,
++  browser,
++  baseURL
++}, testInfo) => {
++  await page.goto('/workspaces/starter-lab/notes')
++  await expect(page).toHaveURL(/sign-in/)
++  await signInWithPassword(
++    page,
++    'engineer@example.com',
++    '/workspaces/starter-lab/notes'
++  )
++  await page.locator('form[data-hydrated="true"]').waitFor()
++  const body = `Tutorial note ${Date.now()}`
++  await page.getByLabel('Note text').fill(body)
++  const mutationRequest = page.waitForRequest(
++    (request) =>
++      request.method() === 'POST' &&
++      request.url().includes('_serverFn') &&
++      request.postData()?.includes(body) === true
++  )
++  await page.getByRole('button', { name: 'Add note', exact: true }).click()
++  const savedRequest = await mutationRequest
++  await expect(page.getByText(body, { exact: true })).toBeVisible({ timeout: 30_000 })
++  await page.reload()
++  await expect(page.getByText(body, { exact: true })).toBeVisible({ timeout: 30_000 })
++  await page.screenshot({
++    path: testInfo.outputPath('persisted-note.png'),
++    fullPage: true
++  })
++  const outsider = await browser.newContext()
++  const other = await outsider.newPage()
++  const signup = await outsider.request.post(`${baseURL}/api/auth/sign-up/email`, {
++    headers: { origin: baseURL ?? 'http://localhost:3104' },
++    data: {
++      name: 'Tutorial outsider',
++      email: `notes-${Date.now()}@example.com`,
++      password: 'outsider-tutorial-password'
++    }
++  })
++  await expect(signup).toBeOK()
++  await other.goto('/workspaces/starter-lab/notes')
++  await expect(other.getByText(body, { exact: true })).toHaveCount(0)
++  await expect(other.getByRole('heading', { name: /not found/i })).toBeVisible()
++  const denied = await outsider.request.post(savedRequest.url(), {
++    headers: {
++      'content-type': savedRequest.headers()['content-type'] ?? 'application/json',
++      origin: baseURL ?? 'http://localhost:3104',
++      'x-tsr-serverfn': 'true'
++    },
++    data: savedRequest.postData()?.replace(body, 'Outsider injection')
++  })
++  expect(await denied.text()).not.toContain('Outsider injection')
++  await page.reload()
++  await expect(page.getByText('Outsider injection', { exact: true })).toHaveCount(0)
++  await outsider.close()
++})
+diff --git a/apps/web/playwright.notes.config.ts b/apps/web/playwright.notes.config.ts
+new file mode 100644
+index 00000000..d86ef19f
+--- /dev/null
++++ b/apps/web/playwright.notes.config.ts
+@@ -0,0 +1,22 @@
++import { defineConfig, devices } from '@playwright/test'
++
++// Build with `pnpm -C apps/web build:e2e` first. Separating the build keeps
++// cold compilation outside the browser server's readiness deadline.
++const port = Number(process.env.E2E_PORT ?? 3104)
++const baseURL = `http://localhost:${port}`
++
++export default defineConfig({
++  testDir: './e2e',
++  testMatch: 'workspace-notes.spec.ts',
++  workers: 1,
++  timeout: 120_000,
++  reporter: [['list'], ['json', { outputFile: 'playwright-report/notes.json' }]],
++  use: { ...devices['Desktop Chrome'], baseURL, trace: 'retain-on-failure' },
++  webServer: {
++    command: `pnpm run serve:e2e --port ${port} --strictPort`,
++    url: baseURL,
++    env: { BETTER_AUTH_URL: baseURL, BETTER_AUTH_TRUSTED_ORIGINS: baseURL },
++    reuseExistingServer: false,
++    timeout: 180_000
++  }
++})
+diff --git a/apps/web/src/components/workspace-notes-page.tsx b/apps/web/src/components/workspace-notes-page.tsx
+new file mode 100644
+index 00000000..1cc7149c
+--- /dev/null
++++ b/apps/web/src/components/workspace-notes-page.tsx
+@@ -0,0 +1,94 @@
++import { useClientValue } from '@/lib/client-only-value'
++import { useForm } from '@tanstack/react-form'
++import { useServerAction } from '@/hooks/use-server-action'
++import { m } from '@b2b-saas-starter/i18n/messages'
++import { WorkspaceShell } from './workspace-shell'
++import { PageHeader } from './page/page-header'
++import { Panel } from './page/panel'
++import { Button } from './ui/button'
++import { Input } from './ui/input'
++import { Label } from './ui/label'
++import { viewerCan } from '@/lib/permissions'
++import {
++  addWorkspaceNoteServerFn,
++  type WorkspaceNotesPayload
++} from '@/lib/server/workspace-notes'
++
++export function WorkspaceNotesPage({
++  workspaceSlug,
++  data
++}: {
++  readonly workspaceSlug: string
++  readonly data: WorkspaceNotesPayload
++}) {
++  const hydrated = useClientValue(() => true, false)
++  const canCreate = viewerCan(data.viewer, { workspaceNote: ['create'] })
++  const create = useServerAction(addWorkspaceNoteServerFn, {
++    failureMessage: m.notes_failed()
++  })
++  const form = useForm({
++    defaultValues: { body: '' },
++    onSubmit: async ({ value }) => {
++      const outcome = await create.runAsync({
++        data: { workspaceSlug, body: value.body }
++      })
++      if (outcome.ok) {
++        form.reset()
++      }
++    }
++  })
++  return (
++    <WorkspaceShell workspaceSlug={workspaceSlug} viewer={data.viewer}>
++      <PageHeader title={m.notes_title()} description={m.notes_description()} />
++      <Panel>
++        <form
++          data-hydrated={hydrated}
++          className="grid gap-4"
++          onSubmit={(event) => {
++            event.preventDefault()
++            void form.handleSubmit()
++          }}
++        >
++          <form.Field name="body">
++            {(field) => (
++              <div className="grid gap-2">
++                <Label htmlFor="note-body">{m.notes_body()}</Label>
++                <Input
++                  id="note-body"
++                  required
++                  maxLength={500}
++                  value={field.state.value}
++                  onChange={(event) => field.handleChange(event.target.value)}
++                  onBlur={field.handleBlur}
++                  disabled={!hydrated || !canCreate}
++                />
++              </div>
++            )}
++          </form.Field>
++          <form.Subscribe selector={(state) => state.isSubmitting}>
++            {(pending) => (
++              <Button type="submit" disabled={!hydrated || pending || !canCreate}>
++                {pending ? m.notes_saving() : m.notes_add()}
++              </Button>
++            )}
++          </form.Subscribe>
++          {!canCreate && <p>{m.notes_denied()}</p>}
++          {create.error && <p role="alert">{create.error}</p>}
++        </form>
++      </Panel>
++      <Panel title={m.notes_recent()}>
++        {data.notes.length === 0 ? (
++          <p>{m.notes_empty()}</p>
++        ) : (
++          <ul className="grid gap-4">
++            {data.notes.map((note) => (
++              <li key={note.id} className="break-words whitespace-pre-wrap">
++                {note.body}
++              </li>
++            ))}
++          </ul>
++        )}
++      </Panel>
++    </WorkspaceShell>
++  )
++}
+diff --git a/apps/web/src/lib/server/workspace-notes.effects.ts b/apps/web/src/lib/server/workspace-notes.effects.ts
+new file mode 100644
+index 00000000..f9f5d0e3
+--- /dev/null
++++ b/apps/web/src/lib/server/workspace-notes.effects.ts
+@@ -0,0 +1,33 @@
++import { Effect } from 'effect'
++import { WorkspaceNotes } from '@b2b-saas-starter/capabilities/notes/workspace-notes'
++import { runWorkspaceCapabilities } from '../capabilities'
++import { requireRequestSession } from './auth'
++import { requireWorkspacePermission } from './authorize'
++import { workspacePage } from './page-frame'
++import { type WorkspaceNotesInput, type AddWorkspaceNoteInput } from './workspace-notes'
++
++export async function loadWorkspaceNotesHandler(input: WorkspaceNotesInput) {
++  const session = await requireRequestSession()
++  return runWorkspaceCapabilities(
++    input.workspaceSlug,
++    workspacePage({ workspaceNote: ['list'] }, () =>
++      Effect.gen(function* () {
++        const notes = yield* WorkspaceNotes
++        return { notes: (yield* notes.listPage({ limit: 30 })).items }
++      })
++    ),
++    { userId: session.user.id }
++  )
++}
++export async function addWorkspaceNoteHandler(input: AddWorkspaceNoteInput) {
++  const session = await requireRequestSession()
++  return runWorkspaceCapabilities(
++    input.workspaceSlug,
++    Effect.gen(function* () {
++      yield* requireWorkspacePermission({ workspaceNote: ['create'] })
++      const notes = yield* WorkspaceNotes
++      return yield* notes.create({ body: input.body })
++    }),
++    { userId: session.user.id }
++  )
++}
+diff --git a/apps/web/src/lib/server/workspace-notes.ts b/apps/web/src/lib/server/workspace-notes.ts
+new file mode 100644
+index 00000000..32f5600b
+--- /dev/null
++++ b/apps/web/src/lib/server/workspace-notes.ts
+@@ -0,0 +1,32 @@
++import { createServerFn } from '@tanstack/react-start'
++import { Schema } from 'effect'
++import {
++  CreateWorkspaceNote,
++  type WorkspaceNote
++} from '@b2b-saas-starter/capabilities/notes/workspace-notes'
++import { type WorkspaceViewer } from '../permissions'
++
++const WorkspaceNotesInput = Schema.Struct({ workspaceSlug: Schema.NonEmptyString })
++const AddWorkspaceNoteInput = Schema.Struct({
++  ...WorkspaceNotesInput.fields,
++  ...CreateWorkspaceNote.fields
++})
++export type WorkspaceNotesInput = typeof WorkspaceNotesInput.Type
++export type AddWorkspaceNoteInput = typeof AddWorkspaceNoteInput.Type
++export type WorkspaceNotesPayload = {
++  readonly viewer: WorkspaceViewer | null
++  readonly notes: ReadonlyArray<WorkspaceNote>
++}
++
++export const loadWorkspaceNotesServerFn = createServerFn({ method: 'GET' })
++  .validator(Schema.decodeUnknownSync(WorkspaceNotesInput))
++  .handler(async ({ data }): Promise<WorkspaceNotesPayload> => {
++    const { loadWorkspaceNotesHandler } = await import('./workspace-notes.effects')
++    return loadWorkspaceNotesHandler(data)
++  })
++export const addWorkspaceNoteServerFn = createServerFn({ method: 'POST' })
++  .validator(Schema.decodeUnknownSync(AddWorkspaceNoteInput))
++  .handler(async ({ data }): Promise<WorkspaceNote> => {
++    const { addWorkspaceNoteHandler } = await import('./workspace-notes.effects')
++    return addWorkspaceNoteHandler(data)
++  })
+diff --git a/apps/web/src/routes/workspaces.$workspaceSlug.notes.tsx b/apps/web/src/routes/workspaces.$workspaceSlug.notes.tsx
+new file mode 100644
+index 00000000..200b76d9
+--- /dev/null
++++ b/apps/web/src/routes/workspaces.$workspaceSlug.notes.tsx
+@@ -0,0 +1,29 @@
++import { m } from '@b2b-saas-starter/i18n/messages'
++import { workspaceRouteError } from '@/components/workspace-route-error'
++import { createFileRoute } from '@tanstack/react-router'
++import { RoutePending } from '@/components/route-pending'
++import { WorkspaceNotesPage } from '@/components/workspace-notes-page'
++import { loadWorkspaceNotesServerFn } from '@/lib/server/workspace-notes'
++
++const NotesRouteError = workspaceRouteError({
++  deniedTitle: m.notes_access_denied,
++  deniedDescription: m.notes_read_denied,
++  failedTitle: m.notes_unavailable,
++  failedDescription: m.notes_load_failed
++})
++
++export const Route = createFileRoute('/workspaces/$workspaceSlug/notes')({
++  loader: ({ params }) =>
++    loadWorkspaceNotesServerFn({ data: { workspaceSlug: params.workspaceSlug } }),
++  pendingComponent: RoutePending,
++  errorComponent: NotesRouteError,
++  component: NotesRoute
++})
++function NotesRoute() {
++  return (
++    <WorkspaceNotesPage
++      workspaceSlug={Route.useParams().workspaceSlug}
++      data={Route.useLoaderData()}
++    />
++  )
++}
+diff --git a/packages/capabilities/src/notes/workspace-notes.AGENTS.md b/packages/capabilities/src/notes/workspace-notes.AGENTS.md
+new file mode 100644
+index 00000000..eac735d5
+--- /dev/null
++++ b/packages/capabilities/src/notes/workspace-notes.AGENTS.md
+@@ -0,0 +1,11 @@
++# Workspace notes
++
++Tutorial-owned resource. Members read and create notes through the web guard;
++REST/MCP use the same permissions through the operation catalog. Capabilities
++trust verified `WorkspaceContext`, never a caller-supplied Workspace ID.
++
++- Seed and Live create a note and its audit event. Live commits both in one D1 batch.
++- Notes contain 1–500 characters. Transport boundaries decode the shared payload.
++- Lists use the shared newest-first keyset cursor and always filter by Workspace ID.
++- The web page shows the latest 30 notes; REST/MCP support pagination.
++- This tutorial does not add paid entitlements or provider dependencies.
+diff --git a/packages/capabilities/src/notes/workspace-notes.ts b/packages/capabilities/src/notes/workspace-notes.ts
+new file mode 100644
+index 00000000..1ca258a4
+--- /dev/null
++++ b/packages/capabilities/src/notes/workspace-notes.ts
+@@ -0,0 +1,160 @@
++import { Context, DateTime, Effect, Layer, Ref, Schema } from 'effect'
++import { and, desc, eq, type SQL } from 'drizzle-orm'
++import { Database } from '@b2b-saas-starter/db/service'
++import { workspaceNotes } from '@b2b-saas-starter/db/schema'
++import {
++  type CapabilityUnavailable,
++  orUnavailable
++} from '@b2b-saas-starter/failure/capability'
++import { WorkspaceContext } from '../workspace-context.ts'
++import {
++  AuditEventLog,
++  type RecordAuditEventInput
++} from '../governance/audit-event-log.ts'
++import { auditedMutations } from '../governance/audited-mutation.ts'
++import { newCapabilityId } from '../internal/ids.ts'
++import {
++  clampPageLimit,
++  cutKeysetPage,
++  seedKeysetPage,
++  type ListPageInput,
++  type Page
++} from '../internal/keyset-cursor.ts'
++import { keysetResume } from '../internal/keyset-query.ts'
++
++export const CreateWorkspaceNote = Schema.Struct({
++  body: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(500))
++})
++export const WorkspaceNote = Schema.Struct({
++  id: Schema.String,
++  body: CreateWorkspaceNote.fields.body,
++  createdAt: Schema.String
++})
++export type WorkspaceNote = typeof WorkspaceNote.Type
++
++export class WorkspaceNotes extends Context.Service<
++  WorkspaceNotes,
++  {
++    readonly listPage: (
++      input?: ListPageInput
++    ) => Effect.Effect<Page<WorkspaceNote>, CapabilityUnavailable, WorkspaceContext>
++    readonly create: (
++      input: typeof CreateWorkspaceNote.Type
++    ) => Effect.Effect<WorkspaceNote, CapabilityUnavailable, WorkspaceContext>
++  }
++>()('@b2b-saas-starter/capabilities/WorkspaceNotes') {}
++
++function positionOf(note: WorkspaceNote) {
++  return { key: note.createdAt, id: note.id }
++}
++const newNote = Effect.fn('WorkspaceNotes.newNote')(function* (
++  input: typeof CreateWorkspaceNote.Type
++) {
++  return {
++    id: yield* newCapabilityId('note'),
++    body: input.body,
++    createdAt: DateTime.formatIso(yield* DateTime.now)
++  }
++})
++function createdEvent(
++  ctx: WorkspaceContext['Service'],
++  note: WorkspaceNote
++): RecordAuditEventInput {
++  return {
++    workspaceId: ctx.workspace.id,
++    actorUserId: ctx.actor?.userId ?? null,
++    actorType: ctx.actorType,
++    eventType: 'workspace_note.created',
++    targetType: 'workspace_note',
++    targetId: note.id,
++    metadata: {}
++  }
++}
++
++export const SeedWorkspaceNotes = Layer.effect(
++  WorkspaceNotes,
++  Effect.gen(function* () {
++    const audit = yield* AuditEventLog
++    const rows = yield* Ref.make<
++      ReadonlyArray<WorkspaceNote & { readonly workspaceId: string }>
++    >([])
++    return WorkspaceNotes.of({
++      listPage: Effect.fn('WorkspaceNotes.listPage')(function* (input) {
++        const ctx = yield* WorkspaceContext
++        const visible: Array<WorkspaceNote> = []
++        for (const row of yield* Ref.get(rows)) {
++          if (row.workspaceId === ctx.workspace.id) {
++            visible.push({ id: row.id, body: row.body, createdAt: row.createdAt })
++          }
++        }
++        return seedKeysetPage(visible, 'desc', positionOf, input)
++      }),
++      create: Effect.fn('WorkspaceNotes.create')(function* (input) {
++        const ctx = yield* WorkspaceContext
++        const note = yield* newNote(input)
++        yield* audit.record(createdEvent(ctx, note))
++        yield* Ref.update(rows, (all) => [
++          ...all,
++          { ...note, workspaceId: ctx.workspace.id }
++        ])
++        return note
++      })
++    })
++  })
++)
++
++export const LiveWorkspaceNotes = Layer.effect(
++  WorkspaceNotes,
++  Effect.gen(function* () {
++    const db = yield* Database
++    const audit = yield* AuditEventLog
++    const unavailable = orUnavailable('workspace-notes')
++    const mutate = yield* auditedMutations({
++      prepareAuditRecord: audit.prepareRecord,
++      unavailable
++    })
++    return WorkspaceNotes.of({
++      listPage: Effect.fn('WorkspaceNotes.listPage')(function* (input) {
++        const ctx = yield* WorkspaceContext
++        const resume = keysetResume(
++          'desc',
++          { key: workspaceNotes.createdAt, id: workspaceNotes.id },
++          input?.cursor
++        )
++        if (resume.kind === 'empty') {
++          return { items: [], nextCursor: null }
++        }
++        let condition: SQL | undefined
++        if (resume.kind === 'resume') {
++          condition = resume.condition
++        }
++        const limit = clampPageLimit(input?.limit)
++        const rows = yield* unavailable(
++          db
++            .select({
++              id: workspaceNotes.id,
++              body: workspaceNotes.body,
++              createdAt: workspaceNotes.createdAt
++            })
++            .from(workspaceNotes)
++            .where(and(eq(workspaceNotes.workspaceId, ctx.workspace.id), condition))
++            .orderBy(desc(workspaceNotes.createdAt), desc(workspaceNotes.id))
++            .limit(limit + 1)
++        )
++        return cutKeysetPage(rows, limit, positionOf)
++      }),
++      create: Effect.fn('WorkspaceNotes.create')(function* (input) {
++        const ctx = yield* WorkspaceContext
++        const note = yield* newNote(input)
++        yield* mutate({
++          matched: Effect.succeed(true),
++          auditEvent: createdEvent(ctx, note),
++          write: () => [
++            db.insert(workspaceNotes).values({ ...note, workspaceId: ctx.workspace.id })
++          ]
++        })
++        return note
++      })
++    })
++  })
++)
+diff --git a/packages/i18n/messages/notes/en.json b/packages/i18n/messages/notes/en.json
+new file mode 100644
+index 00000000..99e89168
+--- /dev/null
++++ b/packages/i18n/messages/notes/en.json
+@@ -0,0 +1,15 @@
++{
++  "notes_title": "Workspace notes",
++  "notes_description": "Short notes shared with everyone in this workspace.",
++  "notes_body": "Note text",
++  "notes_saving": "Saving…",
++  "notes_add": "Add note",
++  "notes_denied": "You do not have permission to add notes.",
++  "notes_failed": "The note could not be saved. Check your access and try again.",
++  "notes_recent": "Latest 30 notes",
++  "notes_empty": "No notes yet. Add the first note above.",
++  "notes_access_denied": "Notes access denied",
++  "notes_read_denied": "You do not have permission to read notes in this workspace.",
++  "notes_unavailable": "Notes unavailable",
++  "notes_load_failed": "Notes could not be loaded. Try again."
++}
+diff --git a/packages/i18n/messages/notes/nb.json b/packages/i18n/messages/notes/nb.json
+new file mode 100644
+index 00000000..53938473
+--- /dev/null
++++ b/packages/i18n/messages/notes/nb.json
+@@ -0,0 +1,15 @@
++{
++  "notes_title": "Arbeidsområdets notater",
++  "notes_description": "Korte notater som deles med alle i dette arbeidsområdet.",
++  "notes_body": "Notattekst",
++  "notes_saving": "Lagrer…",
++  "notes_add": "Legg til notat",
++  "notes_denied": "Du har ikke tillatelse til å legge til notater.",
++  "notes_failed": "Notatet kunne ikke lagres. Sjekk tilgangen din og prøv igjen.",
++  "notes_recent": "De siste 30 notatene",
++  "notes_empty": "Ingen notater ennå. Legg til det første notatet ovenfor.",
++  "notes_access_denied": "Ingen tilgang til notater",
++  "notes_read_denied": "Du har ikke tillatelse til å lese notater i dette arbeidsområdet.",
++  "notes_unavailable": "Notater er utilgjengelige",
++  "notes_load_failed": "Notatene kunne ikke lastes. Prøv igjen."
++}

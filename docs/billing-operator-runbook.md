@@ -18,6 +18,41 @@ remains a visible synchronization failure. Settlement evidence is compared by
 payment time, and a later settlement can close an earlier failure episode before
 a new failure starts its own grace deadline.
 
+## Monthly and annual prices
+
+`STRIPE_PRICE_ID_TEAM` identifies the monthly Team price. Add
+`STRIPE_PRICE_ID_TEAM_ANNUAL` to offer annual checkout alongside it. Enterprise
+uses `STRIPE_PRICE_ID_ENTERPRISE` and `STRIPE_PRICE_ID_ENTERPRISE_ANNUAL` for
+operator-created subscriptions and is never self-serve. Internally,
+`BillingOptions.priceIds` holds monthly prices and `annualPriceIds` holds yearly
+prices, both keyed by catalog plan ID. Monthly Team plus the secret key enables
+billing; annual configuration is optional. Keep every subscribed price configured
+so reconciliation can still recognize it, including archived prices.
+
+Use distinct licensed, per-unit prices with interval count one and no quantity
+transform. The configured interval must match Stripe. Prices may use different
+currencies; the UI displays each provider amount and currency without dividing
+an annual total by twelve or inventing a discount. Without Stripe, the labeled
+Team examples are USD 12 per member/month and USD 144 per member/year.
+
+Enable subscription updates in the Stripe Billing Portal and allow exactly the
+configured Team prices. Keep quantity changes controlled by workspace membership.
+Existing subscribers use Manage billing to switch intervals. Stripe confirms
+proration and billing-date changes in its hosted flow; the app retrieves current
+provider state before changing entitlements. Interval switches can reset the
+billing date and immediately charge, as documented in
+[Stripe subscription updates](https://docs.stripe.com/api/subscriptions/update).
+Cancellation at period end uses the provider item's end date for either interval.
+Seat additions and removals keep `create_prorations`, billed on the next invoice.
+
+A pending/open checkout for another price returns `checkout_in_progress`. Recover
+or expire that session at Stripe before selecting another interval; never delete
+a claim to force a second purchase. A retry of the same price retains its original
+claim inputs and idempotency key.
+
+Repeatable local checks and the separate Stripe test-mode verification path are
+in [annual billing verification](verification/annual-billing.md).
+
 ## Configure the operator shell
 
 Set the Cloudflare account credentials and the deployed resource identifiers in
@@ -161,3 +196,33 @@ billing-evidence pruning is not implemented.
 After a retry or dead-letter recovery, inspect the workspace again and confirm
 that `status` is `current`, `last_synced_at` has advanced, and the provider
 event or audit trail contains the operator action.
+
+## Purchase continuation
+
+Public pricing links self-service Team to `/purchase?plan=team`. After sign-in,
+select an eligible workspace or create one, complete privileged authentication,
+and confirm on the workspace billing page. Production requires verified email;
+local development does not add a mail-provider requirement. Unconfigured Stripe
+leaves the continuation inspectable and checkout disabled. Starter and Enterprise
+are not purchase intents. Existing subscriptions continue through the billing
+portal; a selected plan never overrides that policy.
+
+Browser regression reproduction on an isolated local database:
+
+```bash
+pnpm run db:migrate:local
+pnpm run db:seed
+E2E_PORT=3102 pnpm -C apps/web exec playwright test e2e/purchase-continuation.spec.ts --workers=1
+```
+
+On a host running several worktrees, prefix the browser command with
+`E2E_EXPECT_TIMEOUT=20000 E2E_STARTUP_TIMEOUT=600000` to allow for shared CPU
+contention. The default assertion and startup deadlines remain unchanged.
+
+The suite covers auth return paths, the real email verification exchange,
+privileged verification, workspace creation, member and foreign-workspace
+refusal, invalid plans, and inactive checkout. Its
+confirmation screenshot and Playwright JSON report are repeatable artifacts under
+`apps/web/test-results` and `apps/web/playwright-report`. Provider subscription,
+seat quantity, and durable retry contracts remain in the existing Billing tests.
+Hosted Stripe completion requires a configured Stripe test account.

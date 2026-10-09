@@ -1,6 +1,6 @@
 # @b2b-saas-starter/logger
 
-The one observability seam for all three workers: wide events, OTel traces, RED metrics, OTLP export (ADR 0007, ADR 0050). Nothing else constructs a logger, tracer, or span. Vendor glue: `./providers`.
+The one observability seam for all three workers: wide events, OTel traces, RED metrics, OTLP export (ADR 0007, ADR 0050). Nothing else constructs a logger, tracer, or span. Native operational signals: `./providers`.
 
 ## Changes
 
@@ -11,7 +11,7 @@ The one observability seam for all three workers: wide events, OTel traces, RED 
 
 ## Invariants
 
-1. **One event per request per service.** A request-scoped fact is an annotation on it, never an `Effect.log` line or a second scope.
+1. **One canonical application event per request per service.** Request facts are annotations on that event. Native Worker invocation records supply the HTTP denominator, including entry-point gates. Operator snapshots, scheduler lifecycle check-ins, and independent evidence-gap signals are separate operational events; they must not duplicate request facts.
 2. **Emit from `Effect.onExit`, never a scope finalizer.** Finalizers are LIFO: one runs after `annotateLogsScoped` restores the previous annotations, silently dropping every handler field. Has regressed before.
 3. **The OTLP layer is per invocation; the loggers are per isolate.** An exporter outliving its invocation stops exporting silently, so `makeOtlpLayer` is provided `{ local: true }` per entry point, _inside_ the module-scope `ManagedRuntime` (apps/api: router layer) holding the I/O-free `WideEventLoggerLive`. `loggerMergeWithExisting` keeps the console JSON event only if they are in context when it builds.
 4. **Two levels, fixed.** `info` on success, `error` with the `Cause` on failure. No debug, no warn.
@@ -21,6 +21,6 @@ The one observability seam for all three workers: wide events, OTel traces, RED 
 
 - Don't build `traceparent` by hand (`currentTraceparent` encodes it) or set it outbound; `HttpClient` injects it.
 - Don't hoist `makeOtlpLayer` to module scope (invariant 3).
-- Don't call Sentry or PostHog ad hoc: `wireWideEventProviders` installs the one wide-event sink, which sends failed scopes to Sentry and every scope to PostHog (`posthog-node`, one client per invocation), inert without their env vars. There is no sink registry; a second sink would replace the first.
+- Failed canonical events use `console.error` so Cloudflare Issues detects handled failures. Interrupt-only scopes retain their event evidence through `console.log`, avoiding Issues for cancellation. Both console methods use the same allowlisted payload.
 - Don't import `./providers` from code reaching the browser bundle.
 - Don't mint a correlation id by hand; `currentTraceId` is the only source.

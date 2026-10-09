@@ -95,6 +95,12 @@ exports exclude private transcripts. Deletion fences block access before cleanup
 immutable addresses survive parent removal so the background worker can retry.
 See [the conversation guide](apps/web/content/docs/capability-interfaces/assistant-conversations.mdx).
 
+The shared Worker configuration opts into `durable_object_io_tasks_prevent_eviction`
+without advancing the compatibility date. It protects pending answer, publication
+and flush work registered with `ctx.waitUntil` after clients disconnect. The
+[Durable Object decision](docs/adr/0009-no-durable-objects-without-coordination-need.md) records the time and
+billing limits; Stop, authority checks, deadlines and process recovery still apply.
+
 Local contract tests cover application persistence, admission and lifecycle.
 Deployed recovery and real-provider streaming/cancellation require separate evidence.
 
@@ -138,7 +144,7 @@ Each stage has isolated resources. `pr-<number>` stages disable optional provide
 
 [packages/logger](packages/logger/AGENTS.md) owns one wide event per request or job, trace propagation, and request metrics. Handlers add business context to the existing scope. Queue messages carry trace context across the asynchronous boundary.
 
-Console logging stays available without providers. Configured OTLP export is scoped per invocation so background export work does not outlive the Worker request. Sentry supplies independent operational alerts; PostHog supplies optional analytics. [Monitoring](docs/monitoring.md) owns metric names, monitor configuration, and response thresholds.
+Console logging stays available without providers. Configured OTLP export is scoped per invocation so background export work does not outlive the Worker request. Cloudflare Workers Logs and Issues capture server failures without an SDK. Optional Cloudflare Web Analytics supplies browser traffic and performance measurements. Alchemy provisions its RUM site only when enabled; the app embeds its beacon. Its path/referrer collection is separate from the application telemetry allowlist. There is no server analytics sink or Analytics Engine dataset; custom product events need a concrete use case first. Native Issues shares the application's Cloudflare failure domain; external availability and heartbeat checks remain deployment requirements. [Monitoring](docs/monitoring.md) owns metric names, monitor configuration, and response thresholds.
 
 ### Recovery operations
 

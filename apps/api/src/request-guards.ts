@@ -36,7 +36,7 @@ import {
   AuthorizationDenied
 } from '@b2b-saas-starter/authz/errors'
 import { Effect, Layer, Redacted, Result, type Scope } from 'effect'
-import { HttpServerRequest } from 'effect/unstable/http'
+import { HttpServerRequest } from 'effect/http'
 
 import {
   ApiPrincipal,

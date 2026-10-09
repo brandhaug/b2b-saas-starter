@@ -229,3 +229,7 @@ export const emailDeliveryStatuses = [
   'temporary_failure',
   'logged'
 ] as const
+
+/** Supported licensed subscription periods. */
+// oxlint-disable-next-line effect/noAs -- literal enum tuple
+export const billingIntervals = ['month', 'year'] as const

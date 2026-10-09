@@ -37,11 +37,16 @@ function NotFound() {
 // errors cross the SSR boundary via TanStack's `defaultSerializeError`, which
 // keeps only `name`/`message` — so `name` is the discriminant (never
 // `instanceof`), single-sourced from `capability-error.ts`.
-function RouteError({ error }: { readonly error: Error }) {
+function RouteError({ error }: { readonly error: unknown }) {
   if (isStrongAuthenticationError(error)) {
     return <StrongAuthenticationNotice />
   }
-  const degraded = error.name === CAPABILITY_UNAVAILABLE_ERROR_NAME
+  const degraded =
+    error !== null &&
+    // oxlint-disable-next-line anti-slop/no-runtime-typeof -- The router boundary may receive a serialized error object or any thrown value.
+    typeof error === 'object' &&
+    'name' in error &&
+    error.name === CAPABILITY_UNAVAILABLE_ERROR_NAME
   return (
     <FallbackPage>
       <h1 className="text-3xl font-semibold tracking-tight">

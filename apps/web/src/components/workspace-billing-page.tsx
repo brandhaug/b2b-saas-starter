@@ -1,3 +1,5 @@
+import { PurchaseConfirmation } from './purchase-confirmation'
+import { type PurchaseIntent } from '@/lib/purchase-intent'
 import { useEffect, useRef } from 'react'
 import { useMatch, useRouter } from '@tanstack/react-router'
 import {
@@ -25,12 +27,14 @@ import { m } from '@b2b-saas-starter/i18n/messages'
  */
 export function WorkspaceBillingPage({
   workspaceSlug,
+  purchaseIntent,
   data,
   systemRole,
   checkoutReturn,
   ports,
   reconcileCheckoutReturn = reconcileCheckoutReturnServerFn
 }: {
+  readonly purchaseIntent?: PurchaseIntent | null
   readonly workspaceSlug: string
   readonly data: WorkspaceBillingPayload
   /** The signed-in user's Better Auth system role, for the shell's admin link. */
@@ -107,22 +111,30 @@ export function WorkspaceBillingPage({
         title={m.nav_billing()}
         description={m.billing_description()}
       />
-      <BillingPlans
-        workspaceSlug={workspaceSlug}
-        currentPlanId={data.currentPlanId}
-        seatUsage={data.seatUsage}
-        plans={data.plans}
-        pricingUnavailable={data.pricingUnavailable}
-        stripeConfigured={data.stripeConfigured}
-        synchronization={data.synchronization}
-        lifecycle={data.lifecycle}
-        resourceSelection={data.resourceSelection}
-        apiTokens={data.apiTokens}
-        webhookEndpoints={data.webhookEndpoints}
-        resourceEntitlements={data.resourceEntitlements}
-        canManageBilling={canManageBilling}
-        {...ports}
-      />
+      {purchaseIntent ? (
+        <PurchaseConfirmation
+          intent={purchaseIntent}
+          workspaceSlug={workspaceSlug}
+          data={data}
+        />
+      ) : (
+        <BillingPlans
+          workspaceSlug={workspaceSlug}
+          currentPlanId={data.currentPlanId}
+          seatUsage={data.seatUsage}
+          plans={data.plans}
+          pricingUnavailable={data.pricingUnavailable}
+          stripeConfigured={data.stripeConfigured}
+          synchronization={data.synchronization}
+          lifecycle={data.lifecycle}
+          resourceSelection={data.resourceSelection}
+          apiTokens={data.apiTokens}
+          webhookEndpoints={data.webhookEndpoints}
+          resourceEntitlements={data.resourceEntitlements}
+          canManageBilling={canManageBilling}
+          {...ports}
+        />
+      )}
       {reconcile.pending ? (
         <output className="block text-sm text-muted-foreground">
           {m.billing_sync_pending()}

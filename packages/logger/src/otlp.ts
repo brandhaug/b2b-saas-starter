@@ -1,6 +1,6 @@
 import { Duration, Layer } from 'effect'
-import { FetchHttpClient } from 'effect/unstable/http'
-import { Otlp } from 'effect/unstable/observability'
+import { FetchHttpClient } from 'effect/http'
+import { Otlp } from 'effect/observability'
 
 import { hasValue, type ProviderEnvOf } from '@b2b-saas-starter/env/server'
 

@@ -42,6 +42,11 @@ import {
  */
 type OptionalEmailBinding = { EMAIL?: Cloudflare.Email.SendEmail }
 
+/** Only the web Worker receives the provisioned public beacon token. */
+type OptionalWebAnalyticsBinding = {
+  CLOUDFLARE_WEB_ANALYTICS_TOKEN?: Cloudflare.Rum.Site['siteToken']
+}
+
 /**
  * The workspace export bindings (ADR 0055), spread into every worker on the
  * same terms as EMAIL: both keys are absent — not `undefined` — when
@@ -155,7 +160,7 @@ const optionalProviderEnv = {
 }
 
 // Preview stages carry only the deploy identity. Every env-gated provider
-// (Turnstile, Stripe, Sentry, PostHog, OTLP, OpenAI, Workers AI, email) stays
+// (Turnstile, Stripe, Web Analytics, OTLP, OpenAI, Workers AI, email) stays
 // unset on a `pr-<number>` stage even when the deploying shell has the values,
 // so a preview can never charge a card, page an on-call, or send real mail.
 // `ENVIRONMENT` defaults to `preview` so the required-env gate runs in its
@@ -194,7 +199,10 @@ function emailFromForStage(stage: string): string | undefined {
 
 const observability: Cloudflare.WorkerObservability = {
   enabled: true,
-  logs: { enabled: true, invocationLogs: true }
+  logs: { enabled: true, invocationLogs: true, headSamplingRate: 1 },
+  traces: { enabled: true, headSamplingRate: 1, persist: true },
+  issues: { enabled: true },
+  redactQueryString: true
 }
 
 // Smart placement moves a worker near its data. It belongs to the worker-only
@@ -327,6 +335,22 @@ export const Stack = Alchemy.Stack(
       workspaceExportBindings.WORKSPACE_EXPORT_QUEUE = workspaceExportQueue
     }
 
+    // Alchemy owns the site and token. Explicit embedding avoids edge injection
+    // and works on workers.dev as well as custom hosts without a zone lookup.
+    const webAnalytics =
+      !isPreviewStage(stage) &&
+      readEnv('CLOUDFLARE_WEB_ANALYTICS_ENABLED')?.trim().toLowerCase() === 'true'
+        ? yield* Cloudflare.Rum.Site('web-analytics', {
+            host: new URL(BETTER_AUTH_URL).hostname,
+            autoInstall: false
+          })
+        : undefined
+
+    const webAnalyticsBinding: OptionalWebAnalyticsBinding = {}
+    if (webAnalytics) {
+      webAnalyticsBinding.CLOUDFLARE_WEB_ANALYTICS_TOKEN = webAnalytics.siteToken
+    }
+
     const web = yield* Cloudflare.Website.Vite('web', {
       name: names.worker('web'),
       rootDir: './apps/web',
@@ -347,6 +371,7 @@ export const Stack = Alchemy.Stack(
         // only to answer "are exports available here".
         ...workspaceExportBindings,
         ...providerEnv,
+        ...webAnalyticsBinding,
         BETTER_AUTH_SECRET,
         BETTER_AUTH_URL,
         BETTER_AUTH_TRUSTED_ORIGINS
@@ -470,6 +495,7 @@ export const Stack = Alchemy.Stack(
       db,
       transactionalEmail,
       web,
+      webAnalytics,
       webhookQueue,
       webhookDeadLetterQueue,
       notificationEmailQueue,

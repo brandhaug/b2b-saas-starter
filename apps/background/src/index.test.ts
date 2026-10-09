@@ -13,11 +13,7 @@ import {
 import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { describe, expect, it } from '@effect/vitest'
 import { Effect, Layer } from 'effect'
-import {
-  HttpClient,
-  HttpClientResponse,
-  type HttpClientRequest
-} from 'effect/unstable/http'
+import { HttpClient, HttpClientResponse, type HttpClientRequest } from 'effect/http'
 
 import { processDeadLetterMessage, processWebhookMessage } from './webhook-consumer.ts'
 import { readDelivery } from './queue-consumer.ts'

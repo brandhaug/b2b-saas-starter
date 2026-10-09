@@ -78,3 +78,18 @@ describe('checkout claim decisions', () => {
     ).toEqual({ outcome: 'conflict', reason: 'checkout_in_progress' })
   })
 })
+
+// A second interval must never reuse the old interval's hosted checkout.
+it('blocks annual checkout while a monthly claim is pending or created', () => {
+  for (const status of ['pending', 'created'] satisfies ReadonlyArray<
+    CheckoutClaim['status']
+  >) {
+    expect(
+      decideCheckoutClaim(
+        { ...input, priceId: 'price_annual' },
+        claim({ status, stripeSessionId: 'cs_month' }),
+        '2026-09-07T12:00:00.000Z'
+      )
+    ).toEqual({ outcome: 'conflict', reason: 'checkout_in_progress' })
+  }
+})

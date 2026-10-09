@@ -1,0 +1,577 @@
+diff --git a/dist/core/node/Docker.d.mts b/dist/core/node/Docker.d.mts
+index 39a5ffda44a533a2bb9ef40eb251f8d8746b84bb..b94998c34096c45836f0ef333586b5daeaeec13c 100644
+--- a/dist/core/node/Docker.d.mts
++++ b/dist/core/node/Docker.d.mts
+@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
+ import * as FileSystem from "effect/FileSystem";
+ import * as Layer from "effect/Layer";
+ import * as Path from "effect/Path";
+-import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner";
++import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
+ import * as Scope from "effect/Scope";
+ //#region src/core/Docker.d.ts
+ declare const Docker_base: Context.ServiceClass<Docker, "cloudflare-runtime/Docker", {
+diff --git a/dist/core/node/Docker.mjs b/dist/core/node/Docker.mjs
+index d8dd5221c11c459e0da2f81cd945feafb35d9f24..0a1055d9afbb5fb5ba62be470390010b78d3ffbf 100644
+--- a/dist/core/node/Docker.mjs
++++ b/dist/core/node/Docker.mjs
+@@ -9,8 +9,8 @@ import * as FileSystem from "effect/FileSystem";
+ import * as Layer from "effect/Layer";
+ import * as Path from "effect/Path";
+ import * as Stream from "effect/Stream";
+-import * as ChildProcess from "effect/unstable/process/ChildProcess";
+-import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner";
++import * as ChildProcess from "effect/process/ChildProcess";
++import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
+ import * as NodeHttp from "node:http";
+ import * as NodeStream from "node:stream";
+ //#region src/core/Docker.ts
+diff --git a/dist/core/node/RuntimeServices.d.mts b/dist/core/node/RuntimeServices.d.mts
+index 8aee19fdbb1256003588f23222681c80a3174be3..4305e7a6120b96c2244cc3c2da8e6782e8d09624 100644
+--- a/dist/core/node/RuntimeServices.d.mts
++++ b/dist/core/node/RuntimeServices.d.mts
+@@ -39,15 +39,15 @@ interface ApiConfig {
+ interface StorageConfig {
+   directory: string;
+ }
+-declare const layerRemoteBindings: ({ accountId }: ApiConfig) => Layer.Layer<RemoteBindings, never, import("effect/unstable/process/ChildProcessSpawner").ChildProcessSpawner | import("@distilled.cloud/cloudflare/Credentials").Credentials | import("effect/unstable/http/HttpClient").HttpClient | Loopback>;
++declare const layerRemoteBindings: ({ accountId }: ApiConfig) => Layer.Layer<RemoteBindings, never, import("effect/process/ChildProcessSpawner").ChildProcessSpawner | import("@distilled.cloud/cloudflare/Credentials").Credentials | import("effect/http/HttpClient").HttpClient | Loopback>;
+ declare const layerStorage: (config: StorageConfig | undefined) => Layer.Layer<Storage, import("effect/PlatformError").PlatformError, import("effect/FileSystem").FileSystem>;
+ declare const layerLoopback: () => Layer.Layer<Loopback, SystemError, never>;
+ declare const layerLocalBindings: () => Layer.Layer<AnalyticsEngine | Assets | Browser | Cache | D1 | DispatchNamespace | Hyperdrive | Images | KvNamespace | Queue | R2Bucket | RateLimit | SecretsStore | SendEmail | Stream | Workflows, never, import("effect/FileSystem").FileSystem | import("effect/Path").Path | Storage>;
+ type BindingServices = AnalyticsEngine | Assets | Browser | Cache | D1 | DispatchNamespace | Hyperdrive | Images | KvNamespace | Loopback | Queue | R2Bucket | RateLimit | RemoteBindings | RegistryProxy | SecretsStore | SendEmail | Stream | Workflows;
+ type RuntimeServices = Runtime | BindingServices;
+ declare const layerProxy: () => Layer.Layer<WorkerProxy, never, never>;
+-declare const layerRegistry: () => Layer.Layer<RegistryProxy, import("effect/PlatformError").PlatformError | SystemError, import("effect/FileSystem").FileSystem | import("effect/unstable/http/HttpClient").HttpClient | import("effect/Path").Path | Paths>;
+-declare const layerRuntime: (config: RuntimeConfig) => Layer.Layer<AnalyticsEngine | Assets | Browser | Cache | D1 | DispatchNamespace | Hyperdrive | Images | KvNamespace | Loopback | Queue | R2Bucket | RateLimit | RegistryProxy | RemoteBindings | Runtime | SecretsStore | SendEmail | Stream | WorkerProxy | Workflows, import("effect/Config").ConfigError | ConfigError | import("effect/PlatformError").PlatformError | SystemError, import("effect/unstable/process/ChildProcessSpawner").ChildProcessSpawner | import("@distilled.cloud/cloudflare/Credentials").Credentials | import("effect/FileSystem").FileSystem | import("effect/unstable/http/HttpClient").HttpClient | import("effect/Path").Path>;
++declare const layerRegistry: () => Layer.Layer<RegistryProxy, import("effect/PlatformError").PlatformError | SystemError, import("effect/FileSystem").FileSystem | import("effect/http/HttpClient").HttpClient | import("effect/Path").Path | Paths>;
++declare const layerRuntime: (config: RuntimeConfig) => Layer.Layer<AnalyticsEngine | Assets | Browser | Cache | D1 | DispatchNamespace | Hyperdrive | Images | KvNamespace | Loopback | Queue | R2Bucket | RateLimit | RegistryProxy | RemoteBindings | Runtime | SecretsStore | SendEmail | Stream | WorkerProxy | Workflows, import("effect/Config").ConfigError | ConfigError | import("effect/PlatformError").PlatformError | SystemError, import("effect/process/ChildProcessSpawner").ChildProcessSpawner | import("@distilled.cloud/cloudflare/Credentials").Credentials | import("effect/FileSystem").FileSystem | import("effect/http/HttpClient").HttpClient | import("effect/Path").Path>;
+ //#endregion
+ export { ApiConfig, BindingServices, RuntimeConfig, RuntimeServices, StorageConfig, layerLocalBindings, layerLoopback, layerProxy, layerRegistry, layerRemoteBindings, layerRuntime, layerStorage };
+ //# sourceMappingURL=RuntimeServices.d.mts.map
+\ No newline at end of file
+diff --git a/dist/core/node/globals/LoopbackServer.d.mts b/dist/core/node/globals/LoopbackServer.d.mts
+index d460b467f32ef1448b5349bdcfa347a9324ded64..527e8589ca2b6231dfaf7d822b9ef77c7ea7972d 100644
+--- a/dist/core/node/globals/LoopbackServer.d.mts
++++ b/dist/core/node/globals/LoopbackServer.d.mts
+@@ -3,8 +3,8 @@ import * as Context from "effect/Context";
+ import * as Effect from "effect/Effect";
+ import * as Layer from "effect/Layer";
+ import * as NodeHttp from "node:http";
+-import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest";
+-import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
++import * as HttpServerRequest from "effect/http/HttpServerRequest";
++import * as HttpServerResponse from "effect/http/HttpServerResponse";
+ declare namespace LoopbackServer_d_exports {
+   export { EffectHandler, LoopbackServer, LoopbackServerHeaders, LoopbackServerLive, RawHandler, RouteHandler };
+ }
+diff --git a/dist/core/node/globals/LoopbackServer.mjs b/dist/core/node/globals/LoopbackServer.mjs
+index 0a94dcf4bc8c48ca0c4d08ef0ad4bceb70c01d55..a98d520081f088f48d56df0cce0725faf0364ec6 100644
+--- a/dist/core/node/globals/LoopbackServer.mjs
++++ b/dist/core/node/globals/LoopbackServer.mjs
+@@ -8,7 +8,7 @@ import * as Layer from "effect/Layer";
+ import * as NodeHttp from "node:http";
+ import * as NodeCrypto from "node:crypto";
+ import * as MutableHashMap from "effect/MutableHashMap";
+-import * as HttpServerError from "effect/unstable/http/HttpServerError";
++import * as HttpServerError from "effect/http/HttpServerError";
+ //#region src/core/globals/LoopbackServer.ts
+ var LoopbackServer_exports = /* @__PURE__ */ __exportAll({
+ 	LoopbackServer: () => LoopbackServer,
+diff --git a/dist/core/node/platform-proxy/getPlatformProxy.mjs b/dist/core/node/platform-proxy/getPlatformProxy.mjs
+index eaa3c72388f211e04b6cd61906cc039885f08e65..8031313f8039b42342177c3e8958b5d0830955cd 100644
+--- a/dist/core/node/platform-proxy/getPlatformProxy.mjs
++++ b/dist/core/node/platform-proxy/getPlatformProxy.mjs
+@@ -14,7 +14,7 @@ import * as Effect from "effect/Effect";
+ import * as Layer from "effect/Layer";
+ import * as Exit from "effect/Exit";
+ import * as Scope from "effect/Scope";
+-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
++import * as FetchHttpClient from "effect/http/FetchHttpClient";
+ //#region src/core/platform-proxy/getPlatformProxy.ts
+ const makeLayer = (persist) => RuntimeLive.pipe(Layer.provideMerge(layerLocalBindings()), Layer.provideMerge(layerProxy()), Layer.provide(GlobalsLive), Layer.provideMerge(layerLoopback()), Layer.provide(persist ? layerDisk(persist.directory) : layerTemp({ prefix: "platform-proxy" })), Layer.provide(InternetLive), Layer.provideMerge(RegistryProxyLive), Layer.provideMerge(RegistryLive), Layer.provideMerge(PathsLive), Layer.provideMerge(DockerLive), Layer.provide(WorkerdLive), Layer.provideMerge(Layer.mergeAll(PlatformServices, FetchHttpClient.layer)));
+ /**
+diff --git a/dist/core/node/registry/RegistryProxy.d.mts b/dist/core/node/registry/RegistryProxy.d.mts
+index ace0fc7e41dc7bc1ed2c57a3e510826b7bdb15d1..2dbb4fa30cee1fb17ab42b36218400e6f0f97767 100644
+--- a/dist/core/node/registry/RegistryProxy.d.mts
++++ b/dist/core/node/registry/RegistryProxy.d.mts
+@@ -4,7 +4,7 @@ import { Subscriber } from "./RegistryTypes.shared.mjs";
+ import { Registry } from "./Registry.mjs";
+ import * as Effect from "effect/Effect";
+ import * as Layer from "effect/Layer";
+-import * as HttpClient from "effect/unstable/http/HttpClient";
++import * as HttpClient from "effect/http/HttpClient";
+ declare namespace RegistryProxy_d_exports {
+   export { RegistryProxy, RegistryProxyLive };
+ }
+diff --git a/dist/core/node/registry/RegistryProxy.mjs b/dist/core/node/registry/RegistryProxy.mjs
+index f468557749bacf80e879aa9bfe44f6e33273250a..d3235fcf8e5514023c43e47accc39214f02eaa06 100644
+--- a/dist/core/node/registry/RegistryProxy.mjs
++++ b/dist/core/node/registry/RegistryProxy.mjs
+@@ -10,8 +10,8 @@ import { Registry } from "./Registry.mjs";
+ import * as Effect from "effect/Effect";
+ import * as Layer from "effect/Layer";
+ import * as Stream from "effect/Stream";
+-import * as HttpBody from "effect/unstable/http/HttpBody";
+-import * as HttpClient from "effect/unstable/http/HttpClient";
++import * as HttpBody from "effect/http/HttpBody";
++import * as HttpClient from "effect/http/HttpClient";
+ import * as NodeCrypto from "node:crypto";
+ //#region src/core/registry/RegistryProxy.ts
+ var RegistryProxy_exports = /* @__PURE__ */ __exportAll({
+diff --git a/dist/core/node/remote-bindings/Access.d.mts b/dist/core/node/remote-bindings/Access.d.mts
+index 7138ec44f689d8dac6b66ca82071b6bcea2e2a39..7ca2abbfb2a5021ce34a6639293a2dd937c605e0 100644
+--- a/dist/core/node/remote-bindings/Access.d.mts
++++ b/dist/core/node/remote-bindings/Access.d.mts
+@@ -2,7 +2,7 @@ import { ConfigError, SystemError } from "../RuntimeError.shared.mjs";
+ import * as Context from "effect/Context";
+ import * as Effect from "effect/Effect";
+ import * as Layer from "effect/Layer";
+-import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner";
++import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
+ declare namespace Access_d_exports {
+   export { Access, layer };
+ }
+diff --git a/dist/core/node/remote-bindings/Access.mjs b/dist/core/node/remote-bindings/Access.mjs
+index cd9ba62ce016dba762be7afdc74a6a018fbba2b6..ffa59be135b2988ee19534424850d35dd1271417 100644
+--- a/dist/core/node/remote-bindings/Access.mjs
++++ b/dist/core/node/remote-bindings/Access.mjs
+@@ -5,8 +5,8 @@ import * as Context from "effect/Context";
+ import * as Effect from "effect/Effect";
+ import * as Layer from "effect/Layer";
+ import * as Stream from "effect/Stream";
+-import * as ChildProcess from "effect/unstable/process/ChildProcess";
+-import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner";
++import * as ChildProcess from "effect/process/ChildProcess";
++import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
+ import * as Cache from "effect/Cache";
+ //#region src/core/remote-bindings/Access.ts
+ var Access_exports = /* @__PURE__ */ __exportAll({
+diff --git a/dist/core/node/remote-bindings/RemoteBindings.mjs b/dist/core/node/remote-bindings/RemoteBindings.mjs
+index 74c5953a1be0804df575cc912ffd4a8a3d941447..d4c516896b38a1dfa04bc17052503d1963921040 100644
+--- a/dist/core/node/remote-bindings/RemoteBindings.mjs
++++ b/dist/core/node/remote-bindings/RemoteBindings.mjs
+@@ -12,8 +12,8 @@ import * as Fiber from "effect/Fiber";
+ import * as Layer from "effect/Layer";
+ import * as Cause from "effect/Cause";
+ import * as Hash from "effect/Hash";
+-import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest";
+-import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
++import * as HttpServerRequest from "effect/http/HttpServerRequest";
++import * as HttpServerResponse from "effect/http/HttpServerResponse";
+ //#region src/core/remote-bindings/RemoteBindings.ts
+ var RemoteBindings_exports = /* @__PURE__ */ __exportAll({
+ 	RemoteBindings: () => RemoteBindings,
+diff --git a/dist/core/node/remote-bindings/RemoteWorker.d.mts b/dist/core/node/remote-bindings/RemoteWorker.d.mts
+index 6a71f4690a8e520174062dc22782260b2948c9fa..63f001d5c0b003fb906d5d1907ecdf55723b7a07 100644
+--- a/dist/core/node/remote-bindings/RemoteWorker.d.mts
++++ b/dist/core/node/remote-bindings/RemoteWorker.d.mts
+@@ -4,7 +4,7 @@ import { RemoteWorkerConfig, RemoteWorkerResult } from "./RemoteWorkerConfig.sha
+ import * as Context from "effect/Context";
+ import * as Effect from "effect/Effect";
+ import * as Layer from "effect/Layer";
+-import * as HttpClient from "effect/unstable/http/HttpClient";
++import * as HttpClient from "effect/http/HttpClient";
+ import { Credentials } from "@distilled.cloud/cloudflare/Credentials";
+ declare namespace RemoteWorker_d_exports {
+   export { RemoteWorker, layer, make };
+diff --git a/dist/core/node/remote-bindings/RemoteWorker.mjs b/dist/core/node/remote-bindings/RemoteWorker.mjs
+index ae9d5cc60f493920803010dd6fd057d3b4954002..7a7fc77d5f37ccd2eebca30ec84fa15d7506bfd4 100644
+--- a/dist/core/node/remote-bindings/RemoteWorker.mjs
++++ b/dist/core/node/remote-bindings/RemoteWorker.mjs
+@@ -6,7 +6,7 @@ import { Access } from "./Access.mjs";
+ import * as Context from "effect/Context";
+ import * as Effect from "effect/Effect";
+ import * as Layer from "effect/Layer";
+-import * as HttpClient from "effect/unstable/http/HttpClient";
++import * as HttpClient from "effect/http/HttpClient";
+ import * as NodeCrypto from "node:crypto";
+ import * as Cause from "effect/Cause";
+ import * as Result from "effect/Result";
+diff --git a/dist/vite/node/dev-server-z7SqQHnQ.mjs b/dist/vite/node/dev-server-z7SqQHnQ.mjs
+index 52251b28be215fd136553e63b31d4f2e5b96223f..93edfbabd13e984cbc3198feb43fdd57dfc319e1 100644
+--- a/dist/vite/node/dev-server-z7SqQHnQ.mjs
++++ b/dist/vite/node/dev-server-z7SqQHnQ.mjs
+@@ -17,10 +17,10 @@ import * as Credentials from "@distilled.cloud/cloudflare/Credentials";
+ import * as Exit from "effect/Exit";
+ import * as Option from "effect/Option";
+ import * as Scope from "effect/Scope";
+-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
+-import * as Headers from "effect/unstable/http/Headers";
+-import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest";
+-import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
++import * as FetchHttpClient from "effect/http/FetchHttpClient";
++import * as Headers from "effect/http/Headers";
++import * as HttpServerRequest from "effect/http/HttpServerRequest";
++import * as HttpServerResponse from "effect/http/HttpServerResponse";
+ import * as NodeFs from "node:fs/promises";
+ import * as Assets from "@alchemy.run/cloudflare-runtime/core/bindings/assets/Assets";
+ import * as Loopback$1 from "@alchemy.run/cloudflare-runtime/core/globals/Loopback";
+diff --git a/dist/vite/node/preview-server-D3yf11tl.mjs b/dist/vite/node/preview-server-D3yf11tl.mjs
+index ec9a4c31a23befc07958ed29866c99c5508831d4..2807584db61a67f3a1e75f3b117b28a3c569a2b7 100644
+--- a/dist/vite/node/preview-server-D3yf11tl.mjs
++++ b/dist/vite/node/preview-server-D3yf11tl.mjs
+@@ -8,7 +8,7 @@ import * as Layer from "effect/Layer";
+ import * as Credentials from "@distilled.cloud/cloudflare/Credentials";
+ import * as Exit from "effect/Exit";
+ import * as Scope from "effect/Scope";
+-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
++import * as FetchHttpClient from "effect/http/FetchHttpClient";
+ import * as NodeFs from "node:fs/promises";
+ //#region src/vite/preview-server.ts
+ /**
+diff --git a/src/core/Docker.ts b/src/core/Docker.ts
+index ad4c4ab703c2984d13d934cd128fd46f57ace1ba..1d42bc36816f0c9bb1ee24b0f363e0c453f19bdb 100644
+--- a/src/core/Docker.ts
++++ b/src/core/Docker.ts
+@@ -7,8 +7,8 @@ import * as Layer from "effect/Layer";
+ import * as Path from "effect/Path";
+ import type * as Scope from "effect/Scope";
+ import * as Stream from "effect/Stream";
+-import * as ChildProcess from "effect/unstable/process/ChildProcess";
+-import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner";
++import * as ChildProcess from "effect/process/ChildProcess";
++import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
+ import * as NodeHttp from "node:http";
+ import * as NodeStream from "node:stream";
+ import {
+diff --git a/src/core/globals/LoopbackServer.ts b/src/core/globals/LoopbackServer.ts
+index 80ada2f7c396874b99e435caf0cc7c9a76b10a9d..f915a26a76fe5709b62f044b5c233eaf8588aacd 100644
+--- a/src/core/globals/LoopbackServer.ts
++++ b/src/core/globals/LoopbackServer.ts
+@@ -2,9 +2,9 @@ import * as Context from "effect/Context";
+ import * as Effect from "effect/Effect";
+ import * as Layer from "effect/Layer";
+ import * as MutableHashMap from "effect/MutableHashMap";
+-import * as HttpServerError from "effect/unstable/http/HttpServerError";
+-import type * as HttpServerRequest from "effect/unstable/http/HttpServerRequest";
+-import type * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
++import * as HttpServerError from "effect/http/HttpServerError";
++import type * as HttpServerRequest from "effect/http/HttpServerRequest";
++import type * as HttpServerResponse from "effect/http/HttpServerResponse";
+ import * as NodeCrypto from "node:crypto";
+ import * as NodeHttp from "node:http";
+ import type { RuntimeError } from "../RuntimeError.shared.ts";
+diff --git a/src/core/platform-proxy/getPlatformProxy.ts b/src/core/platform-proxy/getPlatformProxy.ts
+index e0e8b7550eaa0bebd172c3b714fecaeb16386b13..26dbfd9bb37abcf6c82dac5ab6ff9f9b36a81f3c 100644
+--- a/src/core/platform-proxy/getPlatformProxy.ts
++++ b/src/core/platform-proxy/getPlatformProxy.ts
+@@ -14,7 +14,7 @@ import * as Effect from "effect/Effect";
+ import * as Exit from "effect/Exit";
+ import * as Layer from "effect/Layer";
+ import * as Scope from "effect/Scope";
+-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
++import * as FetchHttpClient from "effect/http/FetchHttpClient";
+ import * as Docker from "../Docker.ts";
+ import * as Globals from "../globals/Globals.ts";
+ import * as Internet from "../globals/Internet.ts";
+diff --git a/src/core/registry/RegistryProxy.ts b/src/core/registry/RegistryProxy.ts
+index e5fd9608fd4360ef8b60bbe832a21d19a7b023e4..8cd1e54c45abb7f04638034368bc85296ed5ed6b 100644
+--- a/src/core/registry/RegistryProxy.ts
++++ b/src/core/registry/RegistryProxy.ts
+@@ -2,8 +2,8 @@ import { loadInternalWorker } from "../internal/internal-worker.ts";
+ import * as Effect from "effect/Effect";
+ import * as Layer from "effect/Layer";
+ import * as Stream from "effect/Stream";
+-import * as HttpBody from "effect/unstable/http/HttpBody";
+-import * as HttpClient from "effect/unstable/http/HttpClient";
++import * as HttpBody from "effect/http/HttpBody";
++import * as HttpClient from "effect/http/HttpClient";
+ import * as NodeCrypto from "node:crypto";
+ const RegistryProxyWorker = {
+   worker: () =>
+diff --git a/src/core/remote-bindings/Access.ts b/src/core/remote-bindings/Access.ts
+index 7e4e91b211f448f5860049e949eb7d5d71c517e1..17e45dd0d62ef2efb22faf3c40b54157536bf749 100644
+--- a/src/core/remote-bindings/Access.ts
++++ b/src/core/remote-bindings/Access.ts
+@@ -4,8 +4,8 @@ import * as Context from "effect/Context";
+ import * as Effect from "effect/Effect";
+ import * as Layer from "effect/Layer";
+ import * as Stream from "effect/Stream";
+-import * as ChildProcess from "effect/unstable/process/ChildProcess";
+-import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner";
++import * as ChildProcess from "effect/process/ChildProcess";
++import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
+ import { ConfigError, SystemError } from "../RuntimeError.shared.ts";
+ 
+ export class Access extends Context.Service<
+diff --git a/src/core/remote-bindings/RemoteBindings.ts b/src/core/remote-bindings/RemoteBindings.ts
+index 86637ae91e6543130db167b5a5af41bcb9944421..513686b2083f8d8d100b628d7e85c7d9e1352787 100644
+--- a/src/core/remote-bindings/RemoteBindings.ts
++++ b/src/core/remote-bindings/RemoteBindings.ts
+@@ -4,8 +4,8 @@ import * as Effect from "effect/Effect";
+ import * as Fiber from "effect/Fiber";
+ import * as Hash from "effect/Hash";
+ import * as Layer from "effect/Layer";
+-import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest";
+-import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
++import * as HttpServerRequest from "effect/http/HttpServerRequest";
++import * as HttpServerResponse from "effect/http/HttpServerResponse";
+ const ClientWorker = {
+   worker: () =>
+     loadInternalWorker(
+diff --git a/src/core/remote-bindings/RemoteWorker.ts b/src/core/remote-bindings/RemoteWorker.ts
+index f4a464a63061177d1b9c7e0ddbe165e490099ee0..563fe7aa434c597afa711ff73a35b8927c5e2123 100644
+--- a/src/core/remote-bindings/RemoteWorker.ts
++++ b/src/core/remote-bindings/RemoteWorker.ts
+@@ -6,7 +6,7 @@ import * as Context from "effect/Context";
+ import * as Effect from "effect/Effect";
+ import * as Layer from "effect/Layer";
+ import * as Result from "effect/Result";
+-import * as HttpClient from "effect/unstable/http/HttpClient";
++import * as HttpClient from "effect/http/HttpClient";
+ import * as NodeCrypto from "node:crypto";
+ const RemoteWorkerScript = {
+   worker: () =>
+diff --git a/src/core/test/Docker.test.ts b/src/core/test/Docker.test.ts
+index 1ad56c9bd2ec1637916ca9ae460cb27299606618..4a57a49e7650b968ca61523ce331b39d6af9485a 100644
+--- a/src/core/test/Docker.test.ts
++++ b/src/core/test/Docker.test.ts
+@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
+ import * as Layer from "effect/Layer";
+ import * as Sink from "effect/Sink";
+ import * as Stream from "effect/Stream";
+-import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner";
++import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
+ import {
+   buildFailureHint,
+   CONTAINER_LOOPBACK_ALIAS,
+diff --git a/src/core/test/StreamingTails.test.ts b/src/core/test/StreamingTails.test.ts
+index 9ea456c0415ab81038d6aa77341a73919a9752c9..090bd3010bf97951f4b487f60b1d74f205f16c0c 100644
+--- a/src/core/test/StreamingTails.test.ts
++++ b/src/core/test/StreamingTails.test.ts
+@@ -22,7 +22,7 @@ import { describe, expect, it, layer } from "@effect/vitest";
+ import * as Effect from "effect/Effect";
+ import * as Layer from "effect/Layer";
+ import * as Schedule from "effect/Schedule";
+-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
++import * as FetchHttpClient from "effect/http/FetchHttpClient";
+ import * as Docker from "../Docker.ts";
+ import * as Globals from "../globals/Globals.ts";
+ import * as Internet from "../globals/Internet.ts";
+diff --git a/src/core/test/Tails.test.ts b/src/core/test/Tails.test.ts
+index 528de0e1f83b784bd1f469ea3007fae7b8bd7df0..05fcee3eb2e5fb996e20747d2c9062d5a9f4f5b2 100644
+--- a/src/core/test/Tails.test.ts
++++ b/src/core/test/Tails.test.ts
+@@ -18,7 +18,7 @@ import { describe, expect, it, layer } from "@effect/vitest";
+ import * as Effect from "effect/Effect";
+ import * as Layer from "effect/Layer";
+ import * as Schedule from "effect/Schedule";
+-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
++import * as FetchHttpClient from "effect/http/FetchHttpClient";
+ import * as Docker from "../Docker.ts";
+ import * as Globals from "../globals/Globals.ts";
+ import * as Internet from "../globals/Internet.ts";
+diff --git a/src/core/test/bindings/Cache.test.ts b/src/core/test/bindings/Cache.test.ts
+index eb067a3122bcae317f342fb50de52a77f2909038..76eb1850f4a19128f4da09039613742a163a455a 100644
+--- a/src/core/test/bindings/Cache.test.ts
++++ b/src/core/test/bindings/Cache.test.ts
+@@ -26,7 +26,7 @@ import * as Effect from "effect/Effect";
+ import * as FileSystem from "effect/FileSystem";
+ import * as Layer from "effect/Layer";
+ import * as Path from "effect/Path";
+-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
++import * as FetchHttpClient from "effect/http/FetchHttpClient";
+ import * as Cache from "../../bindings/cache/index.ts";
+ import * as Docker from "../../Docker.ts";
+ import * as Globals from "../../globals/Globals.ts";
+diff --git a/src/core/test/bindings/D1.test.ts b/src/core/test/bindings/D1.test.ts
+index d4dbbf04d827f60809d87c1b228016d504f104ae..f34f926e38602a7a89f6a332260b138445799fc4 100644
+--- a/src/core/test/bindings/D1.test.ts
++++ b/src/core/test/bindings/D1.test.ts
+@@ -27,7 +27,7 @@ import * as Effect from "effect/Effect";
+ import * as FileSystem from "effect/FileSystem";
+ import * as Layer from "effect/Layer";
+ import * as Path from "effect/Path";
+-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
++import * as FetchHttpClient from "effect/http/FetchHttpClient";
+ import * as D1 from "../../bindings/d1/index.ts";
+ import * as Docker from "../../Docker.ts";
+ import * as Globals from "../../globals/Globals.ts";
+diff --git a/src/core/test/bindings/Images.test.ts b/src/core/test/bindings/Images.test.ts
+index 6a1958fb928344bca714b5dcbae9db569963ac1b..fe155bc37d45ed5cf2f216a0cbe577bebc778253 100644
+--- a/src/core/test/bindings/Images.test.ts
++++ b/src/core/test/bindings/Images.test.ts
+@@ -23,7 +23,7 @@ import * as Effect from "effect/Effect";
+ import * as FileSystem from "effect/FileSystem";
+ import * as Layer from "effect/Layer";
+ import * as Path from "effect/Path";
+-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
++import * as FetchHttpClient from "effect/http/FetchHttpClient";
+ import sharp from "sharp";
+ import * as Images from "../../bindings/images/index.ts";
+ import * as Docker from "../../Docker.ts";
+diff --git a/src/core/test/bindings/KvNamespace.test.ts b/src/core/test/bindings/KvNamespace.test.ts
+index 6a5b2f08bcb8e52a299a50ef7f6b0a321fb3e703..5e22898fe94e944a4cb22c031a8795234e66b0c6 100644
+--- a/src/core/test/bindings/KvNamespace.test.ts
++++ b/src/core/test/bindings/KvNamespace.test.ts
+@@ -29,7 +29,7 @@ import * as Effect from "effect/Effect";
+ import * as FileSystem from "effect/FileSystem";
+ import * as Layer from "effect/Layer";
+ import * as Path from "effect/Path";
+-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
++import * as FetchHttpClient from "effect/http/FetchHttpClient";
+ import * as KvNamespace from "../../bindings/kv-namespace/index.ts";
+ import * as Docker from "../../Docker.ts";
+ import * as Globals from "../../globals/Globals.ts";
+diff --git a/src/core/test/bindings/R2Bucket.test.ts b/src/core/test/bindings/R2Bucket.test.ts
+index 2b09f4441157b07a731a74a7ed44eb1b7f95bdb9..74686c37c43d57ef6e586e9f30200c8199ccbf2a 100644
+--- a/src/core/test/bindings/R2Bucket.test.ts
++++ b/src/core/test/bindings/R2Bucket.test.ts
+@@ -30,7 +30,7 @@ import * as Effect from "effect/Effect";
+ import * as FileSystem from "effect/FileSystem";
+ import * as Layer from "effect/Layer";
+ import * as Path from "effect/Path";
+-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
++import * as FetchHttpClient from "effect/http/FetchHttpClient";
+ import * as R2Bucket from "../../bindings/r2-bucket/index.ts";
+ import * as Docker from "../../Docker.ts";
+ import * as Globals from "../../globals/Globals.ts";
+diff --git a/src/core/test/bindings/SecretsStore.test.ts b/src/core/test/bindings/SecretsStore.test.ts
+index b8f1a7d43e6f15e3b843bee65bc34eaa044f3aee..de246b10105d52571312831a80a0ef12e71ed29b 100644
+--- a/src/core/test/bindings/SecretsStore.test.ts
++++ b/src/core/test/bindings/SecretsStore.test.ts
+@@ -25,7 +25,7 @@ import * as Effect from "effect/Effect";
+ import * as FileSystem from "effect/FileSystem";
+ import * as Layer from "effect/Layer";
+ import * as Path from "effect/Path";
+-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
++import * as FetchHttpClient from "effect/http/FetchHttpClient";
+ import * as KvNamespace from "../../bindings/kv-namespace/index.ts";
+ import * as SecretsStore from "../../bindings/secrets-store/index.ts";
+ import * as Docker from "../../Docker.ts";
+diff --git a/src/core/test/bindings/SendEmail.test.ts b/src/core/test/bindings/SendEmail.test.ts
+index 29bbb82f277ccf77c0e376e2d05975d7daf6cda1..3ae057b2af60471d3bdd6af0cff64f0a3784c2e4 100644
+--- a/src/core/test/bindings/SendEmail.test.ts
++++ b/src/core/test/bindings/SendEmail.test.ts
+@@ -31,7 +31,7 @@ import * as Effect from "effect/Effect";
+ import * as FileSystem from "effect/FileSystem";
+ import * as Layer from "effect/Layer";
+ import * as Path from "effect/Path";
+-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
++import * as FetchHttpClient from "effect/http/FetchHttpClient";
+ import * as SendEmail from "../../bindings/send-email/index.ts";
+ import * as Docker from "../../Docker.ts";
+ import * as Globals from "../../globals/Globals.ts";
+diff --git a/src/core/test/bindings/Stream.test.ts b/src/core/test/bindings/Stream.test.ts
+index ee1e9bf2cb1b3dd88cf372e9f701927460cea34a..272a305ccab368b00d4cbdcf02f8869aea909682 100644
+--- a/src/core/test/bindings/Stream.test.ts
++++ b/src/core/test/bindings/Stream.test.ts
+@@ -40,7 +40,7 @@ import * as FileSystem from "effect/FileSystem";
+ import * as Layer from "effect/Layer";
+ import * as Path from "effect/Path";
+ import type * as Scope from "effect/Scope";
+-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
++import * as FetchHttpClient from "effect/http/FetchHttpClient";
+ import * as Stream from "../../bindings/stream/index.ts";
+ import * as Docker from "../../Docker.ts";
+ import * as Globals from "../../globals/Globals.ts";
+diff --git a/src/core/test/bindings/Workflows.test.ts b/src/core/test/bindings/Workflows.test.ts
+index 963687b95c0baa872660d4960f0719a94da45cdf..81da6ee4f1956663f57ade7c93b58ea02674026a 100644
+--- a/src/core/test/bindings/Workflows.test.ts
++++ b/src/core/test/bindings/Workflows.test.ts
+@@ -6,7 +6,7 @@ import * as Path from "effect/Path";
+ import * as FileSystem from "effect/FileSystem";
+ import * as Layer from "effect/Layer";
+ import * as Schedule from "effect/Schedule";
+-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
++import * as FetchHttpClient from "effect/http/FetchHttpClient";
+ import * as Workflows from "../../bindings/workflows/Workflows.ts";
+ import * as Docker from "../../Docker.ts";
+ import * as Globals from "../../globals/Globals.ts";
+diff --git a/src/core/test/globals/Email.test.ts b/src/core/test/globals/Email.test.ts
+index 97ad26ce505ce8977d5f4055b4c013999a3d2654..f1bf722149267a5e381c401298543bca11611d3d 100644
+--- a/src/core/test/globals/Email.test.ts
++++ b/src/core/test/globals/Email.test.ts
+@@ -23,7 +23,7 @@ import * as Effect from "effect/Effect";
+ import * as FileSystem from "effect/FileSystem";
+ import * as Layer from "effect/Layer";
+ import * as Path from "effect/Path";
+-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
++import * as FetchHttpClient from "effect/http/FetchHttpClient";
+ import * as Docker from "../../Docker.ts";
+ import * as Globals from "../../globals/Globals.ts";
+ import * as Internet from "../../globals/Internet.ts";
+diff --git a/src/core/test/globals/LoopbackServer.test.ts b/src/core/test/globals/LoopbackServer.test.ts
+index aa2398b1551eb615a4506a909549b4f41406f36f..a2b755aa34bae63f1b8f554948f90e3928bab22a 100644
+--- a/src/core/test/globals/LoopbackServer.test.ts
++++ b/src/core/test/globals/LoopbackServer.test.ts
+@@ -1,6 +1,6 @@
+ import { expect, layer } from "@effect/vitest";
+ import * as Effect from "effect/Effect";
+-import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
++import * as HttpServerResponse from "effect/http/HttpServerResponse";
+ import * as LoopbackServer from "../../globals/LoopbackServer.ts";
+ 
+ layer(LoopbackServer.LoopbackServerLive)((it) => {
+diff --git a/src/core/test/helpers/runtime.ts b/src/core/test/helpers/runtime.ts
+index cb4d0448b293de50d9ed0034806aef8f1f68e809..48ad79376fd643e444cf7d2073dbaff3a0aebae3 100644
+--- a/src/core/test/helpers/runtime.ts
++++ b/src/core/test/helpers/runtime.ts
+@@ -8,7 +8,7 @@ import * as Layer from "effect/Layer";
+ import * as Queue from "effect/Queue";
+ import * as Schedule from "effect/Schedule";
+ import * as Stream from "effect/Stream";
+-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
++import * as FetchHttpClient from "effect/http/FetchHttpClient";
+ import * as Docker from "../../Docker.ts";
+ import * as Globals from "../../globals/Globals.ts";
+ import * as Internet from "../../globals/Internet.ts";
+diff --git a/src/core/test/remote-bindings/RemoteBindings.integration.test.ts b/src/core/test/remote-bindings/RemoteBindings.integration.test.ts
+index 260fd744f5c364e81d39c04b6d73338711d177b9..066d456cda96905726e487bb1bfa4c78a95c3ed6 100644
+--- a/src/core/test/remote-bindings/RemoteBindings.integration.test.ts
++++ b/src/core/test/remote-bindings/RemoteBindings.integration.test.ts
+@@ -3,7 +3,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
+ import { describe, expect, it } from "@effect/vitest";
+ import * as Effect from "effect/Effect";
+ import * as Layer from "effect/Layer";
+-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
++import * as FetchHttpClient from "effect/http/FetchHttpClient";
+ import {
+   Ai,
+   Artifacts,
+diff --git a/src/core/test/sandbox.ts b/src/core/test/sandbox.ts
+index eb3006d99e10e8975de557c496f83fe2b5ff450d..69be67f66a3bfb04cf3bba8f84531ba4bbacc978 100644
+--- a/src/core/test/sandbox.ts
++++ b/src/core/test/sandbox.ts
+@@ -4,7 +4,7 @@ import * as Credentials from "@distilled.cloud/cloudflare/Credentials";
+ import * as NodeServices from "@effect/platform-node/NodeServices";
+ import * as Effect from "effect/Effect";
+ import * as Layer from "effect/Layer";
+-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
++import * as FetchHttpClient from "effect/http/FetchHttpClient";
+ import { KvNamespace } from "../../../dist/core/node/bindings/index.mjs";
+ import * as WorkerProxy from "../../../dist/core/node/proxy/WorkerProxy.mjs";
+ import * as Runtime from "../../../dist/core/node/Runtime.mjs";
+diff --git a/src/vite/dev-server.ts b/src/vite/dev-server.ts
+index a2b0a8f3b0a827b20ae8ad54ea31eceb96c230d5..a56c62d6a64a35172a24393f912d3c63226b0b28 100644
+--- a/src/vite/dev-server.ts
++++ b/src/vite/dev-server.ts
+@@ -18,10 +18,10 @@ import * as Exit from "effect/Exit";
+ import * as Layer from "effect/Layer";
+ import * as Option from "effect/Option";
+ import * as Scope from "effect/Scope";
+-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
+-import * as Headers from "effect/unstable/http/Headers";
+-import * as HttpServerRequest from "effect/unstable/http/HttpServerRequest";
+-import * as HttpServerResponse from "effect/unstable/http/HttpServerResponse";
++import * as FetchHttpClient from "effect/http/FetchHttpClient";
++import * as Headers from "effect/http/Headers";
++import * as HttpServerRequest from "effect/http/HttpServerRequest";
++import * as HttpServerResponse from "effect/http/HttpServerResponse";
+ import * as NodeFs from "node:fs/promises";
+ import * as NodeHttp from "node:http";
+ import type * as vite from "vite";
+diff --git a/src/vite/preview-server.ts b/src/vite/preview-server.ts
+index d54ed620abd217da86dca403856de87beaa7145c..a00c5341ca44e51ebce7f9ccaf1deab59e22a43e 100644
+--- a/src/vite/preview-server.ts
++++ b/src/vite/preview-server.ts
+@@ -8,7 +8,7 @@ import * as Effect from "effect/Effect";
+ import * as Exit from "effect/Exit";
+ import * as Layer from "effect/Layer";
+ import * as Scope from "effect/Scope";
+-import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
++import * as FetchHttpClient from "effect/http/FetchHttpClient";
+ import * as NodeFs from "node:fs/promises";
+ import * as NodePath from "node:path";
+ import type { CloudflareVitePluginOptions } from "./plugin.ts";

@@ -1,6 +1,5 @@
 // Telemetry accepts unknown SDK values. Only primitive, explicitly allowed fields leave this module.
 // oxlint-disable anti-slop/no-runtime-typeof
-import { type ErrorEvent } from '@sentry/cloudflare'
 
 const OMITTED = '[omitted]'
 
@@ -200,79 +199,4 @@ export function diagnosticAnnotations(fields: Readonly<Record<string, unknown>>)
       return [diagnosticFields(entry)]
     })
   }
-}
-
-/** Rebuild the event so new SDK fields cannot silently expand data collection. */
-function sanitizeSentryEvent(event: ErrorEvent): ErrorEvent {
-  const trace = event.contexts?.trace
-  const sanitized: ErrorEvent = {
-    type: undefined,
-    platform: 'javascript',
-    release: diagnosticLabel(event.release),
-    environment: diagnosticLabel(event.environment),
-    message: 'Application failure',
-    fingerprint: [
-      'application',
-      diagnosticLabel(event.tags?.['service']),
-      diagnosticLabel(event.tags?.['event']),
-      diagnosticLabel(event.tags?.['signal']),
-      ...(event.exception?.values ?? []).map((exception) =>
-        diagnosticLabel(exception.type)
-      )
-    ],
-    tags: diagnosticFields(event.tags ?? {}),
-    extra: diagnosticFields(event.extra ?? {}),
-
-    exception: {
-      values: (event.exception?.values ?? []).map((exception) => ({
-        type: diagnosticLabel(exception.type),
-        value: OMITTED
-      }))
-    }
-  }
-  if (
-    trace &&
-    /^[a-f0-9]{32}$/.test(trace.trace_id) &&
-    /^[a-f0-9]{16}$/.test(trace.span_id)
-  ) {
-    sanitized.contexts = {
-      trace: {
-        trace_id: trace.trace_id,
-        span_id: trace.span_id,
-        op: diagnosticLabel(trace.op),
-        status: diagnosticLabel(trace.status)
-      }
-    }
-  }
-  if (event.event_id !== undefined) {
-    sanitized.event_id = event.event_id
-  }
-  if (event.timestamp !== undefined) {
-    sanitized.timestamp = event.timestamp
-  }
-  if (event.level !== undefined) {
-    sanitized.level = event.level
-  }
-  return sanitized
-}
-
-/** Shared by server and browser SDK initialization; OTLP remains the trace provider. */
-export const sentryPrivacyOptions = {
-  tracesSampleRate: 0,
-  enableLogs: false,
-  dataCollection: {
-    userInfo: false,
-    cookies: false,
-    httpHeaders: { request: false, response: false },
-    httpBodies: [],
-    urlQueryParams: false,
-    graphQL: { document: false, variables: false },
-    genAI: { inputs: false, outputs: false },
-    databaseQueryData: false,
-    stackFrameVariables: false,
-    frameContextLines: 0
-  },
-  beforeBreadcrumb: () => null,
-  beforeSend: sanitizeSentryEvent,
-  beforeSendTransaction: () => null
 }

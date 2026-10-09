@@ -1,5 +1,8 @@
 {
   "compilerOptions": {
+    "plugins": [
+      { "name": "@effect/language-service", "ignoreEffectWarningsInTscExitCode": true }
+    ],
     "target": "ES2022",
     "ignoreDeprecations": "6.0",
     "useDefineForClassFields": true,

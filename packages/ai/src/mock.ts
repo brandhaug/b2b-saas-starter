@@ -1,5 +1,5 @@
 import { Effect, Layer, Stream } from 'effect'
-import { AiError, LanguageModel, Model, type Response } from 'effect/unstable/ai'
+import { AiError, LanguageModel, Model, type Response } from 'effect/ai'
 import { plainChat } from './text-model.ts'
 
 // The honest no-provider model: it echoes the question and names the env vars

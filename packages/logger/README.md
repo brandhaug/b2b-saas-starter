@@ -1,8 +1,22 @@
 # Telemetry data policy
 
-The output-boundary filtering rules apply after SDKs have added their own context.
+These output-boundary filtering rules cover server application telemetry after SDKs
+have added their own context. Native Cloudflare runtime records use separate
+collection rules.
 Existing provider error classification and Effect `Redacted` credentials
 remain useful upstream. They do not replace output filtering.
+
+## Event boundaries
+
+Each application request or scope emits one canonical event with its request
+facts. Native Worker invocation records supply HTTP request totals and outcomes,
+including requests stopped at entry-point gates. Do not add a second application
+request event to reconstruct that denominator.
+
+Operator health snapshots, scheduler lifecycle events such as `cron.check_in`,
+and independent evidence-gap signals are separate operational events. They carry
+the measurements and lifecycle evidence formerly sent through external metrics
+and check-in APIs. They must not duplicate facts from the canonical request event.
 
 ## Allowed diagnostics
 
@@ -29,9 +43,9 @@ OTLP also permits the corresponding service/deployment/outcome semantic attribut
 metric samples, and status codes remain intact. RED metrics keep their existing
 low-cardinality `service`, `event`, and `status` dimensions.
 
-Authorization headers, cookies, passwords, tokens, provider secrets, URLs and
+Application telemetry omits authorization headers, cookies, passwords, tokens, provider secrets, URLs and
 pathnames, query strings, request/response bodies, email/IP/user identity, customer
-content, and arbitrary annotations are omitted. URLs are omitted entirely because
+content, and arbitrary annotations. URLs are omitted entirely because
 paths can contain secrets too. Log message bodies come only from the code-owned `event` annotation set by the
 canonical scope emission; arbitrary messages are omitted even if they look like
 valid labels. Tracer log-event names follow the same contract. Free-form messages,
@@ -48,30 +62,24 @@ text in a remote service.
   from nested failures. With no `OTEL_EXPORTER_OTLP_ENDPOINT`, no exporter is built.
   `OTEL_EXPORTER_OTLP_HEADERS` authenticates the collector request and is never
   copied into the telemetry body. Keep collectors on trusted HTTPS endpoints.
-- Sentry uses the shared `sentryPrivacyOptions` in server and browser initialization.
-  Its data-collection settings disable user info, cookies, headers, bodies, query
-  parameters, GraphQL/AI/database content, frame variables, and source context.
-  `beforeSend` rebuilds error events from allowed fields. Breadcrumbs, SDK logs,
-  and Sentry transactions are disabled; OTLP owns server traces. Replay is not
-  configured. With no `SENTRY_DSN`, the server SDK has no transport and the browser
-  SDK is not loaded.
-- Server PostHog emits only operation name, service, status, duration, environment,
-  and trace ID, using that per-request trace as the distinct ID. It creates and
-  flushes a client within the invocation. No `POSTHOG_KEY` means no analytics client
-  or traffic. `POSTHOG_HOST` selects the deployment's ingestion region.
-- Browser PostHog retains only `$pageview` and `$pageleave`, a fresh event UUID,
-  the public ingestion token, and a false person-profile flag. It uses the event
-  UUID as its distinct ID. The output hook rebuilds the payload, dropping URL,
-  referrer, DOM, user, and custom properties, and drops all other event types.
-  Autocapture, exception capture, recording, person profiles, feature-flag requests,
-  and external dependency loading are off. Persistence is memory-only.
-  Without a key the SDK is not loaded. New analytics data requires an explicit
-  addition to this small contract and output-boundary tests.
+- Failed wide events use `console.error` with the same sanitized JSON payload.
+  Workers Issues consumes this error signal; handled failures need no vendor SDK.
+  Interrupt-only scopes retain their evidence through `console.log` so cancellation
+  does not create an Issue.
+  This filter applies to application emissions. Cloudflare's runtime exception and
+  invocation metadata bypass it. Deployment enables `redact_query_string` in
+  Wrangler and `redactQueryString` in Alchemy to remove query strings from native
+  request URLs. This does not scrub URL paths, exception text, or arbitrary
+  application strings. Inspect platform records before production use.
+  Browser exceptions have no remote capture in this starter.
+- Optional Cloudflare Web Analytics is a browser beacon owned by the web app,
+  outside this logger and its allowlist. It collects page paths, referrers and
+  performance measurements when configured. See the
+  [integration guide](../../apps/web/content/docs/integrations/cloudflare-observability.mdx).
+  There is no server analytics sink.
 
-Regression tests capture console output, actual OTLP HTTP bodies, real
-Sentry transport envelopes, and decompressed PostHog HTTP bodies with sensitive
-sentinels in nested/provider failures. Browser tests exercise configured Sentry hooks and real PostHog HTTP output. These are local serialization checks, not proof about a deployed vendor's
-retention, access controls, ingestion IP metadata, or historical data. Operators
-must configure those settings and verify their deployment separately. No current
-exploit is inferred merely from the former raw-error paths. This document defines
-the field and provider contract.
+Regression tests capture console output and actual OTLP HTTP bodies with sensitive
+sentinels in nested/provider failures. These are local serialization checks, not
+proof about a deployed provider's retention, access controls, ingestion IP metadata,
+or historical data. Operators must configure those settings and verify their
+deployment separately. This document defines the server field and provider contract.

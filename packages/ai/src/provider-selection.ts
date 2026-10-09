@@ -1,6 +1,6 @@
 import { hasValue, type ProviderEnvOf } from '@b2b-saas-starter/env/server'
 import { type Layer } from 'effect'
-import { type LanguageModel, type Model } from 'effect/unstable/ai'
+import { type LanguageModel, type Model } from 'effect/ai'
 import { MockAssistantModel } from './mock.ts'
 import { type OpenAIConfig, makeOpenAIModel } from './openai.ts'
 import { type WorkersAIBinding, makeWorkersAIModel } from './workers-ai.ts'

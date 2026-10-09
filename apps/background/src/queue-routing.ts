@@ -1,5 +1,5 @@
 import { type Effect } from 'effect'
-import { type HttpClient } from 'effect/unstable/http'
+import { type HttpClient } from 'effect/http'
 
 import { buildWorkspaceExport } from './export-consumer.ts'
 import { sendNotificationEmail } from './notification-email-consumer.ts'

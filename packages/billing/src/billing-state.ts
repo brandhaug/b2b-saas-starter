@@ -48,6 +48,7 @@ export function emptySubscription(customerId: string): SubscriptionState {
     status: 'canceled',
     subscribedPlanId: 'starter',
     priceId: null,
+    interval: null,
     currentPeriodStart: null,
     currentPeriodEnd: null,
     cancelAtPeriodEnd: false,
@@ -113,6 +114,7 @@ export function resolveBillingState(input: {
   readonly subscriptions: ReadonlyArray<StripeSubscriptionResponse>
   readonly hasMore: boolean
   readonly priceIds: Readonly<Record<string, string>>
+  readonly annualPriceIds?: Readonly<Record<string, string>> | undefined
   readonly previous: SubscriptionState | null
   readonly payment: PaymentEvidence
   readonly now: string
@@ -148,9 +150,29 @@ export function resolveBillingState(input: {
   ) {
     return { kind: 'conflict', reason: 'unknown_subscription_item' }
   }
-  const recognized = PLANS.filter(
-    (plan) => plan.id !== 'starter' && input.priceIds[plan.id] === item.price.id
-  )
+  const interval = item.price.recurring?.interval
+  if (interval !== 'month' && interval !== 'year') {
+    return { kind: 'conflict', reason: 'unknown_price' }
+  }
+  const recognized = PLANS.flatMap((plan) => {
+    if (plan.id === 'starter') {
+      return []
+    }
+    const matches = []
+    if (
+      input.priceIds[plan.id] === item.price.id &&
+      item.price.recurring?.interval === 'month'
+    ) {
+      matches.push(plan)
+    }
+    if (
+      input.annualPriceIds?.[plan.id] === item.price.id &&
+      item.price.recurring?.interval === 'year'
+    ) {
+      matches.push(plan)
+    }
+    return matches
+  })
   const plan = recognized[0]
   if (recognized.length !== 1 || plan === undefined) {
     return { kind: 'conflict', reason: 'unknown_price' }
@@ -192,6 +214,7 @@ export function resolveBillingState(input: {
     status: subscription.status,
     subscribedPlanId: plan.id,
     priceId: item.price.id,
+    interval,
     currentPeriodStart: DateTime.formatIso(
       DateTime.makeUnsafe(item.current_period_start * 1000)
     ),
@@ -231,6 +254,7 @@ export function billingLifecycle(
   }
   return {
     access,
+    interval: state?.interval ?? null,
     status: state?.status ?? 'canceled',
     planId: state?.subscribedPlanId ?? fallbackPlanId,
     currentPeriodEnd: state?.currentPeriodEnd ?? null,

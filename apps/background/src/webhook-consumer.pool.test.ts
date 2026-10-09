@@ -1,5 +1,6 @@
 import { type WebhookQueueMessage } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
 import { webhookDeadLetterQueueName, webhookQueueName } from '@b2b-saas-starter/infra'
+import { type MessageBatchMessage } from 'cloudflare:test'
 import { DateTime, Effect, Schema } from 'effect'
 import { Webhook } from 'standardwebhooks'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vite-plus/test'
@@ -14,7 +15,7 @@ import {
 } from './test-pool.ts'
 
 // The queue-runtime half of the webhook consumer, exercised inside workerd
-// through `@cloudflare/vitest-pool-workers`: real D1 (the committed
+// through `@cloudflare/vitest-plugin`: real D1 (the committed
 // migrations), the real batch loop in `queue-consumer.ts`, and real
 // `ack`/`retry` calls — asserted with `getQueueResult()` against what the
 // runtime actually did with each message. Only the receiver endpoint is
@@ -88,7 +89,7 @@ function dropConnection(): void {
 function webhookMessage(
   id: string,
   attempts = 1
-): ServiceBindingQueueMessage<WebhookQueueMessage> {
+): MessageBatchMessage<WebhookQueueMessage> {
   return {
     id,
     // The platform's message shape carries a plain Date; `DateTime` has no
@@ -192,7 +193,7 @@ describe('webhook consumer (workers pool)', () => {
   })
 
   it('acks a successful delivery and records the delivered attempt row', () =>
-    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-pool-workers createMessageBatch/getQueueResult into Effect
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-plugin createMessageBatch/getQueueResult into Effect
     Effect.runPromise(
       Effect.gen(function* () {
         yield* seedDelivery('qmsg_ok')
@@ -295,7 +296,7 @@ describe('webhook consumer (workers pool)', () => {
     ))
 
   it('retries a 5xx with the backoff delay and records the failed attempt', () =>
-    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-pool-workers createMessageBatch/getQueueResult into Effect
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-plugin createMessageBatch/getQueueResult into Effect
     Effect.runPromise(
       Effect.gen(function* () {
         yield* seedDelivery('qmsg_retry')
@@ -322,7 +323,7 @@ describe('webhook consumer (workers pool)', () => {
     ))
 
   it('retries a network failure with no response status to record', () =>
-    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-pool-workers createMessageBatch/getQueueResult into Effect
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-plugin createMessageBatch/getQueueResult into Effect
     Effect.runPromise(
       Effect.gen(function* () {
         yield* seedDelivery('qmsg_net')
@@ -345,7 +346,7 @@ describe('webhook consumer (workers pool)', () => {
     ))
 
   it('records a redirect response without delivering to its target', () =>
-    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-pool-workers createMessageBatch/getQueueResult into Effect
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-plugin createMessageBatch/getQueueResult into Effect
     Effect.runPromise(
       Effect.gen(function* () {
         yield* seedDelivery('qmsg_redirect')
@@ -381,7 +382,7 @@ describe('webhook consumer (workers pool)', () => {
     ))
 
   it('acks a 4xx explicitly and lands the delivery row failed_permanent', () =>
-    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-pool-workers createMessageBatch/getQueueResult into Effect
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-plugin createMessageBatch/getQueueResult into Effect
     Effect.runPromise(
       Effect.gen(function* () {
         yield* seedDelivery('qmsg_4xx')
@@ -428,7 +429,7 @@ describe('webhook consumer (workers pool)', () => {
     ))
 
   it('acks a dead letter after recording the terminal dead_lettered row', () =>
-    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-pool-workers createMessageBatch/getQueueResult into Effect
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-plugin createMessageBatch/getQueueResult into Effect
     Effect.runPromise(
       Effect.gen(function* () {
         yield* seedDelivery('qmsg_dead')

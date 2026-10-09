@@ -60,7 +60,10 @@ test('revoking the other session signs that device out', async ({ browser }) => 
   const here = await thisDevice.newPage()
   const there = await otherDevice.newPage()
 
-  await signIn(there, 'demo@starter.local', '/workspaces/starter-lab')
+  // This device only needs a session to revoke. Passkey verification creates
+  // a second session with the same timestamp and device label, making the
+  // newest matching row ambiguous. The acting device still verifies below.
+  await signInWithPassword(there, 'demo@starter.local', '/account')
   await signIn(here, 'demo@starter.local', '/account')
 
   // The panel's query may have fetched before the second sign-in landed; the

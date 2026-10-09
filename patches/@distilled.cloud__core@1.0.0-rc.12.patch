@@ -1,0 +1,162 @@
+diff --git a/lib/api.d.ts b/lib/api.d.ts
+index 998f57bd1fb2ebb5c1d0cae6cdcad549f2b2dbf0..b15c5506bbec9bcf483a88f8be66b3cb07e4c2f2 100644
+--- a/lib/api.d.ts
++++ b/lib/api.d.ts
+@@ -6,10 +6,10 @@ import type * as AST from "effect/SchemaAST";
+ import type * as Stream from "effect/Stream";
+ import * as Pagination from "./pagination.ts";
+ import { type Policy as RetryPolicy } from "./retry.ts";
+-import * as HttpClient from "effect/unstable/http/HttpClient";
+-import type * as HttpClientError from "effect/unstable/http/HttpClientError";
+-import type * as HttpClientRequest from "effect/unstable/http/HttpClientRequest";
+-import type * as HttpClientResponse from "effect/unstable/http/HttpClientResponse";
++import * as HttpClient from "effect/http/HttpClient";
++import type * as HttpClientError from "effect/http/HttpClientError";
++import type * as HttpClientRequest from "effect/http/HttpClientRequest";
++import type * as HttpClientResponse from "effect/http/HttpClientResponse";
+ /**
+  * The view of an operation's config that protocols receive on every
+  * encode/decode call. The object is the same memoized config instance for
+diff --git a/lib/api.js b/lib/api.js
+index 08cd4ebc7ebc7781d444a631b4294af94dd6038e..62f6550e3584c456608e19b4952b11cfcc469f12 100644
+--- a/lib/api.js
++++ b/lib/api.js
+@@ -9,7 +9,7 @@ import * as Scope from "effect/Scope";
+ import { SingleShotGen } from "effect/Utils";
+ import * as Pagination from "./pagination.js";
+ import { makeDefault } from "./retry.js";
+-import * as HttpClient from "effect/unstable/http/HttpClient";
++import * as HttpClient from "effect/http/HttpClient";
+ /**
+  * The Protocol service knows how to turn a value into an HTTP request using
+  * only the input schema's trait annotations, and how to turn a response back
+diff --git a/lib/category.js b/lib/category.js
+index 18a8bba0c4b002610b991e03d5d3c91be0bcacdf..9deee64093cab053e74920accfe0b91ae290a6cd 100644
+--- a/lib/category.js
++++ b/lib/category.js
+@@ -20,7 +20,7 @@
+  */
+ import * as Effect from "effect/Effect";
+ import * as Predicate from "effect/Predicate";
+-import * as HttpClientError from "effect/unstable/http/HttpClientError";
++import * as HttpClientError from "effect/http/HttpClientError";
+ // ============================================================================
+ // Error Category Constants
+ // ============================================================================
+diff --git a/lib/codegen/cli.js b/lib/codegen/cli.js
+index 4cdddfa7935f8bfaadcd5fa89cf593ddeb287b7a..50f4ff224ed4a1d2653f10d539287318f6d531b9 100644
+--- a/lib/codegen/cli.js
++++ b/lib/codegen/cli.js
+@@ -14,8 +14,8 @@ import { BunRuntime, BunServices } from "@effect/platform-bun";
+ import { Console, Effect } from "effect";
+ import * as FileSystem from "effect/FileSystem";
+ import * as Path from "effect/Path";
+-import { Flag } from "effect/unstable/cli";
+-import { Command } from "effect/unstable/cli";
++import { Flag } from "effect/cli";
++import { Command } from "effect/cli";
+ import { barrel } from "./emit.js";
+ import { formatGenerated } from "./format.js";
+ import { generateService } from "./generator.js";
+diff --git a/lib/protocol-http.d.ts b/lib/protocol-http.d.ts
+index 26726843e6a24f0868f38a81db9ae5628c8367eb..ac86215b95dfc36f627e0315e13db695ae92bf9c 100644
+--- a/lib/protocol-http.d.ts
++++ b/lib/protocol-http.d.ts
+@@ -9,7 +9,7 @@
+  * {@link matchTypedError}).
+  */
+ import type * as AST from "effect/SchemaAST";
+-import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest";
++import * as HttpClientRequest from "effect/http/HttpClientRequest";
+ import { type ErrorMatcher, type KeyDictionaryEntries } from "./trait.ts";
+ export declare const getProps: (ast: AST.AST) => readonly AST.PropertySignature[];
+ export declare const getAnn: (ast: AST.AST, symbol: symbol) => unknown;
+diff --git a/lib/protocol-http.js b/lib/protocol-http.js
+index 2e28082599cb2494565727b18589267694ca3d91..4c609f11ffda32d31f0ff865c2ff69c1b9b2f13e 100644
+--- a/lib/protocol-http.js
++++ b/lib/protocol-http.js
+@@ -1,5 +1,5 @@
+-import * as HttpBody from "effect/unstable/http/HttpBody";
+-import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest";
++import * as HttpBody from "effect/http/HttpBody";
++import * as HttpClientRequest from "effect/http/HttpClientRequest";
+ import { bodySymbol, deepQuerySymbol, formDataFileSymbol, getErrorMatchers, headerSymbol, httpBodySymbol, httpSymbol, keyDictionarySymbol, labelSymbol, querySymbol, stringEncodedSymbol, unionCasesSymbol, } from "./trait.js";
+ //#region AST helpers (survive S.optional / Suspend / transforms)
+ export const getProps = (ast) => {
+diff --git a/src/api.ts b/src/api.ts
+index bc5f13f2a396254bab6841a8d989475c1971a60c..f6fbba0e3b774978a1ec7d15e184aa6321de01ca 100644
+--- a/src/api.ts
++++ b/src/api.ts
+@@ -11,10 +11,10 @@ import type * as Stream from "effect/Stream";
+ import { SingleShotGen } from "effect/Utils";
+ import * as Pagination from "./pagination.ts";
+ import { makeDefault, type Policy as RetryPolicy } from "./retry.ts";
+-import * as HttpClient from "effect/unstable/http/HttpClient";
+-import type * as HttpClientError from "effect/unstable/http/HttpClientError";
+-import type * as HttpClientRequest from "effect/unstable/http/HttpClientRequest";
+-import type * as HttpClientResponse from "effect/unstable/http/HttpClientResponse";
++import * as HttpClient from "effect/http/HttpClient";
++import type * as HttpClientError from "effect/http/HttpClientError";
++import type * as HttpClientRequest from "effect/http/HttpClientRequest";
++import type * as HttpClientResponse from "effect/http/HttpClientResponse";
+ 
+ //#region Protocol
+ 
+diff --git a/src/category.ts b/src/category.ts
+index 64554140209a187e932dba65125e5292606564eb..03fa537b8fb94f683fc68812cfdf5e4c228d33a4 100644
+--- a/src/category.ts
++++ b/src/category.ts
+@@ -20,7 +20,7 @@
+  */
+ import * as Effect from "effect/Effect";
+ import * as Predicate from "effect/Predicate";
+-import * as HttpClientError from "effect/unstable/http/HttpClientError";
++import * as HttpClientError from "effect/http/HttpClientError";
+ 
+ // ============================================================================
+ // Error Category Constants
+diff --git a/src/codegen/cli.ts b/src/codegen/cli.ts
+index 91a5ef61e74071918b455ee09bed4bc8863a27c2..8e2a07d9dcee023a3b0d5194b01e84acac7502b8 100644
+--- a/src/codegen/cli.ts
++++ b/src/codegen/cli.ts
+@@ -14,8 +14,8 @@ import { BunRuntime, BunServices } from "@effect/platform-bun";
+ import { Console, Effect } from "effect";
+ import * as FileSystem from "effect/FileSystem";
+ import * as Path from "effect/Path";
+-import { Flag } from "effect/unstable/cli";
+-import { Command } from "effect/unstable/cli";
++import { Flag } from "effect/cli";
++import { Command } from "effect/cli";
+ import { barrel } from "./emit.ts";
+ import { formatGenerated } from "./format.ts";
+ import { generateService, type SdkSpec } from "./generator.ts";
+diff --git a/src/protocol-http.ts b/src/protocol-http.ts
+index 03310dff01a9c45529ae6bb5b2b57b12f9225556..798bd00eada40c0f373b07003f23cfb82b83b52e 100644
+--- a/src/protocol-http.ts
++++ b/src/protocol-http.ts
+@@ -9,8 +9,8 @@
+  * {@link matchTypedError}).
+  */
+ import type * as AST from "effect/SchemaAST";
+-import * as HttpBody from "effect/unstable/http/HttpBody";
+-import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest";
++import * as HttpBody from "effect/http/HttpBody";
++import * as HttpClientRequest from "effect/http/HttpClientRequest";
+ import {
+   bodySymbol,
+   deepQuerySymbol,
+diff --git a/src/protocol-rest.ts b/src/protocol-rest.ts
+index ab8708caa4faf6a41e92b5a10aae3601c11f82e5..cd7ec9357d9c6e8a73f09f92d1e2d02b17eb00a7 100644
+--- a/src/protocol-rest.ts
++++ b/src/protocol-rest.ts
+@@ -27,8 +27,8 @@ import * as Effect from "effect/Effect";
+ import * as Layer from "effect/Layer";
+ import * as Redacted from "effect/Redacted";
+ import type * as AST from "effect/SchemaAST";
+-import type * as HttpClientRequest from "effect/unstable/http/HttpClientRequest";
+-import type * as HttpClientResponse from "effect/unstable/http/HttpClientResponse";
++import type * as HttpClientRequest from "effect/http/HttpClientRequest";
++import type * as HttpClientResponse from "effect/http/HttpClientResponse";
+ import * as API from "./api.ts";
+ import { httpSymbol, makeAnnotation, type HttpTrait } from "./trait.ts";
+ import {

@@ -316,7 +316,7 @@ export type WebBindingName =
  * (alchemy.run.ts) and local dev (each generated wrangler.jsonc) must run the
  * same runtime behavior, so changing the date cannot leave one worker behind.
  * Public fetch routing lets API JWKS and OAuth client metadata resolve Workers URLs.
- * `nodejs_compat` is required: `@sentry/cloudflare` needs AsyncLocalStorage
+ * `nodejs_compat` is required: `The Effect runtime` needs AsyncLocalStorage
  * (see packages/logger/src/providers.ts).
  */
 export type WorkerCompatibility = {
@@ -326,7 +326,11 @@ export type WorkerCompatibility = {
 
 export const workerCompatibility = {
   date: '2026-05-16',
-  flags: ['nodejs_compat', 'global_fetch_strictly_public']
+  flags: [
+    'nodejs_compat',
+    'global_fetch_strictly_public',
+    'durable_object_io_tasks_prevent_eviction'
+  ]
 } satisfies WorkerCompatibility
 
 // Shape matches Alchemy's `QueueConsumer` settings input. Wrangler spells the

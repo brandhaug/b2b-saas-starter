@@ -6,7 +6,7 @@ import {
 } from '@b2b-saas-starter/capabilities/testing/live-harness'
 import { expect, layer } from '@effect/vitest'
 import { Effect, Layer, Schema } from 'effect'
-import { HttpRouter } from 'effect/unstable/http'
+import { HttpRouter } from 'effect/http'
 import { RateLimiter } from '@b2b-saas-starter/api'
 import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from 'jose'

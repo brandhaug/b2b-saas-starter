@@ -1,5 +1,5 @@
 import { Schema } from 'effect'
-import { AiError, type LanguageModel } from 'effect/unstable/ai'
+import { AiError, type LanguageModel } from 'effect/ai'
 
 // What every adapter in this package shares: they are text-only models, and
 // `plainChat` is the whole acceptance policy — no tools, no structured

@@ -1,10 +1,5 @@
 import { withTriggerScope } from '@b2b-saas-starter/logger'
-import {
-  makeSentryOptions,
-  wireWideEventProviders,
-  withCronMonitor
-} from '@b2b-saas-starter/logger/providers'
-import * as Sentry from '@sentry/cloudflare'
+import { withCronMonitor } from '@b2b-saas-starter/logger/providers'
 import { Effect, Result } from 'effect'
 import { isMaintenanceMode } from '@b2b-saas-starter/env/server'
 import {
@@ -48,24 +43,16 @@ function ackUnroutableBatch(env: Env, batch: MessageBatch<unknown>): Promise<voi
   )
 }
 
-function makeBackgroundSentryOptions(env: Env) {
-  enforceSecureEndpoints(env)
-  return makeSentryOptions('background', env)
-}
-
-export default Sentry.withSentry(makeBackgroundSentryOptions, {
+export default {
   // Pure platform adapter: routing, signature checks, and Stripe processing
   // live in `stripe-endpoint.ts`, the same way queue logic stays out of here.
   // oxlint-disable-next-line effect/noAsyncFunction -- the Workers fetch handler contract is a plain async function; this is the platform adapter boundary
   async fetch(request: Request, env: Env): Promise<Response> {
-    // Sentry deliberately skips its options callback for HEAD and OPTIONS.
-    // Keep the gate at the actual Worker seam too, before provider wiring.
     enforceSecureEndpoints(env)
     const tlsResponse = minimumTlsResponse(request, env.ENVIRONMENT)
     if (tlsResponse !== undefined) {
       return tlsResponse
     }
-    wireWideEventProviders(env)
     if (isMaintenanceMode(env.MAINTENANCE_MODE)) {
       return Response.json({ error: 'maintenance_mode' }, { status: 503 })
     }
@@ -79,7 +66,6 @@ export default Sentry.withSentry(makeBackgroundSentryOptions, {
   // `dead_lettered` evidence is not lost to a store blip.
   queue(batch: MessageBatch<unknown>, env: Env): Promise<void> {
     enforceSecureEndpoints(env)
-    wireWideEventProviders(env)
     const consume = queueConsumerFor(batch.queue)
     if (consume === undefined) {
       return ackUnroutableBatch(env, batch)
@@ -94,7 +80,6 @@ export default Sentry.withSentry(makeBackgroundSentryOptions, {
   // visible to the worker's existing observability.
   scheduled(controller: ScheduledController, env: Env): Promise<void> {
     enforceSecureEndpoints(env)
-    wireWideEventProviders(env)
     if (isMaintenanceMode(env.MAINTENANCE_MODE)) {
       // oxlint-disable-next-line effect/noNewPromise -- the scheduled entry point returns a promise; there is no Effect left to run
       return Promise.resolve()
@@ -118,4 +103,4 @@ export default Sentry.withSentry(makeBackgroundSentryOptions, {
       )
     )
   }
-})
+}

@@ -31,7 +31,8 @@ const workspaceId = 'wrk_live'
 const bindings = {
   billing: {
     secretKey: 'sk_lifecycle',
-    priceIds: { team: 'price_team', enterprise: 'price_enterprise' }
+    priceIds: { team: 'price_team', enterprise: 'price_enterprise' },
+    annualPriceIds: { team: 'price_team_annual', enterprise: 'price_enterprise_annual' }
   }
 }
 function providerFixture() {
@@ -39,6 +40,10 @@ function providerFixture() {
   const seats: Array<string | null> = []
   let unavailable = false
   let archived = false
+  let interval: 'month' | 'year' = 'month'
+  function price() {
+    return { ...testPrice, recurring: { ...testPrice.recurring, interval } }
+  }
   function invoice(paid: boolean) {
     const at = snapshot.payment.lastPaymentAt
     let id = 'in_current'
@@ -72,6 +77,10 @@ function providerFixture() {
   const fetch = vi.fn(
     (input: string, init?: { readonly method?: string; readonly body?: string }) => {
       const url = new URL(input)
+      let priceId = `price_${snapshot.planId}`
+      if (interval === 'year') {
+        priceId += '_annual'
+      }
       let trialEnd: number | null = null
       if (snapshot.trialEnd !== null) {
         trialEnd = Date.parse(snapshot.trialEnd) / 1000
@@ -116,7 +125,10 @@ function providerFixture() {
                       ...testItem,
                       quantity: 0,
                       current_period_end: Date.parse(snapshot.currentPeriodEnd) / 1000,
-                      price: { ...testPrice, id: `price_${snapshot.planId}` }
+                      price: {
+                        ...price(),
+                        id: priceId
+                      }
                     }
                   ]
                 }
@@ -128,7 +140,7 @@ function providerFixture() {
       if (url.pathname.startsWith('/v1/prices/')) {
         return Promise.resolve(
           Response.json({
-            ...testPrice,
+            ...price(),
             active: !archived,
             id: url.pathname.split('/').at(-1)
           })
@@ -163,6 +175,9 @@ function providerFixture() {
   return {
     fetch,
     seats,
+    interval: (next: 'month' | 'year') => {
+      interval = next
+    },
     archive: () => {
       archived = true
     },
@@ -448,6 +463,97 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('Live lifecycle', (it) => {
             )
           ).toHaveLength(1)
         })
+        yield* run.pipe(Effect.ensuring(Effect.sync(() => vi.unstubAllGlobals())))
+      }),
+    30_000
+  )
+  it.effect(
+    'reconciles annual seats, portal interval changes, cancellation and fixed renewal grace',
+    () =>
+      Effect.gen(function* () {
+        const db = yield* Database
+        const fixture = providerFixture()
+        fixture.interval('year')
+        const paying: LifecycleSnapshot = {
+          ...initialSnapshot,
+          status: 'active',
+          currentInvoicePaid: true,
+          currentPeriodEnd: '2027-09-01T00:00:00.000Z',
+          payment: { lastPaymentAt: '2026-09-01T00:00:00.000Z', firstFailedAt: null }
+        }
+        fixture.set(paying)
+        yield* db
+          .insert(workspaceSubscriptions)
+          .values({
+            workspaceId,
+            stripeCustomerId: 'cus_lifecycle',
+            updatedAt: '2026-09-01T00:00:00.000Z'
+          })
+          .onConflictDoUpdate({
+            target: workspaceSubscriptions.workspaceId,
+            set: {
+              stripeCustomerId: 'cus_lifecycle',
+              stripeSubscriptionId: null,
+              lastPaymentAt: null,
+              firstFailedAt: null,
+              graceEndsAt: null
+            }
+          })
+        vi.stubGlobal('fetch', fixture.fetch)
+        const run = inWorkspace(
+          'live-lab',
+          Effect.gen(function* () {
+            const billing = yield* Billing
+            yield* TestClock.setTime(Date.parse('2026-09-02T00:00:00.000Z'))
+            expect((yield* billing.reconcileWorkspace({ workspaceId })).outcome).toBe(
+              'repaired'
+            )
+            expect((yield* billing.currentPlan).id).toBe('team')
+            expect((yield* billing.lifecycleStatus).currentPeriodEnd).toBe(
+              paying.currentPeriodEnd
+            )
+            const rows = yield* db
+              .select()
+              .from(workspaceSubscriptions)
+              .where(eq(workspaceSubscriptions.workspaceId, workspaceId))
+            expect(rows[0]?.stripePriceId).toBe('price_team_annual')
+            expect(rows[0]?.interval).toBe('year')
+            expect((yield* billing.lifecycleStatus).interval).toBe('year')
+            expect(fixture.seats.every((mode) => mode === 'create_prorations')).toBe(
+              true
+            )
+            expect(fixture.seats.length).toBeGreaterThan(0)
+            fixture.interval('month')
+            fixture.set({ ...paying, currentPeriodEnd: '2026-10-02T00:00:00.000Z' })
+            yield* billing.reconcileWorkspace({ workspaceId })
+            expect((yield* billing.lifecycleStatus).currentPeriodEnd).toBe(
+              '2026-10-02T00:00:00.000Z'
+            )
+            fixture.interval('year')
+            fixture.set({ ...paying, cancelAtPeriodEnd: true })
+            yield* billing.reconcileWorkspace({ workspaceId })
+            yield* TestClock.setTime(Date.parse(paying.currentPeriodEnd))
+            expect((yield* billing.currentPlan).id).toBe('starter')
+            fixture.set({
+              ...paying,
+              currentInvoicePaid: false,
+              status: 'past_due',
+              currentPeriodEnd: '2028-09-01T00:00:00.000Z',
+              payment: { ...paying.payment, firstFailedAt: paying.currentPeriodEnd }
+            })
+            yield* billing.reconcileWorkspace({ workspaceId })
+            expect((yield* billing.currentPlan).id).toBe('team')
+            expect((yield* billing.lifecycleStatus).graceEndsAt).toBe(
+              '2027-09-08T00:00:00.000Z'
+            )
+            yield* TestClock.setTime(Date.parse('2027-09-08T00:00:00.000Z'))
+            yield* billing.reconcileWorkspace({ workspaceId })
+            expect((yield* billing.currentPlan).id).toBe('starter')
+            expect((yield* billing.lifecycleStatus).planId).toBe('team')
+          }),
+          undefined,
+          bindings
+        )
         yield* run.pipe(Effect.ensuring(Effect.sync(() => vi.unstubAllGlobals())))
       }),
     30_000

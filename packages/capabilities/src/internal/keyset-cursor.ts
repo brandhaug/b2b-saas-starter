@@ -1,4 +1,5 @@
-import { Effect, Encoding, Result } from 'effect'
+import { Effect, Result } from 'effect'
+import { Base64 } from 'effect/encoding'
 
 /**
  * The one keyset-cursor codec every paged list read shares — capabilities
@@ -54,7 +55,7 @@ export type KeysetCursorPosition = {
 }
 
 function encodeKeysetCursor(position: KeysetCursorPosition): string {
-  return Encoding.encodeBase64(`${position.key} ${position.id}`)
+  return Base64.encode(`${position.key} ${position.id}`)
 }
 
 /**
@@ -63,7 +64,7 @@ function encodeKeysetCursor(position: KeysetCursorPosition): string {
  * any list contract knows how to name.
  */
 export function decodeKeysetCursor(cursor: string): KeysetCursorPosition | null {
-  const decoded = Encoding.decodeBase64String(cursor)
+  const decoded = Base64.decodeString(cursor)
   if (Result.isFailure(decoded)) {
     return null
   }

@@ -17,7 +17,7 @@ import {
 } from '@b2b-saas-starter/logger'
 import { monitorQueueOutcome } from './monitoring.ts'
 import { Effect, Layer, ManagedRuntime, Result, Schema, type Scope } from 'effect'
-import { FetchHttpClient, type HttpClient } from 'effect/unstable/http'
+import { FetchHttpClient, type HttpClient } from 'effect/http'
 
 /**
  * The vocabulary and the infrastructure every queue consumer in this worker

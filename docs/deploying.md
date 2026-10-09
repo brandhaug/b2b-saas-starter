@@ -149,7 +149,7 @@ other PRs.
 
 Previews are provider-light on purpose. A `pr-<number>` stage drops
 every optional provider value even if the deploying shell has one
-(Turnstile, Stripe, Sentry, PostHog, OTLP, OpenAI, Workers AI, email)
+(Turnstile, Stripe, Cloudflare Web Analytics, OTLP, OpenAI, Workers AI, email)
 and sets `ENVIRONMENT=preview`. A preview is publicly reachable and
 signs in with the documented demo credentials, so never point one at
 real data.
@@ -199,6 +199,19 @@ Pick any stage name matching `[a-z0-9]+([-_][a-z0-9]+)*`; only names of
 the form `pr-<number>` get the preview rules above (providers dropped,
 URL derived). A stage such as `dev_martin` gets isolated resources but
 otherwise deploys like production, so it needs `BETTER_AUTH_URL`.
+
+### Automatic tracing
+
+Alchemy and the generated Wrangler configurations enable persistent native traces
+at 100% sampling for all three Workers in every stage, including production.
+Normal deployment applies the setting; no feature flag or tracing SDK is needed.
+Logs, Issues, query-string redaction, and existing Effect exporters retain their
+configuration. Native platform spans and Effect spans remain separate.
+
+Inspect the deployed traces in the Cloudflare dashboard to verify binding spans
+and captured attributes. Native telemetry bypasses the application sanitizer;
+query-string redaction does not remove URL paths, SQL text, or exception messages.
+See the [tracing assessment](research/cloudflare-effect-tracer.md).
 
 ## Verifying the first deploy
 
@@ -286,3 +299,24 @@ from local domain and OAuth contract tests.
 See the [conversation guide](../apps/web/content/docs/capability-interfaces/assistant-conversations.mdx)
 for limits and the [recovery runbook](operations.md#private-assistant-conversation-recovery)
 for storage boundaries and deletion sanitation.
+
+## Optional browser analytics
+
+Set the repository variable `CLOUDFLARE_WEB_ANALYTICS_ENABLED` to `true` for CI,
+or set `CLOUDFLARE_WEB_ANALYTICS_ENABLED=true` in the deployment environment before
+running Alchemy. The stack provisions `Cloudflare.Rum.Site` for
+`new URL(BETTER_AUTH_URL).hostname` and binds its generated public site token only
+to the web Worker as `CLOUDFLARE_WEB_ANALYTICS_TOKEN`. Keep `BETTER_AUTH_URL` set
+to the actual web origin. When enabled, the deploy credential needs
+[`Account Settings Write`](https://developers.cloudflare.com/api/resources/rum/subresources/site_info/methods/create/)
+to manage the account's RUM sites.
+
+Alchemy sets `autoInstall: false`; the app embeds the beacon itself. Do not add a
+dashboard-injected copy. With the switch unset, no site is provisioned and no
+beacon loads. PR stages skip both provisioning and token binding even if the
+switch is enabled. Local development stays inactive without a token.
+
+Verify one beacon script loads and measurements appear after navigation on the
+deployed hostname. Check that the disabled deployment makes no beacon requests.
+The [integration guide](../apps/web/content/docs/integrations/cloudflare-observability.mdx)
+describes collected data and the privacy review needed before enabling analytics.

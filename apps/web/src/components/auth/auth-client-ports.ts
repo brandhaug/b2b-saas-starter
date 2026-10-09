@@ -1,3 +1,4 @@
+import { safeRedirect } from '@/lib/utils'
 import { type SOCIAL_PROVIDER_IDS } from '@b2b-saas-starter/env/social'
 import { authClient } from '@/lib/auth-client'
 import { type AuthResult } from '@/lib/auth-result'
@@ -38,6 +39,7 @@ type TurnstileFetchOptions = {
 }
 
 export type SignUpWithEmail = AuthPort<{
+  readonly callbackPath?: string | undefined
   readonly name: string
   readonly email: string
   readonly password: string
@@ -61,7 +63,7 @@ export function signUpWithAuthClient(
         name: input.name,
         email: input.email,
         password: input.password,
-        callbackURL: `${window.location.origin}/verify-email`
+        callbackURL: `${window.location.origin}${safeRedirect(input.callbackPath ?? '/verify-email')}`
       },
       input.turnstileToken
     )

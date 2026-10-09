@@ -4,14 +4,14 @@ import worker from './index.ts'
 
 describe('API Worker transport boundary', () => {
   it.each(['HEAD', 'OPTIONS'])(
-    'audits production endpoints on %s requests that Sentry does not instrument',
+    'audits production endpoints on %s requests',
     (method) => {
       expect(() =>
         worker.fetch(new Request('https://api.example.test/health', { method }), {
           ENVIRONMENT: 'production',
-          POSTHOG_HOST: 'http://analytics.example.test'
+          OTEL_EXPORTER_OTLP_ENDPOINT: 'http://analytics.example.test'
         })
-      ).toThrow(/POSTHOG_HOST \(insecure\)/)
+      ).toThrow(/OTEL_EXPORTER_OTLP_ENDPOINT \(insecure\)/)
     }
   )
 })

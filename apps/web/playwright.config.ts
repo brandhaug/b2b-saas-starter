@@ -13,7 +13,7 @@ export default defineConfig({
   timeout: 90_000,
   // Hydration is setup: its Locator.waitFor calls use the test budget above.
   // Assertions after the page becomes interactive keep this shorter deadline.
-  expect: { timeout: 5000 },
+  expect: { timeout: Number(process.env.E2E_EXPECT_TIMEOUT ?? 5000) },
   // Keep a trace for transient browser failures.
   retries: process.env.CI ? 1 : 0,
   use: {
@@ -39,7 +39,7 @@ export default defineConfig({
     // against it would hide the real state of the branch.
     reuseExistingServer: devServer && !process.env.CI,
     // Includes the build and local D1 proxy startup.
-    timeout: 180_000,
+    timeout: Number(process.env.E2E_STARTUP_TIMEOUT ?? 180_000),
     // Vite writes its ready banner and the D1 attach notice to stdout, which
     // Playwright drops by default. Without them a startup timeout says only
     // that the URL never answered.

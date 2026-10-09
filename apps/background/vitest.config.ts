@@ -1,4 +1,4 @@
-import { cloudflareTest } from '@cloudflare/vitest-pool-workers'
+import { cloudflareTest } from '@cloudflare/vitest-plugin'
 import { configDefaults, defineConfig } from 'vite-plus'
 
 import { listMigrations } from '../../packages/db/src/migrations-fs.ts'
@@ -6,7 +6,7 @@ import { productionStage, stageResourceNames } from '../../infra/bindings.ts'
 
 // Two projects, one file set each: the existing `*.test.ts` suites keep the
 // plain Node runner they run under today, and only the `*.pool.test.ts`
-// suites move into the workers pool (`@cloudflare/vitest-pool-workers`), so
+// suites move into the workers pool (`@cloudflare/vitest-plugin`), so
 // the pool's workerd startup cost never touches the rest of the suite.
 //
 // D1 state inside the pool comes from the real migrations: the pool cannot
@@ -28,11 +28,6 @@ const migrations = listMigrations().map(({ name, sql }) => ({
 
 export default defineConfig({
   test: {
-    // Vitest v4 compatibility: preserve mock call history.
-    // Remove after tests no longer rely on calls from setup or earlier tests.
-    // https://viteplus.dev/guide/vitest-v5#remove-unneeded-compatibility-settings
-    // https://vitest.dev/guide/migration/#clearmocks-is-enabled-by-default
-    clearMocks: false,
     // Vitest v4 compatibility: keep separate Vite servers for inline projects.
     // Remove when plugins and config hooks can run once for shared projects.
     // https://viteplus.dev/guide/vitest-v5#remove-unneeded-compatibility-settings
@@ -46,11 +41,6 @@ export default defineConfig({
         // https://vitest.dev/guide/migration/#inline-projects-inherit-the-root-config-by-default
         extends: false,
         test: {
-          // Vitest v4 compatibility: preserve mock call history.
-          // Remove after tests no longer rely on calls from setup or earlier tests.
-          // https://viteplus.dev/guide/vitest-v5#remove-unneeded-compatibility-settings
-          // https://vitest.dev/guide/migration/#clearmocks-is-enabled-by-default
-          clearMocks: false,
           name: 'background',
           include: ['src/**/*.test.ts'],
           exclude: ['src/**/*.pool.test.ts', ...configDefaults.exclude]
@@ -93,11 +83,6 @@ export default defineConfig({
           })
         ],
         test: {
-          // Vitest v4 compatibility: preserve mock call history.
-          // Remove after tests no longer rely on calls from setup or earlier tests.
-          // https://viteplus.dev/guide/vitest-v5#remove-unneeded-compatibility-settings
-          // https://vitest.dev/guide/migration/#clearmocks-is-enabled-by-default
-          clearMocks: false,
           name: 'background-pool',
           include: ['src/**/*.pool.test.ts']
         }

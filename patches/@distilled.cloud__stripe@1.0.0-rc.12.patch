@@ -1,0 +1,51 @@
+diff --git a/lib/protocol.d.ts b/lib/protocol.d.ts
+index 2eb4abf2ca70bf671412b1423bc4298a55d2aebc..bb7c7dea600c3cd7c98a7560952f8160f676fb1e 100644
+--- a/lib/protocol.d.ts
++++ b/lib/protocol.d.ts
+@@ -32,8 +32,8 @@
+ import * as Context from "effect/Context";
+ import * as Effect from "effect/Effect";
+ import * as Layer from "effect/Layer";
+-import type * as HttpClient from "effect/unstable/http/HttpClient";
+-import type * as HttpClientError from "effect/unstable/http/HttpClientError";
++import type * as HttpClient from "effect/http/HttpClient";
++import type * as HttpClientError from "effect/http/HttpClientError";
+ import * as API from "@distilled.cloud/core/api";
+ import { ConfigError, type DefaultErrors as CoreDefaultErrors, BadRequest, Conflict, Forbidden, Locked, NotFound, UnprocessableEntity } from "@distilled.cloud/core/errors";
+ import { Credentials } from "./credentials.ts";
+diff --git a/lib/protocol.js b/lib/protocol.js
+index f629095d6288e0d92053a1a7858d4e472f0d9d82..89bfe6000ca5b07b8a0c4f5f4a1e78bb35e22905 100644
+--- a/lib/protocol.js
++++ b/lib/protocol.js
+@@ -34,8 +34,8 @@ import * as Effect from "effect/Effect";
+ import * as Layer from "effect/Layer";
+ import * as Option from "effect/Option";
+ import * as Redacted from "effect/Redacted";
+-import * as HttpBody from "effect/unstable/http/HttpBody";
+-import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest";
++import * as HttpBody from "effect/http/HttpBody";
++import * as HttpClientRequest from "effect/http/HttpClientRequest";
+ import * as API from "@distilled.cloud/core/api";
+ import { buildRequest, getAnn, getProps, hasPropAnn, mapKeys, matchTypedError, nameOf, } from "@distilled.cloud/core/protocol-http";
+ import { unwrapRedactedDeep, wrapSensitive, } from "@distilled.cloud/core/protocol-rest";
+diff --git a/src/protocol.ts b/src/protocol.ts
+index 8f499f21ad978cb71e332794d580a4a305da7fd9..7463d1a0638169216f578743b7edb9d19a2276dd 100644
+--- a/src/protocol.ts
++++ b/src/protocol.ts
+@@ -35,11 +35,11 @@ import * as Layer from "effect/Layer";
+ import * as Option from "effect/Option";
+ import * as Redacted from "effect/Redacted";
+ import type * as AST from "effect/SchemaAST";
+-import type * as HttpClient from "effect/unstable/http/HttpClient";
+-import type * as HttpClientError from "effect/unstable/http/HttpClientError";
+-import * as HttpBody from "effect/unstable/http/HttpBody";
+-import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest";
+-import type * as HttpClientResponse from "effect/unstable/http/HttpClientResponse";
++import type * as HttpClient from "effect/http/HttpClient";
++import type * as HttpClientError from "effect/http/HttpClientError";
++import * as HttpBody from "effect/http/HttpBody";
++import * as HttpClientRequest from "effect/http/HttpClientRequest";
++import type * as HttpClientResponse from "effect/http/HttpClientResponse";
+ import * as API from "@distilled.cloud/core/api";
+ import {
+   buildRequest,

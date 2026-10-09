@@ -1,0 +1,62 @@
+---
+title: Cloudflare observability and Web Analytics
+description: Native Worker error tracking and optional analytics.
+category: integrations
+order: 30
+tags: [cloudflare, analytics, observability]
+---
+
+## Cloudflare Workers Logs and Issues
+
+All three Workers enable native logs and Issues through deployment configuration.
+No error-reporting credentials or SDK are needed. Failed application scopes emit
+sanitized JSON through `console.error`; successful scopes use `console.log`.
+[Issues](https://developers.cloudflare.com/workers/observability/issues/) groups
+Worker exceptions, failed invocations, HTTP 5xx responses, and logged errors.
+Issues is an open beta and processes traffic after activation.
+
+Inspect errors in Cloudflare's Issues dashboard. Configure notification destinations
+and automations separately in the account, then verify receipt with a synthetic
+failure. Enabling Issues alone does not configure paging, availability checks,
+missing-cron detection, or recovery notifications. Native monitoring shares the
+application's Cloudflare failure domain.
+
+Application telemetry omits arbitrary exception messages, stack traces, URLs and
+customer content. Platform-generated exception and request metadata is collected
+outside that filter and needs its own privacy review. Native request URLs have
+query-string redaction enabled; URL paths and exception text still need review. Browser exceptions have no
+remote capture in this starter; Workers Issues observes server execution.
+
+`OTEL_EXPORTER_OTLP_ENDPOINT` optionally exports sanitized Effect traces, metrics,
+and canonical logs to a collector. It remains scoped to each Worker invocation.
+
+## Optional Web Analytics
+
+Set `CLOUDFLARE_WEB_ANALYTICS_ENABLED=true` for an Alchemy deployment to
+provision a Cloudflare RUM site for the hostname in `BETTER_AUTH_URL`. Alchemy
+passes its public site token to the web Worker as
+`CLOUDFLARE_WEB_ANALYTICS_TOKEN`. API and background Workers receive no token.
+Local development and deployments without a token load no beacon. PR preview
+stages never provision the site or receive its token.
+
+Alchemy disables automatic injection. The app embeds one script from
+`https://static.cloudflareinsights.com/beacon.min.js`; do not enable a second
+copy in the dashboard. The beacon handles SPA navigation automatically.
+[Cloudflare's FAQ](https://developers.cloudflare.com/web-analytics/faq/) describes
+manual embedding, route measurements, and delivery limitations.
+
+When enabled, the beacon runs across the public site and authenticated app.
+It sends page views and browser performance measurements to Cloudflare, with
+[dimensions](https://developers.cloudflare.com/web-analytics/data-metrics/dimensions/)
+including paths, referrers, browser, device and country. Paths can contain
+Workspace slugs or other identifying values. The application logger's URL and
+identity filtering does not apply to this browser beacon. Review actual network
+payloads and deployment privacy copy before enabling it.
+Cloudflare documents its
+[data collection](https://developers.cloudflare.com/web-analytics/data-metrics/data-origin-and-collection/)
+and says it does not log query strings in its FAQ.
+
+Web Analytics supplies traffic and performance measurements. It does not replace
+server error monitoring or add browser exception reporting, custom product events,
+session replay, or feature flags. The starter has no Analytics Engine dataset;
+add one only when a concrete custom-event use case needs it.

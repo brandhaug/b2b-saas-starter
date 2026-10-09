@@ -1,9 +1,3 @@
-import {
-  makeSentryOptions,
-  withHttpMonitor,
-  wireWideEventProviders
-} from '@b2b-saas-starter/logger/providers'
-import * as Sentry from '@sentry/cloudflare'
 import { isMaintenanceMode } from '@b2b-saas-starter/env/server'
 import {
   enforceSecureEndpoints,
@@ -22,18 +16,13 @@ const worker = {
   // Not `async`: the Workers runtime awaits the returned promise, and the
   // handler has nothing to await before returning it.
   fetch(request: Request, env: ApiEnv): Promise<Response> {
-    // Sentry deliberately skips its options callback for HEAD and OPTIONS.
-    // Keep the gate at the actual Worker seam too, before any provider wiring.
     enforceSecureEndpoints(env)
     const tlsResponse = minimumTlsResponse(request, env.ENVIRONMENT)
     if (tlsResponse !== undefined) {
       // oxlint-disable-next-line effect/noNewPromise -- the fetch entry point returns a promise; there is no Effect left to run
       return Promise.resolve(tlsResponse)
     }
-    // Point the wide-event sinks (Sentry/PostHog) at this invocation's env;
-    // unset vars keep both providers fully inert. See
-    // packages/logger/src/providers.ts.
-    wireWideEventProviders(env)
+    // Optional analytics reads this invocation's bindings.
     // Keep liveness and readiness reachable while the shared database is
     // paused for an operator-led restore. Customer traffic is rejected by
     // the handler layer below; probes remain useful during maintenance.
@@ -47,11 +36,8 @@ const worker = {
         Response.json({ error: 'maintenance_mode' }, { status: 503 })
       )
     }
-    return withHttpMonitor('api', () => getWebHandler(env)(request))
+    return getWebHandler(env)(request)
   }
 }
 
-export default Sentry.withSentry((env: ApiEnv) => {
-  enforceSecureEndpoints(env)
-  return makeSentryOptions('api', env)
-}, worker)
+export default worker

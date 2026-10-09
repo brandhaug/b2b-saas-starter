@@ -16,7 +16,7 @@ import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platfor
 import { WideEventLoggerLive } from '@b2b-saas-starter/logger'
 import { expect, it } from '@effect/vitest'
 import { Effect, Layer, Logger, Schema } from 'effect'
-import { HttpRouter } from 'effect/unstable/http'
+import { HttpRouter } from 'effect/http'
 import { mcpProtocolLayer } from './mcp.ts'
 import { authorizeMcpOperation, type McpCaller } from './request-guards.ts'
 import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'

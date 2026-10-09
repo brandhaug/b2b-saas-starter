@@ -25,15 +25,16 @@ export type ServerEnv = {
   readonly BETTER_AUTH_TRUSTED_ORIGINS?: string | undefined
   readonly STRIPE_SECRET_KEY?: string | undefined
   readonly STRIPE_WEBHOOK_SECRET?: string | undefined
+  readonly STRIPE_PRICE_ID_TEAM_ANNUAL?: string | undefined
+  readonly STRIPE_PRICE_ID_ENTERPRISE_ANNUAL?: string | undefined
   readonly STRIPE_PRICE_ID_TEAM?: string | undefined
   readonly STRIPE_PRICE_ID_ENTERPRISE?: string | undefined
-  readonly SENTRY_DSN?: string | undefined
   /** Append-only recovery evidence store outside the production Cloudflare account. */
   readonly SECURITY_EVIDENCE_URL?: string | undefined
   /** Bearer credential for the independent recovery evidence store. */
   readonly SECURITY_EVIDENCE_TOKEN?: string | undefined
-  readonly POSTHOG_KEY?: string | undefined
-  readonly POSTHOG_HOST?: string | undefined
+  /** Public beacon token provisioned by Alchemy, bound only to the web Worker. */
+  readonly CLOUDFLARE_WEB_ANALYTICS_TOKEN?: string | undefined
   readonly CLOUDFLARE_EMAIL_FROM?: string | undefined
   readonly TURNSTILE_SITE_KEY?: string | undefined
   readonly TURNSTILE_SECRET_KEY?: string | undefined
@@ -136,11 +137,10 @@ export const optionalModuleEnvSecretKeys = [
 
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const optionalModuleEnvPlainKeys = [
-  'SENTRY_DSN',
   'SECURITY_EVIDENCE_URL',
-  'POSTHOG_KEY',
-  'POSTHOG_HOST',
   'STRIPE_PRICE_ID_TEAM',
+  'STRIPE_PRICE_ID_TEAM_ANNUAL',
+  'STRIPE_PRICE_ID_ENTERPRISE_ANNUAL',
   'STRIPE_PRICE_ID_ENTERPRISE',
   'TURNSTILE_SITE_KEY',
   'CLOUDFLARE_EMAIL_FROM',

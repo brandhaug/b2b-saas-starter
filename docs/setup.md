@@ -47,6 +47,17 @@ lockfile diff. `vp upgrade` updates the global CLI only. Keep the CI installer i
 `.github/actions/setup/action.yml` aligned with the project release, including its
 immutable commit and checksum described in [CI security](ci-security.md).
 
+## Effect diagnostics
+
+`vp install` patches TypeScript with `@effect/tsgo`. Effect errors fail
+`pnpm run typecheck`; warnings and suggestions are advisory.
+
+Accept VS Code's workspace TypeScript prompt. For other editors, follow the
+[Effect setup guide](https://github.com/Effect-TS/tsgo).
+
+Keep TypeScript and `@effect/tsgo` versions compatible. Verify upgrades with
+`vp install --frozen-lockfile` and `pnpm run check`.
+
 ## Validation
 
 Install Chromium once, then run the final validation command:

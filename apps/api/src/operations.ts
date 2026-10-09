@@ -43,7 +43,7 @@ import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/n
 import { workspaceOverview } from '@b2b-saas-starter/capabilities/workspace-projections'
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { Context, Effect, Option, type Schema, type Scope } from 'effect'
-import { type HttpApiEndpoint } from 'effect/unstable/httpapi'
+import { type HttpApiEndpoint } from 'effect/http-api'
 
 /**
  * Workspace reads and mutations share this catalog (ADR 0072). REST binds each

@@ -1,0 +1,111 @@
+diff --git a/lib/protocol.d.ts b/lib/protocol.d.ts
+index ec4bd222acb01fbeddbb0d8635e442469f86a542..3741aef592ce96dde74f73315f59ee490fd376bb 100644
+--- a/lib/protocol.d.ts
++++ b/lib/protocol.d.ts
+@@ -20,8 +20,8 @@
+  */
+ import * as Context from "effect/Context";
+ import * as Layer from "effect/Layer";
+-import * as HttpClient from "effect/unstable/http/HttpClient";
+-import type * as HttpClientError from "effect/unstable/http/HttpClientError";
++import * as HttpClient from "effect/http/HttpClient";
++import type * as HttpClientError from "effect/http/HttpClientError";
+ import * as API from "@distilled.cloud/core/api";
+ import { type ConfigError } from "@distilled.cloud/core/errors";
+ import { Credentials } from "./credentials.ts";
+diff --git a/lib/protocol.js b/lib/protocol.js
+index 83eb9d23c8c8d7454c6e07fb9d14da5863a6dd3b..bebb0377b5f455ee225027d517c3f8030e758c86 100644
+--- a/lib/protocol.js
++++ b/lib/protocol.js
+@@ -26,8 +26,8 @@ import * as Layer from "effect/Layer";
+ import * as Option from "effect/Option";
+ import * as Redacted from "effect/Redacted";
+ import * as Schema from "effect/Schema";
+-import * as HttpClient from "effect/unstable/http/HttpClient";
+-import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest";
++import * as HttpClient from "effect/http/HttpClient";
++import * as HttpClientRequest from "effect/http/HttpClientRequest";
+ import * as API from "@distilled.cloud/core/api";
+ import { makeRestProtocol, unwrapRedactedDeep, wrapSensitive, } from "@distilled.cloud/core/protocol-rest";
+ import { buildRequest, getAnn, mapKeys, matchTypedError, } from "@distilled.cloud/core/protocol-http";
+diff --git a/lib/protocol.test.js b/lib/protocol.test.js
+index e67bac0316ec66af6fffc6e29ed98c5e607a17a1..4ee1be7ef2ed19ccb8893352f64acbbda4c36b6c 100644
+--- a/lib/protocol.test.js
++++ b/lib/protocol.test.js
+@@ -1,8 +1,8 @@
+ import { describe, expect, test } from "bun:test";
+ import * as Effect from "effect/Effect";
+ import * as Layer from "effect/Layer";
+-import * as HttpClient from "effect/unstable/http/HttpClient";
+-import * as HttpClientResponse from "effect/unstable/http/HttpClientResponse";
++import * as HttpClient from "effect/http/HttpClient";
++import * as HttpClientResponse from "effect/http/HttpClientResponse";
+ import { credentials } from "./credentials.js";
+ import { BadRequest, UnknownFlyIoError } from "./errors.js";
+ import * as Retry from "./retry.js";
+diff --git a/lib/sprites-mint.test.js b/lib/sprites-mint.test.js
+index 5dfa86fa1540b95f30fae477e88e12a787b80c78..cd0ade8411d2cb86274e86d22e0a1fb6e3a9d489 100644
+--- a/lib/sprites-mint.test.js
++++ b/lib/sprites-mint.test.js
+@@ -6,8 +6,8 @@ import * as Effect from "effect/Effect";
+ import * as Exit from "effect/Exit";
+ import * as Fiber from "effect/Fiber";
+ import * as Redacted from "effect/Redacted";
+-import * as HttpClient from "effect/unstable/http/HttpClient";
+-import * as HttpClientResponse from "effect/unstable/http/HttpClientResponse";
++import * as HttpClient from "effect/http/HttpClient";
++import * as HttpClientResponse from "effect/http/HttpClientResponse";
+ import { Credentials } from "./credentials.js";
+ import { SpritesProtocol } from "./protocol.js";
+ import { ListSpritesRequest } from "./services/sprites.js";
+diff --git a/src/protocol.test.ts b/src/protocol.test.ts
+index 3312f65394f77810615ca10ce90ca1b2a3e7ce2f..09da5b29a3e872d1a51a0875cbcedd92975d6082 100644
+--- a/src/protocol.test.ts
++++ b/src/protocol.test.ts
+@@ -1,8 +1,8 @@
+ import { describe, expect, test } from "bun:test";
+ import * as Effect from "effect/Effect";
+ import * as Layer from "effect/Layer";
+-import * as HttpClient from "effect/unstable/http/HttpClient";
+-import * as HttpClientResponse from "effect/unstable/http/HttpClientResponse";
++import * as HttpClient from "effect/http/HttpClient";
++import * as HttpClientResponse from "effect/http/HttpClientResponse";
+ import { credentials } from "./credentials.ts";
+ import { BadRequest, UnknownFlyIoError } from "./errors.ts";
+ import type { FlyIoOpContext } from "./protocol.ts";
+diff --git a/src/protocol.ts b/src/protocol.ts
+index aee45e58fffc6e2adf71b6a20b95e4aeb9030e7e..f3c195e4c583bb547a1c1d0f66ca8ff4a766ccd2 100644
+--- a/src/protocol.ts
++++ b/src/protocol.ts
+@@ -27,10 +27,10 @@ import * as Option from "effect/Option";
+ import * as Redacted from "effect/Redacted";
+ import * as Schema from "effect/Schema";
+ import type * as AST from "effect/SchemaAST";
+-import * as HttpClient from "effect/unstable/http/HttpClient";
+-import type * as HttpClientError from "effect/unstable/http/HttpClientError";
+-import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest";
+-import type * as HttpClientResponse from "effect/unstable/http/HttpClientResponse";
++import * as HttpClient from "effect/http/HttpClient";
++import type * as HttpClientError from "effect/http/HttpClientError";
++import * as HttpClientRequest from "effect/http/HttpClientRequest";
++import type * as HttpClientResponse from "effect/http/HttpClientResponse";
+ import * as API from "@distilled.cloud/core/api";
+ import {
+   makeRestProtocol,
+diff --git a/src/sprites-mint.test.ts b/src/sprites-mint.test.ts
+index 4c3305fae87a75eb78c1ee5d82c1ee33f69d5e5f..dc78ace3dba177a4c3c63f00b8fdf69a5f9b575a 100644
+--- a/src/sprites-mint.test.ts
++++ b/src/sprites-mint.test.ts
+@@ -6,9 +6,9 @@ import * as Effect from "effect/Effect";
+ import * as Exit from "effect/Exit";
+ import * as Fiber from "effect/Fiber";
+ import * as Redacted from "effect/Redacted";
+-import * as HttpClient from "effect/unstable/http/HttpClient";
+-import type * as HttpClientRequest from "effect/unstable/http/HttpClientRequest";
+-import * as HttpClientResponse from "effect/unstable/http/HttpClientResponse";
++import * as HttpClient from "effect/http/HttpClient";
++import type * as HttpClientRequest from "effect/http/HttpClientRequest";
++import * as HttpClientResponse from "effect/http/HttpClientResponse";
+ import { Credentials } from "./credentials.ts";
+ import { SpritesProtocol } from "./protocol.ts";
+ import { ListSpritesRequest } from "./services/sprites.ts";

@@ -1,5 +1,11 @@
 # Dependency audit
 
+> Current implementation: PostHog has been removed. Optional browser analytics
+> uses an Alchemy-managed Cloudflare Web Analytics site; server telemetry retains
+> Workers Logs/Issues and optional Effect OTLP. PostHog findings below describe
+> the earlier audit snapshot and are not implementation recommendations. See the
+> [current integration guide](../../apps/web/content/docs/integrations/cloudflare-observability.mdx).
+
 Reviewed 2026-09-07, starting at `ef17c133`. The audit covers all 19 workspace
 manifests and their 88 distinct direct external dependencies, plus the lockfile's
 advisories, deprecations, overrides, peer compatibility and direct-package license
@@ -22,7 +28,7 @@ changes correct dependency ownership and security configuration.
 | Override only `@prisma/dev>valibot` to 1.4.2                                                  | Initial registry audit found one moderate advisory in Alchemy's development tooling, which pins 1.2.0. The fixed release is 1.4.2. Application schemas remain Effect. Remove the override when the parent updates its pin. [Advisory](https://github.com/advisories/GHSA-5qjj-4xww-7phc)                                                                                                           |
 | Remove the extract-zip advisory suppression                                                   | `extract-zip` is absent from the starting lockfile. Keeping its exception could silently suppress a future reintroduction.                                                                                                                                                                                                                                                                         |
 | Register TanStack's existing CSRF middleware for server functions                             | The custom `startInstance` had omitted the framework default. The configured middleware now rejects cross-site or unverifiable server-function requests while leaving router endpoints to their existing policies. No new dependency or handwritten origin validator. [TanStack server functions](https://tanstack.com/start/latest/docs/framework/react/guide/server-functions)                   |
-| Group coupled catalog upgrades                                                                | Better Auth and its plugins, Drizzle ORM/kit, React Email/UI, and Sentry SDKs now update together. Existing React, TanStack, Effect and toolchain policies remain in place.                                                                                                                                                                                                                        |
+| Group coupled catalog upgrades                                                                | Better Auth and its plugins, Drizzle ORM/kit, and React Email/UI now update together. Existing React, TanStack, Effect and toolchain policies remain in place.                                                                                                                                                                                                                                     |
 
 The email package becomes the runtime owner of `react-email`; the background
 worker declares it only for its independent email-rendering tests. The browser
@@ -44,7 +50,7 @@ sources, alternatives and migration costs for the application packages.
 | cmdk                            | Base UI Autocomplete                                   | A plausible consolidation, but filtering, ranking and keyboard behavior would need rebuilding and verification. The current palette is already lazy-loaded. Retain.                       |
 | Mermaid                         | Checked-in SVG or Mermaid Tiny                         | Removed. The one static diagram is now the checked-in `ArchitectureSchematic` SVG, so the renderer, its theme module and the MDX transform all went with it; do not add another renderer. |
 | Paraglide                       | Lingui, i18next, only Intl                             | Keep generated typed messages shared by email/UI and request-local SSR locale state. Intl already handles formatting and cannot replace catalogs.                                         |
-| Sentry/PostHog/Effect OTLP      | Raw vendor HTTP calls or native Workers OTLP           | Keep SDK integrations. Native export currently lacks the metrics needed to replace the full application exporter. Fix request scheduling separately if pursuing latency improvements.     |
+| PostHog/Effect OTLP             | Raw vendor HTTP calls or native Workers OTLP           | Keep SDK integrations. Native export currently lacks the metrics needed to replace the full application exporter. Fix request scheduling separately if pursuing latency improvements.     |
 | Alchemy                         | Terraform or hand-maintained Wrangler deployments      | Keep existing resource ownership and preview stages. Its prerelease status requires validation, but a replacement would rebuild working infrastructure behavior.                          |
 
 ## Tooling assessment
@@ -178,8 +184,6 @@ in the assessments above; this table provides the exhaustive version checklist.
 | `@react-email/render`              | `2.1.0`                                  | `2.1.0`              | Use react-email exports; retain transitively |
 | `@react-email/ui`                  | `6.9.3`                                  | `6.9.3`              | Keep                                         |
 | `@rolldown/plugin-babel`           | `0.2.3`                                  | `0.2.3`              | Keep                                         |
-| `@sentry/cloudflare`               | `10.73.0`                                | `10.73.0`            | Keep                                         |
-| `@sentry/react`                    | `10.73.0`                                | `10.73.0`            | Keep                                         |
 | `@tailwindcss/typography`          | `0.5.20`                                 | `0.5.20`             | Keep; move to devDependencies                |
 | `@tailwindcss/vite`                | `4.3.3`                                  | `4.3.3`              | Keep                                         |
 | `@tanstack/devtools-vite`          | `0.8.5`                                  | `0.8.5`              | Keep                                         |

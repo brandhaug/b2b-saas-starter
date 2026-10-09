@@ -1,6 +1,6 @@
 import { failureMessage } from '@b2b-saas-starter/failure'
 import { Context, Effect, Layer, Schema } from 'effect'
-import { LanguageModel, Model, Prompt } from 'effect/unstable/ai'
+import { LanguageModel, Model, Prompt } from 'effect/ai'
 
 import { assistantInstructions } from './assistant-instructions.ts'
 import { MockAssistantModel } from './mock.ts'
