@@ -126,7 +126,9 @@ pnpm run db:seed
 
 Restart `pnpm run dev` afterwards so the dev shim re-attaches the binding.
 
-`db:migrate:local` / `db:migrate:remote` run `packages/db/scripts/migrate.ts`, which applies drizzle-kit's folder-style migrations (`packages/db/migrations/<timestamp_name>/migration.sql`) through `wrangler d1 execute` and records them in a `d1_migrations` table so re-runs skip already-applied migrations. (Wrangler's own `d1 migrations apply` only understands flat `*.sql` files, so it cannot be used here.)
+`db:migrate:local` / `db:migrate:remote` run `packages/db/scripts/migrate.ts`, which applies drizzle-kit's folder-style migrations (`packages/db/migrations/<timestamp_name>/migration.sql`) through `wrangler d1 execute` and records folder names in `d1_migrations` so re-runs skip already-applied migrations. This script originally addressed Wrangler's flat-only discovery. Current Wrangler supports nested migration patterns, but records relative SQL paths instead of the repo's folder names. Keep using the repository scripts to preserve bookkeeping identity.
+
+The background Vitest pool uses the plugin's nested-pattern reader for SQL parsing. Its config-time adapter takes names and ordering from `packages/db/src/migrations-fs.ts`, as the migration, baseline and test-database tools do, and rejects discovery mismatches. The plugin remains a test-only dependency. To verify committed SQL equivalence and workerd bookkeeping, run `pnpm -C packages/i18n generate` then `pnpm -C apps/background exec vp test run src/migrations.test.ts src/migrations.pool.test.ts`.
 
 `db:generate` reads the local TypeScript schema. Remote migration commands use
 Wrangler credentials (`CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`, or an
