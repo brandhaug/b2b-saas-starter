@@ -145,4 +145,68 @@ describe('workspace export consumer (workers pool)', () => {
         // this export (the ready test above proves the write path works).
       })
     ))
+
+  it('retries failed completion until delivery four then persists terminal failure', () =>
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- worker queue/D1 promise boundary
+    Effect.runPromise(
+      Effect.gen(function* () {
+        yield* Effect.promise(() =>
+          db()
+            .prepare(`CREATE TRIGGER reject_export_completion BEFORE UPDATE ON workspace_exports
+            WHEN NEW.status = 'ready'
+            BEGIN SELECT RAISE(ABORT, 'synthetic completion failure'); END`)
+            .run()
+        )
+        yield* Effect.gen(function* () {
+          const retry = yield* Effect.promise(() =>
+            consume(workspaceExportQueueName, [
+              { ...exportMessage(WORKSPACE_SLUG), attempts: 3 }
+            ])
+          )
+          expect(retry.explicitAcks).toEqual([])
+          expect(retry.retryMessages).toEqual([{ msgId: EXPORT_ID }])
+          expect(
+            yield* Effect.promise(() =>
+              row(
+                'select status, completed_at from workspace_exports where id = ?',
+                EXPORT_ID
+              )
+            )
+          ).toEqual({ status: 'pending', completed_at: null })
+          const final = yield* Effect.promise(() =>
+            consume(workspaceExportQueueName, [
+              { ...exportMessage(WORKSPACE_SLUG), attempts: 4 }
+            ])
+          )
+          expect(final.explicitAcks).toEqual([EXPORT_ID])
+          expect(final.retryMessages).toEqual([])
+          expect(
+            yield* Effect.promise(() =>
+              row(
+                'select status, failure_reason, completed_at, object_key from workspace_exports where id = ?',
+                EXPORT_ID
+              )
+            )
+          ).toEqual({
+            status: 'failed',
+            failure_reason: expect.stringMatching(/^unavailable:/),
+            completed_at: expect.any(String),
+            object_key: null
+          })
+          expect(
+            yield* Effect.promise(() =>
+              rows(
+                "select * from audit_events where event_type = 'workspace.export_completed'"
+              )
+            )
+          ).toEqual([])
+        }).pipe(
+          Effect.ensuring(
+            Effect.promise(() =>
+              db().prepare('DROP TRIGGER reject_export_completion').run()
+            )
+          )
+        )
+      })
+    ))
 })
