@@ -24,7 +24,7 @@ The cached task restores coverage outputs and excludes them from its inputs.
 
 ## Observed workerd coverage
 
-The isolated run passes both real-worker suites. These counts come from its JSON
+The isolated run passes all three real-worker suites. These counts come from its JSON
 summary, so Node tests cannot account for the measured consumer coverage:
 
 | Source                    | Lines | Statements | Functions | Branches |
@@ -38,9 +38,9 @@ code, but excludes tests, declarations and the `test-pool.ts` helper.
 
 ## Integrated verification
 
-- `pnpm -C apps/background test`: 18 files and 134 tests pass. Combined coverage
+- `pnpm -C apps/background test`: 20 files and 136 tests pass. Combined coverage
   is 434/556 lines, 440/564 statements, 94/124 functions and 200/260 branches.
-- `E2E_PORT=3297 pnpm run validate` on base `8098543b`: exits successfully.
+- `E2E_PORT=3297 pnpm run validate` on base `9ed815a4`: exits successfully.
   Browser results record 62 passes, zero retries, failures or skips. See
   `apps/web/playwright-report/results.json`. An earlier run had a retry-pass in
   the Norwegian mobile-menu width assertion; an intervening `pnpm run check`
