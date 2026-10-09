@@ -44,7 +44,7 @@ export type FixtureSession = {
 export function fixtureSession(overrides: FixtureSession): Session {
   const userId = overrides.userId
   const expiresAt = new Date('2099-01-01T00:00:00.000Z')
-  // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion, anti-slop/require-safety-comment-for-type-assertion -- a stand-in for the plugin-inferred `Session`, carrying exactly the fields this app's gates read; every field below exists on the real shape with the same type, so the assertion cannot hide a wrong read
+  // oxlint-disable-next-line effect/noAs, anti-slop/require-safety-comment-for-type-assertion -- a stand-in for the plugin-inferred `Session`, carrying exactly the fields this app's gates read; every field below exists on the real shape with the same type, so the assertion cannot hide a wrong read
   return {
     user: {
       id: userId,
@@ -70,6 +70,7 @@ export function fixtureSession(overrides: FixtureSession): Session {
       activeOrganizationId: null,
       impersonatedBy: overrides.impersonatedBy ?? null
     }
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- see the safety justification above
   } as Session
 }
 

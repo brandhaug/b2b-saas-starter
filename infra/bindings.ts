@@ -94,9 +94,10 @@ function rateLimitSpecs<Bucket extends string>(
     specs: buckets.map((bucket) => ({ name: names[bucket], ...tuning[bucket] })),
     // SAFETY: Object.fromEntries widens the key the same way Object.keys
     // does; the `RateLimitTable` return annotation is the check.
-    // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion -- see SAFETY above
+    // oxlint-disable-next-line effect/noAs -- see SAFETY above
     fallbackLimits: Object.fromEntries(
       buckets.map((bucket) => [bucket, tuning[bucket].limit])
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- see the safety justification above
     ) as Record<Bucket, number>
   }
 }

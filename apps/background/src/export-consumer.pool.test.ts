@@ -1,5 +1,6 @@
 import { type WorkspaceExportQueueMessage } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { workspaceExportQueueName } from '@b2b-saas-starter/infra'
+import { type MessageBatchMessage } from 'cloudflare:test'
 import { env } from 'cloudflare:workers'
 import { Effect } from 'effect'
 import { beforeAll, beforeEach, describe, expect, it } from 'vite-plus/test'
@@ -7,7 +8,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vite-plus/test'
 import { applyPoolMigrations, consume, db, row, rows } from './test-pool.ts'
 
 // The export consumer's queue-runtime contract (ADR 0055), inside workerd
-// through `@cloudflare/vitest-pool-workers`: real D1 (the committed
+// through `@cloudflare/vitest-plugin`: real D1 (the committed
 // migrations), the real R2 bucket from `wrangler.jsonc`, and real acks —
 // asserted with `getQueueResult()`. Exports have no dead-letter queue: the
 // row is the record, so both a completed and a failed build end in an ack,
@@ -30,9 +31,7 @@ function bucket() {
 }
 
 /** One export job message, addressed by the slug the consumer must re-resolve. */
-function exportMessage(
-  slug: string
-): ServiceBindingQueueMessage<WorkspaceExportQueueMessage> {
+function exportMessage(slug: string): MessageBatchMessage<WorkspaceExportQueueMessage> {
   return {
     id: EXPORT_ID,
     // The platform's message shape carries a plain Date; `DateTime` has no
@@ -88,7 +87,7 @@ describe('workspace export consumer (workers pool)', () => {
   beforeEach(() => seedPendingExport())
 
   it('acks a finished export after storing the archive and flipping the row ready', () =>
-    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-pool-workers createMessageBatch/getQueueResult into Effect
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-plugin createMessageBatch/getQueueResult into Effect
     Effect.runPromise(
       Effect.gen(function* () {
         const result = yield* Effect.promise(() =>
@@ -124,7 +123,7 @@ describe('workspace export consumer (workers pool)', () => {
     ))
 
   it('acks an export whose slug no longer resolves, marking the row failed', () =>
-    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-pool-workers createMessageBatch/getQueueResult into Effect
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-plugin createMessageBatch/getQueueResult into Effect
     Effect.runPromise(
       Effect.gen(function* () {
         const result = yield* Effect.promise(() =>

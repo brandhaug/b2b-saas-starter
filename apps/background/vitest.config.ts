@@ -1,4 +1,4 @@
-import { cloudflareTest } from '@cloudflare/vitest-pool-workers'
+import { cloudflareTest } from '@cloudflare/vitest-plugin'
 import { configDefaults, defineConfig } from 'vite-plus'
 
 import { listMigrations } from '../../packages/db/src/migrations-fs.ts'
@@ -6,7 +6,7 @@ import { productionStage, stageResourceNames } from '../../infra/bindings.ts'
 
 // Two projects, one file set each: the existing `*.test.ts` suites keep the
 // plain Node runner they run under today, and only the `*.pool.test.ts`
-// suites move into the workers pool (`@cloudflare/vitest-pool-workers`), so
+// suites move into the workers pool (`@cloudflare/vitest-plugin`), so
 // the pool's workerd startup cost never touches the rest of the suite.
 //
 // D1 state inside the pool comes from the real migrations: the pool cannot
@@ -28,8 +28,18 @@ const migrations = listMigrations().map(({ name, sql }) => ({
 
 export default defineConfig({
   test: {
+    // Vitest v4 compatibility: keep separate Vite servers for inline projects.
+    // Remove when plugins and config hooks can run once for shared projects.
+    // https://viteplus.dev/guide/vitest-v5#remove-unneeded-compatibility-settings
+    // https://vitest.dev/guide/migration/#inline-projects-share-the-vite-server-by-default
+    sharedViteServer: false,
     projects: [
       {
+        // Vitest v4 compatibility: keep this inline project independent of the root config.
+        // Remove to inherit root options, including plugins and setup files.
+        // https://viteplus.dev/guide/vitest-v5#remove-unneeded-compatibility-settings
+        // https://vitest.dev/guide/migration/#inline-projects-inherit-the-root-config-by-default
+        extends: false,
         test: {
           name: 'background',
           include: ['src/**/*.test.ts'],
@@ -37,6 +47,11 @@ export default defineConfig({
         }
       },
       {
+        // Vitest v4 compatibility: keep this inline project independent of the root config.
+        // Remove to inherit root options, including plugins and setup files.
+        // https://viteplus.dev/guide/vitest-v5#remove-unneeded-compatibility-settings
+        // https://vitest.dev/guide/migration/#inline-projects-inherit-the-root-config-by-default
+        extends: false,
         plugins: [
           cloudflareTest({
             // The generated wrangler config is the bindings source: the same

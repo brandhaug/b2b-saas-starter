@@ -22,7 +22,7 @@
     "effect": "catalog:"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "catalog:",
+    "@cloudflare/vitest-plugin": "catalog:",
     "@cloudflare/workers-types": "catalog:",
     "@effect/vitest": "catalog:",
     "react-email": "catalog:",

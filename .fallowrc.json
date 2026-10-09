@@ -8,6 +8,10 @@
     // Bundled by esbuild into native workerd entry points.
     "apps/web/scripts/local-assistant-worker.ts",
     "apps/web/test/assistant/worker.ts",
+    // Vite+ supplies Vitest transitively; Fallow's Vitest detection requires
+    // a direct dependency in packages without their own test config.
+    "infra/*.test.ts",
+    "packages/*/src/**/*.test.ts",
     // `pnpm run test:scripts` runs these by directory, and the runbooks in
     // docs/ invoke the operator CLIs by path rather than through an npm alias.
     "scripts/*.test.ts",
