@@ -4,13 +4,20 @@
     "paths": {
       "@/*": ["./src/*"]
     },
-    "types": ["vite/client", "@cloudflare/workers-types", "@types/node"]
+    "types": [
+      "vite/client",
+      "@cloudflare/workers-types",
+      "@cloudflare/vitest-plugin",
+      "@types/node"
+    ]
   },
   "include": [
     "src",
     "content",
     "scripts/*.ts",
     "vite.config.ts",
+    "vitest.lifecycle.config.ts",
+    "test/assistant/lifecycle*.ts",
     "playwright.config.ts"
   ]
 }
