@@ -1,5 +1,6 @@
 import { type WorkspaceExportQueueMessage } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { workspaceExportQueueName } from '@b2b-saas-starter/infra'
+import { type MessageBatchMessage } from 'cloudflare:test'
 import { env } from 'cloudflare:workers'
 import { Effect } from 'effect'
 import { beforeAll, beforeEach, describe, expect, it } from 'vite-plus/test'
@@ -7,7 +8,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vite-plus/test'
 import { applyPoolMigrations, consume, db, row, rows } from './test-pool.ts'
 
 // The export consumer's queue-runtime contract (ADR 0055), inside workerd
-// through `@cloudflare/vitest-pool-workers`: real D1 (the committed
+// through `@cloudflare/vitest-plugin`: real D1 (the committed
 // migrations), the real R2 bucket from `wrangler.jsonc`, and real acks —
 // asserted with `getQueueResult()`. Exports have no dead-letter queue: the
 // row is the record, so both a completed and a failed build end in an ack,
@@ -30,9 +31,7 @@ function bucket() {
 }
 
 /** One export job message, addressed by the slug the consumer must re-resolve. */
-function exportMessage(
-  slug: string
-): ServiceBindingQueueMessage<WorkspaceExportQueueMessage> {
+function exportMessage(slug: string): MessageBatchMessage<WorkspaceExportQueueMessage> {
   return {
     id: EXPORT_ID,
     // The platform's message shape carries a plain Date; `DateTime` has no
@@ -88,7 +87,7 @@ describe('workspace export consumer (workers pool)', () => {
   beforeEach(() => seedPendingExport())
 
   it('acks a finished export after storing the archive and flipping the row ready', () =>
-    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-pool-workers createMessageBatch/getQueueResult into Effect
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-plugin createMessageBatch/getQueueResult into Effect
     Effect.runPromise(
       Effect.gen(function* () {
         const result = yield* Effect.promise(() =>
@@ -124,7 +123,7 @@ describe('workspace export consumer (workers pool)', () => {
     ))
 
   it('acks an export whose slug no longer resolves, marking the row failed', () =>
-    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-pool-workers createMessageBatch/getQueueResult into Effect
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-plugin createMessageBatch/getQueueResult into Effect
     Effect.runPromise(
       Effect.gen(function* () {
         const result = yield* Effect.promise(() =>
@@ -144,6 +143,70 @@ describe('workspace export consumer (workers pool)', () => {
         expect(exportRow?.completed_at).toEqual(expect.any(String))
         // The row points at no archive: nothing was ever built or stored for
         // this export (the ready test above proves the write path works).
+      })
+    ))
+
+  it('retries failed completion until delivery four then persists terminal failure', () =>
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- worker queue/D1 promise boundary
+    Effect.runPromise(
+      Effect.gen(function* () {
+        yield* Effect.promise(() =>
+          db()
+            .prepare(`CREATE TRIGGER reject_export_completion BEFORE UPDATE ON workspace_exports
+            WHEN NEW.status = 'ready'
+            BEGIN SELECT RAISE(ABORT, 'synthetic completion failure'); END`)
+            .run()
+        )
+        yield* Effect.gen(function* () {
+          const retry = yield* Effect.promise(() =>
+            consume(workspaceExportQueueName, [
+              { ...exportMessage(WORKSPACE_SLUG), attempts: 3 }
+            ])
+          )
+          expect(retry.explicitAcks).toEqual([])
+          expect(retry.retryMessages).toEqual([{ msgId: EXPORT_ID }])
+          expect(
+            yield* Effect.promise(() =>
+              row(
+                'select status, completed_at from workspace_exports where id = ?',
+                EXPORT_ID
+              )
+            )
+          ).toEqual({ status: 'pending', completed_at: null })
+          const final = yield* Effect.promise(() =>
+            consume(workspaceExportQueueName, [
+              { ...exportMessage(WORKSPACE_SLUG), attempts: 4 }
+            ])
+          )
+          expect(final.explicitAcks).toEqual([EXPORT_ID])
+          expect(final.retryMessages).toEqual([])
+          expect(
+            yield* Effect.promise(() =>
+              row(
+                'select status, failure_reason, completed_at, object_key from workspace_exports where id = ?',
+                EXPORT_ID
+              )
+            )
+          ).toEqual({
+            status: 'failed',
+            failure_reason: expect.stringMatching(/^unavailable:/),
+            completed_at: expect.any(String),
+            object_key: null
+          })
+          expect(
+            yield* Effect.promise(() =>
+              rows(
+                "select * from audit_events where event_type = 'workspace.export_completed'"
+              )
+            )
+          ).toEqual([])
+        }).pipe(
+          Effect.ensuring(
+            Effect.promise(() =>
+              db().prepare('DROP TRIGGER reject_export_completion').run()
+            )
+          )
+        )
       })
     ))
 })

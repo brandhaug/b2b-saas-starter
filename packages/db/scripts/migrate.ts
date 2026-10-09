@@ -1,7 +1,7 @@
 // Applies drizzle-kit's folder-style migrations (migrations/<name>/migration.sql)
-// to the D1 database via `wrangler d1 execute`. Wrangler's own migrations runner
-// (`wrangler d1 migrations apply`) only sees flat `migrations/*.sql` files, so it
-// reports "No migrations to apply" for drizzle-kit rc output — hence this script.
+// to the D1 database via `wrangler d1 execute`. Originally Wrangler's migrations
+// runner only saw flat SQL files. Its newer nested-pattern support records SQL
+// paths, so this script still preserves the repo's folder-name bookkeeping.
 //
 // Tracking uses the same `d1_migrations` table (name + applied_at) wrangler's
 // runner would create, so already-applied migrations are skipped on re-run.

@@ -9,7 +9,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-const migrationsDir = join(import.meta.dirname, '..', 'migrations')
+export const migrationsDir = join(import.meta.dirname, '..', 'migrations')
 
 /** Reads every committed migration, sorted by folder name (timestamp order). */
 export function listMigrations(): Array<{ name: string; sql: string }> {
