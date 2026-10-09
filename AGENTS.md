@@ -35,7 +35,7 @@ For issue/spec implementation, follow the [implement skill](.agents/skills/imple
 
 ## Setup
 
-Use [Vite+](https://viteplus.dev) for pinned Node and pnpm. Install with `vp install`; use `vp run`, `vp fmt`, and `vp lint`. Toolchain versions live in the workspace catalog and move through `vp upgrade`.
+Use [Vite+](https://viteplus.dev) for pinned Node and pnpm. Install with `vp install`; use `vp run`, `vp fmt`, and `vp lint`. For toolchain updates, follow [the upgrade procedure](docs/setup.md#toolchain-upgrades); `vp upgrade` updates only the global CLI.
 
 Run `pnpm run check` before committing and after `check:fix`; the pre-commit hook only formats. Run `pnpm run validate` before PR handoff; see [prerequisites](docs/setup.md#validation). For Codex, Claude Code, or OpenCode skills, follow [shared skills setup](docs/agents/skills.md).
 

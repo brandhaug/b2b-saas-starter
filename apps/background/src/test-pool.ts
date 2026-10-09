@@ -2,7 +2,9 @@ import {
   applyD1Migrations,
   createExecutionContext,
   createMessageBatch,
-  getQueueResult
+  getQueueResult,
+  type MessageBatchMessage,
+  type QueueResult
 } from 'cloudflare:test'
 import { env } from 'cloudflare:workers'
 
@@ -38,8 +40,8 @@ export function db(): D1Database {
 // oxlint-disable effect/noAsyncFunction
 export async function consume<M>(
   queueName: string,
-  messages: ReadonlyArray<ServiceBindingQueueMessage<M>>
-): Promise<FetcherQueueResult> {
+  messages: ReadonlyArray<MessageBatchMessage<M>>
+): Promise<QueueResult> {
   const batch = createMessageBatch(queueName, [...messages])
   const ctx = createExecutionContext()
   await worker.queue(batch, env)
