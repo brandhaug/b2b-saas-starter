@@ -1,5 +1,6 @@
 import { type WebhookQueueMessage } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
 import { webhookDeadLetterQueueName, webhookQueueName } from '@b2b-saas-starter/infra'
+import { type MessageBatchMessage } from 'cloudflare:test'
 import { DateTime, Effect, Schema } from 'effect'
 import { Webhook } from 'standardwebhooks'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vite-plus/test'
@@ -14,7 +15,7 @@ import {
 } from './test-pool.ts'
 
 // The queue-runtime half of the webhook consumer, exercised inside workerd
-// through `@cloudflare/vitest-pool-workers`: real D1 (the committed
+// through `@cloudflare/vitest-plugin`: real D1 (the committed
 // migrations), the real batch loop in `queue-consumer.ts`, and real
 // `ack`/`retry` calls — asserted with `getQueueResult()` against what the
 // runtime actually did with each message. Only the receiver endpoint is
@@ -88,7 +89,7 @@ function dropConnection(): void {
 function webhookMessage(
   id: string,
   attempts = 1
-): ServiceBindingQueueMessage<WebhookQueueMessage> {
+): MessageBatchMessage<WebhookQueueMessage> {
   return {
     id,
     // The platform's message shape carries a plain Date; `DateTime` has no
@@ -192,7 +193,7 @@ describe('webhook consumer (workers pool)', () => {
   })
 
   it('acks a successful delivery and records the delivered attempt row', () =>
-    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-pool-workers createMessageBatch/getQueueResult into Effect
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-plugin createMessageBatch/getQueueResult into Effect
     Effect.runPromise(
       Effect.gen(function* () {
         yield* seedDelivery('qmsg_ok')
@@ -295,7 +296,7 @@ describe('webhook consumer (workers pool)', () => {
     ))
 
   it('retries a 5xx with the backoff delay and records the failed attempt', () =>
-    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-pool-workers createMessageBatch/getQueueResult into Effect
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-plugin createMessageBatch/getQueueResult into Effect
     Effect.runPromise(
       Effect.gen(function* () {
         yield* seedDelivery('qmsg_retry')
@@ -322,7 +323,7 @@ describe('webhook consumer (workers pool)', () => {
     ))
 
   it('retries a network failure with no response status to record', () =>
-    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-pool-workers createMessageBatch/getQueueResult into Effect
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-plugin createMessageBatch/getQueueResult into Effect
     Effect.runPromise(
       Effect.gen(function* () {
         yield* seedDelivery('qmsg_net')
@@ -345,7 +346,7 @@ describe('webhook consumer (workers pool)', () => {
     ))
 
   it('records a redirect response without delivering to its target', () =>
-    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-pool-workers createMessageBatch/getQueueResult into Effect
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-plugin createMessageBatch/getQueueResult into Effect
     Effect.runPromise(
       Effect.gen(function* () {
         yield* seedDelivery('qmsg_redirect')
@@ -381,7 +382,7 @@ describe('webhook consumer (workers pool)', () => {
     ))
 
   it('acks a 4xx explicitly and lands the delivery row failed_permanent', () =>
-    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-pool-workers createMessageBatch/getQueueResult into Effect
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-plugin createMessageBatch/getQueueResult into Effect
     Effect.runPromise(
       Effect.gen(function* () {
         yield* seedDelivery('qmsg_4xx')
@@ -428,7 +429,7 @@ describe('webhook consumer (workers pool)', () => {
     ))
 
   it('acks a dead letter after recording the terminal dead_lettered row', () =>
-    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-pool-workers createMessageBatch/getQueueResult into Effect
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- promise-interop port: bridges vitest-plugin createMessageBatch/getQueueResult into Effect
     Effect.runPromise(
       Effect.gen(function* () {
         yield* seedDelivery('qmsg_dead')
@@ -512,6 +513,135 @@ describe('webhook consumer (workers pool)', () => {
           )
         )
         expect(endpoint?.consecutive_failures).toBe(0)
+      })
+    ))
+
+  it('retries a failed persistence write without losing the successful batch sibling', () =>
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- worker queue/D1 promise boundary
+    Effect.runPromise(
+      Effect.gen(function* () {
+        yield* seedDelivery('blocked')
+        yield* seedDelivery('sibling')
+        yield* Effect.promise(() =>
+          db()
+            .prepare(`CREATE TRIGGER reject_attempt BEFORE INSERT ON webhook_delivery_attempts
+            WHEN NEW.delivery_id = 'whd_blocked'
+            BEGIN SELECT RAISE(ABORT, 'synthetic write failure'); END`)
+            .run()
+        )
+        yield* Effect.gen(function* () {
+          const result = yield* Effect.promise(() =>
+            consume(webhookQueueName, [
+              webhookMessage('blocked'),
+              webhookMessage('sibling')
+            ])
+          )
+          expect(result.explicitAcks).toEqual(['sibling'])
+          expect(result.retryMessages).toEqual([{ msgId: 'blocked' }])
+          expect(result.retryBatch.retry).toBe(false)
+          expect(
+            yield* Effect.promise(() =>
+              row('select status from webhook_deliveries where id = ?', 'whd_blocked')
+            )
+          ).toEqual({ status: 'pending' })
+          expect(
+            yield* Effect.promise(() =>
+              row('select status from webhook_deliveries where id = ?', 'whd_sibling')
+            )
+          ).toEqual({ status: 'delivered' })
+        }).pipe(
+          Effect.ensuring(
+            Effect.promise(() => db().prepare('DROP TRIGGER reject_attempt').run())
+          )
+        )
+        const recovered = yield* Effect.promise(() =>
+          consume(webhookQueueName, [webhookMessage('blocked', 2)])
+        )
+        expect(recovered.explicitAcks).toEqual(['blocked'])
+        expect(recovered.retryMessages).toEqual([])
+        expect(
+          yield* Effect.promise(() =>
+            row(
+              'select status, attempts from webhook_deliveries where id = ?',
+              'whd_blocked'
+            )
+          )
+        ).toEqual({ status: 'delivered', attempts: 2 })
+      })
+    ))
+
+  it('bounds failed dead-letter writes and recovers atomically without duplicate warnings', () =>
+    // oxlint-disable-next-line starter/no-run-promise-in-tests -- worker queue/D1 promise boundary
+    Effect.runPromise(
+      Effect.gen(function* () {
+        yield* seedDelivery('dlq_recover')
+        yield* seedDelivery('dlq_exhaust')
+        yield* Effect.promise(() =>
+          db()
+            .prepare(`CREATE TRIGGER reject_terminal_audit BEFORE INSERT ON audit_events
+            WHEN NEW.event_type = 'webhook.delivery_dead_lettered'
+            BEGIN SELECT RAISE(ABORT, 'synthetic audit failure'); END`)
+            .run()
+        )
+        yield* Effect.gen(function* () {
+          const first = yield* Effect.promise(() =>
+            consume(webhookDeadLetterQueueName, [webhookMessage('dlq_recover', 1)])
+          )
+          expect(first.explicitAcks).toEqual([])
+          expect(first.retryMessages).toEqual([{ msgId: 'dlq_recover' }])
+          const last = yield* Effect.promise(() =>
+            consume(webhookDeadLetterQueueName, [webhookMessage('dlq_exhaust', 2)])
+          )
+          expect(last.explicitAcks).toEqual(['dlq_exhaust'])
+          expect(last.retryMessages).toEqual([])
+          expect(
+            yield* Effect.promise(() => rows('select status from webhook_deliveries'))
+          ).toEqual([{ status: 'pending' }, { status: 'pending' }])
+          expect(
+            yield* Effect.promise(() => rows('select * from webhook_delivery_attempts'))
+          ).toEqual([])
+          expect(
+            yield* Effect.promise(() => rows('select * from audit_events'))
+          ).toEqual([])
+          expect(
+            yield* Effect.promise(() => rows('select * from notifications'))
+          ).toEqual([])
+        }).pipe(
+          Effect.ensuring(
+            Effect.promise(() =>
+              db().prepare('DROP TRIGGER reject_terminal_audit').run()
+            )
+          )
+        )
+
+        for (const attempts of [2, 2]) {
+          const recovered = yield* Effect.promise(() =>
+            consume(webhookDeadLetterQueueName, [
+              webhookMessage('dlq_recover', attempts)
+            ])
+          )
+          expect(recovered.explicitAcks).toEqual(['dlq_recover'])
+          expect(recovered.retryMessages).toEqual([])
+        }
+        expect(outbound).toHaveLength(0)
+        expect(
+          yield* Effect.promise(() =>
+            row('select status from webhook_deliveries where id = ?', 'whd_dlq_recover')
+          )
+        ).toEqual({ status: 'dead_lettered' })
+        expect(
+          yield* Effect.promise(() => rows('select * from webhook_delivery_attempts'))
+        ).toHaveLength(1)
+        expect(
+          yield* Effect.promise(() =>
+            rows(
+              "select * from audit_events where event_type = 'webhook.delivery_dead_lettered'"
+            )
+          )
+        ).toHaveLength(1)
+        expect(
+          yield* Effect.promise(() => rows('select * from notifications'))
+        ).toHaveLength(1)
       })
     ))
 

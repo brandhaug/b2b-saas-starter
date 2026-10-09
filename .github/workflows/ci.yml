@@ -82,6 +82,14 @@ jobs:
           else
             vp run --filter "$TEST_FILTER" --filter '!b2b-saas-starter' --fail-if-no-match test
           fi
+      - name: Upload background coverage
+        if: ${{ !cancelled() && matrix.name == 'packages' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: background-coverage-${{ github.run_attempt }}
+          path: apps/background/coverage
+          if-no-files-found: error
+          retention-days: 14
       - name: Run script tests
         if: ${{ matrix.name == 'packages' }}
         run: pnpm run test:scripts

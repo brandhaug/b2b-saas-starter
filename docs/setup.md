@@ -29,6 +29,24 @@ unavailable and still lets users copy support details.
 For transactional email, complete the [delivery-event setup and smoke test](email-delivery.md)
 after configuring the sender domain.
 
+## Toolchain upgrades
+
+Read the target release notes and [migration guide](https://viteplus.dev/guide/migrate)
+before changing toolchain dependencies. Keep the current manifests, lockfile and
+installed packages until the target migrator can identify the old test runner.
+Run the target CLI from the workspace root, for example:
+
+```bash
+pnpm dlx --package=vite-plus@1.0.0 vp migrate --no-interactive
+vp install
+pnpm run validate
+```
+
+Review every migration warning and the catalog, overrides, test configuration and
+lockfile diff. `vp upgrade` updates the global CLI only. Keep the CI installer in
+`.github/actions/setup/action.yml` aligned with the project release, including its
+immutable commit and checksum described in [CI security](ci-security.md).
+
 ## Effect diagnostics
 
 `vp install` patches TypeScript with `@effect/tsgo`. Effect errors fail
@@ -108,7 +126,9 @@ pnpm run db:seed
 
 Restart `pnpm run dev` afterwards so the dev shim re-attaches the binding.
 
-`db:migrate:local` / `db:migrate:remote` run `packages/db/scripts/migrate.ts`, which applies drizzle-kit's folder-style migrations (`packages/db/migrations/<timestamp_name>/migration.sql`) through `wrangler d1 execute` and records them in a `d1_migrations` table so re-runs skip already-applied migrations. (Wrangler's own `d1 migrations apply` only understands flat `*.sql` files, so it cannot be used here.)
+`db:migrate:local` / `db:migrate:remote` run `packages/db/scripts/migrate.ts`, which applies drizzle-kit's folder-style migrations (`packages/db/migrations/<timestamp_name>/migration.sql`) through `wrangler d1 execute` and records folder names in `d1_migrations` so re-runs skip already-applied migrations. This script originally addressed Wrangler's flat-only discovery. Current Wrangler supports nested migration patterns, but records relative SQL paths instead of the repo's folder names. Keep using the repository scripts to preserve bookkeeping identity.
+
+The background Vitest pool uses the plugin's nested-pattern reader for SQL parsing. Its config-time adapter takes names and ordering from `packages/db/src/migrations-fs.ts`, as the migration, baseline and test-database tools do, and rejects discovery mismatches. The plugin remains a test-only dependency. To verify committed SQL equivalence and workerd bookkeeping, run `pnpm -C packages/i18n generate` then `pnpm -C apps/background exec vp test run src/migrations.test.ts src/migrations.pool.test.ts`.
 
 `db:generate` reads the local TypeScript schema. Remote migration commands use
 Wrangler credentials (`CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`, or an

@@ -5,16 +5,18 @@ export default defineConfig({
     tasks: {
       'test:coverage': {
         command: 'vp test run --coverage',
-        // Coverage temp files and pnpm's fresh-install prunedAt timestamp
-        // change between runs. Track dependency changes through the lockfile
-        // and workspace configuration while retaining automatic source tracking.
-        input: [
-          { auto: true },
-          { pattern: '!node_modules/.modules.yaml', base: 'workspace' },
-          { pattern: 'pnpm-lock.yaml', base: 'workspace' },
-          { pattern: 'pnpm-workspace.yaml', base: 'workspace' },
-          '!coverage/**'
-        ]
+        cache: {
+          // Coverage temp files and pnpm's fresh-install prunedAt timestamp
+          // change between runs. Track dependency changes through the lockfile
+          // and workspace configuration while retaining automatic source tracking.
+          input: [
+            { auto: true },
+            { pattern: '!node_modules/.modules.yaml', base: 'workspace' },
+            { pattern: 'pnpm-lock.yaml', base: 'workspace' },
+            { pattern: 'pnpm-workspace.yaml', base: 'workspace' },
+            '!coverage/**'
+          ]
+        }
       }
     }
   },
@@ -27,14 +29,16 @@ export default defineConfig({
       reporter: ['text-summary'],
       allowExternal: true,
       include: [
-        'src/**/*.ts',
+        // Vitest 5 matches external files by absolute path. Keep measuring
+        // imported workspace sources as well as the explicit untested globs.
+        '**/src/**/*.ts',
         '../billing/src/**/*.ts',
         '../email-delivery/src/**/*.ts'
       ],
       // Billing and email-delivery retain their Live integration tests here.
       // `src/testing/**` is the live suites' D1 fixture and fake plugin
       // bindings — test infrastructure, like the `*.test.ts` files it serves.
-      exclude: ['**/*.test.ts', 'src/testing/**'],
+      exclude: ['**/*.test.ts', '**/src/testing/**'],
       // Ratchet, not target: set just below current coverage so CI fails on
       // decay. Raise alongside new tests; never lower to make a build pass.
       thresholds: {
