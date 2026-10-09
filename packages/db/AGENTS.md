@@ -4,7 +4,7 @@ Owns Drizzle schema, migrations, and D1 services. Stored enum vocabularies live 
 
 ## Migration changes
 
-Edit `schema.ts`, run `db:generate`, and commit schema and generated migration together. `scripts/migrate.ts`, `scripts/baseline.ts`, and `./testing` share `migrations-fs.ts` for identical ordering. Use repository migration scripts: `wrangler d1 migrations apply` sees only flat SQL files and skips Drizzle's folder output.
+Edit `schema.ts`, run `db:generate`, and commit schema and generated migration together. `scripts/migrate.ts`, `scripts/baseline.ts`, `./testing`, and the background pool share `migrations-fs.ts` for folder names and ordering. Use repository migration scripts to preserve those bookkeeping identities. Current Wrangler and the Vitest plugin support nested patterns but name migrations by relative SQL path; the pool adapter restores the shared folder names.
 
 After a squash, obsolete local D1 state still names deleted migrations. Follow [local reset setup](../../docs/setup.md): delete `packages/db/.wrangler/state/v3/d1`, run `db:migrate:local` and `db:seed`, then restart `pnpm run dev` (ADR 0049).
 

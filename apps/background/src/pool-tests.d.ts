@@ -1,12 +1,7 @@
-/// <reference types="@cloudflare/vitest-pool-workers/types" />
-/// <reference types="@cloudflare/workers-types/experimental" />
+/// <reference types="@cloudflare/vitest-plugin/types" />
 
-// Ambient types for the workers-pool tests (`src/*.pool.test.ts`). The two
-// references above pull in `cloudflare:test` (createMessageBatch,
-// getQueueResult, applyD1Migrations, ...) and the service-binding queue
-// result shapes (FetcherQueueResult, ServiceBindingQueueMessage) that live
-// in the experimental subset of @cloudflare/workers-types — ambient modules
-// and globals, so there is nothing to import explicitly.
+// Ambient types for the workers-pool tests (`src/*.pool.test.ts`). The reference
+// above declares `cloudflare:test`, including its queue message and result types.
 
 // The pool's env: the background worker's own `Env` plus the test-only
 // migration binding `vitest.config.ts` installs. Inline `import()` types are

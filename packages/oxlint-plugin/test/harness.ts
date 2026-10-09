@@ -7,7 +7,7 @@ import { expect, it } from 'vite-plus/test'
 
 /**
  * Oxlint has no in-process rule tester for JS plugins: a rule only runs inside the
- * real linter. So each rule's test file drives the actual `oxlint` binary over
+ * real linter. So each rule's test file drives Vite+'s bundled linter over
  * throwaway fixtures, with a generated config that loads this plugin and enables
  * exactly one rule.
  *
@@ -18,10 +18,10 @@ import { expect, it } from 'vite-plus/test'
  * single run safe.
  */
 
-const OXLINT_BIN = join(
-  dirname(fileURLToPath(import.meta.resolve('oxlint/package.json'))),
+const VP_BIN = join(
+  dirname(fileURLToPath(import.meta.resolve('vite-plus/package.json'))),
   'bin',
-  'oxlint'
+  'vp'
 )
 const PLUGIN_ENTRY = fileURLToPath(new URL('../src/index.ts', import.meta.url))
 
@@ -81,9 +81,9 @@ function messagesByCase(
 
     // `--silent` suppresses the diagnostics themselves, so it must stay off.
     const result = spawnSync(
-      OXLINT_BIN,
-      ['-c', join(root, 'oxlintrc.json'), '--format=json', '.'],
-      { cwd: root, encoding: 'utf8' }
+      VP_BIN,
+      ['lint', '-c', join(root, 'oxlintrc.json'), '--format=json', root],
+      { cwd: fileURLToPath(new URL('..', import.meta.url)), encoding: 'utf8' }
     )
 
     if (result.error !== undefined) {

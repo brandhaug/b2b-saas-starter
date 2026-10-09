@@ -15,7 +15,7 @@ export function InteractionModality() {
     return () => {
       document.removeEventListener('keydown', recordInput, true)
       document.removeEventListener('pointerdown', recordInput, true)
-      delete root.dataset.inputModality
+      root.removeAttribute('data-input-modality')
     }
   }, [])
   return null
