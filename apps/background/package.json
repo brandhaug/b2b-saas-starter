@@ -6,7 +6,7 @@
     "dev": "wrangler dev --port 8788 --inspector-port 9788",
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "vp test run --passWithNoTests"
+    "test": "vp run test:coverage"
   },
   "dependencies": {
     "@b2b-saas-starter/billing": "workspace:*",
@@ -25,6 +25,7 @@
     "@cloudflare/vitest-plugin": "catalog:",
     "@cloudflare/workers-types": "catalog:",
     "@effect/vitest": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "react-email": "catalog:",
     "standardwebhooks": "catalog:",
     "typescript": "catalog:",
