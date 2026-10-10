@@ -98,7 +98,7 @@ catalog:
   ultracite: 7.12.4
   vite: npm:@voidzero-dev/vite-plus-core@1.0.0
   vitest: 5.0.1
-  wrangler: 4.147.0
+  wrangler: 4.148.0
   vite-plus: 1.0.0
 
 minimumReleaseAgeExclude:
