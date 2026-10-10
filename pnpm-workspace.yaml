@@ -25,7 +25,7 @@ catalog:
   '@better-auth/utils': 0.5.0
   '@cloudflare/ai-chat': 0.12.1
   agents: 0.27.0
-  ai: 7.0.130
+  ai: 7.0.131
   '@cloudflare/workers-types': 5.20261007.1
   '@cloudflare/vitest-plugin': 1.4.0
   '@effect/tsgo': 0.51.1
@@ -72,7 +72,7 @@ catalog:
   drizzle-kit: 1.0.0-rc.5-ab785fc
   drizzle-orm: 1.0.0-rc.5-ab785fc
   standardwebhooks: 1.1.1
-  effect: 4.0.1
+  effect: 4.0.2
   effectful-better-auth: 1.0.5
   eslint-plugin-better-tailwindcss: 4.9.0
   fallow: 3.31.0
