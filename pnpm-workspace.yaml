@@ -28,7 +28,7 @@ catalog:
   ai: 7.0.130
   '@cloudflare/workers-types': 5.20261007.1
   '@cloudflare/vitest-plugin': 1.4.0
-  '@effect/tsgo': 0.51.0
+  '@effect/tsgo': 0.51.1
   '@effect/platform-node': 4.0.1
   '@effect/sql-d1': 4.0.1
   '@effect/vitest': 4.0.1
