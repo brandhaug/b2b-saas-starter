@@ -130,8 +130,8 @@ catalogs:
       specifier: 0.27.0
       version: 0.27.0
     ai:
-      specifier: 7.0.131
-      version: 7.0.131
+      specifier: 7.0.132
+      version: 7.0.132
     alchemy:
       specifier: 2.0.0-beta.79
       version: 2.0.0-beta.79
@@ -550,7 +550,7 @@ importers:
         version: 1.7.7(57480b99572579c3f006661b126244b6)
       '@cloudflare/ai-chat':
         specifier: 'catalog:'
-        version: 0.12.1(agents@0.27.0(@ai-sdk/provider@4.0.24)(@babel/core@8.0.7)(@babel/runtime@7.29.10)(@modelcontextprotocol/client@2.2.0)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.5))(@modelcontextprotocol/server@2.0.0)(@voidzero-dev/vite-plus-core@1.0.0(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.131(zod@4.6.5))(react@19.3.0)(rolldown@1.2.5)(zod@4.6.5))(ai@7.0.131(zod@4.6.5))(react@19.3.0)
+        version: 0.12.1(agents@0.27.0(@ai-sdk/provider@4.0.24)(@babel/core@8.0.7)(@babel/runtime@7.29.10)(@modelcontextprotocol/client@2.2.0)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.5))(@modelcontextprotocol/server@2.0.0)(@voidzero-dev/vite-plus-core@1.0.0(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.132(zod@4.6.5))(react@19.3.0)(rolldown@1.2.5)(zod@4.6.5))(ai@7.0.132(zod@4.6.5))(react@19.3.0)
       '@fontsource-variable/geist':
         specifier: 'catalog:'
         version: 5.3.0
@@ -580,10 +580,10 @@ importers:
         version: 9.2.6(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       agents:
         specifier: 'catalog:'
-        version: 0.27.0(@ai-sdk/provider@4.0.24)(@babel/core@8.0.7)(@babel/runtime@7.29.10)(@modelcontextprotocol/client@2.2.0)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.5))(@modelcontextprotocol/server@2.0.0)(@voidzero-dev/vite-plus-core@1.0.0(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.131(zod@4.6.5))(react@19.3.0)(rolldown@1.2.5)(zod@4.6.5)
+        version: 0.27.0(@ai-sdk/provider@4.0.24)(@babel/core@8.0.7)(@babel/runtime@7.29.10)(@modelcontextprotocol/client@2.2.0)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.5))(@modelcontextprotocol/server@2.0.0)(@voidzero-dev/vite-plus-core@1.0.0(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.132(zod@4.6.5))(react@19.3.0)(rolldown@1.2.5)(zod@4.6.5)
       ai:
         specifier: 'catalog:'
-        version: 7.0.131(zod@4.6.5)
+        version: 7.0.132(zod@4.6.5)
       better-auth:
         specifier: 'catalog:'
         version: 1.7.7(@tanstack/react-start@1.168.60(@voidzero-dev/vite-plus-core@1.0.0(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(rolldown@1.2.5)(rollup@4.64.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261007.1)(@effect/sql-d1@4.0.2(effect@4.0.2))(@effect/sql-sqlite-do@4.0.0(effect@4.0.2))(@electric-sql/pglite@0.3.15)(@libsql/client@0.17.4)(effect@4.0.2)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.5))(next@16.3.8(@babel/core@8.0.7)(@playwright/test@1.64.0)(@types/node@26.6.4)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0))(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(vitest@5.0.1)
@@ -5534,8 +5534,8 @@ packages:
       vite:
         optional: true
 
-  ai@7.0.131:
-    resolution: {integrity: sha512-lOv32sfZ4T6yeFLvc9YyIBbaJH4lAhX4jYvRn6AmU7EePpL5VX3I7jgLFuX56lWaiKFi07rQ0I8+Jb2t0B0olg==}
+  ai@7.0.132:
+    resolution: {integrity: sha512-4WoiX6bpklwbpK441CmQoeZtEVwbpCZNyaTQ1Bc2vSS8jhzrVosRA2L9zNO1fLtvPk7yQfhKtrgNUschez1hGQ==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -9751,10 +9751,10 @@ snapshots:
       fast-wrap-ansi: 0.2.2
       sisteransi: 1.0.5
 
-  '@cloudflare/ai-chat@0.12.1(agents@0.27.0(@ai-sdk/provider@4.0.24)(@babel/core@8.0.7)(@babel/runtime@7.29.10)(@modelcontextprotocol/client@2.2.0)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.5))(@modelcontextprotocol/server@2.0.0)(@voidzero-dev/vite-plus-core@1.0.0(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.131(zod@4.6.5))(react@19.3.0)(rolldown@1.2.5)(zod@4.6.5))(ai@7.0.131(zod@4.6.5))(react@19.3.0)':
+  '@cloudflare/ai-chat@0.12.1(agents@0.27.0(@ai-sdk/provider@4.0.24)(@babel/core@8.0.7)(@babel/runtime@7.29.10)(@modelcontextprotocol/client@2.2.0)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.5))(@modelcontextprotocol/server@2.0.0)(@voidzero-dev/vite-plus-core@1.0.0(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.132(zod@4.6.5))(react@19.3.0)(rolldown@1.2.5)(zod@4.6.5))(ai@7.0.132(zod@4.6.5))(react@19.3.0)':
     dependencies:
-      agents: 0.27.0(@ai-sdk/provider@4.0.24)(@babel/core@8.0.7)(@babel/runtime@7.29.10)(@modelcontextprotocol/client@2.2.0)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.5))(@modelcontextprotocol/server@2.0.0)(@voidzero-dev/vite-plus-core@1.0.0(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.131(zod@4.6.5))(react@19.3.0)(rolldown@1.2.5)(zod@4.6.5)
-      ai: 7.0.131(zod@4.6.5)
+      agents: 0.27.0(@ai-sdk/provider@4.0.24)(@babel/core@8.0.7)(@babel/runtime@7.29.10)(@modelcontextprotocol/client@2.2.0)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.5))(@modelcontextprotocol/server@2.0.0)(@voidzero-dev/vite-plus-core@1.0.0(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.132(zod@4.6.5))(react@19.3.0)(rolldown@1.2.5)(zod@4.6.5)
+      ai: 7.0.132(zod@4.6.5)
       nanoid: 3.3.18
     optionalDependencies:
       react: 19.3.0
@@ -12619,7 +12619,7 @@ snapshots:
 
   acorn@8.19.0: {}
 
-  agents@0.27.0(@ai-sdk/provider@4.0.24)(@babel/core@8.0.7)(@babel/runtime@7.29.10)(@modelcontextprotocol/client@2.2.0)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.5))(@modelcontextprotocol/server@2.0.0)(@voidzero-dev/vite-plus-core@1.0.0(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.131(zod@4.6.5))(react@19.3.0)(rolldown@1.2.5)(zod@4.6.5):
+  agents@0.27.0(@ai-sdk/provider@4.0.24)(@babel/core@8.0.7)(@babel/runtime@7.29.10)(@modelcontextprotocol/client@2.2.0)(@modelcontextprotocol/sdk@1.31.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@4.6.5))(@modelcontextprotocol/server@2.0.0)(@voidzero-dev/vite-plus-core@1.0.0(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.132(zod@4.6.5))(react@19.3.0)(rolldown@1.2.5)(zod@4.6.5):
     dependencies:
       '@babel/plugin-proposal-decorators': 8.0.2(@babel/core@8.0.7)
       '@cfworker/json-schema': 4.1.1
@@ -12638,7 +12638,7 @@ snapshots:
       zod: 4.6.5
     optionalDependencies:
       '@ai-sdk/provider': 4.0.24
-      ai: 7.0.131(zod@4.6.5)
+      ai: 7.0.132(zod@4.6.5)
       react: 19.3.0
       vite: '@voidzero-dev/vite-plus-core@1.0.0(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1)'
     transitivePeerDependencies:
@@ -12647,7 +12647,7 @@ snapshots:
       - '@babel/runtime'
       - rolldown
 
-  ai@7.0.131(zod@4.6.5):
+  ai@7.0.132(zod@4.6.5):
     dependencies:
       '@ai-sdk/gateway': 4.0.107(zod@4.6.5)
       '@ai-sdk/provider': 4.0.24
