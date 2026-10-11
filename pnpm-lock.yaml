@@ -178,8 +178,8 @@ catalogs:
       specifier: 1.53.0
       version: 1.53.0
     miniflare:
-      specifier: 5.20261006.0-alpha
-      version: 5.20261006.0-alpha
+      specifier: 5.20261006.1-alpha
+      version: 5.20261006.1-alpha
     oxlint-plugin-effect:
       specifier: 0.11.0
       version: 0.11.0
@@ -689,7 +689,7 @@ importers:
         version: 30.1.2(@noble/hashes@2.4.0)
       miniflare:
         specifier: 'catalog:'
-        version: 5.20261006.0-alpha(@types/node@26.6.4)
+        version: 5.20261006.1-alpha(@types/node@26.6.4)
       rehype-pretty-code:
         specifier: 'catalog:'
         version: 0.14.5(shiki@4.5.0)
