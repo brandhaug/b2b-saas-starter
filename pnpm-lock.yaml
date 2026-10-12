@@ -214,8 +214,8 @@ catalogs:
       specifier: 6.0.0
       version: 6.0.0
     seroval:
-      specifier: 1.6.8
-      version: 1.6.8
+      specifier: 1.6.9
+      version: 1.6.9
     shadcn:
       specifier: 4.21.4
       version: 4.21.4
@@ -703,7 +703,7 @@ importers:
         version: 6.0.0
       seroval:
         specifier: 'catalog:'
-        version: 1.6.8
+        version: 1.6.9
       tailwindcss:
         specifier: 'catalog:'
         version: 4.3.3
@@ -7957,6 +7957,10 @@ packages:
 
   seroval@1.6.8:
     resolution: {integrity: sha512-HlSgSAkTk4EqHcje1ptJjfZi1YDv5KbhVJ/d3P7T/nAXua2VmDu+AKDX5VTdFfZf48nDkWB2TKYt0DrCSa+3wg==}
+    engines: {node: '>=10'}
+
+  seroval@1.6.9:
+    resolution: {integrity: sha512-UeEzHwAK+yl0YLbsvROV1t5yMYEwZZ0CfKYxDvUgS2fO9Vxdf8djqVIB+OuVpuawRNPqw68LE1Du/GMsW2ZPqA==}
     engines: {node: '>=10'}
 
   serve-static@2.2.1:
@@ -15364,6 +15368,8 @@ snapshots:
       seroval: 1.6.8
 
   seroval@1.6.8: {}
+
+  seroval@1.6.9: {}
 
   serve-static@2.2.1(supports-color@10.2.2):
     dependencies:
