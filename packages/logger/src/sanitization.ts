@@ -28,9 +28,24 @@ const publicationFailureFields = new Set([
   'notificationEmailEnqueue'
 ])
 
+const configurationFields = new Set([
+  'config.BETTER_AUTH_SECRET',
+  'config.BETTER_AUTH_URL',
+  'config.BETTER_AUTH_TRUSTED_ORIGINS'
+])
+
+const configurationReasons = new Set([
+  'missing',
+  'placeholder',
+  'too-short',
+  'malformed',
+  'insecure'
+])
+
 const allowedFields = new Set([
   ...countFields,
   ...publicationFailureFields,
+  ...configurationFields,
   'assistantAuthorityNotification',
   'service',
   'event',
@@ -168,6 +183,12 @@ export function diagnosticFields(fields: object) {
       continue
     }
     if (key === 'assistantAuthorityNotification' && value !== 'host_unavailable') {
+      continue
+    }
+    if (
+      configurationFields.has(key) &&
+      (typeof value !== 'string' || !configurationReasons.has(value))
+    ) {
       continue
     }
     if (!allowedFields.has(key)) {

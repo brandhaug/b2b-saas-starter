@@ -37,12 +37,12 @@ const csrfMiddleware = createCsrfMiddleware({
 })
 
 const configGateMiddleware = createMiddleware({ type: 'request' }).server(
-  ({ next }) => {
+  async ({ next }) => {
     // Before the request scope opens: the gate's `config.insecure` event (a
     // non-production deployment with insecure required env) is standalone, not
     // folded into the first request's wide event. In production the gate
     // throws, failing every request until the deployment is fixed.
-    enforceRequiredEnvOnce()
+    await enforceRequiredEnvOnce()
     return next()
   }
 )

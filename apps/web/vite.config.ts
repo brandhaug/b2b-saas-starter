@@ -206,6 +206,12 @@ export default defineConfig(({ command, mode }) => {
         // otherwise warn that each `*.test.tsx` exports no Route.
         tanstackStart({
           server: { entry: workersShim === null ? './worker.ts' : './server.ts' },
+          importProtection: {
+            // Vitest imports server handlers directly in its client environment.
+            // Dev, production, and the compiled E2E build enforce the boundary.
+            enabled: mode !== 'test',
+            client: { files: ['**/*.server.*', '**/*.effects.ts'] }
+          },
           router: {
             routeFileIgnorePattern: '\\.test\\.'
           }
