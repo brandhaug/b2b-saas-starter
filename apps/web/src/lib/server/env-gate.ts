@@ -10,12 +10,9 @@ import { webRuntime, withWebRequestScope } from '@/lib/observability'
  * and every request fails with it until the deployment is fixed.
  */
 export class InsecureProductionEnvError extends Error {
-  constructor(problems: RequiredEnvAudit['problems']) {
-    super(
-      `Refusing to serve: required env is insecure — ${problems
-        .map((problem) => `${problem.key} (${problem.reason})`)
-        .join(', ')}. Set real values before deploying with ENVIRONMENT=production.`
-    )
+  constructor() {
+    // Start sends request-middleware error messages to server-function callers.
+    super('Service unavailable')
     this.name = 'InsecureProductionEnvError'
   }
 }
@@ -31,7 +28,7 @@ export function enforceRequiredEnvAudit(audit: RequiredEnvAudit): void {
     return
   }
   // oxlint-disable-next-line effect/noThrowStatement -- the TanStack request middleware has no Effect error channel; this throw crossing that boundary IS the gate
-  throw new InsecureProductionEnvError(audit.problems)
+  throw new InsecureProductionEnvError()
 }
 
 let verdict: 'ok' | 'warned' | undefined
@@ -46,13 +43,14 @@ let verdict: 'ok' | 'warned' | undefined
  * - `ENVIRONMENT=production` with a missing, placeholder, or too-short
  *   `BETTER_AUTH_SECRET`, or a placeholder or non-`https:` `BETTER_AUTH_URL`:
  *   every request fails with {@link InsecureProductionEnvError} until the
- *   deploy is fixed. The gate re-runs on each request in that state, so a fix
+ *   deploy is fixed. Diagnostics are logged once per isolate, never sent to
+ *   callers. The gate re-runs on each request in that state, so a fix
  *   rolled out without a new isolate starts serving immediately.
  * - Any other `ENVIRONMENT` (staging, preview, manual `wrangler deploy`):
  *   one `config.insecure` wide event per isolate — problems are named by key
  *   and reason, never by value — and the app keeps serving.
  */
-export function enforceRequiredEnvOnce(): void {
+export async function enforceRequiredEnvOnce(): Promise<void> {
   if (verdict === 'ok') {
     return
   }
@@ -61,28 +59,26 @@ export function enforceRequiredEnvOnce(): void {
     verdict = 'ok'
     return
   }
-  // Deliberate refusal to serve when the audit says production: the throw
-  // crosses the middleware boundary and fails every request until the
-  // deployment is fixed. The gate re-runs while `verdict` stays unset, so a
-  // fix rolled out without a new isolate starts serving immediately.
-  enforceRequiredEnvAudit(audit)
-  if (verdict === 'warned') {
-    return
-  }
-  verdict = 'warned'
-  // Standalone scope, not nested in the triggering request: this is a
-  // boot-time config event, one per isolate, not traffic telemetry. The gate
-  // runs before the observability middleware registers the request, so
-  // `withWebRequestScope` takes its standalone branch here (its
-  // `scope: 'standalone'` tag reads as "not part of any request", which is
-  // the truth).
-  void webRuntime.runPromiseExit(
-    withWebRequestScope(
-      {
-        event: 'config.insecure',
-        metadata: { environment: audit.mode, problems: audit.problems }
-      },
-      Effect.void
+  if (verdict !== 'warned') {
+    verdict = 'warned'
+    // The gate precedes request observability. Record diagnostics in a
+    // standalone scope before refusing production traffic.
+    await webRuntime.runPromiseExit(
+      withWebRequestScope(
+        {
+          event: 'config.insecure',
+          metadata: {
+            environment: audit.mode,
+            ...Object.fromEntries(
+              audit.problems.map(({ key, reason }) => [`config.${key}`, reason])
+            )
+          }
+        },
+        Effect.void
+      )
     )
-  )
+  }
+  // A logged warning must never bypass the production refusal. Re-audit on
+  // every failed request so corrected bindings can recover in this isolate.
+  enforceRequiredEnvAudit(audit)
 }

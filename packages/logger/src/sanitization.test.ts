@@ -40,6 +40,28 @@ function nestedFailure() {
 }
 
 describe('telemetry output policy', () => {
+  it('retains only known configuration keys and audit reasons', () => {
+    expect(
+      diagnosticFields({
+        'config.BETTER_AUTH_SECRET': 'placeholder',
+        'config.BETTER_AUTH_URL': 'insecure',
+        'config.BETTER_AUTH_TRUSTED_ORIGINS': 'malformed',
+        'config.UNKNOWN': 'missing'
+      })
+    ).toEqual({
+      'config.BETTER_AUTH_SECRET': 'placeholder',
+      'config.BETTER_AUTH_URL': 'insecure',
+      'config.BETTER_AUTH_TRUSTED_ORIGINS': 'malformed'
+    })
+    expect(
+      diagnosticFields({
+        'config.BETTER_AUTH_SECRET': secret,
+        'config.BETTER_AUTH_URL': true,
+        'config.BETTER_AUTH_TRUSTED_ORIGINS': 42
+      })
+    ).toEqual({})
+  })
+
   it('retains the auth audit body failure tag without body diagnostics', () => {
     expect(
       diagnosticFields({
