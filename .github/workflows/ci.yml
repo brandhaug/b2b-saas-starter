@@ -155,16 +155,43 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  analytics-consent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm -C apps/web exec playwright install --with-deps --only-shell chromium
+      - run: pnpm run db:migrate:local
+      - run: pnpm run db:seed
+      - name: Verify configured consent with intercepted vendor requests
+        env:
+          CLOUDFLARE_WEB_ANALYTICS_TOKEN: '00000000000000000000000000000000'
+          PRIVACY_CONTROLLER_NAME: Test Controller
+          PRIVACY_CONTACT_EMAIL: privacy@example.com
+        run: pnpm -C apps/web exec playwright test e2e/web-analytics.spec.ts --project chromium --workers 1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() }}
+        with:
+          name: analytics-consent-${{ github.run_attempt }}
+          path: |
+            apps/web/test-results
+            apps/web/playwright-report
+          retention-days: 14
+
   # Preserve the required check name while each shard owns its local D1.
   e2e:
     if: ${{ always() }}
-    needs: [e2e-shards]
+    needs: [e2e-shards, analytics-consent]
     runs-on: ubuntu-latest
     steps:
       - name: Verify every E2E shard succeeded
         env:
           RESULT: ${{ needs.e2e-shards.result }}
-        run: test "$RESULT" = success
+          ANALYTICS_RESULT: ${{ needs.analytics-consent.result }}
+        run: test "$RESULT" = success && test "$ANALYTICS_RESULT" = success
 
   deploy:
     if: >-
@@ -237,6 +264,8 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           CLOUDFLARE_WEB_ANALYTICS_ENABLED: ${{ vars.CLOUDFLARE_WEB_ANALYTICS_ENABLED }}
+          PRIVACY_CONTROLLER_NAME: ${{ vars.PRIVACY_CONTROLLER_NAME }}
+          PRIVACY_CONTACT_EMAIL: ${{ vars.PRIVACY_CONTACT_EMAIL }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ vars.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
           MCP_RESOURCE_URL: ${{ vars.MCP_RESOURCE_URL }}
