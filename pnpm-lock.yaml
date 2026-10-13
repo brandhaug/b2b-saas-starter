@@ -49,8 +49,8 @@ catalogs:
       specifier: 5.3.0
       version: 5.3.0
     '@inlang/paraglide-js':
-      specifier: 2.26.0
-      version: 2.26.0
+      specifier: 2.27.0
+      version: 2.27.0
     '@inlang/plugin-message-format':
       specifier: 4.4.5
       version: 4.4.5
@@ -1112,7 +1112,7 @@ importers:
     dependencies:
       '@inlang/paraglide-js':
         specifier: 'catalog:'
-        version: 2.26.0(@voidzero-dev/vite-plus-core@1.0.0(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(typescript@7.0.2)
+        version: 2.27.0(@voidzero-dev/vite-plus-core@1.0.0(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(typescript@7.0.2)
     devDependencies:
       '@inlang/plugin-message-format':
         specifier: 'catalog:'
@@ -2692,8 +2692,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@inlang/paraglide-js@2.26.0':
-    resolution: {integrity: sha512-6k0WNzf941zTWtIbTHRP/Oq3Xg8LExUzpK1mteZ6HJAgRvIP8njh5tPtS4kO+mY/V+pQn88m16LEgLlWL7VteQ==}
+  '@inlang/paraglide-js@2.27.0':
+    resolution: {integrity: sha512-KAAwRbg/h3oi2D4nB0cUCKG2ntOLpcSOmwwjm+SL2a316NhdypXWGeElJenCwK2piPz7vQTn7yOYOwCjqIEP5g==}
     hasBin: true
     peerDependencies:
       typescript: '>=5.6'
@@ -2712,6 +2712,10 @@ packages:
 
   '@inlang/sdk@3.1.0':
     resolution: {integrity: sha512-l8LqeyqLfe00cmDvKY7J6YuCkfWVfgzaNWlB8IAHxWOWqkUAwyG4AhuMYUiBbeA0wM6zdVphPCG2lay/OzTdFg==}
+    engines: {node: '>=20.0.0'}
+
+  '@inlang/sdk@4.0.2':
+    resolution: {integrity: sha512-IiOiQpybiV2HrguH+2eG+9Pqsm8AuUBtjHpgl3rnwXkE9x1p+mAC5YqVVRlquGLELXxFiu90zvgFXdYnt4X3LA==}
     engines: {node: '>=20.0.0'}
 
   '@jridgewell/gen-mapping@0.3.13':
@@ -10183,10 +10187,10 @@ snapshots:
   '@img/sharp-win32-x64@0.35.5':
     optional: true
 
-  '@inlang/paraglide-js@2.26.0(@voidzero-dev/vite-plus-core@1.0.0(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(typescript@7.0.2)':
+  '@inlang/paraglide-js@2.27.0(@voidzero-dev/vite-plus-core@1.0.0(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(typescript@7.0.2)':
     dependencies:
       '@inlang/recommend-sherlock': 0.2.1
-      '@inlang/sdk': 3.1.0
+      '@inlang/sdk': 4.0.2
       commander: 11.1.0
       consola: 3.4.0
       jiti: 2.7.0
@@ -10209,6 +10213,13 @@ snapshots:
       comment-json: 4.6.2
 
   '@inlang/sdk@3.1.0':
+    dependencies:
+      '@lix-js/sdk': 0.19.0
+      '@sinclair/typebox': 0.31.30
+      kysely: 0.28.17
+      uuid: 14.0.3
+
+  '@inlang/sdk@4.0.2':
     dependencies:
       '@lix-js/sdk': 0.19.0
       '@sinclair/typebox': 0.31.30
