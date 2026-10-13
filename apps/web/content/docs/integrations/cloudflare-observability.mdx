@@ -30,10 +30,10 @@ remote capture in this starter; Workers Issues observes server execution.
 `OTEL_EXPORTER_OTLP_ENDPOINT` optionally exports sanitized Effect traces, metrics,
 and canonical logs to a collector. It remains scoped to each Worker invocation.
 
-## Optional Web Analytics
+## Consent-gated Web Analytics
 
-Set `CLOUDFLARE_WEB_ANALYTICS_ENABLED=true` for an Alchemy deployment to
-provision a Cloudflare RUM site for the hostname in `BETTER_AUTH_URL`. Alchemy
+Every production Alchemy deployment provisions a Cloudflare RUM site for the
+hostname in `BETTER_AUTH_URL`. Alchemy
 passes its public site token to the web Worker as
 `CLOUDFLARE_WEB_ANALYTICS_TOKEN`. API and background Workers receive no token.
 Local development and deployments without a token load no beacon. PR preview
