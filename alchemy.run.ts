@@ -336,7 +336,7 @@ export const Stack = Alchemy.Stack(
     }
 
     // Alchemy owns the site and token. Explicit embedding avoids edge injection
-    // and works on workers.dev as well as custom hosts without a zone lookup.
+    // and lets the application withhold all analytics until browser consent.
     const webAnalytics =
       !isPreviewStage(stage) &&
       readEnv('CLOUDFLARE_WEB_ANALYTICS_ENABLED')?.trim().toLowerCase() === 'true'

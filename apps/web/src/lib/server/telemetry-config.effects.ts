@@ -24,10 +24,17 @@ function nonEmptyEnvValue(value: string | null | undefined): string | undefined 
 
 /** Runs on the server only — it reads the worker's env bag. */
 export function readClientTelemetryConfigHandler(): ClientTelemetryConfig {
+  const name = nonEmptyEnvValue(cloudflareEnv.PRIVACY_CONTROLLER_NAME?.trim())
+  const email = nonEmptyEnvValue(cloudflareEnv.PRIVACY_CONTACT_EMAIL?.trim())
+  const privacyController =
+    name && email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+      ? { name, email }
+      : undefined
   return {
+    privacyController,
     // Cloudflare's beacon token is a public ingest identifier, not an API secret.
-    cloudflareWebAnalyticsToken: nonEmptyEnvValue(
-      cloudflareEnv.CLOUDFLARE_WEB_ANALYTICS_TOKEN
-    )
+    cloudflareWebAnalyticsToken: privacyController
+      ? nonEmptyEnvValue(cloudflareEnv.CLOUDFLARE_WEB_ANALYTICS_TOKEN)
+      : undefined
   }
 }

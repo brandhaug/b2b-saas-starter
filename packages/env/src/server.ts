@@ -35,6 +35,8 @@ export type ServerEnv = {
   readonly SECURITY_EVIDENCE_TOKEN?: string | undefined
   /** Public beacon token provisioned by Alchemy, bound only to the web Worker. */
   readonly CLOUDFLARE_WEB_ANALYTICS_TOKEN?: string | undefined
+  readonly PRIVACY_CONTROLLER_NAME?: string | undefined
+  readonly PRIVACY_CONTACT_EMAIL?: string | undefined
   readonly CLOUDFLARE_EMAIL_FROM?: string | undefined
   readonly TURNSTILE_SITE_KEY?: string | undefined
   readonly TURNSTILE_SECRET_KEY?: string | undefined
@@ -137,6 +139,8 @@ export const optionalModuleEnvSecretKeys = [
 
 // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const optionalModuleEnvPlainKeys = [
+  'PRIVACY_CONTROLLER_NAME',
+  'PRIVACY_CONTACT_EMAIL',
   'SECURITY_EVIDENCE_URL',
   'STRIPE_PRICE_ID_TEAM',
   'STRIPE_PRICE_ID_TEAM_ANNUAL',

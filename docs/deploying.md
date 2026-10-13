@@ -304,7 +304,12 @@ for storage boundaries and deletion sanitation.
 
 Set the repository variable `CLOUDFLARE_WEB_ANALYTICS_ENABLED` to `true` for CI,
 or set `CLOUDFLARE_WEB_ANALYTICS_ENABLED=true` in the deployment environment before
-running Alchemy. The stack provisions `Cloudflare.Rum.Site` for
+running Alchemy. Also set `PRIVACY_CONTROLLER_NAME` and `PRIVACY_CONTACT_EMAIL`
+as repository variables or deployment environment values. The privacy page uses
+these to identify this deployment's controller; the browser token remains inactive
+unless both are configured with a valid contact email.
+
+The stack provisions `Cloudflare.Rum.Site` for
 `new URL(BETTER_AUTH_URL).hostname` and binds its generated public site token only
 to the web Worker as `CLOUDFLARE_WEB_ANALYTICS_TOKEN`. Keep `BETTER_AUTH_URL` set
 to the actual web origin. When enabled, the deploy credential needs
@@ -316,7 +321,11 @@ dashboard-injected copy. With the switch unset, no site is provisioned and no
 beacon loads. PR stages skip both provisioning and token binding even if the
 switch is enabled. Local development stays inactive without a token.
 
-Verify one beacon script loads and measurements appear after navigation on the
-deployed hostname. Check that the disabled deployment makes no beacon requests.
+Deploy the consent controls before enabling the switch. Verify no vendor requests
+before consent or after decline, then allow analytics and check that one beacon
+script loads and measurements appear after navigation on the deployed hostname.
+Use Analytics settings to withdraw consent and verify reporting stops, including
+in another open tab. A consent change reloads the page. Choices expire after 180
+days. Check that a deployment without a token or controller makes no requests.
 The [integration guide](../apps/web/content/docs/integrations/cloudflare-observability.mdx)
 describes collected data and the privacy review needed before enabling analytics.
