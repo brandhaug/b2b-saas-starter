@@ -338,8 +338,7 @@ export const Stack = Alchemy.Stack(
     // Alchemy owns the site and token. Explicit embedding avoids edge injection
     // and lets the application withhold all analytics until browser consent.
     const webAnalytics =
-      !isPreviewStage(stage) &&
-      readEnv('CLOUDFLARE_WEB_ANALYTICS_ENABLED')?.trim().toLowerCase() === 'true'
+      stage === productionStage
         ? yield* Cloudflare.Rum.Site('web-analytics', {
             host: new URL(BETTER_AUTH_URL).hostname,
             autoInstall: false

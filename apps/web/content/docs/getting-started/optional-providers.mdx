@@ -28,7 +28,7 @@ Restart development processes after changing configuration.
 | OpenAI-compatible assistant | `OPENAI_API_KEY`; optional `OPENAI_BASE_URL`, `OPENAI_MODEL_ID`                                             | Persistent generation unavailable; stateless endpoint keeps its existing mock response        |
 | Workspace export            | `WORKSPACE_EXPORTS_ENABLED=true`, `API_PUBLIC_URL`                                                          | D1-backed export actions unavailable                                                          |
 | Stripe                      | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_TEAM`; optional `STRIPE_PRICE_ID_ENTERPRISE` | Plan display and local entitlement checks remain available                                    |
-| Cloudflare Web Analytics    | `CLOUDFLARE_WEB_ANALYTICS_ENABLED=true` at deploy; Alchemy supplies the web token                           | No browser analytics beacon                                                                   |
+| Cloudflare Web Analytics    | Alchemy supplies the production token; configure `PRIVACY_CONTROLLER_NAME` and `PRIVACY_CONTACT_EMAIL`      | No browser analytics beacon                                                                   |
 | OTLP                        | `OTEL_EXPORTER_OTLP_ENDPOINT`                                                                               | No OTLP export                                                                                |
 
 ## Verify activation

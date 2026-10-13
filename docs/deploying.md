@@ -300,11 +300,10 @@ See the [conversation guide](../apps/web/content/docs/capability-interfaces/assi
 for limits and the [recovery runbook](operations.md#private-assistant-conversation-recovery)
 for storage boundaries and deletion sanitation.
 
-## Optional browser analytics
+## Browser analytics
 
-Set the repository variable `CLOUDFLARE_WEB_ANALYTICS_ENABLED` to `true` for CI,
-or set `CLOUDFLARE_WEB_ANALYTICS_ENABLED=true` in the deployment environment before
-running Alchemy. Also set `PRIVACY_CONTROLLER_NAME` and `PRIVACY_CONTACT_EMAIL`
+Alchemy provisions Web Analytics automatically for the production stage.
+Set `PRIVACY_CONTROLLER_NAME` and `PRIVACY_CONTACT_EMAIL`
 as repository variables or deployment environment values. The privacy page uses
 these to identify this deployment's controller; the browser token remains inactive
 unless both are configured with a valid contact email.
@@ -312,16 +311,15 @@ unless both are configured with a valid contact email.
 The stack provisions `Cloudflare.Rum.Site` for
 `new URL(BETTER_AUTH_URL).hostname` and binds its generated public site token only
 to the web Worker as `CLOUDFLARE_WEB_ANALYTICS_TOKEN`. Keep `BETTER_AUTH_URL` set
-to the actual web origin. When enabled, the deploy credential needs
+to the actual web origin. The production deploy credential needs
 [`Account Settings Write`](https://developers.cloudflare.com/api/resources/rum/subresources/site_info/methods/create/)
 to manage the account's RUM sites.
 
 Alchemy sets `autoInstall: false`; the app embeds the beacon itself. Do not add a
-dashboard-injected copy. With the switch unset, no site is provisioned and no
-beacon loads. PR stages skip both provisioning and token binding even if the
-switch is enabled. Local development stays inactive without a token.
+dashboard-injected copy. PR stages skip both provisioning and token binding.
+Local development stays inactive without a token.
 
-Deploy the consent controls before enabling the switch. Verify no vendor requests
+After deployment, verify no vendor requests
 before consent or after decline, then allow analytics and check that one beacon
 script loads and measurements appear after navigation on the deployed hostname.
 Use Analytics settings to withdraw consent and verify reporting stops, including

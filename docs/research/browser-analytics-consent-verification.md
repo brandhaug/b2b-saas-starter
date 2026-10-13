@@ -60,8 +60,8 @@ configured suite; the ordinary E2E shards verify the unconfigured deployment.
 
 ## Deployment verification
 
-Follow [optional browser analytics](../deploying.md#optional-browser-analytics).
-After deploying the consent implementation, enable the Alchemy switch and verify
+Follow [browser analytics](../deploying.md#browser-analytics).
+Production Alchemy deployments provision analytics automatically. Verify
 a real opted-in beacon on the deployed hostname. Automatic injection must remain
 off. Check a fresh browser before acceptance, after refusal, and after withdrawal.
 
