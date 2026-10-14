@@ -39,11 +39,14 @@ test('default deployment policy is restricted to the required account APIs', asy
   ])
   assert.equal(config.owner, 'example')
   assert.equal(config.repository, 'starter')
+  assert.equal(config.workspaceExportsEnabled, false)
 })
 
 test('exports adds only R2 administration in the same account', async () => {
   const disabled = await readConfig({ WORKSPACE_EXPORTS_ENABLED: 'false' })
   const enabled = await readConfig({ WORKSPACE_EXPORTS_ENABLED: 'true' })
+  assert.equal(disabled.workspaceExportsEnabled, false)
+  assert.equal(enabled.workspaceExportsEnabled, true)
   assert.deepEqual(enabled.policies, [
     {
       ...disabled.policies[0],
