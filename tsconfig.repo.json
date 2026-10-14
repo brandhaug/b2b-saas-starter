@@ -13,6 +13,7 @@
   },
   "include": [
     "alchemy.run.ts",
+    "alchemy.bootstrap.ts",
     "lint.config.ts",
     "vite.config.ts",
     "scripts/**/*.ts",

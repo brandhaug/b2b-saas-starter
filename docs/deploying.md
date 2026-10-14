@@ -26,18 +26,20 @@ do not.
 
 1. Find your **account ID**: run `pnpm exec wrangler whoami`, or open the
    Cloudflare dashboard and copy it from the Overview sidebar.
-2. Create an **API token** at
-   [dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens).
-   Start from the "Edit Cloudflare Workers" template, then add these
-   permissions:
+2. Provision the deployment token with the [bootstrap stack](#deployment-token-bootstrap),
+   or create a custom token with the permissions below, scoped to **only the
+   deployment account**. Avoid the broader Workers template.
 
-   | Permission       | Level |
-   | ---------------- | ----- |
-   | Workers Scripts  | Edit  |
-   | D1               | Edit  |
-   | Queues           | Edit  |
-   | Email Sending    | Edit  |
-   | Account Settings | Read  |
+   | Permission       | Level | Required for                                                    |
+   | ---------------- | ----- | --------------------------------------------------------------- |
+   | Workers Scripts  | Edit  | Workers, assets, bindings, cron schedules, queues and consumers |
+   | D1               | Edit  | Database provisioning and migrations                            |
+   | Secrets Store    | Edit  | Alchemy state-store creation and upgrades                       |
+   | Account Settings | Edit  | Production Web Analytics site management                        |
+
+   Add **Workers R2 Storage → Edit** only when workspace exports are enabled.
+   These are account-wide grants within the selected account, not restrictions
+   to this app's Worker names. Use a separate account when that boundary is needed.
 
 3. Determine **`BETTER_AUTH_URL`**, the public URL of the web Worker.
    With no custom domain it is
@@ -58,6 +60,87 @@ Generate a separate auth secret with `openssl rand -base64 32`. Do not
 reuse a development secret; the production env gate rejects known
 placeholders outright when `ENVIRONMENT=production`.
 
+## Deployment token bootstrap
+
+[alchemy.bootstrap.ts](../alchemy.bootstrap.ts) owns a new account API token and
+the repository's `CLOUDFLARE_API_TOKEN` Actions secret. Its permission policy lives
+in [deployment-token-policy.ts](../scripts/lib/deployment-token-policy.ts).
+The app deploy does not run this stack.
+
+Run bootstrap from a **persistent operator checkout**. It uses local Alchemy
+state, separate from the app's Cloudflare state store, so bootstrap requires no
+Worker, D1, or Secrets Store access. The bootstrap credential needs
+[Account API Tokens → Edit](https://developers.cloudflare.com/api/resources/accounts/subresources/tokens/methods/create/)
+for the target account. Keep it out of GitHub Actions; CI receives only the
+generated deployment token. Permission changes require this operator credential
+again, not just the initial setup.
+
+GitHub authentication uses Alchemy's GitHub provider (`GITHUB_TOKEN` or the
+authenticated `gh` CLI). A fine-grained token needs **Secrets → Read and write**
+on this repository only. The existing `gh` login can also supply access.
+
+Export the bootstrap credential as `CLOUDFLARE_API_TOKEN` privately in your shell,
+then set the non-secret inputs:
+
+```bash
+export CLOUDFLARE_ACCOUNT_ID='<deployment-account-id>'
+export BOOTSTRAP_GITHUB_REPOSITORY='<owner>/<repository>'
+export WORKSPACE_EXPORTS_ENABLED=false
+pnpm run bootstrap:plan
+pnpm run bootstrap:deploy
+unset CLOUDFLARE_API_TOKEN
+```
+
+The commands use `umask 077`. Local `.alchemy/state/b2b-saas-starter-deployment-access/prod/`
+contains the generated token in **plaintext**, despite redaction in CLI output.
+Restrict access to the checkout and keep an encrypted backup of that state.
+Never commit it or upload it as a CI artifact. Losing it requires issuing a new
+token: Cloudflare cannot return an existing token's value. A fresh checkout does
+not adopt the old token. If GitHub publication fails after token creation, retain
+the state and rerun bootstrap from the same checkout.
+
+Applying the stack replaces the repository secret value. It does not revoke the
+previous token. An existing `production` environment secret with the same name
+overrides the repository secret; remove that override before verifying the new
+credential. Run CI and confirm deployment plus smoke checks before revoking the
+previous token. To recover from a failed rollout, restore the previous repository
+secret with `gh secret set CLOUDFLARE_API_TOKEN` using its private input prompt.
+Keep the previous credential available until verification finishes. Do not destroy
+the bootstrap stack to roll back: destroy removes its token and GitHub secret.
+
+Set `WORKSPACE_EXPORTS_ENABLED=true` for bootstrap before enabling exports in CI.
+When disabling exports, first deploy the app with exports disabled (while the
+token still has R2 access, so Alchemy can delete the bucket), then rerun bootstrap
+with the flag false. Reapply bootstrap from the same checkout after policy edits;
+it updates the managed token in place and republishes the secret.
+
+### Permission evidence and verification
+
+Cloudflare documents Edit as
+[full CRUDL access](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/).
+The [queue](https://developers.cloudflare.com/api/resources/queues/methods/create/)
+and [consumer](https://developers.cloudflare.com/api/resources/queues/subresources/consumers/methods/create/)
+APIs accept Workers Scripts Write, so a separate Queues grant is unnecessary.
+Email and AI are Worker bindings; their runtime use does not require granting
+the deployment token Email Sending or Workers AI API access. Observability is
+Worker upload metadata. This stack provisions neither Pages, KV, Containers,
+Workers CI nor zone routes, and needs none of their permission groups.
+
+The [RUM list endpoint](https://developers.cloudflare.com/api/resources/rum/subresources/site_info/methods/list/)
+names Account Settings Read while
+[creation](https://developers.cloudflare.com/api/resources/rum/subresources/site_info/methods/create/)
+names Write. The default policy follows the documented Edit/CRUDL semantics,
+without an extra Read grant. Verify list and create with the actual generated
+token before treating this policy as deployment-tested. If RUM returns Forbidden,
+check the selected account, credential source, and account-owned-token compatibility
+before widening the policy. The permission-policy tests validate scope and grant
+selection, not Cloudflare authorization.
+
+Repeatable local check: `vp test run scripts/deployment-token-policy.test.ts`.
+For live verification, apply bootstrap, run CI, confirm the generated token's
+policy in Cloudflare, then reapply bootstrap and confirm its token ID is unchanged.
+Record the CI run URL and outcome; a passing local test is not live rollout evidence.
+
 ## GitHub Actions secrets
 
 The recommended path. The `deploy` job in
@@ -65,7 +148,8 @@ The recommended path. The `deploy` job in
 and reads its configuration from the `production`
 [environment](https://docs.github.com/en/actions/reference/environments).
 Create that environment (Settings → Environments → New environment),
-then add these environment secrets:
+then add these environment secrets. When using bootstrap, `CLOUDFLARE_API_TOKEN`
+is a repository secret instead; do not also define it on the environment:
 
 | Secret                        | Required | Value                                                                               |
 | ----------------------------- | -------- | ----------------------------------------------------------------------------------- |
