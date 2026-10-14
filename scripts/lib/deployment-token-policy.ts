@@ -34,7 +34,9 @@ export const deploymentTokenConfig = Config.all({
       // Cloudflare.state() creates/upgrades its authentication and encryption secrets.
       'Secrets Store Write',
       // Web Analytics site management; no zone access for the workers.dev host.
-      'Account Settings Write'
+      'Account Settings Write',
+      // RUM listing requires Read explicitly; Write alone returns HTTP 403.
+      'Account Settings Read'
     ]
     if (workspaceExports === 'true') {
       permissionGroups.push('Workers R2 Storage Write')

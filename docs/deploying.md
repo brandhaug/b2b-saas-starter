@@ -36,6 +36,7 @@ do not.
    | D1               | Edit  | Database provisioning and migrations                            |
    | Secrets Store    | Edit  | Alchemy state-store creation and upgrades                       |
    | Account Settings | Edit  | Production Web Analytics site management                        |
+   | Account Settings | Read  | Web Analytics site discovery during Alchemy planning            |
 
    Add **Workers R2 Storage → Edit** only when workspace exports are enabled.
    These are account-wide grants within the selected account, not restrictions
@@ -82,8 +83,10 @@ for the target account. Keep it out of GitHub Actions; CI receives only the
 generated deployment token. Permission changes require this operator credential
 again, not just the initial setup.
 
-GitHub authentication uses Alchemy's GitHub provider (`GITHUB_TOKEN` or the
-authenticated `gh` CLI). A fine-grained token needs **Administration, Environments,
+GitHub authentication uses Alchemy's GitHub provider through `GITHUB_TOKEN`.
+To use an authenticated `gh` session, run `export GITHUB_TOKEN="$(gh auth token)"`
+before bootstrap. The pinned Alchemy version does not discover the CLI login
+automatically. A fine-grained token needs **Administration, Environments,
 Secrets, and Variables → Read and write**, plus **Actions → Read**, on this
 repository only. Administration manages environments and branch policies; Actions
 Read lists their policies. The existing `gh` login can also supply access.
@@ -155,14 +158,15 @@ Worker upload metadata. This stack provisions neither Pages, KV, Containers,
 Workers CI nor zone routes, and needs none of their permission groups.
 
 The [RUM list endpoint](https://developers.cloudflare.com/api/resources/rum/subresources/site_info/methods/list/)
-names Account Settings Read while
-[creation](https://developers.cloudflare.com/api/resources/rum/subresources/site_info/methods/create/)
-names Write. The default policy follows the documented Edit/CRUDL semantics,
-without an extra Read grant. Verify list and create with the actual generated
-token before treating this policy as deployment-tested. If RUM returns Forbidden,
-check the selected account, credential source, and account-owned-token compatibility
-before widening the policy. The permission-policy tests validate scope and grant
-selection, not Cloudflare authorization.
+requires explicit Account Settings Read alongside the Write grant used for
+[creation](https://developers.cloudflare.com/api/resources/rum/subresources/site_info/methods/create/).
+A live account-token probe on 2026-10-14 returned HTTP 403 with Write alone and
+HTTP 200 after adding only Read to the same token. The default policy includes
+both grants. Account-owned tokens worked for this list endpoint. If RUM returns
+Forbidden, verify the exact credential, account, and both grants before widening
+the policy. The permission-policy tests validate scope and grant selection;
+[live verification](research/deployment-bootstrap-verification.md) records provider
+authorization separately.
 
 Repeatable local check: `vp test run scripts/deployment-token-policy.test.ts`.
 For live verification, apply bootstrap, run CI, confirm the generated token's
@@ -444,7 +448,9 @@ The stack provisions `Cloudflare.Rum.Site` for
 to the web Worker as `CLOUDFLARE_WEB_ANALYTICS_TOKEN`. The auth URL and analytics
 host are derived from the configured web domain or workers.dev origin. The production deploy credential needs
 [`Account Settings Write`](https://developers.cloudflare.com/api/resources/rum/subresources/site_info/methods/create/)
-to manage the account's RUM sites.
+to manage the account's RUM sites and explicit
+[`Account Settings Read`](https://developers.cloudflare.com/api/resources/rum/subresources/site_info/methods/list/)
+for discovery during planning.
 
 Alchemy sets `autoInstall: false`; the app embeds the beacon itself. Do not add a
 dashboard-injected copy. PR stages skip both provisioning and token binding.

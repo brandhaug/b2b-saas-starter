@@ -37,21 +37,21 @@ export const configurePreview = Effect.fn(function* (
         yield* GitHub.Secret(`${name}-token`, {
           owner,
           repository,
-          environment,
+          environment: environment.name,
           name: 'PREVIEW_CLOUDFLARE_API_TOKEN',
           value: token.value
         }),
         yield* GitHub.Secret(`${name}-account`, {
           owner,
           repository,
-          environment,
+          environment: environment.name,
           name: 'PREVIEW_CLOUDFLARE_ACCOUNT_ID',
           value: Redacted.make(preview.accountId)
         }),
         yield* GitHub.Secret(`${name}-auth`, {
           owner,
           repository,
-          environment,
+          environment: environment.name,
           name: 'PREVIEW_BETTER_AUTH_SECRET',
           value: authSecret.text
         })
