@@ -9,6 +9,7 @@ import * as Redacted from 'effect/Redacted'
 import { deploymentTokenConfig } from './scripts/lib/deployment-token-policy.ts'
 import { productionBootstrapConfig } from './scripts/lib/bootstrap-settings.ts'
 import settings from './deployment.config.ts'
+import { configurePreview } from './infra/github-preview.ts'
 
 export default Alchemy.Stack(
   'b2b-saas-starter-deployment-access',
@@ -23,8 +24,10 @@ export default Alchemy.Stack(
     state: localState()
   },
   Effect.gen(function* () {
-    const { accountId, owner, repository, policies } = yield* deploymentTokenConfig
+    const { accountId, owner, repository, policies, workspaceExportsEnabled } =
+      yield* deploymentTokenConfig
     const configured = yield* productionBootstrapConfig(settings.production)
+    yield* configurePreview(owner, repository, accountId)
     const production = yield* GitHub.Environment('production', {
       owner,
       repository,
@@ -32,6 +35,13 @@ export default Alchemy.Stack(
       deploymentBranchPolicy: { customBranchPolicies: [settings.production.branch] },
       reviewers: { users: settings.production.reviewers },
       preventSelfReview: settings.production.reviewers.length > 0
+    })
+    yield* GitHub.Variable('production-workspace-exports', {
+      owner,
+      repository,
+      environment: production,
+      name: 'WORKSPACE_EXPORTS_ENABLED',
+      value: String(workspaceExportsEnabled)
     })
     const authSecret = yield* Random('production-auth-secret', { bytes: 32 })
     yield* GitHub.Secret('production-auth-secret-value', {

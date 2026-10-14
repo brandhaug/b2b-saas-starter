@@ -46,6 +46,12 @@ export const deploymentTokenConfig = Config.all({
         resources: { [`com.cloudflare.api.account.${accountId}`]: '*' }
       }
     ]
-    return { accountId, owner, repository, policies }
+    return {
+      accountId,
+      owner,
+      repository,
+      policies,
+      workspaceExportsEnabled: workspaceExports === 'true'
+    }
   })
 )
