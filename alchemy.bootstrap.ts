@@ -41,10 +41,12 @@ export default Alchemy.Stack(
       reviewers: { users: settings.production.reviewers },
       preventSelfReview: settings.production.reviewers.length > 0
     })
+    // Select the name output: whole-resource references can trigger replacement
+    // cleanup against the same environment variable or secret on repeat applies.
     yield* GitHub.Variable('production-workspace-exports', {
       owner,
       repository,
-      environment: production,
+      environment: production.name,
       name: 'WORKSPACE_EXPORTS_ENABLED',
       value: String(workspaceExportsEnabled)
     })
@@ -52,14 +54,14 @@ export default Alchemy.Stack(
     yield* GitHub.Secret('production-auth-secret-value', {
       owner,
       repository,
-      environment: production,
+      environment: production.name,
       name: 'BETTER_AUTH_SECRET',
       value: authSecret.text
     })
     yield* GitHub.Secret('production-account', {
       owner,
       repository,
-      environment: production,
+      environment: production.name,
       name: 'CLOUDFLARE_ACCOUNT_ID',
       value: Redacted.make(accountId)
     })
@@ -67,7 +69,7 @@ export default Alchemy.Stack(
       yield* GitHub.Variable(`production-variable-${variable.name}`, {
         owner,
         repository,
-        environment: production,
+        environment: production.name,
         ...variable
       })
     }
@@ -75,7 +77,7 @@ export default Alchemy.Stack(
       yield* GitHub.Secret(`production-secret-${secret.name}`, {
         owner,
         repository,
-        environment: production,
+        environment: production.name,
         ...secret
       })
     }

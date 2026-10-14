@@ -1,5 +1,6 @@
 // Failure cases: wildcard account scope; malformed repository; typo enabling an
-// optional grant; unrelated/admin grants; exports widening the account scope.
+// optional grant; unrelated/admin grants; exports widening the account scope;
+// RUM listing denied when Account Settings Write lacks an explicit Read grant.
 import { strict as assert } from 'node:assert'
 import { test } from 'vite-plus/test'
 import * as ConfigProvider from 'effect/ConfigProvider'
@@ -32,7 +33,8 @@ test('default deployment policy is restricted to the required account APIs', asy
         'Workers Scripts Write',
         'D1 Write',
         'Secrets Store Write',
-        'Account Settings Write'
+        'Account Settings Write',
+        'Account Settings Read'
       ],
       resources: { [`com.cloudflare.api.account.${accountId}`]: '*' }
     }
