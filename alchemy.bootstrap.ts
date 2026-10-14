@@ -1,21 +1,69 @@
 import * as Alchemy from 'alchemy'
 import * as Cloudflare from 'alchemy/Cloudflare'
 import * as GitHub from 'alchemy/GitHub'
+import { Random, RandomProvider } from 'alchemy/Random'
 import { localState } from 'alchemy/State/LocalState'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import * as Redacted from 'effect/Redacted'
 import { deploymentTokenConfig } from './scripts/lib/deployment-token-policy.ts'
+import { productionBootstrapConfig } from './scripts/lib/bootstrap-settings.ts'
+import settings from './deployment.config.ts'
 
 export default Alchemy.Stack(
   'b2b-saas-starter-deployment-access',
   {
-    providers: Layer.mergeAll(Cloudflare.providers(), GitHub.providers()),
+    providers: Layer.mergeAll(
+      Cloudflare.providers(),
+      GitHub.providers(),
+      RandomProvider()
+    ),
     // Operator-owned state: no bootstrap credentials in the app's state store.
     // This contains the generated token; preserve it in a protected checkout.
     state: localState()
   },
   Effect.gen(function* () {
     const { accountId, owner, repository, policies } = yield* deploymentTokenConfig
+    const configured = yield* productionBootstrapConfig(settings.production)
+    const production = yield* GitHub.Environment('production', {
+      owner,
+      repository,
+      name: 'production',
+      deploymentBranchPolicy: { customBranchPolicies: [settings.production.branch] },
+      reviewers: { users: settings.production.reviewers },
+      preventSelfReview: settings.production.reviewers.length > 0
+    })
+    const authSecret = yield* Random('production-auth-secret', { bytes: 32 })
+    yield* GitHub.Secret('production-auth-secret-value', {
+      owner,
+      repository,
+      environment: production,
+      name: 'BETTER_AUTH_SECRET',
+      value: authSecret.text
+    })
+    yield* GitHub.Secret('production-account', {
+      owner,
+      repository,
+      environment: production,
+      name: 'CLOUDFLARE_ACCOUNT_ID',
+      value: Redacted.make(accountId)
+    })
+    for (const variable of configured.variables) {
+      yield* GitHub.Variable(`production-variable-${variable.name}`, {
+        owner,
+        repository,
+        environment: production,
+        ...variable
+      })
+    }
+    for (const secret of configured.secrets) {
+      yield* GitHub.Secret(`production-secret-${secret.name}`, {
+        owner,
+        repository,
+        environment: production,
+        ...secret
+      })
+    }
     const token = yield* Cloudflare.ApiToken.AccountApiToken('deployment-token', {
       accountId,
       name: `${owner}/${repository} production deployment`,
