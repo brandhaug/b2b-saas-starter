@@ -73,6 +73,22 @@ flow. Delivery history calls this `logged`.
    A conflicting subscription name or queue is still rejected; `--adopt` does not
    bypass those ownership checks. Subsequent runs can omit `--adopt`.
 
+   If the sender was deleted remotely, Alchemy's drift repair can recreate it but
+   fail when privacy repair still uses the previous sender ID. Repeating drift
+   repair cannot fix that stale dependency. After confirming that the drift run
+   recreated the configured sender, run the dependency-aware deployment directly:
+
+   ```bash
+   pnpm run bootstrap:email:recover --dry-run
+   pnpm run bootstrap:email:recover
+   pnpm run bootstrap:email
+   ```
+
+   The recovery command skips drift repair and uses the recreated sender ID from
+   state to replace its dependent privacy and subscription resources. It disables
+   message previews on the new sender. The final normal apply verifies convergence.
+   Keep the same state directory throughout recovery; do not delete state to reset it.
+
 6. Monitor the `email-events` queue backlog and the `queue_exhausted` signal.
    The queue has no dead-letter queue: a delivery event that exhausts its
    twelve attempts expires on the primary queue, so repair the consumer or
