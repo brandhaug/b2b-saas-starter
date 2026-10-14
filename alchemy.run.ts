@@ -3,7 +3,11 @@ import * as Alchemy from 'alchemy'
 import * as Output from 'alchemy/Output'
 import * as Cloudflare from 'alchemy/Cloudflare'
 import * as Effect from 'effect/Effect'
+import * as Config from 'effect/Config'
+import { SourceError } from 'effect/ConfigProvider'
 import * as Redacted from 'effect/Redacted'
+import settings from './deployment.config.ts'
+import { deploymentOrigins, resolveSubdomain } from './infra/deployment-origins.ts'
 import {
   apiRateLimits,
   billingConsumerSettings,
@@ -24,7 +28,6 @@ import {
   webRateLimits,
   workerCompatibility,
   workerMainPath,
-  workersDevUrl,
   WORKSPACE_EXPORT_RETENTION_DAYS,
   workspaceExportConsumerSettings,
   type RateLimitBindingSpec
@@ -119,16 +122,6 @@ const BETTER_AUTH_SECRET = Redacted.make(requiredEnv('BETTER_AUTH_SECRET'))
 // `workers.dev` subdomain instead of requiring a per-PR `BETTER_AUTH_URL`.
 const CLOUDFLARE_WORKERS_SUBDOMAIN = readEnv('CLOUDFLARE_WORKERS_SUBDOMAIN')
 
-function resolveBetterAuthUrl(stage: string, webWorkerName: string): string {
-  const explicit = readEnv('BETTER_AUTH_URL')
-  if (explicit) {
-    return explicit
-  }
-  if (isPreviewStage(stage) && CLOUDFLARE_WORKERS_SUBDOMAIN) {
-    return workersDevUrl(webWorkerName, CLOUDFLARE_WORKERS_SUBDOMAIN)
-  }
-  return requiredEnv('BETTER_AUTH_URL')
-}
 // Optional: when unset, the SendEmail binding is skipped and the email
 // module degrades to inactive (see ARCHITECTURE.md secret matrix). Workers
 // read the same `CLOUDFLARE_EMAIL_FROM` name via `optionalProviderEnv` below —
@@ -237,11 +230,28 @@ export const Stack = Alchemy.Stack(
     // queues, and Workers under `b2b-saas-starter-<stage>-…` (infra/bindings.ts).
     const stage = yield* Alchemy.Stage
     const names = stageResourceNames(stage)
-    const providerEnv = providerEnvForStage(stage)
     const emailFrom = emailFromForStage(stage)
-    const BETTER_AUTH_URL = resolveBetterAuthUrl(stage, names.worker('web'))
-    const BETTER_AUTH_TRUSTED_ORIGINS =
-      readEnv('BETTER_AUTH_TRUSTED_ORIGINS') ?? BETTER_AUTH_URL
+    const subdomain =
+      CLOUDFLARE_WORKERS_SUBDOMAIN ||
+      (yield* Effect.tryPromise({
+        try: () =>
+          resolveSubdomain(
+            requiredEnv('CLOUDFLARE_ACCOUNT_ID'),
+            requiredEnv('CLOUDFLARE_API_TOKEN')
+          ),
+        catch: (cause) =>
+          new Config.ConfigError(
+            new SourceError({
+              message: 'Cannot discover the deployment account workers.dev subdomain',
+              cause
+            })
+          )
+      }))
+    const origins = deploymentOrigins(stage, subdomain, settings.production.domains)
+    const providerEnv = { ...providerEnvForStage(stage), API_PUBLIC_URL: origins.api }
+    const domains = stage === productionStage ? settings.production.domains : undefined
+    const BETTER_AUTH_URL = origins.web
+    const BETTER_AUTH_TRUSTED_ORIGINS = origins.web
 
     const db = yield* Cloudflare.D1.Database('b2b-saas-starter-db', {
       name: names.database,
@@ -353,6 +363,7 @@ export const Stack = Alchemy.Stack(
     const web = yield* Cloudflare.Website.Vite('web', {
       name: names.worker('web'),
       rootDir: './apps/web',
+      domain: domains?.web ?? null,
       env: {
         ASSISTANT_CONVERSATIONS: Cloudflare.DurableObject(
           'WorkspaceAssistantConversation'
@@ -381,6 +392,7 @@ export const Stack = Alchemy.Stack(
     const api = yield* Cloudflare.Worker('api', {
       name: names.worker('api'),
       main: workerMainPath('api'),
+      domain: domains?.api ?? null,
       env: {
         ASSISTANT_CONVERSATIONS: Cloudflare.DurableObject(
           'WorkspaceAssistantConversation',
@@ -406,6 +418,7 @@ export const Stack = Alchemy.Stack(
     const background = yield* Cloudflare.Worker('background', {
       name: names.worker('background'),
       main: workerMainPath('background'),
+      domain: domains?.background ?? null,
       env: {
         ASSISTANT_CONVERSATIONS: Cloudflare.DurableObject(
           'WorkspaceAssistantConversation',

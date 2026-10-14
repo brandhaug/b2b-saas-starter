@@ -225,8 +225,6 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
-          BETTER_AUTH_URL: ${{ secrets.BETTER_AUTH_URL }}
-          BETTER_AUTH_TRUSTED_ORIGINS: ${{ secrets.BETTER_AUTH_TRUSTED_ORIGINS }}
           # A plain value, not a secret: marks the deploy as production, which
           # arms the env gate and email verification. alchemy.run.ts applies
           # the same default to the prod stage; forwarding it here keeps the
@@ -279,7 +277,6 @@ jobs:
           ASSISTANT_PROVIDER_CONTEXT_TOKENS: ${{ vars.ASSISTANT_PROVIDER_CONTEXT_TOKENS }}
           ASSISTANT_PROVIDER_OUTPUT_TOKENS: ${{ vars.ASSISTANT_PROVIDER_OUTPUT_TOKENS }}
           MCP_OAUTH_ISSUER: ${{ vars.MCP_OAUTH_ISSUER }}
-          API_PUBLIC_URL: ${{ vars.API_PUBLIC_URL }}
           SUPPORT_EMAIL: ${{ vars.SUPPORT_EMAIL }}
           SUPPORT_HELPDESK_URL: ${{ vars.SUPPORT_HELPDESK_URL }}
           SUPPORT_HELP_CENTER_URL: ${{ vars.SUPPORT_HELP_CENTER_URL }}

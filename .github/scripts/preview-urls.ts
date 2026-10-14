@@ -1,31 +1,11 @@
 import { appendFile } from 'node:fs/promises'
 
-import { Schema } from 'effect'
-
-import { stageResourceNames, type WorkerApp } from '../../infra/bindings.ts'
+import { deploymentOrigins, resolveSubdomain } from '../../infra/deployment-origins.ts'
+import settings from '../../deployment.config.ts'
 import { requiredEnv } from '../../scripts/lib/env.ts'
 
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
 type EnvWriter = (content: string) => Promise<void>
-
-const decodeSubdomain = Schema.decodeUnknownSync(
-  Schema.Struct({ result: Schema.Struct({ subdomain: Schema.NonEmptyString }) })
-)
-
-export async function resolveSubdomain(
-  accountId: string,
-  token: string,
-  fetchImpl: FetchLike = fetch
-): Promise<string> {
-  const response = await fetchImpl(
-    `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/subdomain`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  )
-  if (!response.ok) {
-    throw new Error(`Cloudflare API returned HTTP ${response.status}`)
-  }
-  return decodeSubdomain(await response.json()).result.subdomain
-}
 
 /**
  * The workers.dev URLs are not known until deploy time: the subdomain comes
@@ -33,15 +13,12 @@ export async function resolveSubdomain(
  * both the production deploy and the per-PR previews derive them here.
  */
 export function stageEnv(subdomain: string, stage: string): string {
-  const { worker } = stageResourceNames(stage)
-  function url(app: WorkerApp): string {
-    return `https://${worker(app)}.${subdomain}.workers.dev`
-  }
+  const urls = deploymentOrigins(stage, subdomain, settings.production.domains)
   return [
     `CLOUDFLARE_WORKERS_SUBDOMAIN=${subdomain}`,
-    `WEB_URL=${url('web')}`,
-    `API_URL=${url('api')}`,
-    `BACKGROUND_URL=${url('background')}`
+    `WEB_URL=${urls.web}`,
+    `API_URL=${urls.api}`,
+    `BACKGROUND_URL=${urls.background}`
   ].join('\n')
 }
 

@@ -1,7 +1,7 @@
 import { type DeploymentSettings } from './infra/deployment-settings.ts'
 
 /** Public deployment choices. Credential values belong in the operator shell. */
-export default {
+const settings: DeploymentSettings = {
   production: {
     branch: 'master',
     reviewers: [],
@@ -11,4 +11,6 @@ export default {
     },
     secrets: []
   }
-} satisfies DeploymentSettings
+}
+
+export default settings

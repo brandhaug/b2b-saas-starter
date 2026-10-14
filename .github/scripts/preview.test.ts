@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { setTimeout } from 'node:timers/promises'
 import { test } from 'vite-plus/test'
-import { main as urlsMain, resolveSubdomain, stageEnv } from './preview-urls.ts'
+import { main as urlsMain, stageEnv } from './preview-urls.ts'
+import { resolveSubdomain } from '../../infra/deployment-origins.ts'
 import { main as statusMain, previewSummary } from './preview-status.ts'
 
 test('preview URL resolution validates Cloudflare response and formats worker URLs', async () => {
