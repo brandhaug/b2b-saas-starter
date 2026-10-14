@@ -277,11 +277,7 @@ overrides:
   ws: 8.21.0
   vite@*: npm:@voidzero-dev/vite-plus-core@1.0.0
   vitest@*: 5.0.1
-  shell-quote@>=1.8.4 <1.11.0: 1.11.0
-  '@modelcontextprotocol/client@>=2.0.0 <2.2.0': 2.2.0
-  '@modelcontextprotocol/sdk@>=1.12.0 <1.31.0': 1.31.0
-  next@>=16.3.0 <16.3.8: 16.3.8
-  next@>=16.0.0 <16.3.8: 16.3.8
+  postcss-selector-parser@<7.1.6: 7.1.6
 
 patchedDependencies:
   '@alchemy.run/cloudflare-runtime@2.0.0-beta.79': d5a0d6ac12f55d2485faeb07072648a47df5a5eaf174bea8e49017d17eb21c80
@@ -7646,10 +7642,6 @@ packages:
   postal-mime@2.7.6:
     resolution: {integrity: sha512-UUlyE2KlxmvwMGq060onF/VWU3zD6dVW31FwokQ5v26jWd35fbs2MoTFzh+jXnPwAyV2MULMKXcBInGOl5TO6Q==}
 
-  postcss-selector-parser@6.0.10:
-    resolution: {integrity: sha512-IQ7TZdoaqbT+LCpShg46jnZVlhWD2w6iQYAcYXfHARZ7X1t/UGhhceQDs5X0cGqKvYlHNOuv7Oa1xmb0oQuA3w==}
-    engines: {node: '>=4'}
-
   postcss-selector-parser@7.1.6:
     resolution: {integrity: sha512-7qASPzhKF2l2KLboRZux8CCTRMdGiV08vWmyKzPz22qZ7ZjQBOeY7rNzNoCLSUiftJ7HUq0GERHmxw/t0dCdMw==}
     engines: {node: '>=4'}
@@ -11607,7 +11599,7 @@ snapshots:
 
   '@tailwindcss/typography@0.5.20(tailwindcss@4.3.3)':
     dependencies:
-      postcss-selector-parser: 6.0.10
+      postcss-selector-parser: 7.1.6
       tailwindcss: 4.3.3
 
   '@tailwindcss/vite@4.3.3(@voidzero-dev/vite-plus-core@1.0.0(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))':
@@ -14914,11 +14906,6 @@ snapshots:
   pngjs@7.0.0: {}
 
   postal-mime@2.7.6: {}
-
-  postcss-selector-parser@6.0.10:
-    dependencies:
-      cssesc: 3.0.0
-      util-deprecate: 1.0.2
 
   postcss-selector-parser@7.1.6:
     dependencies:
