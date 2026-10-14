@@ -56,14 +56,15 @@ do not.
    a custom domain, update the URL (and trusted origins below) and
    deploy again.
 
-Generate a separate auth secret with `openssl rand -base64 32`. Do not
-reuse a development secret; the production env gate rejects known
-placeholders outright when `ENVIRONMENT=production`.
+Bootstrap generates a stable production auth secret with `Alchemy.Random`.
+On first adoption this replaces the previous `BETTER_AUTH_SECRET`, invalidating
+existing sessions. Later applies preserve it in bootstrap state.
 
 ## Deployment token bootstrap
 
-[alchemy.bootstrap.ts](../alchemy.bootstrap.ts) owns a new account API token and
-the repository's `CLOUDFLARE_API_TOKEN` Actions secret. Its permission policy lives
+[alchemy.bootstrap.ts](../alchemy.bootstrap.ts) owns a new account API token,
+the repository's `CLOUDFLARE_API_TOKEN` Actions secret, and the production
+environment's configuration. Its permission policy lives
 in [deployment-token-policy.ts](../scripts/lib/deployment-token-policy.ts).
 The app deploy does not run this stack.
 
@@ -76,8 +77,22 @@ generated deployment token. Permission changes require this operator credential
 again, not just the initial setup.
 
 GitHub authentication uses Alchemy's GitHub provider (`GITHUB_TOKEN` or the
-authenticated `gh` CLI). A fine-grained token needs **Secrets → Read and write**
-on this repository only. The existing `gh` login can also supply access.
+authenticated `gh` CLI). A fine-grained token needs **Environments, Secrets, and
+Variables → Read and write** on this repository only. The existing `gh` login
+can also supply access.
+
+Edit [deployment.config.ts](../deployment.config.ts) for the production branch,
+required reviewers, and public provider/support/privacy variables. Empty reviewers
+preserve automatic deploys; configured reviewers enable self-review prevention.
+The production environment permits only the configured branch. Bootstrap owns
+these settings and reconciles dashboard edits on its next apply.
+
+List external provider secret names in `production.secrets`, then privately export
+their values as `BOOTSTRAP_<name>` before bootstrap (for example,
+`BOOTSTRAP_STRIPE_SECRET_KEY`). Only explicitly selected secrets are read. Missing
+selected values fail setup; unselected providers stay inactive. GitHub OAuth keys
+are mapped to the `OAUTH_GITHUB_*` names expected by CI. Existing unmanaged secrets
+are left alone; removing a previously managed entry deletes that entry in GitHub.
 
 Export the bootstrap credential as `CLOUDFLARE_API_TOKEN` privately in your shell,
 then set the non-secret inputs:
@@ -147,19 +162,22 @@ The recommended path. The `deploy` job in
 [.github/workflows/ci.yml](../.github/workflows/ci.yml) runs on pushes to `master` and manual `workflow_dispatch`, needs the `ci` and `e2e` jobs to pass first,
 and reads its configuration from the `production`
 [environment](https://docs.github.com/en/actions/reference/environments).
-Create that environment (Settings → Environments → New environment),
-then add these environment secrets. When using bootstrap, `CLOUDFLARE_API_TOKEN`
-is a repository secret instead; do not also define it on the environment:
+Bootstrap creates that environment and publishes the generated auth secret, account
+ID, and configured provider secrets/variables. `CLOUDFLARE_API_TOKEN` is a repository
+secret; do not also define it on the environment. The resulting inputs are:
 
-| Secret                        | Required | Value                                                                               |
-| ----------------------------- | -------- | ----------------------------------------------------------------------------------- |
-| `CLOUDFLARE_API_TOKEN`        | yes      | From step 2 above                                                                   |
-| `CLOUDFLARE_ACCOUNT_ID`       | yes      | From step 1 above                                                                   |
-| `BETTER_AUTH_SECRET`          | yes      | `openssl rand -base64 32`                                                           |
-| `BETTER_AUTH_URL`             | yes      | The web Worker URL from step 3                                                      |
-| `BETTER_AUTH_TRUSTED_ORIGINS` | yes      | Same value as `BETTER_AUTH_URL`                                                     |
-| `CLOUDFLARE_EMAIL_FROM`       | no       | An address on a verified Email Sending domain; see [email setup](email-delivery.md) |
-| `ENVIRONMENT`                 | no       | `production`, set by the workflow; no secret needed                                 |
+| Secret                        | Required | Value                                               |
+| ----------------------------- | -------- | --------------------------------------------------- |
+| `CLOUDFLARE_API_TOKEN`        | yes      | From step 2 above                                   |
+| `CLOUDFLARE_ACCOUNT_ID`       | yes      | From step 1 above                                   |
+| `BETTER_AUTH_SECRET`          | yes      | Generated and persisted by bootstrap                |
+| `BETTER_AUTH_URL`             | yes      | The web Worker URL from step 3                      |
+| `BETTER_AUTH_TRUSTED_ORIGINS` | yes      | Same value as `BETTER_AUTH_URL`                     |
+| `ENVIRONMENT`                 | no       | `production`, set by the workflow; no secret needed |
+
+`CLOUDFLARE_EMAIL_FROM` is a plain production variable in `deployment.config.ts`,
+not a secret. Copy an existing sender value into that configuration before adopting
+bootstrap; a secret of the same name no longer supplies the deploy input.
 
 Keep production values in the environment, not your local `.env`. The
 `.env` file only needs local development defaults.
@@ -194,9 +212,13 @@ per stage by `infra/bindings.ts` so no two stages share one bucket.
 
 ## Running a deploy
 
-1. Open the repository's Actions tab and select the **CI** workflow.
-2. Click **Run workflow**, keep the branch set to `master`, and run it.
-3. Wait for `ci`, `e2e`, deployment, and the deployed-URL smoke checks.
+Dispatch CI from the CLI, using your repository and production branch:
+
+```bash
+gh workflow run ci.yml --repo <owner>/<repository> --ref master
+```
+
+Wait for `ci`, `e2e`, deployment, and the deployed-URL smoke checks.
 
 Or, from a machine with the same variables exported:
 
@@ -325,7 +347,9 @@ manual dispatch. Adopters with customer data should protect the `production`
 environment with required operator approval and disable automatic deployment
 during incidents. Review schema changes before approving a deploy.
 
-To rotate a secret, update it in the `production` environment and deploy again.
+To rotate a managed provider secret, update its private `BOOTSTRAP_<name>` input,
+apply bootstrap, and deploy again. For unmanaged secrets use `gh secret set <name>
+--env production --repo <owner>/<repository>` with its private input prompt.
 Keep a separately recoverable copy in the operator's secret manager. Alchemy
 ships Worker secrets as write-only values, so account access alone cannot
 recover them.
