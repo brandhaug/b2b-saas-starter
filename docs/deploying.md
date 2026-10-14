@@ -77,15 +77,20 @@ generated deployment token. Permission changes require this operator credential
 again, not just the initial setup.
 
 GitHub authentication uses Alchemy's GitHub provider (`GITHUB_TOKEN` or the
-authenticated `gh` CLI). A fine-grained token needs **Environments, Secrets, and
-Variables → Read and write** on this repository only. The existing `gh` login
-can also supply access.
+authenticated `gh` CLI). A fine-grained token needs **Administration, Environments,
+Secrets, and Variables → Read and write**, plus **Actions → Read**, on this
+repository only. Administration manages environments and branch policies; Actions
+Read lists their policies. The existing `gh` login can also supply access.
 
-Edit [deployment.config.ts](../deployment.config.ts) for the production branch,
-required reviewers, and public provider/support/privacy variables. Empty reviewers
+Edit [deployment.config.ts](../deployment.config.ts) for required reviewers and
+public provider/support/privacy variables. The branch is constrained to `master`,
+matching the current CI workflow; changing that deployment convention requires
+updating the workflow and the configuration type together. Empty reviewers
 preserve automatic deploys; configured reviewers enable self-review prevention.
 The production environment permits only the configured branch. Bootstrap owns
-these settings and reconciles dashboard edits on its next apply.
+these settings and reconciles dashboard edits on its next apply. Bootstrap uses
+`--force` so environment policies and write-only secrets are reapplied even when
+the local configuration is unchanged; generated Random values remain stable.
 
 List external provider secret names in `production.secrets`, then privately export
 their values as `BOOTSTRAP_<name>` before bootstrap (for example,

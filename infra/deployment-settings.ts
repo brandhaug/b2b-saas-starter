@@ -17,7 +17,8 @@ export type ProviderSettings = {
 
 export type DeploymentSettings = {
   production: ProviderSettings & {
-    branch: string
+    /** Must match ci.yml's production push and dispatch branch. */
+    branch: 'master'
     reviewers: Array<string>
   }
 }
