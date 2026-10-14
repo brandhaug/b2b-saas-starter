@@ -235,8 +235,8 @@ catalogs:
       specifier: 7.0.2
       version: 7.0.2
     ultracite:
-      specifier: 7.12.4
-      version: 7.12.4
+      specifier: 8.0.0
+      version: 8.0.0
     vite:
       specifier: npm:@voidzero-dev/vite-plus-core@1.0.0
       version: 1.0.0
@@ -346,7 +346,7 @@ importers:
         version: 7.0.2
       ultracite:
         specifier: 'catalog:'
-        version: 7.12.4(oxfmt@0.70.0(vite-plus@1.0.0(@types/node@26.6.5)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.1.2(@noble/hashes@2.4.0))(typescript@7.0.2)(yaml@2.9.1)))(prettier@3.9.10)
+        version: 8.0.0(prettier@3.9.10)
       vite:
         specifier: 'catalog:'
         version: '@voidzero-dev/vite-plus-core@1.0.0(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1)'
@@ -8310,15 +8310,16 @@ packages:
     resolution: {integrity: sha512-8iAasVS4wUx0gPLjH8Xtz2PeDzTSiy8QiLGu2DT3X5GU+egFEQhpnbtkehbAwjvDcxIERmCYcysiODFmE3Ud0Q==}
     engines: {node: '>=18'}
 
-  ultracite@7.12.4:
-    resolution: {integrity: sha512-6jVEwaZBaytFm6XRoI3WGS2ZydrkrNvHTD0qTf7983ti2FlEWL1YcxnPaMaYuS6PkXqMhIK2XGr0cbsL4x5pQA==}
+  ultracite@8.0.0:
+    resolution: {integrity: sha512-52y2Zzp6ngUPJIjvcnoyM2p4qSDwOCzrWwHvKfxNcOdRRuhmrTLqzwMpGhnhz2LC2POEO8GV7EcggbwTRmHEdA==}
+    engines: {node: '>=22.18.0'}
     hasBin: true
     peerDependencies:
       '@biomejs/biome': ^2.5.0
       eslint: ^10.9.0
-      oxfmt: '>=0.59.0'
+      oxfmt: '>=0.71.0 <1'
       oxlint: ^1.86.0
-      prettier: ^3.0.0
+      prettier: ^3.5.3
       stylelint: ^17.0.0
     peerDependenciesMeta:
       '@biomejs/biome':
@@ -15772,7 +15773,7 @@ snapshots:
 
   uint8array-extras@1.6.0: {}
 
-  ultracite@7.12.4(oxfmt@0.70.0(vite-plus@1.0.0(@types/node@26.6.5)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.1.2(@noble/hashes@2.4.0))(typescript@7.0.2)(yaml@2.9.1)))(prettier@3.9.10):
+  ultracite@8.0.0(prettier@3.9.10):
     dependencies:
       '@clack/prompts': 1.8.1
       cli-truncate: 6.1.1
@@ -15794,7 +15795,6 @@ snapshots:
       yaml: 2.9.1
       zod: 4.6.5
     optionalDependencies:
-      oxfmt: 0.70.0(vite-plus@1.0.0(@types/node@26.6.5)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@30.1.2(@noble/hashes@2.4.0))(typescript@7.0.2)(yaml@2.9.1))
       prettier: 3.9.10
 
   undici-types@8.9.0: {}
