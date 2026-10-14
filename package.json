@@ -38,6 +38,8 @@
     "deploy": "pnpm -C packages/i18n generate && alchemy deploy --stage prod --yes",
     "bootstrap:plan": "umask 077 && alchemy deploy alchemy.bootstrap.ts --stage prod --dry-run --force",
     "bootstrap:deploy": "umask 077 && alchemy deploy alchemy.bootstrap.ts --stage prod --force",
+    "bootstrap:email:plan": "umask 077 && alchemy deploy alchemy.email.ts --stage prod --dry-run --detect-drift --force",
+    "bootstrap:email": "umask 077 && alchemy deploy alchemy.email.ts --stage prod --detect-drift --force",
     "destroy": "node scripts/alchemy-destroy.ts --stage=prod",
     "deploy:stage": "pnpm -C packages/i18n generate && alchemy deploy --yes --stage \"${ALCHEMY_STAGE:?set ALCHEMY_STAGE, e.g. pr-42}\"",
     "destroy:stage": "node scripts/alchemy-destroy.ts",

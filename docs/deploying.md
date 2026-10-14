@@ -186,9 +186,12 @@ secret; do not also define it on the environment. The resulting inputs are:
 | `BETTER_AUTH_SECRET`    | yes      | Generated and persisted by bootstrap                |
 | `ENVIRONMENT`           | no       | `production`, set by the workflow; no secret needed |
 
-`CLOUDFLARE_EMAIL_FROM` is a plain production variable in `deployment.config.ts`,
-not a secret. Copy an existing sender value into that configuration before adopting
-bootstrap; a secret of the same name no longer supplies the deploy input.
+Configure `production.emailSending` in `deployment.config.ts` to manage email.
+Bootstrap publishes its From address as the plain `CLOUDFLARE_EMAIL_FROM` variable;
+a secret of that name no longer supplies the deploy input. After app deployment,
+`pnpm run bootstrap:email` provisions the sender and lifecycle subscription using
+an operator credential. See [email provisioning](email-delivery.md#cloudflare-setup)
+for the account/zone-scoped permissions and command order.
 
 Keep production values in the environment, not your local `.env`. The
 `.env` file only needs local development defaults.

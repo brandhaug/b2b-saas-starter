@@ -6,25 +6,83 @@ flow. Delivery history calls this `logged`.
 
 ## Cloudflare setup
 
-1. Enable Email Sending for the sender domain and complete its DNS verification.
-   Configure the SPF, DKIM, and DMARC records Cloudflare specifies. Set
-   `CLOUDFLARE_EMAIL_FROM` to an address on that domain.
-2. Deploy the application infrastructure. The background Worker consumes the
-   stage's `email-events` queue. Application Workers have no producer binding
-   for this queue.
-3. In Cloudflare Queues, select that queue, then Subscriptions, then Subscribe
-   to events. Choose Email Sending and the configured sender domain. Subscribe
-   to `message.delivered`, `message.deferred`, `message.bounced`,
-   `message.failed`, `message.rejected`, and `message.complained`.
-4. Keep each subscription in the same account and stage as its sending Worker.
-   Restrict queue write credentials to operators who manage the subscription.
-   Queue access is the authentication boundary; there is no public email-event
-   webhook. The consumer additionally checks the event's sender and domain.
-5. Monitor the `email-events` queue backlog and the `queue_exhausted` signal.
+1. Configure `production.emailSending` in [deployment.config.ts](../deployment.config.ts):
+
+   ```ts
+   emailSending: {
+     zoneId: '<32-character-zone-id>',
+     from: 'notifications@mail.your-domain.net'
+   }
+   ```
+
+   The zone must already be on Cloudflare, and the account must be entitled to
+   Email Sending. Use a sending subdomain. Bootstrap publishes the exact From
+   address as `CLOUDFLARE_EMAIL_FROM`; the domain is derived from that address.
+
+2. Apply `pnpm run bootstrap:deploy`, then deploy the application infrastructure
+   through CI. This creates the production `email-events` queue and its background
+   consumer. Application Workers have no producer binding for this queue.
+3. From the persistent operator checkout, supply an operator Cloudflare credential
+   and `CLOUDFLARE_ACCOUNT_ID`, then run:
+
+   ```bash
+   pnpm run bootstrap:email:plan
+   pnpm run bootstrap:email
+   ```
+
+   [alchemy.email.ts](../alchemy.email.ts) uses separate local state. It discovers
+   the existing production queue by exact name, provisions the sender through
+   `Cloudflare.Email.SendingSubdomain`, disables stored message-content previews,
+   and creates the domain-scoped lifecycle subscription. Alchemy/Cloudflare manage
+   the sender's DKIM/SPF/return-path records and wait for sender activation; domain
+   ownership, account entitlement, and any organization-specific DMARC policy
+   remain operator inputs.
+
+4. The email operator token needs **Email Sending Write** and **Queues Write** on
+   the deployment account, plus **Zone Read** on the configured sender zone only.
+   These grants belong to the operator, not the routine CI token. The sender API's
+   reference omits permission metadata; the Email Sending Write group is taken
+   from the pinned provider catalogue and still needs live authorization verification.
+
+   The local provider covers the Email Sending source variant missing from pinned
+   Alchemy's generic subscription resource. It subscribes to `message.delivered`,
+   `message.deferred`, `message.bounced`, `message.failed`, `message.rejected`, and
+   `message.complained`. It rejects preview stages, mismatched accounts, foreign
+   queues/zones, and conflicting sender subscriptions. Queue access is the
+   authentication boundary; there is no public email-event webhook. The consumer
+   additionally checks the event's sender and domain.
+
+5. Reapply the email stack to reconcile subscription events and message-preview
+   settings. The commands enable Alchemy drift detection and force reconciliation;
+   a dry-run inspects remote state without applying repairs, while deploy presents
+   detected repairs before applying. Preserve its `.alchemy/state/b2b-saas-starter-email/prod/` directory.
+   If a manual subscription already owns this sender, inspect and migrate that
+   subscription before applying; the provider refuses to overwrite another name
+   or queue. Removing the privacy resource never re-enables message previews.
+   The native sender provider also requires explicit adoption for a sender created
+   outside this state, including a create that succeeded before state was saved.
+   Inspect the configured zone, sender name and existing DNS records, then use:
+
+   ```bash
+   pnpm run bootstrap:email:plan --adopt
+   pnpm run bootstrap:email --adopt
+   ```
+
+   Adoption transfers the configured sender to this stack's lifecycle, including
+   deletion on destroy. The event queue is only discovered and is never adopted.
+   A conflicting subscription name or queue is still rejected; `--adopt` does not
+   bypass those ownership checks. Subsequent runs can omit `--adopt`.
+
+6. Monitor the `email-events` queue backlog and the `queue_exhausted` signal.
    The queue has no dead-letter queue: a delivery event that exhausts its
    twelve attempts expires on the primary queue, so repair the consumer or
    database before the retry window closes. Do not publish arbitrary payloads
    from application endpoints.
+
+Local contract verification: `vp test run scripts/email-sending.test.ts
+scripts/email-settings.test.ts`. These tests use controlled HTTP responses. Live
+acceptance requires the operator apply followed by the delivery smoke test below;
+local tests alone do not establish provider authorization or actual delivery.
 
 The Email Sending Workers API returns `messageId` for lifecycle correlation. The documented send input has no application message
 ID field, so a lost response cannot reliably be correlated by recipient alone.

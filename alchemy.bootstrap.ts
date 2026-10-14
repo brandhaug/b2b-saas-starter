@@ -10,6 +10,7 @@ import { deploymentTokenConfig } from './scripts/lib/deployment-token-policy.ts'
 import { productionBootstrapConfig } from './scripts/lib/bootstrap-settings.ts'
 import settings from './deployment.config.ts'
 import { configurePreview } from './infra/github-preview.ts'
+import { emailSettings } from './infra/email-settings.ts'
 
 export default Alchemy.Stack(
   'b2b-saas-starter-deployment-access',
@@ -27,6 +28,10 @@ export default Alchemy.Stack(
     const { accountId, owner, repository, policies, workspaceExportsEnabled } =
       yield* deploymentTokenConfig
     const configured = yield* productionBootstrapConfig(settings.production)
+    if (settings.production.emailSending) {
+      const sender = emailSettings(settings.production.emailSending)
+      configured.variables.push({ name: 'CLOUDFLARE_EMAIL_FROM', value: sender.from })
+    }
     yield* configurePreview(owner, repository, accountId)
     const production = yield* GitHub.Environment('production', {
       owner,
