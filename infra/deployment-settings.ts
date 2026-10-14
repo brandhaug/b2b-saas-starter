@@ -2,10 +2,11 @@ import {
   type optionalModuleEnvPlainKeys,
   type optionalModuleEnvSecretKeys
 } from '../packages/env/src/server.ts'
+import { type DeploymentDomains } from './deployment-origins.ts'
 
 type VariableName = Exclude<
   (typeof optionalModuleEnvPlainKeys)[number],
-  'ENVIRONMENT' | 'GIT_COMMIT_SHA' | 'SERVICE_VERSION'
+  'ENVIRONMENT' | 'GIT_COMMIT_SHA' | 'SERVICE_VERSION' | 'API_PUBLIC_URL'
 >
 type SecretName = (typeof optionalModuleEnvSecretKeys)[number]
 
@@ -20,5 +21,6 @@ export type DeploymentSettings = {
     /** Must match ci.yml's production push and dispatch branch. */
     branch: 'master'
     reviewers: Array<string>
+    domains?: DeploymentDomains
   }
 }

@@ -41,20 +41,26 @@ do not.
    These are account-wide grants within the selected account, not restrictions
    to this app's Worker names. Use a separate account when that boundary is needed.
 
-3. Determine **`BETTER_AUTH_URL`**, the public URL of the web Worker.
-   With no custom domain it is
-   `https://b2b-saas-starter-web.<subdomain>.workers.dev`, where the
-   subdomain appears in the dashboard under Workers & Pages, or from:
+3. Deployment discovers the account's existing `workers.dev` subdomain and derives
+   Worker URLs automatically. Auth URL, trusted origin, API public URL, analytics
+   hostname, and CI smoke targets use the same origin resolver. No URL secrets
+   need to be copied into GitHub.
 
-   ```bash
-   curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-     "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"
+   To attach custom domains, configure `production.domains` in
+   [deployment.config.ts](../deployment.config.ts), for example:
+
+   ```ts
+   domains: {
+     web: { name: 'app.your-domain.net', zoneId: '<32-character-zone-id>' },
+     api: { name: 'api.your-domain.net', zoneId: '<32-character-zone-id>' }
+   }
    ```
 
-   The value must match where users actually browse: it feeds auth
-   redirects, verification links, and origin checks. If you later attach
-   a custom domain, update the URL (and trusted origins below) and
-   deploy again.
+   Each zone must already belong to the deployment account. Alchemy attaches the
+   domains and Cloudflare manages their DNS records and certificates. Explicit
+   zone IDs avoid zone discovery; the existing Workers Scripts Edit grant covers
+   the Workers Domains API. No DNS Edit or zone-wide route grant is added.
+   Previews always use their own workers.dev URLs and ignore production domains.
 
 Bootstrap generates a stable production auth secret with `Alchemy.Random`.
 On first adoption this replaces the previous `BETTER_AUTH_SECRET`, invalidating
@@ -106,6 +112,8 @@ then set the non-secret inputs:
 export CLOUDFLARE_ACCOUNT_ID='<deployment-account-id>'
 export BOOTSTRAP_GITHUB_REPOSITORY='<owner>/<repository>'
 export WORKSPACE_EXPORTS_ENABLED=false
+# Optional: a separate account, never the production account.
+export BOOTSTRAP_PREVIEW_ACCOUNT_ID='<preview-account-id>'
 pnpm run bootstrap:plan
 pnpm run bootstrap:deploy
 unset CLOUDFLARE_API_TOKEN
@@ -171,14 +179,12 @@ Bootstrap creates that environment and publishes the generated auth secret, acco
 ID, and configured provider secrets/variables. `CLOUDFLARE_API_TOKEN` is a repository
 secret; do not also define it on the environment. The resulting inputs are:
 
-| Secret                        | Required | Value                                               |
-| ----------------------------- | -------- | --------------------------------------------------- |
-| `CLOUDFLARE_API_TOKEN`        | yes      | From step 2 above                                   |
-| `CLOUDFLARE_ACCOUNT_ID`       | yes      | From step 1 above                                   |
-| `BETTER_AUTH_SECRET`          | yes      | Generated and persisted by bootstrap                |
-| `BETTER_AUTH_URL`             | yes      | The web Worker URL from step 3                      |
-| `BETTER_AUTH_TRUSTED_ORIGINS` | yes      | Same value as `BETTER_AUTH_URL`                     |
-| `ENVIRONMENT`                 | no       | `production`, set by the workflow; no secret needed |
+| Secret                  | Required | Value                                               |
+| ----------------------- | -------- | --------------------------------------------------- |
+| `CLOUDFLARE_API_TOKEN`  | yes      | From step 2 above                                   |
+| `CLOUDFLARE_ACCOUNT_ID` | yes      | From step 1 above                                   |
+| `BETTER_AUTH_SECRET`    | yes      | Generated and persisted by bootstrap                |
+| `ENVIRONMENT`           | no       | `production`, set by the workflow; no secret needed |
 
 `CLOUDFLARE_EMAIL_FROM` is a plain production variable in `deployment.config.ts`,
 not a secret. Copy an existing sender value into that configuration before adopting
@@ -265,10 +271,24 @@ and sets `ENVIRONMENT=preview`. A preview is publicly reachable and
 signs in with the documented demo credentials, so never point one at
 real data.
 
-### Preview environment secrets
+### Preview environment provisioning
 
-The workflow reads secrets from the dedicated `preview` environment (Settings →
-Environments → preview), not repository secrets or the `production` environment:
+Set `BOOTSTRAP_PREVIEW_ACCOUNT_ID` to a separate Cloudflare account and apply
+bootstrap. The operator credential needs Account API Tokens Edit in that account
+as well as production. Bootstrap rejects the production account ID: account-wide
+API grants cannot be restricted by a `pr-` Worker name prefix.
+
+Bootstrap creates a preview token with Workers Scripts, D1, and Secrets Store
+Edit only. It generates a distinct preview auth secret and writes the same three
+inputs into both `preview` and `preview-cleanup`. Neither environment requires
+reviewers or a wait timer. `PREVIEW_ENABLED=true` is published at repository scope
+only after all six secret writes complete. With no preview account configured,
+bootstrap publishes `PREVIEW_ENABLED=false` and creates no preview credentials.
+
+Destroy existing preview stages before removing preview configuration; otherwise
+their cleanup credentials will be removed while those stages still exist.
+
+The workflow reads these bootstrap-managed secrets from `preview`:
 
 | Secret                          | Required | Value                                                                                          |
 | ------------------------------- | -------- | ---------------------------------------------------------------------------------------------- |
@@ -276,29 +296,23 @@ Environments → preview), not repository secrets or the `production` environmen
 | `PREVIEW_CLOUDFLARE_ACCOUNT_ID` | yes      | From step 1 above                                                                              |
 | `PREVIEW_BETTER_AUTH_SECRET`    | yes      | `openssl rand -base64 32`; shared by all preview stages, never the production value            |
 
-`BETTER_AUTH_URL` is not a secret here: the workflow resolves the
-account's `workers.dev` subdomain through the API and `alchemy.run.ts`
-derives the URL from the stage's web Worker name.
+The workflow resolves the account's `workers.dev` subdomain through the API.
+`alchemy.run.ts` derives the auth origin from the stage's web Worker name, using
+the same resolver as the workflow's smoke tests.
 
-Create a matching `preview-cleanup` environment with these exact three secrets:
-`PREVIEW_CLOUDFLARE_API_TOKEN`, `PREVIEW_CLOUDFLARE_ACCOUNT_ID`, and
-`PREVIEW_BETTER_AUTH_SECRET`. Give it no required reviewers. Closed pull requests
-must be able to destroy their stage without waiting for approval; both environments
-must stay limited to preview resources and separate from production.
-Set the repository Actions variable `PREVIEW_ENABLED=true` only after both
-environments and their credentials are verified. With the variable unset, preview
-jobs are intentionally skipped instead of running with empty credentials.
+`preview-cleanup` receives the identical preview-only values. Its lack of required
+reviewers lets closed pull requests destroy their stages without waiting for
+approval. The same-repository and Dependabot checks in the workflow still apply.
 
 ### Running a preview stage from a laptop
 
 The same scripts the workflow uses take the stage from `ALCHEMY_STAGE`
-(or pass `--stage` to `alchemy` yourself; Alchemy also reads a plain
-`STAGE` variable):
+(or pass `--stage` to `alchemy` yourself):
 
 ```bash
 export CLOUDFLARE_API_TOKEN=…
 export CLOUDFLARE_ACCOUNT_ID=…
-export CLOUDFLARE_WORKERS_SUBDOMAIN='your-subdomain'   # or set BETTER_AUTH_URL explicitly
+export CLOUDFLARE_WORKERS_SUBDOMAIN='your-subdomain'   # optional; otherwise discovered
 export BETTER_AUTH_SECRET="$(openssl rand -base64 32)"
 
 ALCHEMY_STAGE=pr-42 pnpm run deploy:stage     # provision + migrate
@@ -309,7 +323,7 @@ ALCHEMY_STAGE=pr-42 pnpm run destroy:stage --confirm-target="$CLOUDFLARE_ACCOUNT
 Pick any stage name matching `[a-z0-9]+([-_][a-z0-9]+)*`; only names of
 the form `pr-<number>` get the preview rules above (providers dropped,
 URL derived). A stage such as `dev_martin` gets isolated resources but
-otherwise deploys like production, so it needs `BETTER_AUTH_URL`.
+otherwise uses its own workers.dev origin. Custom domains apply only to `prod`.
 
 ### Automatic tracing
 
@@ -378,8 +392,9 @@ complete the [recovery and monitoring setup](operations.md) and isolated drill.
 
 ## Troubleshooting
 
-- `Invalid origin` on sign-in means the request origin is not in
-  `BETTER_AUTH_TRUSTED_ORIGINS`. Add it and deploy again.
+- `Invalid origin` on sign-in means the request uses a noncanonical hostname.
+  Use the configured production domain (or the derived workers.dev URL when no
+  domain is configured), and check `production.domains` before redeploying.
 - Duplicate resource errors mean a resource with the same name already
   exists outside Alchemy's state store (created by hand or by another
   tool). Re-run with `--adopt` once to import it, then keep managing it
@@ -423,8 +438,8 @@ unless both are configured with a valid contact email.
 
 The stack provisions `Cloudflare.Rum.Site` for
 `new URL(BETTER_AUTH_URL).hostname` and binds its generated public site token only
-to the web Worker as `CLOUDFLARE_WEB_ANALYTICS_TOKEN`. Keep `BETTER_AUTH_URL` set
-to the actual web origin. The production deploy credential needs
+to the web Worker as `CLOUDFLARE_WEB_ANALYTICS_TOKEN`. The auth URL and analytics
+host are derived from the configured web domain or workers.dev origin. The production deploy credential needs
 [`Account Settings Write`](https://developers.cloudflare.com/api/resources/rum/subresources/site_info/methods/create/)
 to manage the account's RUM sites.
 
