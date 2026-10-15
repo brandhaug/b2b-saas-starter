@@ -16,7 +16,7 @@ catalog:
   '@babel/core': 8.0.7
   '@base-ui/react': 1.9.0
   '@inlang/paraglide-js': 2.27.0
-  '@inlang/plugin-message-format': 4.5.0
+  '@inlang/plugin-message-format': 4.5.2
   '@better-auth/cimd': 1.7.7
   '@better-auth/mcp': 1.7.7
   '@better-auth/oauth-provider': 1.7.7
@@ -45,7 +45,7 @@ catalog:
   '@tailwindcss/vite': 4.3.3
   '@tanstack/devtools-vite': 0.8.5
   '@tanstack/react-form': 1.33.5
-  '@tanstack/react-query': 5.104.1
+  '@tanstack/react-query': 5.104.2
   '@tanstack/react-router': 1.170.44
   '@tanstack/react-router-devtools': 1.167.2
   '@tanstack/react-router-ssr-query': 1.167.3
@@ -72,7 +72,7 @@ catalog:
   drizzle-kit: 1.0.0-rc.5-ab785fc
   drizzle-orm: 1.0.0-rc.5-ab785fc
   standardwebhooks: 1.1.1
-  effect: 4.0.2
+  effect: 4.0.3
   effectful-better-auth: 1.0.5
   eslint-plugin-better-tailwindcss: 4.9.0
   fallow: 3.31.0
