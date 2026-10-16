@@ -178,8 +178,8 @@ catalogs:
       specifier: 1.55.0
       version: 1.55.0
     miniflare:
-      specifier: 5.20261006.1-alpha
-      version: 5.20261006.1-alpha
+      specifier: 5.20261006.2-beta
+      version: 5.20261006.2-beta
     oxlint-plugin-effect:
       specifier: 0.11.0
       version: 0.11.0
@@ -686,7 +686,7 @@ importers:
         version: 30.1.2(@noble/hashes@2.4.0)
       miniflare:
         specifier: 'catalog:'
-        version: 5.20261006.1-alpha(@types/node@26.6.5)
+        version: 5.20261006.2-beta(@types/node@26.6.5)
       rehype-pretty-code:
         specifier: 'catalog:'
         version: 0.14.5(shiki@4.5.0)
@@ -7315,6 +7315,10 @@ packages:
 
   miniflare@5.20261006.1-alpha:
     resolution: {integrity: sha512-6ylv8tamkrspDI2R/cAYfv+YWmfGNdXe76Pi9TauEUWsFVXn3LNF9Yk8oduzf1a+TYsSRYTqlOE7+nGGRsMHdw==}
+    engines: {node: '>=22.0.0'}
+
+  miniflare@5.20261006.2-beta:
+    resolution: {integrity: sha512-agufWI3mXF8xGzry2/sOF8Im8AoYs04DWBCLDWDmd4QtMSGEo9IgrPmYOwsCmQA3K3MbLzsvr01GpWc8x3Duqw==}
     engines: {node: '>=22.0.0'}
 
   minimatch@10.2.6:
@@ -14464,6 +14468,19 @@ snapshots:
   mimic-function@5.0.1: {}
 
   miniflare@5.20261006.1-alpha(@types/node@26.6.5):
+    dependencies:
+      '@cspotcode/source-map-support': 0.8.1
+      sharp: 0.35.5(@types/node@26.6.5)
+      undici: 7.29.1
+      workerd: 1.20261006.1
+      ws: 8.21.0
+      youch: 4.1.0-beta.10
+    transitivePeerDependencies:
+      - '@types/node'
+      - bufferutil
+      - utf-8-validate
+
+  miniflare@5.20261006.2-beta(@types/node@26.6.5):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       sharp: 0.35.5(@types/node@26.6.5)
