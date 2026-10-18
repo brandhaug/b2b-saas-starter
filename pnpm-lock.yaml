@@ -52,8 +52,8 @@ catalogs:
       specifier: 2.28.0
       version: 2.28.0
     '@inlang/plugin-message-format':
-      specifier: 4.5.3
-      version: 4.5.3
+      specifier: 4.5.4
+      version: 4.5.4
     '@mdx-js/rollup':
       specifier: 3.1.1
       version: 3.1.1
@@ -1116,7 +1116,7 @@ importers:
     devDependencies:
       '@inlang/plugin-message-format':
         specifier: 'catalog:'
-        version: 4.5.3
+        version: 4.5.4
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -2707,15 +2707,11 @@ packages:
       vite:
         optional: true
 
-  '@inlang/plugin-message-format@4.5.3':
-    resolution: {integrity: sha512-6rEkx02uEbnOtCTzFS6pCWqD1KXZyPJbsxK+D3pbDWMViAM54rG8HbQjBKQ2o06vyLgRqOyWPDQjddWGGIvZJA==}
+  '@inlang/plugin-message-format@4.5.4':
+    resolution: {integrity: sha512-rpNQgDvL723tvUM9VWu6uwXnRzIGSTBN7M7QJbQmpPk0SROMXjXPEafVteEZ1RAeeETcYsUG8OJes6nCcnYu6A==}
 
   '@inlang/recommend-sherlock@0.2.1':
     resolution: {integrity: sha512-ckv8HvHy/iTqaVAEKrr+gnl+p3XFNwe5D2+6w6wJk2ORV2XkcRkKOJ/XsTUJbPSiyi4PI+p+T3bqbmNx/rDUlg==}
-
-  '@inlang/sdk@4.0.3':
-    resolution: {integrity: sha512-ajOudqasLcSU1AI00oDhL2zd3u5I4cq5vwn3yu4nnFqEM1sZDgAFK5AY8jID7sh5Lomk+obrCiwpPR3omKPITw==}
-    engines: {node: '>=20.0.0'}
 
   '@inlang/sdk@4.0.4':
     resolution: {integrity: sha512-OJhVSGJa/Ak52WncgqIPHr9TyVJ1DuoublcmtNo9H8apoVn4Dr1DJNxUxawCCc01QmMSg8qoY8GrTV8SVIu1lg==}
@@ -2806,9 +2802,6 @@ packages:
     resolution: {integrity: sha512-4/0CvEdhi6+KjMxMaVbFM2n2Z44escBRoEYpR+gZg64DdetzGnYm8mcNLcoySaDJZNaBd6wz5DNdgRmcI4hXcg==}
     cpu: [x64]
     os: [win32]
-
-  '@lix-js/sdk@0.19.0':
-    resolution: {integrity: sha512-ks7hKZdJGH0APlSLWtFYCXDO3yIoleoPqzLgkZYtMbaiWRN2Ih772tNGGBZFLKbutq6DuNRwcjNkG94KqWRbBA==}
 
   '@lix-js/sdk@0.20.1':
     resolution: {integrity: sha512-oscOFP8Cr1My6Wh2KVYC9+aJ1mHs+d7vnD+7PPJaA4L+Y1FR37Sm99SrFGfvUizaj/XtRi2GlDF2IOFt9iXMNQ==}
@@ -10192,21 +10185,14 @@ snapshots:
       typescript: 7.0.2
       vite: '@voidzero-dev/vite-plus-core@1.0.0(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1)'
 
-  '@inlang/plugin-message-format@4.5.3':
+  '@inlang/plugin-message-format@4.5.4':
     dependencies:
-      '@inlang/sdk': 4.0.3
+      '@inlang/sdk': 4.0.4
       '@sinclair/typebox': 0.31.30
 
   '@inlang/recommend-sherlock@0.2.1':
     dependencies:
       comment-json: 4.6.2
-
-  '@inlang/sdk@4.0.3':
-    dependencies:
-      '@lix-js/sdk': 0.19.0
-      '@sinclair/typebox': 0.31.30
-      kysely: 0.28.17
-      uuid: 14.0.3
 
   '@inlang/sdk@4.0.4':
     dependencies:
@@ -10307,12 +10293,6 @@ snapshots:
 
   '@libsql/win32-x64-msvc@0.5.29':
     optional: true
-
-  '@lix-js/sdk@0.19.0':
-    dependencies:
-      '@bytecodealliance/jco-transpile': 0.13.0
-      binaryen: 130.0.0
-      fflate: 0.8.3
 
   '@lix-js/sdk@0.20.1':
     dependencies:
