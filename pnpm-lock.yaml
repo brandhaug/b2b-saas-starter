@@ -196,8 +196,8 @@ catalogs:
       specifier: 19.3.0
       version: 19.3.0
     react-email:
-      specifier: 6.11.1
-      version: 6.11.1
+      specifier: 6.11.2
+      version: 6.11.2
     rehype-pretty-code:
       specifier: 0.14.5
       version: 0.14.5
@@ -468,7 +468,7 @@ importers:
         version: 5.0.1(@vitest/browser@5.0.1)(vitest@5.0.1)
       react-email:
         specifier: 'catalog:'
-        version: 6.11.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(supports-color@10.2.2)
+        version: 6.11.2(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(supports-color@10.2.2)
       standardwebhooks:
         specifier: 'catalog:'
         version: 1.1.1
@@ -1028,7 +1028,7 @@ importers:
         version: 19.3.0
       react-email:
         specifier: 'catalog:'
-        version: 6.11.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(supports-color@10.2.2)
+        version: 6.11.2(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(supports-color@10.2.2)
     devDependencies:
       '@effect/vitest':
         specifier: 4.0.5
@@ -7734,8 +7734,8 @@ packages:
     peerDependencies:
       react: ^19.3.0
 
-  react-email@6.11.1:
-    resolution: {integrity: sha512-9ckYTQFQD059UdA1nOm0O9sA7UbqFfJ9TngbEKEbwkEoaMWwWyHx8stCvAdhBVysmRLKkpafQ5mjHz09afayiQ==}
+  react-email@6.11.2:
+    resolution: {integrity: sha512-iQmTWm+FzBPHJLoS360vDeqVh2JDGFfP4UWolxqtqfuLE3NjDbDR78heyrKkKAr1ljxy2LBY/wNaZKIFnhNWfQ==}
     engines: {node: '>=20.19.0'}
     hasBin: true
     peerDependencies:
@@ -9308,7 +9308,7 @@ snapshots:
       '@babel/code-frame': 7.29.7
       '@babel/generator': 7.29.8
       '@babel/helper-globals': 7.29.7
-      '@babel/parser': 7.29.2
+      '@babel/parser': 7.29.9
       '@babel/template': 7.29.7
       '@babel/types': 7.29.8
       debug: 4.4.3(supports-color@10.2.2)
@@ -14991,7 +14991,7 @@ snapshots:
       react: 19.3.0
       scheduler: 0.28.0
 
-  react-email@6.11.1(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(supports-color@10.2.2):
+  react-email@6.11.2(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(supports-color@10.2.2):
     dependencies:
       '@babel/parser': 7.29.2
       '@babel/traverse': 7.29.0(supports-color@10.2.2)
