@@ -64,8 +64,8 @@ catalogs:
       specifier: 1.64.0
       version: 1.64.0
     '@react-email/ui':
-      specifier: 6.11.1
-      version: 6.11.1
+      specifier: 6.11.2
+      version: 6.11.2
     '@rolldown/plugin-babel':
       specifier: 0.2.4
       version: 0.2.4
@@ -1035,7 +1035,7 @@ importers:
         version: 4.0.5(effect@4.0.5)(vitest@5.0.1)
       '@react-email/ui':
         specifier: 'catalog:'
-        version: 6.11.1(@babel/core@8.0.7)(@playwright/test@1.64.0)(@types/node@26.6.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        version: 6.11.2(@babel/core@8.0.7)(@playwright/test@1.64.0)(@types/node@26.6.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@types/react':
         specifier: 'catalog:'
         version: 19.3.0
@@ -3985,8 +3985,8 @@ packages:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
       react-dom: ^18.0 || ^19.0 || ^19.0.0-rc
 
-  '@react-email/ui@6.11.1':
-    resolution: {integrity: sha512-Toy+g7u+9USdFV3YKIUEK66c356+/LDumDnpz7eVdjgCC3TCDb/v6WcfTSoU+RSHRkpUQjl7B9MOtQ/dgj5yYQ==}
+  '@react-email/ui@6.11.2':
+    resolution: {integrity: sha512-zZ4vYDozKBqD+iha8Q6whVwHYKYE976RDgdBCgwzZF8ejzbaaVXR8P8rRyvyEoTSNPJKzKBPslBnDMtSwwbUcg==}
 
   '@redis/bloom@6.3.0':
     resolution: {integrity: sha512-NQ5poYpZr0jv6zazN1cy6JY5kIipKFZ3R9GTL4kOUTX3a9YAfY29U8bsE4lWhVQEM+G4V0BXVC57mubIdDijeA==}
@@ -11230,7 +11230,7 @@ snapshots:
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
 
-  '@react-email/ui@6.11.1(@babel/core@8.0.7)(@playwright/test@1.64.0)(@types/node@26.6.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
+  '@react-email/ui@6.11.2(@babel/core@8.0.7)(@playwright/test@1.64.0)(@types/node@26.6.5)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
     dependencies:
       esbuild: 0.28.2
       jiti: 2.6.1
