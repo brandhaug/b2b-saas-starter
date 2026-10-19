@@ -15,7 +15,7 @@ allowBuilds:
 catalog:
   '@babel/core': 8.0.7
   '@base-ui/react': 1.9.0
-  '@inlang/paraglide-js': 2.28.0
+  '@inlang/paraglide-js': 2.29.0
   '@inlang/plugin-message-format': 4.5.4
   '@better-auth/cimd': 1.7.7
   '@better-auth/mcp': 1.7.7

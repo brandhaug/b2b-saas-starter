@@ -49,8 +49,8 @@ catalogs:
       specifier: 5.3.0
       version: 5.3.0
     '@inlang/paraglide-js':
-      specifier: 2.28.0
-      version: 2.28.0
+      specifier: 2.29.0
+      version: 2.29.0
     '@inlang/plugin-message-format':
       specifier: 4.5.4
       version: 4.5.4
@@ -1112,7 +1112,7 @@ importers:
     dependencies:
       '@inlang/paraglide-js':
         specifier: 'catalog:'
-        version: 2.28.0(@voidzero-dev/vite-plus-core@1.0.0(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(typescript@7.0.2)
+        version: 2.29.0(@voidzero-dev/vite-plus-core@1.0.0(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(typescript@7.0.2)
     devDependencies:
       '@inlang/plugin-message-format':
         specifier: 'catalog:'
@@ -2692,8 +2692,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@inlang/paraglide-js@2.28.0':
-    resolution: {integrity: sha512-nUiHkotCaZHgUIJV55TU6nSdOL9tkT/bCftVkKKY+cMprm0U8SKg5iI3SGI56F4sZu6qvxF1m+CzosqGPqFDWw==}
+  '@inlang/paraglide-js@2.29.0':
+    resolution: {integrity: sha512-1yBsi2ycRLRLOsZJRFf4wk6kycUOohoqrVyZye85D1fRHcd6IfhRAQWpGZPSJI5prgslpe3oHE8gOVXZr9aTww==}
     hasBin: true
     peerDependencies:
       eslint: ^9.0.0 || ^10.0.0
@@ -10163,7 +10163,7 @@ snapshots:
   '@img/sharp-win32-x64@0.35.5':
     optional: true
 
-  '@inlang/paraglide-js@2.28.0(@voidzero-dev/vite-plus-core@1.0.0(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(typescript@7.0.2)':
+  '@inlang/paraglide-js@2.29.0(@voidzero-dev/vite-plus-core@1.0.0(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(typescript@7.0.2)':
     dependencies:
       '@inlang/recommend-sherlock': 0.2.1
       '@inlang/sdk': 4.0.4
