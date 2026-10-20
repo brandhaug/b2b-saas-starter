@@ -6,8 +6,14 @@
   "minReleaseAgeDays": 3,
   "autoMerge": { "enabled": true, "mergeMethod": "squash" },
   "groups": [
-    { "name": "react", "patterns": ["react", "react-dom"] },
-    { "name": "better-auth", "patterns": ["better-auth", "@better-auth/*"] },
+    {
+      "name": "react",
+      "patterns": ["react", "react-dom", "@types/react", "@types/react-dom"]
+    },
+    {
+      "name": "better-auth",
+      "patterns": ["better-auth", "@better-auth/*", "effectful-better-auth"]
+    },
     { "name": "drizzle", "patterns": ["drizzle-orm", "drizzle-kit"] },
     { "name": "react-email", "patterns": ["react-email", "@react-email/*"] },
     {
@@ -15,11 +21,25 @@
       "patterns": [
         "@tanstack/react-router*",
         "@tanstack/router*",
-        "@tanstack/react-start"
+        "@tanstack/react-start*",
+        "@tanstack/start*"
       ]
+    },
+    {
+      "name": "tanstack-query",
+      "patterns": ["@tanstack/react-query*", "@tanstack/query*"]
     },
     { "name": "tanstack", "patterns": ["@tanstack/*"] },
     { "name": "effect", "patterns": ["effect", "@effect/*"] },
+    {
+      "name": "cloudflare-runtime",
+      "patterns": [
+        "wrangler",
+        "miniflare",
+        "@cloudflare/workers-types",
+        "@cloudflare/vitest-plugin"
+      ]
+    },
     {
       "name": "tailwind",
       "patterns": ["tailwindcss", "@tailwindcss/*", "tailwind-merge", "tw-animate-css"]
