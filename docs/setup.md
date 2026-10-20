@@ -37,7 +37,7 @@ installed packages until the target migrator can identify the old test runner.
 Run the target CLI from the workspace root, for example:
 
 ```bash
-pnpm dlx --package=vite-plus@1.0.0 vp migrate --no-interactive
+pnpm dlx --package=vite-plus@1.1.0 vp migrate --no-interactive
 vp install
 pnpm run validate
 ```
@@ -46,6 +46,12 @@ Review every migration warning and the catalog, overrides, test configuration an
 lockfile diff. `vp upgrade` updates the global CLI only. Keep the CI installer in
 `.github/actions/setup/action.yml` aligned with the project release, including its
 immutable commit and checksum described in [CI security](ci-security.md).
+
+The current toolchain is Vite+ 1.1.0, with the `vite` alias pointing to
+`@voidzero-dev/vite-plus-core@1.1.0` and Vitest/coverage at 5.0.3. This fixes
+[the bundled launch-editor advisory](https://github.com/advisories/GHSA-698v-4r3x-3vcv)
+affecting Vite+ through 1.0.0. Keep these versions coordinated through the target
+migrator; the existing React plugin remains compatible.
 
 ## Type checking
 
