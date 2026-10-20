@@ -324,7 +324,6 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
   }
 
   // Called by the AIChatAgent runtime through its lifecycle/protocol interface.
-  // fallow-ignore-next-line unused-class-member
   override onStart() {
     return this.runtime.runPromise(
       Effect.gen({ self: this }, function* () {
@@ -619,7 +618,6 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
   }
 
   // Called by the AIChatAgent runtime through its lifecycle/protocol interface.
-  // fallow-ignore-next-line unused-class-member
   override onChatMessage(
     _finish: Parameters<AIChatAgent<Env>['onChatMessage']>[0],
     options?: OnChatMessageOptions
