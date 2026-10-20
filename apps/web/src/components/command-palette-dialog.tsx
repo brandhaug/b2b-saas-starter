@@ -67,7 +67,6 @@ function KnowledgeEntries({ close }: { readonly close: () => void }) {
  * through.
  */
 // Loaded via dynamic import() in command-palette-loader.ts.
-// fallow-ignore-next-line unused-export
 export default function CommandPaletteDialog() {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
