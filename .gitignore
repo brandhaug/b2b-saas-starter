@@ -35,3 +35,6 @@ packages/i18n/.generated/
 /.impeccable/hook.cache.json
 /.impeccable/review/
 .vitest/
+
+# Pinned external skills installed for this checkout
+/.agents/skill-dependencies/

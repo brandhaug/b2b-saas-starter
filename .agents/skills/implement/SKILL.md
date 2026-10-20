@@ -8,6 +8,12 @@ description: Implement an agreed issue or spec through implementation, review, f
 Default endpoint: a reviewed PR ready to merge, without merging. Honor a narrower
 user request.
 
+Supporting skills are pinned repo dependencies. Before invoking one, follow
+[dependency verification and setup](../../../docs/agents/skills.md#setup) for that skill.
+Read `.agents/skill-dependencies/<name>/SKILL.md` explicitly and pass that path to workers.
+Repository policy takes precedence over external guidance. Load only the skills needed
+for the current task; optional design guidance may fall back as documented there.
+
 1. Read the issue and comments using [tracker guidance](../../../docs/agents/issue-tracker.md).
    Keep issue numbers and acceptance-criteria (AC) IDs only in GitHub issue/PR
    traceability. Use descriptive behavioral names in repository code, docs,
@@ -51,7 +57,7 @@ user request.
    context. Save full command output to logs and return exit status plus relevant
    excerpts; expand the read when understanding the code requires it.
 
-3. Apply `effect` with [repo examples](../../../docs/agents/effect-examples.md),
+3. For Effect code, apply `effect` with [repo examples](../../../docs/agents/effect-examples.md),
    `codebase-design` for module interfaces, `effect-service-design` for service
    ownership/Layers, and `impeccable` for UI. Follow the
    [root testing policy](../../../AGENTS.md#testing) when choosing tests and
@@ -64,7 +70,9 @@ user request.
    match. Preserve blockers as unverified work. Docs and mechanical edits get one
    targeted reviewer. For behavior changes, use
    `code-review` against a fixed base/head and the agreed spec, with its separate
-   Standards and Spec reviewers. The Standards reviewer applies
+   Standards and Spec reviewers. Both `code-review` and
+   `thermo-nuclear-code-quality-review` are required dependencies for this behavior-review
+   branch; if verification remains blocked, report review incomplete. The Standards reviewer applies
    `thermo-nuclear-code-quality-review` in the same pass and deduplicates overlapping
    findings. Include official-SDK selection in Standards: for new or extended vendor
    HTTP calls, verify the existing adapter or official SDK's exact operation, package
