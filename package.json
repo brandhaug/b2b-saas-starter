@@ -16,6 +16,7 @@
   "type": "module",
   "scripts": {
     "skills:setup": "node scripts/setup-agent-skills.ts",
+    "skills:verify": "node scripts/setup-agent-skills.ts --verify",
     "test:scripts": "tsc -p tsconfig.repo.json && vp test run scripts/ .github/scripts/",
     "dev": "pnpm -C packages/i18n generate && vp run -r --parallel dev",
     "build": "pnpm run infra:check && pnpm -C packages/i18n generate && vp run -r build",

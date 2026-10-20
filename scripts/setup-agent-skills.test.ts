@@ -5,7 +5,7 @@ import { syncBuiltinESMExports } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { onTestFinished, test, vi } from 'vite-plus/test'
-import { digest, setup } from './setup-agent-skills.ts'
+import { digest, setup, verify } from './setup-agent-skills.ts'
 
 function fixture() {
   const root = fs.mkdtempSync(join(tmpdir(), 'skill-test-'))
@@ -69,7 +69,7 @@ function fixture() {
       }
     ]
   }
-  const destination = join(home, '.agents/skills/example')
+  const destination = join(home, '.agents/skill-dependencies/example')
   const alias = join(home, '.claude/skills/example')
   function run(update = false) {
     return setup(home, update, { example: source })
@@ -77,7 +77,7 @@ function fixture() {
   return { root, home, repo, skill, source, destination, alias, run, commit }
 }
 
-test('copies pinned content, supporting files, licenses, modes and Claude alias', () => {
+test('copies pinned content, supporting files, licenses and modes without aliases', () => {
   const f = fixture()
   fs.writeFileSync(join(f.skill, 'SKILL.md'), 'Newer instructions')
   f.commit()
@@ -93,18 +93,19 @@ test('copies pinned content, supporting files, licenses, modes and Claude alias'
   }
   assert.ok(fs.statSync(join(f.destination, 'launcher')).mode & 0o111)
   assert.equal(fs.readlinkSync(join(f.destination, 'support-link')), 'support.md')
-  assert.equal(fs.realpathSync(f.alias), fs.realpathSync(f.destination))
+  assert.equal(fs.existsSync(f.alias), false)
 })
 
-test('rerun preserves personal changes and repairs a missing alias without downloading', () => {
+test('rerun and verification are offline, read-only and detect modifications', () => {
   const f = fixture()
   assert.equal(f.run(), 0)
-  fs.rmSync(f.alias)
-  fs.writeFileSync(join(f.destination, 'personal.md'), 'Keep this')
   fs.rmSync(f.repo, { recursive: true })
   assert.equal(f.run(), 0)
+  assert.equal(verify(f.home, { example: f.source }), 0)
+  fs.writeFileSync(join(f.destination, 'personal.md'), 'Keep this')
+  assert.equal(f.run(), 1)
+  assert.equal(verify(f.home, { example: f.source }), 1)
   assert.equal(fs.readFileSync(join(f.destination, 'personal.md'), 'utf8'), 'Keep this')
-  assert.equal(fs.realpathSync(f.alias), fs.realpathSync(f.destination))
 })
 
 test('update replaces complete snapshots including deleted files', () => {
@@ -145,7 +146,7 @@ for (const kind of ['content', 'permissions', 'symlink']) {
 for (const kind of ['directory', 'file', 'symlink']) {
   test(`unmanaged ${kind} is preserved even with update`, () => {
     const f = fixture()
-    fs.mkdirSync(join(f.home, '.agents/skills'), { recursive: true })
+    fs.mkdirSync(join(f.home, '.agents/skill-dependencies'), { recursive: true })
     if (kind === 'directory') {
       fs.mkdirSync(f.destination)
     }
@@ -161,37 +162,16 @@ for (const kind of ['directory', 'file', 'symlink']) {
   })
 }
 
-test('Claude alias collision prevents installing or overwriting the alias', () => {
+test('global skills and aliases are untouched', () => {
   const f = fixture()
+  const personal = join(f.home, '.agents/skills/example')
+  fs.mkdirSync(personal, { recursive: true })
+  fs.writeFileSync(join(personal, 'SKILL.md'), 'Personal')
   fs.mkdirSync(join(f.home, '.claude/skills'), { recursive: true })
-  fs.symlinkSync(join(f.root, 'missing-personal-skill'), f.alias)
-  assert.equal(f.run(), 1)
-  assert.equal(fs.existsSync(f.destination), false)
-  assert.equal(fs.readlinkSync(f.alias), join(f.root, 'missing-personal-skill'))
-})
-
-test('a dangling alias to a deleted install reinstalls instead of colliding', () => {
-  const f = fixture()
+  fs.symlinkSync(personal, f.alias)
   assert.equal(f.run(), 0)
-  fs.rmSync(f.destination, { recursive: true })
-  assert.equal(fs.existsSync(f.destination), false)
-  assert.ok(fs.lstatSync(f.alias).isSymbolicLink())
-  assert.equal(f.run(), 0)
-  assert.equal(
-    fs.readFileSync(join(f.destination, 'SKILL.md'), 'utf8'),
-    'Pinned instructions'
-  )
-  assert.equal(fs.realpathSync(f.alias), fs.realpathSync(f.destination))
-})
-
-test('Claude skills directory can link to the canonical skills directory', () => {
-  const f = fixture()
-  fs.mkdirSync(join(f.home, '.claude'), { recursive: true })
-  fs.symlinkSync(join(f.home, '.agents/skills'), join(f.home, '.claude/skills'))
-  assert.equal(f.run(), 0)
-  assert.equal(f.run(true), 0)
-  assert.equal(fs.realpathSync(f.alias), fs.realpathSync(f.destination))
-  assert.ok(fs.lstatSync(join(f.home, '.claude/skills')).isSymbolicLink())
+  assert.equal(fs.readFileSync(join(personal, 'SKILL.md'), 'utf8'), 'Personal')
+  assert.equal(fs.readlinkSync(f.alias), personal)
 })
 
 test('download failure preserves installed content and removes staging', () => {
@@ -199,9 +179,13 @@ test('download failure preserves installed content and removes staging', () => {
   assert.equal(f.run(), 0)
   const before = digest(f.destination)
   fs.rmSync(f.repo, { recursive: true })
+  f.source.revision = 'a'.repeat(40)
   assert.equal(f.run(true), 1)
   assert.equal(digest(f.destination), before)
-  assert.deepEqual(fs.readdirSync(join(f.home, '.agents/skills')), ['example'])
+  assert.deepEqual(fs.readdirSync(join(f.home, '.agents/skill-dependencies')), [
+    'example',
+    'skill-install-state.json'
+  ])
 })
 
 test('missing license fails without installing partial content', () => {
@@ -210,7 +194,7 @@ test('missing license fails without installing partial content', () => {
   assert.equal(f.run(), 1)
   assert.equal(fs.existsSync(f.destination), false)
   assert.equal(fs.existsSync(f.alias), false)
-  assert.deepEqual(fs.readdirSync(join(f.home, '.agents/skills')), [])
+  assert.deepEqual(fs.readdirSync(join(f.home, '.agents/skill-dependencies')), [])
 })
 
 test('state-write failure rolls back the previous snapshot', () => {
@@ -231,7 +215,7 @@ test('state-write failure rolls back the previous snapshot', () => {
   syncBuiltinESMExports()
   assert.equal(f.run(true), 1)
   assert.equal(digest(f.destination), before)
-  assert.equal(fs.realpathSync(f.alias), fs.realpathSync(f.destination))
+  assert.equal(fs.existsSync(f.alias), false)
 })
 
 test('repository revisions are downloaded once per run and use a timeout', () => {
@@ -252,4 +236,77 @@ test('repository revisions are downloaded once per run and use a timeout', () =>
   syncBuiltinESMExports()
   assert.equal(setup(f.home, false, { first: f.source, second: f.source }), 0)
   assert.equal(calls.filter((args) => args.includes('fetch')).length, 1)
+})
+
+test('verification diagnoses missing, unmanaged and stale sources including license metadata', () => {
+  const f = fixture()
+  assert.equal(verify(f.home, { example: f.source }), 1)
+  assert.equal(fs.existsSync(f.home), false)
+  assert.equal(f.run(), 0)
+  f.source.additionalLicenses[0]!.destination = 'licenses/other.LICENSE'
+  assert.equal(verify(f.home, { example: f.source }), 1)
+  assert.equal(f.run(), 1)
+  assert.equal(f.run(true), 0)
+  assert.equal(verify(f.home, { example: f.source }), 0)
+  fs.rmSync(join(f.home, '.agents/skill-dependencies/skill-install-state.json'))
+  assert.equal(verify(f.home, { example: f.source }), 1)
+})
+
+test('selection verifies only requested dependencies and rejects invalid or unknown names', () => {
+  const f = fixture()
+  const sources = { example: f.source, other: f.source }
+  assert.equal(setup(f.home, false, sources, ['example']), 0)
+  assert.equal(verify(f.home, sources, ['example']), 0)
+  assert.equal(verify(f.home, sources), 1)
+  assert.equal(setup(f.home, false, sources, ['../outside']), 1)
+  assert.equal(verify(f.home, sources, ['unknown']), 1)
+})
+
+for (const directory of ['.agents', '.agents/skill-dependencies']) {
+  test(`rejects a shared symlink at ${directory}`, () => {
+    const f = fixture()
+    const shared = join(f.root, 'shared')
+    fs.mkdirSync(shared)
+    const target = join(f.home, directory)
+    fs.mkdirSync(join(target, '..'), { recursive: true })
+    fs.symlinkSync(shared, target)
+    assert.equal(f.run(), 1)
+    assert.equal(verify(f.home, { example: f.source }), 1)
+    assert.deepEqual(fs.readdirSync(shared), [])
+  })
+}
+
+test('rejects skill symlinks escaping the installed snapshot', () => {
+  const f = fixture()
+  fs.symlinkSync('../../LICENSE', join(f.skill, 'external-reference'))
+  f.source.revision = f.commit()
+  assert.equal(f.run(), 1)
+  assert.equal(fs.existsSync(f.destination), false)
+})
+
+test('concurrent setup cannot remove or overwrite another installation', () => {
+  const f = fixture()
+  const execute = childProcess.execFileSync
+  let attempted = false
+  vi.spyOn(childProcess, 'execFileSync').mockImplementation(
+    (
+      file: string,
+      args?: ReadonlyArray<string>,
+      options?: childProcess.ExecFileSyncOptions
+    ) => {
+      if (!attempted && args?.includes('fetch')) {
+        attempted = true
+        assert.equal(f.run(), 1)
+      }
+      return execute(file, args ?? [], options)
+    }
+  )
+  syncBuiltinESMExports()
+  assert.equal(f.run(), 0)
+  assert.equal(attempted, true)
+  assert.equal(verify(f.home, { example: f.source }), 0)
+  assert.equal(
+    fs.existsSync(join(f.home, '.agents/skill-dependencies/.setup-lock')),
+    false
+  )
 })
