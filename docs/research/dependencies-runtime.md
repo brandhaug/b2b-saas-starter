@@ -60,9 +60,9 @@ PostHog now goes over `fetch` instead of `posthog-node`, which removes the clien
 
 The server uses `traceId` as PostHog `distinctId`, so these events represent request telemetry rather than a user's product journey. Keep correlation identity separate from user identity when adding product analytics. Changing that policy needs an explicit identity decision.
 
-### Keep the OAuth declaration patch until upstream types replace it
+### OAuth declaration patch removed with Better Auth 1.7.10
 
-`patches/@better-auth__oauth-provider@1.7.6.patch` changes only `.d.mts` declarations, removing inferred optional properties whose type is `undefined`. It does not modify authentication runtime behavior. The declarations in 1.7.6 still require this patch under `exactOptionalPropertyTypes`. A future Better Auth upgrade should attempt removal and run typecheck plus auth/OAuth tests. Replacing the auth stack to avoid this patch has far higher cost than the patch itself. Do not assert the patch is obsolete without testing the replacement release.
+The OAuth provider patch removed inferred optional properties whose type was `undefined` from `.d.mts` declarations. Better Auth 1.7.10 passes workspace `tsrs` type checking and `pnpm exec tsc -p packages/auth --noEmit` without that patch, with `exactOptionalPropertyTypes` still enabled. The catalog now aligns Better Auth, CIMD, MCP, OAuth provider, passkey and SSO at 1.7.10. Keep the OAuth provider override because MCP and CIMD must resolve the same release as the app.
 
 ### Keep deployment dependencies compatible with stable Effect
 

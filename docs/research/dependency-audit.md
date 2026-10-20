@@ -90,8 +90,9 @@ all as cleanup. Keep Vite and Vitest overrides as toolchain coordination.
 
 `pnpm peers check` reports one existing mismatch: `capnp-es@0.0.14` requests
 TypeScript `^5.7.3`, while this repo uses 7.0.2. No new peer exemption was added.
-The installed OAuth provider declaration patch remains tied to Better Auth
-1.7.2 and should be retested when that family upgrades.
+The OAuth provider declaration patch was removed after the Better Auth 1.7.10
+upgrade passed workspace and auth-package type checks without it. See the
+[runtime dependency follow-up](dependencies-runtime.md#oauth-declaration-patch-removed-with-better-auth-1710).
 
 The registry freshness query completed. Newer releases are listed in the
 inventory below, but ordinary patch/minor updates stay with the existing

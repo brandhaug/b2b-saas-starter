@@ -20,6 +20,7 @@
     // docs/ invoke the operator CLIs by path rather than through an npm alias.
     "scripts/*.test.ts",
     "scripts/recovery-security.ts",
+    "scripts/seed.ts",
     ".github/scripts/*.test.ts",
     "packages/i18n/scripts/catalog-validation.test.mjs",
     "packages/email/src/previews/*.tsx"
@@ -42,6 +43,10 @@
     "class-variance-authority",
     "cmdk",
     "eslint-plugin-better-tailwindcss",
+    // lint.config.ts loads this subpath through jsPlugins rather than an import.
+    "oxlint-plugin-effect",
+    // The root lint plugin resolves Tailwind to parse apps/web/src/index.css.
+    "tailwindcss",
     // Root-level deploy/seed tooling: alchemy.run.ts and scripts/seed.ts are
     // infrastructure entries, not production runtime.
     "alchemy",
@@ -56,8 +61,6 @@
     "vendor/**",
     "apps/web/src/index.css",
     "apps/web/src/components/ui/**",
-    "scripts/seed.ts",
-    "scripts/seed-main.ts",
     "packages/i18n/src/generated/**",
     "packages/i18n/.generated/**"
   ],
