@@ -43,9 +43,11 @@ names. If you have a global `implement`, remove that conflicting installation or
 explicitly direct the agent to this repo's skill.
 
 In any host, ask: "Use `.agents/skills/implement/SKILL.md` to implement an agreed GitHub issue."
-The workflow uses the session's provider and available tools, selecting a
-configured cheaper worker when possible. It falls back to the session model or
-local execution when necessary.
+The repo's implement skill owns validation order, review selection and monitoring.
+It keeps implementation on the session model and uses cheaper workers only for the
+roles it names. Reviewers receive fresh context and saved evidence; the parent owns
+host PR watching. Local review is reported as non-independent when delegation is
+unavailable. Personal entry skills should link here rather than copy this workflow.
 
 ## Updates
 
