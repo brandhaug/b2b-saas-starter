@@ -4,8 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev --port 8788 --inspector-port 9788",
-    "build": "tsc --noEmit",
-    "typecheck": "tsc --noEmit",
+    "build": "tsrs --noEmit",
+    "typecheck": "tsrs --noEmit",
     "test": "vp run test:coverage"
   },
   "dependencies": {

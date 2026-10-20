@@ -47,15 +47,15 @@ lockfile diff. `vp upgrade` updates the global CLI only. Keep the CI installer i
 `.github/actions/setup/action.yml` aligned with the project release, including its
 immutable commit and checksum described in [CI security](ci-security.md).
 
-## Effect diagnostics
+## Type checking
 
-`vp install` patches TypeScript with `@effect/tsgo`. Effect errors fail
-`pnpm run typecheck`; warnings and suggestions are advisory.
+`pnpm run typecheck` uses the Rust TypeScript compiler, `tsrs`, across the
+workspace. The catalog pins its version. TypeScript remains installed for tools
+that consume its compiler API.
 
-Accept VS Code's workspace TypeScript prompt. For other editors, follow the
-[Effect setup guide](https://github.com/Effect-TS/tsgo).
-
-Keep TypeScript and `@effect/tsgo` versions compatible. Verify upgrades with
+The compiler is no longer patched with `@effect/tsgo`, so Effect-specific compiler
+diagnostics are not part of type checking. The Effect oxlint rules still run in
+`pnpm run lint`. Verify compiler upgrades with
 `vp install --frozen-lockfile` and `pnpm run check`.
 
 ## Validation

@@ -8,7 +8,7 @@
     "build:e2e": "vp build --mode e2e",
     "serve:e2e": "vp preview --mode e2e",
     "serve": "vp preview --port 3071",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsrs --noEmit",
     "test": "vp test run && pnpm run test:lifecycle",
     "test:lifecycle": "vp test run --config vitest.lifecycle.config.ts",
     "test:e2e": "playwright test"

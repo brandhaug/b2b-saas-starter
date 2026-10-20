@@ -10,8 +10,8 @@
     "./notification-emails": "./src/notification-emails.ts"
   },
   "scripts": {
-    "build": "tsc --noEmit",
-    "typecheck": "tsc --noEmit",
+    "build": "tsrs --noEmit",
+    "typecheck": "tsrs --noEmit",
     "test": "vp test run --passWithNoTests",
     "dev": "email dev --dir src/previews"
   },

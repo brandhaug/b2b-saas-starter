@@ -46,15 +46,14 @@
     // infrastructure entries, not production runtime.
     "alchemy",
     "effect",
-    "shadcn",
     "sonner",
-    "tw-animate-css",
-    "ultracite"
+    "tw-animate-css"
   ],
   // apps/web/src/components/ui is vendored shadcn output: every primitive stays
   // exported even when a given screen uses only some of them, and its deps
   // (@base-ui/react, cva, cmdk, sonner) are consumed only from there.
   "ignorePatterns": [
+    "vendor/**",
     "apps/web/src/index.css",
     "apps/web/src/components/ui/**",
     "scripts/seed.ts",

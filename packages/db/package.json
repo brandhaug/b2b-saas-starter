@@ -9,8 +9,8 @@
     "./testing": "./src/testing.ts"
   },
   "scripts": {
-    "build": "tsc --noEmit",
-    "typecheck": "tsc --noEmit",
+    "build": "tsrs --noEmit",
+    "typecheck": "tsrs --noEmit",
     "test": "vp test run --passWithNoTests",
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "node scripts/migrate.ts",

@@ -24,8 +24,8 @@
     "./stripe": "./src/stripe.ts"
   },
   "scripts": {
-    "build": "tsc --noEmit",
-    "typecheck": "tsc --noEmit",
+    "build": "tsrs --noEmit",
+    "typecheck": "tsrs --noEmit",
     "test": "vp test run"
   },
   "dependencies": {
