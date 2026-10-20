@@ -81,7 +81,7 @@ catalog:
   oxlint-plugin-effect: 0.11.0
   oxlint-plugin-react-doctor: 0.9.12
   qrcode.react: ^4.2.0
-  react: 19.3.0
+  react: 19.3.1
   react-dom: 19.3.0
   react-email: 6.11.3
   rehype-pretty-code: 0.14.5
