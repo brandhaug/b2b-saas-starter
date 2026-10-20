@@ -21,8 +21,8 @@
     "./internal/ids": "./src/internal/ids.ts"
   },
   "scripts": {
-    "build": "tsc --noEmit",
-    "typecheck": "tsc --noEmit",
+    "build": "tsrs --noEmit",
+    "typecheck": "tsrs --noEmit",
     "test": "vp run test:coverage"
   },
   "dependencies": {

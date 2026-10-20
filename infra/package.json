@@ -6,7 +6,7 @@
     ".": "./bindings.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsrs --noEmit",
     "test": "vp test run --passWithNoTests"
   },
   "devDependencies": {

@@ -9,8 +9,8 @@
     "./email-delivery.contract": "./src/email-delivery.contract.ts"
   },
   "scripts": {
-    "build": "tsc --noEmit",
-    "typecheck": "tsc --noEmit",
+    "build": "tsrs --noEmit",
+    "typecheck": "tsrs --noEmit",
     "test": "vp run test:coverage"
   },
   "dependencies": {

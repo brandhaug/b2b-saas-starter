@@ -1,6 +1,6 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
-@import 'shadcn/tailwind.css';
+@import '../../../vendor/shadcn/tailwind.css';
 @source "../node_modules/streamdown/dist/*.js";
 @plugin "@tailwindcss/typography";
 

@@ -446,7 +446,7 @@ const { lint = {} } = defineConfig({
       'oxlint-plugin-effect/plugin',
       {
         name: 'anti-slop',
-        specifier: './node_modules/ultracite/config/oxlint/anti-slop/plugin.mjs'
+        specifier: './vendor/anti-slop/plugin.mjs'
       },
       {
         name: 'starter',
@@ -489,6 +489,7 @@ const { lint = {} } = defineConfig({
       builtin: true
     },
     ignorePatterns: [
+      'vendor/**',
       '.claude/skills/**',
       'node_modules/**',
       '.context/**',
