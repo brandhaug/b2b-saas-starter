@@ -17,11 +17,11 @@ catalog:
   '@base-ui/react': 1.9.0
   '@inlang/paraglide-js': 2.29.0
   '@inlang/plugin-message-format': 4.5.4
-  '@better-auth/cimd': 1.7.10
-  '@better-auth/mcp': 1.7.10
-  '@better-auth/oauth-provider': 1.7.10
-  '@better-auth/passkey': 1.7.10
-  '@better-auth/sso': 1.7.10
+  '@better-auth/cimd': 1.7.11
+  '@better-auth/mcp': 1.7.11
+  '@better-auth/oauth-provider': 1.7.11
+  '@better-auth/passkey': 1.7.11
+  '@better-auth/sso': 1.7.11
   '@better-auth/utils': 0.5.0
   '@cloudflare/ai-chat': 0.12.1
   agents: 0.28.1
@@ -37,7 +37,7 @@ catalog:
   '@mdx-js/rollup': 3.1.1
   '@oxlint/plugins': 1.80.0
   '@playwright/test': 1.64.1
-  seroval: 1.6.10
+  seroval: 1.6.11
   '@react-email/ui': 6.11.3
   '@rolldown/plugin-babel': 0.2.4
   '@tailwindcss/typography': 0.5.20
@@ -64,7 +64,7 @@ catalog:
   esbuild: 0.28.2
   alchemy: 2.0.0-beta.79
   babel-plugin-react-compiler: 1.0.0
-  better-auth: 1.7.10
+  better-auth: 1.7.11
   class-variance-authority: 0.7.1
   cmdk: 1.1.1
   cn: 0.5.0
