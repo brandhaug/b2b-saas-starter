@@ -290,11 +290,12 @@ const SeedGovernance = Layer.unwrap(
             actor: {
               userId: member.id,
               role: member.role,
-              systemRole: member.systemRole
+              systemRole: member.systemRole,
+              banned: member.banned
             },
             actorType: 'user'
           },
-          banned: false,
+          banned: member.banned,
           suspended: state.status === 'suspended',
           currentSession: proof,
           retainedSession: { ...proof, revokedAt: null },
@@ -307,6 +308,10 @@ const SeedGovernance = Layer.unwrap(
         Effect.catchTag('WorkspaceSuspended', () => Effect.succeed(null))
       )
     )
+    const billing = SeedBilling({
+      members: Ref.get(roster),
+      workspacePlans: { [seedWorkspaceRecord.id]: seedWorkspaceRecord.planId }
+    }).pipe(Layer.provide(billingAdapters))
     return Layer.mergeAll(
       authority,
       // The account-lifecycle seed shares the roster so the ownership rule
@@ -314,6 +319,7 @@ const SeedGovernance = Layer.unwrap(
       // write, and it writes its audit events into the shared fixture log
       // provided on the merged layer below.
       SeedAccountLifecycle({ roster, workspace: seedWorkspaceRecord }).pipe(
+        Layer.provide(billing),
         Layer.provide(SeedAuditLog),
         Layer.provide(suspension),
         Layer.provide(SeedAssistantDirectory)
@@ -323,6 +329,7 @@ const SeedGovernance = Layer.unwrap(
         Layer.provide(SeedAssistantDirectory)
       ),
       SeedWorkspaceLifecycle({ roster, workspace: seedWorkspaceRecord, catalog }).pipe(
+        Layer.provide(billing),
         Layer.provide(suspension),
         Layer.provide(SeedAssistantDirectory)
       ),
@@ -331,10 +338,7 @@ const SeedGovernance = Layer.unwrap(
        * same fixture log every other capability reads, and its seat counts
        * read the same roster the membership adapters mutate.
        */
-      SeedBilling({
-        members: Ref.get(roster),
-        workspacePlans: { [seedWorkspaceRecord.id]: seedWorkspaceRecord.planId }
-      }).pipe(Layer.provide(billingAdapters)),
+      billing,
       billingAdapters,
       suspension
     )
@@ -628,7 +632,10 @@ export function makeLiveCapabilitiesLayer(
     AssistantTaskEvidenceLayer.pipe(Layer.provide(tasks)),
     LiveRetention,
     LiveEmailDelivery,
-    LiveAccountLifecycle(options.accountLifecycleBinding, options.securityEvidence),
+    LiveAccountLifecycle(
+      options.accountLifecycleBinding,
+      options.securityEvidence
+    ).pipe(Layer.provide(billing)),
     LiveApiTokenRegistry(options.securityEvidence).pipe(
       Layer.provide(entitlements),
       Layer.provide(billing)
@@ -647,9 +654,10 @@ export function makeLiveCapabilitiesLayer(
     LiveWorkspaceInvitations(options.invitationBinding),
     membership,
     LiveWorkspaceLifecycle(options.lifecycleBinding, options.securityEvidence).pipe(
+      Layer.provide(billing),
       Layer.provide(suspension)
     ),
-    LivePlatformUserAdmin(options.userAdminBinding),
+    LivePlatformUserAdmin(options.userAdminBinding, options.securityEvidence),
     LiveWorkspaceOnboarding,
     LiveStrongAuthentication,
     LiveWorkspaceExports(options.workspaceExports).pipe(Layer.provide(suspension)),

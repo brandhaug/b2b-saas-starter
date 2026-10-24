@@ -20,6 +20,11 @@ export const credential = {
 } satisfies AssistantCredentialReference
 export const workspace = {
   workspace: seedWorkspaceRecord,
-  actor: { userId: demoUserIdentity.id, role: 'owner', systemRole: 'user' },
+  actor: {
+    userId: demoUserIdentity.id,
+    role: 'owner',
+    systemRole: 'user',
+    banned: false
+  },
   actorType: 'user'
 } satisfies WorkspaceContext['Service']

@@ -106,7 +106,10 @@ describe('recovery security sanitation', () => {
     ).rejects.toThrow(/CLOUDFLARE_ACCOUNT_ID/)
   })
 
-  it('sanitizes an isolated persisted D1 store through the CLI', async () => {
+  // Failure modes: restored owner/admin authority survives, a later grant
+  // cancels a restriction, expired bans self-clear, replay is not idempotent,
+  // or evidence outside the selected window changes an unrelated account.
+  it('replays admin restrictions and non-expiring recovery bans on isolated D1 through the CLI', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'recovery-security-test-'))
     const persist = join(directory, 'd1')
     const seed = join(directory, 'seed.sql')
@@ -123,7 +126,21 @@ describe('recovery security sanitation', () => {
         .join(';\n')
       await writeFile(
         seed,
-        `${schema};\nINSERT INTO user (id,email,name) VALUES ('usr_keep','keep@example.com','Keep'); INSERT INTO session (id,expiresAt,token,userId) VALUES ('ses_restore',4102444800,'restore-token','usr_keep');`
+        `${schema};
+        INSERT INTO user (id,email,name,role,banExpires) VALUES
+          ('usr_keep','keep@example.com','Keep','admin',1),
+          ('usr_admin','admin@example.com','Admin','admin',1),
+          ('usr_banned','banned@example.com','Banned','user',1),
+          ('usr_credential','credential@example.com','Credential','user',1),
+          ('usr_deleted','deleted@example.com','Deleted','user',1);
+        INSERT INTO workspaces (id,slug,name) VALUES ('wrk_restore','restore','Restore');
+        INSERT INTO workspaces (id,slug,name) VALUES ('wrk_deleted_account','deleted-account','Deleted account');
+        INSERT INTO workspace_members (id,workspaceId,userId,role) VALUES ('mem_deleted','wrk_deleted_account','usr_deleted','owner');
+        INSERT INTO oauth_client (id,clientId,userId,redirectUris) VALUES ('client_deleted','client-deleted','usr_deleted','[]');
+        INSERT INTO audit_events (id,workspace_id,actor_user_id,actor_type,event_type,target_type,target_id,metadata,created_at) VALUES ('audit_deleted','wrk_restore','usr_deleted','user','workspace.renamed','workspace','wrk_restore','{}','2026-09-01T00:00:00Z');
+        INSERT INTO api_tokens (id,workspace_id,name,token_prefix,token_hash,scopes,created_by_user_id,created_at) VALUES ('token_deleted','wrk_restore','Token','prefix','hash','["read"]','usr_deleted','2026-09-01T00:00:00Z');
+        INSERT INTO workspace_members (id,workspaceId,userId,role) VALUES ('mem_restore','wrk_restore','usr_admin','owner');
+        INSERT INTO session (id,expiresAt,token,userId) VALUES ('ses_restore',4102444800,'restore-token','usr_keep');`
       )
       await run(
         'pnpm',
@@ -140,21 +157,87 @@ describe('recovery security sanitation', () => {
         ],
         { cwd: ROOT, env: environment }
       )
-      await writeFile(evidence, JSON.stringify(bundle))
-      await run(
-        'node',
-        [
-          'scripts/recovery-security.ts',
-          'apply',
-          `--evidence=${evidence}`,
-          '--restore-point=2026-09-07T00:00:00Z',
-          '--freeze-time=2026-09-07T23:00:00Z',
-          '--database=recovery-drill',
-          `--persist-to=${persist}`,
-          '--local'
-        ],
-        { cwd: ROOT, env: environment }
-      )
+      const replayBundle: SecurityEvidenceBundle = {
+        ...bundle,
+        records: [
+          ...bundle.records,
+          {
+            id: 'ban',
+            kind: 'account_banned',
+            subjectId: 'usr_banned',
+            workspaceId: null,
+            occurredAt: '2026-09-07T12:00:00Z',
+            source: 'live'
+          },
+          {
+            id: 'demote',
+            kind: 'system_role_changed',
+            subjectId: 'usr_admin',
+            workspaceId: null,
+            occurredAt: '2026-09-07T12:00:00Z',
+            source: 'live'
+          },
+          {
+            id: 'promote',
+            kind: 'system_role_changed',
+            subjectId: 'usr_admin',
+            workspaceId: null,
+            occurredAt: '2026-09-07T13:00:00Z',
+            source: 'live'
+          },
+          {
+            id: 'workspace-demote',
+            kind: 'workspace_access_removed',
+            subjectId: 'usr_admin',
+            workspaceId: 'wrk_restore',
+            occurredAt: '2026-09-07T12:00:00Z',
+            source: 'live'
+          },
+          {
+            id: 'workspace-promote',
+            kind: 'workspace_access_removed',
+            subjectId: 'usr_admin',
+            workspaceId: 'wrk_restore',
+            occurredAt: '2026-09-07T13:00:00Z',
+            source: 'live'
+          },
+          {
+            id: 'credential',
+            kind: 'credential_changed',
+            subjectId: 'usr_credential',
+            workspaceId: null,
+            occurredAt: '2026-09-07T12:00:00Z',
+            source: 'live'
+          },
+          {
+            id: 'outside-window',
+            kind: 'account_banned',
+            subjectId: 'usr_keep',
+            workspaceId: null,
+            occurredAt: '2026-09-07T23:30:00Z',
+            source: 'live'
+          }
+        ]
+      }
+      await writeFile(evidence, JSON.stringify(replayBundle))
+      function apply() {
+        return run(
+          'node',
+          [
+            'scripts/recovery-security.ts',
+            'apply',
+            `--evidence=${evidence}`,
+            '--restore-point=2026-09-07T00:00:00Z',
+            '--freeze-time=2026-09-07T23:00:00Z',
+            '--database=recovery-drill',
+            `--persist-to=${persist}`,
+            '--local'
+          ],
+          { cwd: ROOT, env: environment }
+        )
+      }
+      await apply()
+      await apply()
       const result = await run(
         'pnpm',
         [
@@ -166,12 +249,59 @@ describe('recovery security sanitation', () => {
           '--local',
           `--config=${CONFIG}`,
           `--persist-to=${persist}`,
-          "--command=SELECT (SELECT COUNT(*) FROM session) AS sessions, (SELECT COUNT(*) FROM user WHERE id = 'usr_keep') AS users"
+          `--command=SELECT
+            (SELECT COUNT(*) FROM session) AS sessions,
+            (SELECT COUNT(*) FROM user WHERE id = 'usr_deleted') AS deleted_accounts,
+            (SELECT COUNT(*) FROM workspace_deletion_fences) AS remaining_fences,
+            (SELECT COUNT(*) FROM oauth_client WHERE id = 'client_deleted' AND userId IS NULL) AS detached_clients,
+            (SELECT COUNT(*) FROM user WHERE id = 'usr_keep' AND role = 'admin' AND COALESCE(banned, 0) = 0) AS untouched,
+            (SELECT COUNT(*) FROM workspace_members WHERE id = 'mem_restore') AS restored_memberships,
+            (SELECT COUNT(*) FROM user WHERE id = 'usr_admin' AND role = 'user') AS demoted,
+            (SELECT COUNT(*) FROM user WHERE id = 'usr_banned' AND banned = 1 AND banExpires IS NULL AND banReason = 'recovery_ban_replay') AS banned,
+            (SELECT COUNT(*) FROM user WHERE id = 'usr_credential' AND banned = 1 AND banExpires IS NULL) AS credential_blocked`
         ],
         { cwd: ROOT, env: environment }
       )
       expect(result.stdout).toContain('"sessions": 0')
-      expect(result.stdout).toContain('"users": 1')
+      expect(result.stdout).toContain('"deleted_accounts": 0')
+      expect(result.stdout).toContain('"remaining_fences": 0')
+      expect(result.stdout).toContain('"detached_clients": 1')
+      expect(result.stdout).toContain('"untouched": 1')
+      expect(result.stdout).toContain('"restored_memberships": 0')
+      expect(result.stdout).toContain('"demoted": 1')
+      expect(result.stdout).toContain('"banned": 1')
+      expect(result.stdout).toContain('"credential_blocked": 1')
+      await writeFile(
+        evidence,
+        JSON.stringify({
+          ...replayBundle,
+          gaps: [
+            {
+              evidenceId: 'gap',
+              kind: 'account_banned',
+              subjectId: 'usr_keep',
+              workspaceId: null
+            }
+          ]
+        })
+      )
+      await apply()
+      const gapResult = await run(
+        'pnpm',
+        [
+          'exec',
+          'wrangler',
+          'd1',
+          'execute',
+          'DB',
+          '--local',
+          `--config=${CONFIG}`,
+          `--persist-to=${persist}`,
+          "--command=SELECT COUNT(*) AS blocked FROM user WHERE banned = 1 AND banExpires IS NULL AND banReason = 'recovery_evidence_gap'"
+        ],
+        { cwd: ROOT, env: environment }
+      )
+      expect(gapResult.stdout).toContain('"blocked": 4')
     } finally {
       await rm(directory, { recursive: true, force: true })
     }

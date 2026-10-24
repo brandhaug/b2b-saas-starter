@@ -1,4 +1,5 @@
 import { AssistantDirectory } from '../assistant/directory.ts'
+import { Billing } from '@b2b-saas-starter/billing/billing'
 import { Effect, Layer, Ref } from 'effect'
 
 import { AccountDeletionBlocked, AccountDeletionRejected } from '../errors.ts'
@@ -40,13 +41,14 @@ export function SeedAccountLifecycle(options: {
 }): Layer.Layer<
   AccountLifecycle,
   never,
-  AuditEventLog | WorkspaceSuspensionService | AssistantDirectory
+  AuditEventLog | WorkspaceSuspensionService | AssistantDirectory | Billing
 > {
   return Layer.effect(AccountLifecycle)(
     Effect.gen(function* () {
       const audit = yield* AuditEventLog
       const conversations = yield* AssistantDirectory
       const suspension = yield* WorkspaceSuspensionService
+      const billing = yield* Billing
       // Workspaces the seed deleted with an account. The roster empties with
       // them, so `planDeletion` for a later user answers from what is left.
       const deletedWorkspaces = yield* Ref.make<ReadonlyArray<string>>([])
@@ -72,6 +74,9 @@ export function SeedAccountLifecycle(options: {
             role: member.role,
             ownerCount: roster.filter((candidate) => candidate.role === 'owner').length,
             memberCount: roster.length,
+            billingBlocked:
+              roster.length <= 1 &&
+              !(yield* billing.workspaceDeletionAllowed(options.workspace.id)),
             suspended: state.status === 'suspended'
           }
         ] satisfies ReadonlyArray<MembershipForDeletion>

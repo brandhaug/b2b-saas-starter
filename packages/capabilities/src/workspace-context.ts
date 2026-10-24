@@ -22,7 +22,8 @@ import {
 export const Actor = Schema.Struct({
   userId: Schema.String,
   role: WorkspaceRole,
-  systemRole: SystemRole
+  systemRole: SystemRole,
+  banned: Schema.Boolean
 })
 export type Actor = typeof Actor.Type
 
@@ -42,7 +43,8 @@ export function memberToActor(member: Member): Actor {
   return {
     userId: member.id,
     role: member.role,
-    systemRole: member.systemRole
+    systemRole: member.systemRole,
+    banned: member.banned
   }
 }
 

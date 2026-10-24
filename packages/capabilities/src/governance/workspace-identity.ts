@@ -44,7 +44,8 @@ export const Member = Schema.Struct({
   name: Schema.String,
   email: Schema.String,
   role: WorkspaceRole,
-  systemRole: SystemRole
+  systemRole: SystemRole,
+  banned: Schema.Boolean
 })
 export type Member = typeof Member.Type
 
@@ -64,7 +65,8 @@ export function fabricateSeedMember(
     name: userId,
     email: email ?? `${userId}@seed.local`,
     role,
-    systemRole: 'user'
+    systemRole: 'user',
+    banned: false
   }
 }
 
@@ -101,7 +103,8 @@ export function toMember(row: MemberRow): Member {
     role: row.member.role,
     // `user.role` is the typed system-role column; null means the plugin never
     // wrote one, which is a plain user.
-    systemRole: row.user.role ?? 'user'
+    systemRole: row.user.role ?? 'user',
+    banned: row.user.banned ?? false
   }
 }
 

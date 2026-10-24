@@ -275,7 +275,7 @@ it.effect(
             name: 'Starter',
             planId: 'starter'
           },
-          actor: { userId: callerUserId, role: 'member', systemRole },
+          actor: { userId: callerUserId, role: 'member', systemRole, banned: false },
           actorType: 'user'
         })
       }

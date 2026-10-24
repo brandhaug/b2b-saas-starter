@@ -30,7 +30,12 @@ import { SeedSsoConnections } from './workspace-sso-connections.seed.ts'
  * `workspace-sso-connections.live.test.ts`, which runs the same contract list.
  */
 
-const owner: Actor = { userId: 'usr_demo', role: 'owner', systemRole: 'admin' }
+const owner: Actor = {
+  userId: 'usr_demo',
+  role: 'owner',
+  systemRole: 'admin',
+  banned: false
+}
 
 /** One fresh pair of layers per case: both adapters append to private copies. */
 function provide<A, E>(

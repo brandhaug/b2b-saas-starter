@@ -10,21 +10,24 @@ const members: ReadonlyArray<Member> = [
     name: 'Demo Owner',
     email: 'demo@starter.local',
     role: 'owner',
-    systemRole: 'user'
+    systemRole: 'user',
+    banned: false
   },
   {
     id: 'usr_ops',
     name: 'Ops Admin',
     email: 'ops@starter.local',
     role: 'admin',
-    systemRole: 'user'
+    systemRole: 'user',
+    banned: false
   },
   {
     id: 'usr_dev',
     name: 'Dev Member',
     email: 'dev@starter.local',
     role: 'member',
-    systemRole: 'user'
+    systemRole: 'user',
+    banned: false
   }
 ]
 
@@ -118,7 +121,8 @@ describe('MembersPanel', () => {
         name: index === 42 ? 'Ada Lovelace' : `Member ${index}`,
         email: index === 42 ? 'ada@example.com' : `member-${index}@example.com`,
         role: 'member',
-        systemRole: 'user'
+        systemRole: 'user',
+        banned: false
       })
     )
     await renderWithRouter(
@@ -146,7 +150,8 @@ describe('MembersPanel', () => {
       name: `Member ${index}`,
       email: `member-${index}@example.com`,
       role: 'member',
-      systemRole: 'user'
+      systemRole: 'user',
+      banned: false
     }))
     const { router } = await renderWithRouter(
       <MembersPanel

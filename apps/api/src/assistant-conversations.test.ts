@@ -42,7 +42,7 @@ const proof = {
 const initialAuthority: AssistantAuthorityState = {
   context: {
     workspace: { id: 'wrk_rest', slug: 'rest-lab', name: 'REST lab', planId: 'free' },
-    actor: { userId: 'usr_rest', role: 'member', systemRole: 'user' },
+    actor: { userId: 'usr_rest', role: 'member', systemRole: 'user', banned: false },
     actorType: 'user'
   },
   banned: false,

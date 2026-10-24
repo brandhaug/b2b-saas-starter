@@ -56,7 +56,12 @@ export type ExchangeRow = {
    * per-credential decode helper.
    */
   readonly recovery?: {
-    readonly kind: 'account_deleted' | 'credential_changed' | 'sessions_revoked'
+    readonly kind:
+      | 'account_deleted'
+      | 'account_banned'
+      | 'system_role_changed'
+      | 'credential_changed'
+      | 'sessions_revoked'
     readonly subject: 'actor' | 'target' | 'all'
   }
   readonly notifyOnSuccess?: CredentialChange
@@ -397,6 +402,7 @@ const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow | EvidenceOnlyRow> = [
   {
     method: 'POST',
     path: '/admin/set-role',
+    recovery: { kind: 'system_role_changed', subject: 'target' },
     success: 'system_admin.user_role_changed',
     failure: 'system_admin.user_role_change_failed',
     actor: 'session',
@@ -407,6 +413,7 @@ const EXCHANGE_ROWS: ReadonlyArray<ExchangeRow | EvidenceOnlyRow> = [
   {
     method: 'POST',
     path: '/admin/ban-user',
+    recovery: { kind: 'account_banned', subject: 'target' },
     success: 'system_admin.user_banned',
     failure: 'system_admin.user_ban_failed',
     actor: 'session',

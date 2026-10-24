@@ -1,9 +1,14 @@
 import { AssistantDirectory } from '../assistant/directory.ts'
-import { Database, RawD1 } from '@b2b-saas-starter/db/service'
+import { Billing } from '@b2b-saas-starter/billing/billing'
+import { batch, Database, RawD1 } from '@b2b-saas-starter/db/service'
 import {
   apiTokens,
   emailDeliveries,
   notifications,
+  oauthAccessToken,
+  oauthClient,
+  oauthConsent,
+  oauthRefreshToken,
   user,
   workspaceMembers,
   workspaces
@@ -25,6 +30,7 @@ import {
 import { AuditEventLog, recordCompletedAudit } from './audit-event-log.ts'
 import { scrubAuditEventsForAccount } from './account-lifecycle-audit.live.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
+import { withWorkspaceDeletionFence } from './workspace-deletion-fence.live.ts'
 import {
   recordSecurityEvidence,
   type SecurityEvidenceSink
@@ -57,7 +63,7 @@ export function LiveAccountLifecycle(
 ): Layer.Layer<
   AccountLifecycle,
   never,
-  Database | RawD1 | AuditEventLog | AssistantDirectory
+  Database | RawD1 | AuditEventLog | AssistantDirectory | Billing
 > {
   return Layer.effect(AccountLifecycle)(
     Effect.gen(function* () {
@@ -65,6 +71,7 @@ export function LiveAccountLifecycle(
       const d1 = yield* RawD1
       const audit = yield* AuditEventLog
       const conversations = yield* AssistantDirectory
+      const billing = yield* Billing
 
       const unavailable = orUnavailable('account-lifecycle')
 
@@ -108,16 +115,26 @@ export function LiveAccountLifecycle(
               )
             )
         )
-        return rows.map((row): MembershipForDeletion => ({
-          workspace: toWorkspace(row),
-          memberId: row.memberId,
-          role: row.role,
-          ownerCount: crowds.filter(
-            (crowd) => crowd.workspaceId === row.id && crowd.role === 'owner'
-          ).length,
-          memberCount: crowds.filter((crowd) => crowd.workspaceId === row.id).length,
-          suspended: row.suspended === 'suspended'
-        }))
+        return yield* Effect.forEach(rows, (row) =>
+          Effect.gen(function* () {
+            const memberCount = crowds.filter(
+              (crowd) => crowd.workspaceId === row.id
+            ).length
+            const billingBlocked =
+              memberCount <= 1 && !(yield* billing.workspaceDeletionAllowed(row.id))
+            return {
+              workspace: toWorkspace(row),
+              memberId: row.memberId,
+              role: row.role,
+              ownerCount: crowds.filter(
+                (crowd) => crowd.workspaceId === row.id && crowd.role === 'owner'
+              ).length,
+              memberCount,
+              billingBlocked,
+              suspended: row.suspended === 'suspended'
+            } satisfies MembershipForDeletion
+          })
+        )
       })
 
       function planDeletion(userId: string) {
@@ -163,8 +180,10 @@ export function LiveAccountLifecycle(
           }
           if (step.action === 'delete_workspace') {
             yield* conversations.fence({ workspaceId })
-            yield* callBinding(binding, (bound) =>
-              bound.deleteWorkspace({ workspaceId })
+            yield* withWorkspaceDeletionFence(
+              db,
+              workspaceId,
+              callBinding(binding, (bound) => bound.deleteWorkspace({ workspaceId }))
             )
             yield* recordSecurityEvidence(
               { kind: 'workspace_deleted', subjectId: workspaceId },
@@ -255,6 +274,33 @@ export function LiveAccountLifecycle(
             .update(apiTokens)
             .set({ createdByUserId: null })
             .where(eq(apiTokens.createdByUserId, userId))
+        )
+        // OAuth grants are personal credentials, not retained history. Delete
+        // dependent access tokens before refresh tokens; shared client metadata
+        // survives with its former owner's attribution detached.
+        yield* unavailable(
+          batch([
+            db
+              .delete(oauthAccessToken)
+              .where(
+                or(
+                  eq(oauthAccessToken.userId, userId),
+                  inArray(
+                    oauthAccessToken.refreshId,
+                    db
+                      .select({ id: oauthRefreshToken.id })
+                      .from(oauthRefreshToken)
+                      .where(eq(oauthRefreshToken.userId, userId))
+                  )
+                )
+              ),
+            db.delete(oauthRefreshToken).where(eq(oauthRefreshToken.userId, userId)),
+            db.delete(oauthConsent).where(eq(oauthConsent.userId, userId)),
+            db
+              .update(oauthClient)
+              .set({ userId: null })
+              .where(eq(oauthClient.userId, userId))
+          ]).pipe(Effect.provideService(RawD1, d1))
         )
         return plan
       })

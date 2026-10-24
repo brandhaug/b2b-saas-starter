@@ -174,9 +174,9 @@ export async function handleAuth(request: Request): Promise<Response> {
           return guardedRequest.response
         }
         const { response, context } = guardedRequest
-        // The two-factor gate for the mailbox-only sign-ins (the email-OTP
-        // verify and the magic-link consume): the plugin's challenge hook
-        // covers the credential endpoints, so these two would otherwise mint
+        // The two-factor gate for mailbox-only sign-ins and email verification:
+        // the plugin's challenge hook covers the credential endpoints, so these
+        // consumes would otherwise mint
         // a session from mailbox possession alone. Post-handler by design —
         // the refusal replaces only a SUCCESS, so a probe that fails Better
         // Auth's own checks learns nothing about who has 2FA on (ADR 0056's
@@ -184,6 +184,14 @@ export async function handleAuth(request: Request): Promise<Response> {
         // IdP). `null` = the handler's response stands.
         const twoFactorResponse = yield* enforceTwoFactorSignIn(exchange, response)
         const finalResponse = twoFactorResponse ?? response
+        // Persist completed security mutations before audit or notification work
+        // can stall the request and leave recovery without evidence.
+        if (finalResponse.ok) {
+          const evidence = recoveryEvidence(exchange, context)
+          if (evidence !== undefined) {
+            yield* recordEvidence(evidence.kind, evidence.subjectId)
+          }
+        }
         // Governance audit for credential sign-in attempts (ADR 0025) —
         // best-effort by contract, so it can't fail the auth response. It
         // annotates its own failure reason onto this wide event; the outcome is
@@ -212,12 +220,6 @@ export async function handleAuth(request: Request): Promise<Response> {
           sendCredentialChangeEmail,
           context
         )
-        if (finalResponse.ok) {
-          const evidence = recoveryEvidence(exchange, context)
-          if (evidence !== undefined) {
-            yield* recordEvidence(evidence.kind, evidence.subjectId)
-          }
-        }
         // A gate refusal is this exchange's outcome; 'ok' would lie about a
         // session the gate just revoked. `finalResponse` carries either
         // story: it is the refusal itself when one replaced the handler's

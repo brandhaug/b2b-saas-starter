@@ -39,4 +39,12 @@ describe('rejectClientMetadataUrl', () => {
   it('refuses what is not a URL at all', () => {
     expect(rejectClientMetadataUrl('not a url')).toBe('malformed')
   })
+
+  it.each(['localhost.', 'box.internal.', 'intranet.', 'box.localhost.'])(
+    'refuses the absolute-FQDN spelling %s',
+    (host) => {
+      expect(new URL(`https://${host}/m`).hostname).toBe(host)
+      expect(rejectClientMetadataUrl(`https://${host}/m`)).toBe('non_public_host')
+    }
+  )
 })

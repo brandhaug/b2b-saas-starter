@@ -5,6 +5,8 @@ import { newCapabilityId } from '../internal/ids.ts'
 /** Security changes that must be replayed after restoring an older database. */
 export const SecurityEvidenceKind = Schema.Literals([
   'account_deleted',
+  'account_banned',
+  'system_role_changed',
   'assistant_conversation_deleted',
   'workspace_deleted',
   'workspace_access_removed',

@@ -21,6 +21,8 @@ const AccountDeletionAction = Schema.Literals([
   'blocked_sole_owner',
   /** Deleting this account would remove a suspended workspace; operator review is required. */
   'blocked_suspended_workspace',
+  /** Provider obligations must be resolved before deleting the workspace. */
+  'blocked_billing_workspace',
   /** Other owners remain: the user's membership is removed, the workspace stays. */
   'leave',
   /** The user is the only member: the workspace goes with the account. */
@@ -60,6 +62,7 @@ export type MembershipForDeletion = {
   readonly memberCount: number
   /** Suspension prevents an account deletion from removing this workspace. */
   readonly suspended?: boolean | undefined
+  readonly billingBlocked?: boolean | undefined
 }
 
 /**
@@ -81,6 +84,8 @@ export function planAccountDeletion(
     let action: AccountDeletionAction = 'leave'
     if (membership.suspended === true && membership.memberCount <= 1) {
       action = 'blocked_suspended_workspace'
+    } else if (membership.billingBlocked === true && membership.memberCount <= 1) {
+      action = 'blocked_billing_workspace'
     } else if (membership.memberCount <= 1) {
       action = 'delete_workspace'
     } else if (membership.role === 'owner' && membership.ownerCount <= 1) {
@@ -104,7 +109,8 @@ export function blockingWorkspaces(
   for (const step of plan.steps) {
     if (
       step.action === 'blocked_sole_owner' ||
-      step.action === 'blocked_suspended_workspace'
+      step.action === 'blocked_suspended_workspace' ||
+      step.action === 'blocked_billing_workspace'
     ) {
       blocked.push(step.workspace)
     }

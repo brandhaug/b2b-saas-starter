@@ -2,7 +2,7 @@ import { createHmac } from 'node:crypto'
 import { gzipSync } from 'node:zlib'
 import { expect, layer } from '@effect/vitest'
 import { DateTime, Effect, Option, Schema } from 'effect'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { Database } from '@b2b-saas-starter/db/service'
 import {
   workspaceExports,
@@ -269,6 +269,12 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT, excludeTestServices: true })(
           const proofAt = DateTime.toDate(now)
           const sessionId = 'session_export_recipient'
           const factorId = 'passkey_export_recipient'
+          yield* db.insert(workspaceMembers).values({
+            id: 'mem_export_remaining_owner',
+            workspaceId: 'wrk_live',
+            userId: 'usr_bystander',
+            role: 'owner'
+          })
           yield* db.insert(session).values({
             id: sessionId,
             token: 'token_export_recipient',
@@ -356,12 +362,22 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT, excludeTestServices: true })(
           yield* db
             .update(workspaceMembers)
             .set({ role: 'member' })
-            .where(eq(workspaceMembers.userId, 'usr_owner'))
+            .where(
+              and(
+                eq(workspaceMembers.userId, 'usr_owner'),
+                eq(workspaceMembers.workspaceId, 'wrk_live')
+              )
+            )
           expect((yield* download()).status).toBe(404)
           yield* db
             .update(workspaceMembers)
             .set({ role: 'owner' })
-            .where(eq(workspaceMembers.userId, 'usr_owner'))
+            .where(
+              and(
+                eq(workspaceMembers.userId, 'usr_owner'),
+                eq(workspaceMembers.workspaceId, 'wrk_live')
+              )
+            )
           yield* db.delete(passkey).where(eq(passkey.id, factorId))
           expect((yield* download()).status).toBe(404)
           yield* db.delete(session).where(eq(session.id, sessionId))

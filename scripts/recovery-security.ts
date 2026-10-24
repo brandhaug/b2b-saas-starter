@@ -98,8 +98,27 @@ export function buildRecoverySecuritySql(
       continue
     }
     const subject = sqlString(record.subjectId)
+    const recoveryToken = sqlString(`security-recovery:${record.id}`)
     if (record.kind === 'account_deleted') {
-      statements.push(`DELETE FROM user WHERE id = ${subject}`)
+      // Replay is an operator-only, frozen-database exception to ownership
+      // preservation: already-removed access must never be restored. Retain
+      // workspace billing handles for operator reconciliation.
+      statements.push(
+        `INSERT INTO workspace_deletion_fences (workspace_id, token, purpose) SELECT workspaceId, ${recoveryToken}, 'security_recovery' FROM workspace_members WHERE userId = ${subject} ON CONFLICT(workspace_id) DO UPDATE SET token = excluded.token, purpose = excluded.purpose`,
+        `UPDATE audit_events SET actor_user_id = NULL, metadata = '{}' WHERE actor_user_id = ${subject}`,
+        `UPDATE api_tokens SET created_by_user_id = NULL WHERE created_by_user_id = ${subject}`,
+        `UPDATE oauth_client SET userId = NULL WHERE userId = ${subject}`,
+        `DELETE FROM user WHERE id = ${subject}`,
+        `DELETE FROM workspace_deletion_fences WHERE token = ${recoveryToken}`
+      )
+    } else if (record.kind === 'account_banned') {
+      statements.push(
+        `UPDATE user SET banned = 1, banReason = 'recovery_ban_replay', banExpires = NULL WHERE id = ${subject}`
+      )
+    } else if (record.kind === 'system_role_changed') {
+      // Promotions never restore authority during recovery. Operators must
+      // review every changed system role before granting admin again.
+      statements.push(`UPDATE user SET role = 'user' WHERE id = ${subject}`)
     } else if (record.kind === 'assistant_conversation_deleted') {
       if (record.workspaceId !== null && record.creatorUserId !== undefined) {
         statements.push(
@@ -111,13 +130,18 @@ export function buildRecoverySecuritySql(
         )
       }
     } else if (record.kind === 'workspace_deleted') {
-      statements.push(`DELETE FROM workspaces WHERE id = ${subject}`)
+      statements.push(
+        `INSERT INTO workspace_deletion_fences (workspace_id, token, purpose) SELECT id, ${recoveryToken}, 'security_recovery' FROM workspaces WHERE id = ${subject} ON CONFLICT(workspace_id) DO UPDATE SET token = excluded.token, purpose = excluded.purpose`,
+        `DELETE FROM workspaces WHERE id = ${subject}`
+      )
     } else if (
       record.kind === 'workspace_access_removed' &&
       record.workspaceId !== null
     ) {
       statements.push(
-        `DELETE FROM workspace_members WHERE workspaceId = ${sqlString(record.workspaceId)} AND userId = ${subject}`
+        `INSERT INTO workspace_deletion_fences (workspace_id, token, purpose) SELECT id, ${recoveryToken}, 'security_recovery' FROM workspaces WHERE id = ${sqlString(record.workspaceId)} ON CONFLICT(workspace_id) DO UPDATE SET token = excluded.token, purpose = excluded.purpose`,
+        `DELETE FROM workspace_members WHERE workspaceId = ${sqlString(record.workspaceId)} AND userId = ${subject}`,
+        `DELETE FROM workspace_deletion_fences WHERE token = ${recoveryToken}`
       )
     } else if (record.kind === 'api_token_revoked') {
       statements.push(
@@ -132,7 +156,7 @@ export function buildRecoverySecuritySql(
         `DELETE FROM account${where}`,
         `DELETE FROM passkey${where}`,
         `DELETE FROM two_factor${where}`,
-        `UPDATE user SET twoFactorEnabled = 0, banned = 1, banReason = 'recovery_credential_reset_required'${userWhere}`
+        `UPDATE user SET twoFactorEnabled = 0, banned = 1, banReason = 'recovery_credential_reset_required', banExpires = NULL${userWhere}`
       )
     }
   }
@@ -145,7 +169,7 @@ export function buildRecoverySecuritySql(
       'DELETE FROM account',
       'DELETE FROM passkey',
       'DELETE FROM two_factor',
-      "UPDATE user SET twoFactorEnabled = 0, banned = 1, banReason = 'recovery_evidence_gap'"
+      "UPDATE user SET twoFactorEnabled = 0, banned = 1, banReason = 'recovery_evidence_gap', banExpires = NULL"
     )
   }
   return `${statements.join(';\n')};\n`

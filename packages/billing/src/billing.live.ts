@@ -6,13 +6,15 @@ import {
 } from './ports.ts'
 import {
   billingSynchronization,
+  billingCheckoutClaims,
+  billingProviderEvents,
   workspaceMembers,
   workspaces,
   workspaceSubscriptions
 } from '@b2b-saas-starter/db/schema'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer } from 'effect'
-import { count, eq } from 'drizzle-orm'
+import { and, count, eq, inArray, ne, isNull, isNotNull, or } from 'drizzle-orm'
 
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 
@@ -127,6 +129,65 @@ export function LiveBilling(
         }
       )
       const service: BillingInterface = {
+        workspaceDeletionAllowed: Effect.fn('Billing.workspaceDeletionAllowed')(
+          function* (workspaceId: string) {
+            const subscription = yield* readSubscription(workspaceId)
+            if (
+              subscription &&
+              subscription.status !== 'canceled' &&
+              subscription.status !== 'incomplete_expired'
+            ) {
+              return false
+            }
+            const claims = yield* unavailable(
+              db
+                .select({ id: billingCheckoutClaims.id })
+                .from(billingCheckoutClaims)
+                .where(
+                  and(
+                    eq(billingCheckoutClaims.workspaceId, workspaceId),
+                    inArray(billingCheckoutClaims.status, ['pending', 'created'])
+                  )
+                )
+                .limit(1)
+            )
+            if (claims.length > 0) {
+              return false
+            }
+            const sync = yield* unavailable(
+              db
+                .select({ workspaceId: billingSynchronization.workspaceId })
+                .from(billingSynchronization)
+                .where(
+                  and(
+                    eq(billingSynchronization.workspaceId, workspaceId),
+                    or(
+                      ne(billingSynchronization.status, 'current'),
+                      isNotNull(billingSynchronization.leaseOwner)
+                    )
+                  )
+                )
+                .limit(1)
+            )
+            if (sync.length > 0) {
+              return false
+            }
+            const events = yield* unavailable(
+              db
+                .select({ id: billingProviderEvents.id })
+                .from(billingProviderEvents)
+                .where(
+                  and(
+                    eq(billingProviderEvents.workspaceId, workspaceId),
+                    ne(billingProviderEvents.status, 'completed'),
+                    isNull(billingProviderEvents.resolvedAt)
+                  )
+                )
+                .limit(1)
+            )
+            return events.length === 0
+          }
+        ),
         ...synchronization,
         configured: Effect.succeed(billingConfigured(options)),
         currentPlanForWorkspace,

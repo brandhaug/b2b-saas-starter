@@ -5,6 +5,7 @@ import {
   AccountPreferencesRejected,
   MembershipChangeRejected,
   UserAdminRejected,
+  WorkspaceChangeRejected,
   WorkspaceSuspended,
   WorkspaceSuspensionUnauthorized,
   WorkspaceNotFound
@@ -119,6 +120,17 @@ function rethrowCapabilityFailure(cause: Cause.Cause<unknown>): never {
     if (error instanceof WorkspaceSuspended) {
       // oxlint-disable-next-line effect/noThrowStatement -- stable, private-detail-free suspension denial across the Promise boundary
       throw new UiError('workspace_suspended', {}, 'Workspace access is suspended.')
+    }
+    if (
+      error instanceof WorkspaceChangeRejected &&
+      error.reason === 'billing_obligations'
+    ) {
+      // oxlint-disable-next-line effect/noThrowStatement -- allowlisted deletion refusal crosses the Promise boundary without provider details
+      throw new UiError(
+        'workspace_billing_obligations',
+        {},
+        'Workspace billing activity prevents deletion.'
+      )
     }
     if (error instanceof WorkspaceSuspensionUnauthorized) {
       // oxlint-disable-next-line effect/noThrowStatement -- admin authority refusal crosses the Promise boundary as the existing safe permission error

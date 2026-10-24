@@ -122,7 +122,8 @@ function membersFor(count: number): ReadonlyArray<Member> {
     name: `Seat ${index}`,
     email: `seat${index}@seed.local`,
     role: 'member',
-    systemRole: 'user'
+    systemRole: 'user',
+    banned: false
   }))
 }
 

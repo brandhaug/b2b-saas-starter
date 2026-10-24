@@ -141,6 +141,32 @@ describe('workspace SSO handlers — create-time IdP validation', () => {
     }
   })
 
+  it.each([
+    '127.0.0.1',
+    '10.0.0.1',
+    '[::1]',
+    'localhost',
+    'localhost.',
+    'box.internal.'
+  ])('refuses a private SAML metadata host before fetch: %s', async (host) => {
+    const fetchSpy = vi.fn(() => Promise.resolve(new Response('fixture')))
+    vi.stubGlobal('fetch', fetchSpy)
+    try {
+      await expect(
+        createSsoConnectionHandler({
+          workspaceSlug: 'starter-lab',
+          protocol: 'saml',
+          domain: 'northwind.test',
+          metadataUrl: `https://${host}/metadata`,
+          defaultWorkspaceRole: 'member'
+        })
+      ).rejects.toMatchObject({ code: 'saml_metadata_invalid' })
+      expect(fetchSpy).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('treats a metadata redirect as a failed fetch', async () => {
     const fetchSpy = vi.fn(() =>
       Promise.resolve(Response.redirect('https://target.example/metadata', 307))
@@ -152,12 +178,12 @@ describe('workspace SSO handlers — create-time IdP validation', () => {
           workspaceSlug: 'starter-lab',
           protocol: 'saml',
           domain: 'northwind.test',
-          metadataUrl: 'https://idp.example/metadata',
+          metadataUrl: 'https://idp.example.com/metadata',
           defaultWorkspaceRole: 'member'
         })
       ).rejects.toMatchObject({ code: 'saml_metadata_invalid' })
       expect(fetchSpy).toHaveBeenCalledTimes(1)
-      expect(fetchSpy).toHaveBeenCalledWith('https://idp.example/metadata', {
+      expect(fetchSpy).toHaveBeenCalledWith('https://idp.example.com/metadata', {
         redirect: 'manual'
       })
     } finally {
@@ -211,21 +237,24 @@ describe('notifyOwnersOfFailedTest — the owner fan-out rule', () => {
       name: 'Owner',
       email: 'owner@sso.test',
       role: 'owner',
-      systemRole: 'user'
+      systemRole: 'user',
+      banned: false
     },
     {
       id: 'usr_notify_admin',
       name: 'Admin',
       email: 'admin@sso.test',
       role: 'admin',
-      systemRole: 'user'
+      systemRole: 'user',
+      banned: false
     },
     {
       id: 'usr_notify_member',
       name: 'Member',
       email: 'member@sso.test',
       role: 'member',
-      systemRole: 'user'
+      systemRole: 'user',
+      banned: false
     }
   ]
 
@@ -284,7 +313,12 @@ describe('notifyOwnersOfFailedTest — the owner fan-out rule', () => {
                 Effect.provideService(WorkspaceContext, {
                   workspace,
                   actorType: 'user',
-                  actor: { userId: member.id, role: member.role, systemRole: 'user' }
+                  actor: {
+                    userId: member.id,
+                    role: member.role,
+                    systemRole: 'user',
+                    banned: member.banned
+                  }
                 })
               )
               counts[member.id] = rows.length

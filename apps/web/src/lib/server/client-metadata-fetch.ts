@@ -54,7 +54,7 @@ export function rejectClientMetadataUrl(
   if (url.username || url.password) {
     return 'has_credentials'
   }
-  const host = url.hostname.toLowerCase()
+  const host = url.hostname.toLowerCase().replace(/\.$/, '')
   if (IPV4_LITERAL.test(host) || host.startsWith('[')) {
     return 'ip_literal'
   }

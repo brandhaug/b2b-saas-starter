@@ -162,6 +162,17 @@ export function OAuthConsentPage({
         <ActionFeedback error={m.oauth_request_missing()} />
       ) : (
         <>
+          <section className="grid gap-2" aria-labelledby="consent-client">
+            <h2 id="consent-client" className="text-sm font-semibold">
+              {m.oauth_client_id()}
+            </h2>
+            <p className="break-all font-mono text-sm" dir="ltr">
+              {payload.client?.clientId ?? request.clientId}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {m.oauth_client_identity_note()}
+            </p>
+          </section>
           <section className="grid gap-2" aria-labelledby="consent-workspace">
             <h2 id="consent-workspace" className="text-sm font-semibold">
               {m.oauth_workspace()}

@@ -17,6 +17,10 @@ import {
   type SystemUserAccount
 } from './platform-user-admin.ts'
 import { findWorkspaceMember, requireMemberRowId } from './workspace-identity.ts'
+import {
+  recordSecurityEvidence,
+  type SecurityEvidenceSink
+} from './security-recovery-evidence.ts'
 
 const { callBinding } = makeBindingCaller<PlatformUserAdminBinding, UserAdminRejected>({
   capability: 'platform-user-admin',
@@ -37,7 +41,8 @@ function toAccount(row: typeof user.$inferSelect): SystemUserAccount {
 }
 
 export function LivePlatformUserAdmin(
-  binding?: PlatformUserAdminBinding
+  binding?: PlatformUserAdminBinding,
+  evidenceSink?: SecurityEvidenceSink
 ): Layer.Layer<PlatformUserAdmin, never, Database | AuditEventLog | NotificationFeed> {
   return Layer.effect(PlatformUserAdmin)(
     Effect.gen(function* () {
@@ -85,6 +90,10 @@ export function LivePlatformUserAdmin(
             yield* callBinding(binding, (bound) =>
               bound.banUser({ userId: input.userId })
             )
+            yield* recordSecurityEvidence(
+              { kind: 'account_banned', subjectId: input.userId },
+              evidenceSink
+            )
             yield* recordCompletedAudit(
               audit,
               {
@@ -124,6 +133,16 @@ export function LivePlatformUserAdmin(
                 memberId,
                 role: input.role
               })
+            )
+            // The binding completed. Preserve the restriction even if readback
+            // or the subsequent audit fails.
+            yield* recordSecurityEvidence(
+              {
+                kind: 'workspace_access_removed',
+                subjectId: input.userId,
+                workspaceId: input.workspaceId
+              },
+              evidenceSink
             )
             const member = yield* findWorkspaceMember(db, {
               workspaceId: input.workspaceId,

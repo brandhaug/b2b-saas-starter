@@ -54,7 +54,8 @@ vi.mock('../capabilities', () => ({
       actor: {
         userId: `usr_${state.role}`,
         role: state.role,
-        systemRole: state.role === 'owner' ? 'admin' : 'user'
+        systemRole: state.role === 'owner' ? 'admin' : 'user',
+        banned: false
       },
       actorType: 'user'
     } satisfies WorkspaceContextInterface

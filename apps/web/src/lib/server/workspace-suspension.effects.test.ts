@@ -15,7 +15,7 @@ import {
 } from './workspace-suspension.effects'
 
 function actor(userId: string, role: Actor['role']): Actor {
-  return { userId, role, systemRole: 'user' }
+  return { userId, role, systemRole: 'user', banned: false }
 }
 
 describe('workspace recovery projection', () => {

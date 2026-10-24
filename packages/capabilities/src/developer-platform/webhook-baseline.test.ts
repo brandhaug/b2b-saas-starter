@@ -33,7 +33,8 @@ const owner: Member = {
   name: 'Owner',
   email: 'owner@webhook.test',
   role: 'owner',
-  systemRole: 'user'
+  systemRole: 'user',
+  banned: false
 }
 
 const member: Member = {
@@ -41,7 +42,8 @@ const member: Member = {
   name: 'Member',
   email: 'member@webhook.test',
   role: 'member',
-  systemRole: 'user'
+  systemRole: 'user',
+  banned: false
 }
 
 function fixture(options?: {
@@ -80,7 +82,8 @@ function fixture(options?: {
         testWorkspaceContext(workspace, {
           userId: owner.id,
           role: owner.role,
-          systemRole: owner.systemRole
+          systemRole: owner.systemRole,
+          banned: owner.banned
         }),
         audit,
         publisher,
@@ -154,7 +157,8 @@ it.effect(
             testWorkspaceContext(workspace, {
               userId: member.id,
               role: 'admin',
-              systemRole: 'user'
+              systemRole: 'user',
+              banned: false
             })
           )
         )

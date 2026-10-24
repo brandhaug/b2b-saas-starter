@@ -384,7 +384,12 @@ it.effect(
     }).pipe(
       Effect.provideService(WorkspaceContext, {
         workspace: seedWorkspaceRecord,
-        actor: { userId: demoUserIdentity.id, role: 'owner', systemRole: 'user' },
+        actor: {
+          userId: demoUserIdentity.id,
+          role: 'owner',
+          systemRole: 'user',
+          banned: false
+        },
         actorType: 'user'
       }),
       Effect.provide(SeedLayer)

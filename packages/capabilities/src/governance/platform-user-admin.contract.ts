@@ -4,6 +4,8 @@ import { type UserAdminRejected } from '../errors.ts'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { failureTag } from '../internal/failure-tag.ts'
 import { AuditEventLog } from './audit-event-log.ts'
+import { type SecurityEvidenceRecord } from './security-recovery-evidence.ts'
+import { type WorkspaceRole } from './workspace-identity.ts'
 import {
   IMPERSONATION_SESSION_SECONDS,
   PlatformUserAdmin
@@ -214,4 +216,59 @@ export function platformUserAdminContractCases(
       })
     }
   ]
+}
+
+/** Failure modes: missing evidence, wrong subject/workspace, false evidence for
+ * rejected targets, and later grants erasing conservative recovery restrictions. */
+export function platformUserAdminRecoveryContract(
+  ids: UserAdminContractIds,
+  records: ReadonlyArray<SecurityEvidenceRecord>,
+  source: SecurityEvidenceRecord['source'],
+  expect: ContractExpect
+) {
+  return Effect.gen(function* () {
+    const admin = yield* PlatformUserAdmin
+    yield* Effect.exit(admin.banUser({ userId: ids.unknown, actorUserId: ids.admin }))
+    yield* Effect.exit(
+      admin.changeWorkspaceRole({
+        userId: ids.outsider,
+        workspaceId: ids.workspaceId,
+        role: 'member',
+        actorUserId: ids.admin
+      })
+    )
+    expect(records.length).toBe(0)
+    yield* admin.banUser({ userId: ids.existing, actorUserId: ids.admin })
+    yield* admin.unbanUser({ userId: ids.existing, actorUserId: ids.admin })
+    for (const role of ['member', 'owner'] satisfies Array<WorkspaceRole>) {
+      yield* admin.changeWorkspaceRole({
+        userId: ids.existing,
+        workspaceId: ids.workspaceId,
+        role,
+        actorUserId: ids.admin
+      })
+    }
+    expect(
+      records.map(({ kind, subjectId, workspaceId, source: recordSource }) => ({
+        kind,
+        subjectId,
+        workspaceId,
+        source: recordSource
+      }))
+    ).toEqual([
+      { kind: 'account_banned', subjectId: ids.existing, workspaceId: null, source },
+      {
+        kind: 'workspace_access_removed',
+        subjectId: ids.existing,
+        workspaceId: ids.workspaceId,
+        source
+      },
+      {
+        kind: 'workspace_access_removed',
+        subjectId: ids.existing,
+        workspaceId: ids.workspaceId,
+        source
+      }
+    ])
+  })
 }

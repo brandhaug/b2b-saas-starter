@@ -67,6 +67,38 @@ const suspendedPlan: AccountDeletionPlan = {
 }
 
 describe('DeleteAccountPanel', () => {
+  // A billing-blocked plan must explain the refusal and offer a recovery path,
+  // rather than render an empty warning or an account deletion control.
+  it('names a billing-blocked workspace and links to its billing settings', async () => {
+    const plan: AccountDeletionPlan = {
+      canDelete: false,
+      steps: [
+        {
+          workspace: {
+            id: 'wrk_billing',
+            slug: 'billing-lab',
+            name: 'Billing Lab',
+            planId: 'team'
+          },
+          role: 'owner',
+          action: 'blocked_billing_workspace'
+        }
+      ]
+    }
+    await renderWithRouter(<DeleteAccountPanel plan={plan} />, {
+      path: '/account',
+      destinations: ['/workspaces/billing-lab/billing']
+    })
+    screen.getByText(
+      'Billing Lab has unresolved billing activity. Review billing or contact support before deleting your account.'
+    )
+    expect(screen.getByRole('link', { name: 'Billing Lab' }).getAttribute('href')).toBe(
+      '/workspaces/billing-lab/billing'
+    )
+    expect(screen.queryByLabelText('Password')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Delete account' })).toBeNull()
+  })
+
   it('sends the password after the confirm step and leaves for /sign-in', async () => {
     const assign = vi.fn()
     Object.defineProperty(window, 'location', {
@@ -143,7 +175,7 @@ describe('DeleteAccountPanel', () => {
       describeDeleteFailure(
         Object.assign(new Error('x'), { name: ACCOUNT_DELETION_BLOCKED_NAME })
       )
-    ).toBe('Transfer ownership of your workspaces before deleting your account.')
+    ).toBe('A workspace is blocking account deletion. Reload this page to review it.')
     // Unknown rejections use the safe fallback sentence.
     expect(describeDeleteFailure(new Error('boom'))).toBe(
       'Could not delete the account'

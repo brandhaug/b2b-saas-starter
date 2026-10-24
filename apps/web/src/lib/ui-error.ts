@@ -5,6 +5,7 @@ export type UiErrorCode =
   | 'unavailable'
   | 'forbidden'
   | 'workspace_suspended'
+  | 'workspace_billing_obligations'
   | 'plan_limit'
   | 'membership_refused'
   | 'user_admin_refused'

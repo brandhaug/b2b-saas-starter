@@ -143,7 +143,8 @@ describe('seed notification feed: create and fan-out', () => {
           testWorkspaceContext(seedWorkspaceRecord, {
             userId: 'usr_demo',
             role: 'owner',
-            systemRole: 'admin'
+            systemRole: 'admin',
+            banned: false
           })
         )
       )
@@ -260,7 +261,7 @@ describe('seed notification feed: notifyWorkspaceOwners', () => {
           return feed.list.pipe(
             Effect.provideService(WorkspaceContext, {
               workspace: seedWorkspaceRecord,
-              actor,
+              actor: { ...actor, banned: false },
               actorType: 'user'
             })
           )

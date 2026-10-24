@@ -151,6 +151,21 @@ matching evidence, then submit an audited retry with the identifiers.
 
 ## Lifecycle and recovery policy
 
+Workspace deletion, including deletion of a sole member's account, refuses
+unresolved billing obligations. Resolve subscriptions through the existing Billing
+Portal and reconcile their terminal state before retrying deletion. Pending or
+created checkout claims, unresolved synchronization, held billing leases, and
+unresolved provider events also block deletion. A locally elapsed checkout expiry
+does not prove that Stripe expired the session. Use the recovery workflow above
+to establish provider state. Unset Stripe credentials do not bypass this gate.
+
+Deletion does not cancel subscriptions or expire checkout sessions. D1 serializes
+the teardown permit with checkout claims and synchronization leases so a new
+provider operation cannot start between the check and plugin deletion. If a
+plugin teardown fails after removing every owner, its deletion fence remains.
+Keep that workspace closed and repair the interrupted teardown as an operator;
+do not clear the fence to reopen an ownerless workspace.
+
 Treat the provider as authoritative only after the synchronization workflow has
 verified the current subscription. A completed Checkout Session is not enough
 to grant paid access when the first payment is incomplete. For a subscription

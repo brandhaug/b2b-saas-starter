@@ -92,10 +92,17 @@ export { WEBHOOK_EVENT_TYPES } from './webhook-events.ts'
 export type { WebhookEventType } from './webhook-events.ts'
 
 /** Wire payload for endpoint creation, shared by the REST contract and the API worker. */
+const WebhookUrl = Schema.NonEmptyString.check(Schema.isMaxLength(2048))
+// Keep free-text event names for future producers, but bound both dimensions
+// before persistence and audit metadata duplicate the subscription list.
+const WebhookSubscriptions = Schema.Array(
+  Schema.NonEmptyString.check(Schema.isMaxLength(128))
+).check(Schema.isMinLength(1), Schema.isMaxLength(100))
+
 export const CreateWebhookEndpointPayload = Schema.Struct({
-  url: Schema.String,
-  events: Schema.Array(Schema.String).check(Schema.isMinLength(1)),
-  description: Schema.optionalKey(Schema.String)
+  url: WebhookUrl,
+  events: WebhookSubscriptions,
+  description: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(2000)))
 })
 export type CreateWebhookEndpointPayload = typeof CreateWebhookEndpointPayload.Type
 
@@ -118,8 +125,8 @@ export type UpdateWebhookEndpointInput = {
  * subscription list is refused, same as at creation).
  */
 export const UpdateWebhookEndpointPayload = Schema.Struct({
-  url: Schema.optionalKey(Schema.String),
-  events: Schema.optionalKey(Schema.Array(Schema.String).check(Schema.isMinLength(1))),
+  url: Schema.optionalKey(WebhookUrl),
+  events: Schema.optionalKey(WebhookSubscriptions),
   enabled: Schema.optionalKey(Schema.Boolean)
 })
 export type UpdateWebhookEndpointPayload = typeof UpdateWebhookEndpointPayload.Type

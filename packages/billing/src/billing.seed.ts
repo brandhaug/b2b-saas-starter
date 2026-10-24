@@ -561,6 +561,22 @@ export function SeedBilling(options?: {
       })
 
       const capability = {
+        workspaceDeletionAllowed: Effect.fn('Billing.workspaceDeletionAllowed')(
+          function* (workspaceId: string) {
+            const subscription = (yield* Ref.get(subscriptions)).get(workspaceId)
+            const sync = (yield* Ref.get(synchronization)).get(workspaceId)
+            return (
+              (!subscription ||
+                subscription.status === 'canceled' ||
+                subscription.status === 'incomplete_expired') &&
+              !(yield* Ref.get(checkoutClaims)).has(workspaceId) &&
+              (!sync || sync.status === 'current') &&
+              ![...(yield* Ref.get(pendingEvents)).values()].some(
+                (event) => event.workspaceId === workspaceId
+              )
+            )
+          }
+        ),
         configured: Effect.succeed(configured),
         currentPlanForWorkspace,
         currentPlan: Effect.fn('Billing.currentPlan')(function* () {

@@ -6,6 +6,7 @@ Creates, renames, and hard-deletes workspaces through the `WorkspaceLifecycleBin
 
 - `create({ name, slug, userId })` is identity-keyed, the creator being a member of nothing yet. The plugin makes them the first owner and the capability reads the row back by slug, returning the `Workspace` DTO plus `planId`.
 - Audits `workspace.created`, `workspace.renamed`, and `workspace.deleted`. The delete is recorded as a system event (`workspaceId: null`) naming the removed workspace in `targetId`, so it survives its own cascade.
+- Both adapters refuse `billing_obligations` when `Billing.workspaceDeletionAllowed` is false. The gate also applies to account-implied deletion.
 
 Removal fences private Assistant Conversations and invalidates personal archives before the plugin removes the Workspace. Conversation cleanup addresses survive the cascade.
 
@@ -18,3 +19,4 @@ Removal fences private Assistant Conversations and invalidates personal archives
 
 - No slug parameter on rename or remove; read `WorkspaceContext`.
 - No lifecycle write re-created in Drizzle in the Live layer. The plugin owns validation, hooks, and the owner-member bootstrap.
+- Live wraps plugin removal in `withWorkspaceDeletionFence`. Its D1 permit admits the plugin's member-first teardown while blocking concurrent billing claims and membership additions. A failed teardown that removed every owner retains its fence for operator repair. Frozen-database security replay is the only `security_recovery` permit caller.

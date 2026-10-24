@@ -29,14 +29,16 @@ function payload(
         name: 'Owner One',
         email: 'owner@seed.local',
         role: 'owner',
-        systemRole: 'user'
+        systemRole: 'user',
+        banned: false
       },
       {
         id: 'usr_two',
         name: 'Member Two',
         email: 'two@seed.local',
         role: 'member',
-        systemRole: 'user'
+        systemRole: 'user',
+        banned: false
       }
     ],
     // The invitation segment is upstream's own soft read (`invitation:create`);

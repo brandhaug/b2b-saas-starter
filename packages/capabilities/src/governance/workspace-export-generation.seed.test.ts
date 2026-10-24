@@ -14,7 +14,8 @@ import { WorkspaceExports } from './workspace-export.ts'
 const ownerContext = testWorkspaceContext(seedWorkspaceRecord, {
   userId: demoUserIdentity.id,
   role: 'owner',
-  systemRole: 'admin'
+  systemRole: 'admin',
+  banned: false
 })
 const dependencies = Layer.merge(SeedLayer, ownerContext)
 const exportsLayer = SeedWorkspaceExports({ workspace: seedWorkspaceRecord })

@@ -12,10 +12,9 @@ import { authRefusal } from './auth-refusal'
 import { readSessionForCookie } from './auth-session-read'
 
 /**
- * The two-factor gate for the two mailbox-only sign-ins: the emailed one-time
- * code (`POST /sign-in/email-otp`) and the emailed single-use link
- * (`GET /magic-link/verify`). Either one proves mailbox possession and
- * nothing else, yet both mint a full session even when the account has TOTP
+ * The two-factor gate for mailbox-only sign-ins and email-verification
+ * consumes. These prove mailbox possession alone, yet mint a full session
+ * even when the account has TOTP
  * on — the twoFactor plugin's challenge hook matches the credential sign-in
  * endpoints only, so these paths have no challenge hop of their own. This
  * module is that hop, enforced at the auth catchall.
@@ -55,6 +54,27 @@ export function isMagicLinkVerify(exchange: {
   return exchange.method === 'GET' && exchange.pathname.endsWith('/magic-link/verify')
 }
 
+function isMailboxCodeConsume(exchange: {
+  readonly method: string
+  readonly pathname: string
+}): boolean {
+  return (
+    isEmailOtpSignIn(exchange) ||
+    (exchange.method === 'POST' &&
+      exchange.pathname.endsWith('/email-otp/verify-email'))
+  )
+}
+
+function isMailboxLinkConsume(exchange: {
+  readonly method: string
+  readonly pathname: string
+}): boolean {
+  return (
+    isMagicLinkVerify(exchange) ||
+    (exchange.method === 'GET' && exchange.pathname.endsWith('/verify-email'))
+  )
+}
+
 /**
  * Whether the handler's response is a success shape — the only thing the
  * gate may refuse. The POST answers JSON (2xx is its success); the GET
@@ -68,10 +88,10 @@ export function isSessionMintingSuccess(
   },
   response: Response
 ): boolean {
-  if (isEmailOtpSignIn(exchange)) {
+  if (isMailboxCodeConsume(exchange)) {
     return response.ok
   }
-  if (isMagicLinkVerify(exchange)) {
+  if (isMailboxLinkConsume(exchange)) {
     return response.status >= 200 && response.status < 400
   }
   return false
@@ -111,12 +131,12 @@ export function twoFactorRefusal(exchange: {
   readonly method: string
   readonly pathname: string
 }): Response | null {
-  if (isEmailOtpSignIn(exchange)) {
+  if (isMailboxCodeConsume(exchange)) {
     return authRefusal(403, TWO_FACTOR_REQUIRED_ERROR_CODE, {
       message: twoFactorRequiredMessage()
     })
   }
-  if (isMagicLinkVerify(exchange)) {
+  if (isMailboxLinkConsume(exchange)) {
     return new Response(null, {
       status: 302,
       headers: { location: `/sign-in?error=${TWO_FACTOR_REQUIRED_ERROR_CODE}` }

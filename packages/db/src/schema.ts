@@ -354,6 +354,17 @@ export const workspaces = sqliteTable(
   ]
 )
 
+/** Capability-owned permit for the plugin's member-first workspace teardown. */
+export const workspaceDeletionFences = sqliteTable('workspace_deletion_fences', {
+  workspaceId: text('workspace_id')
+    .primaryKey()
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
+  token: text('token').notNull(),
+  purpose: text('purpose', { enum: ['deletion', 'security_recovery'] })
+    .notNull()
+    .default('deletion')
+})
+
 export const workspaceMembers = sqliteTable(
   'workspace_members',
   {
