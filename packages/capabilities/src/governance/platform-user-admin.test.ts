@@ -10,6 +10,9 @@ import {
   seedWorkspaceRecord
 } from '../seed-fixture.ts'
 import { testWorkspaceContext } from '../workspace-context.ts'
+import { SeedPlatformUserAdmin } from './platform-user-admin.seed.ts'
+import { platformUserAdminRecoveryContract } from './platform-user-admin.contract.ts'
+import { type SecurityEvidenceRecord } from './security-recovery-evidence.ts'
 import {
   IMPERSONATION_FORBIDDEN_ACTIONS,
   PlatformUserAdmin,
@@ -59,6 +62,50 @@ describe('refuseWhileImpersonating', () => {
 })
 
 describe('seed impersonation side effects', () => {
+  it.effect('records the same conservative recovery evidence as Live', () => {
+    const records: Array<SecurityEvidenceRecord> = []
+    return platformUserAdminRecoveryContract(
+      {
+        existing: 'target',
+        outsider: 'outsider',
+        unknown: 'unknown',
+        workspaceId: 'workspace',
+        admin: 'admin'
+      },
+      records,
+      'seed',
+      expect
+    ).pipe(
+      Effect.provide(
+        SeedPlatformUserAdmin(
+          [
+            {
+              id: 'target',
+              name: 'Target',
+              email: 'target@test.example',
+              banned: false,
+              systemRole: 'user'
+            },
+            {
+              id: 'outsider',
+              name: 'Outsider',
+              email: 'outsider@test.example',
+              banned: false,
+              systemRole: 'user'
+            }
+          ],
+          [{ workspaceId: 'workspace', userId: 'target', role: 'owner' }],
+          {
+            append: (record) => {
+              records.push(record)
+              return Promise.resolve()
+            },
+            reportGap: () => Promise.resolve()
+          }
+        ).pipe(Layer.provide(SeedLayer))
+      )
+    )
+  })
   it.effect(
     'notifies the impersonated user in their workspace feed, and nobody else',
     () =>
@@ -75,7 +122,8 @@ describe('seed impersonation side effects', () => {
             testWorkspaceContext(seedWorkspaceRecord, {
               userId: demoMemberIdentity.id,
               role: 'member',
-              systemRole: 'user'
+              systemRole: 'user',
+              banned: false
             })
           )
         )
@@ -95,7 +143,8 @@ describe('seed impersonation side effects', () => {
             testWorkspaceContext(seedWorkspaceRecord, {
               userId: demoUserIdentity.id,
               role: 'owner',
-              systemRole: 'admin'
+              systemRole: 'admin',
+              banned: false
             })
           )
         )

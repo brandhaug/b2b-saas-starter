@@ -4,6 +4,7 @@ Membership reads use Drizzle; writes use `WorkspaceMemberBinding`. Identity type
 
 - Binding calls address a member row ID plus workspace ID, except `leave`, which resolves the actor from session headers. Do not implement leave through removal: ordinary members can leave without `member:delete`.
 - `refuseMembershipChange` mirrors plugin ownership invariants in both adapters. Sole-owner protection and owner-role assignment restrictions remain separate from boundary permission checks.
+- D1 triggers enforce the last-owner rule at write time; plugin owner-count reads are not atomic. Seed rechecks inside `Ref.modify`. Workspace deletion needs its explicit teardown permit because the plugin deletes members before the workspace. Keep this exception restricted to lifecycle and frozen-database recovery.
 - Removals, leaves, and role changes file `workspace_access_removed` security evidence from both adapters (the sink is an optional deployment binding). Membership refusal is `MembershipChangeRejected`; missing bindings or unreachable storage are `CapabilityUnavailable`. Keep refusals out of retry paths.
 - Removals and leaving publish best-effort seat synchronization. Role changes do not change seat quantity. Every successful mutation retains its audit; leaving records reason `left`.
 - `layers.ts` shares one `SeedRoster` across membership, invitations, and account lifecycle. Separate stores make invitation acceptance and account deletion disagree with roster reads.

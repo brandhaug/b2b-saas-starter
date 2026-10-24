@@ -176,11 +176,23 @@ Each request body has this shape:
 }
 ```
 
-`kind` is one of `account_deleted`, `workspace_deleted`,
+`kind` is one of `account_deleted`, `account_banned`, `system_role_changed`, `workspace_deleted`,
 `workspace_access_removed`, `api_token_revoked`, `oauth_grant_revoked`,
-`sessions_revoked`, `credential_changed`, or `assistant_conversation_deleted`. Conversation deletion records also include `creatorUserId` and `workspaceId`, which preserve the immutable object address even if the directory entry is absent from the restored database. A role change uses
+`sessions_revoked`, `credential_changed`, or `assistant_conversation_deleted`. Conversation deletion records also include `creatorUserId` and `workspaceId`, which preserve the immutable object address even if the directory entry is absent from the restored database. A workspace role change uses
 `workspace_access_removed`: after a restore, the sanitizer removes that
 membership for operator review so an older admin or owner role cannot reopen.
+This applies to workspace role changes through both workspace administration and
+System Admin operations. Completed System Admin bans emit `account_banned`,
+including bans through Better Auth's `/admin/ban-user` endpoint.
+`/admin/set-role` emits `system_role_changed` for the target account, which the
+sanitizer resets to the plain `user` system role.
+
+Replay is conservative. A later unban or promotion never cancels a restriction
+in the recovery interval. Operators must review removed memberships, system-role
+changes, and bans before restoring access. Every recovery ban clears `banExpires`,
+including credential-reset and evidence-gap bans, so a restored expiry cannot
+silently lift it. The `PlatformUserAdmin` capability records evidence immediately
+after its binding succeeds, before member readback or the application audit write.
 The IDs are references only. Do not store passwords, tokens, email bodies, or
 provider payloads.
 

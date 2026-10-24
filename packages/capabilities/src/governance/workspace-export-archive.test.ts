@@ -20,7 +20,8 @@ const snapshot: WorkspaceExportSnapshot = {
       name: 'Ada',
       email: 'ada@example.com',
       role: 'owner',
-      systemRole: 'user'
+      systemRole: 'user',
+      banned: false
     }
   ],
   invitations: [

@@ -183,7 +183,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('MCP live boundaries', (it)
   )
 
   it.effect(
-    'the same signed OAuth credential observes real demotion, removal and consent versions',
+    'the same signed OAuth credential observes bans, demotion, removal and consent versions',
     () =>
       Effect.gen(function* () {
         const DB = yield* TestD1
@@ -246,12 +246,30 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('MCP live boundaries', (it)
           events: ['api_token.created']
         })
         const endpoint = yield* decodeRecord(created.content[0]?.text)
+        // Demotion is legal only while another owner remains.
+        yield* execute(
+          `INSERT INTO workspace_members (id,workspaceId,userId,role) VALUES ('mem_mcp_remaining_owner','wrk_dev_contract','usr_bystander','owner')`
+        )
         yield* execute(
           `UPDATE workspace_members SET role='member' WHERE id='mem_dev_contract_owner'`
         )
         expect(
           (yield* call(client, 'delete_webhook', { endpointId: endpoint.id })).isError
         ).toBe(true)
+        // A member read must recheck the ban without relying on privileged
+        // strong-auth/session checks. The token, membership and consent stay intact.
+        const reads = ['get_workspace_overview', 'list_notifications', 'list_members']
+        for (const name of reads) {
+          expect((yield* call(client, name)).isError).not.toBe(true)
+        }
+        yield* execute(`UPDATE user SET banned=1 WHERE id='usr_owner'`)
+        for (const name of reads) {
+          expect((yield* call(client, name)).isError).toBe(true)
+        }
+        yield* execute(`UPDATE user SET banned=0 WHERE id='usr_owner'`)
+        for (const name of reads) {
+          expect((yield* call(client, name)).isError).not.toBe(true)
+        }
         yield* execute(
           `DELETE FROM workspace_members WHERE id='mem_dev_contract_owner'`
         )

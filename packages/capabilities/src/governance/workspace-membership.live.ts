@@ -112,6 +112,29 @@ export function LiveWorkspaceMembership(
         return { targetRole: target?.role ?? null, ownerCount }
       })
 
+      // The storage guard is authoritative under races. Re-read after a
+      // rejected plugin write to translate its database failure into the same
+      // stable refusal as the preflight, without depending on vendor messages.
+      function ownerWrite(
+        workspaceId: string,
+        userId: string,
+        write: ReturnType<typeof callBinding>
+      ) {
+        return write.pipe(
+          Effect.catchTag('CapabilityUnavailable', (error) =>
+            Effect.gen(function* () {
+              const facts = yield* rosterFacts(workspaceId, userId)
+              if (facts.targetRole === 'owner' && facts.ownerCount <= 1) {
+                return yield* Effect.fail(
+                  new MembershipChangeRejected({ reason: 'sole_owner' })
+                )
+              }
+              return yield* Effect.fail(error)
+            })
+          )
+        )
+      }
+
       return {
         listMembers: Effect.fn('WorkspaceMembership.listMembers')(function* () {
           const ctx = yield* WorkspaceContext
@@ -196,8 +219,12 @@ export function LiveWorkspaceMembership(
             { workspaceId: ctx.workspace.id, creatorUserId: input.userId },
             { interruptRuns: true }
           )
-          yield* callBinding(binding, (bound) =>
-            bound.removeMember({ workspaceId: ctx.workspace.id, memberId })
+          yield* ownerWrite(
+            ctx.workspace.id,
+            input.userId,
+            callBinding(binding, (bound) =>
+              bound.removeMember({ workspaceId: ctx.workspace.id, memberId })
+            )
           )
           yield* recordSecurityEvidence(
             {
@@ -255,8 +282,12 @@ export function LiveWorkspaceMembership(
             { workspaceId: ctx.workspace.id, creatorUserId: actor.userId },
             { interruptRuns: true }
           )
-          yield* callBinding(binding, (bound) =>
-            bound.leave({ workspaceId: ctx.workspace.id })
+          yield* ownerWrite(
+            ctx.workspace.id,
+            actor.userId,
+            callBinding(binding, (bound) =>
+              bound.leave({ workspaceId: ctx.workspace.id })
+            )
           )
           yield* recordSecurityEvidence(
             {
@@ -307,13 +338,18 @@ export function LiveWorkspaceMembership(
             { workspaceId: ctx.workspace.id, creatorUserId: input.userId },
             { interruptRuns: true }
           )
-          yield* callBinding(binding, (bound) =>
+          const write = callBinding(binding, (bound) =>
             bound.changeRole({
               workspaceId: ctx.workspace.id,
               memberId,
               role: input.role
             })
           )
+          if (input.role === 'owner') {
+            yield* write
+          } else {
+            yield* ownerWrite(ctx.workspace.id, input.userId, write)
+          }
           yield* recordSecurityEvidence(
             {
               kind: 'workspace_access_removed',

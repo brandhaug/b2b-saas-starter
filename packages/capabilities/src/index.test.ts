@@ -363,7 +363,8 @@ describe('seed notification feed contract', () => {
         testWorkspaceContext(workspace, {
           userId: 'usr_alice',
           role: 'member',
-          systemRole: 'user'
+          systemRole: 'user',
+          banned: false
         })
       )
     )
@@ -431,7 +432,12 @@ describe('notification feed actor scoping', () => {
     { id: 'not_a_read', title: 'for a, read', read: true, userId: 'usr_a', ...base },
     { id: 'not_b_unread', title: 'for b', read: false, userId: 'usr_b', ...base }
   ])
-  const actorA: Actor = { userId: 'usr_a', role: 'member', systemRole: 'user' }
+  const actorA: Actor = {
+    userId: 'usr_a',
+    role: 'member',
+    systemRole: 'user',
+    banned: false
+  }
 
   function feedFor(actor?: Actor) {
     return Layer.merge(
@@ -698,7 +704,8 @@ describe('seed workspace membership contract', () => {
         testWorkspaceContext(seedWorkspaceRecord, {
           userId: 'usr_martin',
           role: 'owner',
-          systemRole: 'admin'
+          systemRole: 'admin',
+          banned: false
         })
       )
     })
@@ -772,7 +779,8 @@ describe('seed workspace membership contract', () => {
             testWorkspaceContext(seedWorkspaceRecord, {
               userId: 'usr_ops',
               role: 'admin',
-              systemRole: 'user'
+              systemRole: 'user',
+              banned: false
             })
           )
         )
@@ -1037,7 +1045,14 @@ describe('bearer verification write throttling', () => {
 // from seeing a prior case's teardown.
 
 function seedFixtureMember(id: string, role: 'owner' | 'admin' | 'member'): Member {
-  return { id, name: id, email: `${id}@seed.test`, role, systemRole: 'user' }
+  return {
+    id,
+    name: id,
+    email: `${id}@seed.test`,
+    role,
+    systemRole: 'user',
+    banned: false
+  }
 }
 
 function lifecycleLayerFor(
@@ -1061,6 +1076,17 @@ function lifecycleLayerFor(
       return Layer.mergeAll(
         audit,
         SeedAccountLifecycle({ roster, workspace: seedWorkspaceRecord }).pipe(
+          Layer.provide(
+            SeedBilling().pipe(
+              Layer.provide(BillingAuditLayer),
+              Layer.provide(BillingNotificationLayer),
+              Layer.provide(
+                BillingWebhookLayer.pipe(Layer.provide(SeedWebhookPublisher))
+              ),
+              Layer.provide(audit),
+              Layer.provide(feed)
+            )
+          ),
           Layer.provide(SeedAssistantDirectory),
           Layer.provide(audit),
           Layer.provide(suspension)

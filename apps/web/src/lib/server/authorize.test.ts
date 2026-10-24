@@ -52,7 +52,7 @@ const workspace: Workspace = {
 }
 
 function actor(role: WorkspaceRole): Actor {
-  return { userId: `usr_${role}`, role, systemRole: 'user' }
+  return { userId: `usr_${role}`, role, systemRole: 'user', banned: false }
 }
 
 const suspensionLayer = SeedWorkspaceSuspension({
@@ -222,7 +222,8 @@ describe('requireWorkspacePermission', () => {
       const systemAdminMember: Actor = {
         userId: 'usr_sysadmin',
         role: 'member',
-        systemRole: 'admin'
+        systemRole: 'admin',
+        banned: false
       }
       expect(yield* decide(systemAdminMember, { apiToken: ['create'] })).toBe(
         'insufficient_permission'

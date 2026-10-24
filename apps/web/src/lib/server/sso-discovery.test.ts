@@ -91,6 +91,24 @@ describe('validateSamlMetadata', () => {
 describe('resolveOidcIssuer', () => {
   afterEach(() => vi.unstubAllGlobals())
 
+  it.effect('the vendor refuses private discovery hosts before fetch', () =>
+    Effect.gen(function* () {
+      const fetchSpy = vi.fn()
+      vi.stubGlobal('fetch', fetchSpy)
+      for (const host of [
+        '127.0.0.1',
+        '10.0.0.1',
+        '[::1]',
+        'localhost',
+        'localhost.'
+      ]) {
+        const failure = yield* Effect.flip(resolveOidcIssuer(`https://${host}`))
+        expect(failure.code).toBe('discovery_unreachable')
+      }
+      expect(fetchSpy).not.toHaveBeenCalled()
+    })
+  )
+
   it.effect('fails discovery_unreachable for an issuer nothing answers', () =>
     Effect.gen(function* () {
       // No network in tests: `.invalid` never resolves, which is the same

@@ -17,6 +17,7 @@ function stubBilling(
   return Layer.succeed(Billing)({
     configured: Effect.succeed(true),
     currentPlanForWorkspace: () => Effect.die('unused'),
+    workspaceDeletionAllowed: () => Effect.die('unused'),
     lifecycleStatus: Effect.die('unused'),
     displayedPlans: Effect.die('unused'),
     currentPlan: Effect.die('unused in billing DLQ tests'),

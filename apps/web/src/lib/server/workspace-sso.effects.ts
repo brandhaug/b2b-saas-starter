@@ -1,6 +1,5 @@
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
-import { isSecureEndpoint } from '@b2b-saas-starter/env/transport'
 import {
   SsoConnections,
   type SsoConnection,
@@ -24,6 +23,7 @@ import { requestOrigin } from './request-origin'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
 import { webSsoBinding } from './sso-binding'
+import { rejectClientMetadataUrl } from './client-metadata-fetch'
 import {
   resolveOidcIssuer,
   validateSamlMetadata,
@@ -112,7 +112,8 @@ function loadSamlMetadata(
     return Effect.succeed(input.metadataXml)
   }
   const url = input.metadataUrl ?? ''
-  if (!isSecureEndpoint(url)) {
+  // SAML metadata uses the same public HTTPS fetch policy as client metadata.
+  if (rejectClientMetadataUrl(url) !== null) {
     return Effect.fail({
       code: 'saml_metadata_invalid',
       message: m.server_metadata_fetch_failed()

@@ -115,6 +115,9 @@ export function causeMessage(thrown: unknown, fallback: string): string {
     case 'workspace_suspended': {
       return m.workspace_suspended_member_notice()
     }
+    case 'workspace_billing_obligations': {
+      return m.workspace_billing_delete_blocked()
+    }
     case 'plan_limit': {
       if (
         'planId' in details &&

@@ -183,7 +183,7 @@
   "public_auth_verification_failed": "Verification failed",
   "public_auth_delete_failed": "Could not delete the account",
   "public_auth_delete_password_rejected": "That password is not correct.",
-  "public_auth_delete_blocked": "Transfer ownership of your workspaces before deleting your account.",
+  "public_auth_delete_blocked": "A workspace is blocking account deletion. Reload this page to review it.",
   "public_auth_seeded_database_hint": "Seeded the local database? Sign in with",
   "public_auth_member_hint": "Or as a plain member, to see the role-gated view:",
   "public_auth_open_seeded_workspace": "Open seeded workspace instead",

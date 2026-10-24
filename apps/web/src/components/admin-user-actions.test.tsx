@@ -27,7 +27,8 @@ const membership: WorkspaceWithMembership = {
     name: 'Dev Member',
     email: 'dev@starter.local',
     role: 'member',
-    systemRole: 'user'
+    systemRole: 'user',
+    banned: false
   }
 }
 

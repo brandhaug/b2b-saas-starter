@@ -197,6 +197,109 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('auth HTTP handler', () => {
+  // Failure mode: a completed admin mutation loses its recovery evidence when
+  // audit processing stalls and the request ends before the append is attempted.
+  it.each([
+    { endpoint: admin().endpoints.banUser, kind: 'account_banned' },
+    { endpoint: admin().endpoints.setRole, kind: 'system_role_changed' }
+  ])(
+    'records $endpoint.path recovery evidence before waiting for audit',
+    async ({ endpoint, kind }) => {
+      const order: Array<string> = []
+      // oxlint-disable-next-line func-style -- the Promise constructor replaces this mutable resolver synchronously
+      let markAuditStarted: () => void = () => undefined
+      const auditStarted = new Promise<void>((resolve) => {
+        markAuditStarted = resolve
+      })
+      // oxlint-disable-next-line func-style -- the Promise constructor replaces this mutable resolver synchronously
+      let releaseAudit: (result: string) => void = () => undefined
+      const auditCompletion = new Promise<string>((resolve) => {
+        releaseAudit = resolve
+      })
+      state.plugin.mockReturnValue(
+        Effect.sync(() => {
+          order.push('mutation')
+          return new Response('{}')
+        })
+      )
+      state.twoFactor.mockReturnValue(
+        Effect.sync(() => {
+          order.push('final_response')
+          return null
+        })
+      )
+      state.evidence.mockReturnValue(
+        Effect.sync(() => {
+          order.push('evidence')
+        })
+      )
+      state.audit.mockReturnValue(
+        Effect.promise(() => {
+          order.push('audit')
+          markAuditStarted()
+          return auditCompletion
+        })
+      )
+      state.ssoAudit.mockReturnValue(
+        Effect.sync(() => {
+          order.push('sso_audit')
+        })
+      )
+      state.notification.mockReturnValue(
+        Effect.sync(() => {
+          order.push('notification')
+        })
+      )
+      const pending = handleAuth(
+        new Request(`https://example.test/api/auth${endpoint.path}`, {
+          method: 'POST',
+          body: JSON.stringify({ userId: 'usr_target', role: 'user' })
+        })
+      )
+      try {
+        await auditStarted
+        expect([...order]).toEqual(['mutation', 'final_response', 'evidence', 'audit'])
+        expect(state.evidence).toHaveBeenCalledExactlyOnceWith(kind, 'usr_target')
+        expect(state.ssoAudit).not.toHaveBeenCalled()
+        expect(state.notification).not.toHaveBeenCalled()
+      } finally {
+        releaseAudit('skipped')
+        await pending
+      }
+      expect(order).toEqual([
+        'mutation',
+        'final_response',
+        'evidence',
+        'audit',
+        'sso_audit',
+        'notification'
+      ])
+    }
+  )
+
+  it.each([
+    { endpoint: admin().endpoints.banUser, kind: 'account_banned' },
+    { endpoint: admin().endpoints.setRole, kind: 'system_role_changed' }
+  ])(
+    'emits target evidence only for successful $endpoint.path responses',
+    async ({ endpoint, kind }) => {
+      function makeRequest() {
+        return new Request(`https://example.test/api/auth${endpoint.path}`, {
+          method: 'POST',
+          body: JSON.stringify({ userId: 'usr_target', role: 'user' })
+        })
+      }
+      const success = await handleAuth(makeRequest())
+      expect(success.status).toBe(200)
+      expect(state.evidence).toHaveBeenCalledExactlyOnceWith(kind, 'usr_target')
+      state.evidence.mockClear()
+      state.plugin.mockReturnValue(Effect.succeed(new Response('{}', { status: 400 })))
+      const failure = await handleAuth(makeRequest())
+      expect(failure.status).toBe(400)
+      expect(state.evidence).not.toHaveBeenCalled()
+    }
+  )
+
   it('resolves the actual admin endpoint sessionToken before deletion and shares its target', async () => {
     const endpoint = admin().endpoints.revokeUserSession
     state.plugin.mockImplementation(() => {

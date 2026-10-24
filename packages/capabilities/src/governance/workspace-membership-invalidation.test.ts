@@ -104,7 +104,12 @@ for (const operation of ['changeRole', 'removeMember', 'leave']) {
           ),
           Effect.provideService(WorkspaceContext, {
             workspace: seedWorkspaceRecord,
-            actor: { userId: demoUserIdentity.id, role: 'owner', systemRole: 'admin' },
+            actor: {
+              userId: demoUserIdentity.id,
+              role: 'owner',
+              systemRole: 'admin',
+              banned: false
+            },
             actorType: 'user'
           })
         )

@@ -6,7 +6,8 @@ import {
 } from './developer-platform/assistant-conversation-transport.ts'
 import { layerFromD1 } from '@b2b-saas-starter/db/service'
 import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
-import { Layer } from 'effect'
+import { Effect, Layer } from 'effect'
+import { PlatformUserAdmin } from './governance/platform-user-admin.ts'
 import { type SeatSyncQueueBinding } from '@b2b-saas-starter/billing/seat-sync'
 import { type WebhookQueueBinding } from './developer-platform/webhook-publisher.ts'
 import { type NotificationEmailQueueBinding } from './notifications/notification-email-queue.ts'
@@ -150,18 +151,57 @@ export function selectCapabilitiesLayer(env: StarterEnv): CapabilitiesLayer {
 export function selectWorkspaceContextLayer(
   env: StarterEnv,
   slug: string,
+  actor: undefined,
+  actorType: AuditActorTypeValue
+): Layer.Layer<WorkspaceServices, WorkspaceNotFound | CapabilityUnavailable>
+export function selectWorkspaceContextLayer(
+  env: StarterEnv,
+  slug: string,
   actor: ActorRef | undefined,
   actorType: AuditActorTypeValue
-): Layer.Layer<WorkspaceServices, WorkspaceNotFound | CapabilityUnavailable> {
+): Layer.Layer<
+  WorkspaceServices,
+  WorkspaceNotFound | CapabilityUnavailable,
+  PlatformUserAdmin
+>
+export function selectWorkspaceContextLayer(
+  env: StarterEnv,
+  slug: string,
+  actor: ActorRef | undefined,
+  actorType: AuditActorTypeValue
+): Layer.Layer<
+  WorkspaceServices,
+  WorkspaceNotFound | CapabilityUnavailable,
+  PlatformUserAdmin
+> {
   if (env.DB === undefined) {
-    // Passing `seedMembers` makes the seed path enforce the same actor
-    // membership semantics as the live path (fixture members allowed).
-    return seedWorkspaceContext(
-      seedWorkspaceRecord,
-      slug,
-      actor,
-      seedMembers,
-      actorType
+    if (actor === undefined) {
+      return seedWorkspaceContext(
+        seedWorkspaceRecord,
+        slug,
+        actor,
+        seedMembers,
+        actorType
+      )
+    }
+    // Account restrictions come from the same mutable service administration
+    // writes, rather than the initial fixture copied into seedMembers.
+    return Layer.unwrap(
+      Effect.gen(function* () {
+        const accounts = yield* (yield* PlatformUserAdmin).listUsers
+        const account = accounts.find((candidate) => candidate.id === actor.userId)
+        const member = seedMembers.find((candidate) => candidate.id === actor.userId)
+        if (!account || !member) {
+          return seedWorkspaceContext(seedWorkspaceRecord, slug, actor, [], actorType)
+        }
+        return seedWorkspaceContext(
+          seedWorkspaceRecord,
+          slug,
+          actor,
+          [{ ...member, banned: account.banned, systemRole: account.systemRole }],
+          actorType
+        )
+      })
     )
   }
   return liveWorkspaceContext(slug, actor, actorType).pipe(
@@ -185,11 +225,8 @@ export function selectWorkspaceLayer(
   WorkspaceNotFound | CapabilityUnavailable
 > {
   if (env.DB === undefined) {
-    // Passing `seedMembers` makes the seed path enforce the same actor
-    // membership semantics as the live path (fixture members allowed).
-    return Layer.merge(
-      SeedLayer,
-      seedWorkspaceContext(seedWorkspaceRecord, slug, actor, seedMembers, actorType)
+    return selectWorkspaceContextLayer(env, slug, actor, actorType).pipe(
+      Layer.provideMerge(SeedLayer)
     )
   }
   return Layer.mergeAll(

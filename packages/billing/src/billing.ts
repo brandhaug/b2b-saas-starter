@@ -209,6 +209,10 @@ export type DisplayedPlan = Plan & {
 }
 
 export type BillingInterface = {
+  /** Conservative local gate: no nonterminal subscription, open checkout, or unresolved synchronization. */
+  readonly workspaceDeletionAllowed: (
+    workspaceId: string
+  ) => Effect.Effect<boolean, CapabilityUnavailable>
   /**
    * Whether checkout is actually wired: the Stripe secret key is set and
    * every self-serve plan's price id is configured. One definition of

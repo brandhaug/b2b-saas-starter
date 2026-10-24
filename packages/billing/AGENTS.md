@@ -18,5 +18,6 @@ Stripe lifecycle, checkout recovery, seat billing, and resource entitlements (AD
 - Stripe periods belong to subscription items; trial end is nullable. Configured prices must be single-month or single-year licensed, per-unit prices; each must match its configured interval. Display provider amounts using Stripe's currency units.
 - Seats count current members, including owners/admins. Invitations do not count. Membership queues quantity synchronization; additions and removals use next-invoice prorations.
 - Cancellation retains the customer for invoice history. Restricting product access must preserve authorized billing recovery.
+- `workspaceDeletionAllowed` refuses nonterminal subscriptions, pending/created checkout claims, unresolved synchronization or held leases, and unresolved provider events, even when Stripe is unconfigured. Local checkout expiry alone is not provider evidence. D1 deletion-fence triggers serialize this decision with billing claims and leases; keep their predicates aligned with the Live gate.
 
 Resource selection invariants live in [resource-entitlements](src/resource-entitlements.AGENTS.md). Package tests cover provider and pure decision logic; capabilities retains D1 and application-composition tests. Seed billing reads a supplied members effect so it observes the same mutable roster as invitations and membership.

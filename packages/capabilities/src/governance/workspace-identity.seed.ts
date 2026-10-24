@@ -25,7 +25,8 @@ export const demoUserIdentity: Member = {
   name: 'Demo Admin',
   email: 'demo@starter.local',
   role: 'owner',
-  systemRole: 'admin'
+  systemRole: 'admin',
+  banned: false
 }
 
 /**
@@ -39,7 +40,8 @@ export const demoMemberIdentity: Member = {
   name: 'Product Engineer',
   email: 'engineer@example.com',
   role: 'member',
-  systemRole: 'user'
+  systemRole: 'user',
+  banned: false
 }
 
 export const seedMembers: ReadonlyArray<Member> = [
@@ -49,14 +51,16 @@ export const seedMembers: ReadonlyArray<Member> = [
     name: 'Martin Brandhaug',
     email: 'martin@example.com',
     role: 'owner',
-    systemRole: 'admin'
+    systemRole: 'admin',
+    banned: false
   },
   {
     id: 'usr_ops',
     name: 'Ops Lead',
     email: 'ops@example.com',
     role: 'admin',
-    systemRole: 'user'
+    systemRole: 'user',
+    banned: false
   },
   demoMemberIdentity
 ]

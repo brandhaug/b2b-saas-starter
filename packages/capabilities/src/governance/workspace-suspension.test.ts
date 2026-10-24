@@ -1,4 +1,10 @@
 import { SeedAssistantDirectory } from '../assistant/directory.seed.ts'
+import { SeedBilling } from '@b2b-saas-starter/billing/billing.seed'
+import {
+  AuditEventLog as BillingAudit,
+  NotificationFeed as BillingNotifications,
+  BillingWebhookPublisher
+} from '@b2b-saas-starter/billing/ports'
 import { Effect, Layer, Ref } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 import { SeedWorkspaceSuspension } from './workspace-suspension.seed.ts'
@@ -131,13 +137,29 @@ describe('seed workspace suspension', () => {
     }).pipe(
       Effect.provide(
         SeedWorkspaceLifecycle({ workspace: options.workspace }).pipe(
+          Layer.provide(
+            SeedBilling().pipe(
+              Layer.provide(
+                Layer.mergeAll(
+                  Layer.mock(BillingAudit, {}),
+                  Layer.mock(BillingNotifications, {}),
+                  Layer.mock(BillingWebhookPublisher, {})
+                )
+              )
+            )
+          ),
           Layer.provide(SeedAssistantDirectory),
           Layer.provideMerge(layer)
         )
       ),
       Effect.provideService(WorkspaceContext, {
         workspace: options.workspace,
-        actor: { userId: 'usr_owner', role: 'owner', systemRole: 'user' },
+        actor: {
+          userId: 'usr_owner',
+          role: 'owner',
+          systemRole: 'user',
+          banned: false
+        },
         actorType: 'user'
       })
     )

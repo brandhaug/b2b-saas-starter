@@ -7,6 +7,9 @@ import { describe, expect, it, vi } from 'vite-plus/test'
 import { ForbiddenError } from './capability-error'
 import { runWorkspaceCapabilities } from './capabilities'
 import { requireWorkspacePermission } from './server/authorize'
+import { WorkspaceChangeRejected } from '@b2b-saas-starter/capabilities/errors'
+import { causeMessage } from './cause-message'
+import { uiErrorAdapter } from './ui-error'
 
 vi.mock('./server/auth', () => fixtureAuthModule({}, { userId: 'usr_martin' }))
 
@@ -32,6 +35,26 @@ function createToken(userId: string) {
 }
 
 describe('runWorkspaceCapabilities authorization', () => {
+  it('serializes a billing deletion refusal without exposing diagnostics', async () => {
+    const refusal = await runWorkspaceCapabilities(
+      'starter-lab',
+      Effect.fail(new WorkspaceChangeRejected({ reason: 'billing_obligations' })),
+      { userId: 'usr_martin' }
+    ).catch((error: unknown) => error)
+    expect(refusal).toMatchObject({
+      code: 'workspace_billing_obligations',
+      details: {}
+    })
+    if (uiErrorAdapter.test(refusal)) {
+      const serialized = uiErrorAdapter.toSerializable(refusal)
+      expect(
+        causeMessage(uiErrorAdapter.fromSerializable(serialized), 'fallback')
+      ).toBe(
+        'This workspace has unresolved billing activity. Review billing or contact support before deleting it.'
+      )
+    }
+  })
+
   it('lets the workspace owner create a token', async () => {
     const created = await createToken('usr_martin')
     expect(created.token).toBeTruthy()

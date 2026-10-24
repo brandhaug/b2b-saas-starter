@@ -410,6 +410,11 @@ export const authorizeMcpOperation = Effect.fn('Mcp.authorizeOperation')(functio
         reason: AUTHORIZATION_DENIED_REASONS.noPrincipal
       })
     }
+    if (ctx.actor.banned) {
+      return yield* new AuthorizationDenied({
+        reason: AUTHORIZATION_DENIED_REASONS.insufficientPermission
+      })
+    }
     principal = memberPrincipal(ctx.actor.role)
     const token = caller.token
     if (

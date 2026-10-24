@@ -57,13 +57,15 @@ import {
 const owner: Actor = {
   userId: demoUserIdentity.id,
   role: 'owner',
-  systemRole: 'admin'
+  systemRole: 'admin',
+  banned: false
 }
 
 const member: Actor = {
   userId: demoMemberIdentity.id,
   role: 'member',
-  systemRole: 'user'
+  systemRole: 'user',
+  banned: false
 }
 
 const ownerLayer = Layer.merge(

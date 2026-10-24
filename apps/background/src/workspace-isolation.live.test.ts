@@ -752,6 +752,13 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
       () =>
         Effect.gen(function* () {
           const { a, b } = yield* twoWorkspaces('requester-removed')
+          const db = yield* Database
+          yield* db.insert(workspaceMembers).values({
+            id: 'mem_export_remaining_owner',
+            workspaceId: a.id,
+            userId: 'usr_bystander',
+            role: 'owner'
+          })
           const ports = queuePorts()
           const DB = yield* TestD1
           const env = { DB, ...ports.env }
@@ -761,7 +768,6 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             { userId: a.userId },
             ports.bindings
           )
-          const db = yield* Database
           yield* db
             .delete(workspaceMembers)
             .where(eq(workspaceMembers.id, `mem_${a.id}`))
@@ -773,7 +779,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           expect(decodeJson(text)).toMatchObject({
             exportId: job.id,
             workspace: { id: a.id },
-            members: []
+            members: [{ id: 'usr_bystander', role: 'owner' }]
           })
           expect(text).not.toContain('outsider@live.test')
           const denied = yield* inWorkspace(

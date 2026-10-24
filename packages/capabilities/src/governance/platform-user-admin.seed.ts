@@ -11,6 +11,10 @@ import {
   type SystemUserAccount
 } from './platform-user-admin.ts'
 import { type WorkspaceRole } from './workspace-identity.ts'
+import {
+  recordSecurityEvidence,
+  type SecurityEvidenceSink
+} from './security-recovery-evidence.ts'
 
 /**
  * In-memory accounts, never Better Auth. Built from the fixture members so the
@@ -28,7 +32,8 @@ export type SeedMembership = {
 
 export function SeedPlatformUserAdmin(
   users: ReadonlyArray<SystemUserAccount>,
-  memberships: ReadonlyArray<SeedMembership> = []
+  memberships: ReadonlyArray<SeedMembership> = [],
+  evidenceSink?: SecurityEvidenceSink
 ): Layer.Layer<PlatformUserAdmin, never, AuditEventLog | NotificationFeed> {
   return Layer.effect(
     PlatformUserAdmin,
@@ -73,6 +78,11 @@ export function SeedPlatformUserAdmin(
           Effect.gen(function* () {
             yield* requireAccount(input.userId)
             yield* setBanned(input.userId, true)
+            yield* recordSecurityEvidence(
+              { kind: 'account_banned', subjectId: input.userId },
+              evidenceSink,
+              'seed'
+            )
             // Same events as Live, recorded after the in-memory write.
             yield* audit.record({
               actorUserId: input.actorUserId,
@@ -105,12 +115,22 @@ export function SeedPlatformUserAdmin(
               )
             }
             yield* Ref.update(overrides, (map) => new Map(map).set(key, input.role))
+            yield* recordSecurityEvidence(
+              {
+                kind: 'workspace_access_removed',
+                subjectId: input.userId,
+                workspaceId: input.workspaceId
+              },
+              evidenceSink,
+              'seed'
+            )
             const member = {
               id: account.id,
               name: account.name,
               email: account.email,
               role: input.role,
-              systemRole: account.systemRole
+              systemRole: account.systemRole,
+              banned: account.banned
             }
             // Recorded after the write and its read-back, like Live.
             yield* audit.record({

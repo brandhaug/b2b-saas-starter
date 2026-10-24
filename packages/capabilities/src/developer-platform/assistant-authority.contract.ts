@@ -39,7 +39,12 @@ export const authorityState: AssistantAuthorityState = {
       name: 'Authority',
       planId: 'free'
     },
-    actor: { userId: 'usr_authority', role: 'member', systemRole: 'user' },
+    actor: {
+      userId: 'usr_authority',
+      role: 'member',
+      systemRole: 'user',
+      banned: false
+    },
     actorType: 'user'
   },
   banned: false,

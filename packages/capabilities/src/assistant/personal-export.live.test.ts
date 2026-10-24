@@ -37,6 +37,14 @@ describe('personal conversation archive invalidation', () => {
               const directory = yield* AssistantDirectory
               const exports = yield* PersonalDataExports
               const now = yield* Clock.currentTimeMillis
+              // The subject can lose and regain its role while another owner
+              // keeps the workspace owned throughout the invalidation test.
+              yield* db.insert(workspaceMembers).values({
+                id: 'mem_export_stable_owner',
+                workspaceId: 'wrk_live',
+                userId: 'usr_sysadmin',
+                role: 'owner'
+              })
               yield* db.insert(session).values({
                 id: 'conversation-export-session',
                 userId: 'usr_owner',

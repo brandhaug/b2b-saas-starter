@@ -66,6 +66,7 @@ import {
 } from 'effect/ai/McpSchema'
 
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
+import { PlatformUserAdmin } from '@b2b-saas-starter/capabilities/governance/platform-user-admin'
 
 import {
   authorizeMcpOperation,
@@ -399,7 +400,11 @@ function bridgedRead(
     CapabilityReadError,
     CapabilityReadServices | McpClientConnections | WorkspaceContext
   >
-): Effect.Effect<ToolOutcome, never, CapabilityReadServices | McpClientConnections> {
+): Effect.Effect<
+  ToolOutcome,
+  never,
+  CapabilityReadServices | McpClientConnections | PlatformUserAdmin
+> {
   return Effect.result(
     provideWorkspace(
       env,
@@ -465,10 +470,11 @@ function registerTools(env: ApiEnv) {
     // The isolate-level capability services, captured once: tool invocations
     // resolve them from this context rather than rebuilding any graph.
     const services = (yield* Effect.context<
-      CapabilityReadServices | McpClientConnections
+      CapabilityReadServices | McpClientConnections | PlatformUserAdmin
     >()).pipe(
       Context.pick(
         NotificationFeed,
+        PlatformUserAdmin,
         WorkspaceMembership,
         ApiTokenRegistry,
         WebhookEndpoints,
@@ -547,9 +553,11 @@ function registerMutationTools(env: ApiEnv) {
       | ApiTokenRegistry
       | OAuthTokenVerifier
       | McpClientConnections
+      | PlatformUserAdmin
     >()).pipe(
       Context.pick(
         ApiTokenRegistry,
+        PlatformUserAdmin,
         WebhookEndpoints,
         WorkspaceExports,
         WorkspaceSuspensionService,
@@ -807,6 +815,7 @@ export function mcpProtocolLayer(
   | CapabilityReadServices
   | CapabilityMutationServices
   | McpClientConnections
+  | PlatformUserAdmin
   | GateServices
 > {
   const gate = HttpRouter.middleware(makeGate(env)).layer
@@ -817,6 +826,7 @@ export function mcpProtocolLayer(
     | CapabilityMutationServices
     | McpClientConnections
     | RateLimiter
+    | PlatformUserAdmin
     | OAuthTokenVerifier
   > = Layer.effectDiscard(
     Effect.gen(function* () {

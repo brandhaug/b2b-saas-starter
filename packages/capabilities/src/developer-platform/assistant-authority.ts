@@ -301,7 +301,8 @@ export function LiveAssistantAuthority(
               actor: {
                 userId: identity.user.id,
                 role: identity.member.role,
-                systemRole: identity.user.role ?? 'user'
+                systemRole: identity.user.role ?? 'user',
+                banned: identity.user.banned ?? false
               },
               actorType: 'user'
             },

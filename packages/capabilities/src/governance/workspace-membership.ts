@@ -116,9 +116,10 @@ type MembershipRefusalReason =
 type MembershipChangeIntent = 'remove' | 'change_role' | 'leave'
 
 /**
- * The ownership rules the organization plugin enforces on its member
- * endpoints, written once so both adapters refuse identically and with a
- * machine reason. The rule is what the store enforces, stated in the
+ * The ownership rules required by workspace membership, written once so both
+ * adapters refuse identically and with a machine reason. D1 triggers enforce
+ * the last-owner rule during plugin writes; plugin preflight reads alone are
+ * not atomic. The rule is what the store enforces, stated in the
  * capability — the same shape as `planAccountDeletion`, for the same reason:
  * deriving it here keeps the Seed adapter (which has no plugin) honest and
  * spares callers message-text matching. It is not authorization: who may ask
@@ -234,6 +235,44 @@ export function SeedWorkspaceMembership(
       const publisher = yield* WebhookPublisher
       const conversations = yield* AssistantDirectory
 
+      const commitRosterChange = Effect.fn('WorkspaceMembership.commitRosterChange')(
+        function* (
+          intent: MembershipChangeIntent,
+          userId: string,
+          policy: {
+            readonly actorRole: WorkspaceRole | null
+            readonly nextRole?: WorkspaceRole
+          },
+          update: (rows: ReadonlyArray<Member>) => ReadonlyArray<Member>
+        ) {
+          const refusal = yield* Ref.modify(
+            roster,
+            (
+              rows
+            ): readonly [MembershipRefusalReason | null, ReadonlyArray<Member>] => {
+              const target = rows.find((member) => member.id === userId)
+              let actorRole = policy.actorRole
+              if (intent === 'leave') {
+                actorRole = target?.role ?? null
+              }
+              const reason = refuseMembershipChange(intent, {
+                ...policy,
+                actorRole,
+                targetRole: target?.role ?? null,
+                ownerCount: ownerCountOf(rows)
+              })
+              if (reason !== null) {
+                return [reason, rows]
+              }
+              return [null, update(rows)]
+            }
+          )
+          if (refusal !== null) {
+            return yield* Effect.fail(new MembershipChangeRejected({ reason: refusal }))
+          }
+        }
+      )
+
       return {
         listMembers: Effect.fn('WorkspaceMembership.listMembers')(() =>
           Ref.get(roster)
@@ -287,8 +326,11 @@ export function SeedWorkspaceMembership(
             { workspaceId: workspace.id, creatorUserId: input.userId },
             { interruptRuns: true }
           )
-          yield* Ref.update(roster, (rows) =>
-            rows.filter((candidate) => candidate.id !== input.userId)
+          yield* commitRosterChange(
+            'remove',
+            input.userId,
+            { actorRole: ctx.actor?.role ?? null },
+            (rows) => rows.filter((candidate) => candidate.id !== input.userId)
           )
           yield* recordSecurityEvidence(
             {
@@ -347,7 +389,7 @@ export function SeedWorkspaceMembership(
             { workspaceId: workspace.id, creatorUserId: own.id },
             { interruptRuns: true }
           )
-          yield* Ref.update(roster, (rows) =>
+          yield* commitRosterChange('leave', own.id, { actorRole: own.role }, (rows) =>
             rows.filter((member) => member.id !== own.id)
           )
           yield* recordSecurityEvidence(
@@ -413,13 +455,17 @@ export function SeedWorkspaceMembership(
             { interruptRuns: true }
           )
           const promoted: Member = { ...member, role: input.role }
-          yield* Ref.update(roster, (rows) =>
-            rows.map((candidate) => {
-              if (candidate.id === input.userId) {
-                return promoted
-              }
-              return candidate
-            })
+          yield* commitRosterChange(
+            'change_role',
+            input.userId,
+            { actorRole: ctx.actor?.role ?? null, nextRole: input.role },
+            (rows) =>
+              rows.map((candidate) => {
+                if (candidate.id === input.userId) {
+                  return promoted
+                }
+                return candidate
+              })
           )
           // A role change can strip authority the old role carried, so the
           // Live adapter files the same removal evidence — the fixture must

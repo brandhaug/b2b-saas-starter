@@ -27,7 +27,7 @@ function runDeleteAccount(input: { readonly password: string }) {
  * Self-service account deletion for the signed-in user. The plan arrives from
  * the route's loader (the capability computed it); the panel renders its
  * consequences and owns one password confirmation. A blocked plan shows the
- * workspaces to fix first, with a link to each one's members page, and no
+ * workspaces to fix first, with links to members or billing settings, and no
  * delete control — the server refuses regardless, this is presentation.
  *
  * Success ends the session server-side (the endpoint revokes every session),
@@ -66,6 +66,9 @@ export function DeleteAccountPanel({
     const suspended = plan.steps.filter(
       (step) => step.action === 'blocked_suspended_workspace'
     )
+    const billingBlocked = plan.steps.filter(
+      (step) => step.action === 'blocked_billing_workspace'
+    )
     return (
       <section className="grid gap-4" aria-label={m.panel_delete_account()}>
         <div
@@ -97,6 +100,22 @@ export function DeleteAccountPanel({
                   {m.account_suspended_workspace_warning({
                     workspace: step.workspace.name
                   })}
+                </li>
+              ))}
+              {billingBlocked.map((step) => (
+                <li key={step.workspace.id}>
+                  <p>
+                    {m.account_billing_workspace_warning({
+                      workspace: step.workspace.name
+                    })}
+                  </p>
+                  <Link
+                    to="/workspaces/$workspaceSlug/billing"
+                    params={{ workspaceSlug: step.workspace.slug }}
+                    className="text-primary underline underline-offset-2"
+                  >
+                    {step.workspace.name}
+                  </Link>
                 </li>
               ))}
             </ul>

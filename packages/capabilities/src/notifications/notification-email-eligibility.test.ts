@@ -308,7 +308,8 @@ describe('NotificationEmailEligibility', () => {
           testWorkspaceContext(seedWorkspaceRecord, {
             userId: 'usr_demo',
             role: 'owner',
-            systemRole: 'admin'
+            systemRole: 'admin',
+            banned: false
           })
         )
       )
@@ -350,7 +351,8 @@ describe('NotificationEmailEligibility', () => {
           testWorkspaceContext(seedWorkspaceRecord, {
             userId: 'usr_demo',
             role: 'owner',
-            systemRole: 'admin'
+            systemRole: 'admin',
+            banned: false
           })
         )
       )

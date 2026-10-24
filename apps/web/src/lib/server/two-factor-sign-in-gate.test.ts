@@ -52,6 +52,22 @@ describe('path matchers', () => {
 })
 
 describe('isSessionMintingSuccess', () => {
+  it.each([
+    { method: 'GET', pathname: '/api/auth/verify-email' },
+    { method: 'POST', pathname: '/api/auth/email-otp/verify-email' }
+  ])('gates mailbox verification session creation: $pathname', (exchange) => {
+    expect(isSessionMintingSuccess(exchange, new Response(null, { status: 200 }))).toBe(
+      true
+    )
+    expect(isSessionMintingSuccess(exchange, new Response(null, { status: 400 }))).toBe(
+      false
+    )
+    expect(twoFactorRefusal(exchange)?.status).toBe(
+      exchange.method === 'GET' ? 302 : 403
+    )
+    expect(twoFactorRefusal(exchange)?.headers.getSetCookie()).toHaveLength(0)
+  })
+
   it('takes only success shapes — every failure passes through untouched', () => {
     expect(
       isSessionMintingSuccess(EMAIL_OTP, new Response(null, { status: 200 }))

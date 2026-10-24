@@ -1,4 +1,10 @@
-import { auditEvents, workspaces } from '@b2b-saas-starter/db/schema'
+import {
+  auditEvents,
+  billingCheckoutClaims,
+  workspaceSubscriptions,
+  workspaceMembers,
+  workspaces
+} from '@b2b-saas-starter/db/schema'
 import { Database, RawD1 } from '@b2b-saas-starter/db/service'
 import { Effect } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'
@@ -19,6 +25,65 @@ import { workspaceLifecycleContractCases } from './workspace-lifecycle.contract.
 layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
   'live workspace lifecycle',
   (it) => {
+    for (const obligation of ['subscription', 'checkout']) {
+      it.effect(
+        `refuses deletion with an unresolved ${obligation} before plugin teardown`,
+        () =>
+          Effect.gen(function* () {
+            const db = yield* Database
+            const id = `wrk_delete_${obligation}`
+            yield* db.insert(workspaces).values({ id, slug: id, name: id })
+            yield* db.insert(workspaceMembers).values({
+              id: `mem_${id}`,
+              workspaceId: id,
+              userId: 'usr_owner',
+              role: 'owner'
+            })
+            if (obligation === 'subscription') {
+              yield* db.insert(workspaceSubscriptions).values({
+                workspaceId: id,
+                stripeCustomerId: `cus_${id}`,
+                stripeSubscriptionId: `sub_${id}`,
+                status: 'active',
+                updatedAt: '2026-01-01T00:00:00.000Z'
+              })
+            } else {
+              yield* db.insert(billingCheckoutClaims).values({
+                id: `checkout_${id}`,
+                workspaceId: id,
+                planId: 'team',
+                idempotencyKey: id,
+                priceId: 'price_test',
+                quantity: 1,
+                successUrl: 'https://example.com/success',
+                cancelUrl: 'https://example.com/cancel',
+                status: 'created',
+                expiresAt: '2020-01-01T00:00:00.000Z',
+                createdAt: '2020-01-01T00:00:00.000Z',
+                updatedAt: '2020-01-01T00:00:00.000Z'
+              })
+            }
+            const { binding, calls } = fakeLifecycleBinding(db)
+            const failure = yield* inWorkspace(
+              id,
+              Effect.flatMap(WorkspaceLifecycle, (lifecycle) => lifecycle.remove),
+              { userId: 'usr_owner' },
+              { lifecycleBinding: binding }
+            ).pipe(Effect.flip)
+            expect(failure).toMatchObject({
+              _tag: 'WorkspaceChangeRejected',
+              reason: 'billing_obligations'
+            })
+            expect(calls).toHaveLength(0)
+            expect(
+              yield* db
+                .select()
+                .from(workspaceMembers)
+                .where(eq(workspaceMembers.workspaceId, id))
+            ).toHaveLength(1)
+          })
+      )
+    }
     // The Seed half of this same list runs in index.test.ts.
     describe('live workspace lifecycle contract', () => {
       const cases = workspaceLifecycleContractCases(

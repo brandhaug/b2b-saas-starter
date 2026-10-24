@@ -77,6 +77,36 @@ const bearer = {
 
 const encodeJsonBody = Schema.encodeSync(Schema.fromJsonString(Schema.Json))
 
+it.effect(
+  'rejects a JSON-RPC batch instead of executing multiple reads per request',
+  () =>
+    Effect.gen(function* () {
+      const client = mcpClient(handler, `Bearer ${SEED_API_TOKEN}`)
+      const { sessionId } = yield* Effect.promise(() => client.initialize())
+      const response = yield* Effect.promise(() =>
+        handler(
+          new Request('https://api.test/mcp', {
+            method: 'POST',
+            headers: {
+              ...bearer,
+              'mcp-session-id': sessionId,
+              'mcp-protocol-version': '2025-11-25'
+            },
+            body: encodeJsonBody(
+              [1, 2].map((id) => ({
+                jsonrpc: '2.0',
+                id,
+                method: 'tools/call',
+                params: { name: 'get_workspace_overview', arguments: {} }
+              }))
+            )
+          })
+        )
+      )
+      expect(response.status).toBe(400)
+    })
+)
+
 function send(request: Request): Effect.Effect<Response> {
   return Effect.promise(() => handler(request))
 }

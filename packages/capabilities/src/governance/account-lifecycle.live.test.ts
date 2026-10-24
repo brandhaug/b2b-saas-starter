@@ -3,12 +3,17 @@ import {
   auditEvents,
   emailDeliveries,
   notifications,
+  oauthAccessToken,
+  oauthClient,
+  oauthConsent,
+  oauthRefreshToken,
   user,
   workspaceMembers,
+  workspaceSubscriptions,
   workspaces
 } from '@b2b-saas-starter/db/schema'
 import { Database, layerFromD1 } from '@b2b-saas-starter/db/service'
-import { Effect, Layer } from 'effect'
+import { DateTime, Effect, Layer } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'
 import { eq, inArray } from 'drizzle-orm'
 
@@ -108,6 +113,55 @@ const contractState = Effect.gen(function* () {
 })
 
 layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (it) => {
+  it.effect(
+    'blocks the whole account plan before teardown when a sole workspace has billing obligations',
+    () =>
+      Effect.gen(function* () {
+        const db = yield* Database
+        const d1 = yield* TestD1
+        yield* db.insert(user).values({
+          id: 'usr_billed_solo',
+          email: 'billed-solo@live.test',
+          name: 'Billed solo'
+        })
+        yield* db
+          .insert(workspaces)
+          .values({ id: 'wrk_billed_solo', slug: 'billed-solo', name: 'Billed solo' })
+        yield* db.insert(workspaceMembers).values({
+          id: 'mem_billed_solo',
+          userId: 'usr_billed_solo',
+          workspaceId: 'wrk_billed_solo',
+          role: 'owner'
+        })
+        yield* db.insert(workspaceSubscriptions).values({
+          workspaceId: 'wrk_billed_solo',
+          stripeCustomerId: 'cus_billed_solo',
+          stripeSubscriptionId: 'sub_billed_solo',
+          status: 'active',
+          updatedAt: '2026-01-01T00:00:00.000Z'
+        })
+        const { binding, calls } = fakeAccountLifecycleBinding(db, {
+          userId: 'usr_billed_solo',
+          password: DELETE_PASSWORD
+        })
+        yield* Effect.gen(function* () {
+          const lifecycle = yield* AccountLifecycle
+          expect(
+            (yield* lifecycle.planDeletion('usr_billed_solo')).steps[0]?.action
+          ).toBe('blocked_billing_workspace')
+          expect(
+            yield* lifecycle.prepareDeletion('usr_billed_solo').pipe(Effect.flip)
+          ).toMatchObject({ _tag: 'AccountDeletionBlocked' })
+          expect(calls).toHaveLength(0)
+          expect(
+            yield* db
+              .select()
+              .from(workspaceMembers)
+              .where(eq(workspaceMembers.userId, 'usr_billed_solo'))
+          ).toHaveLength(1)
+        }).pipe(Effect.provide(accountLifecycleLayer(d1, binding)))
+      })
+  )
   it.effect('blocks indirect deletion of a suspended sole-member workspace', () =>
     Effect.gen(function* () {
       const db = yield* Database
@@ -233,6 +287,43 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
             role: 'owner'
           }
         ])
+        yield* db.insert(oauthClient).values({
+          id: 'client_mixed',
+          clientId: 'mixed-client',
+          userId: 'usr_mixed',
+          redirectUris: ['https://client.example/callback']
+        })
+        yield* db.insert(oauthConsent).values([
+          {
+            id: 'consent_mixed',
+            clientId: 'mixed-client',
+            userId: 'usr_mixed',
+            scopes: ['openid']
+          },
+          {
+            id: 'consent_co_owner',
+            clientId: 'mixed-client',
+            userId: 'usr_co_owner',
+            scopes: ['openid']
+          }
+        ])
+        yield* db.insert(oauthRefreshToken).values({
+          id: 'refresh_mixed',
+          token: 'refresh-mixed',
+          clientId: 'mixed-client',
+          userId: 'usr_mixed',
+          expiresAt: DateTime.toDate(DateTime.makeUnsafe('2030-01-01')),
+          scopes: ['openid']
+        })
+        yield* db.insert(oauthAccessToken).values({
+          id: 'access_mixed',
+          token: 'access-mixed',
+          clientId: 'mixed-client',
+          userId: 'usr_mixed',
+          refreshId: 'refresh_mixed',
+          expiresAt: DateTime.toDate(DateTime.makeUnsafe('2030-01-01')),
+          scopes: ['openid']
+        })
         // Rows the delete must detach: an audit event and an API token that
         // reference the user through restricting foreign keys.
         yield* db.insert(auditEvents).values([
@@ -487,6 +578,36 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
           database.select().from(user).where(eq(user.id, 'usr_mixed'))
         )
         expect(account).toHaveLength(0)
+        expect(
+          yield* db
+            .select()
+            .from(oauthRefreshToken)
+            .where(eq(oauthRefreshToken.userId, 'usr_mixed'))
+        ).toHaveLength(0)
+        expect(
+          yield* db
+            .select()
+            .from(oauthAccessToken)
+            .where(eq(oauthAccessToken.userId, 'usr_mixed'))
+        ).toHaveLength(0)
+        expect(
+          yield* db
+            .select()
+            .from(oauthConsent)
+            .where(eq(oauthConsent.userId, 'usr_mixed'))
+        ).toHaveLength(0)
+        expect(
+          yield* db
+            .select()
+            .from(oauthConsent)
+            .where(eq(oauthConsent.id, 'consent_co_owner'))
+        ).toHaveLength(1)
+        expect(
+          (yield* db
+            .select()
+            .from(oauthClient)
+            .where(eq(oauthClient.id, 'client_mixed')))[0]?.userId
+        ).toBeNull()
         const deletedEvents = yield* Effect.flatMap(Database, (database) =>
           database
             .select()

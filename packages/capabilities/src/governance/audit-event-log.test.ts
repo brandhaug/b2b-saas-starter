@@ -94,7 +94,8 @@ describe('advanced audit views', () => {
       testWorkspaceContext(seedWorkspaceRecord, {
         userId: 'usr_a',
         role: 'owner',
-        systemRole: 'admin'
+        systemRole: 'admin',
+        banned: false
       })
     )
     return Effect.gen(function* () {

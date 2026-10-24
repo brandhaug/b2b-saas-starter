@@ -183,7 +183,7 @@
   "public_auth_verification_failed": "Bekreftelsen mislyktes",
   "public_auth_delete_failed": "Kunne ikke slette kontoen",
   "public_auth_delete_password_rejected": "Passordet er ikke riktig.",
-  "public_auth_delete_blocked": "Overfør eierskapet til arbeidsområdene dine før du sletter kontoen.",
+  "public_auth_delete_blocked": "Et arbeidsområde hindrer sletting av kontoen. Last siden på nytt for å se hva som må løses.",
   "public_auth_seeded_database_hint": "Har du seedet den lokale databasen? Logg inn med",
   "public_auth_member_hint": "Eller som vanlig medlem, for å se den rollebegrensede visningen:",
   "public_auth_open_seeded_workspace": "Åpne seedet arbeidsområde i stedet",

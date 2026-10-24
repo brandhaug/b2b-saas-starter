@@ -85,6 +85,21 @@ async function renderConsent(overrides?: {
 }
 
 describe('OAuthConsentPage', () => {
+  it('shows the client ID even when metadata claims a trusted product name', async () => {
+    await renderConsent({
+      payload: {
+        ...payload,
+        client: {
+          clientId: request.clientId,
+          name: 'Trusted product',
+          uri: 'https://mcp-client.example.com'
+        }
+      }
+    })
+    expect(screen.getByText(request.clientId)).toBeDefined()
+    expect(screen.getByRole('heading', { name: /Trusted product/ })).toBeDefined()
+  })
+
   it('grants with the picked workspace and follows the provider answer', async () => {
     const { grant, assign } = await renderConsent()
     fireEvent.click(screen.getByRole('radio', { name: /Beta/ }))

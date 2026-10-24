@@ -1,4 +1,6 @@
 import {
+  CreateWebhookEndpointPayload,
+  UpdateWebhookEndpointPayload,
   type CreatedWebhookEndpoint,
   type WebhookEndpoint
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
@@ -25,11 +27,8 @@ import { Schema } from 'effect'
 
 const CreateWebhookInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
-  url: Schema.NonEmptyString,
-  // Subscriptions are free-text strings by design (a producer can grow
-  // without a migration); the management UI narrows them to the checkbox
-  // vocabulary, the wire contract does not.
-  events: Schema.NonEmptyArray(Schema.NonEmptyString)
+  url: CreateWebhookEndpointPayload.fields.url,
+  events: CreateWebhookEndpointPayload.fields.events
 })
 
 const WorkspaceWebhooksInput = Schema.Struct({
@@ -45,9 +44,7 @@ const EndpointMutationInput = Schema.Struct({
 const UpdateEndpointInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
   endpointId: Schema.NonEmptyString,
-  url: Schema.optionalKey(Schema.NonEmptyString),
-  events: Schema.optionalKey(Schema.NonEmptyArray(Schema.NonEmptyString)),
-  enabled: Schema.optionalKey(Schema.Boolean)
+  ...UpdateWebhookEndpointPayload.fields
 })
 
 const ReplayDeliveryInput = Schema.Struct({

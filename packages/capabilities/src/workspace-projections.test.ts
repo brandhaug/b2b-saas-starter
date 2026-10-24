@@ -47,7 +47,12 @@ import { workspaceProgress } from './workspace-projections.ts'
  * a token is revoked or a member joins.
  */
 
-const OWNER: Actor = { userId: demoUserIdentity.id, role: 'owner', systemRole: 'admin' }
+const OWNER: Actor = {
+  userId: demoUserIdentity.id,
+  role: 'owner',
+  systemRole: 'admin',
+  banned: false
+}
 
 function seedFeed() {
   const audit = SeedAuditEventLog([])

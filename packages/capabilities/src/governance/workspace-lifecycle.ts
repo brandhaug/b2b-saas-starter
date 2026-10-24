@@ -1,4 +1,5 @@
 import { AssistantDirectory } from '../assistant/directory.ts'
+import { Billing } from '@b2b-saas-starter/billing/billing'
 import { Database } from '@b2b-saas-starter/db/service'
 import { workspaces } from '@b2b-saas-starter/db/schema'
 import { Context, Effect, Layer, Option, Ref, Schema } from 'effect'
@@ -17,6 +18,7 @@ import {
   recordCompletedAudit
 } from './audit-event-log.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
+import { withWorkspaceDeletionFence } from './workspace-deletion-fence.live.ts'
 import {
   recordSecurityEvidence,
   type SecurityEvidenceSink
@@ -132,7 +134,7 @@ export function SeedWorkspaceLifecycle(options: {
 }): Layer.Layer<
   WorkspaceLifecycle,
   never,
-  WorkspaceSuspensionService | AssistantDirectory
+  WorkspaceSuspensionService | AssistantDirectory | Billing
 > {
   return Layer.effect(WorkspaceLifecycle)(
     Effect.gen(function* () {
@@ -141,6 +143,7 @@ export function SeedWorkspaceLifecycle(options: {
         (yield* Ref.make<ReadonlyArray<Workspace>>([options.workspace]))
       const suspension = yield* WorkspaceSuspensionService
       const conversations = yield* AssistantDirectory
+      const billing = yield* Billing
 
       const requireAvailableSlug = Effect.fnUntraced(function* (
         slug: string,
@@ -228,6 +231,11 @@ export function SeedWorkspaceLifecycle(options: {
         remove: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           yield* suspension.requireAllowed(ctx.workspace.id, 'product')
+          if (!(yield* billing.workspaceDeletionAllowed(ctx.workspace.id))) {
+            return yield* Effect.fail(
+              new WorkspaceChangeRejected({ reason: 'billing_obligations' })
+            )
+          }
           // Captured before the delete, as in Live: the audit event must
           // still name what was removed.
           const removed = ctx.workspace
@@ -267,7 +275,7 @@ export function LiveWorkspaceLifecycle(
 ): Layer.Layer<
   WorkspaceLifecycle,
   never,
-  Database | AuditEventLog | WorkspaceSuspensionService | AssistantDirectory
+  Database | AuditEventLog | WorkspaceSuspensionService | AssistantDirectory | Billing
 > {
   return Layer.effect(WorkspaceLifecycle)(
     Effect.gen(function* () {
@@ -275,6 +283,7 @@ export function LiveWorkspaceLifecycle(
       const audit = yield* AuditEventLog
       const suspension = yield* WorkspaceSuspensionService
       const conversations = yield* AssistantDirectory
+      const billing = yield* Billing
 
       const unavailable = orUnavailable('workspace-lifecycle')
 
@@ -354,13 +363,22 @@ export function LiveWorkspaceLifecycle(
         remove: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           yield* suspension.requireAllowed(ctx.workspace.id, 'product')
+          if (!(yield* billing.workspaceDeletionAllowed(ctx.workspace.id))) {
+            return yield* Effect.fail(
+              new WorkspaceChangeRejected({ reason: 'billing_obligations' })
+            )
+          }
           // Captured before the delete: once the row is gone, so are its
           // cascaded children, and the audit event must still name what was
           // removed.
           const removed = ctx.workspace
           yield* conversations.fence({ workspaceId: removed.id })
-          yield* callBinding(binding, (bound) =>
-            bound.remove({ workspaceId: ctx.workspace.id })
+          yield* withWorkspaceDeletionFence(
+            db,
+            ctx.workspace.id,
+            callBinding(binding, (bound) =>
+              bound.remove({ workspaceId: ctx.workspace.id })
+            )
           )
           yield* recordSecurityEvidence(
             { kind: 'workspace_deleted', subjectId: removed.id },
