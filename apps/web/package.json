@@ -9,8 +9,9 @@
     "serve:e2e": "vp preview --mode e2e",
     "serve": "vp preview --port 3071",
     "typecheck": "tsrs --noEmit",
-    "test": "vp test run && pnpm run test:lifecycle",
+    "test": "vp test run && pnpm run test:lifecycle && pnpm run test:docs-runtime",
     "test:lifecycle": "vp test run --config vitest.lifecycle.config.ts",
+    "test:docs-runtime": "vp build --config vite.docs-runtime.config.ts && vp test run --config vitest.docs-runtime.config.ts",
     "test:e2e": "playwright test"
   },
   "dependencies": {
