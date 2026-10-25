@@ -1,4 +1,5 @@
 import { localAssistantSockets } from './scripts/local-socket-plugin'
+import { remarkSourceExamples } from './scripts/source-examples'
 import mdx from '@mdx-js/rollup'
 import tailwindcss from '@tailwindcss/vite'
 import { devtools } from '@tanstack/devtools-vite'
@@ -219,7 +220,12 @@ export default defineConfig(({ command, mode }) => {
         {
           enforce: 'pre',
           ...mdx({
-            remarkPlugins: [remarkFrontmatter, remarkMdxFrontmatter, remarkGfm],
+            remarkPlugins: [
+              remarkFrontmatter,
+              remarkMdxFrontmatter,
+              remarkGfm,
+              [remarkSourceExamples, { root: resolve(import.meta.dirname, '../..') }]
+            ],
             rehypePlugins: [
               rehypeSlug,
               [

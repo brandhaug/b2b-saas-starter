@@ -787,6 +787,8 @@ const { lint = {} } = defineConfig({
           'scripts/**',
           '.github/scripts/**',
           'packages/*/scripts/**',
+          'apps/web/scripts/source-examples.ts',
+          'apps/web/scripts/source-examples.test.ts',
           'infra/**',
           'alchemy.run.ts'
         ],

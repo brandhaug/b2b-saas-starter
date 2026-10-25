@@ -16,6 +16,15 @@ Services use `Context.Service`. Live adapters read and write D1; Seed adapters
 implement the same contracts in memory for tests and fixture-backed execution.
 Tests can provide a Seed layer without starting a Worker.
 
+`WorkspaceContext` carries the resolved workspace and caller into capability calls:
+
+```ts source="packages/capabilities/src/workspace-context.ts"
+export class WorkspaceContext extends Context.Service<
+  WorkspaceContext,
+  WorkspaceContextInterface
+>()('@b2b-saas-starter/capabilities/WorkspaceContext') {}
+```
+
 ## Contracts and errors
 
 Effect Schema defines capability values and HTTP payloads. `packages/api`
@@ -27,6 +36,16 @@ annotations assign statuses such as `WorkspaceNotFound` 404,
 `AuthorizationDenied` 403, and `RateLimited` 429. MCP handlers return expected
 operation refusals as tool errors. Web handlers translate allowlisted errors
 into safe UI messages.
+
+For example, the workspace lookup error declares its HTTP status alongside its schema:
+
+```ts source="packages/capabilities/src/errors.ts"
+export class WorkspaceNotFound extends Schema.TaggedError<WorkspaceNotFound>()(
+  'WorkspaceNotFound',
+  { slug: Schema.String },
+  { httpApiStatus: 404 }
+) {}
+```
 
 The web app loads server state through TanStack Start loaders and server
 functions. Browser modules must not import server adapters or their runtime
