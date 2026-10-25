@@ -3,7 +3,7 @@
 How the web worker, API worker, background worker, D1, conversation Durable Objects, and Effect capabilities fit together.
 
 Canonical: /en/docs/architecture/overview
-Source: apps/web/content/docs/architecture/overview.mdx
+Source: apps/web/content/docs/architecture/overview\.mdx
 Language: en
 
 The web, API, and background Workers share D1 and the Effect services in

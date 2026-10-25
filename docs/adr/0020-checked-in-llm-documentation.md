@@ -22,7 +22,7 @@ Run `pnpm -C apps/web docs:generate` after editing public docs. Vite builds also
 generate the assets before copying public files, including deployment and E2E
 builds. `pnpm run check:agent-docs` checks missing, changed and obsolete outputs
 without writing and exercises the generator against disposable collections. Root
-`check` runs it before build can repair drift, so existing CI gates enforce it.
+`check` and the CI quality job run it before a build can repair drift.
 Generated Markdown is excluded from formatting to preserve content digests.
 
 Repeat the served-asset check with

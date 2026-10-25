@@ -10,7 +10,7 @@ import {
 } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
-import { articleMarkdown } from './agent-markdown.mjs'
+import { articleMarkdown, plainMarkdown } from './agent-markdown.mjs'
 
 const { values } = parseArgs({
   options: {
@@ -91,7 +91,7 @@ const taskLinks = tasks
     if (!article) {
       throw new Error(`Missing task entry article: ${id}`)
     }
-    return `- [${task}](${article.markdownUrl}): ${article.description}`
+    return `- [${task}](${article.markdownUrl}): ${plainMarkdown(article.description)}`
   })
   .join('\n')
 outputs.set(

@@ -13,6 +13,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { test } from 'node:test'
+import { createProcessor } from '@mdx-js/mdx'
 
 const script = resolve(import.meta.dirname, 'generate-agent-exports.mjs')
 const web = resolve(import.meta.dirname, '..')
@@ -126,4 +127,33 @@ await test('symlinked public sources are refused', () => {
 
 await test('checked-in public exports match the collection', () => {
   execFileSync(process.execPath, [script, '--check'], { stdio: 'pipe' })
+})
+
+function assertNoPrivateMetadataLinks(node) {
+  assert.notEqual(node.url, './private.md')
+  for (const child of node.children ?? []) {
+    assertNoPrivateMetadataLinks(child)
+  }
+}
+
+await test('metadata remains literal text in articles and task descriptions', () => {
+  fixture((root) => {
+    const source = join(root, 'content/docs/getting-started/quickstart.mdx')
+    writeFileSync(
+      source,
+      readFileSync(source, 'utf8')
+        .replace('title: Quickstart', 'title: "[Title](./private.md)"')
+        .replace(
+          'description: Install, seed, and run the starter locally.',
+          'description: "[Guide](./private.md)"'
+        )
+    )
+    assert.equal(generate(root).status, 0)
+    for (const path of ['agent-docs/getting-started/quickstart.md', 'llms.txt']) {
+      const tree = createProcessor().parse(
+        readFileSync(join(root, 'public', path), 'utf8')
+      )
+      assertNoPrivateMetadataLinks(tree)
+    }
+  })
 })

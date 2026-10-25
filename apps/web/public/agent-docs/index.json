@@ -17,7 +17,7 @@
       "canonicalUrl": "/en/docs/architecture/overview",
       "markdownUrl": "/agent-docs/architecture/overview.md",
       "sourcePath": "apps/web/content/docs/architecture/overview.mdx",
-      "digest": "sha256:76a97013e87345a7556e906ee6701710c9b8a5728dd196917b37b161eff132c4"
+      "digest": "sha256:9a7cf4a2bbb2763d5a0aa7ca361909cfc48871a63f07419b59a3f2928b76191b"
     },
     {
       "id": "docs/architecture/workers",

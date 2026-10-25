@@ -7,6 +7,13 @@ import remarkGfm from 'remark-gfm'
 
 const parser = createProcessor({ remarkPlugins: [remarkFrontmatter, remarkGfm] })
 
+export function plainMarkdown(value) {
+  return toMarkdown({
+    type: 'paragraph',
+    children: [{ type: 'text', value }]
+  }).trimEnd()
+}
+
 // Plain representation of the only component admitted by mdx-components.ts.
 const architecture = `Architecture paths:
 
@@ -87,9 +94,21 @@ export function articleMarkdown(source, sourcePath, id, articleIds) {
     return [node]
   }
   convert(tree)
-  const body = toMarkdown(tree, { extensions: [gfmToMarkdown()], fences: true })
   const canonicalUrl = `/en/docs/${id}`
-  const markdown = `# ${metadata.title}\n\n${metadata.description}\n\nCanonical: ${canonicalUrl}\nSource: ${sourcePath}\nLanguage: en\n\n${body.trim()}\n`
+  tree.children.unshift(
+    { type: 'heading', depth: 1, children: [{ type: 'text', value: metadata.title }] },
+    { type: 'paragraph', children: [{ type: 'text', value: metadata.description }] },
+    {
+      type: 'paragraph',
+      children: [
+        {
+          type: 'text',
+          value: `Canonical: ${canonicalUrl}\nSource: ${sourcePath}\nLanguage: en`
+        }
+      ]
+    }
+  )
+  const markdown = toMarkdown(tree, { extensions: [gfmToMarkdown()], fences: true })
   return {
     title: metadata.title,
     description: metadata.description,
