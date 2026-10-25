@@ -5,6 +5,7 @@
   "exports": {
     "./server": "./src/server.ts",
     "./transport": "./src/transport.ts",
+    "./deployment": "./src/deployment.ts",
     "./social": "./src/social.ts"
   },
   "scripts": {

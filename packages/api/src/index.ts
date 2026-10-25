@@ -1,4 +1,5 @@
 import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
+import { HealthResponse } from './health.ts'
 import {
   ApiToken,
   type ApiTokenRegistry as ApiTokenRegistryService,
@@ -221,7 +222,7 @@ export type WorkspaceOverviewDto = typeof WorkspaceOverviewDto.Type
 
 export const HealthApi = HttpApiGroup.make('health').add(
   HttpApiEndpoint.get('check', '/health', {
-    success: Schema.Struct({ status: Schema.Literal('ok') })
+    success: HealthResponse
   })
 )
 
