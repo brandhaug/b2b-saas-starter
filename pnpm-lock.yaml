@@ -211,8 +211,8 @@ catalogs:
       specifier: 6.0.0
       version: 6.0.0
     seroval:
-      specifier: 1.6.11
-      version: 1.6.11
+      specifier: 1.7.0
+      version: 1.7.0
     sonner:
       specifier: 2.0.8
       version: 2.0.8
@@ -690,7 +690,7 @@ importers:
         version: 6.0.0
       seroval:
         specifier: 'catalog:'
-        version: 1.6.11
+        version: 1.7.0
       tailwindcss:
         specifier: 'catalog:'
         version: 4.3.3
@@ -1837,9 +1837,6 @@ packages:
     engines: {node: '>=16'}
     cpu: [x64]
     os: [win32]
-
-  '@cloudflare/workers-types@5.20261021.1':
-    resolution: {integrity: sha512-HLu/pEx2488dO13gQoLaLmMMTcah/NqEn/c/6c/sJV9nyBY/CVQAI9Zj+YugKacrxENDmIVPU0HKIK+mU7WKzA==}
 
   '@cloudflare/workers-types@5.20261022.1':
     resolution: {integrity: sha512-irp6lxKgWTnIquva6iSaJhV9vCdGlhLIw3+vVOj1Glge38LnKb3jMQiB53gaUB+EgN47JVVg58kJ703V/00JYw==}
@@ -7418,6 +7415,10 @@ packages:
     resolution: {integrity: sha512-hpb6XnMCGN/A+79Uf8V7/iTGkyyyazNn5X0CoCAp7Uy9vT3RT8jZ9GLcnxGoVjg3P8AArbe4ZVHq6C8oT2a0kA==}
     engines: {node: '>=10'}
 
+  seroval@1.7.0:
+    resolution: {integrity: sha512-FU+LUkmDzWNsJ6oubZFN3dGPKny53DRhPJG6nftEaXDL8MIn19+kEE1Gvc+63Go+qPOwVUlKIdKhsu2HN6tksw==}
+    engines: {node: '>=20'}
+
   serve-static@2.2.1:
     resolution: {integrity: sha512-xRXBn0pPqQTVQiC8wyQrKs2MOlX24zQ0POGaj0kultvoOCstBQM5yvOhAVSUwOMjQtTvsPWoNCHfPGwaaQJhTw==}
     engines: {node: '>= 18'}
@@ -8875,8 +8876,6 @@ snapshots:
   '@cloudflare/workerd-windows-64@1.20261019.1':
     optional: true
 
-  '@cloudflare/workers-types@5.20261021.1': {}
-
   '@cloudflare/workers-types@5.20261022.1': {}
 
   '@cspotcode/source-map-support@0.8.1':
@@ -8992,7 +8991,7 @@ snapshots:
 
   '@effect/sql-d1@4.0.5(effect@4.0.5)':
     dependencies:
-      '@cloudflare/workers-types': 5.20261021.1
+      '@cloudflare/workers-types': 5.20261022.1
       effect: 4.0.5
 
   '@effect/sql-sqlite-do@4.0.0(effect@4.0.5)':
@@ -14237,6 +14236,8 @@ snapshots:
       seroval: 1.6.11
 
   seroval@1.6.11: {}
+
+  seroval@1.7.0: {}
 
   serve-static@2.2.1(supports-color@10.2.2):
     dependencies:
