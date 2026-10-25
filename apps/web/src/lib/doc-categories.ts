@@ -3,7 +3,6 @@
  * knowledge sidebar list them. Display names are translated by
  * `docCategoryName`; these slugs are the URL segments.
  */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const DOC_CATEGORY_ORDER = [
   'getting-started',
   'architecture',

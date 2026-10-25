@@ -42,15 +42,17 @@ import { type Invitation } from '@b2b-saas-starter/capabilities/governance/works
 const INVITEE = 'invitee@example.com'
 const BOKMAL_RECIPIENT = 'martin@example.com'
 
-const env = vi.hoisted(() => ({
-  userId: 'usr_demo',
-  email: 'demo@starter.local',
-  origin: 'https://app.test',
-  emailFails: false,
-  rateAllowed: true,
-  // oxlint-disable-next-line effect/noAs, anti-slop/require-safety-comment-for-type-assertion -- a widening annotation only: the empty outbox gains the message type the dispatcher pushes into it
-  outbox: [] as Array<EmailMessage>
-}))
+const env = vi.hoisted(() => {
+  const outbox: Array<EmailMessage> = []
+  return {
+    userId: 'usr_demo',
+    email: 'demo@starter.local',
+    origin: 'https://app.test',
+    emailFails: false,
+    rateAllowed: true,
+    outbox
+  }
+})
 
 vi.mock('./auth', async (importOriginal) =>
   fixtureAuthModule(await importOriginal<typeof AuthModule>(), env)

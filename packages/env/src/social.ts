@@ -5,7 +5,6 @@
 // both, so server callers keep one import path.
 
 /** The social sign-in providers the starter knows how to wire. */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const SOCIAL_PROVIDER_IDS = ['github', 'google'] as const
 
 export type SocialProviderId = (typeof SOCIAL_PROVIDER_IDS)[number]

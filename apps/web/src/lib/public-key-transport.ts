@@ -20,9 +20,8 @@ function permitsPublicKeyDiscovery(request: Request): boolean {
   ) {
     return false
   }
-  // SAFETY: Cloudflare supplies these optional platform fields; caller headers are not read.
-  // oxlint-disable-next-line effect/noAs -- Platform Request metadata is absent from the DOM Request type.
-  const cf = (request as EdgeRequest).cf
+  const edgeRequest: EdgeRequest = request
+  const { cf } = edgeRequest
   return cf?.tlsVersion === '' && cf.asn === 13_335
 }
 

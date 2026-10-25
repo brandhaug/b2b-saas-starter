@@ -3,6 +3,7 @@ node_modules
 .tanstack
 dist
 dist-e2e
+dist-docs-runtime
 .output
 .wrangler
 .alchemy

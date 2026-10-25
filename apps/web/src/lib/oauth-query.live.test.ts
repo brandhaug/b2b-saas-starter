@@ -84,7 +84,7 @@ it.live(
         body: { postLogin: true, oauth_query: restored ?? '' },
         headers: vouchedHeaders,
         // SAFETY: matches the web adapter's plain header carrier; the issuer reads only headers/method and returns parsed JSON for this shape.
-        // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion -- real in-process issuer boundary under test
+        // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- real in-process issuer boundary under test
         request: { headers: vouchedHeaders, method: 'POST' } as Request
       })
       const continued = new URL(decodeRedirectBody(continuedResult).url, origin)
@@ -93,7 +93,7 @@ it.live(
         body: { accept: true, oauth_query: routedQuery(continued) ?? '' },
         headers: vouchedHeaders,
         // SAFETY: matches the web adapter's plain header carrier, retaining the verified workspace through authorize reentry.
-        // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion -- real in-process issuer boundary under test
+        // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- real in-process issuer boundary under test
         request: { headers: vouchedHeaders, method: 'POST' } as Request
       })
       const callback = new URL(decodeRedirectBody(consentedResult).url, origin)

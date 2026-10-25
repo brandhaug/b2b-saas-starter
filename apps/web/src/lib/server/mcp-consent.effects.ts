@@ -78,7 +78,7 @@ function oauthRequest(headers: Headers): Request {
   // SAFETY: only `headers` and `method` are read downstream; the shape check
   // `isRequestLike` runs on the dispatch boundary must keep failing, which a
   // plain object guarantees.
-  // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion -- a header carrier stands in for the Request the router would have supplied
+  // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- a header carrier stands in for the Request the router would have supplied
   return { headers, method: 'POST' } as Request
 }
 

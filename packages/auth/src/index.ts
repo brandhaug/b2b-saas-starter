@@ -251,7 +251,6 @@ export function makeAuthOptions(options: AuthConfigInterface) {
     verification: {
       // `as const`: the inferred return type has no context to keep the
       // literal, and Better Auth's option type is a closed union.
-      // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
       storeIdentifier: 'hashed' as const
     },
     // Better Auth's own limiter is memory-backed — on Workers that is

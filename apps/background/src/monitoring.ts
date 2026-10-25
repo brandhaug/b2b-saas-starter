@@ -45,7 +45,6 @@ export function exhaustedQueueDelivery(
   if (!retrying) {
     return false
   }
-  // oxlint-disable-next-line effect/noAs -- literal queue suffix/settings pairs
   const policies = [
     ['-billing', billingConsumerSettings],
     ['-email-events', emailEventsConsumerSettings],

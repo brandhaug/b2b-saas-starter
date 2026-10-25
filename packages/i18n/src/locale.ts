@@ -1,5 +1,4 @@
 /** The locales shipped by the starter. */
-// oxlint-disable-next-line effect/noAs -- const tuple defines the closed locale set
 export const LOCALES = ['en', 'nb'] as const
 
 export type Locale = (typeof LOCALES)[number]

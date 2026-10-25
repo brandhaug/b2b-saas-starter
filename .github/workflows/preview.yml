@@ -48,6 +48,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
       - uses: ./.github/actions/setup
       - name: Resolve preview URLs
@@ -67,6 +68,14 @@ jobs:
         run: pnpm run db:seed:stage
       - name: Smoke test the preview
         run: node .github/scripts/smoke-deployment.ts
+      - name: Upload deployment smoke evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: deployment-smoke-preview
+          path: artifacts/deployment-smoke.json
+          if-no-files-found: error
+          retention-days: 14
       - name: Report the deployment
         env:
           GH_TOKEN: ${{ github.token }}

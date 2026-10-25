@@ -24,7 +24,7 @@ function pluginId(plugin: AuthPlugin): string {
 const baseConfig: AuthConfigInterface = {
   // SAFETY: these tests only read the returned options object — `db` is
   // forwarded into `drizzleAdapter`'s closure and no property of it is read.
-  // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion -- an empty sentinel stands in for the promise client, which the adapter alone would touch
+  // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- an empty sentinel stands in for the promise client, which the adapter alone would touch
   db: {} as AuthConfigInterface['db'],
   secret: 'test-secret-at-least-32-characters-long',
   baseURL: 'http://localhost:3071',
@@ -80,7 +80,7 @@ describe('makeAuthOptions', () => {
     // SAFETY: the two-factor plugin is in the array above by construction;
     // this reads the one option this file pins off its `options` bag, which
     // the plugin's declared type omits.
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion, effect/noAs -- reading an option Better Auth's plugin type does not declare
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion, typescript/consistent-type-assertions -- reading an option Better Auth's plugin type does not declare
     const twoFactorOptions = twoFactor as {
       options: { skipVerificationOnEnable: boolean | undefined } | undefined
     }
@@ -440,7 +440,7 @@ function pluginOptions(
   const plugin = plugins.find((candidate) => 'id' in candidate && candidate.id === id)
   // SAFETY: every option read through this helper lives on that bag by
   // construction of `makeAuthOptions`.
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion, effect/noAs -- reading an options bag Better Auth's plugin types do not declare
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion, typescript/consistent-type-assertions -- reading an options bag Better Auth's plugin types do not declare
   return (plugin as { options?: Record<string, unknown> }).options ?? {}
 }
 
@@ -452,7 +452,7 @@ function allowCreateOrganization(options: ReturnType<typeof makeAuthOptions>) {
   ).allowUserToCreateOrganization
   // SAFETY: `makeAuthOptions` passes the predicate straight through; this is
   // its own declared shape, just re-asserted for the test's call site.
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion, effect/noAs -- re-typing a value stored as unknown by pluginOptions
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion, typescript/consistent-type-assertions -- re-typing a value stored as unknown by pluginOptions
   return raw as (user: { emailVerified: boolean }) => boolean
 }
 

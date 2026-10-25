@@ -24,11 +24,11 @@ catalog:
   '@better-auth/sso': 1.7.12
   '@better-auth/utils': 0.5.0
   '@cloudflare/ai-chat': 0.12.2
-  agents: 0.29.0
-  ai: 7.0.148
+  agents: 0.30.0
+  ai: 7.0.150
   '@cloudflare/workers-types': 5.20261022.1
-  '@cloudflare/vitest-plugin': 1.4.6
-  '@effect/platform-node': 4.0.5
+  '@cloudflare/vitest-plugin': 1.4.7
+  '@effect/platform-node': 4.0.6
   '@effect/sql-d1': 4.0.6
   '@effect/vitest': 4.0.6
   '@fontsource-variable/geist': 5.3.0
@@ -46,10 +46,10 @@ catalog:
   '@tanstack/devtools-vite': 0.8.5
   '@tanstack/react-form': 1.33.5
   '@tanstack/react-query': 5.104.5
-  '@tanstack/react-router': 1.170.45
+  '@tanstack/react-router': 1.170.46
   '@tanstack/react-router-devtools': 1.167.2
   '@tanstack/react-router-ssr-query': 1.167.3
-  '@tanstack/react-start': 1.169.3
+  '@tanstack/react-start': 1.169.4
   '@tanstack/react-table': 9.3.1
   '@testing-library/dom': 10.4.2
   '@testing-library/react': 16.3.3
@@ -61,7 +61,7 @@ catalog:
   '@vitejs/plugin-react': 6.1.1
   '@vitest/coverage-v8': 5.0.3
   ws: 8.22.0
-  miniflare: 5.20261019.1-beta
+  miniflare: 5.20261019.2-beta
   esbuild: 0.28.2
   alchemy: 2.0.0-beta.79
   babel-plugin-react-compiler: 1.0.0
@@ -72,10 +72,10 @@ catalog:
   drizzle-kit: 1.0.0-rc.5-ab785fc
   drizzle-orm: 1.0.0-rc.5-ab785fc
   standardwebhooks: 1.1.1
-  effect: 4.0.5
-  effectful-better-auth: 1.0.7
+  effect: 4.0.6
+  effectful-better-auth: 1.0.8
   eslint-plugin-better-tailwindcss: 4.10.0
-  fallow: 3.34.1
+  fallow: 3.35.0
   jsdom: 30.1.3
   jose: 6.2.13
   lucide-react: 1.61.0
@@ -100,7 +100,7 @@ catalog:
   tsrs: 0.18.0-ts7.1.0-dev.20260929
   vite: npm:@voidzero-dev/vite-plus-core@1.1.0
   vitest: 5.0.3
-  wrangler: 4.151.3
+  wrangler: 4.152.0
   vite-plus: 1.1.0
 
 minimumReleaseAgeExclude:
@@ -169,7 +169,15 @@ overrides:
   ws: 8.21.0
   vite@*: 'catalog:'
   vitest@*: 'catalog:'
-  postcss-selector-parser@<7.1.6: 7.1.6
+  '@vitest/browser@>=5.0.0-beta.6 <5.0.5': 5.0.5
+  '@vitest/ui@>=5.0.0-beta.6 <5.0.5': 5.0.5
+  zod@<4.6.6: 4.6.6
+  body-parser@>=2.0.0 <2.4.0: 2.4.0
+  undici@>=7.0.0 <7.30.1: 7.30.1
+  undici@>=7.15.0 <7.30.1: 7.30.1
+  undici@>=7.18.0 <7.30.1: 7.30.1
+  fast-uri@>=3.0.0 <3.1.9: 3.1.9
+  fast-uri@>=3.1.3 <3.1.9: 3.1.9
 patchedDependencies:
   '@distilled.cloud/cloudflare@1.0.0-rc.12': patches/@distilled.cloud__cloudflare@1.0.0-rc.12.patch
   '@alchemy.run/cloudflare-runtime@2.0.0-beta.79': patches/@alchemy.run__cloudflare-runtime@2.0.0-beta.79.patch
