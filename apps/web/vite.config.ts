@@ -263,6 +263,7 @@ export default defineConfig(({ command, mode }) => {
       exclude: [
         'e2e/**',
         'test/assistant/*.pool.test.ts',
+        'test/docs/cold-runtime.test.ts',
         'node_modules/**',
         'dist/**',
         '.output/**'
