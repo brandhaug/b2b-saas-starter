@@ -60,16 +60,13 @@ test('the homepage renders the live seed numbers and the real overview payload',
 // oxlint-disable-next-line vitest/prefer-each -- Playwright uses loops to parameterize tests; it has no test.each.
 for (const { entry, locale } of [
   { entry: '/docs', locale: 'en' },
-  { entry: '/en/docs', locale: 'en' },
-  { entry: '/nb/docs', locale: 'nb' }
+  { entry: '/no/docs', locale: 'nb' }
 ]) {
   test(`${entry} redirects to Quickstart and preserves the public locale`, async ({
     page
   }) => {
     await page.goto(entry)
-    await expect(page).toHaveURL(
-      new RegExp(`/${locale}/docs/getting-started/quickstart$`)
-    )
+    await expect(page).toHaveURL(new RegExp(`${entry}/getting-started/quickstart$`))
     await expect(page.locator('html')).toHaveAttribute('lang', locale)
     await expect(
       page.getByRole('heading', { name: 'Quickstart', exact: true })

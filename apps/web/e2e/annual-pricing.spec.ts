@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test'
 test('public pricing labels annual example totals without a discount claim', async ({
   page
 }, testInfo) => {
-  await page.goto('/en/pricing')
+  await page.goto('/pricing')
   await page
     .locator('header [data-slot="select-trigger"]:enabled')
     .waitFor({ state: 'attached' })

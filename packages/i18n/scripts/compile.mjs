@@ -136,36 +136,36 @@ await compile({
     {
       pattern: '/',
       localized: [
-        ['en', '/en'],
-        ['nb', '/nb']
+        ['en', '/'],
+        ['nb', '/no']
       ]
     },
     ...['pricing', 'privacy', 'terms', 'help', 'changelog', 'faq'].map((path) => ({
       pattern: `/${path}`,
       localized: [
-        ['en', `/en/${path}`],
-        ['nb', `/nb/${path}`]
+        ['en', `/${path}`],
+        ['nb', `/no/${path}`]
       ]
     })),
     {
       pattern: '/docs',
       localized: [
-        ['en', '/en/docs'],
-        ['nb', '/nb/docs']
+        ['en', '/docs'],
+        ['nb', '/no/docs']
       ]
     },
     {
       pattern: '/blog',
       localized: [
-        ['en', '/en/blog'],
-        ['nb', '/nb/blog']
+        ['en', '/blog'],
+        ['nb', '/no/blog']
       ]
     },
     ...['docs', 'blog'].map((path) => ({
       pattern: `/${path}/:path(.*)?`,
       localized: [
-        ['en', `/en/${path}/:path(.*)?`],
-        ['nb', `/nb/${path}/:path(.*)?`]
+        ['en', `/${path}/:path(.*)?`],
+        ['nb', `/no/${path}/:path(.*)?`]
       ]
     }))
   ],

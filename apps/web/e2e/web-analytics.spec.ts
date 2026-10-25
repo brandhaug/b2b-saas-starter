@@ -176,7 +176,7 @@ test.describe('configured browser analytics', () => {
     await expect(page.locator(beaconSelector)).toHaveCount(0)
     expect(
       await page.evaluate(async () => {
-        const response = await fetch('/en/privacy')
+        const response = await fetch('/privacy')
         return response.status
       })
     ).toBe(200)
@@ -240,7 +240,7 @@ test.describe('configured browser analytics', () => {
     expect(otherRequests).toEqual([])
     expect(
       await page.evaluate(async () => {
-        const response = await fetch('/en/privacy')
+        const response = await fetch('/privacy')
         return response.status
       })
     ).toBe(200)

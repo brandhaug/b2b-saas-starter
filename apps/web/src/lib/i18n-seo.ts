@@ -4,10 +4,10 @@ import { getLocale, getUrlOrigin, localizeUrl } from '@b2b-saas-starter/i18n/run
 export function localeLinks(pathname: string) {
   const source = new URL(pathname, getUrlOrigin())
   const english = localizeUrl(source, { locale: 'en' })
-  if (english.pathname === source.pathname) {
+  const norwegian = localizeUrl(source, { locale: 'nb' })
+  if (english.pathname === norwegian.pathname) {
     return []
   }
-  const norwegian = localizeUrl(source, { locale: 'nb' })
   // Existing technical articles are English, even inside the Norwegian shell.
   const englishArticle = /^\/docs\/[^/]+\/[^/]+\/?$/u.test(pathname)
   if (englishArticle) {

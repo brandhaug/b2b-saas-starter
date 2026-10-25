@@ -53,7 +53,7 @@ describe('locale request integration', () => {
     }
   )
 
-  it.each(['/help', '/help/', '/nb/help', '/api/support-config'])(
+  it.each(['/help', '/help/', '/no/help', '/api/support-config'])(
     'public support %s stays reachable with a session cookie and unavailable D1',
     async (path) => {
       state.signedIn = true
@@ -88,7 +88,7 @@ describe('locale request integration', () => {
   it('honors an explicit public language URL even for a signed-in account', async () => {
     state.signedIn = true
     const response = await localizeRequest(
-      new Request('https://starter.test/nb/pricing', {
+      new Request('https://starter.test/no/pricing', {
         headers: { accept: 'text/html' }
       }),
       renderPresentation

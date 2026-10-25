@@ -1,6 +1,6 @@
 # First business feature verification
 
-The public tutorial is at `/en/docs/getting-started/first-business-feature`.
+The public tutorial is at `/docs/getting-started/first-business-feature`.
 `workspace-notes.patch` contains reader-added code, not an installed Starter
 feature. Its base is `caf4756fd620a660743f2734b85aad151d75a82a`.
 

@@ -13,26 +13,39 @@ test.beforeEach(async ({ context }, testInfo) => {
 test('switches public language, keeps it through navigation and refresh, and exposes alternates', async ({
   page
 }) => {
-  await page.goto('/en/#faq')
+  await page.goto('/#faq')
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+    'href',
+    /^https?:\/\/[^/]+\/$/u
+  )
+  await expect(page.locator('link[rel="alternate"][hreflang="nb"]')).toHaveAttribute(
+    'href',
+    /\/no$/u
+  )
   await page.getByRole('combobox', { name: 'Language', exact: true }).click()
   await page.getByRole('option', { name: 'Norsk' }).click()
-  await expect(page).toHaveURL(/\/nb\/?(?:#faq)?$/u)
+  await expect(page).toHaveURL(/\/no\/?(?:#faq)?$/u)
   await expect(page.locator('html')).toHaveAttribute('lang', 'nb')
   await expect(page.locator('link[rel="alternate"][hreflang="en"]')).toHaveAttribute(
     'href',
-    /\/en\/?(?:#faq)?$/u
+    /^https?:\/\/[^/]+\/(?:#faq)?$/u
   )
   await page
     .getByRole('link', { name: /dokumentasjon/iu })
     .first()
     .click()
-  await expect(page).toHaveURL(/\/nb\/docs\/getting-started\/quickstart$/u)
+  await expect(page).toHaveURL(/\/no\/docs\/getting-started\/quickstart$/u)
   await page.reload()
   await expect(page.locator('html')).toHaveAttribute('lang', 'nb')
   await expect(
     page.getByRole('combobox', { name: 'Språk', exact: true })
   ).toContainText('Norsk')
+  await page.getByRole('combobox', { name: 'Språk', exact: true }).click()
+  await page.getByRole('option', { name: 'English' }).click()
+  await expect(page).toHaveURL(/\/docs\/getting-started\/quickstart$/u)
+  expect(new URL(page.url()).pathname).toBe('/docs/getting-started/quickstart')
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en')
 })
 
 test('warns before a language switch discards form edits', async ({ page }) => {
@@ -54,7 +67,7 @@ test('warns before a language switch discards form edits', async ({ page }) => {
   await expect(page.getByRole('textbox', { name: /e-post/iu })).toHaveValue('')
 })
 
-test('detects browser language without a cookie and keeps private routes unprefixed', async ({
+test('public English URLs override browser language while private routes use it', async ({
   browser,
   baseURL
 }) => {
@@ -64,7 +77,9 @@ test('detects browser language without a cookie and keeps private routes unprefi
   })
   const page = await context.newPage()
   await page.goto('/')
-  await expect(page).toHaveURL(/\/nb\/?$/u)
+  expect(new URL(page.url()).pathname).toBe('/')
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en')
+  await context.clearCookies()
   await page.goto('/sign-in')
   await expect(page.locator('html')).toHaveAttribute('lang', 'nb')
   await expect(page).toHaveURL(/\/sign-in$/u)
@@ -178,7 +193,7 @@ test('saved account language and time zone override browser preferences in a new
 
 test('the language picker works in the Norwegian mobile menu', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.goto('/nb/')
+  await page.goto('/no/')
   await page
     .locator('header [data-slot="select-trigger"]:enabled')
     .waitFor({ state: 'attached' })
@@ -186,7 +201,7 @@ test('the language picker works in the Norwegian mobile menu', async ({ page }) 
   await expect(page.getByRole('dialog')).toBeVisible()
   await page.getByRole('combobox', { name: 'Språk', exact: true }).click()
   await page.getByRole('option', { name: 'English' }).click()
-  await expect(page).toHaveURL(/\/en\/?$/u)
+  await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/u)
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth)
