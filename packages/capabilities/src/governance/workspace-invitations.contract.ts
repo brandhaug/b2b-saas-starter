@@ -44,7 +44,6 @@ export const CONTRACT_UNEXPIRED_AT = '2099-01-01T00:00:00.000Z'
  * oldest first. Fixed literals rather than clock reads, so "newest" means the
  * same thing in a `TestClock` case and against a real D1.
  */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const CONTRACT_ORDER_CREATED_AT = [
   '2026-06-01T00:00:00.000Z',
   '2026-06-02T00:00:00.000Z',

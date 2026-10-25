@@ -28,7 +28,6 @@ import { type BillingStateDecision } from './billing-state.ts'
  * be applied, and a later unrelated commit for the same customer must not
  * rewrite it into a reconciled success.
  */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const SETTLED_EVENT_STATUSES = ['processing', 'failed'] as const
 
 /** The atomic storage boundary shared by webhook, queue, and scheduled work. */

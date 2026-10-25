@@ -148,7 +148,7 @@ export function memoizePerRequest<A>(key: string, make: () => Promise<A>): Promi
     // SAFETY: slots are keyed by the caller's `key`, so every promise stored
     // under one key came from that caller's own `make` — the value type is a
     // property of the key, checked at this single boundary.
-    // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion -- see above
+    // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- see above
     return existing as Promise<A>
   }
   const pending = make()

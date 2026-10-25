@@ -158,7 +158,6 @@ export class BearerAuth extends HttpApiMiddleware.Service<
 // HttpApi reads these tuple element types to build each endpoint's error union.
 // Every member is a failure some handler actually constructs: an error no
 // handler can answer with is a documented status no client will ever see.
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const WORKSPACE_ERRORS = [
   WorkspaceNotFound,
   Unauthorized,
@@ -168,7 +167,6 @@ const WORKSPACE_ERRORS = [
   CapabilityUnavailable
 ] as const
 
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const PROTECTED_ERRORS = [
   Unauthorized,
   AuthorizationDenied,

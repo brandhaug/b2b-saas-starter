@@ -8,8 +8,6 @@ import {
   type TableViewField
 } from './table-view'
 
-/* oxlint-disable effect/noAs -- test fixtures intentionally exercise union variants. */
-
 vi.mock('./i18n', () => ({ presentationSettings: () => ({ timeZone: zone.value }) }))
 const zone = vi.hoisted(() => ({ value: 'UTC' }))
 

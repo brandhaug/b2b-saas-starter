@@ -33,7 +33,6 @@ export class RateLimited extends Schema.TaggedError<RateLimited>()(
  * guards the contract's `BearerAuth` middleware does, so it can fail in exactly
  * these four ways.
  */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const GUARD_FAILURE_SCHEMAS = [
   Unauthorized,
   AuthorizationDenied,

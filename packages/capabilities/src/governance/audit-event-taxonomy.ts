@@ -20,7 +20,6 @@
  */
 
 /** Every audit event type, for UI dropdowns; the union derives from it. */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const AUDIT_EVENT_TYPES = [
   // developer-platform
   'api_token.created',
@@ -159,7 +158,6 @@ export type AuditEventType = (typeof AUDIT_EVENT_TYPES)[number]
  * Every audit target type. The union is derived from this tuple, same as the
  * event vocabulary above.
  */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const AUDIT_TARGET_TYPES = [
   'user',
   'session',
