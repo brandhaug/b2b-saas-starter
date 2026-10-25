@@ -68,7 +68,6 @@ const ObservationHeaders = Schema.Struct({
 })
 const DeletionAccepted = Schema.Struct({ status: Schema.Literal('deleting') })
 
-// oxlint-disable-next-line effect/noAs -- const tuple preserves each declared Effect error schema
 const READ_ERRORS = [
   ConversationNotFound,
   ConversationUnavailable,
@@ -76,7 +75,6 @@ const READ_ERRORS = [
   Unauthorized,
   AuthorizationDenied
 ] as const
-// oxlint-disable-next-line effect/noAs -- const tuple preserves each declared Effect error schema
 const GENERATION_ERRORS = [
   ...READ_ERRORS,
   ConversationConflict,

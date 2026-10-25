@@ -23,7 +23,6 @@ import { annotateWideEvent, currentTraceparent } from '@b2b-saas-starter/logger'
  * `billing.seats_changed` audit metadata, so an operator reading the trail can
  * tell an invitation acceptance from a removal.
  */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const SEAT_SYNC_REASONS = [
   'member_added',
   'member_removed',
@@ -42,7 +41,6 @@ export const SeatSyncRecoveryEvidence = Schema.Struct({
 })
 export type SeatSyncRecoveryEvidence = typeof SeatSyncRecoveryEvidence.Type
 
-// oxlint-disable-next-line effect/noAs -- `as const` preserves the wire-literal tuple
 const SeatSyncQueueReasonSchema = Schema.Literals([
   ...SEAT_SYNC_REASONS,
   OPERATOR_RETRY_REASON
@@ -110,7 +108,7 @@ function defined<T extends object>(fields: {
 }): T {
   // SAFETY: every key of T is present in `fields`, and the filter removes only
   // undefined values, which the optional keys of T already permit to be absent.
-  // oxlint-disable-next-line effect/noAs -- see above
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- see above
   return Object.fromEntries(
     Object.entries(fields).filter(([, value]) => value !== undefined)
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- see the safety justification above

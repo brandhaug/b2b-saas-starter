@@ -238,6 +238,54 @@ gh workflow run ci.yml --repo <owner>/<repository> --ref master
 
 Wait for `ci`, `e2e`, deployment, and the deployed-URL smoke checks.
 
+### Release-aware smoke evidence
+
+Production and preview run `.github/scripts/smoke-deployment.ts` against the
+origins from the existing URL resolver. Preview checks out the PR head commit,
+matching its deployment identity rather than stamping the synthetic merge commit
+with a different SHA.
+
+Every successful round requires HTTP 200 from API `/health` and the public web
+homepage. The sole accepted redirect is web `/` returning 307 to exactly `/en`,
+the default locale route. The probe then requires HTTP 200 from `/en`; it never
+automatically follows redirects. These responses must expose `x-deployment-commit` matching
+`GIT_COMMIT_SHA` and `x-deployment-version` matching `SERVICE_VERSION`. These
+headers contain only the existing public deployment bindings, never credentials
+or the full environment. Unset bindings remain optional for local development,
+but missing identities cannot satisfy CI. Commits are lowercase 40-character
+Git SHAs; version labels allow 1–128 letters, digits, underscores, dots, pluses
+and hyphens. The probe responses use `Cache-Control: no-store`.
+
+The API body is decoded with the same Effect schema as its health contract,
+`{ "status": "ok" }`. The HTML must contain the homepage's `deployment-page`
+marker and reference a same-origin `/assets/*.css` stylesheet. That stylesheet
+must return nonempty CSS with HTTP 200. Login HTML, stale releases, missing
+assets and unexpected redirects fail. This verifies public serving and release identity,
+not database readiness or optional providers.
+
+Requests, including body reads, time out after 10 seconds. A shared 90-second
+propagation deadline bounds all rounds, with up to 3 seconds between rounds.
+Only a complete successful round passes. Both workflows always upload
+`artifacts/deployment-smoke.json`, retaining it for 14 days and failing upload
+when it is absent. The artifact includes expected and observed identities,
+start/completion and observation timestamps, each attempt, HTTP statuses and
+`passed`, `failed` or `unknown` outcomes. Transport failures and missing identity
+are unknown evidence; measured mismatches are failures. Neither passes. Earlier
+failures remain in the artifact even when propagation eventually succeeds.
+Raw response bodies and network exception messages are not retained.
+
+Repeat against a deployment using its exact build inputs:
+
+```sh
+API_URL=https://your-api.example WEB_URL=https://your-web.example \
+GIT_COMMIT_SHA=$(git rev-parse HEAD) SERVICE_VERSION=your-build-label \
+node .github/scripts/smoke-deployment.ts
+```
+
+Run the local HTTP failure scenarios with
+`vp test run .github/scripts/smoke-deployment.test.ts`. A failed smoke check
+does not trigger a rollback, especially not a D1 migration reversal.
+
 Or, from a machine with the same variables exported:
 
 ```bash

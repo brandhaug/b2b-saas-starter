@@ -170,11 +170,11 @@ const JSX_A11Y = `
 `
 
 // Effect discipline (oxlint-plugin-effect), the full `recommended` preset
-// except `noNullish` (see the deviations block). The preset is written for
+// except `noNullish` and `noAs` (see the deviations block). The preset is written for
 // Effect-native TypeScript, so the members that assume no JSX and no DOM are
 // switched off for `apps/web` in an override.
 const EFFECT = `
-  noAs noAsyncFunction noDynamicImports noEffectBind noEffectDo noGlobals noNewError
+  noAsyncFunction noDynamicImports noEffectBind noEffectDo noGlobals noNewError
   noNewPromise noNodeBuiltinImport noTernary noTestLifecycleHooks noThrowStatement
   noTryCatch preferEffectFn
 `
@@ -529,6 +529,12 @@ const { lint = {} } = defineConfig({
       // Declaration merging (`declare module`) and self-referential types still need
       // `interface`; those few sites carry a disable comment naming this rule.
       '@typescript-eslint/consistent-type-definitions': ['error', 'type'],
+      // Ban type assertions while allowing `as const`, which preserves inferred
+      // literals without claiming a different type. effect/noAs bans both.
+      '@typescript-eslint/consistent-type-assertions': [
+        'error',
+        { assertionStyle: 'never' }
+      ],
       '@typescript-eslint/consistent-type-imports': [
         'error',
         { prefer: 'type-imports', fixStyle: 'inline-type-imports' }
@@ -605,9 +611,8 @@ const { lint = {} } = defineConfig({
 
       // Off, each for a reason.
 
-      // prefer-as-const is off because it contradicts `effect/noAs`. Given
-      // `const x: 'queued' = 'queued'`, prefer-as-const demands `as const`, and noAs then
-      // rejects the result. noAs is the rule with the stronger claim, so it wins.
+      // Explicit literal annotations and `as const` are both valid ways to keep
+      // a value narrow; neither spelling needs to replace the other.
       '@typescript-eslint/prefer-as-const': 'off',
       // consistent-return is off: "return a message, or fall through to undefined" is the
       // shape every validator in the repo uses, because that is the contract TanStack Form
@@ -787,6 +792,8 @@ const { lint = {} } = defineConfig({
           'scripts/**',
           '.github/scripts/**',
           'packages/*/scripts/**',
+          'apps/web/scripts/source-examples.ts',
+          'apps/web/scripts/source-examples.test.ts',
           'infra/**',
           'alchemy.run.ts'
         ],

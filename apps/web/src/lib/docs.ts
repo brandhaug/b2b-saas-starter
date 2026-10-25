@@ -62,12 +62,14 @@ function docLoader(
   return path === undefined ? undefined : modules[path]
 }
 
-let metaPromise: Promise<ReadonlyArray<DocMeta>> | undefined
+let metadata: ReadonlyArray<DocMeta> | undefined
 
 /** Every doc's metadata, ordered by frontmatter `order` within its category. */
-export function getAllDocMeta(): Promise<ReadonlyArray<DocMeta>> {
-  metaPromise ??= loadAllDocMetaServerFn()
-  return metaPromise
+export async function getAllDocMeta(): Promise<ReadonlyArray<DocMeta>> {
+  // Cache only completed, locale-neutral frontmatter. A failed load stays
+  // retryable, and pending server-function work belongs to its own caller.
+  metadata ??= await loadAllDocMetaServerFn()
+  return metadata
 }
 
 /**

@@ -12,6 +12,8 @@
     "apps/web/test/assistant/worker.ts",
     // Loaded as the main worker by the Cloudflare Vitest plugin.
     "apps/web/test/assistant/lifecycle-worker.ts",
+    // Resolved by the dedicated docs runtime Vite plugin.
+    "apps/web/test/docs/metadata-gate.effects.ts",
     // Vite+ supplies Vitest transitively; Fallow's Vitest detection requires
     // a direct dependency in packages without their own test config.
     "infra/*.test.ts",

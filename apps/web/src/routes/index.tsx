@@ -34,6 +34,7 @@ export const Route = createFileRoute('/')({
   component: HomePage,
   head: () => ({
     meta: [
+      { name: 'deployment-page', content: 'public-home' },
       { title: m.landing_tagline() },
       {
         name: 'description',

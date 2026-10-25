@@ -8,7 +8,6 @@ import {
 
 export const RETENTION_POLICY_VERSION = '2026-09-09.v2'
 
-// oxlint-disable-next-line effect/noAs -- literal defaults stay narrow for policy comparisons
 export const RETENTION_DEFAULTS = {
   version: RETENTION_POLICY_VERSION,
   target: 'unbound',

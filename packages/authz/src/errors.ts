@@ -9,7 +9,6 @@ import { Schema } from 'effect'
  * `token_workspace_mismatch` when a token reaches across workspaces. A new
  * denial reason means widening this record; anything else is a compile error.
  */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const AUTHORIZATION_DENIED_REASONS = {
   noPrincipal: 'no_principal',
   insufficientPermission: 'insufficient_permission',

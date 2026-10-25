@@ -1,6 +1,5 @@
 import { presentationSettings } from './i18n'
 
-/* oxlint-disable effect/noAs -- the readonly literal tuple is the public operator contract. */
 export const tableFilterOperators = [
   'contains',
   'notContains',
@@ -13,7 +12,6 @@ export const tableFilterOperators = [
   'isEmpty',
   'isNotEmpty'
 ] as const
-/* oxlint-enable effect/noAs */
 
 export type TableFilterOperator = (typeof tableFilterOperators)[number]
 export type TableViewMatch = 'all' | 'any'

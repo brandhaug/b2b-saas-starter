@@ -1,4 +1,5 @@
 import { isMaintenanceMode } from '@b2b-saas-starter/env/server'
+import { setDeploymentIdentity } from '@b2b-saas-starter/env/deployment'
 import {
   enforceSecureEndpoints,
   minimumTlsResponse
@@ -36,7 +37,12 @@ const worker = {
         Response.json({ error: 'maintenance_mode' }, { status: 503 })
       )
     }
-    return getWebHandler(env)(request)
+    return getWebHandler(env)(request).then((response) => {
+      if (new URL(request.url).pathname === '/health') {
+        return setDeploymentIdentity(response, env.GIT_COMMIT_SHA, env.SERVICE_VERSION)
+      }
+      return response
+    })
   }
 }
 

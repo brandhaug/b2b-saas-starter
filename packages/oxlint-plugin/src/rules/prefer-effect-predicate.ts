@@ -19,7 +19,6 @@ import { getPropertyName, isIdentifier, unwrapExpression } from '../internal/ast
  * `isNotNull`, `value === null` is `isNull`. Naming the inverted helper sent
  * anyone who followed the message to the wrong one.
  */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const MESSAGES = {
   presence:
     'Avoid hand-written nullish predicates. Use Predicate.isNotNull or Predicate.isNotNullable from effect, which also narrow the filtered type.',

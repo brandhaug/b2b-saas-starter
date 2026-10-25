@@ -57,11 +57,8 @@ type NavigatorWithUaData = Navigator & {
 }
 
 function isMacPlatform(): boolean {
-  // SAFETY: the assertion only adds the UA-CH surface the DOM lib's
-  // `Navigator` lacks; the property is optional, so a browser without it
-  // falls through to `navigator.platform` below.
-  // oxlint-disable-next-line effect/noAs -- structural probe of a DOM API the lib predates, not a widening
-  const uaData = (navigator as NavigatorWithUaData).userAgentData
+  const navigatorWithUaData: NavigatorWithUaData = navigator
+  const uaData = navigatorWithUaData.userAgentData
   const platform = uaData?.platform ?? navigator.platform
   return platform.toUpperCase().includes('MAC')
 }

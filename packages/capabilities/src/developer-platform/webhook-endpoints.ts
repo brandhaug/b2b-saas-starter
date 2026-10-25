@@ -140,7 +140,6 @@ type DeleteWebhookEndpointInput = {
  * serves. `failed` is deliberately absent: a retryable failure is still in
  * flight, and the queue, not an operator, will redeliver it.
  */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const TERMINAL_DELIVERY_STATUSES = [
   'failed_permanent',
   'dead_lettered'

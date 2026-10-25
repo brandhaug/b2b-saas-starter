@@ -319,4 +319,15 @@ jobs:
       # health route and the web app root to ride out propagation lag right
       # after the upload, then fails the job.
       - name: Smoke test the deployment
+        env:
+          GIT_COMMIT_SHA: ${{ github.sha }}
+          SERVICE_VERSION: ${{ vars.SERVICE_VERSION || github.sha }}
         run: node .github/scripts/smoke-deployment.ts
+      - name: Upload deployment smoke evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: deployment-smoke-production
+          path: artifacts/deployment-smoke.json
+          if-no-files-found: error
+          retention-days: 14

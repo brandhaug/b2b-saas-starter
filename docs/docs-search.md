@@ -57,9 +57,9 @@ and mobile screenshots and the script request list; the JSON report is
 
 ### Observed run
 
-On 2026-10-25, the implementation based on `979db38d75b1895280d0fd2f2dc20de8289da106`
+On 2026-10-25, the implementation integrated with `master` at `731fc604`
 passed `CI=1 E2E_PORT=43871 E2E_STARTUP_TIMEOUT=360000 pnpm run validate`.
-The full browser suite reported 64 passed and 11 skipped, including both search
+The full browser suite reported 65 passed and 11 skipped, including both search
 tests. Type checks, lint, formatting, dead-code checks, catalog checks, repository
 tests, build, client bundle guard, and generated Wrangler drift checks passed.
 The search tests observed no compiled article requests before result navigation
@@ -69,7 +69,7 @@ Earlier runs hit authentication test timeouts during host contention, and one
 validation run exceeded its ten-minute command deadline. The completed run used
 a twenty-minute deadline without changing test timeouts or application behavior.
 Local command logs are retained under the session's temporary directory as
-`docs-search-validate-complete.log`; Playwright regenerates the screenshots and
+`docs-search-integrated-validation.log`; Playwright regenerates the screenshots and
 request-list attachments on each run.
 
 Markdown and llms exports are owned separately. This index's category/slug IDs
