@@ -51,6 +51,9 @@ catalogs:
     '@inlang/plugin-message-format':
       specifier: 4.5.5
       version: 4.5.5
+    '@mdx-js/mdx':
+      specifier: 3.1.1
+      version: 3.1.1
     '@mdx-js/rollup':
       specifier: 3.1.1
       version: 3.1.1
@@ -102,6 +105,9 @@ catalogs:
     '@testing-library/react':
       specifier: 16.3.3
       version: 16.3.3
+    '@types/js-yaml':
+      specifier: 4.0.9
+      version: 4.0.9
     '@types/mdx':
       specifier: 2.0.14
       version: 2.0.14
@@ -619,6 +625,9 @@ importers:
       '@effect/vitest':
         specifier: 4.0.6
         version: 4.0.6(effect@4.0.5)(vitest@5.0.3)
+      '@mdx-js/mdx':
+        specifier: 'catalog:'
+        version: 3.1.1(supports-color@10.2.2)
       '@mdx-js/rollup':
         specifier: 'catalog:'
         version: 3.1.1(rollup@4.64.5)(supports-color@10.2.2)
@@ -646,6 +655,9 @@ importers:
       '@testing-library/react':
         specifier: 'catalog:'
         version: 16.3.3(@testing-library/dom@10.4.2)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@types/js-yaml':
+        specifier: 'catalog:'
+        version: 4.0.9
       '@types/mdx':
         specifier: 'catalog:'
         version: 2.0.14
@@ -667,6 +679,9 @@ importers:
       esbuild:
         specifier: 'catalog:'
         version: 0.28.2
+      js-yaml:
+        specifier: 4.3.2
+        version: 4.3.2
       jsdom:
         specifier: 'catalog:'
         version: 30.1.3(@noble/hashes@2.4.0)
@@ -4656,6 +4671,9 @@ packages:
 
   '@types/hast@3.0.5':
     resolution: {integrity: sha512-rp/ezSWaD1m44dPKICGhiskI13nVr7qTloFwDa/IYkhhf5nzwP+zIQcIJh3WIFSBOy/H1PzB40jPjMDksN4F+g==}
+
+  '@types/js-yaml@4.0.9':
+    resolution: {integrity: sha512-k4MGaQl5TGo/iipqb2UDG2UwjXziSWkh0uysQelTlJpX1qGlpUZYm8PnO4DxG1qBomtJUdYJ6qR6xdIah10JLg==}
 
   '@types/jsesc@2.5.1':
     resolution: {integrity: sha512-9VN+6yxLOPLOav+7PwjZbxiID2bVaeq0ED4qSQmdQTdjnXJSaCVKTR58t15oqH1H5t8Ng2ZX1SabJVoN9Q34bw==}
@@ -11288,6 +11306,8 @@ snapshots:
   '@types/hast@3.0.5':
     dependencies:
       '@types/unist': 3.0.3
+
+  '@types/js-yaml@4.0.9': {}
 
   '@types/jsesc@2.5.1': {}
 

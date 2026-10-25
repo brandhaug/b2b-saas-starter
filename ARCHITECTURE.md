@@ -133,6 +133,7 @@ without a model provider; replay dispatch requires the webhook queue binding.
 - Cloudflare Queues carry webhook, export, billing, and instant-notification work. Webhooks and billing have dead-letter consumers. Durable application records retain outcomes and support recovery.
 - Optional R2 stores gzipped JSON workspace exports with seven-day retention. There is no general file-upload workflow.
 - Checked-in MDX supplies public articles and navigation metadata. LLM summaries are static public files maintained alongside the articles.
+- Public documentation search builds a text-only index from `apps/web/content/docs` through `apps/web/scripts/docs-search-index.ts`. Its dedicated route loads records without compiled article components. [Search maintenance and verification](docs/docs-search.md) describes the index contract and browser checks.
 
 ## Deployment & Infrastructure
 

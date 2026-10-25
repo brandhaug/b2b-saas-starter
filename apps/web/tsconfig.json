@@ -2,7 +2,8 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "virtual:docs-search": ["./src/docs-search-index.d.ts"]
     },
     "types": [
       "vite/client",

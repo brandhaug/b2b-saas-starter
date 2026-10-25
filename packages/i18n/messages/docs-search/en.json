@@ -1,0 +1,10 @@
+{
+  "docs_search_title": "Search documentation",
+  "docs_search_label": "Search documentation",
+  "docs_search_hint": "Search the English guides by topic or phrase, such as billing or optional providers.",
+  "docs_search_no_results": "No guides found. Try fewer words or a different topic.",
+  "docs_search_results": "Documentation results",
+  "docs_search_count": "Matching guides: {count}",
+  "docs_search_source": "View source",
+  "docs_search_language": "Guide titles and content are in English."
+}

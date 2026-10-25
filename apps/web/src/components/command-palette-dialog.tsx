@@ -228,6 +228,14 @@ export default function CommandPaletteDialog() {
         <CommandGroup heading={m.nav_workspace_group()}>{rows}</CommandGroup>
         <KnowledgeEntries close={close} />
         <CommandGroup heading={m.command_public_pages()}>
+          <CommandItem
+            onSelect={() => {
+              close()
+              void navigate({ to: '/docs/search', search: { q: query } })
+            }}
+          >
+            {m.docs_search_title()}
+          </CommandItem>
           {publicLinks().map((link) => (
             <CommandItem
               key={link.to}
