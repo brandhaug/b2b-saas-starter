@@ -1,7 +1,7 @@
 # Public locale URL verification
 
 Verified on 2026-10-25 against the unprefixed-English URL change, based on
-`5ae1eeccff13d9fc8054dccf857ae65d90cefdf1`.
+`60419a6e180dd24f653585d416596fd1a9e5415a`, including the dependency security updates.
 
 ## Repeat
 

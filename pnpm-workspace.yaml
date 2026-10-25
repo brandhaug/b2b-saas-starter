@@ -165,8 +165,8 @@ overrides:
   ws: 8.21.0
   vite@*: 'catalog:'
   vitest@*: 'catalog:'
-  "@vitest/browser@>=5.0.0-beta.6 <5.0.5": 5.0.5
-  "@vitest/ui@>=5.0.0-beta.6 <5.0.5": 5.0.5
+  '@vitest/browser@>=5.0.0-beta.6 <5.0.5': 5.0.5
+  '@vitest/ui@>=5.0.0-beta.6 <5.0.5': 5.0.5
   zod@<4.6.6: 4.6.6
   body-parser@>=2.0.0 <2.4.0: 2.4.0
   undici@>=7.0.0 <7.30.1: 7.30.1
