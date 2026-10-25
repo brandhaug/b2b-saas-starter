@@ -43,6 +43,8 @@
     "class-variance-authority",
     "cmdk",
     "eslint-plugin-better-tailwindcss",
+    // Used only by the root suppression inventory CLI, never application runtime.
+    "oxc-parser",
     // lint.config.ts loads this subpath through jsPlugins rather than an import.
     "oxlint-plugin-effect",
     // The root lint plugin resolves Tailwind to parse apps/web/src/index.css.

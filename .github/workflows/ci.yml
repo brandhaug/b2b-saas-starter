@@ -29,6 +29,7 @@ jobs:
           cache-task: true
       - run: vp run typecheck
       - run: vp run lint
+      - run: pnpm run suppressions:check
       # Dead-code regression gate (the `dead-code` step of `pnpm run check`).
       # Fallow is pinned in the workspace catalog so local and CI runs use the
       # same analyzer binary.
