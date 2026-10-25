@@ -31,7 +31,6 @@ export type WebRateLimitBucket = 'auth_read' | 'auth_write' | 'auth_sign_in'
  * through them, so renaming a binding is one row here and the whole chain
  * moves together.
  */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const apiRateLimitBindingNames = {
   rest_read: 'RATE_LIMITER_REST',
   rest_write: 'RATE_LIMITER_REST_WRITE',
@@ -39,7 +38,6 @@ export const apiRateLimitBindingNames = {
   mcp: 'RATE_LIMITER_MCP'
 } as const satisfies Record<ApiRateLimitBucket, string>
 
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const webRateLimitBindingNames = {
   auth_read: 'RATE_LIMITER_AUTH_READ',
   auth_write: 'RATE_LIMITER_AUTH_WRITE',
@@ -88,13 +86,13 @@ function rateLimitSpecs<Bucket extends string>(
   // SAFETY: Object.keys erases literal keys, but every key of `tuning` is a
   // `Bucket` — the `Record<Bucket, _>` parameters own that exhaustiveness —
   // so the assertion only restores what the operator dropped.
-  // oxlint-disable-next-line effect/noAs, typescript/no-unsafe-type-assertion -- see SAFETY above
+  // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- see SAFETY above
   const buckets = Object.keys(tuning) as Array<Bucket>
   return {
     specs: buckets.map((bucket) => ({ name: names[bucket], ...tuning[bucket] })),
     // SAFETY: Object.fromEntries widens the key the same way Object.keys
     // does; the `RateLimitTable` return annotation is the check.
-    // oxlint-disable-next-line effect/noAs -- see SAFETY above
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- see SAFETY above
     fallbackLimits: Object.fromEntries(
       buckets.map((bucket) => [bucket, tuning[bucket].limit])
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- see the safety justification above
@@ -206,7 +204,6 @@ export function retentionTargetKey(
  * literal type so the per-worker binding-name unions below can derive from
  * them instead of re-spelling the strings.
  */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const queueBindingKeys = {
   webhookQueue: 'WEBHOOK_QUEUE',
   billingQueue: 'BILLING_QUEUE',
@@ -230,7 +227,6 @@ export type QueueBindingKey =
  * per-worker records below read them from here, so the exported unions have
  * a single home per name.
  */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const resourceBindingNames = {
   assistantConversations: 'ASSISTANT_CONVERSATIONS',
   database: 'DB',
@@ -257,7 +253,6 @@ const resourceBindingNames = {
  * wires no email dispatcher (apps/api/AGENTS.md), so the binding alchemy
  * spreads into its env simply has no reader there.
  */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const apiBindingNames = {
   assistantConversations: resourceBindingNames.assistantConversations,
   database: resourceBindingNames.database,
@@ -268,7 +263,6 @@ const apiBindingNames = {
   workspaceExportBucket: resourceBindingNames.workspaceExportBucket
 } as const
 
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const backgroundBindingNames = {
   assistantConversations: resourceBindingNames.assistantConversations,
   database: resourceBindingNames.database,
@@ -280,7 +274,6 @@ const backgroundBindingNames = {
   email: resourceBindingNames.email
 } as const
 
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const webBindingNames = {
   assistantConversations: resourceBindingNames.assistantConversations,
   database: resourceBindingNames.database,

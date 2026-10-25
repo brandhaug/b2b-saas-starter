@@ -101,7 +101,6 @@ export type MemberRoleInput = MemberRef & {
  * copy from. Widen the record, never inline a string (the same rule
  * `AUTHORIZATION_DENIED_REASONS` follows in `authz`).
  */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const MEMBERSHIP_REFUSAL_REASONS = {
   /** The acted-on user holds no membership in this workspace. */
   notAMember: 'not_a_member',

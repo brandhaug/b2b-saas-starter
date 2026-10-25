@@ -50,7 +50,6 @@ export const IMPERSONATION_SESSION_SECONDS = 60 * 60
  * it at the catchall (`apps/web/src/lib/server/impersonation-guard.ts`) and the
  * UI hides the matching controls.
  */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const IMPERSONATION_FORBIDDEN_ACTIONS = [
   'change_password',
   'change_two_factor',

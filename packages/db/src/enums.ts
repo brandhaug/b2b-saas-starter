@@ -6,7 +6,6 @@
  * silent gap — without pulling the table definitions into those layers.
  */
 
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const workspaceRoles = ['owner', 'admin', 'member'] as const
 
 /**
@@ -15,12 +14,10 @@ export const workspaceRoles = ['owner', 'admin', 'member'] as const
  * `/admin` surface and nothing at all inside a workspace, where the
  * membership row's role is the only thing that decides.
  */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const systemRoles = ['admin', 'user'] as const
 export type SystemRoleValue = (typeof systemRoles)[number]
 
 /** Supported account interface and email locales. */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const accountLocales = ['en', 'nb'] as const
 export type AccountLocale = (typeof accountLocales)[number]
 
@@ -36,7 +33,6 @@ export const adminSystemRole = 'admin' satisfies SystemRoleValue
  * carries the plugin's single-`l` spelling — the value is written by the
  * plugin, so the enum must match it byte for byte.
  */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const invitationStatuses = [
   'pending',
   'accepted',
@@ -44,7 +40,6 @@ export const invitationStatuses = [
   'canceled'
 ] as const
 
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const apiTokenScopes = ['read', 'write', 'admin'] as const
 export type ApiTokenScopeValue = (typeof apiTokenScopes)[number]
 
@@ -55,7 +50,6 @@ export type ApiTokenScopeValue = (typeof apiTokenScopes)[number]
  * `owner` is absent, because a connection must never mint the role that can
  * delete the workspace or change the connection itself.
  */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const ssoProvisionedRoles = ['member', 'admin'] as const
 export type SsoProvisionedRoleValue = (typeof ssoProvisionedRoles)[number]
 
@@ -81,7 +75,6 @@ export function isSsoProvisionedRole(
  * retries remain, `failed_permanent` on a non-retryable response,
  * `dead_lettered` once attempts are exhausted.
  */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const deliveryStatuses = [
   'pending',
   'delivered',
@@ -96,17 +89,14 @@ export type DeliveryStatus = (typeof deliveryStatuses)[number]
  * from the request until the background worker picks it up, then `ready` with
  * an object in the export bucket, or `failed` with a reason.
  */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const workspaceExportStatuses = ['pending', 'ready', 'failed'] as const
 export type WorkspaceExportStatus = (typeof workspaceExportStatuses)[number]
 
 /** Durable workspace suspension state. */
-// oxlint-disable-next-line effect/noAs -- literal enum tuple
 export const workspaceSuspensionStatuses = ['active', 'suspended'] as const
 export type WorkspaceSuspensionStatus = (typeof workspaceSuspensionStatuses)[number]
 
 /** Durable Stripe-provider event processing state. */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const billingProviderEventStatuses = [
   'processing',
   'completed',
@@ -116,7 +106,6 @@ export const billingProviderEventStatuses = [
 export type BillingProviderEventStatus = (typeof billingProviderEventStatuses)[number]
 
 /** The state exposed while billing converges against the provider. */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const billingSynchronizationStatuses = [
   'current',
   'pending',
@@ -127,7 +116,6 @@ export type BillingSynchronizationStatus =
   (typeof billingSynchronizationStatuses)[number]
 
 /** Durable checkout handoff state. */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const billingCheckoutStatuses = [
   'pending',
   'created',
@@ -136,7 +124,6 @@ export const billingCheckoutStatuses = [
 ] as const
 export type BillingCheckoutStatus = (typeof billingCheckoutStatuses)[number]
 
-// oxlint-disable-next-line effect/noAs -- literal enum tuple
 export const billingLifecycleStatuses = [
   'active',
   'trialing',
@@ -156,7 +143,6 @@ export type BillingLifecycleStatus = (typeof billingLifecycleStatuses)[number]
  * (`<namespace>.<past_tense_verb>`), but this is a separate, smaller
  * vocabulary — a Notification is user-facing, an Audit Event is governance.
  */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const notificationKinds = [
   'api_token.created',
   'api_token.revoked',
@@ -176,7 +162,6 @@ export type NotificationKind = (typeof notificationKinds)[number]
  * digest would leave the affected user last to know. Every other kind defaults
  * to `digest`.
  */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const securityNotificationKinds = [
   'api_token.created',
   'api_token.revoked',
@@ -192,7 +177,6 @@ export const securityNotificationKinds = [
  * REST/MCP surface. Independent of `actorUserId`: a user action can remain
  * unattributed, and a credential can act on behalf of a known user.
  */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const auditActorTypes = ['user', 'system', 'api_token'] as const
 export type AuditActorTypeValue = (typeof auditActorTypes)[number]
 
@@ -201,14 +185,11 @@ export type AuditActorTypeValue = (typeof auditActorTypes)[number]
  * email per Notification as it is created, or folded into the daily digest.
  * The in-app feed is unaffected by the choice.
  */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const notificationChannels = ['off', 'instant', 'digest'] as const
 export type NotificationChannel = (typeof notificationChannels)[number]
 
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const deliveryAttemptPhases = ['http', 'terminal'] as const
 
-// oxlint-disable-next-line effect/noAs -- stored vocabulary
 export const emailPurposes = [
   'verification',
   'recovery',
@@ -217,7 +198,6 @@ export const emailPurposes = [
   'notification',
   'digest'
 ] as const
-// oxlint-disable-next-line effect/noAs -- stored vocabulary
 export const emailDeliveryStatuses = [
   'queued',
   'accepted',
@@ -231,5 +211,4 @@ export const emailDeliveryStatuses = [
 ] as const
 
 /** Supported licensed subscription periods. */
-// oxlint-disable-next-line effect/noAs -- literal enum tuple
 export const billingIntervals = ['month', 'year'] as const

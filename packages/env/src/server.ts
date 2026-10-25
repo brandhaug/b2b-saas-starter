@@ -125,7 +125,6 @@ export type ProviderEnvOf<K extends keyof ServerEnv> = {
 // are wrapped in `Redacted` at deploy time; plain keys are forwarded as-is.
 // `satisfies` pins both lists to the `ServerEnv` type's keys, so a typo or a
 // var that was removed from the type is a compile error.
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const optionalModuleEnvSecretKeys = [
   'STRIPE_SECRET_KEY',
   'STRIPE_WEBHOOK_SECRET',
@@ -137,7 +136,6 @@ export const optionalModuleEnvSecretKeys = [
   'OTEL_EXPORTER_OTLP_HEADERS'
 ] as const satisfies ReadonlyArray<keyof ServerEnv>
 
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 export const optionalModuleEnvPlainKeys = [
   'PRIVACY_CONTROLLER_NAME',
   'PRIVACY_CONTACT_EMAIL',

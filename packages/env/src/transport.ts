@@ -17,11 +17,9 @@ export function tlsVersionIsAllowed(version: string | undefined): boolean {
 }
 
 function requestTlsVersion(request: Request): string | undefined {
-  // SAFETY: Cloudflare augments Request with an optional `cf` object; local
-  // workerd and standard Requests omit it, which is why the field is optional.
-  // oxlint-disable-next-line effect/noAs -- SAFETY: Cloudflare augments Request with the optional cf object; local workerd and standard Requests omit it.
-  const cf = (request as Request & { readonly cf?: { readonly tlsVersion?: string } })
-    .cf
+  const edgeRequest: Request & { readonly cf?: { readonly tlsVersion?: string } } =
+    request
+  const { cf } = edgeRequest
   return cf?.tlsVersion
 }
 
@@ -69,7 +67,6 @@ export function isSecureEndpoint(value: string): boolean {
   return parsed !== null && isSecureUrl(parsed)
 }
 
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const secureEndpointKeys = [
   'BETTER_AUTH_URL',
   'BETTER_AUTH_TRUSTED_ORIGINS',

@@ -26,29 +26,31 @@ export function safeRedirect(raw: string | undefined): string {
  * ships statically to the browser, so an effect import here would pin the
  * Effect runtime onto pages (sign-in, sign-up) that never run a capability.
  */
-// oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, anti-slop/no-unsafe-dictionary-type, anti-slop/no-known-value-widening, effect/noAs, anti-slop/require-safety-comment-for-type-assertion, typescript/no-unsafe-type-assertion
+// oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, anti-slop/no-unsafe-dictionary-type, anti-slop/no-known-value-widening
 // TanStack Router hands `validateSearch` an untyped search record at this
 // module's boundary — the parse step for that boundary lives here and only
-// here. The `as` states the boundary contract: router search records are
-// string-keyed objects; anything else falls through to an empty result.
+// here. Object values are probed as unknown before accepting any string field.
+function isSearchRecord(search: unknown): search is Record<string, unknown> {
+  return typeof search === 'object' && search !== null
+}
+
 export function pickOptionalStrings(
   search: unknown,
   keys: ReadonlyArray<string>
 ): Record<string, string | undefined> {
   const picked: Record<string, string | undefined> = {}
-  if (typeof search !== 'object' || search === null) {
+  if (!isSearchRecord(search)) {
     return picked
   }
-  const record = search as Record<string, unknown>
   for (const key of keys) {
-    const value = record[key]
+    const value = search[key]
     if (typeof value === 'string') {
       picked[key] = value
     }
   }
   return picked
 }
-// oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, anti-slop/no-unsafe-dictionary-type, anti-slop/no-known-value-widening, effect/noAs, anti-slop/require-safety-comment-for-type-assertion, typescript/no-unsafe-type-assertion
+// oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, anti-slop/no-unsafe-dictionary-type, anti-slop/no-known-value-widening
 
 /**
  * The `?redirect=` search param the auth flow routes (sign-in, sign-up,

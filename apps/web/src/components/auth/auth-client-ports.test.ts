@@ -32,7 +32,6 @@ beforeEach(() => {
   authClientDouble.emailOtp.requestPasswordReset.mockReset().mockResolvedValue(answer)
 })
 
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const gatedSends = [
   {
     name: 'sign-up',

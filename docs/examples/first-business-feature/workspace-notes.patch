@@ -499,9 +499,8 @@ index 38b80c2b..e58fdc70 100644
    apiToken: [],
    webhook: [],
    auditLog: [],
-@@ -118,6 +120,7 @@ export const workspaceRoleAccess = {
+@@ -118,5 +120,6 @@ export const workspaceRoleAccess = {
   */
- // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
  const readScopeStatements = {
 +  workspaceNote: ['list'],
    ac: ['read'],
@@ -519,9 +518,8 @@ diff --git a/packages/authz/src/statements.ts b/packages/authz/src/statements.ts
 index e8245228..8262195a 100644
 --- a/packages/authz/src/statements.ts
 +++ b/packages/authz/src/statements.ts
-@@ -18,6 +18,7 @@ import { defaultStatements } from 'better-auth/plugins/organization/access'
+@@ -18,5 +18,6 @@ import { defaultStatements } from 'better-auth/plugins/organization/access'
   */
- // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
  export const starterResources = {
 +  workspaceNote: ['list', 'create'],
    apiToken: ['list', 'create', 'revoke'],
@@ -555,17 +553,15 @@ diff --git a/packages/capabilities/src/governance/audit-event-taxonomy.ts b/pack
 index 934c159a..323f0d55 100644
 --- a/packages/capabilities/src/governance/audit-event-taxonomy.ts
 +++ b/packages/capabilities/src/governance/audit-event-taxonomy.ts
-@@ -22,6 +22,7 @@
+@@ -22,5 +22,6 @@
  /** Every audit event type, for UI dropdowns; the union derives from it. */
- // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
  export const AUDIT_EVENT_TYPES = [
 +  'workspace_note.created',
    // developer-platform
    'api_token.created',
    'api_token.revoked',
-@@ -161,6 +162,7 @@ export type AuditEventType = (typeof AUDIT_EVENT_TYPES)[number]
+@@ -160,5 +161,6 @@ export type AuditEventType = (typeof AUDIT_EVENT_TYPES)[number]
   */
- // oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
  const AUDIT_TARGET_TYPES = [
 +  'workspace_note',
    'user',

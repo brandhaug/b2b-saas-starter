@@ -116,7 +116,6 @@ export const workspaceRoleAccess = {
  * is minted by an owner or admin, so it may read the audit log the member who
  * holds a session cannot.
  */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const readScopeStatements = {
   ac: ['read'],
   apiToken: ['list'],

@@ -73,7 +73,7 @@ export function readCfColo(request: Request): string | undefined {
   }
   // SAFETY: `request.cf` is Cloudflare's untyped platform bag; the only claim
   // is that it may carry a `colo` string, checked on the next line.
-  // oxlint-disable-next-line effect/noAs -- one property off a platform bag Cloudflare does not type; a codec would validate a contract nobody publishes
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- one property off a platform bag Cloudflare does not type; a codec would validate a contract nobody publishes
   const colo: unknown = (request.cf as { readonly colo?: unknown }).colo
   // oxlint-disable-next-line anti-slop/no-runtime-typeof, effect/noTernary -- same single-string read as `ownStringValue`
   return typeof colo === 'string' && colo.length > 0 ? colo : undefined

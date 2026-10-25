@@ -30,7 +30,6 @@ export class CapabilityUnavailableError extends UiError {
 
 export const FORBIDDEN_ERROR_NAME = 'ForbiddenError'
 
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const forbiddenReasons = ['no_principal', 'denied'] as const
 
 export type ForbiddenReason = (typeof forbiddenReasons)[number]
@@ -54,7 +53,6 @@ export class PlanLimitError extends UiError {
 }
 
 /** The membership refusals the browser is allowed to distinguish. */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const membershipRefusalReasons = [
   'not_a_member',
   'sole_owner',
@@ -76,7 +74,6 @@ export class MembershipRefusedError extends UiError {
 }
 
 /** The user-admin refusals the browser is allowed to distinguish. */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const userAdminRefusalReasons = [
   'unknown_user',
   'not_a_member',
@@ -106,7 +103,6 @@ export class UserAdminRefusedError extends UiError {
  * cookie holds one token), replaying a delivery while impersonating, or
  * stopping an impersonation from an ordinary session.
  */
-// oxlint-disable-next-line effect/noAs -- `as const`, not a type assertion
 const impersonationStateReasons = [
   'nested',
   'replay_blocked',
