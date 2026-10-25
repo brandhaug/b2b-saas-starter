@@ -43,6 +43,9 @@ function expectArticle(result: Awaited<ReturnType<typeof article>>, locale: stri
   expect(result.status).toBe(200)
   expect(result.body).toContain(`<html lang="${locale}"`)
   expect(result.body).toContain('Quickstart')
+  expect(result.body).toMatch(
+    /<h2\b[^>]*id="install-and-run"[^>]*>Install and run<\/h2>/
+  )
   expect(result.body).toContain(`/${locale}/docs/`)
   expect(result.body).toContain(locale === 'nb' ? 'Kom i gang' : 'Getting started')
   expect(result.body).not.toContain(locale === 'nb' ? 'Getting started' : 'Kom i gang')

@@ -54,7 +54,7 @@ Each test creates and disposes a fresh workerd runtime. No readiness HTTP reques
 warms docs. Requests have a 15-second abort signal; each test has a 30-second limit.
 The overlap gate requires both English and Norwegian requests to arrive before
 either is released. Responses assert status, HTML language, article title, docs
-links and the correct translated category label, rejecting the other locale's
+links, the rendered MDX heading `Install and run`, and the correct translated category label, rejecting the other locale's
 label. The recovery test checks an initial 500, a subsequent successful load in
 the same isolate, and reuse without another boundary call.
 
