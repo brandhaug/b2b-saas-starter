@@ -1,0 +1,46 @@
+# Quickstart
+
+Install, seed, and run the starter locally.
+
+Canonical: /en/docs/getting-started/quickstart
+Source: apps/web/content/docs/getting-started/quickstart.mdx
+Language: en
+
+Use [Vite+](https://viteplus.dev) for the managed Node runtime and pinned pnpm.
+A Cloudflare account is needed for deployment only.
+
+## Install and run
+
+```bash
+vp install
+cp .env.example .env
+pnpm run db:migrate:local
+pnpm run db:seed
+pnpm run dev
+```
+
+The development command runs the web app on port 3071, the REST/MCP API on 8787,
+and the background Worker on 8788. They share persisted local D1. To run one app,
+use `pnpm -C apps/web dev`, `pnpm -C apps/api dev`, or
+`pnpm -C apps/background dev`.
+
+## Sign in
+
+Open `http://localhost:3071/sign-in`. Seeding creates these credential accounts:
+
+| Email                  | Password                | Roles                                |
+| ---------------------- | ----------------------- | ------------------------------------ |
+| `demo@starter.local`   | `demo-starter-password` | System admin and `starter-lab` owner |
+| `engineer@example.com` | `demo-starter-password` | `starter-lab` member                 |
+
+The sign-in form also offers magic links and six-digit emailed codes. Both
+expire after ten minutes. Codes allow three failed attempts. Without an email
+provider, local delivery appears in the dev server's `email.dispatched` log.
+
+The [Seed workspace](/agent-docs/getting-started/seed-workspace.md) supplies members,
+notifications, audit history, API tokens, and webhook endpoints. See the
+[setup guide](https://github.com/brandhaug/b2b-saas-starter/blob/master/docs/setup.md)
+for environment details and troubleshooting.
+
+Follow [First business feature](/agent-docs/getting-started/first-business-feature.md) to add
+a workspace-owned resource through D1, Effect adapters, permissions, UI, and REST.

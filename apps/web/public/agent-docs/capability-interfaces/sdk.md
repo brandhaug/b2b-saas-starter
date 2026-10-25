@@ -1,0 +1,70 @@
+# Typed client
+
+Derive a typed client from the same HttpApi contract the API Worker serves; no codegen, no shipped SDK package.
+
+Canonical: /en/docs/capability-interfaces/sdk
+Source: apps/web/content/docs/capability-interfaces/sdk.mdx
+Language: en
+
+The starter ships no client package. The REST Capability Interface is defined once as the `StarterApi` `HttpApi` contract in `packages/api`, and Effect's `HttpApiClient` derives a client from that definition directly, so every path, query parameter, payload, success schema, and error schema the API Worker serves is the one the client encodes and decodes. There is no codegen step and no generated file: a contract change fails the caller's type-check, and the served `/openapi.json` stays a document for humans and third-party generators.
+
+Callers inside the workspace import the contract and derive what they need. Callers outside it generate from `/openapi.json` or write against the wire format described in [REST API](/agent-docs/capability-interfaces/rest-api.md).
+
+## Deriving a client
+
+`HttpApiClient.make` needs an `HttpClient` in context, which is where the API Token goes: the contract's `BearerAuth` middleware declares the security scheme, and the credential stays a caller concern carried by a `transformClient` header.
+
+```ts
+import { StarterApi } from '@b2b-saas-starter/api'
+import { FetchHttpClient, HttpClient, HttpClientRequest } from 'effect/http'
+import { HttpApiClient } from 'effect/http-api'
+import { Effect } from 'effect'
+
+type StarterApiClient = HttpApiClient.ForApi<typeof StarterApi>
+
+const makeClient = (options: { baseUrl: string; apiToken: string }) =>
+  HttpApiClient.make(StarterApi, {
+    baseUrl: options.baseUrl,
+    transformClient: (client) =>
+      HttpClient.mapRequest(client, (request) =>
+        HttpClientRequest.bearerToken(request, options.apiToken)
+      )
+  })
+
+/** One bounded Page of a list endpoint: items plus the opaque nextCursor. */
+const auditEventPage = (client: StarterApiClient, slug: string, cursor?: string) =>
+  client.workspace['audit-events']({
+    params: { slug },
+    query: cursor === undefined ? { limit: 100 } : { limit: 100, cursor }
+  })
+
+const program = Effect.gen(function* () {
+  const client = yield* makeClient({
+    baseUrl: 'https://api.example.com',
+    apiToken: 'bsk_live_…'
+  })
+  // Typed request, typed success, tagged errors; the worker's contract.
+  const page = yield* auditEventPage(client, 'acme')
+  return page.items
+})
+
+await program.pipe(Effect.provide(FetchHttpClient.layer), Effect.runPromise)
+```
+
+`exactOptionalPropertyTypes` makes an absent key differ from an explicit `undefined`, so build the `query` object per field rather than spreading optionals.
+
+Swapping `FetchHttpClient.layer` for a layer whose `FetchHttpClient.Fetch` is the API Worker's own web handler drives the contract in tests without a network.
+
+## Pagination
+
+Every list endpoint pages the same way (ADR 0057): an optional `limit` (default 50, clamped to at most 200) and an opaque `cursor` from the previous page's `nextCursor`, which is `null` on the last page. The cursor marks a keyset position, not a snapshot; new rows before it require a fresh traversal. A walk over the whole collection is a loop over `nextCursor` until the server answers `null`.
+
+## Errors
+
+The derived client's error channel carries the contract's tagged errors the worker serves: a missing or revoked token fails with `Unauthorized` (HTTP 401), a token lacking the route's permission with `AuthorizationDenied` (403), an unknown workspace slug with `WorkspaceNotFound` (404), and a saturated rate-limit bucket with `RateLimited` (429). `Effect.catchTag` matches on them by tag.
+
+## Related
+
+* [REST API](/agent-docs/capability-interfaces/rest-api.md): the wire contract, authentication, and rate-limit buckets.
+* [API tokens](/agent-docs/capability-interfaces/api-tokens.md): minting the credential the client sends.
+* [MCP server](/agent-docs/capability-interfaces/mcp-server.md): workspace tools and their authentication rules.

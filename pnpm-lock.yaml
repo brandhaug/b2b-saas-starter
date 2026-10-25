@@ -51,6 +51,9 @@ catalogs:
     '@inlang/plugin-message-format':
       specifier: 4.5.5
       version: 4.5.5
+    '@mdx-js/mdx':
+      specifier: 3.1.1
+      version: 3.1.1
     '@mdx-js/rollup':
       specifier: 3.1.1
       version: 3.1.1
@@ -174,6 +177,12 @@ catalogs:
     lucide-react:
       specifier: 1.61.0
       version: 1.61.0
+    mdast-util-gfm:
+      specifier: 3.1.0
+      version: 3.1.0
+    mdast-util-to-markdown:
+      specifier: 2.2.0
+      version: 2.2.0
     miniflare:
       specifier: 5.20261019.1-beta
       version: 5.20261019.1-beta
@@ -619,6 +628,9 @@ importers:
       '@effect/vitest':
         specifier: 4.0.6
         version: 4.0.6(effect@4.0.5)(vitest@5.0.3)
+      '@mdx-js/mdx':
+        specifier: 'catalog:'
+        version: 3.1.1(supports-color@10.2.2)
       '@mdx-js/rollup':
         specifier: 'catalog:'
         version: 3.1.1(rollup@4.64.5)(supports-color@10.2.2)
@@ -667,9 +679,18 @@ importers:
       esbuild:
         specifier: 'catalog:'
         version: 0.28.2
+      js-yaml:
+        specifier: 4.3.2
+        version: 4.3.2
       jsdom:
         specifier: 'catalog:'
         version: 30.1.3(@noble/hashes@2.4.0)
+      mdast-util-gfm:
+        specifier: 'catalog:'
+        version: 3.1.0(supports-color@10.2.2)
+      mdast-util-to-markdown:
+        specifier: 'catalog:'
+        version: 2.2.0
       miniflare:
         specifier: 'catalog:'
         version: 5.20261019.1-beta(@types/node@26.6.5)

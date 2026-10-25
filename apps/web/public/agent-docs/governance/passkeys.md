@@ -1,0 +1,39 @@
+# Passkeys
+
+WebAuthn passkeys for sign-in and the account, and how they interact with two-factor.
+
+Canonical: /en/docs/governance/passkeys
+Source: apps/web/content/docs/governance/passkeys.mdx
+Language: en
+
+Passkeys provide WebAuthn sign-in through Better Auth's passkey plugin. They
+belong to an account and are managed on `/account`.
+
+## Sign in and manage credentials
+
+`/sign-in` offers **Sign in with a passkey** and preloads conditional autofill
+where supported. Registration requires a signed-in, fresh session. Users can
+name, rename, and remove their passkeys.
+
+Adding or removing a passkey records `auth.passkey_added` or
+`auth.passkey_removed`, with failure events for rejected changes. Successful
+changes also send a security email. Renaming changes the label only and sends
+neither an audit event nor an email.
+
+A passkey sign-in records `auth.sign_in` with `method: "passkey"`. In this
+configuration it opens a session without the separate TOTP challenge, even when
+the account has TOTP enabled. The live-auth tests cover this behavior.
+
+Impersonation sessions cannot manage passkeys. The account UI hides those
+controls and the auth boundary refuses the endpoints, because a newly enrolled
+credential would remain usable after impersonation ended.
+
+## Configuration
+
+The relying-party ID and origin derive from `BETTER_AUTH_URL`. Local development
+uses `localhost`; production uses the configured app hostname and origin. There
+are no separate passkey environment variables.
+
+Passkeys require an existing account; pre-auth registration is not implemented.
+The e2e suite uses a virtual authenticator through CDP to exercise registration,
+renaming, sign-in, and removal.

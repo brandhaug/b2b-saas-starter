@@ -1,0 +1,77 @@
+# REST API
+
+Effect HttpApi exposed by the API Worker, generated OpenAPI, and the error model.
+
+Canonical: /en/docs/capability-interfaces/rest-api
+Source: apps/web/content/docs/capability-interfaces/rest-api.mdx
+Language: en
+
+The REST API is one of two Capability Interfaces over `@b2b-saas-starter/capabilities`. The contracts are defined with Effect `HttpApi` in `packages/api`, served by the API Worker in `apps/api`, and documented through a generated OpenAPI document plus a Scalar reference UI.
+
+## Endpoint shape
+
+`HttpApiGroup` definitions in `packages/api/src/index.ts` declare each endpoint once with Effect Schema, and the wire path is workspace-slug scoped (no `/v1` prefix):
+
+```ts
+HttpApiGroup.make('workspace').add(
+  HttpApiEndpoint.get('overview', '/workspaces/:slug/overview', {
+    params: SlugParams,
+    success: WorkspaceOverviewDto,
+    error: WORKSPACE_ERRORS
+  })
+)
+```
+
+The same contract supplies OpenAPI and the [typed client](/agent-docs/capability-interfaces/sdk.md).
+
+## Routing
+
+`apps/api` serves the `HttpApi` groups directly: `HttpApiBuilder.layer(StarterApi)` plus per-group handler layers, converted to a Cloudflare web handler with `HttpRouter.toWebHandler` (`apps/api/src/http.ts`). Paths, params, payloads, success/error schemas, and status codes are all the contract's: there is no separate route table to drift from the OpenAPI document (ADR-0039).
+
+## Authentication
+
+Workspace REST clients authenticate with a workspace-scoped API Token in the `Authorization: Bearer …` header. The worker calls `ApiTokenRegistry.verifyBearerToken(token)` and then checks the route's permission against the token's scopes: a missing header or an unknown token returns HTTP 401, a token without the permission returns HTTP 403. Browser sessions are not accepted on the public API surface; cookies are an internal contract for the web Worker only.
+
+Private Assistant Conversation routes are the member-OAuth exception. They use a
+distinct assistant resource with `assistant:read` / `assistant:write` scopes and
+current creator, membership and consent checks. Workspace API Tokens and
+MCP-audience tokens cannot access them. See
+[Private Assistant Conversations](/agent-docs/capability-interfaces/assistant-conversations.md)
+for routes, idempotency and reconnectable observation.
+
+## Pagination
+
+Workspace list endpoints use keyset pagination. It accepts two optional query parameters and answers a **Page**: `items` plus an opaque `nextCursor` that is `null` on the last page.
+
+```text
+GET /workspaces/acme/notifications?limit=2
+
+{
+  "items": [ … ],
+  "nextCursor": "MjAyNi0wNS0xNlQwODoxMDowMC4wMDBaIG5vdF9lbWFpbA"
+}
+```
+
+`limit` defaults to 50 and is clamped into `[1, 200]`: out-of-range values narrow or widen to the range instead of failing. The `cursor` is a keyset position (the sort key of the last item plus its id, base64-encoded): a page returns rows strictly past that position in the endpoint's order, so inserting rows does not shift the positions of existing rows. This is not a snapshot; new rows before the cursor require a fresh traversal. Timestamped lists (`notifications`, `api-tokens`, `audit-events`) read newest-first on `(createdAt, id)`; `members` and `webhooks` carry no timestamp on the wire and read forward on `id`. A cursor that cannot be decoded addresses no position and yields an empty page. MCP list tools take the same two inputs. The derived client exposes the same `limit` and `cursor` inputs; see [Typed client](/agent-docs/capability-interfaces/sdk.md).
+
+## Rate limiting
+
+Assistant generation also uses shared durable Member concurrency and rolling-minute admission across web and REST. Reconnect and duplicate acceptance do not consume another generation allowance.
+
+Each route declares a Cloudflare RateLimit bucket (`rest_read`, `rest_write`, `assistant`, `mcp`), and the worker calls `binding.limit({ key: clientKey(request) })` before running the handler, falling back to an in-isolate brake when the bindings are absent.
+
+## Error model
+
+Tagged errors like `WorkspaceNotFound`, `Unauthorized`, and `RateLimited` carry an `httpApiStatus` annotation so they map to HTTP status codes through one mapping. MCP uses the same guard status mapping at its transport gate and returns expected operation refusals as tool errors. Declare each operation's errors in its contract and handle them at the transport boundary.
+
+## OpenAPI and Scalar
+
+Hitting `https://api.<domain>/reference` returns the Scalar reference UI. The raw OpenAPI document is at `/openapi.json` and derives from the `HttpApi` groups in `packages/api`.
+
+## MCP parity
+
+The workspace operation catalog also exposes its supported mutations as authorized MCP tools. Private Assistant Conversations use their own member REST resource and are not MCP tools.
+Webhook creation returns endpoint metadata without its signing secret. Rotate the secret to obtain one.
+Token creation checks that the requested scopes grant no permission beyond the
+caller's authority. See [MCP server](/agent-docs/capability-interfaces/mcp-server.md) for
+write tools, side effects, and one-time secret responses.

@@ -1,18 +1,19 @@
 # B2B SaaS Starter
 
-Cloudflare-first repository using TanStack Start, Effect v4, Drizzle D1, SQLite conversation Durable Objects, Better Auth, and Alchemy. Optional providers are inactive until configured.
+Public documentation generated from the MDX collection. Article bodies are English; /nb navigation does not translate them. URLs are origin-relative.
 
-## Documentation
+## Start with a task
 
-- [Quickstart](/en/docs/getting-started/quickstart)
-- [Architecture](/en/docs/architecture/overview)
-- [REST API](/en/docs/capability-interfaces/rest-api)
-- [Private Assistant Conversations](/en/docs/capability-interfaces/assistant-conversations)
-- [Cloudflare deployment](/en/docs/getting-started/cloudflare-deployment)
-- [MCP server](/en/docs/capability-interfaces/mcp-server)
-- [Optional providers](/en/docs/getting-started/optional-providers)
-- [Documentation index](/en/docs)
-- [Repository context](/llms-full.txt)
-- [Current architectural decisions](https://github.com/brandhaug/b2b-saas-starter/tree/master/docs/adr)
+- [Run locally](/agent-docs/getting-started/quickstart.md): Install, seed, and run the starter locally.
+- [Add a business feature](/agent-docs/getting-started/first-business-feature.md): Add workspace notes with D1 persistence, Effect adapters, permissions, an authenticated page, and REST.
+- [Understand the architecture](/agent-docs/architecture/overview.md): How the web worker, API worker, background worker, D1, conversation Durable Objects, and Effect capabilities fit together.
+- [Configure optional providers](/agent-docs/getting-started/optional-providers.md): How env-gated providers work; exact variables, where to set them, and how to verify activation.
+- [Deploy to Cloudflare](/agent-docs/getting-started/cloudflare-deployment.md): Deploy the starter to Cloudflare Workers, D1, Durable Objects, Queues, and Email Service using Alchemy.
+- [Call the REST API](/agent-docs/capability-interfaces/rest-api.md): Effect HttpApi exposed by the API Worker, generated OpenAPI, and the error model.
+- [Connect an MCP client](/agent-docs/capability-interfaces/mcp-server.md): The same capabilities exposed as MCP tools and resources for AI clients, with OAuth for people and API Tokens for scripts.
+- [Check workspace permissions](/agent-docs/governance/workspace-roles.md): Owner, admin, and member; the three Workspace Roles in the starter.
 
-- [First business feature](/en/docs/getting-started/first-business-feature): workspace resource tutorial with a runnable companion patch.
+## Complete collection
+
+- [Article index](/agent-docs/index.json): stable IDs, titles, canonical URLs, source paths and SHA-256 digests of the exact Markdown bytes.
+- [All articles](/llms-full.txt): full English article content.

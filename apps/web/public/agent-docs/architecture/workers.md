@@ -1,0 +1,49 @@
+# Workers
+
+The three Workers in the starter and what each one owns.
+
+Canonical: /en/docs/architecture/workers
+Source: apps/web/content/docs/architecture/workers.mdx
+Language: en
+
+## Web Worker
+
+`apps/web` runs TanStack Start SSR and server functions. It serves the public
+site, authentication, workspaces, `/account`, and `/admin`. Better Auth lives
+at `/api/auth/*`; its cookies authenticate web requests.
+
+Server functions call `packages/capabilities` directly. The web Worker does not
+call the API Worker for page data. Auth requests use separate read, write, and
+sign-in rate-limit buckets.
+
+## API Worker
+
+`apps/api` serves the `StarterApi` Effect HttpApi contract from `packages/api`.
+`apps/api/src/http.ts` composes handlers with `HttpApiBuilder` and
+`HttpRouter.toWebHandler`. The contract supplies paths, schema decoding, and
+HTTP error responses.
+
+* REST uses workspace API Tokens.
+* `/mcp` exposes tools and resources with API Token or interactive OAuth authentication.
+* `/openapi.json` serves the generated contract; `/reference` serves Scalar.
+* `/exports/:exportId/download` validates signed workspace-export links.
+
+REST reads, writes, assistant requests, and MCP requests have separate rate-limit
+buckets. Each operation also checks its required workspace permission.
+
+## Background Worker
+
+`apps/background` consumes webhook deliveries, billing jobs, notification emails,
+provider email events, and optional workspace-export jobs. It receives Stripe
+callbacks at `/webhooks/stripe`.
+
+Scheduled handlers send and retry digests, reconcile billing, and prune delivery
+history. Queue names, retry limits, and schedules live in `infra/bindings.ts`,
+shared by Alchemy and the generated Wrangler configurations. See
+[outbound webhooks](/agent-docs/operations/outbound-webhooks.md),
+[notification emails](/agent-docs/operations/notification-emails.md), and
+[billing](/agent-docs/integrations/stripe-billing.md) for delivery and recovery behavior.
+
+## Conversation host
+
+The web Worker exports the AIChatAgent conversation class. Its SQLite Durable Objects persist private history and replay; Effect executes the model. API REST observation and background cleanup reach that host through stage-specific cross-Worker bindings. D1 holds identity, authorization revisions, admission and deletion fences. The minute tick retries explicit deletion separately from age-retention cleanup. See [Private Assistant Conversations](/agent-docs/capability-interfaces/assistant-conversations.md).

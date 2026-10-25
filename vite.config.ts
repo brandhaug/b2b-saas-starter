@@ -25,6 +25,8 @@ export default defineConfig({
     indentStyle: 'tab',
     ignorePatterns: [
       'vendor/**',
+      // Exact bytes (and digests) belong to the public article generator.
+      'apps/web/public/agent-docs/**',
       // Canonical skills are formatted through .agents/skills.
       '.claude/skills/**',
       '**/routeTree.gen.*',

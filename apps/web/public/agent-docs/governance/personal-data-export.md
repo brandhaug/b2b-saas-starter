@@ -1,0 +1,42 @@
+# Personal data export
+
+What an authenticated account export contains and omits.
+
+Canonical: /en/docs/governance/personal-data-export
+Source: apps/web/content/docs/governance/personal-data-export.mdx
+Language: en
+
+The account page provides an authenticated personal-data export. It is separate
+from a Workspace Export and is always collected for the current session user;
+the caller cannot select another user.
+
+Choose **Prepare personal data** on Account. Preparation shows a busy state and
+a failure can be retried. Once ready, choose **Download personal data** to save
+the JSON file. If asked, verify your identity and prepare a new export.
+
+The JSON archive includes the account profile, account preferences, memberships
+across the user's Workspaces, notification preferences, notifications addressed
+to that user, session metadata (without tokens), linked-provider metadata
+(without OAuth credentials), passkey metadata without public keys, owned OAuth
+client metadata, the user's OAuth consent scopes and workspace references, and
+sanitized email-delivery history across workspaces, and currently authorized private Assistant Conversations with every saved attempt and task reference. Email evidence includes
+recipients and delivery outcomes, without message bodies, secret links or send
+claim tokens. It includes records beyond the normal history page limit.
+
+Workspace-owned records, other members' notifications, passwords, bearer
+tokens, token hashes, OAuth access or refresh tokens, two-factor secrets and
+backup codes are excluded. Shared Workspace records remain owned by the
+Workspace and are handled by Workspace Export and the account-deletion flow.
+
+The server reads the identity from the authenticated session and performs the
+same check at request and download time. A request creates a private D1
+artifact bound to both the user and the originating session. It expires after
+24 hours; session or account deletion cascades to the artifact. The download
+rechecks the live session, user binding, expiry and conversation/access manifest before returning it. Membership or permission loss, a content-policy change, or conversation/account/Workspace deletion invalidates affected cached archives. Restoring access requires a new archive. Previously downloaded files cannot be recalled. A new
+sign-in session must prepare its own export. The archive has `schemaVersion: 1`,
+a `generatedAt` timestamp, a `readme`, and named arrays for each record class.
+Empty record classes are empty arrays.
+
+Request and download are recorded by the capability's audit path. Expired
+artifacts are removed by the approval-gated retention worker. Retention policy
+approval must be renewed when the export cleanup rule or policy version changes.

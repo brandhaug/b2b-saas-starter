@@ -1,0 +1,36 @@
+# Effect v4 backbone
+
+Shared Effect services, schemas, errors, and HTTP contracts.
+
+Canonical: /en/docs/architecture/effect-v4-backbone
+Source: apps/web/content/docs/architecture/effect-v4-backbone.mdx
+Language: en
+
+`packages/capabilities` owns application behavior as Effect v4 services,
+schemas, and tagged errors. The web, API, and background Workers compose these
+services instead of implementing separate use cases.
+
+## Services and adapters
+
+Services use `Context.Service`. Live adapters read and write D1; Seed adapters
+implement the same contracts in memory for tests and fixture-backed execution.
+Tests can provide a Seed layer without starting a Worker.
+
+## Contracts and errors
+
+Effect Schema defines capability values and HTTP payloads. `packages/api`
+composes those schemas into `HttpApi` groups, which drive server routing,
+OpenAPI, and the [typed client](/agent-docs/capability-interfaces/sdk.md).
+
+Tagged errors distinguish expected refusals from unexpected failures. HTTP
+annotations assign statuses such as `WorkspaceNotFound` 404,
+`AuthorizationDenied` 403, and `RateLimited` 429. MCP handlers return expected
+operation refusals as tool errors. Web handlers translate allowlisted errors
+into safe UI messages.
+
+The web app loads server state through TanStack Start loaders and server
+functions. Browser modules must not import server adapters or their runtime
+dependencies.
+
+Follow [First business feature](/agent-docs/getting-started/first-business-feature.md) to add
+a workspace-owned resource through D1, Effect adapters, permissions, UI, and REST.

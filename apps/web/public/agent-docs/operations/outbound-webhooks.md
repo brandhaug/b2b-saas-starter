@@ -1,0 +1,145 @@
+# Outbound webhooks
+
+Workspace Webhook Endpoints, Cloudflare Queues, attempt history, retries, replays, and secret rotation.
+
+Canonical: /en/docs/operations/outbound-webhooks
+Source: apps/web/content/docs/operations/outbound-webhooks.mdx
+Language: en
+
+A Webhook Endpoint is a workspace-owned outbound event delivery target. The starter ships endpoint management, signed payloads, attempt history, retries, replay, test sends, and secret rotation via Cloudflare Queues.
+
+The published event allowlist is `api_token.created`, `api_token.revoked`,
+`webhook_endpoint.created`, `workspace_member.added`,
+`workspace_member.removed`, `workspace_member.role_changed`,
+`workspace_invitation.accepted`, and `billing.plan_changed`. Each event has a
+dedicated payload shape and the publisher drops fields outside that shape;
+secrets, audit metadata, and actor provenance are never forwarded. The
+corresponding audit taxonomy is broader: events without a webhook allowlist
+entry remain audit-only. Membership-added delivery covers successful invitation
+acceptance; direct SSO provisioning and other Better Auth plugin writes are
+outside this capability seam. Fan out happens after the authoritative mutation
+and is best effort, so refused, duplicate, and no-op changes do not emit a
+domain webhook.
+
+## Endpoint lifecycle
+
+* Created from the workspace webhooks UI, REST, or MCP
+* Each endpoint has a URL, a signing secret, and a list of event types it subscribes to
+* URLs are validated at creation and on every update (and re-checked at dispatch): https only, no embedded credentials, no `localhost` or single-label hostnames, and no private, loopback, or link-local IP literals. Invalid URLs fail with `InvalidWebhookUrl` (400). DNS-rebinding protection is out of scope for the starter.
+* Disabling an endpoint stops delivery without losing history; updating it with `enabled: true` (PATCH) re-enables it
+* Updating (`PATCH`) changes the URL, the event subscriptions, or the enabled flag (only the fields you send)
+* Deleting an endpoint removes it and its delivery history (the deliveries cascade); rotation, updates, deletions, and replays all write Audit Events through `WebhookEndpoints` in `@b2b-saas-starter/capabilities`
+
+## Delivery
+
+When a domain event matches an endpoint's subscriptions, the publisher queues one
+message for that endpoint. The background Worker signs and posts it with a
+10-second request deadline, then reads at most a 2 KiB response prefix with a
+separate two-second body-read deadline. An unreadable or timed-out body is stored
+as absent; the HTTP status still determines delivery success or retry.
+
+Each delivery has a summary and immutable individual attempt evidence. A later
+successful retry preserves earlier failures. The complete event payload stays on
+the summary for replay.
+
+Each request body is `{"deliveryId": "whd_…", "eventType": "…", "payload": …}`.
+The producer assigns `deliveryId` before enqueueing. It is also the persisted
+summary ID and `webhook-id`, and stays unchanged across automatic retries and
+transfer to the dead-letter queue. A manual replay creates a new message ID and
+links its summary to the source through `replayedFrom`. The event type and payload
+stay unchanged, so receivers can distinguish a requested replay from a retry.
+
+Requests follow [Standard Webhooks](https://github.com/standard-webhooks/standard-webhooks/blob/main/spec/standard-webhooks.md),
+using the same signature format as [Outpost's Standard Webhooks mode](https://hookdeck.com/docs/outpost/destinations/webhook):
+
+* `webhook-id`: the delivery ID
+* `webhook-timestamp`: Unix seconds at signing time, refreshed for every attempt
+* `webhook-signature`: space-separated `v1,<base64>` signatures, current key first
+* `x-trace-id`: the trace ID you can quote in a support request
+
+Signing secrets use `whsec_<base64>`, encoding 32 random bytes. Decode the base64
+part to obtain the HMAC key. The signed bytes are the UTF-8 encoding of
+`` `${webhookId}.${timestamp}.${rawBody}` ``. The digest is HMAC-SHA256, encoded as
+standard base64. Verify the raw body before parsing JSON; reformatting changes the
+signature.
+
+For a receiver, use the independent `standardwebhooks` package:
+
+```ts
+import { Webhook } from 'standardwebhooks'
+
+export async function receive(request: Request, signingSecret: string) {
+  const rawBody = await request.text()
+  const event = new Webhook(signingSecret).verify(rawBody, {
+    'webhook-id': request.headers.get('webhook-id') ?? '',
+    'webhook-timestamp': request.headers.get('webhook-timestamp') ?? '',
+    'webhook-signature': request.headers.get('webhook-signature') ?? ''
+  })
+  // Verification throws for invalid signatures or timestamps outside five minutes.
+  // Atomically deduplicate webhook-id in your durable event handler before effects.
+  return event
+}
+```
+
+The verifier tries all signatures, so a receiver with either active key works
+during rotation. Deduplicate automatic retries on `webhook-id`; retain your
+processed IDs for at least your retry and operational recovery window. A manual
+replay deliberately has a new ID and can run your handler again.
+
+## Retries and delivery statuses
+
+Delivery rows use one of five statuses: `pending` (an operator replay or test send created the row and the queue has not dispatched it yet), `delivered` (2xx), `failed` (retryable: 5xx, 408, 429, network error, or timeout), `failed_permanent` (non-retryable 4xx or an endpoint URL that fails the dispatch-time validation; acked, no retry), and `dead_lettered` (retries exhausted).
+
+Retryable failures back off linearly: `min(attempts, 6) × 30s` (so 30, 60, 90 … up to 180s); the persisted `nextAttemptAt` is derived from the same formula. The QueueConsumer is configured with `maxRetries = 6`, `batchSize = 25`, `maxConcurrency = 4`, and `retryDelay = 30s` (see `alchemy.run.ts` and `apps/background/wrangler.jsonc`). On failure the worker calls `message.retry({ delaySeconds })` and lets Cloudflare schedule the next attempt. After `maxRetries`, Cloudflare moves the message to the dead-letter queue `b2b-saas-starter-webhooks-dlq`, where a consumer on the same Worker marks the message's delivery row terminal (`dead_lettered`) and records a workspace Notification so members see the endpoint stopped receiving.
+
+## Operator tooling
+
+The webhooks page and the REST surface share one operator toolkit:
+
+* **Deliveries drawer**: per endpoint, newest first, with each attempt's evidence (payload, request headers, response status, truncated response body). `GET /workspaces/:slug/webhooks/:endpointId/deliveries` is the REST read (a `read`-scope token may list it; it is also the `list_webhook_deliveries` MCP tool).
+* **Replay**: re-enqueues a *failed* delivery (`failed`, `failed_permanent`, or `dead_lettered`) verbatim: a new `pending` row with attempts reset to 0, carrying the original payload and a `replayedFrom` link to the source row, which is never modified. The replay writes a `webhook.delivery_replayed` Audit Event. REST: `POST /workspaces/:slug/webhooks/deliveries/:deliveryId/replay`. Anything on a disabled endpoint refuses with 409. Every delivery row records its payload (terminal rows included), so there is always a payload to resend.
+* **Test send**: queues a synthetic `webhook.test_event` delivery to one enabled endpoint so an operator can prove a receiver's configuration end to end. REST: `POST /workspaces/:slug/webhooks/:endpointId/test-event`.
+* **Rotate secret**: mints a new signing secret shown once. See below for the receiver contract. REST: `POST /workspaces/:slug/webhooks/:endpointId/rotate-secret`.
+
+## Attempt history and retention
+
+Expand **View attempt history** in the deliveries drawer to load the timeline.
+Each HTTP attempt shows its ordinal, status, timestamp, duration, failure reason,
+request headers, and bounded response body when available. Terminal bookkeeping
+has no HTTP duration and preserves the last HTTP evidence on the summary.
+
+REST exposes `GET /workspaces/:slug/webhooks/deliveries/:deliveryId/attempts`.
+The read-only MCP tool is `list_webhook_delivery_attempts`. Both require
+`webhook:list` and restrict results to the owning workspace.
+
+The first stored observation wins. Duplicate and late observations cannot regress
+the summary or repeat streak changes and audits. Accepted failures update the
+endpoint's streak; success resets it. At 20 consecutive failures the endpoint is
+disabled atomically with the attempt and its audit. Terminal bookkeeping after an
+HTTP attempt does not count another failure or undo an operator's re-enable.
+Notifications are best-effort after persistence.
+
+Network delivery remains at-least-once. A crash or concurrent processing can POST
+twice even though stored evidence is duplicate-safe. Receivers must deduplicate
+`webhook-id` durably.
+
+The daily schedule deletes at most 100 summaries older than 30 days per
+pass, cascading their attempts. A large backlog takes multiple passes to drain.
+Digest delivery and history cleanup settle independently. Replay provenance keeps
+the source ID even after the source expires.
+
+## Secret rotation
+
+Rotating an endpoint's secret starts a 24-hour grace window. During that window,
+the replaced secret signs deliveries alongside the new one.
+
+For receivers this means:
+
+1. **During the grace window**, `webhook-signature` carries **two** space-separated `v1,<base64>` entries: the first computed with the new secret, the second with the old one. A receiver still holding the old secret keeps verifying deliveries while its operator installs the new one. Verify against every entry.
+2. **Install the new secret as soon as you can** (within 24 hours). After the window closes, deliveries are signed with the new secret only, and a receiver still on the old secret starts failing verification.
+3. Rotating again inside the window drops the original secret entirely: only the last two secrets are ever active.
+4. The new secret is displayed **once** at rotation (web UI and REST response); store it immediately.
+
+## Provider webhooks vs Webhook Endpoints
+
+Stripe webhooks, GitHub webhooks, and other provider callbacks are integration-specific routes on the API or background Worker; they are inbound traffic. A Webhook Endpoint is the outbound surface a workspace uses to push events to its own systems. They are not the same concept.

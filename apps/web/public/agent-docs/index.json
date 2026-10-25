@@ -1,0 +1,257 @@
+{
+  "language": "en",
+  "articles": [
+    {
+      "id": "docs/architecture/effect-v4-backbone",
+      "title": "Effect v4 backbone",
+      "description": "Shared Effect services, schemas, errors, and HTTP contracts.",
+      "canonicalUrl": "/en/docs/architecture/effect-v4-backbone",
+      "markdownUrl": "/agent-docs/architecture/effect-v4-backbone.md",
+      "sourcePath": "apps/web/content/docs/architecture/effect-v4-backbone.mdx",
+      "digest": "sha256:43e29cac3149b20fd3c1998eb8f5df296185b4c6998bbd6be8e3578409f85292"
+    },
+    {
+      "id": "docs/architecture/overview",
+      "title": "Architecture overview",
+      "description": "How the web worker, API worker, background worker, D1, conversation Durable Objects, and Effect capabilities fit together.",
+      "canonicalUrl": "/en/docs/architecture/overview",
+      "markdownUrl": "/agent-docs/architecture/overview.md",
+      "sourcePath": "apps/web/content/docs/architecture/overview.mdx",
+      "digest": "sha256:76a97013e87345a7556e906ee6701710c9b8a5728dd196917b37b161eff132c4"
+    },
+    {
+      "id": "docs/architecture/workers",
+      "title": "Workers",
+      "description": "The three Workers in the starter and what each one owns.",
+      "canonicalUrl": "/en/docs/architecture/workers",
+      "markdownUrl": "/agent-docs/architecture/workers.md",
+      "sourcePath": "apps/web/content/docs/architecture/workers.mdx",
+      "digest": "sha256:af52c12f30e7c33d1a761393318fc4bbf5b15389d09899104d99d7e91b6f40ba"
+    },
+    {
+      "id": "docs/capability-interfaces/api-tokens",
+      "title": "API tokens",
+      "description": "Workspace-scoped credentials with expiry, guided replacement, and revocation.",
+      "canonicalUrl": "/en/docs/capability-interfaces/api-tokens",
+      "markdownUrl": "/agent-docs/capability-interfaces/api-tokens.md",
+      "sourcePath": "apps/web/content/docs/capability-interfaces/api-tokens.mdx",
+      "digest": "sha256:ac7fa240019f3f5b64e15310ad2e2a2822ef9531e2fd6400bdc64efd1d698c6b"
+    },
+    {
+      "id": "docs/capability-interfaces/assistant-conversations",
+      "title": "Private Assistant Conversations",
+      "description": "Saved questions, explicit retries, private access, and member-authorized REST observation.",
+      "canonicalUrl": "/en/docs/capability-interfaces/assistant-conversations",
+      "markdownUrl": "/agent-docs/capability-interfaces/assistant-conversations.md",
+      "sourcePath": "apps/web/content/docs/capability-interfaces/assistant-conversations.mdx",
+      "digest": "sha256:1107f68f0ff256dd9619c23d2ae2afd1175309de33d453728a103b972b21a4d5"
+    },
+    {
+      "id": "docs/capability-interfaces/mcp-server",
+      "title": "MCP server",
+      "description": "The same capabilities exposed as MCP tools and resources for AI clients, with OAuth for people and API Tokens for scripts.",
+      "canonicalUrl": "/en/docs/capability-interfaces/mcp-server",
+      "markdownUrl": "/agent-docs/capability-interfaces/mcp-server.md",
+      "sourcePath": "apps/web/content/docs/capability-interfaces/mcp-server.mdx",
+      "digest": "sha256:f9752e7b086bccd3ccbea92f833ed51850182b6daef6753031dda84c7a91f6db"
+    },
+    {
+      "id": "docs/capability-interfaces/rest-api",
+      "title": "REST API",
+      "description": "Effect HttpApi exposed by the API Worker, generated OpenAPI, and the error model.",
+      "canonicalUrl": "/en/docs/capability-interfaces/rest-api",
+      "markdownUrl": "/agent-docs/capability-interfaces/rest-api.md",
+      "sourcePath": "apps/web/content/docs/capability-interfaces/rest-api.mdx",
+      "digest": "sha256:b4660437609667bf05e17ca9a06d4747e990a3e8df3f2847aaae752e29298d07"
+    },
+    {
+      "id": "docs/capability-interfaces/sdk",
+      "title": "Typed client",
+      "description": "Derive a typed client from the same HttpApi contract the API Worker serves; no codegen, no shipped SDK package.",
+      "canonicalUrl": "/en/docs/capability-interfaces/sdk",
+      "markdownUrl": "/agent-docs/capability-interfaces/sdk.md",
+      "sourcePath": "apps/web/content/docs/capability-interfaces/sdk.mdx",
+      "digest": "sha256:c4d8cfddc99a203ed686e7a8155572a7ed0edf6f918636930ca48250ff5b87f8"
+    },
+    {
+      "id": "docs/getting-started/cloudflare-deployment",
+      "title": "Cloudflare deployment",
+      "description": "Deploy the starter to Cloudflare Workers, D1, Durable Objects, Queues, and Email Service using Alchemy.",
+      "canonicalUrl": "/en/docs/getting-started/cloudflare-deployment",
+      "markdownUrl": "/agent-docs/getting-started/cloudflare-deployment.md",
+      "sourcePath": "apps/web/content/docs/getting-started/cloudflare-deployment.mdx",
+      "digest": "sha256:108a272777388182de29b3e42c0aee7abf3d700e87204abfe79f7a0dc9486de1"
+    },
+    {
+      "id": "docs/getting-started/first-business-feature",
+      "title": "First business feature",
+      "description": "Add workspace notes with D1 persistence, Effect adapters, permissions, an authenticated page, and REST.",
+      "canonicalUrl": "/en/docs/getting-started/first-business-feature",
+      "markdownUrl": "/agent-docs/getting-started/first-business-feature.md",
+      "sourcePath": "apps/web/content/docs/getting-started/first-business-feature.mdx",
+      "digest": "sha256:f316442451e838c10bdcd0741d58bd45d7fac5324d822787f57f4e8716b87319"
+    },
+    {
+      "id": "docs/getting-started/optional-providers",
+      "title": "Optional providers and env",
+      "description": "How env-gated providers work; exact variables, where to set them, and how to verify activation.",
+      "canonicalUrl": "/en/docs/getting-started/optional-providers",
+      "markdownUrl": "/agent-docs/getting-started/optional-providers.md",
+      "sourcePath": "apps/web/content/docs/getting-started/optional-providers.mdx",
+      "digest": "sha256:1e88c04278107afb706135873ede87de3d3e9d805b6bef4afde352394a1a52e4"
+    },
+    {
+      "id": "docs/getting-started/quickstart",
+      "title": "Quickstart",
+      "description": "Install, seed, and run the starter locally.",
+      "canonicalUrl": "/en/docs/getting-started/quickstart",
+      "markdownUrl": "/agent-docs/getting-started/quickstart.md",
+      "sourcePath": "apps/web/content/docs/getting-started/quickstart.mdx",
+      "digest": "sha256:429a87a5c9ca9c8169e169d07a19092832281fa83e178148eebac0f20ab2242c"
+    },
+    {
+      "id": "docs/getting-started/seed-workspace",
+      "title": "Seed workspace",
+      "description": "A deterministic workspace that boots the reference application with realistic state.",
+      "canonicalUrl": "/en/docs/getting-started/seed-workspace",
+      "markdownUrl": "/agent-docs/getting-started/seed-workspace.md",
+      "sourcePath": "apps/web/content/docs/getting-started/seed-workspace.mdx",
+      "digest": "sha256:e7944d5cf7731071b1158bafad5811e302c90f61d11c80e023a39dd196312b3c"
+    },
+    {
+      "id": "docs/governance/account-deletion",
+      "title": "Account deletion",
+      "description": "Self-service deletion with password re-authentication, and the ownership rule that decides what happens to each workspace.",
+      "canonicalUrl": "/en/docs/governance/account-deletion",
+      "markdownUrl": "/agent-docs/governance/account-deletion.md",
+      "sourcePath": "apps/web/content/docs/governance/account-deletion.mdx",
+      "digest": "sha256:67949e806f18de884b5c5a4afc9255f4751622eecedf10409aad313ae018a086"
+    },
+    {
+      "id": "docs/governance/data-export",
+      "title": "Workspace data export",
+      "description": "Request, download, and retain a workspace archive.",
+      "canonicalUrl": "/en/docs/governance/data-export",
+      "markdownUrl": "/agent-docs/governance/data-export.md",
+      "sourcePath": "apps/web/content/docs/governance/data-export.mdx",
+      "digest": "sha256:17da8379225ac8de33b4ef3c6d952b20f68ed7bac7d9e1e702736ad41a57565c"
+    },
+    {
+      "id": "docs/governance/members-invitations",
+      "title": "Members and invitations",
+      "description": "How users join a workspace and what happens at each step.",
+      "canonicalUrl": "/en/docs/governance/members-invitations",
+      "markdownUrl": "/agent-docs/governance/members-invitations.md",
+      "sourcePath": "apps/web/content/docs/governance/members-invitations.mdx",
+      "digest": "sha256:0c2818e4ad37928599ab2ba11da8ee4c97bbcf7837e8066cd5b34f99edb3f5ed"
+    },
+    {
+      "id": "docs/governance/onboarding-checklist",
+      "title": "Onboarding checklist",
+      "description": "The dashboard's setup steps, derived from live workspace state and dismissable by owners and admins.",
+      "canonicalUrl": "/en/docs/governance/onboarding-checklist",
+      "markdownUrl": "/agent-docs/governance/onboarding-checklist.md",
+      "sourcePath": "apps/web/content/docs/governance/onboarding-checklist.mdx",
+      "digest": "sha256:be4c121148215e0d680c8ec967d08445ddf8090b2c20b22c2eae4952c8569404"
+    },
+    {
+      "id": "docs/governance/passkeys",
+      "title": "Passkeys",
+      "description": "WebAuthn passkeys for sign-in and the account, and how they interact with two-factor.",
+      "canonicalUrl": "/en/docs/governance/passkeys",
+      "markdownUrl": "/agent-docs/governance/passkeys.md",
+      "sourcePath": "apps/web/content/docs/governance/passkeys.mdx",
+      "digest": "sha256:c6535e704319940c2c0a043cc32428ffa47ea7b4a5d97e300e996c6c6a9be045"
+    },
+    {
+      "id": "docs/governance/personal-data-export",
+      "title": "Personal data export",
+      "description": "What an authenticated account export contains and omits.",
+      "canonicalUrl": "/en/docs/governance/personal-data-export",
+      "markdownUrl": "/agent-docs/governance/personal-data-export.md",
+      "sourcePath": "apps/web/content/docs/governance/personal-data-export.mdx",
+      "digest": "sha256:eef2ab15dea3818b864f6a4dd3a1f5ea92be506caa8a1f8680a0f745ec7b18e4"
+    },
+    {
+      "id": "docs/governance/single-sign-on",
+      "title": "Single sign-on",
+      "description": "Workspace-scoped SAML and OIDC connections, domain routing, and provisioning.",
+      "canonicalUrl": "/en/docs/governance/single-sign-on",
+      "markdownUrl": "/agent-docs/governance/single-sign-on.md",
+      "sourcePath": "apps/web/content/docs/governance/single-sign-on.mdx",
+      "digest": "sha256:0913183e8cc361a4e081b0871ef4b401891fde057b3a04c63bf188aa5f795122"
+    },
+    {
+      "id": "docs/governance/system-admin",
+      "title": "System admin",
+      "description": "Global user management via Better Auth's admin plugin, distinct from any Workspace Role.",
+      "canonicalUrl": "/en/docs/governance/system-admin",
+      "markdownUrl": "/agent-docs/governance/system-admin.md",
+      "sourcePath": "apps/web/content/docs/governance/system-admin.mdx",
+      "digest": "sha256:8e7632d09c5187e7125e5edb1b2afa7b5e400ac62a325df5f3068118884de90e"
+    },
+    {
+      "id": "docs/governance/workspace-roles",
+      "title": "Workspace roles",
+      "description": "Owner, admin, and member; the three Workspace Roles in the starter.",
+      "canonicalUrl": "/en/docs/governance/workspace-roles",
+      "markdownUrl": "/agent-docs/governance/workspace-roles.md",
+      "sourcePath": "apps/web/content/docs/governance/workspace-roles.mdx",
+      "digest": "sha256:5367c2d8809a0c301d0d672983d14cfb42ee4b2d09677834ea5219ff0207de09"
+    },
+    {
+      "id": "docs/integrations/cloudflare-observability",
+      "title": "Cloudflare observability and Web Analytics",
+      "description": "Native Worker error tracking and optional analytics.",
+      "canonicalUrl": "/en/docs/integrations/cloudflare-observability",
+      "markdownUrl": "/agent-docs/integrations/cloudflare-observability.md",
+      "sourcePath": "apps/web/content/docs/integrations/cloudflare-observability.mdx",
+      "digest": "sha256:4c7e121d135e583da84cabdbd670e33a67226a93d8ea79127b5a55c4efb535dd"
+    },
+    {
+      "id": "docs/integrations/social-sign-in",
+      "title": "Social sign-in",
+      "description": "Env-gated GitHub and Google sign-in; exact variables, OAuth callback URLs, account linking, and the audit trail.",
+      "canonicalUrl": "/en/docs/integrations/social-sign-in",
+      "markdownUrl": "/agent-docs/integrations/social-sign-in.md",
+      "sourcePath": "apps/web/content/docs/integrations/social-sign-in.mdx",
+      "digest": "sha256:df8be407fac58aee00942af826aadce482b2d60640e2602a6416cde70a9090c8"
+    },
+    {
+      "id": "docs/integrations/stripe-billing",
+      "title": "Stripe billing integration",
+      "description": "Optional Stripe billing with verified lifecycle state, durable checkout, replay-safe webhooks, and scheduled reconciliation.",
+      "canonicalUrl": "/en/docs/integrations/stripe-billing",
+      "markdownUrl": "/agent-docs/integrations/stripe-billing.md",
+      "sourcePath": "apps/web/content/docs/integrations/stripe-billing.mdx",
+      "digest": "sha256:0cfce85c1c6cdc8fb1acde60242a2526a94862db5f840dd1d037d39fced8bf87"
+    },
+    {
+      "id": "docs/operations/audit-events",
+      "title": "Audit events and notifications",
+      "description": "Persisted governance records and user-facing messages for workspace activity.",
+      "canonicalUrl": "/en/docs/operations/audit-events",
+      "markdownUrl": "/agent-docs/operations/audit-events.md",
+      "sourcePath": "apps/web/content/docs/operations/audit-events.mdx",
+      "digest": "sha256:0b63925329e3d4f8e3e211da8e4791b512dfa855ef8945e6475909f6274da648"
+    },
+    {
+      "id": "docs/operations/notification-emails",
+      "title": "Notification emails and the daily digest",
+      "description": "Per-user, per-kind email preferences, the instant-email queue, and the 08:00 UTC digest cron.",
+      "canonicalUrl": "/en/docs/operations/notification-emails",
+      "markdownUrl": "/agent-docs/operations/notification-emails.md",
+      "sourcePath": "apps/web/content/docs/operations/notification-emails.mdx",
+      "digest": "sha256:8cfb8ae5c3bafc7ca50fd83b8b16aa43db5e2a0ad3733080510cebc929bd4de0"
+    },
+    {
+      "id": "docs/operations/outbound-webhooks",
+      "title": "Outbound webhooks",
+      "description": "Workspace Webhook Endpoints, Cloudflare Queues, attempt history, retries, replays, and secret rotation.",
+      "canonicalUrl": "/en/docs/operations/outbound-webhooks",
+      "markdownUrl": "/agent-docs/operations/outbound-webhooks.md",
+      "sourcePath": "apps/web/content/docs/operations/outbound-webhooks.mdx",
+      "digest": "sha256:638995a68563557798209fdd656a436d5fbe6d7b49349ef278d735fbcb1e2d2a"
+    }
+  ]
+}

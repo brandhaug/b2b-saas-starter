@@ -1,0 +1,71 @@
+# Cloudflare deployment
+
+Deploy the starter to Cloudflare Workers, D1, Durable Objects, Queues, and Email Service using Alchemy.
+
+Canonical: /en/docs/getting-started/cloudflare-deployment
+Source: apps/web/content/docs/getting-started/cloudflare-deployment.mdx
+Language: en
+
+Alchemy declares production resources in `alchemy.run.ts`. Shared queue and
+rate-limit settings live in `infra/bindings.ts`; `pnpm run infra:wrangler`
+generates local Wrangler configurations from those settings.
+
+## Deploy
+
+Configure the deployment credentials and auth environment described in the
+[deployment runbook](https://github.com/brandhaug/b2b-saas-starter/blob/master/docs/deploying.md),
+then run:
+
+```bash
+pnpm run deploy
+```
+
+This invokes Alchemy for the `prod` stage. The stack contains three Workers,
+a shared D1 database, a SQLite Durable Object namespace for private Assistant Conversations, background queues, and rate-limit bindings. Configured
+providers add resources such as the email binding and workspace-export bucket.
+The web Worker exports the conversation host; API and background bindings address that same host within the stage. D1 stores directory metadata and quotas, while each conversation object stores its transcript and replay.
+
+See [optional providers](/agent-docs/getting-started/optional-providers.md).
+
+## Assistant bindings and providers
+
+`ASSISTANT_CONVERSATIONS` is a SQLite Durable Object binding, declared by Alchemy
+with its class migration. Keep the named host export in the built web Worker and
+point API/background cross-Worker bindings at that stage's web script. Generate
+Wrangler declarations from infrastructure sources; do not edit generated bindings.
+
+Conversation storage works with local persisted D1 and Durable Object state.
+Remote model credentials are optional: browsing and management work without them,
+while new generation refuses until a provider is configured. Member REST access
+also needs the separate assistant OAuth audience. See
+[Private Assistant Conversations](/agent-docs/capability-interfaces/assistant-conversations.md).
+
+After deploying an isolated stage, verify disconnect/reconnect, deployment during
+an answer, explicit Retry and provider cancellation. Local tests and bundle checks
+are separate from those deployment and provider checks.
+
+## Pull-request previews
+
+The `Preview` workflow deploys same-repository pull requests to `pr-<number>`,
+with a separate database, conversation object namespace, queues, and Workers. It migrates and seeds the database
+and updates a pull-request comment with the URLs. Closing the pull request
+destroys its stage.
+
+Previews disable optional external providers and set `ENVIRONMENT=preview`.
+To manage a preview from a configured deployment shell:
+
+```bash
+ALCHEMY_STAGE=pr-42 pnpm run deploy:stage
+ALCHEMY_STAGE=pr-42 pnpm run db:seed:stage
+ALCHEMY_STAGE=pr-42 pnpm run destroy:stage \
+  --confirm-target="$CLOUDFLARE_ACCOUNT_ID/pr-42"
+```
+
+## Recovery and teardown
+
+Use the [recovery runbook](https://github.com/brandhaug/b2b-saas-starter/blob/master/docs/backup-recovery.md)
+for rollback and restore procedures. Check schema and binding compatibility
+before rolling back Worker code.
+
+`pnpm run destroy --confirm-target="$CLOUDFLARE_ACCOUNT_ID/prod"` deletes the
+production stack. It is a teardown command, not a code rollback.

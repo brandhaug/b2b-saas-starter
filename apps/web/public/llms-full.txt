@@ -1,36 +1,2173 @@
-# B2B SaaS Starter repository context
+# B2B SaaS Starter
 
-The Starter is the repository product. The public Showcase Site explains it; the Reference Application demonstrates workspace behavior. Use Member and Workspace Role for workspace access. System Admin is a separate global role with no workspace bypass.
+Public documentation generated from the MDX collection. Article bodies are English; /nb navigation does not translate them. URLs are origin-relative.
 
-## System boundaries
+---
 
-Three Cloudflare Workers share Effect capabilities. The TanStack Start web Worker calls them in-process through loaders and server functions. The API Worker exposes REST and MCP through a shared operation catalog. The background Worker handles queued webhook delivery, workspace exports, billing synchronization, and notification email.
+# Effect v4 backbone
 
-D1 holds application and authentication state, conversation directory metadata, admission reservations and deletion fences. One AIChatAgent SQLite Durable Object in the web Worker owns each private conversation transcript and replay; Effect owns model execution. Better Auth owns session and plugin-backed identity mutations. Request boundaries enforce permissions before invoking business capabilities. Seed and Live adapters share contracts and the deterministic Starter Lab identity.
+Shared Effect services, schemas, errors, and HTTP contracts.
 
-Optional Stripe, email, social sign-in, Turnstile, observability, and AI providers activate from configuration. Local development works before they are configured. A configured provider failure must not silently grant access or substitute demo data.
+Canonical: /en/docs/architecture/effect-v4-backbone
+Source: apps/web/content/docs/architecture/effect-v4-backbone.mdx
+Language: en
 
-## Integration and operation
+`packages/capabilities` owns application behavior as Effect v4 services,
+schemas, and tagged errors. The web, API, and background Workers compose these
+services instead of implementing separate use cases.
 
-Workspace REST uses API Tokens. Private Assistant Conversation REST instead uses member OAuth with a distinct assistant audience and assistant:read / assistant:write scopes; Workspace API Tokens and MCP-audience tokens cannot access it. MCP also accepts OAuth consent bound to one Workspace; mutations recheck current consent. Token plaintext is shown on issuance, while verification uses stored hashes, expiry, revocation, and entitlements.
+## Services and adapters
 
-Billing synchronization verifies current provider state. Access uses a time-dependent Effective Plan, preserving stored resources when paid access ends. Webhook retries and manual replays preserve delivery evidence. Workspace exports are gzipped JSON archives, not database backups.
+Services use `Context.Service`. Live adapters read and write D1; Seed adapters
+implement the same contracts in memory for tests and fixture-backed execution.
+Tests can provide a Seed layer without starting a Worker.
 
-Customer deployments need monitoring and an isolated recovery drill. Shared-D1 recovery requires closing the whole application, restoring independent security evidence, and reconciling queues and external providers before reopening.
+## Contracts and errors
 
-Private conversations retain questions and all answer attempts. Reconnect never invokes a model. Process or provider interruption preserves saved partial output and requires explicit Retry; the newest displayed but unflushed tail may be lost. No provider means persistent generation is unavailable while browsing and management remain available. Personal archives include currently authorized conversations and revalidate cached manifests; Workspace exports exclude them. Deletion fences survive parent removal and object cleanup.
+Effect Schema defines capability values and HTTP payloads. `packages/api`
+composes those schemas into `HttpApi` groups, which drive server routing,
+OpenAPI, and the [typed client](/agent-docs/capability-interfaces/sdk.md).
 
-Local contracts establish application behavior, not deployed recovery or real-provider streaming/cancellation. D1 SQL backups do not contain Durable Object transcripts. Recovery sanitation invalidates retained session proof and cached archives and reapplies independent conversation deletion evidence before reopening access.
+Tagged errors distinguish expected refusals from unexpected failures. HTTP
+annotations assign statuses such as `WorkspaceNotFound` 404,
+`AuthorizationDenied` 403, and `RateLimited` 429. MCP handlers return expected
+operation refusals as tool errors. Web handlers translate allowlisted errors
+into safe UI messages.
 
-## Sources
+The web app loads server state through TanStack Start loaders and server
+functions. Browser modules must not import server adapters or their runtime
+dependencies.
 
-- [Setup](https://github.com/brandhaug/b2b-saas-starter/blob/master/docs/setup.md)
-- [Architecture](https://github.com/brandhaug/b2b-saas-starter/blob/master/ARCHITECTURE.md)
-- [Current decisions](https://github.com/brandhaug/b2b-saas-starter/tree/master/docs/adr)
-- [Operations](https://github.com/brandhaug/b2b-saas-starter/blob/master/docs/operations.md)
-- [Private Assistant Conversations](/en/docs/capability-interfaces/assistant-conversations)
-- [Public documentation](/en/docs)
+Follow [First business feature](/agent-docs/getting-started/first-business-feature.md) to add
+a workspace-owned resource through D1, Effect adapters, permissions, UI, and REST.
 
-These text files are maintained alongside the source docs; the build does not regenerate them.
+---
 
-The first-business-feature tutorial at /en/docs/getting-started/first-business-feature walks through workspace notes using a companion patch. Notes are reader-added code, not a baseline feature. It covers schema generation, Seed/Live Effect adapters, permissions, authenticated UI, REST/MCP wiring, and repeatable persistence and authorization checks.
+# Architecture overview
+
+How the web worker, API worker, background worker, D1, conversation Durable Objects, and Effect capabilities fit together.
+
+Canonical: /en/docs/architecture/overview
+Source: apps/web/content/docs/architecture/overview.mdx
+Language: en
+
+The web, API, and background Workers share D1 and the Effect services in
+`packages/capabilities`. HTTP contracts live in `packages/api`; request logging
+lives in `packages/logger`.
+
+Architecture paths:
+
+* Browser → web (TanStack Start) → packages/capabilities
+* HTTP client → api (REST + MCP) → packages/capabilities
+* MCP client → api (REST + MCP) → packages/capabilities
+* Queue jobs → background (queue consumer) → packages/capabilities
+* packages/capabilities → D1, Durable Objects, Queues, Email
+
+The web Worker calls capabilities in-process. External clients use the API
+Worker. Both enforce the shared permission rules in `packages/authz`.
+
+Capabilities select D1-backed Live adapters when a `DB` binding exists and
+in-memory Seed adapters otherwise. Local development uses persisted local D1;
+Seed adapters let capability tests run without a Worker.
+
+Private Assistant Conversations use one SQLite Durable Object in the web Worker for saved history and replay. D1 owns directory identity, content permissions, deletion fences and shared Member admission; Effect owns model execution. The API and background Workers bind to the same host within their stage.
+
+The background Worker consumes queues, handles Stripe webhooks, and runs
+scheduled reconciliation, email digests, and cleanup. Keeping this work outside
+page requests lets it retry independently. See [Workers](/agent-docs/architecture/workers.md)
+for the entry points.
+
+Follow [First business feature](/agent-docs/getting-started/first-business-feature.md) to add
+a workspace-owned resource through D1, Effect adapters, permissions, UI, and REST.
+
+---
+
+# Workers
+
+The three Workers in the starter and what each one owns.
+
+Canonical: /en/docs/architecture/workers
+Source: apps/web/content/docs/architecture/workers.mdx
+Language: en
+
+## Web Worker
+
+`apps/web` runs TanStack Start SSR and server functions. It serves the public
+site, authentication, workspaces, `/account`, and `/admin`. Better Auth lives
+at `/api/auth/*`; its cookies authenticate web requests.
+
+Server functions call `packages/capabilities` directly. The web Worker does not
+call the API Worker for page data. Auth requests use separate read, write, and
+sign-in rate-limit buckets.
+
+## API Worker
+
+`apps/api` serves the `StarterApi` Effect HttpApi contract from `packages/api`.
+`apps/api/src/http.ts` composes handlers with `HttpApiBuilder` and
+`HttpRouter.toWebHandler`. The contract supplies paths, schema decoding, and
+HTTP error responses.
+
+* REST uses workspace API Tokens.
+* `/mcp` exposes tools and resources with API Token or interactive OAuth authentication.
+* `/openapi.json` serves the generated contract; `/reference` serves Scalar.
+* `/exports/:exportId/download` validates signed workspace-export links.
+
+REST reads, writes, assistant requests, and MCP requests have separate rate-limit
+buckets. Each operation also checks its required workspace permission.
+
+## Background Worker
+
+`apps/background` consumes webhook deliveries, billing jobs, notification emails,
+provider email events, and optional workspace-export jobs. It receives Stripe
+callbacks at `/webhooks/stripe`.
+
+Scheduled handlers send and retry digests, reconcile billing, and prune delivery
+history. Queue names, retry limits, and schedules live in `infra/bindings.ts`,
+shared by Alchemy and the generated Wrangler configurations. See
+[outbound webhooks](/agent-docs/operations/outbound-webhooks.md),
+[notification emails](/agent-docs/operations/notification-emails.md), and
+[billing](/agent-docs/integrations/stripe-billing.md) for delivery and recovery behavior.
+
+## Conversation host
+
+The web Worker exports the AIChatAgent conversation class. Its SQLite Durable Objects persist private history and replay; Effect executes the model. API REST observation and background cleanup reach that host through stage-specific cross-Worker bindings. D1 holds identity, authorization revisions, admission and deletion fences. The minute tick retries explicit deletion separately from age-retention cleanup. See [Private Assistant Conversations](/agent-docs/capability-interfaces/assistant-conversations.md).
+
+---
+
+# API tokens
+
+Workspace-scoped credentials with expiry, guided replacement, and revocation.
+
+Canonical: /en/docs/capability-interfaces/api-tokens
+Source: apps/web/content/docs/capability-interfaces/api-tokens.mdx
+Language: en
+
+API Tokens authenticate REST and MCP requests. Each token belongs to one Workspace.
+
+## Creation
+
+A workspace owner or admin creates a token on the API tokens page at
+`/workspaces/:slug/api-tokens`. Creation requires `apiToken:create`; REST callers
+use `POST /workspaces/:slug/api-tokens` with an `admin`-scoped token. Both paths
+call `ApiTokenRegistry.create`.
+
+Choose scopes and optionally a future expiry. The web form labels the expiry as
+UTC. REST accepts a canonical ISO UTC timestamp, such as
+`2027-12-01T00:00:00.000Z`; omit `expiresAt` for no expiry. Copy the token when it
+appears. Its plaintext is returned once; storage retains only its SHA-256 hash
+and a display prefix. Creation records an `api_token.created` Audit Event.
+
+## Scopes
+
+The scopes are `read`, `write`, and `admin`. They map to permissions through the
+same authorization rules as workspace roles. Every route and MCP tool checks its
+own permission after authenticating the token. A `write` token cannot create or
+replace credentials because those actions can grant more authority.
+
+A missing, unknown, revoked, or expired token gets HTTP 401. A valid token without
+the requested permission gets HTTP 403. Tokens cannot access another Workspace,
+even if they carry the `admin` scope.
+
+## Expiry and replacement
+
+Every bearer verification checks expiry. A token stops authenticating at the
+exact `expiresAt` instant. Expired tokens remain listed with an expired state.
+
+To rotate a usable token, select **Replace**, keep or remove scopes, and choose
+how long the old credential can overlap with its replacement. The maximum is
+24 hours; choose 0 seconds to retire it immediately. Copy the replacement, update
+your clients, and revoke the old credential early when all clients have switched.
+The form shows the exact retirement time. An earlier existing expiry always wins.
+
+The replacement keeps the original workspace, name, and expiry. REST
+callers can request an earlier future expiry, but cannot extend it. You cannot
+replace a revoked, expired, or already replaced token. Replacement works at the
+plan's token ceiling because it transfers the original token's slot.
+
+`POST /workspaces/:slug/api-tokens/:tokenId/replace` accepts `scopes`,
+`overlapSeconds`, and optional `expiresAt`. It requires `apiToken:create`.
+The response includes the new plaintext `token`, `previousTokenId`, and
+`previousTokenExpiresAt`. D1 commits the old credential's retirement, the new
+hash, and an `api_token.replaced` Audit Event together. That event links both IDs
+and their expiry details without storing plaintext. MCP also exposes creation and replacement. Their responses contain one-time
+credentials; store them securely and account for client tool-history retention.
+
+## Revocation
+
+Revocation requires `apiToken:revoke` and takes effect immediately. Subsequent
+requests get HTTP 401, and the token disappears from the list. It also records
+an `api_token.revoked` Audit Event. Revoking an old token does not revoke the
+replacement; revoke each credential that needs to be retired.
+
+## Using a typed client
+
+A client derived from the REST contract gets its request and response types from
+the contract itself. Store the replacement in your secret manager when you
+receive it.
+
+```ts
+const replacement =
+  yield *
+  client['api-token-registry'].replace({
+    params: { slug: 'acme', tokenId },
+    payload: { scopes: ['read'], overlapSeconds: 3600 }
+  })
+
+// Save replacement.token now. It cannot be retrieved later.
+```
+
+See [Typed client](/agent-docs/capability-interfaces/sdk.md) for deriving the client and
+its error model.
+
+---
+
+# Private Assistant Conversations
+
+Saved questions, explicit retries, private access, and member-authorized REST observation.
+
+Canonical: /en/docs/capability-interfaces/assistant-conversations
+Source: apps/web/content/docs/capability-interfaces/assistant-conversations.mdx
+Language: en
+
+An Assistant Conversation is your private saved history within a Workspace.
+Create separate conversations, return through their stable URLs, and ask
+follow-up questions. The first question supplies the title without another
+model request. Other members, Workspace owners and System Admins receive no
+implicit access to your conversations.
+
+## Leaving, returning and Retry
+
+An accepted answer runs on the server. Closing the panel, navigating away or
+closing every browser tab does not stop it. Reopening loads saved history and
+catches up with the active answer. Another tab signed in as the same creator
+observes the same attempt.
+
+Attempts show Accepted, Running, Completed, Interrupted or Stopped. Provider
+failure, a deadline or process interruption produces Interrupted. Saved partial
+text remains visible, with an explicit **Retry** action. The most recent displayed
+text may not yet have reached storage and can be lost on process failure.
+Reconnecting never starts another model call.
+
+**Stop** preserves saved partial text and records Stopped. If completion already
+committed, the result stays Completed. Cancellation propagates to the provider
+where supported; Stop cannot guarantee that provider billing ends immediately.
+Retry starts a new attempt for the latest Interrupted or Stopped question and
+keeps earlier attempts grouped beneath that question. It does not duplicate the
+question or join partial answers together. Earlier completed questions cannot
+be edited or regenerated into branches.
+
+## Context and limits
+
+The model sees system instructions, authorized completed exchanges and the
+current question. Unanswered questions and incomplete answer text stay in saved
+history but do not enter later model context. Up to three recent failed or stopped
+attempts supply short application-authored observations. These name only the
+question, attempt and a safe failure category, with no partial answer, task evidence
+or provider diagnostics. The context budget may omit these observations.
+Oldest completed exchanges may be
+omitted to fit the budget, with an omission notice; full history remains saved.
+The current question and evidence are rejected if they cannot fit.
+
+| Limit                  | Initial ceiling                                       |
+| ---------------------- | ----------------------------------------------------- |
+| Question               | 2,000 characters                                      |
+| Task evidence          | 6,000 characters                                      |
+| Answer duration        | 10 minutes                                            |
+| Input context          | 64,000 tokens                                         |
+| Answer output          | 16,000 tokens                                         |
+| Active answers         | 3 per Member within the immutable Workspace           |
+| Newly accepted answers | 20 per rolling minute per Member within the Workspace |
+
+Application and provider ceilings both apply, with output capacity reserved in
+the provider context window. Output-limit termination is Interrupted. Each
+explicit Retry consumes one generation allowance. Duplicate sends, history
+reads and reconnects consume no new allowance. A different send while the
+conversation is busy receives a conflict and is not queued.
+
+Assistant Task references identify existing investigations and observations.
+Fresh evidence is resolved again on send and Retry. Missing tasks supply no fresh
+evidence; earlier observations remain historical. A conversation containing
+restricted evidence requires those permissions for its entire history and export.
+Tasks keep their existing approval and replay controls. Deleting a conversation
+does not delete or execute referenced tasks.
+
+## Access, deletion and exports
+
+Every operation checks current identity, membership, ownership, permissions,
+suspension and required authentication assurance. Live output checks current
+authority for each outgoing batch, and idle subscriptions revalidate at least
+every 15 seconds. Access-check failures interrupt generation and close disclosure.
+Rejoining a Workspace restores authorized history access but never resumes an
+interrupted answer.
+
+History stays until you delete the conversation, your account or the Workspace.
+Losing membership retains the history while denying access. The account deletion
+operation can delete your retained conversations without revealing Workspace
+evidence. Deletion hides a conversation before asynchronous storage cleanup.
+
+Your personal export includes currently authorized conversations, all saved
+attempts and task references. Workspace exports exclude private conversations.
+Cached personal archives are checked again at download and invalidated by access
+loss, policy changes or deletion, including within their 24-hour lifetime.
+Previously downloaded files cannot be recalled.
+
+## REST credentials
+
+Use the existing browser authorization-code flow with PKCE and select the
+Workspace, assistant resource and scopes in consent. Configure
+`ASSISTANT_RESOURCE_URL` as the assistant audience and `MCP_OAUTH_ISSUER` as the
+web issuer. Use `assistant:read` for reads and observation, and `assistant:write`
+for creation, send, Retry, Stop and deletion. Current permissions still apply.
+
+Pass the bearer token in the `Authorization` header. Workspace API Tokens are
+refused, including those created by the conversation owner. MCP-audience tokens
+are refused here; assistant-audience tokens are refused on MCP. Browser cookies
+are accepted only at the web Worker's same-origin boundary.
+
+| Operation | Route                                                         |
+| --------- | ------------------------------------------------------------- |
+| Create    | `POST /assistant/conversations` with `workspaceSlug`          |
+| List      | `GET /assistant/conversations?workspaceSlug=...&cursor=...`   |
+| Read      | `GET /assistant/conversations/:id`                            |
+| History   | `GET /assistant/conversations/:id/messages?cursor=...`        |
+| Send      | `POST /assistant/conversations/:id/messages`                  |
+| Retry     | `POST /assistant/conversations/:id/attempts/:attemptId/retry` |
+| Stop      | `POST /assistant/conversations/:id/attempts/:attemptId/stop`  |
+| Observe   | `GET /assistant/conversations/:id/attempts/:attemptId/events` |
+| Delete    | `DELETE /assistant/conversations/:id`                         |
+
+Create returns 201. Send and Retry return durable attempt identity with 202;
+delete returns 202 once its fence is durable. A send payload carries `question`,
+an optional `taskId` and a client-generated `idempotencyKey`. Retry uses a new key.
+The same key and canonical input return the existing attempt; changing the input
+under that key returns 409.
+
+Observation uses server-sent events. Reconnect with `Last-Event-ID`; an unavailable
+replay cursor receives saved state rather than regenerated text. When an
+observation credential expires, obtain a fresh credential and reconnect. Natural
+expiry closes that observer without canceling the accepted answer; explicit
+session or consent revocation interrupts affected runs.
+
+Errors use 400 for invalid or over-budget input, 401 for invalid credentials,
+403 for a scope or policy refusal, an opaque 404 for inaccessible conversations,
+409 for conflicts, 429 with retry guidance for limits, and 503 for unavailable
+configuration or storage. See the generated [REST reference](/agent-docs/capability-interfaces/rest-api.md)
+for payload schemas. The existing stateless `/assistant/answer` endpoint retains
+its API Token behavior and does not read or write conversation history.
+
+Stateless answers have a 60-second inference deadline and request at most 4,096
+output tokens by default. A provider-reported incomplete or output-limited response
+returns unavailable rather than a successful partial answer. When the provider
+omits completion metadata, the application cannot determine whether the text was
+truncated. Both assistant paths explain
+evidence and require explicit application actions for approval and replay.
+
+## Provider setup and validation
+
+With no configured provider, authorized browsing and management remain available;
+new generation returns an unavailable response without a mock answer or quota
+reservation. Configure Workers AI or an OpenAI-compatible provider through
+[optional providers](/agent-docs/getting-started/optional-providers.md).
+
+The repository includes local persistence, quota, lifecycle and OAuth tests.
+A deployment still needs its own disconnect/reconnect, rollout and real-provider
+streaming/cancellation checks. Local synthetic output does not prove provider
+behavior or deployed recovery.
+
+---
+
+# MCP server
+
+The same capabilities exposed as MCP tools and resources for AI clients, with OAuth for people and API Tokens for scripts.
+
+Canonical: /en/docs/capability-interfaces/mcp-server
+Source: apps/web/content/docs/capability-interfaces/mcp-server.mdx
+Language: en
+
+The MCP server is the second Capability Interface. It exposes the same supported workspace reads and mutations as REST, shaped as MCP tools and one resource, and it takes two credentials: an OAuth access token for an MCP Client a person operates (Claude, Cursor, and similar), or a workspace API Token for scripts and CI.
+
+## Tools and resources
+
+The API Worker serves Effect's MCP server at `POST /mcp` using streamable
+HTTP and protocol `2025-11-25`. Initialize a session and send its
+`mcp-session-id` with later requests. `GET /mcp` returns 405; discovery is at
+`GET /mcp/discovery` and through the protocol's `tools/list`.
+
+Read tools include `get_workspace_overview`, `list_members`,
+`list_notifications`, `list_api_tokens`, `list_webhooks`,
+`list_webhook_deliveries`, `list_webhook_delivery_attempts`, and `list_audit_events`, with the
+`workspace://overview` resource. List tools accept optional `cursor` and numeric
+`limit`; delivery listing takes `endpointId`. The workspace always comes from
+the credential.
+
+The eleven write tools call the same operation catalog as REST:
+
+| Tool                                 | JSON arguments                                              | Behavior                                                                                                                                 |
+| ------------------------------------ | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `create_api_token`                   | `name`, `scopes`, optional `expiresAt`                      | Creates a token and returns its plaintext once                                                                                           |
+| `replace_api_token`                  | `tokenId`, `scopes`, `overlapSeconds`, optional `expiresAt` | Returns replacement plaintext once; narrows scopes/expiry and retires the old token within 24 hours; audited, do not automatically retry |
+| `delete_api_token`                   | `tokenId`                                                   | Revokes the token; unknown or revoked IDs also return revoked                                                                            |
+| `create_webhook`                     | `url`, `events`, optional `description`                     | Registers an endpoint; returns metadata                                                                                                  |
+| `update_webhook`                     | `endpointId`, optional `url`, `events`, `enabled`           | Changes endpoint configuration                                                                                                           |
+| `delete_webhook`                     | `endpointId`                                                | Removes an endpoint and associated data                                                                                                  |
+| `rotate_webhook_secret`              | `endpointId`                                                | Returns a new signing secret once; old secret retains 24-hour grace                                                                      |
+| `send_webhook_test_event`            | `endpointId`                                                | Saves and enqueues an external test delivery                                                                                             |
+| `replay_webhook_delivery`            | `deliveryId`                                                | Creates and enqueues a copy of a terminal delivery                                                                                       |
+| `request_workspace_export`           | none                                                        | Creates an archive job and notifies on completion                                                                                        |
+| `get_workspace_export_download_link` | `exportId`                                                  | Returns a signed URL for a ready, unexpired archive                                                                                      |
+
+Store plaintext tokens and signing secrets securely. Treat signed URLs as
+credentials; they expire within 15 minutes, capped by archive retention.
+Webhook creation preserves the REST contract, which omits the initial signing
+secret. Call `rotate_webhook_secret` to obtain a signing secret.
+
+Mutations can write audit records, publish webhooks, and enqueue work. Only
+token revocation is marked idempotent. Tools do not retry mutations
+automatically. A failed webhook enqueue can leave a pending delivery; inspect
+deliveries before retrying. An export enqueue failure can leave a failed export.
+Expected refusals return MCP tool errors, including disabled or missing
+endpoints, invalid URLs, unavailable queues, and unavailable or expired exports.
+
+Tool annotations describe read-only, destructive, idempotent, and external
+behavior. They are client hints and do not guarantee human approval. System-admin,
+account-deletion, impersonation, authentication-configuration, and Better Auth
+browser-session membership or invitation operations are not exposed.
+
+## Connect from Claude
+
+An MCP Client connects through OAuth 2.1. You sign in once, pick the workspace, and the client acts as you, with what your role there allows.
+
+1. In Claude (or another MCP client that supports remote servers), add a custom connector with the server URL `https://<your-api-worker>/mcp`. Locally that is `http://localhost:8787/mcp`, with `pnpm run dev` running against a seeded local D1.
+2. The client fetches `/.well-known/oauth-protected-resource/mcp` from the API Worker, learns that the web app's `/api/auth` is the authorization server, and opens the browser at `/api/auth/oauth2/authorize`. If you are signed out you land on `/sign-in`; signing in resumes the authorization.
+3. On `/oauth/consent` you pick exactly one Workspace and see what the client asks for (`mcp:read` for reads, explicit `mcp:write` for mutations, `offline_access` to stay connected, and the identity scopes). Allow, and the browser returns to the client with the authorization code.
+4. The client exchanges the code for an access token bound to the API Worker's `/mcp` and to that workspace, and calls the tools with it. The token expires after an hour; the refresh token the client also received renews it without another sign-in.
+5. Disconnect from `/account`, under MCP clients: revoking deletes the consent, revokes the client's refresh and access tokens, and writes an `mcp_client.consent_revoked` Audit Event. Connecting wrote `mcp_client.consent_granted`.
+
+The client identifies itself with a Client ID Metadata Document, an HTTPS document published by the MCP client. There is no registration step and no client secret to manage.
+
+A connected client can separately request the assistant resource and `assistant:read` / `assistant:write` scopes. Consent lists those resources explicitly. MCP-audience tokens remain invalid on private conversation REST, and assistant-audience tokens remain invalid on MCP. Revoking the client connection revokes its granted resources.
+
+## Connect from a script
+
+Scripts keep using API Tokens: `Authorization: Bearer bsk_live_…` on `POST /mcp`, as on workspace REST routes. Private Assistant Conversation REST requires its separate member-OAuth resource instead. See [API tokens](/agent-docs/capability-interfaces/api-tokens.md). A seeded local D1 accepts the documented seed token.
+
+## What the two credentials share, and where they differ
+
+Both open the same route and draw from the `mcp` rate-limit bucket. Every write invocation also draws from `rest_write`. Each tool re-checks its own permission through the one `authorize()` path in `@b2b-saas-starter/authz`; the difference is who it authorizes as:
+
+* An API Token authorizes as its scopes (`read`, `write`, `admin`).
+* An OAuth write also requires a current matching consent granting `mcp:write`. Existing read-only grants never acquire writes automatically. The token authorizes as the Member: the API Worker verifies the token's signature against the web worker's JWKS, its issuer (`MCP_OAUTH_ISSUER`), audience (`MCP_RESOURCE_URL`) and expiry, reads the workspace from the token's `starter_workspace_*` claims, and resolves your membership in that workspace on every call. A member who leaves the workspace is refused on the next call; a role change applies on the next call. A token for workspace A cannot access workspace B. Revoked or changed consents invalidate previously issued write tokens through a consent ID/version binding. Token creation and replacement cannot grant permissions beyond the caller's authority.
+
+REST routes stay token-only. OAuth is the interactive path, not a second REST credential.
+
+## Configuration
+
+Two env vars, both optional. `MCP_RESOURCE_URL` is the API Worker's `/mcp` URL; the web worker binds tokens to it (locally it defaults to `http://localhost:8787/mcp`). `MCP_OAUTH_ISSUER` is the web worker's `/api/auth` base URL; the API Worker trusts tokens from it. With either unset on the API Worker, `POST /mcp` accepts API Tokens only and serves no protected-resource metadata, so a client learns there is nothing to authorize against. The decision is recorded in [ADR 0068](https://github.com/brandhaug/b2b-saas-starter/blob/master/docs/adr/0068-oauth-for-interactive-mcp-clients-beside-api-tokens.md).
+
+---
+
+# REST API
+
+Effect HttpApi exposed by the API Worker, generated OpenAPI, and the error model.
+
+Canonical: /en/docs/capability-interfaces/rest-api
+Source: apps/web/content/docs/capability-interfaces/rest-api.mdx
+Language: en
+
+The REST API is one of two Capability Interfaces over `@b2b-saas-starter/capabilities`. The contracts are defined with Effect `HttpApi` in `packages/api`, served by the API Worker in `apps/api`, and documented through a generated OpenAPI document plus a Scalar reference UI.
+
+## Endpoint shape
+
+`HttpApiGroup` definitions in `packages/api/src/index.ts` declare each endpoint once with Effect Schema, and the wire path is workspace-slug scoped (no `/v1` prefix):
+
+```ts
+HttpApiGroup.make('workspace').add(
+  HttpApiEndpoint.get('overview', '/workspaces/:slug/overview', {
+    params: SlugParams,
+    success: WorkspaceOverviewDto,
+    error: WORKSPACE_ERRORS
+  })
+)
+```
+
+The same contract supplies OpenAPI and the [typed client](/agent-docs/capability-interfaces/sdk.md).
+
+## Routing
+
+`apps/api` serves the `HttpApi` groups directly: `HttpApiBuilder.layer(StarterApi)` plus per-group handler layers, converted to a Cloudflare web handler with `HttpRouter.toWebHandler` (`apps/api/src/http.ts`). Paths, params, payloads, success/error schemas, and status codes are all the contract's: there is no separate route table to drift from the OpenAPI document (ADR-0039).
+
+## Authentication
+
+Workspace REST clients authenticate with a workspace-scoped API Token in the `Authorization: Bearer …` header. The worker calls `ApiTokenRegistry.verifyBearerToken(token)` and then checks the route's permission against the token's scopes: a missing header or an unknown token returns HTTP 401, a token without the permission returns HTTP 403. Browser sessions are not accepted on the public API surface; cookies are an internal contract for the web Worker only.
+
+Private Assistant Conversation routes are the member-OAuth exception. They use a
+distinct assistant resource with `assistant:read` / `assistant:write` scopes and
+current creator, membership and consent checks. Workspace API Tokens and
+MCP-audience tokens cannot access them. See
+[Private Assistant Conversations](/agent-docs/capability-interfaces/assistant-conversations.md)
+for routes, idempotency and reconnectable observation.
+
+## Pagination
+
+Workspace list endpoints use keyset pagination. It accepts two optional query parameters and answers a **Page**: `items` plus an opaque `nextCursor` that is `null` on the last page.
+
+```text
+GET /workspaces/acme/notifications?limit=2
+
+{
+  "items": [ … ],
+  "nextCursor": "MjAyNi0wNS0xNlQwODoxMDowMC4wMDBaIG5vdF9lbWFpbA"
+}
+```
+
+`limit` defaults to 50 and is clamped into `[1, 200]`: out-of-range values narrow or widen to the range instead of failing. The `cursor` is a keyset position (the sort key of the last item plus its id, base64-encoded): a page returns rows strictly past that position in the endpoint's order, so inserting rows does not shift the positions of existing rows. This is not a snapshot; new rows before the cursor require a fresh traversal. Timestamped lists (`notifications`, `api-tokens`, `audit-events`) read newest-first on `(createdAt, id)`; `members` and `webhooks` carry no timestamp on the wire and read forward on `id`. A cursor that cannot be decoded addresses no position and yields an empty page. MCP list tools take the same two inputs. The derived client exposes the same `limit` and `cursor` inputs; see [Typed client](/agent-docs/capability-interfaces/sdk.md).
+
+## Rate limiting
+
+Assistant generation also uses shared durable Member concurrency and rolling-minute admission across web and REST. Reconnect and duplicate acceptance do not consume another generation allowance.
+
+Each route declares a Cloudflare RateLimit bucket (`rest_read`, `rest_write`, `assistant`, `mcp`), and the worker calls `binding.limit({ key: clientKey(request) })` before running the handler, falling back to an in-isolate brake when the bindings are absent.
+
+## Error model
+
+Tagged errors like `WorkspaceNotFound`, `Unauthorized`, and `RateLimited` carry an `httpApiStatus` annotation so they map to HTTP status codes through one mapping. MCP uses the same guard status mapping at its transport gate and returns expected operation refusals as tool errors. Declare each operation's errors in its contract and handle them at the transport boundary.
+
+## OpenAPI and Scalar
+
+Hitting `https://api.<domain>/reference` returns the Scalar reference UI. The raw OpenAPI document is at `/openapi.json` and derives from the `HttpApi` groups in `packages/api`.
+
+## MCP parity
+
+The workspace operation catalog also exposes its supported mutations as authorized MCP tools. Private Assistant Conversations use their own member REST resource and are not MCP tools.
+Webhook creation returns endpoint metadata without its signing secret. Rotate the secret to obtain one.
+Token creation checks that the requested scopes grant no permission beyond the
+caller's authority. See [MCP server](/agent-docs/capability-interfaces/mcp-server.md) for
+write tools, side effects, and one-time secret responses.
+
+---
+
+# Typed client
+
+Derive a typed client from the same HttpApi contract the API Worker serves; no codegen, no shipped SDK package.
+
+Canonical: /en/docs/capability-interfaces/sdk
+Source: apps/web/content/docs/capability-interfaces/sdk.mdx
+Language: en
+
+The starter ships no client package. The REST Capability Interface is defined once as the `StarterApi` `HttpApi` contract in `packages/api`, and Effect's `HttpApiClient` derives a client from that definition directly, so every path, query parameter, payload, success schema, and error schema the API Worker serves is the one the client encodes and decodes. There is no codegen step and no generated file: a contract change fails the caller's type-check, and the served `/openapi.json` stays a document for humans and third-party generators.
+
+Callers inside the workspace import the contract and derive what they need. Callers outside it generate from `/openapi.json` or write against the wire format described in [REST API](/agent-docs/capability-interfaces/rest-api.md).
+
+## Deriving a client
+
+`HttpApiClient.make` needs an `HttpClient` in context, which is where the API Token goes: the contract's `BearerAuth` middleware declares the security scheme, and the credential stays a caller concern carried by a `transformClient` header.
+
+```ts
+import { StarterApi } from '@b2b-saas-starter/api'
+import { FetchHttpClient, HttpClient, HttpClientRequest } from 'effect/http'
+import { HttpApiClient } from 'effect/http-api'
+import { Effect } from 'effect'
+
+type StarterApiClient = HttpApiClient.ForApi<typeof StarterApi>
+
+const makeClient = (options: { baseUrl: string; apiToken: string }) =>
+  HttpApiClient.make(StarterApi, {
+    baseUrl: options.baseUrl,
+    transformClient: (client) =>
+      HttpClient.mapRequest(client, (request) =>
+        HttpClientRequest.bearerToken(request, options.apiToken)
+      )
+  })
+
+/** One bounded Page of a list endpoint: items plus the opaque nextCursor. */
+const auditEventPage = (client: StarterApiClient, slug: string, cursor?: string) =>
+  client.workspace['audit-events']({
+    params: { slug },
+    query: cursor === undefined ? { limit: 100 } : { limit: 100, cursor }
+  })
+
+const program = Effect.gen(function* () {
+  const client = yield* makeClient({
+    baseUrl: 'https://api.example.com',
+    apiToken: 'bsk_live_…'
+  })
+  // Typed request, typed success, tagged errors; the worker's contract.
+  const page = yield* auditEventPage(client, 'acme')
+  return page.items
+})
+
+await program.pipe(Effect.provide(FetchHttpClient.layer), Effect.runPromise)
+```
+
+`exactOptionalPropertyTypes` makes an absent key differ from an explicit `undefined`, so build the `query` object per field rather than spreading optionals.
+
+Swapping `FetchHttpClient.layer` for a layer whose `FetchHttpClient.Fetch` is the API Worker's own web handler drives the contract in tests without a network.
+
+## Pagination
+
+Every list endpoint pages the same way (ADR 0057): an optional `limit` (default 50, clamped to at most 200) and an opaque `cursor` from the previous page's `nextCursor`, which is `null` on the last page. The cursor marks a keyset position, not a snapshot; new rows before it require a fresh traversal. A walk over the whole collection is a loop over `nextCursor` until the server answers `null`.
+
+## Errors
+
+The derived client's error channel carries the contract's tagged errors the worker serves: a missing or revoked token fails with `Unauthorized` (HTTP 401), a token lacking the route's permission with `AuthorizationDenied` (403), an unknown workspace slug with `WorkspaceNotFound` (404), and a saturated rate-limit bucket with `RateLimited` (429). `Effect.catchTag` matches on them by tag.
+
+## Related
+
+* [REST API](/agent-docs/capability-interfaces/rest-api.md): the wire contract, authentication, and rate-limit buckets.
+* [API tokens](/agent-docs/capability-interfaces/api-tokens.md): minting the credential the client sends.
+* [MCP server](/agent-docs/capability-interfaces/mcp-server.md): workspace tools and their authentication rules.
+
+---
+
+# Cloudflare deployment
+
+Deploy the starter to Cloudflare Workers, D1, Durable Objects, Queues, and Email Service using Alchemy.
+
+Canonical: /en/docs/getting-started/cloudflare-deployment
+Source: apps/web/content/docs/getting-started/cloudflare-deployment.mdx
+Language: en
+
+Alchemy declares production resources in `alchemy.run.ts`. Shared queue and
+rate-limit settings live in `infra/bindings.ts`; `pnpm run infra:wrangler`
+generates local Wrangler configurations from those settings.
+
+## Deploy
+
+Configure the deployment credentials and auth environment described in the
+[deployment runbook](https://github.com/brandhaug/b2b-saas-starter/blob/master/docs/deploying.md),
+then run:
+
+```bash
+pnpm run deploy
+```
+
+This invokes Alchemy for the `prod` stage. The stack contains three Workers,
+a shared D1 database, a SQLite Durable Object namespace for private Assistant Conversations, background queues, and rate-limit bindings. Configured
+providers add resources such as the email binding and workspace-export bucket.
+The web Worker exports the conversation host; API and background bindings address that same host within the stage. D1 stores directory metadata and quotas, while each conversation object stores its transcript and replay.
+
+See [optional providers](/agent-docs/getting-started/optional-providers.md).
+
+## Assistant bindings and providers
+
+`ASSISTANT_CONVERSATIONS` is a SQLite Durable Object binding, declared by Alchemy
+with its class migration. Keep the named host export in the built web Worker and
+point API/background cross-Worker bindings at that stage's web script. Generate
+Wrangler declarations from infrastructure sources; do not edit generated bindings.
+
+Conversation storage works with local persisted D1 and Durable Object state.
+Remote model credentials are optional: browsing and management work without them,
+while new generation refuses until a provider is configured. Member REST access
+also needs the separate assistant OAuth audience. See
+[Private Assistant Conversations](/agent-docs/capability-interfaces/assistant-conversations.md).
+
+After deploying an isolated stage, verify disconnect/reconnect, deployment during
+an answer, explicit Retry and provider cancellation. Local tests and bundle checks
+are separate from those deployment and provider checks.
+
+## Pull-request previews
+
+The `Preview` workflow deploys same-repository pull requests to `pr-<number>`,
+with a separate database, conversation object namespace, queues, and Workers. It migrates and seeds the database
+and updates a pull-request comment with the URLs. Closing the pull request
+destroys its stage.
+
+Previews disable optional external providers and set `ENVIRONMENT=preview`.
+To manage a preview from a configured deployment shell:
+
+```bash
+ALCHEMY_STAGE=pr-42 pnpm run deploy:stage
+ALCHEMY_STAGE=pr-42 pnpm run db:seed:stage
+ALCHEMY_STAGE=pr-42 pnpm run destroy:stage \
+  --confirm-target="$CLOUDFLARE_ACCOUNT_ID/pr-42"
+```
+
+## Recovery and teardown
+
+Use the [recovery runbook](https://github.com/brandhaug/b2b-saas-starter/blob/master/docs/backup-recovery.md)
+for rollback and restore procedures. Check schema and binding compatibility
+before rolling back Worker code.
+
+`pnpm run destroy --confirm-target="$CLOUDFLARE_ACCOUNT_ID/prod"` deletes the
+production stack. It is a teardown command, not a code rollback.
+
+---
+
+# First business feature
+
+Add workspace notes with D1 persistence, Effect adapters, permissions, an authenticated page, and REST.
+
+Canonical: /en/docs/getting-started/first-business-feature
+Source: apps/web/content/docs/getting-started/first-business-feature.mdx
+Language: en
+
+Build a small resource owned by a Workspace. A workspace note has text, an ID,
+and a creation time. Members can read and create notes. An outsider cannot read
+or write them, even with a guessed Workspace slug. The web app and external API
+use the same capability.
+
+This tutorial adds two operations, create and list. The page shows the latest
+30 notes; REST and MCP use cursor pagination. Notes have no paid entitlement and
+need no optional provider. Existing billing, suspension, authentication, and
+API-token rules continue to apply.
+
+## Baseline and reader changes
+
+The baseline Starter already contains D1, the `WorkspaceContext` membership
+resolver, authorization guards, audited mutations, the authenticated Workspace
+shell, and the shared Effect HTTP contract. It does **not** contain notes.
+
+You add the notes schema, capability, permission statements, page, transport
+wiring, and verification cases. The complete changes are in
+[`workspace-notes.patch`](https://github.com/brandhaug/b2b-saas-starter/blob/master/docs/examples/first-business-feature/workspace-notes.patch).
+The patch is executable source, including imports and registration edits. The
+snippets below explain its key parts; they are excerpts, not extra edits to apply
+after the patch. The companion
+[verification record](https://github.com/brandhaug/b2b-saas-starter/blob/master/docs/examples/first-business-feature/verification.md)
+names the baseline and observed checks.
+
+Use a disposable checkout to try the finished recipe. Keep your main development
+database separate. From the root of a clean checkout containing this tutorial:
+
+```bash
+git worktree add --detach ../first-business-feature-example HEAD
+cd ../first-business-feature-example
+vp install
+cp .env.example .env
+git apply --check docs/examples/first-business-feature/workspace-notes.patch
+git apply docs/examples/first-business-feature/workspace-notes.patch
+pnpm run db:generate
+pnpm run db:migrate:local
+pnpm run db:seed
+```
+
+Run the commands at the repository root unless a command includes `-C`. The
+migration name generated by Drizzle can differ. Commit both its SQL and snapshot
+when you adopt the feature. The patch deliberately excludes generated migrations
+so `db:generate` reads your checkout's current schema history.
+
+If `git apply --check` fails after you change the Starter, inspect the failed hunks
+and apply the corresponding edits manually. Do not force a partial patch and
+continue. The steps below identify each registration point.
+
+## 1. Give the resource a Workspace owner
+
+Add `workspaceNotes` to `packages/db/src/schema.ts`:
+
+```ts
+export const workspaceNotes = sqliteTable(
+  'workspace_notes',
+  {
+    id: id(),
+    workspaceId: workspaceRef(),
+    body: text('body').notNull(),
+    createdAt: isoCreatedAt()
+  },
+  (table) => [
+    index('workspace_notes_workspace_created_idx').on(
+      table.workspaceId,
+      table.createdAt,
+      table.id
+    )
+  ]
+)
+```
+
+These helpers already exist in that file. `workspaceRef()` gives the row a
+non-null foreign key that cascades when its Workspace is deleted. The composite
+index supports Workspace filtering and newest-first pagination. Starter-owned
+timestamps are ISO strings; Better Auth's tables use epoch timestamps.
+
+Run `pnpm run db:generate`, inspect the generated `workspace_notes` table and
+index, then run `pnpm run db:migrate:local`. Use the repository migration command.
+Wrangler's flat migration command does not consume this repo's Drizzle folder
+layout. Never reset a shared or deployed database to try a tutorial.
+
+## 2. Define one capability contract
+
+Create `packages/capabilities/src/notes/workspace-notes.ts`. This small module owns
+the schemas, service, and both adapters. Its adjacent `workspace-notes.AGENTS.md`
+records ownership and pagination rules. Add the `./notes/*` export to
+`packages/capabilities/package.json` so callers can import the module directly. `CreateWorkspaceNote` validates one
+`body` field with a minimum of 1 and maximum of 500 characters. The output schema
+reuses that field rather than defining a second text rule:
+
+```ts
+export const WorkspaceNote = Schema.Struct({
+  id: Schema.String,
+  body: CreateWorkspaceNote.fields.body,
+  createdAt: Schema.String
+})
+export type WorkspaceNote = typeof WorkspaceNote.Type
+
+export class WorkspaceNotes extends Context.Service<
+  WorkspaceNotes,
+  {
+    readonly listPage: (
+      input?: ListPageInput
+    ) => Effect.Effect<Page<WorkspaceNote>, CapabilityUnavailable, WorkspaceContext>
+    readonly create: (
+      input: typeof CreateWorkspaceNote.Type
+    ) => Effect.Effect<WorkspaceNote, CapabilityUnavailable, WorkspaceContext>
+  }
+>()('@b2b-saas-starter/capabilities/WorkspaceNotes') {}
+```
+
+The input contains no user ID, Workspace ID, or slug. Each method reads the
+request's verified `WorkspaceContext`. Identity comes from the session or API
+token at the transport boundary. The public schema also omits the storage-only
+Workspace ID.
+
+The body accepts 1–500 characters, including whitespace. Change that schema if
+your product requires trimmed or non-whitespace text. Both transport boundaries
+use it. Creating a note generates a fresh ID every time; this operation is not
+idempotent, so callers must not retry it automatically.
+
+## 3. Implement equivalent Seed and Live adapters
+
+`SeedWorkspaceNotes` owns an Effect `Ref` inside its Layer. It stores notes with
+their Workspace IDs, filters before paging, and records `workspace_note.created`
+through the shared `AuditEventLog`. Its state lasts for that Layer's lifetime.
+Rebuilding the Seed runtime starts an empty notes collection.
+
+`LiveWorkspaceNotes` resolves `Database` and `AuditEventLog` once while building
+its Layer. Each operation resolves `WorkspaceContext` at call time. The create
+method constructs the note with Effect time and the existing ID generator, then
+commits the row and audit event together:
+
+```ts
+yield *
+  mutate({
+    matched: Effect.succeed(true),
+    auditEvent: createdEvent(ctx, note),
+    write: () => [
+      db.insert(workspaceNotes).values({
+        ...note,
+        workspaceId: ctx.workspace.id
+      })
+    ]
+  })
+```
+
+Here `mutate` comes from `auditedMutations`. It compiles a D1 batch, including the
+audit insert, and maps storage failures through `orUnavailable('workspace-notes')`
+to `CapabilityUnavailable`. Do not use `db.transaction()` with D1. Do not write
+the note and then independently write its audit event.
+
+Add `workspace_note.created` and `workspace_note` to
+`governance/audit-event-taxonomy.ts`. Mark the new event `audit-only` in
+`developer-platform/webhook-events.ts`. The event stores the note ID and actor
+provenance, never the note text. API Token writes retain `actorType: 'api_token'`;
+web writes retain the authenticated user.
+
+The Live list query always includes
+`eq(workspaceNotes.workspaceId, ctx.workspace.id)`. It orders by `createdAt` and
+`id` descending, fetches `limit + 1` rows, and uses `cutKeysetPage`. Seed uses
+`seedKeysetPage` with the same ordering. Both use the repository cursor format,
+limit clamp, and empty-page behavior for malformed cursors.
+
+In `packages/capabilities/src/layers.ts`:
+
+* Add `WorkspaceNotes` to `CapabilityServices`.
+* Add `SeedWorkspaceNotes` to `SeedCore`. Its existing audit provision supplies
+  the shared Seed audit instance.
+* Add `LiveWorkspaceNotes` to `makeLiveCapabilitiesLayer`'s merge. Its existing
+  D1 and audit provisions satisfy the new adapter.
+
+Keep adapter selection in the existing runtime. The `DB` binding selects Live;
+its absence selects Seed. Ordinary local development has persisted local D1 and
+therefore uses Live. `/demo` remains a synthetic preview and gains no notes page.
+
+## 4. Decide permissions before exposing the resource
+
+Add `workspaceNote: ['list', 'create']` to `starterResources` in
+`packages/authz/src/statements.ts`. Keep the Better Auth default statements.
+Then update `roles.ts` and the existing authorization matrix test:
+
+| Principal                         | List notes | Create notes |
+| --------------------------------- | ---------- | ------------ |
+| Workspace owner or admin          | Yes        | Yes          |
+| Workspace member                  | Yes        | Yes          |
+| API Token with `read`             | Yes        | No           |
+| API Token with `write` or `admin` | Yes        | Yes          |
+| Non-member session                | No         | No           |
+| Token for a different Workspace   | No         | No           |
+
+Owner/admin roles already spread `starterResources`. Add both permissions
+explicitly to `memberRole`, list to `readScopeStatements`, and list/create to
+`writeScopeRole`. This grants access to notes only. It does not grant members
+access to audit records, API-token administration, billing, or SSO.
+
+Capabilities trust membership context; they do not decide role permissions.
+The web and API boundaries use their existing guards. Those guards also preserve
+suspension and strong-authentication requirements. A System Admin receives no
+Workspace bypass. Unknown Workspaces and non-member sessions return the same
+not-found result.
+
+## 5. Add the authenticated page
+
+The patch adds these files:
+
+| File under `apps/web/src`                    | Purpose                                                       |
+| -------------------------------------------- | ------------------------------------------------------------- |
+| `lib/server/workspace-notes.ts`              | Client-safe server functions, input schemas, and payload type |
+| `lib/server/workspace-notes.effects.ts`      | Session, membership, permissions, and capability calls        |
+| `routes/workspaces.$workspaceSlug.notes.tsx` | Loader and route component                                    |
+| `components/workspace-notes-page.tsx`        | Workspace shell, form, and latest notes                       |
+
+The route inherits the existing `/workspaces` authentication gate. Each server
+function still calls `requireRequestSession()` because a client can invoke it
+without navigating through the page. The loader uses `workspacePage` with
+`{ workspaceNote: ['list'] }`; the mutation uses:
+
+```ts
+const session = await requireRequestSession()
+return runWorkspaceCapabilities(
+  input.workspaceSlug,
+  Effect.gen(function* () {
+    yield* requireWorkspacePermission({ workspaceNote: ['create'] })
+    const notes = yield* WorkspaceNotes
+    return yield* notes.create({ body: input.body })
+  }),
+  { userId: session.user.id }
+)
+```
+
+`runWorkspaceCapabilities` resolves membership for that session and slug. Never
+accept `userId` from the browser or construct a trusted `WorkspaceContext` in a
+server function.
+
+The client-safe module dynamically imports `.effects.ts` inside each handler.
+The component imports only server-function stubs and types. The web app calls
+capabilities in-process; it does not fetch its own REST API.
+
+The component uses TanStack Form, `viewerCan`, shared controls, a hydration gate,
+and `useServerAction` for safe errors and router invalidation after a successful
+save. The route uses `workspaceRouteError` for load failures and the existing
+strong-authentication notice. Permission checks in the browser describe
+available actions; the server guard enforces them. Copy lives in both
+`packages/i18n/messages/notes/en.json` and `nb.json`. The example uses the existing
+Workspace shell and intentionally adds no global navigation item. Open its URL
+directly, then place it in your product's navigation when adopting it.
+
+Generate messages and start the web app on the tutorial port:
+
+```bash
+pnpm -C packages/i18n generate
+BETTER_AUTH_URL=http://localhost:3104 \
+BETTER_AUTH_TRUSTED_ORIGINS=http://localhost:3104 \
+pnpm -C apps/web dev --port 3104 --strictPort
+```
+
+Sign in as `engineer@example.com` with `demo-starter-password` and open
+`http://localhost:3104/workspaces/starter-lab/notes`. Add a note, reload, and confirm
+it remains. The privileged demo owner needs the Starter's existing strong-auth
+ceremony; using the ordinary member keeps this exercise focused on the feature.
+
+## 6. Expose the same capability through REST
+
+Change `packages/api/src/index.ts` before its implementation. Import the
+capability schemas. Add GET `/workspaces/:slug/notes` to `WorkspaceApi` with
+`ListPageQuery` and `PageDto(WorkspaceNote)`. Add a `workspace-notes` group for
+POST at that path with `CreateWorkspaceNote` and `WorkspaceNote` as its payload
+and result.
+
+Apply `.middleware(BearerAuth)` **after** adding the endpoints. Endpoints appended
+after that call are not protected by it. Register the group in `StarterApi` and
+add its `rest_write` entry to `GROUP_BUCKETS`. The GET uses the existing
+Workspace group's `rest_read` bucket.
+
+In `apps/api/src/operations.ts`, add the list and create rows with their
+`workspaceNote` permissions. Add the capability to the read/mutation service
+unions. In `handlers.ts`, bind GET through `workspaceRead` and POST through
+`workspaceWrites`, then register the POST handler group in `http.ts`.
+
+These wrappers authenticate the token, check its Workspace and permissions,
+resolve context, and attach request observability. They do not duplicate note
+storage behavior. The permission matrix discovers the catalog rows and checks
+that the HTTP contract has no unaccounted protected endpoint.
+
+The Starter keeps supported mutations available through both REST and MCP. Add
+the create projection in `mcp-mutations.ts` using `CreateWorkspaceNote`, the same
+catalog operation, and all four annotation hints. It is a non-destructive,
+non-idempotent write with no external side effect. The read catalog row supplies
+`list_workspace_notes`. Add `WorkspaceNotes` to both captured service contexts in
+`mcp.ts` so these operations have their runtime dependency. No second notes implementation is needed.
+
+The resulting contract appears in `/openapi.json` and `/reference`; an Effect
+`HttpApiClient` derives its types from the same `StarterApi`.
+
+For a manual REST check, start the API in another terminal. Point Wrangler at
+the same local state directory that migrations, seeding, and the web app use.
+The separate inspector port avoids other development workers:
+
+```bash
+pnpm -C apps/api exec wrangler dev --local --port 8794 --inspector-port 9794 \
+  --persist-to ../../packages/db/.wrangler/state
+```
+
+The local seed includes a read-only token:
+
+```bash
+NOTES_READ_TOKEN=bsk_seed_readonly000000
+curl --fail-with-body \
+  -H "Authorization: Bearer $NOTES_READ_TOKEN" \
+  http://localhost:8794/workspaces/starter-lab/notes
+unset NOTES_READ_TOKEN
+```
+
+To create a note through REST, create a `write` API Token through the existing
+privileged API-token UI and enter it locally. Existing plan limits still govern
+API Token creation and eligibility.
+
+```bash
+read -r NOTES_API_TOKEN
+curl --fail-with-body \
+  -H "Authorization: Bearer $NOTES_API_TOKEN" \
+  -H 'Content-Type: application/json' \
+  --data '{"body":"Created through REST"}' \
+  http://localhost:8794/workspaces/starter-lab/notes
+unset NOTES_API_TOKEN
+```
+
+Do not commit tokens. The automated protocol check creates its own local
+credential in an isolated migrated D1 database and needs no provider account.
+
+## 7. Verify persistence and authorization
+
+Stop the development server before the browser run. Run these in the example
+checkout after applying the patch and generating/migrating/seeding:
+
+```bash
+pnpm run typecheck
+pnpm -C apps/api exec vp test run src/workspace-notes.test.ts src/permission-matrix.test.ts
+pnpm -C apps/web exec playwright install chromium
+pnpm -C apps/web build:e2e
+E2E_PORT=3104 pnpm -C apps/web exec playwright test --config playwright.notes.config.ts
+E2E_PORT=3104 pnpm run validate
+```
+
+The focused Playwright config starts the already-built preview so a cold build
+does not consume the browser startup deadline. The full `validate` command also
+includes the notes case in the ordinary suite.
+
+The protocol test exercises the actual HTTP handler with migrated local D1,
+reads through a newly constructed handler, checks the stored note and audit
+provenance, and refuses missing credentials, invalid input, and a token targeting
+a different Workspace. Its Seed pass verifies create/list and read-only token
+refusal. The browser test signs in a real member, creates a note, reloads, and
+checks an independently authenticated outsider's access.
+
+Playwright writes `apps/web/playwright-report/notes.json`, a persistence
+screenshot under `apps/web/test-results`, and traces on failure. Keep those files
+with the command and source revision when you verify your adopted version.
+The companion verification record reports this tutorial's observed run and
+limitations. A passing render alone is not persistence or authorization evidence.
+
+## Continue with your product
+
+Rename the resource and choose its actual permissions before growing the UI.
+Add update or delete only when your first use case needs them, with Workspace
+predicates on every write and the matching Seed behavior. Include new data in
+your product's export and retention policy before offering that policy to users.
+This exercise adds no export, retention deadline, paid quota, file storage, or
+background job for notes.
+
+See [Effect v4 backbone](/agent-docs/architecture/effect-v4-backbone.md) for the application
+layer and [REST API](/agent-docs/capability-interfaces/rest-api.md) for external clients.
+
+---
+
+# Optional providers and env
+
+How env-gated providers work; exact variables, where to set them, and how to verify activation.
+
+Canonical: /en/docs/getting-started/optional-providers
+Source: apps/web/content/docs/getting-started/optional-providers.mdx
+Language: en
+
+Optional providers activate from environment variables and Worker bindings.
+With their configuration absent, the starter uses an inactive or local adapter.
+`packages/env/src/server.ts` declares the variables and production config audit;
+`BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` remain required for deployed auth.
+
+## Configure a provider
+
+Use root `.env` for the web dev server, each Worker's `.dev.vars` for direct
+Wrangler development, and the deployment shell environment for Alchemy.
+`alchemy.run.ts` forwards declared variables and provisions the required bindings.
+Restart development processes after changing configuration.
+
+| Provider                    | Configuration                                                                                               | Without configuration                                                                         |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Cloudflare Email            | `CLOUDFLARE_EMAIL_FROM` plus an `EMAIL` binding                                                             | Log dispatcher                                                                                |
+| Turnstile                   | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`                                                                | Sign-up has no challenge                                                                      |
+| GitHub sign-in              | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`                                                                  | No GitHub button                                                                              |
+| Google sign-in              | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                                                                  | No Google button                                                                              |
+| Workers AI                  | `WORKERS_AI_ENABLED=true` plus an `AI` binding                                                              | Selects configured OpenAI-compatible provider, otherwise persistent generation is unavailable |
+| OpenAI-compatible assistant | `OPENAI_API_KEY`; optional `OPENAI_BASE_URL`, `OPENAI_MODEL_ID`                                             | Persistent generation unavailable; stateless endpoint keeps its existing mock response        |
+| Workspace export            | `WORKSPACE_EXPORTS_ENABLED=true`, `API_PUBLIC_URL`                                                          | D1-backed export actions unavailable                                                          |
+| Stripe                      | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_TEAM`; optional `STRIPE_PRICE_ID_ENTERPRISE` | Plan display and local entitlement checks remain available                                    |
+| Cloudflare Web Analytics    | Alchemy supplies the production token; configure `PRIVACY_CONTROLLER_NAME` and `PRIVACY_CONTACT_EMAIL`      | No browser analytics beacon                                                                   |
+| OTLP                        | `OTEL_EXPORTER_OTLP_ENDPOINT`                                                                               | No OTLP export                                                                                |
+
+## Verify activation
+
+* Email: send an invitation on a deployed stack and inspect delivery history. Local log delivery does not prove Cloudflare sending works.
+* Turnstile: load `/sign-up` with both keys set. The widget should appear; missing or invalid challenge responses must be rejected. Verification outages fail closed.
+* Social sign-in: the configured provider's button appears on `/sign-in`. Complete a sign-in and inspect `/account` for the linked method.
+* Exports: request an archive as an owner, wait for its ready notification, then download it. Local D1 uses emulated R2 and Queues; the Seed adapter builds archives in memory.
+* Billing: the billing page offers configured provider actions to an owner or admin. See [Stripe billing](/agent-docs/integrations/stripe-billing.md) for setup and recovery.
+* Observability: see [Cloudflare observability and Web Analytics](/agent-docs/integrations/cloudflare-observability.md) for server and browser behavior.
+
+## Assistant provider selection
+
+`packages/ai` selects enabled Workers AI first, then a configured OpenAI-compatible provider. A configured provider failure does not switch providers. Persistent conversations refuse new generation when neither is configured, while browsing and management remain available.
+
+The stateless `selectAssistantLayer` retains its existing explicit fallback behavior. This API Token request makes one unsaved answer:
+
+```bash
+curl -s https://<api-host>/assistant/answer \
+  -H 'authorization: Bearer <api-token>' \
+  -H 'content-type: application/json' \
+  -d '{"workspaceSlug":"<slug>","question":"Hello"}'
+```
+
+A configured response reports `provider: "workers-ai"` or
+`provider: "openai-compatible"` and `assistantConfigured: true`.
+
+Persistent model limits use `ASSISTANT_INPUT_TOKENS`, `ASSISTANT_OUTPUT_TOKENS`,
+`ASSISTANT_PROVIDER_CONTEXT_TOKENS` and `ASSISTANT_PROVIDER_OUTPUT_TOKENS`.
+Admission uses `ASSISTANT_DEADLINE_MS`, `ASSISTANT_ACTIVE_LIMIT` and
+`ASSISTANT_RATE_LIMIT`. Set provider ceilings to the selected model's actual
+limits. The lower application/provider bound applies, with room reserved for the
+answer. Invalid configuration refuses generation.
+
+For saved history and member-authorized REST, see
+[Private Assistant Conversations](/agent-docs/capability-interfaces/assistant-conversations.md).
+
+## Add a variable
+
+Declare it in `ServerEnv` and classify it in the optional secret or plain key
+list in `packages/env/src/server.ts`. Alchemy forwarding and Worker string-binding
+types derive from those declarations. Add any required resource binding to the
+infrastructure configuration.
+
+---
+
+# Quickstart
+
+Install, seed, and run the starter locally.
+
+Canonical: /en/docs/getting-started/quickstart
+Source: apps/web/content/docs/getting-started/quickstart.mdx
+Language: en
+
+Use [Vite+](https://viteplus.dev) for the managed Node runtime and pinned pnpm.
+A Cloudflare account is needed for deployment only.
+
+## Install and run
+
+```bash
+vp install
+cp .env.example .env
+pnpm run db:migrate:local
+pnpm run db:seed
+pnpm run dev
+```
+
+The development command runs the web app on port 3071, the REST/MCP API on 8787,
+and the background Worker on 8788. They share persisted local D1. To run one app,
+use `pnpm -C apps/web dev`, `pnpm -C apps/api dev`, or
+`pnpm -C apps/background dev`.
+
+## Sign in
+
+Open `http://localhost:3071/sign-in`. Seeding creates these credential accounts:
+
+| Email                  | Password                | Roles                                |
+| ---------------------- | ----------------------- | ------------------------------------ |
+| `demo@starter.local`   | `demo-starter-password` | System admin and `starter-lab` owner |
+| `engineer@example.com` | `demo-starter-password` | `starter-lab` member                 |
+
+The sign-in form also offers magic links and six-digit emailed codes. Both
+expire after ten minutes. Codes allow three failed attempts. Without an email
+provider, local delivery appears in the dev server's `email.dispatched` log.
+
+The [Seed workspace](/agent-docs/getting-started/seed-workspace.md) supplies members,
+notifications, audit history, API tokens, and webhook endpoints. See the
+[setup guide](https://github.com/brandhaug/b2b-saas-starter/blob/master/docs/setup.md)
+for environment details and troubleshooting.
+
+Follow [First business feature](/agent-docs/getting-started/first-business-feature.md) to add
+a workspace-owned resource through D1, Effect adapters, permissions, UI, and REST.
+
+---
+
+# Seed workspace
+
+A deterministic workspace that boots the reference application with realistic state.
+
+Canonical: /en/docs/getting-started/seed-workspace
+Source: apps/web/content/docs/getting-started/seed-workspace.mdx
+Language: en
+
+`packages/capabilities/src/seed-fixture.ts` defines `starter-lab` and the demo
+identity used by the application and tests. It includes owners, admins, and
+members, plus API tokens, webhook endpoints, audit history, and notifications.
+
+Visit [/demo](/demo) to browse the Reference Application without signing in.
+The preview shows synthetic data in the application pages. You can open forms
+and dialogs, but actions explain that they are unavailable in the preview.
+Sign in to exercise real actions against your local database.
+
+`pnpm run db:seed` runs `scripts/seed.ts` to write the fixture into local D1 and
+add credential passwords. Re-running resets fixture records; do not use it on a
+database whose demo records you need to preserve.
+
+The Seed adapters also supply an in-memory ready export, `exp_seed_ready`.
+The D1 seed omits that export row because there is no corresponding bucket
+artifact. D1-backed exports must be requested through the normal queue flow.
+
+Keep the demo identity and membership equivalent in Seed and Live adapters.
+Browser navigation reads fixture membership, so identity drift can make a page
+work on reload but fail during navigation. See
+[Quickstart](/agent-docs/getting-started/quickstart.md) for the sign-in credentials.
+
+---
+
+# Account deletion
+
+Self-service deletion with password re-authentication, and the ownership rule that decides what happens to each workspace.
+
+Canonical: /en/docs/governance/account-deletion
+Source: apps/web/content/docs/governance/account-deletion.mdx
+Language: en
+
+Account deletion is self-service on the `/account` page. It demands the account's password, and it runs one rule per Workspace membership before the account row goes:
+
+1. The user is the workspace's only **Member**: the workspace is deleted with the account.
+2. The user is the only **owner** among several members: deletion is blocked until ownership is transferred. The page links each blocked workspace's members page.
+3. Other owners remain (or the user was never an owner): the membership is removed and the workspace survives.
+
+`AccountLifecycle` owns the teardown rules, with matching Seed and Live adapters.
+
+## Where the password check happens
+
+The delete rides Better Auth's `delete-user` endpoint, and the endpoint owns the order: the password is verified **first**; only then does the app's `beforeDelete` hook run the workspace teardown, then the user row is removed, then the `afterDelete` hook records `account.deleted`. A wrong password therefore never tears down a workspace. The endpoint stays disabled unless the app supplies the hook pair (`userDeleteHooks` on `AuthConfig`, wired in `apps/web/src/lib/server/account-delete-hooks.ts`); enabled without a teardown half would strand sole-owner workspaces.
+
+## Audit Events and email
+
+Every teardown step records an Audit Event through the governance capability: `workspace.deleted` for sole-member workspaces (a system event, because `audit_events.workspace_id` cascades with the deleted row), `workspace_member.removed` for leaves, and `account.deleted` once the account row is gone. That last event is deliberately actorless: `audit_events.actor_user_id` restricts on `user.id`, so the event names the account in `targetId` instead of an actor column that would reject the insert.
+
+The same columns restrict `api_tokens.created_by_user_id`; `prepareDeletion` nulls both before the user row is deleted, so history and token rows survive as system rows instead of blocking the delete.
+
+Deleting the account emails the user through the `AccountDeletedEmail` template on the provider-light `EmailDispatcher`. Best-effort by contract: the deletion has already happened, so a send failure is logged, never surfaced as a failed deletion. The session revocation itself is Better Auth's (every session is revoked), and each revocation records `auth.session_revoked` like every other session end.
+
+Account deletion requires the user's browser session. The public API does not
+expose it.
+
+## Private conversations
+
+Account and Workspace deletion fence their private Assistant Conversations before parent rows disappear. Access and new answers stop before asynchronous object cleanup. Durable cleanup addresses let the background worker retry storage removal. Creators can also delete their retained conversations through the identity-owned account operation after membership loss, without exposing transcript or Workspace evidence. Referenced Assistant Tasks keep their existing lifecycle.
+
+---
+
+# Workspace data export
+
+Request, download, and retain a workspace archive.
+
+Canonical: /en/docs/governance/data-export
+Source: apps/web/content/docs/governance/data-export.mdx
+Language: en
+
+An owner can request a workspace archive from settings. The background Worker builds a gzipped JSON document of the records listed below.
+
+Production exports require an R2 bucket and queue. The in-memory Seed adapter can build an archive without them. Local development with D1 uses the local R2 and queue bindings.
+
+## What the document contains
+
+The export is a single self-describing JSON document, stored and served gzip-compressed: `application/gzip`, named `<slug>-export-<exportId>.json.gz`. Decompressed, it is UTF-8 JSON with these fields:
+
+| Field              | Contents                                                                                                    |
+| ------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `readme`           | Schema version, generation time, and a description of every field below                                     |
+| `workspace`        | The workspace record (`id`, `slug`, `name`, `planId`)                                                       |
+| `members`          | Every Member with their Workspace Role and system role                                                      |
+| `invitations`      | Every Invitation, pending or settled                                                                        |
+| `apiTokens`        | API Token metadata: id, name, prefix, scopes, timestamps. Never the secret or its hash                      |
+| `webhookEndpoints` | Webhook Endpoints without their signing secret, each with its recorded deliveries                           |
+| `auditEvents`      | The complete workspace Audit Event trail, newest first                                                      |
+| `notifications`    | Workspace-wide Notifications. Notifications addressed to one user are that user's data and are not included |
+
+The archive excludes token hashes, webhook signing secrets and private Assistant Conversation content. Conversation history belongs in the creator's currently authorized personal export. Treat downloaded archives as sensitive workspace data.
+
+## Requesting an export
+
+1. An owner opens workspace settings and clicks **Request export**. The permission is `workspaceExport:request`, granted to owners only: an admin can rename the workspace but not walk away with every member's email and the full audit trail.
+2. The app writes a `pending` export, records the Audit Event `workspace.export_requested`, and enqueues a job.
+3. The background worker snapshots the workspace through the capability services, builds the document, gzips it, writes it to the export bucket, marks the export `ready`, records `workspace.export_completed`, and creates a Notification for the requester.
+4. Settings lists the export with a download link. The link is signed and valid for fifteen minutes; the artifact itself is kept for seven days, after which the bucket's lifecycle rule deletes it and the row reports it as expired.
+
+Every download records `workspace.export_downloaded`.
+
+## How a download works
+
+The link points at the API Worker: `GET /exports/<exportId>/download?expires=<unix>&signature=<hex>`. The signature is an HMAC over the export id and the expiry with a secret minted for that one export and stored on its row, so the web and API workers share nothing but the database, and a leaked link opens one artifact for at most fifteen minutes. An unknown id, a tampered signature, and an expired link all answer the same 404.
+
+Machine clients hold an `admin`-scoped API Token and use the REST surface: `POST /workspaces/:slug/exports` requests one, `POST /workspaces/:slug/exports/:exportId/download-link` mints the same signed URL after re-checking `workspaceExport:download`.
+
+## When exports are unavailable
+
+The export queue and R2 bucket are an Optional Provider. Set `WORKSPACE_EXPORTS_ENABLED=true` at deploy time and `alchemy.run.ts` provisions both with their bindings on all three workers. Unset, the settings card explains that exports are not configured and shows no button; nothing else degrades. Set `API_PUBLIC_URL` on the web worker so download links point at the deployed API worker; unset, they point at the local dev server on port 8787.
+
+## Account data
+
+An export covers one workspace, not all data associated with a person. It excludes
+personal notifications and authentication records. A per-user export across
+workspaces is not implemented. [Account deletion](/agent-docs/governance/account-deletion.md)
+is a separate operation; it does not produce an archive.
+
+---
+
+# Members and invitations
+
+How users join a workspace and what happens at each step.
+
+Canonical: /en/docs/governance/members-invitations
+Source: apps/web/content/docs/governance/members-invitations.mdx
+Language: en
+
+A Member belongs to a workspace with a Workspace Role. An Invitation grants
+membership to one email address with a specified role.
+
+## Invite and accept
+
+1. On the members page, an owner or admin enters an email and role. Sending requires `invitation:create`.
+2. Better Auth persists the invitation and sends a `WorkspaceInvitationEmail` through the email dispatcher. The link points to `/invitations/accept?invitation=<id>`.
+3. The recipient signs in and accepts. The invitation must belong to their email address.
+4. Acceptance creates the membership and marks the invitation accepted.
+
+Invitations require browser sessions and run through Better Auth's organization
+plugin in the web Worker. The public API does not expose invitation mutations.
+The invitation authorizes acceptance before the recipient has a workspace role.
+
+## Pending invitations
+
+The members page lists pending invitations for users permitted to manage them.
+Owners and admins can cancel an invitation; cancellation records
+`workspace_invitation.canceled`. To resend, cancel and send again.
+
+Expired, cancelled, accepted, and wrongly addressed invitations all show the
+same "cannot be used" message to avoid disclosing invitation state.
+
+A user can belong to several workspaces. Switching changes the workspace slug
+in the URL and does not require another sign-in.
+
+---
+
+# Onboarding checklist
+
+The dashboard's setup steps, derived from live workspace state and dismissable by owners and admins.
+
+Canonical: /en/docs/governance/onboarding-checklist
+Source: apps/web/content/docs/governance/onboarding-checklist.mdx
+Language: en
+
+The workspace dashboard shows incomplete setup steps and a completion count. Each step links to its settings page.
+
+## The steps
+
+| Step                              | Complete when                                          | Completes at |
+| --------------------------------- | ------------------------------------------------------ | ------------ |
+| Invite a member                   | the workspace has more than one Member                 | Members      |
+| Create an API token               | at least one active API Token exists                   | API tokens   |
+| Add a webhook endpoint            | at least one Webhook Endpoint exists                   | Webhooks     |
+| Enable two-factor on your account | the signed-in user's account has two-factor enabled    | Account      |
+| Choose a plan                     | the workspace is on a plan other than the free Starter | Billing      |
+
+The plan step appears only when billing is configured (Stripe secret and price ids set). Without a provider the checklist has four steps, which is what the Seed Workspace shows locally.
+
+## Nothing is stored per step
+
+The steps are computed on every read by the `workspaceProgress` projection in the capabilities package, from the same services the rest of the app uses. There is no "step done" flag to get out of sync: revoke the last API Token and its step reopens. The two-factor step is about the person looking, so two Members of one workspace can see it differently.
+
+## Dismissing
+
+Owners and admins can dismiss the checklist for the whole workspace. The dismissal is the one thing persisted (a timestamp on the workspace) and it records a `workspace.onboarding_dismissed` Audit Event naming who dismissed it. Members see the checklist read-only. A member also does not see the API-token and webhook steps, because reading those lists is a permission a member does not hold.
+
+---
+
+# Passkeys
+
+WebAuthn passkeys for sign-in and the account, and how they interact with two-factor.
+
+Canonical: /en/docs/governance/passkeys
+Source: apps/web/content/docs/governance/passkeys.mdx
+Language: en
+
+Passkeys provide WebAuthn sign-in through Better Auth's passkey plugin. They
+belong to an account and are managed on `/account`.
+
+## Sign in and manage credentials
+
+`/sign-in` offers **Sign in with a passkey** and preloads conditional autofill
+where supported. Registration requires a signed-in, fresh session. Users can
+name, rename, and remove their passkeys.
+
+Adding or removing a passkey records `auth.passkey_added` or
+`auth.passkey_removed`, with failure events for rejected changes. Successful
+changes also send a security email. Renaming changes the label only and sends
+neither an audit event nor an email.
+
+A passkey sign-in records `auth.sign_in` with `method: "passkey"`. In this
+configuration it opens a session without the separate TOTP challenge, even when
+the account has TOTP enabled. The live-auth tests cover this behavior.
+
+Impersonation sessions cannot manage passkeys. The account UI hides those
+controls and the auth boundary refuses the endpoints, because a newly enrolled
+credential would remain usable after impersonation ended.
+
+## Configuration
+
+The relying-party ID and origin derive from `BETTER_AUTH_URL`. Local development
+uses `localhost`; production uses the configured app hostname and origin. There
+are no separate passkey environment variables.
+
+Passkeys require an existing account; pre-auth registration is not implemented.
+The e2e suite uses a virtual authenticator through CDP to exercise registration,
+renaming, sign-in, and removal.
+
+---
+
+# Personal data export
+
+What an authenticated account export contains and omits.
+
+Canonical: /en/docs/governance/personal-data-export
+Source: apps/web/content/docs/governance/personal-data-export.mdx
+Language: en
+
+The account page provides an authenticated personal-data export. It is separate
+from a Workspace Export and is always collected for the current session user;
+the caller cannot select another user.
+
+Choose **Prepare personal data** on Account. Preparation shows a busy state and
+a failure can be retried. Once ready, choose **Download personal data** to save
+the JSON file. If asked, verify your identity and prepare a new export.
+
+The JSON archive includes the account profile, account preferences, memberships
+across the user's Workspaces, notification preferences, notifications addressed
+to that user, session metadata (without tokens), linked-provider metadata
+(without OAuth credentials), passkey metadata without public keys, owned OAuth
+client metadata, the user's OAuth consent scopes and workspace references, and
+sanitized email-delivery history across workspaces, and currently authorized private Assistant Conversations with every saved attempt and task reference. Email evidence includes
+recipients and delivery outcomes, without message bodies, secret links or send
+claim tokens. It includes records beyond the normal history page limit.
+
+Workspace-owned records, other members' notifications, passwords, bearer
+tokens, token hashes, OAuth access or refresh tokens, two-factor secrets and
+backup codes are excluded. Shared Workspace records remain owned by the
+Workspace and are handled by Workspace Export and the account-deletion flow.
+
+The server reads the identity from the authenticated session and performs the
+same check at request and download time. A request creates a private D1
+artifact bound to both the user and the originating session. It expires after
+24 hours; session or account deletion cascades to the artifact. The download
+rechecks the live session, user binding, expiry and conversation/access manifest before returning it. Membership or permission loss, a content-policy change, or conversation/account/Workspace deletion invalidates affected cached archives. Restoring access requires a new archive. Previously downloaded files cannot be recalled. A new
+sign-in session must prepare its own export. The archive has `schemaVersion: 1`,
+a `generatedAt` timestamp, a `readme`, and named arrays for each record class.
+Empty record classes are empty arrays.
+
+Request and download are recorded by the capability's audit path. Expired
+artifacts are removed by the approval-gated retention worker. Retention policy
+approval must be renewed when the export cleanup rule or policy version changes.
+
+---
+
+# Single sign-on
+
+Workspace-scoped SAML and OIDC connections, domain routing, and provisioning.
+
+Canonical: /en/docs/governance/single-sign-on
+Source: apps/web/content/docs/governance/single-sign-on.mdx
+Language: en
+
+Owners and admins configure workspace SSO in settings. Connections support
+OIDC or SAML and route sign-ins by email domain. New connections start disabled.
+Add, test, then enable a connection before requiring it for the domain.
+
+## Routing and provisioning
+
+The sign-in page checks the email domain before attempting password sign-in.
+An enabled connection redirects matching users through Better Auth's
+`/sign-in/sso` endpoint. **Require SSO for this domain** also rejects the password
+path at the auth boundary, including direct requests.
+
+Successful SSO creates a user and membership when needed. The configured default
+role is `member` or `admin`; SSO never provisions an owner. Existing members keep
+their roles. Members cannot read or manage connection configuration.
+
+## OIDC setup
+
+Register a web application with your identity provider and use this redirect URI:
+
+```text
+https://<your-app>/api/auth/sso/callback/<provider-id>
+```
+
+Add an OIDC connection with its email domain, issuer, client ID, client secret,
+and default role. The starter resolves the issuer's discovery document and
+validates the required endpoints. Test the connection before enabling routing.
+
+## SAML setup
+
+Add a SAML connection using the IdP's metadata URL or XML, the email domain, and
+a default role. The starter parses the metadata and its SSO redirect binding.
+After the connection exists, obtain the service-provider configuration from:
+
+```text
+https://<your-app>/api/auth/sso/saml2/sp/metadata?providerId=<provider-id>
+```
+
+Use that metadata to configure the IdP, then test and enable the connection.
+SAML single logout is disabled; signing out ends the app session only.
+
+## Audit and limits
+
+Connection changes record `workspace_sso.connection_created`, `_updated`, or
+`_removed`. SSO sign-ins record `auth.sso_sign_in` or `_failed`. A failed connection
+test notifies workspace owners. Reads expose sanitized connection metadata and
+the client ID's last four characters, never secrets or SAML keys.
+
+Domain ownership is not verified through DNS. Treat connection creation as a
+privileged operation; the configured email domain alone is not proof that the
+workspace controls it.
+
+For a private-network identity provider, its origin must be allowed in
+`BETTER_AUTH_TRUSTED_ORIGINS`. Public-provider configuration normally stays within
+workspace settings. API Token authentication is independent of SSO.
+
+---
+
+# System admin
+
+Global user management via Better Auth's admin plugin, distinct from any Workspace Role.
+
+Canonical: /en/docs/governance/system-admin
+Source: apps/web/content/docs/governance/system-admin.mdx
+Language: en
+
+A System Admin is a user with global user-management permissions through Better Auth's admin plugin. System Admin is not a Workspace Role; it operates at the user level. `packages/auth/src/index.ts` registers `admin({ adminRoles: ['admin'] })`, so users whose `user.role = 'admin'` are System Admins.
+
+## User management
+
+The `/admin` route renders a global users table (name, email, system role, status) with per-row actions, a cross-workspace role editor, and a global audit-event table sourced from `AuditEventLog.listGlobal`. The actions go through the `PlatformUserAdmin` capability, never straight to the plugin:
+
+* **Ban / Unban**: blocks or restores sign-in. Audited as `system_admin.user_banned` / `system_admin.user_unbanned`.
+* **Change workspace role**: sets a user's Workspace Role in one workspace. Audited as `system_admin.user_role_changed`.
+* **Impersonate**: opens an Impersonation Session as that user (below). Audited as `system_admin.impersonation_started` / `system_admin.impersonation_stopped`.
+
+Password reset and account creation from `/admin` are not surfaced.
+
+## Impersonation
+
+A System Admin can browse the app as another user to reproduce what they see. The session is Better Auth's admin-plugin impersonation (ADR 0054):
+
+* **One hour, then it ends on its own.** Stop earlier from the banner.
+* **Visible the whole time.** Every page in the app shell shows a banner naming the impersonated user with a **Stop impersonating** button. Stop restores the admin's own session and returns to `/admin`.
+* **No elevation.** The session has exactly the impersonated user's roles: it cannot open `/admin`, and a workspace the user is not a member of stays a 404. System Admins cannot be impersonated.
+* **Locked actions.** The session cannot change the user's password, passkeys, two-factor settings, or email, or delete the account. The auth endpoints answer 403 and the controls are hidden on `/account`. The real account holder makes those changes.
+* **Recorded on both sides.** `system_admin.impersonation_started` and `system_admin.impersonation_stopped` name the admin as actor and the user as target, so both `/admin`'s trail and the user's workspace audit page show it. The impersonated user also receives a Notification in each of their workspaces saying who started the session.
+
+## Audit trail
+
+Every System Admin action emits an Audit Event with actor, target user, and action type, through the same `AuditEventLog` capability the rest of the app writes to. The Better Auth admin endpoints called directly from a client are audited by the auth catchall as `system_admin.*` success/failure pairs; the `/admin` UI's own actions are audited by the capability. See ARCHITECTURE.md §Audit log.
+
+---
+
+# Workspace roles
+
+Owner, admin, and member; the three Workspace Roles in the starter.
+
+Canonical: /en/docs/governance/workspace-roles
+Source: apps/web/content/docs/governance/workspace-roles.mdx
+Language: en
+
+A Workspace Role controls a user's permissions within one workspace. The
+roles are `owner`, `admin`, and `member`, defined in `packages/authz/src/roles.ts`.
+A user's role can differ between workspaces.
+
+| Role   | Permissions                                                                                                              |
+| ------ | ------------------------------------------------------------------------------------------------------------------------ |
+| Owner  | Full workspace control, including deletion and data export                                                               |
+| Admin  | Workspace management, excluding deletion and data export                                                                 |
+| Member | Workspace content, roster, notifications, and assistant reads; no token, webhook, audit-log, or SSO configuration access |
+
+Routes name permissions such as `apiToken:create` and call the shared
+`authorize()` guard. Loaders omit unreadable sections, UI controls explain
+unavailable actions, and server functions check permissions again.
+
+API Token scopes use the same permission statements. Their `read` scope includes
+security metadata that a member's browser session cannot read, because owners
+and admins choose the scopes when issuing a token. See
+[API tokens](/agent-docs/capability-interfaces/api-tokens.md).
+
+System Admin is a separate account-level role. It grants no workspace-membership
+bypass. See [System admin](/agent-docs/governance/system-admin.md).
+
+---
+
+# Cloudflare observability and Web Analytics
+
+Native Worker error tracking and optional analytics.
+
+Canonical: /en/docs/integrations/cloudflare-observability
+Source: apps/web/content/docs/integrations/cloudflare-observability.mdx
+Language: en
+
+## Cloudflare Workers Logs and Issues
+
+All three Workers enable native logs and Issues through deployment configuration.
+No error-reporting credentials or SDK are needed. Failed application scopes emit
+sanitized JSON through `console.error`; successful scopes use `console.log`.
+[Issues](https://developers.cloudflare.com/workers/observability/issues/) groups
+Worker exceptions, failed invocations, HTTP 5xx responses, and logged errors.
+Issues is an open beta and processes traffic after activation.
+
+Inspect errors in Cloudflare's Issues dashboard. Configure notification destinations
+and automations separately in the account, then verify receipt with a synthetic
+failure. Enabling Issues alone does not configure paging, availability checks,
+missing-cron detection, or recovery notifications. Native monitoring shares the
+application's Cloudflare failure domain.
+
+Application telemetry omits arbitrary exception messages, stack traces, URLs and
+customer content. Platform-generated exception and request metadata is collected
+outside that filter and needs its own privacy review. Native request URLs have
+query-string redaction enabled; URL paths and exception text still need review. Browser exceptions have no
+remote capture in this starter; Workers Issues observes server execution.
+
+`OTEL_EXPORTER_OTLP_ENDPOINT` optionally exports sanitized Effect traces, metrics,
+and canonical logs to a collector. It remains scoped to each Worker invocation.
+
+## Consent-gated Web Analytics
+
+Every production Alchemy deployment provisions a Cloudflare RUM site for the
+hostname in `BETTER_AUTH_URL`. Alchemy
+passes its public site token to the web Worker as
+`CLOUDFLARE_WEB_ANALYTICS_TOKEN`. API and background Workers receive no token.
+Local development and deployments without a token load no beacon. PR preview
+stages never provision the site or receive its token.
+
+Set `PRIVACY_CONTROLLER_NAME` and `PRIVACY_CONTACT_EMAIL` for the deployment's
+privacy notice. CI reads them from repository variables and Alchemy forwards them.
+Both are required before the browser receives the token.
+
+Alchemy disables automatic injection. The app embeds one script from
+`https://static.cloudflareinsights.com/beacon.min.js`; do not enable a second
+copy in the dashboard. The beacon handles SPA navigation automatically.
+[Cloudflare's FAQ](https://developers.cloudflare.com/web-analytics/faq/) describes
+manual embedding, route measurements, and delivery limitations.
+
+The app asks for explicit opt-in with equally prominent Allow and Decline buttons.
+No vendor script loads until acceptance. The choice, notice version and timestamp
+live in `starter.analytics-consent` in local storage for 180 days. Invalid, expired
+or unreadable preferences leave analytics off. Analytics settings stays available
+on public and workspace pages for changing or withdrawing consent.
+
+Changing the choice reloads the page. Cloudflare provides no documented teardown
+API, so withdrawal first adds a temporary `connect-src 'self'` policy to the
+outgoing document to block the manually embedded beacon's external exit reports,
+then reloads without the beacon. Same-origin application requests remain usable
+if storage recovery fails. Storage
+events notify other tabs; focus, visibility and page-restoration checks catch
+expired or changed consent when suspended tabs resume. A BroadcastChannel also
+propagates withdrawal if local-storage writes fail. Requests already sent
+cannot be recalled, and other tabs do not stop synchronously. If saving fails,
+the app first removes the previous permission. If removal also fails, a necessary
+`starter.analytics-refused` cookie records refusal for 180 days. If neither store
+can persist the change, external analytics connections stay blocked and the UI
+explains that an earlier saved choice may still apply on another visit. Reloading after acceptance avoids sending
+buffered performance entries from the pre-consent document.
+
+After acceptance, the beacon runs across the public site and authenticated app.
+It sends page views and browser performance measurements to Cloudflare, with
+[dimensions](https://developers.cloudflare.com/web-analytics/data-metrics/dimensions/)
+including paths, referrers, browser, device and country. Paths can contain
+Workspace slugs or other identifying values. The application logger's URL and
+identity filtering does not apply to this browser beacon. Review actual network
+payloads and deployment privacy copy before enabling it.
+Cloudflare documents its
+[data collection](https://developers.cloudflare.com/web-analytics/data-metrics/data-origin-and-collection/)
+and says it does not log page query strings in its FAQ. That is not a guarantee
+for every URL-bearing field: performance resource URLs and element identifiers
+may also appear. Do not put secrets in URL paths, resource URLs or DOM identifiers.
+The document uses `strict-origin` referrers to avoid path/query disclosure through
+HTTP referrer headers. This does not redact the beacon's JavaScript payload.
+
+Cloudflare describes its beacon as cookieless. The deployment notice still
+identifies consent as the basis for this optional processing, names Cloudflare,
+and describes collected fields, retention, withdrawal and privacy rights. The
+operator remains responsible for the provider agreement, international transfers
+and the accuracy of account-data retention disclosures.
+
+Web Analytics supplies traffic and performance measurements. It does not replace
+server error monitoring or add browser exception reporting, custom product events,
+session replay, or feature flags. The starter has no Analytics Engine dataset;
+add one only when a concrete custom-event use case needs it.
+
+---
+
+# Social sign-in
+
+Env-gated GitHub and Google sign-in; exact variables, OAuth callback URLs, account linking, and the audit trail.
+
+Canonical: /en/docs/integrations/social-sign-in
+Source: apps/web/content/docs/integrations/social-sign-in.mdx
+Language: en
+
+GitHub and Google sign-in use Better Auth's `socialProviders`. A provider
+appears on `/sign-in` and `/sign-up` only when both its client ID and secret are
+configured.
+
+## Configuration
+
+| Provider | Environment variables                      | Callback URL                                 |
+| -------- | ------------------------------------------ | -------------------------------------------- |
+| GitHub   | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | `{BETTER_AUTH_URL}/api/auth/callback/github` |
+| Google   | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | `{BETTER_AUTH_URL}/api/auth/callback/google` |
+
+Register an OAuth application with the provider, using the app origin and the
+callback above. `BETTER_AUTH_URL` is `http://localhost:3071` locally. Set the
+credentials in root `.env` for web development or in the deployment environment,
+then restart. Better Auth runs in the web Worker.
+
+## Account linking
+
+A social sign-in can link to an existing account with the same email only when
+both the provider email and the local mailbox are verified. An unverified local
+mailbox returns `account_not_linked`, preventing account takeover through a
+pre-registered address.
+
+`/account` lists linked methods and allows unlinking while another method
+remains. A dedicated UI for linking another provider from the account page is
+not implemented. The demo user's linked GitHub method is fixture data and does
+not represent a real GitHub identity.
+
+Linking and unlinking record `auth.account_linked` and `auth.account_unlinked`.
+OAuth callbacks record `auth.sign_in` or `auth.sign_in_failed`. The sign-in page
+remembers the last method in a cookie.
+
+## Verify
+
+After configuring a provider, complete sign-in using its button and check
+`/account` for the linked method. Inspect `/admin` as a System Admin for the
+corresponding auth events. Unset providers should have no button.
+
+---
+
+# Stripe billing integration
+
+Optional Stripe billing with verified lifecycle state, durable checkout, replay-safe webhooks, and scheduled reconciliation.
+
+Canonical: /en/docs/integrations/stripe-billing
+Source: apps/web/content/docs/integrations/stripe-billing.mdx
+Language: en
+
+Billing is an **Optional Provider** built on Stripe. Plan display, seat usage, and entitlement gating work with no Stripe configuration at all; only the provider touchpoints (checkout, the Billing Portal, seat sync, and the inbound webhook) activate when their environment variables are present.
+
+## Behavior
+
+* **Plan catalog**: `packages/billing/src/plan-catalog.ts` owns the `PLANS` constant, each plan's pricing shape (`flat` or `per_seat`), and its entitlement ceilings. The workspace billing page, the members page's seat prompt, and the entitlement gate read this one list. As rendered from the catalog:
+
+  | Plan       | Price                           | Billing shape | Entitlement ceilings              | Included seats | How you get on it             |
+  | ---------- | ------------------------------- | ------------- | --------------------------------- | -------------- | ----------------------------- |
+  | Starter    | $0                              | Flat          | 2 API tokens · 1 webhook endpoint | 3              | Every workspace starts here   |
+  | Team       | Configured Stripe price/seat/mo | Per seat      | Unlimited                         | ; (per seat)   | Self-serve Stripe checkout    |
+  | Enterprise | Configured Stripe price         | Flat          | Unlimited                         | Unlimited      | Operator-created subscription |
+
+  The starter is MIT. When Stripe is configured, customer-facing pages render the configured Stripe amount and currency; they never substitute the catalog example. Without a provider, pages may show a clearly labeled catalog example. Enterprise is activated only when an operator creates a subscription using the explicitly configured Enterprise price and the normal verified synchronization path.
+
+* **Public pricing and Billing page**: `/pricing` and `/workspaces/$slug/billing` use the same capability-owned catalog and price projection. With Stripe configured, both render configured Stripe amounts and currencies. Without it, the pages identify example pricing and keep provider actions inactive. Owners and admins get status, recovery, portal, and resource-selection controls; other members see an access explanation and a prompt to contact an owner or admin without invoice or payment-method details.
+
+* **Seat usage**: `seatUsage(plan, memberCount)` compares the roster against the plan's seat terms. On a flat plan past its included seats, the members page shows an upgrade prompt; members are never blocked, the workspace is asked to cover them. A per-seat plan never prompts; it bills one **Seat Quantity** per Member.
+
+* **Seat sync**: membership mutations (a Member added or removed) and invitation acceptances enqueue one message onto the `BILLING_QUEUE`. The background worker consumes it and mirrors the member count onto the Stripe subscription item's quantity through `Billing.syncSeats`, so a membership mutation never awaits Stripe. The stored quantity and a `billing.seats_changed` audit event commit together; a Stripe failure retries through the queue.
+
+* **Checkout handoff**: the `startCheckoutServerFn` server function composes success/cancel URLs server-side from `BETTER_AUTH_URL` (the client names only its slug and plan), calls Stripe's REST API directly over form-encoded fetch (no SDK), and records a `billing.checkout_started` audit event. A durable claim fixes the request parameters before the Stripe call. Concurrent attempts for the same workspace and plan reuse the pending checkout. A different plan must wait for that checkout to expire or be canceled. Existing subscribers go to the Billing Portal. On a per-seat plan, checkout starts with the member count recorded by the claim; reconciliation picks up subsequent membership changes.
+
+* **Entitlement gate**: `assertWithinPlanLimit` caps Starter workspaces at 2 API tokens and 1 webhook endpoint; paid plans do not cap. The web server functions and the API worker both compose it before creates, failing with a 402 `PlanLimitExceeded`. A downgrade never deletes members, tokens, or endpoints. If existing tokens or endpoints exceed Starter limits, the affected category is paused until an owner or admin selects the two tokens and one endpoint to remain active; execution and authorization boundaries enforce the restriction for existing credentials and queued webhook dispatches too.
+
+* **Inbound webhook**: `POST /webhooks/stripe` verifies Stripe's signature against `STRIPE_WEBHOOK_SECRET` and preserves the event ID and creation time. Checkout and subscription events trigger retrieval of current Stripe state. Historical payloads never directly restore a subscription or select an entitlement from stale metadata.
+
+* **Scheduled reconciliation**: a bounded background pass retrieves customer and subscription state, applies recognized price changes, and corrects seat quantity to application membership. It repairs missed events and dropped queue work without another customer action. Billing stays inactive without Stripe configuration.
+
+## Subscription state
+
+Each workspace owns one Stripe customer and at most one current subscription.
+`workspace_subscriptions` records that linkage and the observed quantity. A
+cancellation clears subscription linkage but retains the customer for invoice
+history. Stripe determines subscription state; application membership determines
+billable quantity.
+
+D1 also holds provider event evidence, checkout claims, and synchronization state.
+Required local changes, audit rows, and event completion commit together. A
+recoverable workspace lease prevents overlapping workers from committing stale
+state. A duplicate completed delivery has no additional business or audit effect.
+Event timestamps are evidence, not an ordering filter, so same-second changes
+remain eligible for authoritative synchronization.
+
+Unknown or unsupported prices, intervals, or pricing models, multiple subscriptions, and customer ownership mismatches produce
+durable conflict evidence. The worker preserves the last verified entitlement
+while operators resolve the conflict. It never cancels subscriptions, refunds
+payments, or reassigns customers to resolve a conflict automatically.
+
+The billing page shows pending, delayed, or conflict state and refreshes while
+Stripe is configured. An outage preserves the last verified plan and withholds
+unverified upgrades.
+
+The effective plan is checked again when a request needs an entitlement. A
+stored Team subscription therefore does not keep creating or authorizing paid
+resources after its verified trial, cancellation, or renewal-grace deadline
+passes while Stripe is unavailable. The subscribed plan remains stored so a
+verified recovery can restore it.
+
+## Payment and access policy
+
+Paid access follows the last verified Stripe subscription state, never the fact
+that a Checkout Session completed. An incomplete first payment does not grant
+paid access. For a subscription that has previously paid, the first failed
+renewal starts a seven-day grace period; later retry attempts do not extend it.
+Stripe's `unpaid` or `canceled` state ends paid access immediately, even during
+that period. A successful payment restores the applicable verified entitlements,
+but never clears an independent administrative suspension.
+
+An operator-created Stripe trial grants the subscribed plan through its verified
+trial end. A trial that expires without payment returns to Starter immediately;
+renewal grace applies only after a subscription has previously paid. A
+period-end cancellation retains access until the paid period ends and can be
+undone in the Billing Portal. An immediate cancellation performed in Stripe is
+effective when verified; refunds remain an operator action in Stripe.
+
+Membership changes count every current member, including owners and admins;
+pending invitations do not count. Stripe quantity changes immediately, with
+proration applied to the next invoice rather than charging a separate invoice
+for each change.
+
+Returning to Starter is non-destructive. The soft three-member seat limit is
+explained but does not remove or block members. Only over-limit API-token and
+webhook categories require an owner/admin selection, and excess resources stay
+stored for later recovery.
+
+## Env gate
+
+| Variable                     | Purpose                                                                  |
+| ---------------------------- | ------------------------------------------------------------------------ |
+| `STRIPE_SECRET_KEY`          | API key used for checkout, the Billing Portal, and seat-quantity updates |
+| `STRIPE_WEBHOOK_SECRET`      | Signing secret of the webhook endpoint pointing at the background Worker |
+| `STRIPE_PRICE_ID_TEAM`       | Monthly licensed per-seat Team price                                     |
+| `STRIPE_PRICE_ID_ENTERPRISE` | Monthly operator-provisioned Enterprise price                            |
+
+\| `STRIPE_PRICE_ID_TEAM_ANNUAL` | Optional yearly licensed per-seat Team price |
+\| `STRIPE_PRICE_ID_ENTERPRISE_ANNUAL` | Optional yearly operator-provisioned Enterprise price |
+
+All six are optional fields in `packages/env/src/server.ts`. Team is required
+for complete self-serve Stripe configuration; Enterprise is required before an
+operator can provision Enterprise. Unset, checkout and the portal answer
+`provider_not_configured` (and the webhook route answers 503) while plan
+display, seat usage, and entitlements stay fully functional; `syncSeats` is an
+no-op. The adapter accepts one-month and one-year licensed per-unit prices and rejects other intervals and pricing models
+instead of displaying inaccurate customer-facing prices.
+
+## Queue topology
+
+Seat sync uses `b2b-saas-starter-billing`, produced by the web worker and consumed
+by the background worker. Membership changes enqueue best-effort work and never
+await Stripe. Failed work retries with backoff; exhausted jobs produce durable
+failure evidence and observable terminal outcomes through the billing dead-letter
+consumer. Scheduled reconciliation recovers both exhausted jobs and publication
+failures.
+
+The repair target is 15 minutes while Stripe is available. An unresolved failure
+beyond that target emits an alert signal through the existing observability
+system. ADR 0060, `docs/adr/0060-durable-seat-based-billing.md`, records the
+ordering, concurrency, and recovery decision.
+
+## Evidence and recovery
+
+Retain minimal event IDs, workspace and subscription IDs, processing outcomes,
+timestamps, and sanitized errors for 90 days. No raw webhook payload is retained.
+Keep unresolved failures until resolution, then start their 90-day clock. Cleanup of this evidence is not yet implemented.
+Events older than this evidence window still retrieve current Stripe state.
+
+Operators can inspect failures and request an audited retry for one workspace.
+Resolve ownership, price, or duplicate-subscription conflicts at the provider
+before retrying; the application does not make destructive financial decisions.
+
+## Billing Portal and webhook setup
+
+Configure Stripe's Billing Portal to permit payment-method updates, invoice
+history, and period-end cancellation/reactivation. Point a Stripe webhook
+endpoint at `<background-worker>/webhooks/stripe` subscribed to
+`checkout.session.completed`, `customer.subscription.created`,
+`customer.subscription.updated`, and `customer.subscription.deleted`. The
+handler matches Stripe's `t=/v1=` signature header scheme with HMAC-SHA256,
+rejects timestamps older than five minutes, and returns non-2xx on processing
+failure so Stripe schedules redelivery. The application verifies provider state
+before changing access, preserving the grace and cancellation semantics above.
+
+---
+
+# Audit events and notifications
+
+Persisted governance records and user-facing messages for workspace activity.
+
+Canonical: /en/docs/operations/audit-events
+Source: apps/web/content/docs/operations/audit-events.mdx
+Language: en
+
+## Audit events
+
+Audit Events persist governance-sensitive actions in D1. Each row records an
+actor when available, a target, an event type, and metadata. Workspace reads
+require permission and omit raw metadata from the response.
+
+`AuditEventLog.list` supports keyset pagination and filters for actor, event type,
+and time range. `/admin` uses `listGlobal` for cross-workspace events.
+
+Capabilities record token, webhook, membership, workspace, billing, export, and
+other governance changes. The web auth boundary records account and sign-in
+outcomes. Token requests update `lastUsedAt`; they do not create an audit event
+for each use.
+
+Workspace deletion records a system event without workspace attribution so it
+survives the workspace's cascade. Account deletion clears actor foreign keys
+before removing the user; relevant target and metadata fields remain in history.
+
+## Notifications
+
+Notifications are user-facing messages in the workspace feed. Capabilities
+publish them explicitly; audit records do not automatically become notifications.
+A notification can target one user or the workspace's members.
+
+Users choose instant email, digest, or no email per notification kind. The in-app
+feed remains available regardless of email preferences. See
+[notification emails](/agent-docs/operations/notification-emails.md).
+
+---
+
+# Notification emails and the daily digest
+
+Per-user, per-kind email preferences, the instant-email queue, and the 08:00 UTC digest cron.
+
+Canonical: /en/docs/operations/notification-emails
+Source: apps/web/content/docs/operations/notification-emails.mdx
+Language: en
+
+A Notification is a user-facing message in the workspace feed. Each one has a kind, and every user chooses per kind how it reaches them by email: `off`, `instant`, or `digest`. The in-app feed is unaffected by the choice.
+
+## Kinds and defaults
+
+| Kind                            | Default   | What it means                                     |
+| ------------------------------- | --------- | ------------------------------------------------- |
+| `api_token.created`             | `instant` | An API token was minted in one of your workspaces |
+| `api_token.revoked`             | `instant` | An API token was revoked                          |
+| `workspace_member.role_changed` | `instant` | An owner or admin changed your role               |
+| `two_factor.changed`            | `instant` | Two-factor authentication was turned on or off    |
+| `account.impersonated`          | `instant` | A System Admin signed in to your account          |
+| `webhook.delivery_failed`       | `digest`  | A webhook endpoint rejected a delivery or gave up |
+| `workspace_member.joined`       | `digest`  | Somebody accepted an invitation to your workspace |
+| `billing.plan_changed`          | `digest`  | A workspace moved to another plan                 |
+| `announcement`                  | `digest`  | Workspace-wide notices                            |
+
+The five security kinds default to instant because each one changes who can act on the account or the workspace. Defaults live in code, so the `notification_preferences` table holds only the choices a user made; a new kind needs no backfill.
+
+## Preferences
+
+Preferences are per user, not per workspace. The signed-in `/account` page has an "Email notifications" section with one row per kind and a three-way choice. Every notification email carries an unsubscribe link to `/account/notifications?kind=<kind>`, which opens the same matrix with that kind highlighted. The link is deliberately a signed-in page rather than a one-click endpoint: it carries no token, so a forwarded email cannot change anybody's preference.
+
+Each change records a `notification_preference.changed` Audit Event against the user, with the kind, the chosen channel, and the kind's default in the metadata.
+
+## Instant emails
+
+When a Notification is created, the feed capability resolves who can see it (the target user, or every member of the workspace for a broadcast) and enqueues one message on the `b2b-saas-starter-notification-emails` Cloudflare Queue per recipient whose channel for the kind is `instant`. The message carries only the Notification id and the recipient id. The background worker consumes it, re-reads the Notification and the recipient's current preference, renders the kind's React Email template, and sends it through Cloudflare Email. A Notification that was read in the meantime, or a preference that moved off instant, is acked without an email.
+
+Durable delivery records track attempts and provider acceptance. Temporary or
+ambiguous notification sends can retry within 24 hours of creation. Before each
+attempt, the consumer rechecks relevance, recipient access, and preferences.
+Once the provider accepts a message, the app does not submit it again.
+
+## Daily digest
+
+A cron trigger on the background worker fires at `0 8 * * *` (08:00 UTC). The run reads every unread Notification created in the previous 24 hours, fans broadcasts out to the workspace members, keeps the pairs whose kind the recipient takes as `digest`, and sends one email per recipient with everything grouped, newest first. Nothing is sent to a recipient with no digest items. A Notification read in the app before 08:00 is not included.
+
+Failed digests retry every fifteen minutes against the same 08:00 UTC window,
+with no new send after 14:00 UTC. Each pass rereads unread notifications and
+preferences; stable per-user delivery IDs prevent resending accepted digests.
+Queue settings and schedules live in `infra/bindings.ts`.
+
+Cloudflare delivery events update sanitized history. Provider acceptance and
+inbox delivery are separate states. The application retains no rendered email
+bodies, OTPs, or secret links in those records.
+
+## Provider-light behaviour
+
+* No `NOTIFICATION_EMAIL_QUEUE` binding: Notifications persist and show in the feed, no instant email is enqueued, the digest still runs.
+* No `EMAIL` binding or `CLOUDFLARE_EMAIL_FROM`: emails render and go to the worker log instead of an inbox.
+* Links in emails use `BETTER_AUTH_URL` as the app origin; local development falls back to `http://localhost:3071`.
+
+## Trying it locally
+
+1. Run `pnpm run db:migrate:local` and `pnpm run db:seed`, then `pnpm run dev`.
+2. Sign in as `demo@starter.local` and open `/account`. The demo owner has a mix: API token creation moved to the digest, webhook failures moved to instant, announcements off.
+3. With the background worker running, trigger its scheduled test endpoint: `curl "http://localhost:8788/__scheduled?cron=0+8+*+*+*"`. The digest email renders to the worker log.
+
+See ADR 0061 for the decision record.
+
+---
+
+# Outbound webhooks
+
+Workspace Webhook Endpoints, Cloudflare Queues, attempt history, retries, replays, and secret rotation.
+
+Canonical: /en/docs/operations/outbound-webhooks
+Source: apps/web/content/docs/operations/outbound-webhooks.mdx
+Language: en
+
+A Webhook Endpoint is a workspace-owned outbound event delivery target. The starter ships endpoint management, signed payloads, attempt history, retries, replay, test sends, and secret rotation via Cloudflare Queues.
+
+The published event allowlist is `api_token.created`, `api_token.revoked`,
+`webhook_endpoint.created`, `workspace_member.added`,
+`workspace_member.removed`, `workspace_member.role_changed`,
+`workspace_invitation.accepted`, and `billing.plan_changed`. Each event has a
+dedicated payload shape and the publisher drops fields outside that shape;
+secrets, audit metadata, and actor provenance are never forwarded. The
+corresponding audit taxonomy is broader: events without a webhook allowlist
+entry remain audit-only. Membership-added delivery covers successful invitation
+acceptance; direct SSO provisioning and other Better Auth plugin writes are
+outside this capability seam. Fan out happens after the authoritative mutation
+and is best effort, so refused, duplicate, and no-op changes do not emit a
+domain webhook.
+
+## Endpoint lifecycle
+
+* Created from the workspace webhooks UI, REST, or MCP
+* Each endpoint has a URL, a signing secret, and a list of event types it subscribes to
+* URLs are validated at creation and on every update (and re-checked at dispatch): https only, no embedded credentials, no `localhost` or single-label hostnames, and no private, loopback, or link-local IP literals. Invalid URLs fail with `InvalidWebhookUrl` (400). DNS-rebinding protection is out of scope for the starter.
+* Disabling an endpoint stops delivery without losing history; updating it with `enabled: true` (PATCH) re-enables it
+* Updating (`PATCH`) changes the URL, the event subscriptions, or the enabled flag (only the fields you send)
+* Deleting an endpoint removes it and its delivery history (the deliveries cascade); rotation, updates, deletions, and replays all write Audit Events through `WebhookEndpoints` in `@b2b-saas-starter/capabilities`
+
+## Delivery
+
+When a domain event matches an endpoint's subscriptions, the publisher queues one
+message for that endpoint. The background Worker signs and posts it with a
+10-second request deadline, then reads at most a 2 KiB response prefix with a
+separate two-second body-read deadline. An unreadable or timed-out body is stored
+as absent; the HTTP status still determines delivery success or retry.
+
+Each delivery has a summary and immutable individual attempt evidence. A later
+successful retry preserves earlier failures. The complete event payload stays on
+the summary for replay.
+
+Each request body is `{"deliveryId": "whd_…", "eventType": "…", "payload": …}`.
+The producer assigns `deliveryId` before enqueueing. It is also the persisted
+summary ID and `webhook-id`, and stays unchanged across automatic retries and
+transfer to the dead-letter queue. A manual replay creates a new message ID and
+links its summary to the source through `replayedFrom`. The event type and payload
+stay unchanged, so receivers can distinguish a requested replay from a retry.
+
+Requests follow [Standard Webhooks](https://github.com/standard-webhooks/standard-webhooks/blob/main/spec/standard-webhooks.md),
+using the same signature format as [Outpost's Standard Webhooks mode](https://hookdeck.com/docs/outpost/destinations/webhook):
+
+* `webhook-id`: the delivery ID
+* `webhook-timestamp`: Unix seconds at signing time, refreshed for every attempt
+* `webhook-signature`: space-separated `v1,<base64>` signatures, current key first
+* `x-trace-id`: the trace ID you can quote in a support request
+
+Signing secrets use `whsec_<base64>`, encoding 32 random bytes. Decode the base64
+part to obtain the HMAC key. The signed bytes are the UTF-8 encoding of
+`` `${webhookId}.${timestamp}.${rawBody}` ``. The digest is HMAC-SHA256, encoded as
+standard base64. Verify the raw body before parsing JSON; reformatting changes the
+signature.
+
+For a receiver, use the independent `standardwebhooks` package:
+
+```ts
+import { Webhook } from 'standardwebhooks'
+
+export async function receive(request: Request, signingSecret: string) {
+  const rawBody = await request.text()
+  const event = new Webhook(signingSecret).verify(rawBody, {
+    'webhook-id': request.headers.get('webhook-id') ?? '',
+    'webhook-timestamp': request.headers.get('webhook-timestamp') ?? '',
+    'webhook-signature': request.headers.get('webhook-signature') ?? ''
+  })
+  // Verification throws for invalid signatures or timestamps outside five minutes.
+  // Atomically deduplicate webhook-id in your durable event handler before effects.
+  return event
+}
+```
+
+The verifier tries all signatures, so a receiver with either active key works
+during rotation. Deduplicate automatic retries on `webhook-id`; retain your
+processed IDs for at least your retry and operational recovery window. A manual
+replay deliberately has a new ID and can run your handler again.
+
+## Retries and delivery statuses
+
+Delivery rows use one of five statuses: `pending` (an operator replay or test send created the row and the queue has not dispatched it yet), `delivered` (2xx), `failed` (retryable: 5xx, 408, 429, network error, or timeout), `failed_permanent` (non-retryable 4xx or an endpoint URL that fails the dispatch-time validation; acked, no retry), and `dead_lettered` (retries exhausted).
+
+Retryable failures back off linearly: `min(attempts, 6) × 30s` (so 30, 60, 90 … up to 180s); the persisted `nextAttemptAt` is derived from the same formula. The QueueConsumer is configured with `maxRetries = 6`, `batchSize = 25`, `maxConcurrency = 4`, and `retryDelay = 30s` (see `alchemy.run.ts` and `apps/background/wrangler.jsonc`). On failure the worker calls `message.retry({ delaySeconds })` and lets Cloudflare schedule the next attempt. After `maxRetries`, Cloudflare moves the message to the dead-letter queue `b2b-saas-starter-webhooks-dlq`, where a consumer on the same Worker marks the message's delivery row terminal (`dead_lettered`) and records a workspace Notification so members see the endpoint stopped receiving.
+
+## Operator tooling
+
+The webhooks page and the REST surface share one operator toolkit:
+
+* **Deliveries drawer**: per endpoint, newest first, with each attempt's evidence (payload, request headers, response status, truncated response body). `GET /workspaces/:slug/webhooks/:endpointId/deliveries` is the REST read (a `read`-scope token may list it; it is also the `list_webhook_deliveries` MCP tool).
+* **Replay**: re-enqueues a *failed* delivery (`failed`, `failed_permanent`, or `dead_lettered`) verbatim: a new `pending` row with attempts reset to 0, carrying the original payload and a `replayedFrom` link to the source row, which is never modified. The replay writes a `webhook.delivery_replayed` Audit Event. REST: `POST /workspaces/:slug/webhooks/deliveries/:deliveryId/replay`. Anything on a disabled endpoint refuses with 409. Every delivery row records its payload (terminal rows included), so there is always a payload to resend.
+* **Test send**: queues a synthetic `webhook.test_event` delivery to one enabled endpoint so an operator can prove a receiver's configuration end to end. REST: `POST /workspaces/:slug/webhooks/:endpointId/test-event`.
+* **Rotate secret**: mints a new signing secret shown once. See below for the receiver contract. REST: `POST /workspaces/:slug/webhooks/:endpointId/rotate-secret`.
+
+## Attempt history and retention
+
+Expand **View attempt history** in the deliveries drawer to load the timeline.
+Each HTTP attempt shows its ordinal, status, timestamp, duration, failure reason,
+request headers, and bounded response body when available. Terminal bookkeeping
+has no HTTP duration and preserves the last HTTP evidence on the summary.
+
+REST exposes `GET /workspaces/:slug/webhooks/deliveries/:deliveryId/attempts`.
+The read-only MCP tool is `list_webhook_delivery_attempts`. Both require
+`webhook:list` and restrict results to the owning workspace.
+
+The first stored observation wins. Duplicate and late observations cannot regress
+the summary or repeat streak changes and audits. Accepted failures update the
+endpoint's streak; success resets it. At 20 consecutive failures the endpoint is
+disabled atomically with the attempt and its audit. Terminal bookkeeping after an
+HTTP attempt does not count another failure or undo an operator's re-enable.
+Notifications are best-effort after persistence.
+
+Network delivery remains at-least-once. A crash or concurrent processing can POST
+twice even though stored evidence is duplicate-safe. Receivers must deduplicate
+`webhook-id` durably.
+
+The daily schedule deletes at most 100 summaries older than 30 days per
+pass, cascading their attempts. A large backlog takes multiple passes to drain.
+Digest delivery and history cleanup settle independently. Replay provenance keeps
+the source ID even after the source expires.
+
+## Secret rotation
+
+Rotating an endpoint's secret starts a 24-hour grace window. During that window,
+the replaced secret signs deliveries alongside the new one.
+
+For receivers this means:
+
+1. **During the grace window**, `webhook-signature` carries **two** space-separated `v1,<base64>` entries: the first computed with the new secret, the second with the old one. A receiver still holding the old secret keeps verifying deliveries while its operator installs the new one. Verify against every entry.
+2. **Install the new secret as soon as you can** (within 24 hours). After the window closes, deliveries are signed with the new secret only, and a receiver still on the old secret starts failing verification.
+3. Rotating again inside the window drops the original secret entirely: only the last two secrets are ever active.
+4. The new secret is displayed **once** at rotation (web UI and REST response); store it immediately.
+
+## Provider webhooks vs Webhook Endpoints
+
+Stripe webhooks, GitHub webhooks, and other provider callbacks are integration-specific routes on the API or background Worker; they are inbound traffic. A Webhook Endpoint is the outbound surface a workspace uses to push events to its own systems. They are not the same concept.

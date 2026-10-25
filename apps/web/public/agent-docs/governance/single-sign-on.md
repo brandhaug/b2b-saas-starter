@@ -1,0 +1,62 @@
+# Single sign-on
+
+Workspace-scoped SAML and OIDC connections, domain routing, and provisioning.
+
+Canonical: /en/docs/governance/single-sign-on
+Source: apps/web/content/docs/governance/single-sign-on.mdx
+Language: en
+
+Owners and admins configure workspace SSO in settings. Connections support
+OIDC or SAML and route sign-ins by email domain. New connections start disabled.
+Add, test, then enable a connection before requiring it for the domain.
+
+## Routing and provisioning
+
+The sign-in page checks the email domain before attempting password sign-in.
+An enabled connection redirects matching users through Better Auth's
+`/sign-in/sso` endpoint. **Require SSO for this domain** also rejects the password
+path at the auth boundary, including direct requests.
+
+Successful SSO creates a user and membership when needed. The configured default
+role is `member` or `admin`; SSO never provisions an owner. Existing members keep
+their roles. Members cannot read or manage connection configuration.
+
+## OIDC setup
+
+Register a web application with your identity provider and use this redirect URI:
+
+```text
+https://<your-app>/api/auth/sso/callback/<provider-id>
+```
+
+Add an OIDC connection with its email domain, issuer, client ID, client secret,
+and default role. The starter resolves the issuer's discovery document and
+validates the required endpoints. Test the connection before enabling routing.
+
+## SAML setup
+
+Add a SAML connection using the IdP's metadata URL or XML, the email domain, and
+a default role. The starter parses the metadata and its SSO redirect binding.
+After the connection exists, obtain the service-provider configuration from:
+
+```text
+https://<your-app>/api/auth/sso/saml2/sp/metadata?providerId=<provider-id>
+```
+
+Use that metadata to configure the IdP, then test and enable the connection.
+SAML single logout is disabled; signing out ends the app session only.
+
+## Audit and limits
+
+Connection changes record `workspace_sso.connection_created`, `_updated`, or
+`_removed`. SSO sign-ins record `auth.sso_sign_in` or `_failed`. A failed connection
+test notifies workspace owners. Reads expose sanitized connection metadata and
+the client ID's last four characters, never secrets or SAML keys.
+
+Domain ownership is not verified through DNS. Treat connection creation as a
+privileged operation; the configured email domain alone is not proof that the
+workspace controls it.
+
+For a private-network identity provider, its origin must be allowed in
+`BETTER_AUTH_TRUSTED_ORIGINS`. Public-provider configuration normally stays within
+workspace settings. API Token authentication is independent of SSO.
