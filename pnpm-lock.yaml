@@ -223,8 +223,8 @@ catalogs:
       specifier: 6.0.0
       version: 6.0.0
     seroval:
-      specifier: 1.7.0
-      version: 1.7.0
+      specifier: 1.7.1
+      version: 1.7.1
     sonner:
       specifier: 2.0.8
       version: 2.0.8
@@ -726,7 +726,7 @@ importers:
         version: 6.0.0
       seroval:
         specifier: 'catalog:'
-        version: 1.7.0
+        version: 1.7.1
       tailwindcss:
         specifier: 'catalog:'
         version: 4.3.3
@@ -7465,8 +7465,8 @@ packages:
     peerDependencies:
       seroval: ^1.0
 
-  seroval@1.7.0:
-    resolution: {integrity: sha512-FU+LUkmDzWNsJ6oubZFN3dGPKny53DRhPJG6nftEaXDL8MIn19+kEE1Gvc+63Go+qPOwVUlKIdKhsu2HN6tksw==}
+  seroval@1.7.1:
+    resolution: {integrity: sha512-tSRMcPkD/bu1rmY0/XfFP2zLPD8jXVuzHli6Y2UFi9AiG/d0kOd8LAc/G6NolpW8MA1PtgDUhywKCmerS4E3tg==}
     engines: {node: '>=20'}
 
   seroval@1.7.2:
@@ -14138,7 +14138,7 @@ snapshots:
     dependencies:
       seroval: 1.7.2
 
-  seroval@1.7.0: {}
+  seroval@1.7.1: {}
 
   seroval@1.7.2: {}
 
