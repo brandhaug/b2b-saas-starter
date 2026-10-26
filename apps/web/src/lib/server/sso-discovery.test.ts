@@ -48,11 +48,11 @@ describe('validateSamlMetadata', () => {
 
   it.effect('refuses metadata with no usable SSO service', () =>
     Effect.gen(function* () {
-      // samlify parses garbage leniently — no entity id, no bindings — so the
-      // refusal lands on the missing-entry-point code either way.
-      const failure = yield* Effect.flip(
-        validateSamlMetadata('this is not saml metadata')
+      const withoutSsoServices = METADATA.replaceAll(
+        /<SingleSignOnService\b[^>]*\/>/g,
+        ''
       )
+      const failure = yield* Effect.flip(validateSamlMetadata(withoutSsoServices))
       expect(failure).toMatchObject({ code: 'saml_metadata_missing_entry_point' })
     })
   )

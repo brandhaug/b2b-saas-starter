@@ -158,8 +158,8 @@ overrides:
   sharp: 0.35.5
   shell-quote: 1.11.0
   socket.io-parser: 4.2.7
-  next: 16.3.8
-  undici: 7.29.1
+  next: 16.4.1
+  undici: 7.30.1
   # GHSA-5qjj-4xww-7phc: Alchemy's Prisma dev tool pins vulnerable 1.2.0.
   # Remove when @prisma/dev updates its own dependency to >=1.4.2.
   '@prisma/dev>valibot': 1.4.2
@@ -169,15 +169,10 @@ overrides:
   ws: 8.21.0
   vite@*: 'catalog:'
   vitest@*: 'catalog:'
-  '@vitest/browser@>=5.0.0-beta.6 <5.0.5': 5.0.5
-  '@vitest/ui@>=5.0.0-beta.6 <5.0.5': 5.0.5
-  zod@<4.6.6: 4.6.6
-  body-parser@>=2.0.0 <2.4.0: 2.4.0
   undici@>=7.0.0 <7.30.1: 7.30.1
   undici@>=7.15.0 <7.30.1: 7.30.1
   undici@>=7.18.0 <7.30.1: 7.30.1
-  fast-uri@>=3.0.0 <3.1.9: 3.1.9
-  fast-uri@>=3.1.3 <3.1.9: 3.1.9
+  postcss-selector-parser@<7.1.6: 7.1.6
 patchedDependencies:
   '@distilled.cloud/cloudflare@1.0.0-rc.12': patches/@distilled.cloud__cloudflare@1.0.0-rc.12.patch
   '@alchemy.run/cloudflare-runtime@2.0.0-beta.79': patches/@alchemy.run__cloudflare-runtime@2.0.0-beta.79.patch
