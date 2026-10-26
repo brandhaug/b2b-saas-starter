@@ -33,7 +33,7 @@ function runtime(gate?: (request: Request) => Promise<Response> | Response) {
 
 async function article(worker: Miniflare, locale: string) {
   const response = await worker.dispatchFetch(
-    `https://docs.test/${locale}/docs/getting-started/quickstart`,
+    `https://docs.test${locale === 'nb' ? '/no' : ''}/docs/getting-started/quickstart`,
     { signal: AbortSignal.timeout(15_000) }
   )
   return { status: response.status, body: await response.text() }
@@ -46,7 +46,7 @@ function expectArticle(result: Awaited<ReturnType<typeof article>>, locale: stri
   expect(result.body).toMatch(
     /<h2\b[^>]*id="install-and-run"[^>]*>Install and run<\/h2>/
   )
-  expect(result.body).toContain(`/${locale}/docs/`)
+  expect(result.body).toContain(`${locale === 'nb' ? '/no' : ''}/docs/`)
   expect(result.body).toContain(locale === 'nb' ? 'Kom i gang' : 'Getting started')
   expect(result.body).not.toContain(locale === 'nb' ? 'Getting started' : 'Kom i gang')
   expect(result.body).not.toContain('Controlled metadata loading failure')

@@ -17,7 +17,7 @@ const html =
 
 for (const scenario of [
   'healthy',
-  'canonical-locale',
+  'obsolete-locale-redirect',
   'propagating',
   'stale',
   'missing',
@@ -60,7 +60,7 @@ for (const scenario of [
         response.end()
         return
       }
-      if (scenario === 'canonical-locale' && request.url === '/') {
+      if (scenario === 'obsolete-locale-redirect' && request.url === '/') {
         response.writeHead(307, { location: '/en' })
         response.end()
         return
@@ -75,7 +75,7 @@ for (const scenario of [
         response.end(
           scenario === 'malformed' ? '{"status":"healthy"}' : '{"status":"ok"}'
         )
-      } else if (request.url === '/' || request.url === '/en') {
+      } else if (request.url === '/') {
         response.setHeader('content-type', 'text/html')
         let page = html
         if (scenario === 'login') {
@@ -113,7 +113,7 @@ for (const scenario of [
         },
         { evidencePath, deadlineMs: 250, requestTimeoutMs: 50, retryDelayMs: 10 }
       )
-      const passes = ['healthy', 'propagating', 'canonical-locale'].includes(scenario)
+      const passes = ['healthy', 'propagating'].includes(scenario)
       if (passes) {
         await run
       } else {

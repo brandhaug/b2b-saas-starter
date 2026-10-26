@@ -10,16 +10,16 @@ import {
 import { paraglideMiddleware } from './server.ts'
 
 describe('localized public URLs', () => {
-  it('prefixes both supported locales and preserves query and hash values', () => {
+  it('prefixes only Norwegian and preserves query and hash values', () => {
     expect(localizeHref('/pricing?plan=team#compare', { locale: 'en' })).toBe(
-      '/en/pricing?plan=team#compare'
+      '/pricing?plan=team#compare'
     )
     expect(
       localizeUrl('https://starter.test/pricing?plan=team#compare', { locale: 'nb' })
         .href
-    ).toBe('https://starter.test/nb/pricing?plan=team#compare')
+    ).toBe('https://starter.test/no/pricing?plan=team#compare')
     expect(
-      deLocalizeUrl('https://starter.test/nb/pricing?plan=team#compare').href
+      deLocalizeUrl('https://starter.test/no/pricing?plan=team#compare').href
     ).toBe('https://starter.test/pricing?plan=team#compare')
   })
 
@@ -40,7 +40,7 @@ describe('localized public URLs', () => {
       expect(localizeHref(path, { locale: 'nb' })).toBe(path)
     }
     expect(localizeHref('/blog/release.v2', { locale: 'nb' })).toBe(
-      '/nb/blog/release.v2'
+      '/no/blog/release.v2'
     )
 
     for (const path of ['/assets/:path(.*)?', '/favicon.svg', '/robots.txt']) {
@@ -58,8 +58,8 @@ describe('server locale isolation', () => {
       return new Response(getLocale())
     }
     const [english, norwegian] = await Promise.all([
-      paraglideMiddleware(new Request('https://starter.test/en/pricing'), resolve),
-      paraglideMiddleware(new Request('https://starter.test/nb/pricing'), resolve)
+      paraglideMiddleware(new Request('https://starter.test/pricing'), resolve),
+      paraglideMiddleware(new Request('https://starter.test/no/pricing'), resolve)
     ])
     expect(await english.text()).toBe('en')
     expect(await norwegian.text()).toBe('nb')

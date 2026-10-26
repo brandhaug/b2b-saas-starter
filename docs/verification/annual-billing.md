@@ -17,7 +17,7 @@ E2E_PORT=3103 pnpm -C apps/web exec playwright test e2e/annual-pricing.spec.ts -
 E2E_PORT=3103 pnpm run validate
 ```
 
-The browser test opens `/en/pricing`, selects Annual, checks the complete USD 144
+The browser test opens `/pricing`, selects Annual, checks the complete USD 144
 per-member/year example and its label, captures desktop and mobile screenshots,
 and switches back to the USD 12 monthly example. Screenshots are written to the
 test's directory under `apps/web/test-results`. The machine-readable report is

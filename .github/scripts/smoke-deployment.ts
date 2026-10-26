@@ -70,8 +70,7 @@ async function observe(
   url: string,
   timeout: number,
   expected: DeploymentIdentity | null,
-  validate: (body: string, contentType: string) => boolean,
-  canonicalRedirect?: string
+  validate: (body: string, contentType: string) => boolean
 ): Promise<{ observation: Observation; body: string }> {
   const observation: Observation = {
     name,
@@ -94,11 +93,7 @@ async function observe(
       response.headers.get(DEPLOYMENT_COMMIT_HEADER),
       response.headers.get(DEPLOYMENT_VERSION_HEADER)
     )
-    const isCanonicalRedirect =
-      canonicalRedirect !== undefined &&
-      response.status === 307 &&
-      response.headers.get('location') === canonicalRedirect
-    if (response.status !== 200 && !isCanonicalRedirect) {
+    if (response.status !== 200) {
       await response.body?.cancel()
       return {
         observation: {
@@ -110,10 +105,7 @@ async function observe(
       }
     }
     const body = await response.text()
-    if (
-      !isCanonicalRedirect &&
-      !validate(body, response.headers.get('content-type') ?? '')
-    ) {
+    if (!validate(body, response.headers.get('content-type') ?? '')) {
       return {
         observation: {
           ...observation,
@@ -229,27 +221,11 @@ export async function main(
         return Math.min(requestTimeoutMs, deadline - performance.now())
       }
       // oxlint-disable-next-line no-await-in-loop, effect/noNewPromise -- the Node CI boundary probes independent origins concurrently within each retry round
-      const [apiResult, rootResult] = await Promise.all([
+      const [apiResult, webResult] = await Promise.all([
         observe('api', `${api}/health`, timeout(), evidence.expected, validHealth),
-        observe('web', `${web}/`, timeout(), evidence.expected, validHome, '/en')
+        observe('web', `${web}/`, timeout(), evidence.expected, validHome)
       ])
-      const observations = [apiResult.observation, rootResult.observation]
-      let webResult = rootResult
-      if (
-        rootResult.observation.status === 307 &&
-        rootResult.observation.outcome === 'passed' &&
-        performance.now() < deadline
-      ) {
-        // oxlint-disable-next-line no-await-in-loop -- only the explicitly verified canonical locale redirect is followed
-        webResult = await observe(
-          'web-home',
-          `${web}/en`,
-          timeout(),
-          evidence.expected,
-          validHome
-        )
-        observations.push(webResult.observation)
-      }
+      const observations = [apiResult.observation, webResult.observation]
       const asset = stylesheetUrl(webResult.body, web)
       if (asset !== null && performance.now() < deadline) {
         // oxlint-disable-next-line no-await-in-loop -- the asset must come from this round's verified HTML

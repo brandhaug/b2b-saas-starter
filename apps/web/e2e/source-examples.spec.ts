@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 test('architecture examples render current source with line-linked citations', async ({
   page
 }) => {
-  await page.goto('/en/docs/architecture/effect-v4-backbone')
+  await page.goto('/docs/architecture/effect-v4-backbone')
   await expect(
     page.getByRole('heading', { name: 'Effect v4 backbone', exact: true })
   ).toBeVisible()

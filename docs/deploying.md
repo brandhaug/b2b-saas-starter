@@ -246,9 +246,8 @@ matching its deployment identity rather than stamping the synthetic merge commit
 with a different SHA.
 
 Every successful round requires HTTP 200 from API `/health` and the public web
-homepage. The sole accepted redirect is web `/` returning 307 to exactly `/en`,
-the default locale route. The probe then requires HTTP 200 from `/en`; it never
-automatically follows redirects. These responses must expose `x-deployment-commit` matching
+homepage at `/`, which serves English directly with HTTP 200. The probe rejects
+redirects, including the former `/en` locale redirect. These responses must expose `x-deployment-commit` matching
 `GIT_COMMIT_SHA` and `x-deployment-version` matching `SERVICE_VERSION`. These
 headers contain only the existing public deployment bindings, never credentials
 or the full environment. Unset bindings remain optional for local development,

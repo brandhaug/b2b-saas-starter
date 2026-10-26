@@ -30,7 +30,7 @@ for (const { locale, signInLabel, demoLabel } of [
   test(`the ${locale} public header keeps sign-in reachable at 320px`, async ({
     page
   }) => {
-    await page.goto(`/${locale}/`)
+    await page.goto(locale === 'nb' ? '/no' : '/')
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
     await expect
       .poll(() =>
