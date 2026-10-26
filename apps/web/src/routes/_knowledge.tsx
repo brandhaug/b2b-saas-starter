@@ -85,6 +85,13 @@ function KnowledgeLayout() {
           so exactly one <nav aria-label="Knowledge"> is ever in the
           accessibility tree. */}
       <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-8 px-4 py-8 sm:px-6 md:flex-row">
+        <Link
+          to="/docs/search"
+          search={{ q: '' }}
+          className="flex min-h-11 items-center py-2 text-sm text-primary underline underline-offset-4 md:hidden"
+        >
+          {m.docs_search_title()}
+        </Link>
         {/* Below md the sidebar is gone, which used to leave every phone
             reader with no in-page navigation at all — a disclosure carries
             the same nav instead. */}
@@ -111,6 +118,13 @@ function KnowledgeLayout() {
               subtracts the header the sidebar is pinned below: `top-18` plus
               `max-h-dvh` left the last 72px unreachable past the fold. */}
           <div className="sticky top-18 flex max-h-below-header flex-col gap-4">
+            <Link
+              to="/docs/search"
+              search={{ q: '' }}
+              className="p-2 text-sm text-primary underline underline-offset-4"
+            >
+              {m.docs_search_title()}
+            </Link>
             <nav
               aria-label={m.public_knowledge_nav()}
               className="flex-1 overflow-y-auto pr-1 pb-4"

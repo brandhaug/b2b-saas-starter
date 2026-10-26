@@ -1,4 +1,5 @@
 import { localAssistantSockets } from './scripts/local-socket-plugin'
+import { docsSearchIndex } from './scripts/docs-search-index'
 import { remarkSourceExamples } from './scripts/source-examples'
 import mdx from '@mdx-js/rollup'
 import tailwindcss from '@tailwindcss/vite'
@@ -205,6 +206,7 @@ export default defineConfig(({ command, mode }) => {
     plugins:
       lazyPlugins(() => [
         i18nCatalogPlugin(),
+        docsSearchIndex(),
         ...(workersShim === null
           ? []
           : [localWorkerLifecyclePlugin(), localAssistantSockets()]),

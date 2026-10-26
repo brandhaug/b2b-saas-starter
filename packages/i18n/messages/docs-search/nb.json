@@ -1,0 +1,10 @@
+{
+  "docs_search_title": "Søk i dokumentasjonen",
+  "docs_search_label": "Søk i dokumentasjonen",
+  "docs_search_hint": "Søk i de engelske veiledningene etter emne eller uttrykk, for eksempel billing eller optional providers.",
+  "docs_search_no_results": "Fant ingen veiledninger. Prøv færre ord eller et annet emne.",
+  "docs_search_results": "Dokumentasjonsresultater",
+  "docs_search_count": "Veiledninger som passer: {count}",
+  "docs_search_source": "Vis kilde",
+  "docs_search_language": "Titler og innhold i veiledningene er på engelsk."
+}

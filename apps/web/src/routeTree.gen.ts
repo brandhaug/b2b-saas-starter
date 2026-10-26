@@ -40,6 +40,7 @@ import { Route as WorkspacesIndexRouteImport } from './routes/workspaces.index'
 import { Route as WorkspacesWorkspaceSlugRouteImport } from './routes/workspaces.$workspaceSlug'
 import { Route as DotwellKnownOauthAuthorizationServerSplatRouteImport } from './routes/[.]well-known.oauth-authorization-server.$'
 import { Route as KnowledgeDocsIndexRouteImport } from './routes/_knowledge.docs.index'
+import { Route as KnowledgeDocsSearchRouteImport } from './routes/_knowledge.docs.search'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 import { Route as WorkspacesWorkspaceSlugIndexRouteImport } from './routes/workspaces.$workspaceSlug.index'
 import { Route as WorkspacesWorkspaceSlugApiTokensRouteImport } from './routes/workspaces.$workspaceSlug.api-tokens'
@@ -209,6 +210,11 @@ const KnowledgeDocsIndexRoute = KnowledgeDocsIndexRouteImport.update({
   path: '/docs/',
   getParentRoute: () => KnowledgeRoute,
 } as any)
+const KnowledgeDocsSearchRoute = KnowledgeDocsSearchRouteImport.update({
+  id: '/docs/search',
+  path: '/docs/search',
+  getParentRoute: () => KnowledgeRoute,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -311,6 +317,7 @@ export interface FileRoutesByFullPath {
   '/help/': typeof HelpIndexRoute
   '/workspaces/': typeof WorkspacesIndexRoute
   '/.well-known/oauth-authorization-server/$': typeof DotwellKnownOauthAuthorizationServerSplatRoute
+  '/docs/search': typeof KnowledgeDocsSearchRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/workspaces/$workspaceSlug/api-tokens': typeof WorkspacesWorkspaceSlugApiTokensRoute
   '/workspaces/$workspaceSlug/assistant': typeof WorkspacesWorkspaceSlugAssistantRoute
@@ -353,6 +360,7 @@ export interface FileRoutesByTo {
   '/help': typeof HelpIndexRoute
   '/workspaces': typeof WorkspacesIndexRoute
   '/.well-known/oauth-authorization-server/$': typeof DotwellKnownOauthAuthorizationServerSplatRoute
+  '/docs/search': typeof KnowledgeDocsSearchRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/workspaces/$workspaceSlug/api-tokens': typeof WorkspacesWorkspaceSlugApiTokensRoute
   '/workspaces/$workspaceSlug/assistant': typeof WorkspacesWorkspaceSlugAssistantRoute
@@ -399,6 +407,7 @@ export interface FileRoutesById {
   '/help/': typeof HelpIndexRoute
   '/workspaces/': typeof WorkspacesIndexRoute
   '/.well-known/oauth-authorization-server/$': typeof DotwellKnownOauthAuthorizationServerSplatRoute
+  '/_knowledge/docs/search': typeof KnowledgeDocsSearchRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/workspaces/$workspaceSlug/api-tokens': typeof WorkspacesWorkspaceSlugApiTokensRoute
   '/workspaces/$workspaceSlug/assistant': typeof WorkspacesWorkspaceSlugAssistantRoute
@@ -445,6 +454,7 @@ export interface FileRouteTypes {
     | '/help/'
     | '/workspaces/'
     | '/.well-known/oauth-authorization-server/$'
+    | '/docs/search'
     | '/api/auth/$'
     | '/workspaces/$workspaceSlug/api-tokens'
     | '/workspaces/$workspaceSlug/assistant'
@@ -487,6 +497,7 @@ export interface FileRouteTypes {
     | '/help'
     | '/workspaces'
     | '/.well-known/oauth-authorization-server/$'
+    | '/docs/search'
     | '/api/auth/$'
     | '/workspaces/$workspaceSlug/api-tokens'
     | '/workspaces/$workspaceSlug/assistant'
@@ -532,6 +543,7 @@ export interface FileRouteTypes {
     | '/help/'
     | '/workspaces/'
     | '/.well-known/oauth-authorization-server/$'
+    | '/_knowledge/docs/search'
     | '/api/auth/$'
     | '/workspaces/$workspaceSlug/api-tokens'
     | '/workspaces/$workspaceSlug/assistant'
@@ -797,6 +809,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KnowledgeDocsIndexRouteImport
       parentRoute: typeof KnowledgeRoute
     }
+    '/_knowledge/docs/search': {
+      id: '/_knowledge/docs/search'
+      path: '/docs/search'
+      fullPath: '/docs/search'
+      preLoaderRoute: typeof KnowledgeDocsSearchRouteImport
+      parentRoute: typeof KnowledgeRoute
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -886,12 +905,14 @@ declare module '@tanstack/react-router' {
 
 interface KnowledgeRouteChildren {
   KnowledgeChangelogRoute: typeof KnowledgeChangelogRoute
+  KnowledgeDocsSearchRoute: typeof KnowledgeDocsSearchRoute
   KnowledgeDocsIndexRoute: typeof KnowledgeDocsIndexRoute
   KnowledgeDocsCategorySlugRoute: typeof KnowledgeDocsCategorySlugRoute
 }
 
 const KnowledgeRouteChildren: KnowledgeRouteChildren = {
   KnowledgeChangelogRoute: KnowledgeChangelogRoute,
+  KnowledgeDocsSearchRoute: KnowledgeDocsSearchRoute,
   KnowledgeDocsIndexRoute: KnowledgeDocsIndexRoute,
   KnowledgeDocsCategorySlugRoute: KnowledgeDocsCategorySlugRoute,
 }
