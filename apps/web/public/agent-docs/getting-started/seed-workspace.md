@@ -1,0 +1,29 @@
+# Seed workspace
+
+A deterministic workspace that boots the reference application with realistic state.
+
+Canonical: /en/docs/getting-started/seed-workspace
+Source: apps/web/content/docs/getting-started/seed-workspace.mdx
+Language: en
+
+`packages/capabilities/src/seed-fixture.ts` defines `starter-lab` and the demo
+identity used by the application and tests. It includes owners, admins, and
+members, plus API tokens, webhook endpoints, audit history, and notifications.
+
+Visit [/demo](/demo) to browse the Reference Application without signing in.
+The preview shows synthetic data in the application pages. You can open forms
+and dialogs, but actions explain that they are unavailable in the preview.
+Sign in to exercise real actions against your local database.
+
+`pnpm run db:seed` runs `scripts/seed.ts` to write the fixture into local D1 and
+add credential passwords. Re-running resets fixture records; do not use it on a
+database whose demo records you need to preserve.
+
+The Seed adapters also supply an in-memory ready export, `exp_seed_ready`.
+The D1 seed omits that export row because there is no corresponding bucket
+artifact. D1-backed exports must be requested through the normal queue flow.
+
+Keep the demo identity and membership equivalent in Seed and Live adapters.
+Browser navigation reads fixture membership, so identity drift can make a page
+work on reload but fail during navigation. See
+[Quickstart](/agent-docs/getting-started/quickstart.md) for the sign-in credentials.

@@ -1,0 +1,45 @@
+# Social sign-in
+
+Env-gated GitHub and Google sign-in; exact variables, OAuth callback URLs, account linking, and the audit trail.
+
+Canonical: /en/docs/integrations/social-sign-in
+Source: apps/web/content/docs/integrations/social-sign-in.mdx
+Language: en
+
+GitHub and Google sign-in use Better Auth's `socialProviders`. A provider
+appears on `/sign-in` and `/sign-up` only when both its client ID and secret are
+configured.
+
+## Configuration
+
+| Provider | Environment variables                      | Callback URL                                 |
+| -------- | ------------------------------------------ | -------------------------------------------- |
+| GitHub   | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | `{BETTER_AUTH_URL}/api/auth/callback/github` |
+| Google   | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | `{BETTER_AUTH_URL}/api/auth/callback/google` |
+
+Register an OAuth application with the provider, using the app origin and the
+callback above. `BETTER_AUTH_URL` is `http://localhost:3071` locally. Set the
+credentials in root `.env` for web development or in the deployment environment,
+then restart. Better Auth runs in the web Worker.
+
+## Account linking
+
+A social sign-in can link to an existing account with the same email only when
+both the provider email and the local mailbox are verified. An unverified local
+mailbox returns `account_not_linked`, preventing account takeover through a
+pre-registered address.
+
+`/account` lists linked methods and allows unlinking while another method
+remains. A dedicated UI for linking another provider from the account page is
+not implemented. The demo user's linked GitHub method is fixture data and does
+not represent a real GitHub identity.
+
+Linking and unlinking record `auth.account_linked` and `auth.account_unlinked`.
+OAuth callbacks record `auth.sign_in` or `auth.sign_in_failed`. The sign-in page
+remembers the last method in a cookie.
+
+## Verify
+
+After configuring a provider, complete sign-in using its button and check
+`/account` for the linked method. Inspect `/admin` as a System Admin for the
+corresponding auth events. Unset providers should have no button.

@@ -792,6 +792,7 @@ const { lint = {} } = defineConfig({
           'scripts/**',
           '.github/scripts/**',
           'packages/*/scripts/**',
+          'apps/web/scripts/{agent-markdown,generate-agent-exports,agent-exports.verify}.mjs',
           'apps/web/scripts/source-examples.ts',
           'apps/web/scripts/source-examples.test.ts',
           'infra/**',
@@ -818,11 +819,22 @@ const { lint = {} } = defineConfig({
         }
       },
       {
-        files: ['scripts/setup-agent-skills.test.ts', '.github/scripts/*.test.ts'],
+        files: [
+          'scripts/setup-agent-skills.test.ts',
+          '.github/scripts/*.test.ts',
+          'apps/web/scripts/agent-exports.verify.mjs'
+        ],
         rules: {
           // These CLIs and their tests run directly on Node 24, before app tooling.
           'vitest/no-import-node-test': 'off',
           'vitest/prefer-each': 'off'
+        }
+      },
+      {
+        files: ['apps/web/scripts/agent-markdown.mjs'],
+        rules: {
+          // This is the YAML input boundary; validate before consuming metadata.
+          'anti-slop/no-runtime-typeof': 'off'
         }
       },
       {

@@ -1,0 +1,29 @@
+# Workspace roles
+
+Owner, admin, and member; the three Workspace Roles in the starter.
+
+Canonical: /en/docs/governance/workspace-roles
+Source: apps/web/content/docs/governance/workspace-roles.mdx
+Language: en
+
+A Workspace Role controls a user's permissions within one workspace. The
+roles are `owner`, `admin`, and `member`, defined in `packages/authz/src/roles.ts`.
+A user's role can differ between workspaces.
+
+| Role   | Permissions                                                                                                              |
+| ------ | ------------------------------------------------------------------------------------------------------------------------ |
+| Owner  | Full workspace control, including deletion and data export                                                               |
+| Admin  | Workspace management, excluding deletion and data export                                                                 |
+| Member | Workspace content, roster, notifications, and assistant reads; no token, webhook, audit-log, or SSO configuration access |
+
+Routes name permissions such as `apiToken:create` and call the shared
+`authorize()` guard. Loaders omit unreadable sections, UI controls explain
+unavailable actions, and server functions check permissions again.
+
+API Token scopes use the same permission statements. Their `read` scope includes
+security metadata that a member's browser session cannot read, because owners
+and admins choose the scopes when issuing a token. See
+[API tokens](/agent-docs/capability-interfaces/api-tokens.md).
+
+System Admin is a separate account-level role. It grants no workspace-membership
+bypass. See [System admin](/agent-docs/governance/system-admin.md).

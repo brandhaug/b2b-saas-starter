@@ -1,0 +1,33 @@
+# Members and invitations
+
+How users join a workspace and what happens at each step.
+
+Canonical: /en/docs/governance/members-invitations
+Source: apps/web/content/docs/governance/members-invitations.mdx
+Language: en
+
+A Member belongs to a workspace with a Workspace Role. An Invitation grants
+membership to one email address with a specified role.
+
+## Invite and accept
+
+1. On the members page, an owner or admin enters an email and role. Sending requires `invitation:create`.
+2. Better Auth persists the invitation and sends a `WorkspaceInvitationEmail` through the email dispatcher. The link points to `/invitations/accept?invitation=<id>`.
+3. The recipient signs in and accepts. The invitation must belong to their email address.
+4. Acceptance creates the membership and marks the invitation accepted.
+
+Invitations require browser sessions and run through Better Auth's organization
+plugin in the web Worker. The public API does not expose invitation mutations.
+The invitation authorizes acceptance before the recipient has a workspace role.
+
+## Pending invitations
+
+The members page lists pending invitations for users permitted to manage them.
+Owners and admins can cancel an invitation; cancellation records
+`workspace_invitation.canceled`. To resend, cancel and send again.
+
+Expired, cancelled, accepted, and wrongly addressed invitations all show the
+same "cannot be used" message to avoid disclosing invitation state.
+
+A user can belong to several workspaces. Switching changes the workspace slug
+in the URL and does not require another sign-in.

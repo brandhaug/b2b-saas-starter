@@ -1,0 +1,97 @@
+# Cloudflare observability and Web Analytics
+
+Native Worker error tracking and optional analytics.
+
+Canonical: /en/docs/integrations/cloudflare-observability
+Source: apps/web/content/docs/integrations/cloudflare-observability.mdx
+Language: en
+
+## Cloudflare Workers Logs and Issues
+
+All three Workers enable native logs and Issues through deployment configuration.
+No error-reporting credentials or SDK are needed. Failed application scopes emit
+sanitized JSON through `console.error`; successful scopes use `console.log`.
+[Issues](https://developers.cloudflare.com/workers/observability/issues/) groups
+Worker exceptions, failed invocations, HTTP 5xx responses, and logged errors.
+Issues is an open beta and processes traffic after activation.
+
+Inspect errors in Cloudflare's Issues dashboard. Configure notification destinations
+and automations separately in the account, then verify receipt with a synthetic
+failure. Enabling Issues alone does not configure paging, availability checks,
+missing-cron detection, or recovery notifications. Native monitoring shares the
+application's Cloudflare failure domain.
+
+Application telemetry omits arbitrary exception messages, stack traces, URLs and
+customer content. Platform-generated exception and request metadata is collected
+outside that filter and needs its own privacy review. Native request URLs have
+query-string redaction enabled; URL paths and exception text still need review. Browser exceptions have no
+remote capture in this starter; Workers Issues observes server execution.
+
+`OTEL_EXPORTER_OTLP_ENDPOINT` optionally exports sanitized Effect traces, metrics,
+and canonical logs to a collector. It remains scoped to each Worker invocation.
+
+## Consent-gated Web Analytics
+
+Every production Alchemy deployment provisions a Cloudflare RUM site for the
+hostname in `BETTER_AUTH_URL`. Alchemy
+passes its public site token to the web Worker as
+`CLOUDFLARE_WEB_ANALYTICS_TOKEN`. API and background Workers receive no token.
+Local development and deployments without a token load no beacon. PR preview
+stages never provision the site or receive its token.
+
+Set `PRIVACY_CONTROLLER_NAME` and `PRIVACY_CONTACT_EMAIL` for the deployment's
+privacy notice. CI reads them from repository variables and Alchemy forwards them.
+Both are required before the browser receives the token.
+
+Alchemy disables automatic injection. The app embeds one script from
+`https://static.cloudflareinsights.com/beacon.min.js`; do not enable a second
+copy in the dashboard. The beacon handles SPA navigation automatically.
+[Cloudflare's FAQ](https://developers.cloudflare.com/web-analytics/faq/) describes
+manual embedding, route measurements, and delivery limitations.
+
+The app asks for explicit opt-in with equally prominent Allow and Decline buttons.
+No vendor script loads until acceptance. The choice, notice version and timestamp
+live in `starter.analytics-consent` in local storage for 180 days. Invalid, expired
+or unreadable preferences leave analytics off. Analytics settings stays available
+on public and workspace pages for changing or withdrawing consent.
+
+Changing the choice reloads the page. Cloudflare provides no documented teardown
+API, so withdrawal first adds a temporary `connect-src 'self'` policy to the
+outgoing document to block the manually embedded beacon's external exit reports,
+then reloads without the beacon. Same-origin application requests remain usable
+if storage recovery fails. Storage
+events notify other tabs; focus, visibility and page-restoration checks catch
+expired or changed consent when suspended tabs resume. A BroadcastChannel also
+propagates withdrawal if local-storage writes fail. Requests already sent
+cannot be recalled, and other tabs do not stop synchronously. If saving fails,
+the app first removes the previous permission. If removal also fails, a necessary
+`starter.analytics-refused` cookie records refusal for 180 days. If neither store
+can persist the change, external analytics connections stay blocked and the UI
+explains that an earlier saved choice may still apply on another visit. Reloading after acceptance avoids sending
+buffered performance entries from the pre-consent document.
+
+After acceptance, the beacon runs across the public site and authenticated app.
+It sends page views and browser performance measurements to Cloudflare, with
+[dimensions](https://developers.cloudflare.com/web-analytics/data-metrics/dimensions/)
+including paths, referrers, browser, device and country. Paths can contain
+Workspace slugs or other identifying values. The application logger's URL and
+identity filtering does not apply to this browser beacon. Review actual network
+payloads and deployment privacy copy before enabling it.
+Cloudflare documents its
+[data collection](https://developers.cloudflare.com/web-analytics/data-metrics/data-origin-and-collection/)
+and says it does not log page query strings in its FAQ. That is not a guarantee
+for every URL-bearing field: performance resource URLs and element identifiers
+may also appear. Do not put secrets in URL paths, resource URLs or DOM identifiers.
+The document uses `strict-origin` referrers to avoid path/query disclosure through
+HTTP referrer headers. This does not redact the beacon's JavaScript payload.
+
+Cloudflare describes its beacon as cookieless. The deployment notice still
+identifies consent as the basis for this optional processing, names Cloudflare,
+and describes collected fields, retention, withdrawal and privacy rights. The
+operator remains responsible for the provider agreement, international transfers
+and the accuracy of account-data retention disclosures.
+
+Web Analytics supplies traffic and performance measurements. It does not replace
+server error monitoring or add browser exception reporting, custom product events,
+session replay, or feature flags. The starter has no Analytics Engine dataset;
+add one only when a concrete custom-event use case needs it.

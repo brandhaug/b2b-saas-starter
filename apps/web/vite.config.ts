@@ -145,6 +145,13 @@ function localWorkerLifecyclePlugin(): PluginOption {
 
 export default defineConfig(({ command, mode }) => {
   const workersShim = resolveWorkersShim(command, mode)
+  if (command === 'build' && mode !== 'test') {
+    execFileSync(
+      process.execPath,
+      [resolve(import.meta.dirname, 'scripts/generate-agent-exports.mjs')],
+      { stdio: 'inherit' }
+    )
+  }
   const workersShimAlias = workersShim
     ? { 'cloudflare:workers': resolve(import.meta.dirname, workersShim) }
     : {}

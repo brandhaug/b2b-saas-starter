@@ -1,0 +1,54 @@
+# Workspace data export
+
+Request, download, and retain a workspace archive.
+
+Canonical: /en/docs/governance/data-export
+Source: apps/web/content/docs/governance/data-export.mdx
+Language: en
+
+An owner can request a workspace archive from settings. The background Worker builds a gzipped JSON document of the records listed below.
+
+Production exports require an R2 bucket and queue. The in-memory Seed adapter can build an archive without them. Local development with D1 uses the local R2 and queue bindings.
+
+## What the document contains
+
+The export is a single self-describing JSON document, stored and served gzip-compressed: `application/gzip`, named `<slug>-export-<exportId>.json.gz`. Decompressed, it is UTF-8 JSON with these fields:
+
+| Field              | Contents                                                                                                    |
+| ------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `readme`           | Schema version, generation time, and a description of every field below                                     |
+| `workspace`        | The workspace record (`id`, `slug`, `name`, `planId`)                                                       |
+| `members`          | Every Member with their Workspace Role and system role                                                      |
+| `invitations`      | Every Invitation, pending or settled                                                                        |
+| `apiTokens`        | API Token metadata: id, name, prefix, scopes, timestamps. Never the secret or its hash                      |
+| `webhookEndpoints` | Webhook Endpoints without their signing secret, each with its recorded deliveries                           |
+| `auditEvents`      | The complete workspace Audit Event trail, newest first                                                      |
+| `notifications`    | Workspace-wide Notifications. Notifications addressed to one user are that user's data and are not included |
+
+The archive excludes token hashes, webhook signing secrets and private Assistant Conversation content. Conversation history belongs in the creator's currently authorized personal export. Treat downloaded archives as sensitive workspace data.
+
+## Requesting an export
+
+1. An owner opens workspace settings and clicks **Request export**. The permission is `workspaceExport:request`, granted to owners only: an admin can rename the workspace but not walk away with every member's email and the full audit trail.
+2. The app writes a `pending` export, records the Audit Event `workspace.export_requested`, and enqueues a job.
+3. The background worker snapshots the workspace through the capability services, builds the document, gzips it, writes it to the export bucket, marks the export `ready`, records `workspace.export_completed`, and creates a Notification for the requester.
+4. Settings lists the export with a download link. The link is signed and valid for fifteen minutes; the artifact itself is kept for seven days, after which the bucket's lifecycle rule deletes it and the row reports it as expired.
+
+Every download records `workspace.export_downloaded`.
+
+## How a download works
+
+The link points at the API Worker: `GET /exports/<exportId>/download?expires=<unix>&signature=<hex>`. The signature is an HMAC over the export id and the expiry with a secret minted for that one export and stored on its row, so the web and API workers share nothing but the database, and a leaked link opens one artifact for at most fifteen minutes. An unknown id, a tampered signature, and an expired link all answer the same 404.
+
+Machine clients hold an `admin`-scoped API Token and use the REST surface: `POST /workspaces/:slug/exports` requests one, `POST /workspaces/:slug/exports/:exportId/download-link` mints the same signed URL after re-checking `workspaceExport:download`.
+
+## When exports are unavailable
+
+The export queue and R2 bucket are an Optional Provider. Set `WORKSPACE_EXPORTS_ENABLED=true` at deploy time and `alchemy.run.ts` provisions both with their bindings on all three workers. Unset, the settings card explains that exports are not configured and shows no button; nothing else degrades. Set `API_PUBLIC_URL` on the web worker so download links point at the deployed API worker; unset, they point at the local dev server on port 8787.
+
+## Account data
+
+An export covers one workspace, not all data associated with a person. It excludes
+personal notifications and authentication records. A per-user export across
+workspaces is not implemented. [Account deletion](/agent-docs/governance/account-deletion.md)
+is a separate operation; it does not produce an archive.

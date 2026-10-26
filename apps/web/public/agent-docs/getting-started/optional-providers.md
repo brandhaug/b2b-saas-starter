@@ -1,0 +1,74 @@
+# Optional providers and env
+
+How env-gated providers work; exact variables, where to set them, and how to verify activation.
+
+Canonical: /en/docs/getting-started/optional-providers
+Source: apps/web/content/docs/getting-started/optional-providers.mdx
+Language: en
+
+Optional providers activate from environment variables and Worker bindings.
+With their configuration absent, the starter uses an inactive or local adapter.
+`packages/env/src/server.ts` declares the variables and production config audit;
+`BETTER_AUTH_SECRET` and `BETTER_AUTH_URL` remain required for deployed auth.
+
+## Configure a provider
+
+Use root `.env` for the web dev server, each Worker's `.dev.vars` for direct
+Wrangler development, and the deployment shell environment for Alchemy.
+`alchemy.run.ts` forwards declared variables and provisions the required bindings.
+Restart development processes after changing configuration.
+
+| Provider                    | Configuration                                                                                               | Without configuration                                                                         |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Cloudflare Email            | `CLOUDFLARE_EMAIL_FROM` plus an `EMAIL` binding                                                             | Log dispatcher                                                                                |
+| Turnstile                   | `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`                                                                | Sign-up has no challenge                                                                      |
+| GitHub sign-in              | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`                                                                  | No GitHub button                                                                              |
+| Google sign-in              | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                                                                  | No Google button                                                                              |
+| Workers AI                  | `WORKERS_AI_ENABLED=true` plus an `AI` binding                                                              | Selects configured OpenAI-compatible provider, otherwise persistent generation is unavailable |
+| OpenAI-compatible assistant | `OPENAI_API_KEY`; optional `OPENAI_BASE_URL`, `OPENAI_MODEL_ID`                                             | Persistent generation unavailable; stateless endpoint keeps its existing mock response        |
+| Workspace export            | `WORKSPACE_EXPORTS_ENABLED=true`, `API_PUBLIC_URL`                                                          | D1-backed export actions unavailable                                                          |
+| Stripe                      | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_TEAM`; optional `STRIPE_PRICE_ID_ENTERPRISE` | Plan display and local entitlement checks remain available                                    |
+| Cloudflare Web Analytics    | Alchemy supplies the production token; configure `PRIVACY_CONTROLLER_NAME` and `PRIVACY_CONTACT_EMAIL`      | No browser analytics beacon                                                                   |
+| OTLP                        | `OTEL_EXPORTER_OTLP_ENDPOINT`                                                                               | No OTLP export                                                                                |
+
+## Verify activation
+
+* Email: send an invitation on a deployed stack and inspect delivery history. Local log delivery does not prove Cloudflare sending works.
+* Turnstile: load `/sign-up` with both keys set. The widget should appear; missing or invalid challenge responses must be rejected. Verification outages fail closed.
+* Social sign-in: the configured provider's button appears on `/sign-in`. Complete a sign-in and inspect `/account` for the linked method.
+* Exports: request an archive as an owner, wait for its ready notification, then download it. Local D1 uses emulated R2 and Queues; the Seed adapter builds archives in memory.
+* Billing: the billing page offers configured provider actions to an owner or admin. See [Stripe billing](/agent-docs/integrations/stripe-billing.md) for setup and recovery.
+* Observability: see [Cloudflare observability and Web Analytics](/agent-docs/integrations/cloudflare-observability.md) for server and browser behavior.
+
+## Assistant provider selection
+
+`packages/ai` selects enabled Workers AI first, then a configured OpenAI-compatible provider. A configured provider failure does not switch providers. Persistent conversations refuse new generation when neither is configured, while browsing and management remain available.
+
+The stateless `selectAssistantLayer` retains its existing explicit fallback behavior. This API Token request makes one unsaved answer:
+
+```bash
+curl -s https://<api-host>/assistant/answer \
+  -H 'authorization: Bearer <api-token>' \
+  -H 'content-type: application/json' \
+  -d '{"workspaceSlug":"<slug>","question":"Hello"}'
+```
+
+A configured response reports `provider: "workers-ai"` or
+`provider: "openai-compatible"` and `assistantConfigured: true`.
+
+Persistent model limits use `ASSISTANT_INPUT_TOKENS`, `ASSISTANT_OUTPUT_TOKENS`,
+`ASSISTANT_PROVIDER_CONTEXT_TOKENS` and `ASSISTANT_PROVIDER_OUTPUT_TOKENS`.
+Admission uses `ASSISTANT_DEADLINE_MS`, `ASSISTANT_ACTIVE_LIMIT` and
+`ASSISTANT_RATE_LIMIT`. Set provider ceilings to the selected model's actual
+limits. The lower application/provider bound applies, with room reserved for the
+answer. Invalid configuration refuses generation.
+
+For saved history and member-authorized REST, see
+[Private Assistant Conversations](/agent-docs/capability-interfaces/assistant-conversations.md).
+
+## Add a variable
+
+Declare it in `ServerEnv` and classify it in the optional secret or plain key
+list in `packages/env/src/server.ts`. Alchemy forwarding and Worker string-binding
+types derive from those declarations. Add any required resource binding to the
+infrastructure configuration.

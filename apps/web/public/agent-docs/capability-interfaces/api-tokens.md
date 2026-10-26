@@ -1,0 +1,84 @@
+# API tokens
+
+Workspace-scoped credentials with expiry, guided replacement, and revocation.
+
+Canonical: /en/docs/capability-interfaces/api-tokens
+Source: apps/web/content/docs/capability-interfaces/api-tokens.mdx
+Language: en
+
+API Tokens authenticate REST and MCP requests. Each token belongs to one Workspace.
+
+## Creation
+
+A workspace owner or admin creates a token on the API tokens page at
+`/workspaces/:slug/api-tokens`. Creation requires `apiToken:create`; REST callers
+use `POST /workspaces/:slug/api-tokens` with an `admin`-scoped token. Both paths
+call `ApiTokenRegistry.create`.
+
+Choose scopes and optionally a future expiry. The web form labels the expiry as
+UTC. REST accepts a canonical ISO UTC timestamp, such as
+`2027-12-01T00:00:00.000Z`; omit `expiresAt` for no expiry. Copy the token when it
+appears. Its plaintext is returned once; storage retains only its SHA-256 hash
+and a display prefix. Creation records an `api_token.created` Audit Event.
+
+## Scopes
+
+The scopes are `read`, `write`, and `admin`. They map to permissions through the
+same authorization rules as workspace roles. Every route and MCP tool checks its
+own permission after authenticating the token. A `write` token cannot create or
+replace credentials because those actions can grant more authority.
+
+A missing, unknown, revoked, or expired token gets HTTP 401. A valid token without
+the requested permission gets HTTP 403. Tokens cannot access another Workspace,
+even if they carry the `admin` scope.
+
+## Expiry and replacement
+
+Every bearer verification checks expiry. A token stops authenticating at the
+exact `expiresAt` instant. Expired tokens remain listed with an expired state.
+
+To rotate a usable token, select **Replace**, keep or remove scopes, and choose
+how long the old credential can overlap with its replacement. The maximum is
+24 hours; choose 0 seconds to retire it immediately. Copy the replacement, update
+your clients, and revoke the old credential early when all clients have switched.
+The form shows the exact retirement time. An earlier existing expiry always wins.
+
+The replacement keeps the original workspace, name, and expiry. REST
+callers can request an earlier future expiry, but cannot extend it. You cannot
+replace a revoked, expired, or already replaced token. Replacement works at the
+plan's token ceiling because it transfers the original token's slot.
+
+`POST /workspaces/:slug/api-tokens/:tokenId/replace` accepts `scopes`,
+`overlapSeconds`, and optional `expiresAt`. It requires `apiToken:create`.
+The response includes the new plaintext `token`, `previousTokenId`, and
+`previousTokenExpiresAt`. D1 commits the old credential's retirement, the new
+hash, and an `api_token.replaced` Audit Event together. That event links both IDs
+and their expiry details without storing plaintext. MCP also exposes creation and replacement. Their responses contain one-time
+credentials; store them securely and account for client tool-history retention.
+
+## Revocation
+
+Revocation requires `apiToken:revoke` and takes effect immediately. Subsequent
+requests get HTTP 401, and the token disappears from the list. It also records
+an `api_token.revoked` Audit Event. Revoking an old token does not revoke the
+replacement; revoke each credential that needs to be retired.
+
+## Using a typed client
+
+A client derived from the REST contract gets its request and response types from
+the contract itself. Store the replacement in your secret manager when you
+receive it.
+
+```ts
+const replacement =
+  yield *
+  client['api-token-registry'].replace({
+    params: { slug: 'acme', tokenId },
+    payload: { scopes: ['read'], overlapSeconds: 3600 }
+  })
+
+// Save replacement.token now. It cannot be retrieved later.
+```
+
+See [Typed client](/agent-docs/capability-interfaces/sdk.md) for deriving the client and
+its error model.

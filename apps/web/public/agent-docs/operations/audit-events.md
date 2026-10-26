@@ -1,0 +1,35 @@
+# Audit events and notifications
+
+Persisted governance records and user-facing messages for workspace activity.
+
+Canonical: /en/docs/operations/audit-events
+Source: apps/web/content/docs/operations/audit-events.mdx
+Language: en
+
+## Audit events
+
+Audit Events persist governance-sensitive actions in D1. Each row records an
+actor when available, a target, an event type, and metadata. Workspace reads
+require permission and omit raw metadata from the response.
+
+`AuditEventLog.list` supports keyset pagination and filters for actor, event type,
+and time range. `/admin` uses `listGlobal` for cross-workspace events.
+
+Capabilities record token, webhook, membership, workspace, billing, export, and
+other governance changes. The web auth boundary records account and sign-in
+outcomes. Token requests update `lastUsedAt`; they do not create an audit event
+for each use.
+
+Workspace deletion records a system event without workspace attribution so it
+survives the workspace's cascade. Account deletion clears actor foreign keys
+before removing the user; relevant target and metadata fields remain in history.
+
+## Notifications
+
+Notifications are user-facing messages in the workspace feed. Capabilities
+publish them explicitly; audit records do not automatically become notifications.
+A notification can target one user or the workspace's members.
+
+Users choose instant email, digest, or no email per notification kind. The in-app
+feed remains available regardless of email preferences. See
+[notification emails](/agent-docs/operations/notification-emails.md).

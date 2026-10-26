@@ -1,0 +1,34 @@
+# Account deletion
+
+Self-service deletion with password re-authentication, and the ownership rule that decides what happens to each workspace.
+
+Canonical: /en/docs/governance/account-deletion
+Source: apps/web/content/docs/governance/account-deletion.mdx
+Language: en
+
+Account deletion is self-service on the `/account` page. It demands the account's password, and it runs one rule per Workspace membership before the account row goes:
+
+1. The user is the workspace's only **Member**: the workspace is deleted with the account.
+2. The user is the only **owner** among several members: deletion is blocked until ownership is transferred. The page links each blocked workspace's members page.
+3. Other owners remain (or the user was never an owner): the membership is removed and the workspace survives.
+
+`AccountLifecycle` owns the teardown rules, with matching Seed and Live adapters.
+
+## Where the password check happens
+
+The delete rides Better Auth's `delete-user` endpoint, and the endpoint owns the order: the password is verified **first**; only then does the app's `beforeDelete` hook run the workspace teardown, then the user row is removed, then the `afterDelete` hook records `account.deleted`. A wrong password therefore never tears down a workspace. The endpoint stays disabled unless the app supplies the hook pair (`userDeleteHooks` on `AuthConfig`, wired in `apps/web/src/lib/server/account-delete-hooks.ts`); enabled without a teardown half would strand sole-owner workspaces.
+
+## Audit Events and email
+
+Every teardown step records an Audit Event through the governance capability: `workspace.deleted` for sole-member workspaces (a system event, because `audit_events.workspace_id` cascades with the deleted row), `workspace_member.removed` for leaves, and `account.deleted` once the account row is gone. That last event is deliberately actorless: `audit_events.actor_user_id` restricts on `user.id`, so the event names the account in `targetId` instead of an actor column that would reject the insert.
+
+The same columns restrict `api_tokens.created_by_user_id`; `prepareDeletion` nulls both before the user row is deleted, so history and token rows survive as system rows instead of blocking the delete.
+
+Deleting the account emails the user through the `AccountDeletedEmail` template on the provider-light `EmailDispatcher`. Best-effort by contract: the deletion has already happened, so a send failure is logged, never surfaced as a failed deletion. The session revocation itself is Better Auth's (every session is revoked), and each revocation records `auth.session_revoked` like every other session end.
+
+Account deletion requires the user's browser session. The public API does not
+expose it.
+
+## Private conversations
+
+Account and Workspace deletion fence their private Assistant Conversations before parent rows disappear. Access and new answers stop before asynchronous object cleanup. Durable cleanup addresses let the background worker retry storage removal. Creators can also delete their retained conversations through the identity-owned account operation after membership loss, without exposing transcript or Workspace evidence. Referenced Assistant Tasks keep their existing lifecycle.
