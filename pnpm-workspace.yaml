@@ -13,7 +13,7 @@ allowBuilds:
   workerd: true
 
 catalog:
-  '@babel/core': 8.0.7
+  '@babel/core': 8.0.9
   '@base-ui/react': 1.9.0
   '@inlang/paraglide-js': 2.29.1
   '@inlang/plugin-message-format': 4.5.5
@@ -24,8 +24,8 @@ catalog:
   '@better-auth/sso': 1.7.12
   '@better-auth/utils': 0.5.0
   '@cloudflare/ai-chat': 0.12.2
-  agents: 0.30.0
-  ai: 7.0.150
+  agents: 0.30.1
+  ai: 7.0.152
   '@cloudflare/workers-types': 5.20261023.1
   '@cloudflare/vitest-plugin': 1.4.7
   '@effect/platform-node': 4.0.6
