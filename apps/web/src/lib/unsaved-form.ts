@@ -1,23 +1,27 @@
 /** Track edits without reading or retaining field values, which may be secrets. */
 const editedForms = new Set<HTMLFormElement>()
 
-/* oxlint-disable unicorn/consistent-function-scoping -- each registration needs distinct listener identities for independent cleanup */
+function recordEdit(event: Event) {
+  const target = event.target
+  if (!(target instanceof HTMLElement) || target.closest('[data-locale-control]')) {
+    return
+  }
+  const form = target.closest('form')
+  if (form) {
+    editedForms.add(form)
+  }
+}
+
+function recordReset(event: Event) {
+  if (event.target instanceof HTMLFormElement) {
+    editedForms.delete(event.target)
+  }
+}
+
 export function trackFormEdits(): () => void {
-  function onEdit(event: Event) {
-    const target = event.target
-    if (!(target instanceof HTMLElement) || target.closest('[data-locale-control]')) {
-      return
-    }
-    const form = target.closest('form')
-    if (form) {
-      editedForms.add(form)
-    }
-  }
-  function onReset(event: Event) {
-    if (event.target instanceof HTMLFormElement) {
-      editedForms.delete(event.target)
-    }
-  }
+  // Each registration needs its own listener identities for independent cleanup.
+  const onEdit = recordEdit.bind(undefined)
+  const onReset = recordReset.bind(undefined)
   document.addEventListener('input', onEdit, true)
   document.addEventListener('change', onEdit, true)
   document.addEventListener('reset', onReset, true)
@@ -28,7 +32,6 @@ export function trackFormEdits(): () => void {
     editedForms.clear()
   }
 }
-/* oxlint-enable unicorn/consistent-function-scoping */
 
 export function hasEditedForms(except?: HTMLFormElement): boolean {
   for (const form of editedForms) {
