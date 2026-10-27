@@ -8,6 +8,9 @@ description: Implement an agreed issue or spec through implementation, review, f
 Default endpoint: a reviewed PR ready to merge, without merging. Honor a narrower
 user request.
 
+Implement each change as if the desired outcome had been a requirement from the
+start, reshaping the affected system into its simplest coherent design.
+
 Supporting skills are pinned repo dependencies. Before invoking one, follow
 [dependency verification and setup](../../../docs/agents/skills.md#setup) for that skill.
 Read `.agents/skill-dependencies/<name>/SKILL.md` explicitly and pass that path to workers.
