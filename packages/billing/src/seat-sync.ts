@@ -108,10 +108,9 @@ function defined<T extends object>(fields: {
 }): T {
   // SAFETY: every key of T is present in `fields`, and the filter removes only
   // undefined values, which the optional keys of T already permit to be absent.
-  // oxlint-disable-next-line typescript/consistent-type-assertions -- see above
+  // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- see above
   return Object.fromEntries(
     Object.entries(fields).filter(([, value]) => value !== undefined)
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- see the safety justification above
   ) as T
 }
 

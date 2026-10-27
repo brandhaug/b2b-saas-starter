@@ -1,7 +1,6 @@
 /** Track edits without reading or retaining field values, which may be secrets. */
 const editedForms = new Set<HTMLFormElement>()
 
-/* oxlint-disable unicorn/consistent-function-scoping -- each registration needs distinct listener identities for independent cleanup */
 export function trackFormEdits(): () => void {
   function onEdit(event: Event) {
     const target = event.target
@@ -28,7 +27,6 @@ export function trackFormEdits(): () => void {
     editedForms.clear()
   }
 }
-/* oxlint-enable unicorn/consistent-function-scoping */
 
 export function hasEditedForms(except?: HTMLFormElement): boolean {
   for (const form of editedForms) {
