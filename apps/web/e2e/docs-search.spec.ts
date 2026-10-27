@@ -21,7 +21,9 @@ test('public docs search supports empty states, body matches and keyboard naviga
       scripts.push(request.url())
     }
   })
-  await page.goto('/en/docs/search')
+  const response = await page.goto('/docs/search')
+  expect(response?.status()).toBe(200)
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en')
   await page.locator('header [data-slot="select-trigger"]:enabled').waitFor()
   const input = page.getByRole('searchbox', { name: 'Search documentation' })
   await expect(page.getByRole('status')).toContainText('Search the English guides')
@@ -37,10 +39,7 @@ test('public docs search supports empty states, body matches and keyboard naviga
   const quickstart = results.getByRole('link', { name: 'Quickstart', exact: true })
   await expect(quickstart).toBeVisible()
   await expect(results.getByText(/six-digit/).first()).toBeVisible()
-  await expect(quickstart).toHaveAttribute(
-    'href',
-    '/en/docs/getting-started/quickstart'
-  )
+  await expect(quickstart).toHaveAttribute('href', '/docs/getting-started/quickstart')
   await expect(
     results.getByRole('link', { name: 'View source' }).first()
   ).toHaveAttribute(
@@ -55,8 +54,8 @@ test('public docs search supports empty states, body matches and keyboard naviga
   ).toEqual([])
   const searchChunk = scripts.find((url) => url.includes('/_knowledge.docs.search-'))
   expect(searchChunk).toBeDefined()
-  const response = await page.request.get(searchChunk ?? '')
-  const bundle = await response.text()
+  const searchResponse = await page.request.get(searchChunk ?? '')
+  const bundle = await searchResponse.text()
   const quickstartSource = readFileSync(
     new URL('getting-started/quickstart.mdx', publicDocs),
     'utf8'
@@ -78,7 +77,7 @@ test('public docs search supports empty states, body matches and keyboard naviga
   await page.keyboard.press('Tab')
   await expect(quickstart).toBeFocused()
   await page.keyboard.press('Enter')
-  await expect(page).toHaveURL(/\/en\/docs\/getting-started\/quickstart$/)
+  await expect(page).toHaveURL(/\/docs\/getting-started\/quickstart$/)
   await expect(
     page.getByRole('heading', { name: 'Quickstart', exact: true })
   ).toBeVisible()
@@ -92,7 +91,9 @@ test('docs search retains Norwegian navigation on mobile and after refresh', asy
   page
 }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.goto('/nb/docs/getting-started/quickstart')
+  const response = await page.goto('/no/docs/getting-started/quickstart')
+  expect(response?.status()).toBe(200)
+  await expect(page.locator('html')).toHaveAttribute('lang', 'nb')
   await page
     .getByRole('link', { name: 'Søk i dokumentasjonen', exact: true })
     .filter({ visible: true })
@@ -106,11 +107,11 @@ test('docs search retains Norwegian navigation on mobile and after refresh', asy
   const result = page
     .getByRole('list', { name: 'Dokumentasjonsresultater' })
     .getByRole('link', { name: 'Quickstart', exact: true })
-  await expect(result).toHaveAttribute('href', '/nb/docs/getting-started/quickstart')
+  await expect(result).toHaveAttribute('href', '/no/docs/getting-started/quickstart')
   await testInfo.attach('mobile-search', {
     body: await page.screenshot({ fullPage: true }),
     contentType: 'image/png'
   })
   await result.click()
-  await expect(page).toHaveURL(/\/nb\/docs\/getting-started\/quickstart$/)
+  await expect(page).toHaveURL(/\/no\/docs\/getting-started\/quickstart$/)
 })
