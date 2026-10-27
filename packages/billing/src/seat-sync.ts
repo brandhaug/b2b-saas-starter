@@ -106,12 +106,11 @@ export type SeatSyncQueueBinding = {
 function defined<T extends object>(fields: {
   readonly [K in keyof T]: T[K] | undefined
 }): T {
+  const entries = Object.entries(fields).filter(([, value]) => value !== undefined)
   // SAFETY: every key of T is present in `fields`, and the filter removes only
   // undefined values, which the optional keys of T already permit to be absent.
   // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- see above
-  return Object.fromEntries(
-    Object.entries(fields).filter(([, value]) => value !== undefined)
-  ) as T
+  return Object.fromEntries(entries) as T
 }
 
 function providerEventMessage(

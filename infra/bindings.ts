@@ -88,14 +88,20 @@ function rateLimitSpecs<Bucket extends string>(
   // so the assertion only restores what the operator dropped.
   // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- see SAFETY above
   const buckets = Object.keys(tuning) as Array<Bucket>
+  const limits = Object.fromEntries(
+    buckets.map((bucket) => [bucket, tuning[bucket].limit])
+  )
   return {
-    specs: buckets.map((bucket) => ({ name: names[bucket], ...tuning[bucket] })),
+    specs: buckets.map((bucket) => ({
+      name: names[bucket],
+      namespaceId: tuning[bucket].namespaceId,
+      limit: tuning[bucket].limit,
+      period: tuning[bucket].period
+    })),
     // SAFETY: Object.fromEntries widens the key the same way Object.keys
     // does; the `RateLimitTable` return annotation is the check.
     // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- see SAFETY above
-    fallbackLimits: Object.fromEntries(
-      buckets.map((bucket) => [bucket, tuning[bucket].limit])
-    ) as Record<Bucket, number>
+    fallbackLimits: limits as Record<Bucket, number>
   }
 }
 
