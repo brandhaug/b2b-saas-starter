@@ -16,6 +16,7 @@
     "alchemy.bootstrap.ts",
     "alchemy.email.ts",
     "alchemy.github.ts",
+    "alchemy.monitoring.ts",
     "deployment.config.ts",
     "lint.config.ts",
     "vite.config.ts",
