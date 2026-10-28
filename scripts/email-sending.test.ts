@@ -1,4 +1,4 @@
-import { CloudflareEnvironment } from 'alchemy/Cloudflare'
+import { CloudflareEnvironment } from '@alchemy.run/cloudflare'
 import { Stage } from 'alchemy/Stage'
 import { Effect, Redacted } from 'effect'
 import { HttpClient, HttpClientResponse } from 'effect/http'

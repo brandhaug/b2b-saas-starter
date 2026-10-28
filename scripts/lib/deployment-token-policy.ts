@@ -1,4 +1,4 @@
-import { type Policy, type PermissionGroupRef } from 'alchemy/Cloudflare/ApiToken'
+import { type Policy, type PermissionGroupRef } from '@alchemy.run/cloudflare/ApiToken'
 import * as Config from 'effect/Config'
 import * as Schema from 'effect/Schema'
 

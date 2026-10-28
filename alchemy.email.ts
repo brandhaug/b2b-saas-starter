@@ -1,5 +1,5 @@
 import * as Alchemy from 'alchemy'
-import * as Cloudflare from 'alchemy/Cloudflare'
+import * as Cloudflare from '@alchemy.run/cloudflare'
 import { localState } from 'alchemy/State/LocalState'
 import * as Config from 'effect/Config'
 import { SourceError } from 'effect/ConfigProvider'

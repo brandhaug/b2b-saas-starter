@@ -38,14 +38,13 @@ text. Native runtime records bypass the application sanitizer and still require
 inspection in the deployed account.
 [Workers Scripts API](https://developers.cloudflare.com/api/resources/workers/subresources/scripts/)
 
-Alchemy's pinned `@distilled.cloud/cloudflare@1.0.0-rc.12` dependency omits Issues
-and query-string redaction from `PutScriptMetadataObservability`. The repository
-[patch](../../patches/@distilled.cloud__cloudflare@1.0.0-rc.12.patch) adds these
-fields to its source schema, runtime JavaScript, and declarations so the upload
-model retains them. The [regression test](../../scripts/cloudflare-observability.test.ts)
-checks that model. Remove the patch after upgrading to a release whose unpatched
-upload metadata schema preserves both fields, with the regression check passing.
-Local schema verification does not prove the deployed account applied the settings.
+The unpatched `@distilled.cloud/cloudflare@1.0.0-rc.17` SDK used by Alchemy
+2.0.0-beta.84 preserves Issues and query-string redaction in Worker uploads.
+The [regression test](../../scripts/cloudflare-observability.test.ts) captures
+the SDK's encoded multipart request and checks the metadata without sending it.
+This replaces the older schema patch and verifies the wire field names, including
+`redact_query_string`. Local verification does not prove the deployed account
+applied the settings.
 
 ## Use the new investigation tools
 
@@ -76,10 +75,9 @@ Cloudflare's official server endpoint is
 
 ## Alert and dashboard setup support
 
-Checked 2026-10-03 against installed `alchemy@2.0.0-beta.79` and
-`@distilled.cloud/cloudflare@1.0.0-rc.12`. Alchemy has notification policies,
-webhooks and silences, but its policy and underlying request schema expose no
-SQL query/evaluation-window properties. No Custom Dashboard resource was found.
+Alchemy 2.0.0-beta.84 adds `Cloudflare.Alerting.CustomAlert` for SQL alerts and
+`Cloudflare.Workers.IssueAutomation`. These resources are available through
+`@alchemy.run/cloudflare`; this repository does not yet provision them.
 The reusable [configuration skill](../../.agents/skills/configure-cloudflare-monitoring/SKILL.md)
 therefore uses schema discovery and the supported dashboard workflow. Recheck
 installed SDK support before adding declarative resources; a generic notification

@@ -67,7 +67,10 @@
     "drizzle-orm": "catalog:"
   },
   "devDependencies": {
+    "@alchemy.run/cloudflare": "catalog:",
+    "@alchemy.run/github": "catalog:",
     "@cloudflare/workers-types": "catalog:",
+    "@distilled.cloud/cloudflare": "catalog:",
     "@effect/platform-node": "catalog:",
     "@types/node": "catalog:",
     "alchemy": "catalog:",
@@ -81,6 +84,7 @@
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plus": "catalog:",
+    "vitest": "catalog:",
     "wrangler": "catalog:"
   },
   "engines": {

@@ -1,4 +1,4 @@
-import { type Policy } from 'alchemy/Cloudflare/ApiToken'
+import { type Policy } from '@alchemy.run/cloudflare/ApiToken'
 import * as Config from 'effect/Config'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
