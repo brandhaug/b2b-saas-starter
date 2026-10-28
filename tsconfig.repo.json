@@ -18,6 +18,7 @@
     "alchemy.github.ts",
     "alchemy.monitoring.ts",
     "alchemy.backup.ts",
+    "alchemy.dns.ts",
     "deployment.config.ts",
     "lint.config.ts",
     "vite.config.ts",
