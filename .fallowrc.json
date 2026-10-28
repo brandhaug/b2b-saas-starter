@@ -7,6 +7,7 @@
     "alchemy.run.ts",
     "alchemy.bootstrap.ts",
     "alchemy.email.ts",
+    "alchemy.github.ts",
     // Bundled by esbuild into native workerd entry points.
     "apps/web/scripts/local-assistant-worker.ts",
     "apps/web/test/assistant/worker.ts",

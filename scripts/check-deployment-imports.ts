@@ -21,7 +21,11 @@ try {
   // Importing constructs the stack's Effect program; it does not deploy it.
   await exec(
     process.execPath,
-    ['--input-type=module', '--eval', "await import('./alchemy.run.ts')"],
+    [
+      '--input-type=module',
+      '--eval',
+      "await Promise.all(['./alchemy.run.ts', './alchemy.bootstrap.ts', './alchemy.email.ts', './alchemy.github.ts'].map(path => import(path)))"
+    ],
     { cwd: root, env: checkEnvironment }
   )
 } finally {
