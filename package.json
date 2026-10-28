@@ -39,6 +39,8 @@
     "db:seed": "node scripts/seed.ts",
     "deploy": "pnpm -C packages/i18n generate && alchemy deploy --stage prod --yes",
     "bootstrap:plan": "umask 077 && alchemy deploy alchemy.bootstrap.ts --stage prod --dry-run --force",
+    "bootstrap:github:plan": "umask 077 && alchemy deploy alchemy.github.ts --stage prod --dry-run --adopt --force",
+    "bootstrap:github": "umask 077 && alchemy deploy alchemy.github.ts --stage prod --adopt --force",
     "bootstrap:deploy": "umask 077 && alchemy deploy alchemy.bootstrap.ts --stage prod --force",
     "bootstrap:email:plan": "umask 077 && alchemy deploy alchemy.email.ts --stage prod --dry-run --detect-drift --force",
     "bootstrap:email": "umask 077 && alchemy deploy alchemy.email.ts --stage prod --detect-drift --force",

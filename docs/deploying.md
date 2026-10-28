@@ -175,6 +175,49 @@ Record the CI run URL and outcome; a passing local test is not live rollout evid
 
 ## GitHub Actions secrets
 
+### Repository configuration as code
+
+`github.config.ts` owns repository metadata, merge settings, topics, labels,
+the default-branch ruleset, Actions permissions, fork approvals, artifact/log
+retention, and secret-scanning switches. The initial values preserve the existing
+repository policy, including the `ci` and `e2e` required checks. Add further checks
+to `branchRules` after their workflows have produced the exact check names.
+
+Run the GitHub-only operator stack with a classic PAT carrying `repo` scope, or
+a fine-grained token with repository Administration, Actions, Issues and
+Variables write permissions. Selected secrets also require Secrets write.
+It needs no Cloudflare credentials:
+
+```sh
+export BOOTSTRAP_GITHUB_REPOSITORY=your-owner/your-repository
+pnpm run bootstrap:github:plan
+pnpm run bootstrap:github
+```
+
+Authentication uses Alchemy's GitHub provider, including `gh` login or
+`GITHUB_TOKEN`. The commands adopt matching resources and force reconciliation
+of settings against the declared policy. Review the plan before applying it.
+Only `--stage prod` is accepted, avoiding competing state for the same repository.
+Keep `.alchemy` operator state protected and backed up. Repository/ruleset
+removal retains the remote resources; removing Actions controls never resets
+repository settings. Individual managed labels, variables and secrets follow
+their native resource removal policies.
+
+The deployment-access stack still owns production/preview environments and
+deployment credentials under their existing logical IDs. The GitHub-only stack
+publishes the repository privacy variables from `deployment.config.ts`. For an
+operator-owned repository secret such as `CI_PAT`, add its name to
+`repositorySecrets` in `github.config.ts` and supply that environment variable
+when planning/applying. Values are redacted and never committed. Do not list
+secrets already owned by deployment, backup, or monitoring stacks. GitHub cannot
+read secret values back; adopting a secret requires its original value.
+
+Workflow YAML, issue templates and the PR template remain ordinary versioned
+files under `.github`. Installed apps and their service-owned webhooks retain
+their own lifecycle. The repository owner is implicit GitHub access, not an
+Alchemy collaborator resource. Backup and monitoring stacks own their separate
+environments and enable gates.
+
 The recommended path. The `deploy` job in
 [.github/workflows/ci.yml](../.github/workflows/ci.yml) runs on pushes to `master` and manual `workflow_dispatch`, needs the `ci` and `e2e` jobs to pass first,
 and reads its configuration from the `production`
