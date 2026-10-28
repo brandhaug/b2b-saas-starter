@@ -107,7 +107,9 @@ Include `workspaceExportQueue` only when workspace exports are deployed.
 It publishes the repository `OPS_MONITORING_ENABLED` variable only after both
 secrets and the inventory have reconciled, setting it to the `activate` value.
 Do not assign these same resources to another stack. The environment permits only
-the configured default branch and has no approval wait. Initial setup needs
+the configured default branch. New environments have no approval wait. Remove
+reviewers and wait timers from an existing environment before adopting it; the
+stack omits these fields for compatibility with private repositories. Initial setup needs
 Cloudflare account token-write permission plus alert/Issues management access,
 and GitHub environment/secret/variable write access. The generated runtime token
 has only account-scoped queue-read permission, not deployment or consumption rights.

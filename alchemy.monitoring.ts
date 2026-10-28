@@ -129,8 +129,6 @@ export default Alchemy.Stack(
       const environment = yield* GitHub.Environment('queue-monitor-environment', {
         ...target,
         name: 'operations-monitoring',
-        waitTimer: 0,
-        reviewers: { users: [], teams: [] },
         deploymentBranchPolicy: { customBranchPolicies: [defaultBranch] }
       })
       const token = yield* Cloudflare.ApiToken.AccountApiToken('queue-monitor-token', {
