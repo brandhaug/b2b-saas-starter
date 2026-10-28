@@ -7,7 +7,7 @@ console. [Workers Issues](https://developers.cloudflare.com/workers/observabilit
 groups uncaught exceptions, failed invocations, HTTP 5xx responses, and error
 logs. It requires Wrangler 4.134.0 or later and processes new traffic after enablement.
 
-In the Issues dashboard, configure an occurrence-threshold automation and a
+Configure an occurrence-threshold automation and a
 recurrence-after-inactivity automation for each production Worker. Route them to
 the operator's incident-management service or HTTPS webhook, with the backup
 operator included. An occurrence threshold triggers once when crossed, not on
@@ -22,9 +22,101 @@ Use these for windowed counts, ratios and snapshot thresholds below. Follow
 to set up or reconcile the shared three-Worker dashboard and account-specific
 rules. Its setup reference covers SDK support, schema discovery, chart definitions,
 repeatable updates and rollback; its verification scenarios cover gates, freshness,
-no-data behavior and delivery. The repository supplies this configuration procedure,
-not provisioned account rules or destinations. Keep exact queries, resource IDs and
-verified settings in the deployment's private operations record.
+no-data behavior and delivery. The optional monitoring stack below provisions owned
+rules after configuration. Keep resource IDs and verification evidence in the
+deployment's private operations record.
+
+## Optional monitoring stack
+
+`monitoring.config.ts` defaults to `{ enabled: false }`. Importing that public
+configuration declares no resources. `alchemy.monitoring.ts` uses Alchemy beta.84's
+native `Cloudflare.Alerting.CustomAlert`, `NotificationPolicy`, and
+`Cloudflare.Workers.IssueAutomation`, with operator-owned local state, like the
+email provisioning stack. No live monitoring has been provisioned by this change.
+
+This stack has a single production owner. Both the configuration stage and Alchemy
+state stage must be `prod`; other stages fail before any resources are declared.
+Use one operator state directory for one Cloudflare account and one GitHub
+repository. The repository-wide queue-monitor gate and fixed environment name
+cannot represent multiple stage or account owners. Serialize operator applies and
+transfer the existing state when changing operators. Changing directories or
+retargeting this configuration is not a way to create a second monitor owner.
+
+Before enabling configuration, supply the account ID, `prod` stage, existing authorized
+webhook or PagerDuty destination IDs, and exact SQL rules. The `MonitoringConfig`
+type in `infra/monitoring-settings.ts` describes the required fields. Each rule
+requires a discovered dataset, a private verification-record reference, an
+independent missing-data watchdog reference, and a recovery procedure. The query
+must return a single numeric `value`, scope the account and exact deployed Worker,
+and use the verified field mapping. It must have no trailing semicolon. Never copy
+an example dataset or field name into production without discovery and preview.
+The validator checks configuration shape, not SQL semantics or account access.
+
+Before declaring resources, the stack inventories all account notification policies
+with the authenticated Distilled API. Duplicate desired names fail the plan. A
+same-name policy must match the policy ID saved for that logical resource in the
+operator's Alchemy state, including its account and resource type. For intentional
+adoption, verify the existing policy and set `adoptPolicyId` on that SQL rule or
+the `issues` block. The ID must match the unique named policy and its alert type;
+an arbitrary `--adopt` flag does not bypass this check. Inventory permission or
+state-read failures stop provisioning. Keep the adoption ID until state records
+ownership, then remove it. This preflight compensates for the native notification
+policy providers' first-name-match behavior.
+
+Use `activate: false` to provision disabled policies and automations. Opt into
+`issues` with explicit occurrence and inactivity thresholds to create both
+automation types for each of the three stage Workers. With the correct Cloudflare
+profile and credentials, preview the operator stack with:
+
+```sh
+pnpm run bootstrap:monitoring:plan
+```
+
+Use `prod` and the same operator state directory on every subsequent run. After
+reviewing the plan and completing the setup prerequisites, an operator can run
+`pnpm run bootstrap:monitoring`. Activation is a separate reviewed
+configuration change to `activate: true`; creation acceptance does not prove
+delivery. Keep `enabled: true` with `activate: false` when pausing managed rules.
+Setting `enabled: false` after deployment removes them from the desired resource
+set and can plan their deletion. Back up the local state securely, especially
+when it contains a generated queue-monitor token. Never commit that state.
+
+Repeat `pnpm run bootstrap:monitoring:plan` without `--force` to check convergence.
+Expect unchanged resource IDs and no planned changes when inputs and observable
+provider settings have not changed. GitHub secret values are write-only; an
+unchanged normal plan cannot prove their remote contents match local state. If a
+credential was overwritten externally, pause the queue-monitor gate and explicitly
+force reconciliation to re-upload it. A forced apply can write secrets even when
+their configured values are unchanged, so it is not a zero-write convergence check.
+
+Cloudflare's [Monitors documentation](https://developers.cloudflare.com/notifications/monitors/)
+states that no rows produce no signal and cannot trigger an evaluation. The
+native resource exposes no configurable no-data/error state or recovery policy.
+An empty or failed query must therefore remain unknown in the independent
+watchdog and incident system; it must not resolve an incident. Even a verified
+empty-window SQL expression cannot detect loss of the Cloudflare account itself.
+Most datasets support one-minute evaluation, but Log Explorer requires at least
+ten minutes and cannot meet the two-minute snapshot freshness policy.
+
+The optional `queueMonitor` block owns the `operations-monitoring` GitHub
+environment, an account-scoped `Queues Read` token, both workflow secrets and
+`OPS_QUEUES`. Supply the six always-deployed physical queue IDs keyed by their
+`stageResourceNames` property names, the repository/default branch, and a private
+missed-run watchdog reference. The stack derives queue names and dead-letter flags.
+Include `workspaceExportQueue` only when workspace exports are deployed.
+It publishes the repository `OPS_MONITORING_ENABLED` variable only after both
+secrets and the inventory have reconciled, setting it to the `activate` value.
+Do not assign these same resources to another stack. The environment permits only
+the configured default branch and has no approval wait. Initial setup needs
+Cloudflare account token-write permission plus alert/Issues management access,
+and GitHub environment/secret/variable write access. The generated runtime token
+has only account-scoped queue-read permission, not deployment or consumption rights.
+
+When updating an already active queue monitor, first set `activate: false` and
+apply that pause before changing credentials or inventory. A failed update is
+not transactional and can leave the previously published gate enabled. Configure
+GitHub failure notifications and the independent ten-minute missed-run check
+before activation. External readiness probes and dashboards remain operator-managed.
 
 Set `MAINTENANCE_MODE=true` on all three Workers to close customer requests and
 business scheduled work. Pause provider queue delivery as well, since retries

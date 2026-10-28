@@ -41,6 +41,8 @@
     "bootstrap:plan": "umask 077 && alchemy deploy alchemy.bootstrap.ts --stage prod --dry-run --force",
     "bootstrap:github:plan": "umask 077 && alchemy deploy alchemy.github.ts --stage prod --dry-run --adopt --force",
     "bootstrap:github": "umask 077 && alchemy deploy alchemy.github.ts --stage prod --adopt --force",
+    "bootstrap:monitoring:plan": "umask 077 && alchemy deploy alchemy.monitoring.ts --stage prod --dry-run",
+    "bootstrap:monitoring": "umask 077 && alchemy deploy alchemy.monitoring.ts --stage prod",
     "bootstrap:deploy": "umask 077 && alchemy deploy alchemy.bootstrap.ts --stage prod --force",
     "bootstrap:email:plan": "umask 077 && alchemy deploy alchemy.email.ts --stage prod --dry-run --detect-drift --force",
     "bootstrap:email": "umask 077 && alchemy deploy alchemy.email.ts --stage prod --detect-drift --force",

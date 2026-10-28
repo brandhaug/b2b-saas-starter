@@ -24,7 +24,7 @@ try {
     [
       '--input-type=module',
       '--eval',
-      "await Promise.all(['./alchemy.run.ts', './alchemy.bootstrap.ts', './alchemy.email.ts', './alchemy.github.ts'].map(path => import(path)))"
+      "await Promise.all(['./alchemy.run.ts', './alchemy.bootstrap.ts', './alchemy.email.ts', './alchemy.github.ts', './alchemy.monitoring.ts'].map(path => import(path)))"
     ],
     { cwd: root, env: checkEnvironment }
   )

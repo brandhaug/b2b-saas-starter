@@ -6,13 +6,24 @@ SQL Alerts and the unified SQL API launched in beta on October 2, 2026. Recheck
 account availability and current documentation before applying a configuration.
 [Announcement](https://blog.cloudflare.com/one-observability-platform/)
 
-The inspected `alchemy@2.0.0-beta.79` has
-`Cloudflare.Alerting.NotificationPolicy`, `NotificationWebhook`, and `Silence`.
-Its policy accepts an alert type, filters, destinations, and repeat interval.
-The installed `@distilled.cloud/cloudflare@1.0.0-rc.12` `CreatePolicyRequest`
-does not expose a SQL query or evaluation-window property. No Custom Dashboard
-resource was found in Alchemy's Cloudflare exports. An open-ended alert-type
-string does not establish SQL-rule support.
+The inspected `@alchemy.run/cloudflare@2.0.0-beta.84` exports native
+`Cloudflare.Alerting.CustomAlert` and `Cloudflare.Workers.IssueAutomation`.
+`CustomAlert` serializes SQL through the `custom_analytics` policy's `source`,
+`selectors`, execution interval and trigger-preference filters. It reads back
+and compares those filters. `IssueAutomation` manages occurrence and recurrence
+triggers through the Workers observability automation API and reads back IDs.
+The repository's `alchemy.monitoring.ts` uses these resources. Public
+`monitoring.config.ts` remains disabled until the operator supplies verified
+account queries and authorized destination IDs. See
+[stack setup](../../../../docs/monitoring.md#optional-monitoring-stack).
+
+The implementation deliberately uses threshold triggers for the canonical
+policies. Current [Monitors documentation](https://developers.cloudflare.com/notifications/monitors/)
+requires a numeric `value`, one schema-qualified dataset, account or zone scope,
+and no trailing semicolon. No rows produce no signal and cannot trigger.
+No-data/error handling and recovery are not native resource properties; configure
+and verify the independent watchdog and incident-system recovery procedure.
+Custom dashboards still use the operator workflow below.
 
 Before introducing code, inspect the installed Alchemy resource and underlying
 SDK request/serialization schema. Use declarative resources when they preserve
@@ -89,9 +100,10 @@ verify the intended operators can view it without expanding account access.
 
 ## Alert configuration
 
-Use Alerts > Overview > Create an Alert, selecting the custom SQL/threshold option
-when available. Build from the discovered mapping and preview the query before
-saving. Use the conditions, windows and recovery rules in
+Use Alerts > Monitors to preview a threshold query against the discovered mapping.
+Put the verified query and settings in `monitoring.config.ts` for the owned stack,
+or save manually when managing an existing operator-owned rule. Use the conditions,
+windows and recovery rules in
 [the canonical policy](../../../../docs/monitoring.md#runtime-evidence-and-alert-policy)
 and [schedule policy](../../../../docs/monitoring.md#scheduled-work-and-missing-evidence).
 Do not substitute an anomaly or SLO rule for an exact threshold.
@@ -127,6 +139,17 @@ or multiple matches needs resolution before mutation. Update owned resources in
 place; create only when absent. Preserve unrelated resources and user-added charts.
 Archive the previous owned configuration privately so it can be restored.
 
+The repository monitoring stack is restricted to the `prod` state stage, with one
+operator state directory owning one account/repository pair. Before declaring
+resources it lists all notification policies through the Distilled SDK. It rejects
+duplicate desired names and existing IDs not recorded in the resource's Alchemy
+state. To adopt a verified existing policy, set that rule's `adoptPolicyId`, or
+`issues.adoptPolicyId` for the shared Issues policy. It must match the unique name
+and alert type. Listing or state-read errors stop the plan. Native policy providers
+otherwise select the first same-name match, so retain this preflight when updating
+the SDK. Serialize applies to avoid a concurrent creation between preflight and
+provider reconciliation.
+
 Prepare rules disabled when the UI supports that state. If creation enables a rule
 immediately, defer creation until the destination and activation are authorized.
 Never press Test, send a webhook, or activate a rule with a guessed destination.
@@ -134,9 +157,13 @@ Destination tests verify routing only; use the verification reference for actual
 condition/recovery behavior. If native recovery is unsupported, identify and test
 the incident system's recovery procedure before calling coverage complete.
 
-Read back every changed resource, compare semantic settings, then run discovery
-and reconciliation again. The second pass must retain the same IDs and produce no
-changes. For rollback, restore only changed owned settings and disable newly
+Read back changed resources and compare observable semantic settings. Run the normal
+`pnpm run bootstrap:monitoring:plan` again without `--force`; unchanged inputs and
+provider settings should retain the same IDs with no planned changes. GitHub secret
+values are write-only, so this proves convergence against saved inputs, not remote
+secret equality. Explicit force reconciliation re-uploads secrets and may write
+even unchanged values. Use it for credential repair, not the repeat-pass check.
+For rollback, restore only changed owned settings and disable newly
 created rules; delete owned resources only when removal is requested.
 
 The private record must contain account/stage and deployed versions, operator and
