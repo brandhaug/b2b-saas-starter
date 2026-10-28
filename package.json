@@ -45,6 +45,8 @@
     "bootstrap:monitoring": "umask 077 && alchemy deploy alchemy.monitoring.ts --stage prod",
     "bootstrap:backup:plan": "umask 077 && alchemy deploy alchemy.backup.ts --stage prod --dry-run",
     "bootstrap:backup": "umask 077 && alchemy deploy alchemy.backup.ts --stage prod",
+    "bootstrap:dns:plan": "umask 077 && alchemy deploy alchemy.dns.ts --stage prod --dry-run",
+    "bootstrap:dns": "umask 077 && alchemy deploy alchemy.dns.ts --stage prod",
     "bootstrap:deploy": "umask 077 && alchemy deploy alchemy.bootstrap.ts --stage prod --force",
     "bootstrap:email:plan": "umask 077 && alchemy deploy alchemy.email.ts --stage prod --dry-run --detect-drift --force",
     "bootstrap:email": "umask 077 && alchemy deploy alchemy.email.ts --stage prod --detect-drift --force",

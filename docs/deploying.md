@@ -63,6 +63,41 @@ do not.
    the Workers Domains API. No DNS Edit or zone-wide route grant is added.
    Previews always use their own workers.dev URLs and ignore production domains.
 
+   Additional public DNS records, such as domain-verification TXT records, belong
+   in the opt-in `dns.config.ts` operator stack. It defaults to disabled and is
+   separate from application deployment. For example:
+
+   ```ts
+   const dns: DnsSettings = {
+     enabled: true,
+     accountId: '<32-character-account-id>',
+     records: [
+       {
+         key: 'service-verification',
+         zoneId: '<32-character-zone-id>',
+         type: 'TXT',
+         name: '_verify.your-domain.net',
+         content: 'public-verification-value'
+       }
+     ]
+   }
+   ```
+
+   Use an operator credential with Zone Read and DNS Write scoped to the declared
+   zones. Run `pnpm run bootstrap:dns:plan`, then `pnpm run bootstrap:dns` to apply
+   the reviewed configuration. Both commands use production-only local operator
+   state. The stack verifies zone account ownership and rejects record names
+   outside their zone or at configured Worker custom-domain hostnames. Configured
+   record names must be lowercase FQDNs without trailing dots. Declare at most
+   one record for each zone/name/type: the current native provider can treat a
+   second same-name/type record as adoption of the first even when values differ.
+   Existing multi-value RRsets therefore remain outside this stack.
+   Cloudflare already owns DNS/certificates for Worker hostnames; do not declare them
+   twice. Keep the operator state backed up. Removing a managed DNS record from
+   configuration plans its deletion. Native Alchemy adoption checks protect
+   pre-existing records; use `--adopt` only after verifying the specific matches.
+   DNS values are public: never place API tokens or other secrets in this file.
+
 Bootstrap generates a stable production auth secret with `Alchemy.Random`.
 On first adoption this replaces the previous `BETTER_AUTH_SECRET`, invalidating
 existing sessions. Later applies preserve it in bootstrap state.
