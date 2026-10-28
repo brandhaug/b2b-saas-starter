@@ -2,12 +2,9 @@
 // unresolved outputs must never be mistaken for stable fields on an update.
 import { strict as assert } from 'node:assert'
 import { test } from 'vite-plus/test'
-import { CloudflareEnvironment } from 'alchemy/Cloudflare'
-import {
-  SendingSubdomainProvider,
-  type SendingSubdomain
-} from 'alchemy/Cloudflare/Email'
-import { type Provider } from 'alchemy/Provider'
+import { CloudflareEnvironment } from '@alchemy.run/cloudflare'
+import { Credentials } from '@distilled.cloud/cloudflare/Credentials'
+import { SendingSubdomainProvider } from '@alchemy.run/cloudflare/Email'
 import * as Plan from 'alchemy/Plan'
 import { ResourceExpr, PropExpr } from 'alchemy/Output'
 import { type ResourceLike } from 'alchemy/Resource'
@@ -140,13 +137,18 @@ async function planFor(name: string) {
       })
     )
   )
-  // The pinned provider declaration references Effect's removed unstable/http path.
-  // This test only invokes its pure diff; every HTTP request fails above.
-  const senderProvider: Layer.Layer<
-    Provider<SendingSubdomain>,
-    never,
-    CloudflareEnvironment | HttpClient.HttpClient
-  > = SendingSubdomainProvider()
+  const senderProvider = SendingSubdomainProvider().pipe(
+    Layer.provide(
+      Layer.succeed(
+        Credentials,
+        Effect.succeed({
+          type: 'apiToken',
+          apiBaseUrl: 'https://api.cloudflare.com/client/v4',
+          apiToken: Redacted.make('test-token')
+        })
+      )
+    )
+  )
   const providers = Layer.mergeAll(
     senderProvider,
     EmailSendingPrivacyProvider,

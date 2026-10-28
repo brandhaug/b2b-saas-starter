@@ -6,22 +6,19 @@
 // - A subsequent normal drift/apply repeats writes instead of converging.
 import { strict as assert } from 'node:assert'
 import * as Apply from 'alchemy/Apply'
-import { CloudflareEnvironment } from 'alchemy/Cloudflare'
-import {
-  SendingSubdomainProvider,
-  type SendingSubdomain
-} from 'alchemy/Cloudflare/Email'
+import { CloudflareEnvironment } from '@alchemy.run/cloudflare'
+import { Credentials } from '@distilled.cloud/cloudflare/Credentials'
+import { SendingSubdomainProvider } from '@alchemy.run/cloudflare/Email'
 import * as Drift from 'alchemy/Drift'
 import { PropExpr, ResourceExpr } from 'alchemy/Output'
 import * as Plan from 'alchemy/Plan'
-import { type Provider } from 'alchemy/Provider'
 import { type ResourceLike } from 'alchemy/Resource'
 import { Stack } from 'alchemy/Stack'
 import { Stage } from 'alchemy/Stage'
 import { isActionState, State } from 'alchemy/State'
 import { inMemoryState } from 'alchemy/State/InMemoryState'
 import { type CreatedResourceState } from 'alchemy/State/ResourceState'
-import { Cause, Context, Effect, Exit, Layer, Redacted } from 'effect'
+import { Cause, Effect, Exit, Layer, Redacted } from 'effect'
 import { HttpClient, HttpClientResponse } from 'effect/http'
 import { test } from 'vite-plus/test'
 import {
@@ -61,17 +58,6 @@ const apiBaseUrl = 'https://api.cloudflare.com/client/v4'
 const zonePath = `/zones/${zoneId}`
 const sendersPath = `${zonePath}/email/sending/subdomains`
 const subscriptionsPath = `/accounts/${accountId}/event_subscriptions/subscriptions`
-
-// Alchemy does not export its Cloudflare Credentials module. Supply the pinned
-// distilled SDK's service key, keeping its native provider and HTTP codec intact.
-class TestCredentials extends Context.Service<
-  TestCredentials,
-  Effect.Effect<{
-    type: 'apiToken'
-    apiToken: Redacted.Redacted<string>
-    apiBaseUrl: string
-  }>
->()('CloudflareCredentials') {}
 
 type TestResource = ResourceLike<
   string,
@@ -321,7 +307,7 @@ test('failed native sender drift recovers through a no-drift force plan and then
     Layer.succeed(Stage, 'prod'),
     Layer.succeed(Stack, stack),
     Layer.succeed(
-      TestCredentials,
+      Credentials,
       Effect.succeed({
         type: 'apiToken',
         apiToken: Redacted.make('test-token'),
@@ -338,13 +324,7 @@ test('failed native sender drift recovers through a no-drift force plan and then
       })
     )
   )
-  // The pinned declaration still names Effect's removed unstable/http path.
-  // Its runtime uses the same patched HttpClient as the local providers.
-  const nativeSender: Layer.Layer<
-    Provider<SendingSubdomain>,
-    never,
-    CloudflareEnvironment | HttpClient.HttpClient
-  > = SendingSubdomainProvider()
+  const nativeSender = SendingSubdomainProvider()
   const providers = Layer.mergeAll(
     nativeSender,
     EmailSendingPrivacyProvider,
@@ -441,8 +421,15 @@ test('failed native sender drift recovers through a no-drift force plan and then
 
       const settledWrites = structuredClone(cloud.writes)
       const drift = yield* Drift.repair(stack)
+      // The native provider now observes previewEnabled. Refresh its cached
+      // attributes after the privacy resource disabled previews during recovery.
       assert.deepEqual(
         Object.values(drift.resources).map(({ action }) => action),
+        ['repaired', 'unchanged', 'unchanged']
+      )
+      const repeatedDrift = yield* Drift.repair(stack)
+      assert.deepEqual(
+        Object.values(repeatedDrift.resources).map(({ action }) => action),
         ['unchanged', 'unchanged', 'unchanged']
       )
       yield* Apply.apply(yield* Plan.make(stack, { force: true }))
