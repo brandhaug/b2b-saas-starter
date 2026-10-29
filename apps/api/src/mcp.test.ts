@@ -4,7 +4,7 @@ import { Effect, Schema } from 'effect'
 import { buildWebHandler } from './http.ts'
 import { PAGED_TOOL_INPUT, mcpDiscoveryDocument } from './mcp.ts'
 import { readOperations } from './operations.ts'
-import { jsonBody, mcpClient } from './test-utils.ts'
+import { jsonBody, mcpClient, mcpProtocolClient } from './test-utils.ts'
 
 describe('mcp ↔ rest operation mirror', () => {
   it('list tools advertise the paging input; non-list tools take none', () => {
@@ -132,9 +132,6 @@ const CallToolResult = Schema.Struct({
   content: Schema.Array(Schema.Struct({ type: Schema.String, text: Schema.String })),
   isError: Schema.optional(Schema.Boolean)
 })
-const ResourceReadResult = Schema.Struct({
-  contents: Schema.Array(Schema.Struct({ uri: Schema.String, text: Schema.String }))
-})
 const InitializeResult = Schema.Struct({
   protocolVersion: Schema.Literal('2025-11-25'),
   serverInfo: Schema.Struct({ name: Schema.String })
@@ -153,15 +150,13 @@ const GuardFailureBody = Schema.Struct({
 describe('POST /mcp protocol', () => {
   it.effect('admin credentials expose reads and writes with distinct annotations', () =>
     Effect.gen(function* () {
-      const client = mcpClient(handler, bearer.authorization)
-      yield* Effect.promise(() => client.initialize())
-      const response = yield* Effect.promise(() => client.rpc('tools/list', {}))
-      const body = yield* jsonBody(response, Ok(ToolListResult))
+      const client = yield* mcpProtocolClient()
+      const result = yield* client.listTools()
       // This is the permitted public tool contract, independent of catalog rows.
-      expect(body.result.tools).toHaveLength(19)
+      expect(result.tools).toHaveLength(19)
       expect(
-        body.result.tools
-          .filter((tool) => tool.annotations.readOnlyHint)
+        result.tools
+          .filter((tool) => tool.annotations?.readOnlyHint)
           .map((tool) => tool.name)
           .toSorted()
       ).toEqual([
@@ -238,34 +233,30 @@ describe('POST /mcp protocol', () => {
 
   it.effect('tools/call list_notifications honors the paging input like REST', () =>
     Effect.gen(function* () {
-      const client = mcpClient(handler, bearer.authorization)
-      yield* Effect.promise(() => client.initialize())
-      const res = yield* Effect.promise(() =>
-        client.rpc('tools/call', {
-          name: 'list_notifications',
-          arguments: { limit: 2, cursor: 'not-a-cursor' }
-        })
-      )
-      expect(res.status).toBe(200)
-      const body = yield* jsonBody(res, Ok(CallToolResult))
-      expect(body.result.isError).not.toBe(true)
+      const client = yield* mcpProtocolClient()
+      const result = yield* client.callTool({
+        name: 'list_notifications',
+        arguments: { limit: 2, cursor: 'not-a-cursor' }
+      })
+      expect(result.isError).not.toBe(true)
       // An undecodable cursor addresses no position — the empty page the
       // REST route serves for the same input.
-      expect(body.result.content[0]?.text).toContain('[]')
+      expect(result.content).toEqual([
+        { type: 'text', text: expect.stringContaining('"items": []') }
+      ])
     })
   )
 
   it.effect('resources/read serves the workspace overview resource', () =>
     Effect.gen(function* () {
-      const client = mcpClient(handler, bearer.authorization)
-      yield* Effect.promise(() => client.initialize())
-      const res = yield* Effect.promise(() =>
-        client.rpc('resources/read', { uri: 'workspace://overview' })
-      )
-      expect(res.status).toBe(200)
-      const body = yield* jsonBody(res, Ok(ResourceReadResult))
-      expect(body.result.contents[0]?.uri).toBe('workspace://overview')
-      expect(body.result.contents[0]?.text).toContain('starter-lab')
+      const client = yield* mcpProtocolClient()
+      const result = yield* client.readResource({ uri: 'workspace://overview' })
+      expect(result.contents).toEqual([
+        expect.objectContaining({
+          uri: 'workspace://overview',
+          text: expect.stringContaining('starter-lab')
+        })
+      ])
     })
   )
 

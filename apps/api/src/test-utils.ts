@@ -1,10 +1,45 @@
-import { Effect, Schema, Stream } from 'effect'
+import { RateLimiter } from '@b2b-saas-starter/api'
+import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
+import { Effect, Layer, Schema, Stream } from 'effect'
+import { McpProtocol, McpServer, McpTest } from 'effect/ai'
 import { Sse } from 'effect/encoding'
 import { expect } from 'vite-plus/test'
+import { CurrentMcpRequest, mcpRegistrations } from './mcp.ts'
+import { makeOAuthTokenVerifierLayer } from './oauth-access-token.ts'
+import { verifyMcpCredential } from './request-guards.ts'
 
 const decodeJsonObject = Schema.decodeUnknownEffect(
   Schema.fromJsonString(Schema.JsonObject)
 )
+
+/** Real registrations over JSON-RPC, with a fixed verified Seed caller.
+ * HTTP authentication, sessions and tenant isolation stay in transport tests.
+ */
+export function mcpProtocolClient() {
+  const bearer = SEED_API_TOKEN
+  const authority = McpServer.middleware<{ provides: CurrentMcpRequest }>()(
+    Effect.gen(function* () {
+      const caller = yield* verifyMcpCredential(bearer)
+      return (effect) =>
+        Effect.provideService(effect, CurrentMcpRequest, {
+          caller,
+          origin: 'https://api.test',
+          rateKey: 'mcp-protocol-test',
+          bearer
+        })
+    })
+  )
+  return McpTest.makeClient(mcpRegistrations({}).pipe(Layer.provide(authority.layer)), {
+    protocols: [McpProtocol.v2025_11_25]
+  }).pipe(
+    Effect.provide([
+      selectCapabilitiesLayer({}),
+      makeOAuthTokenVerifierLayer({}),
+      Layer.succeed(RateLimiter, { take: () => Effect.succeed(true) })
+    ])
+  )
+}
 
 /**
  * Shared helpers for the API worker's protocol-driving tests. Imported by
