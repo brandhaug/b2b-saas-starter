@@ -85,7 +85,7 @@ export const NotificationEventSchema = Schema.Union([
   ApiTokenCreatedEvent,
   SsoTestFailedEvent,
   WorkspaceSuspensionChangedEvent
-])
+]).pipe(Schema.toTaggedUnion('type'))
 export type SystemNotificationEvent = typeof NotificationEventSchema.Type
 
 export type RenderedNotificationEvent = {
@@ -124,13 +124,13 @@ export function isAllowedDuringWorkspaceSuspension(input: {
 
 /** Render an event with the recipient's current locale, including old rows. */
 export function renderNotificationEvent(
-  event: SystemNotificationEvent,
+  input: SystemNotificationEvent,
   locale: Locale = DEFAULT_LOCALE,
   timeZone = 'UTC'
 ): RenderedNotificationEvent {
   const options = { locale }
-  switch (event.type) {
-    case 'workspace.suspension_changed': {
+  return NotificationEventSchema.match(input, {
+    'workspace.suspension_changed': (event) => {
       let customerExplanation = ''
       if (event.customerExplanation !== null) {
         customerExplanation = ` ${event.customerExplanation}`
@@ -161,8 +161,8 @@ export function renderNotificationEvent(
         title,
         message
       }
-    }
-    case 'webhook.permanent': {
+    },
+    'webhook.permanent': (event) => {
       return {
         title: m.backend_email_notification_event_webhook_permanent_title({}, options),
         message: m.backend_email_notification_event_webhook_permanent_message(
@@ -170,8 +170,8 @@ export function renderNotificationEvent(
           options
         )
       }
-    }
-    case 'webhook.dead_letter': {
+    },
+    'webhook.dead_letter': (event) => {
       return {
         title: m.backend_email_notification_event_webhook_dead_letter_title(
           {},
@@ -186,8 +186,8 @@ export function renderNotificationEvent(
           options
         )
       }
-    }
-    case 'webhook.ladder_threshold': {
+    },
+    'webhook.ladder_threshold': (event) => {
       return {
         title: m.backend_email_notification_event_webhook_ladder_threshold_title(
           {},
@@ -201,8 +201,8 @@ export function renderNotificationEvent(
           options
         )
       }
-    }
-    case 'webhook.ladder_warning': {
+    },
+    'webhook.ladder_warning': (event) => {
       return {
         title: m.backend_email_notification_event_webhook_ladder_warning_title(
           {},
@@ -217,8 +217,8 @@ export function renderNotificationEvent(
           options
         )
       }
-    }
-    case 'account.impersonated': {
+    },
+    'account.impersonated': (event) => {
       return {
         title: m.backend_email_notification_event_impersonation_title({}, options),
         message: m.backend_email_notification_event_impersonation_message(
@@ -226,8 +226,8 @@ export function renderNotificationEvent(
           options
         )
       }
-    }
-    case 'workspace.export_ready': {
+    },
+    'workspace.export_ready': (event) => {
       return {
         title: m.backend_email_notification_event_export_ready_title({}, options),
         message: m.backend_email_notification_event_export_ready_message(
@@ -243,8 +243,8 @@ export function renderNotificationEvent(
           options
         )
       }
-    }
-    case 'billing.plan_changed': {
+    },
+    'billing.plan_changed': (event) => {
       return {
         title: m.backend_email_notification_event_plan_changed_title(
           { planName: event.planName },
@@ -255,8 +255,8 @@ export function renderNotificationEvent(
           options
         )
       }
-    }
-    case 'workspace_member.joined': {
+    },
+    'workspace_member.joined': (event) => {
       let role = event.role
       if (event.role === 'owner') {
         role = m.backend_email_notification_event_member_role_owner({}, options)
@@ -276,8 +276,8 @@ export function renderNotificationEvent(
           options
         )
       }
-    }
-    case 'api_token.created': {
+    },
+    'api_token.created': (event) => {
       return {
         title: m.backend_email_notification_event_token_created_title({}, options),
         message: m.backend_email_notification_event_token_created_message(
@@ -289,8 +289,8 @@ export function renderNotificationEvent(
           options
         )
       }
-    }
-    case 'sso.test_failed': {
+    },
+    'sso.test_failed': (event) => {
       const reasonOptions = { locale }
       let reason = m.backend_email_notification_event_sso_reason_unknown(
         {},
@@ -339,5 +339,5 @@ export function renderNotificationEvent(
         )
       }
     }
-  }
+  })
 }
