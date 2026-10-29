@@ -80,6 +80,7 @@
     "@cloudflare/workers-types": "catalog:",
     "@distilled.cloud/cloudflare": "catalog:",
     "@effect/platform-node": "catalog:",
+    "@effect/vitest": "catalog:",
     "@types/node": "catalog:",
     "alchemy": "catalog:",
     "effect": "catalog:",

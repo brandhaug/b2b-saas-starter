@@ -1,5 +1,5 @@
 import { failureMessage } from '@b2b-saas-starter/failure'
-import { Effect, Layer, Option, Redacted, Schema, Stream } from 'effect'
+import { Effect, Layer, Option, Schema, Stream } from 'effect'
 import { AiError, LanguageModel, Model, type Response } from 'effect/ai'
 import { plainChat } from './text-model.ts'
 import { providerStreamError, providerTextStream } from './provider-stream.ts'
@@ -58,12 +58,6 @@ export function makeOpenAIModel(config: OpenAIConfig) {
     authorization: `Bearer ${config.apiKey}`,
     'content-type': 'application/json'
   }
-  // The error report carries the same headers with the credential redacted —
-  // the request schema's `Redacted` arm exists for exactly this.
-  const reportedHeaders = {
-    authorization: Redacted.make(config.apiKey),
-    'content-type': 'application/json'
-  }
 
   function generateText(options: LanguageModel.ProviderOptions) {
     return Effect.gen(function* () {
@@ -75,10 +69,7 @@ export function makeOpenAIModel(config: OpenAIConfig) {
         Effect.sync(() => new AbortController()),
         (active) => Effect.sync(() => active.abort())
       )
-      // The whole outbound boundary of this package is this one call.
-      // `packages/ai` deliberately depends on `effect` only, so there is no
-      // `@effect/platform` HttpClient to route through; the global `fetch` is
-      // confined to here.
+      // Keep cancellation scoped across fetch and response consumption.
       const response = yield* Effect.tryPromise({
         try: () =>
           // oxlint-disable-next-line effect/noGlobals -- raw fetch is the platform transport here
@@ -101,12 +92,8 @@ export function makeOpenAIModel(config: OpenAIConfig) {
           openAiError(
             new AiError.NetworkError({
               reason: 'TransportError',
-              request: {
-                method: 'POST',
-                url: chatUrl,
-                urlParams: [],
-                headers: reportedHeaders
-              },
+              method: 'POST',
+              url: chatUrl,
               description: failureMessage(cause)
             })
           )
