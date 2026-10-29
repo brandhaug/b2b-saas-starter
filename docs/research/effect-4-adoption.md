@@ -18,6 +18,22 @@ On 2026-10-29, frozen-lockfile installation and `pnpm run validate` both passed.
 
 The Alchemy OAuth regression test passed under `@effect/vitest`. Existing API tests exercised the migrated MCP transport and resource handlers. OTLP compilation and tests passed with the existing wrapper: it deliberately exposes no service to callers and flushes through invocation-scope cleanup, so the newly exposed upstream `Flusher` does not require a wrapper signature change.
 
+## Adoption implementation
+
+The follow-up stack implements the five recommended changes:
+
+- MCP uses required `CurrentMcpRequest` authority supplied by HTTP middleware. Its registrations declare the requirement through MCP middleware. Effect 4.1's raw `addTool` callback only admits `McpRequestContext`, so the callback uses a fail-closed lookup bridge; its captured registration context retains middleware. Tools and resources still reauthorize each call. A Live D1 test covers concurrent tools and resources for two workspaces.
+- OpenAI-compatible and Stripe requests use scoped Effect HttpClient adapters. Cancellation extends through response consumption; redirects are manual and inference never retries automatically. Failure messages omit raw transport diagnostics.
+- Conversation attempt activity and all notification rendering use schema-derived exhaustive matching. Existing wire discriminants and status-dependent fields remain unchanged.
+- Three protocol assertions use `McpTest.makeClient` against the real catalog registrations. HTTP tests retain authentication, session, routing and tenant-isolation coverage.
+- Crypto adapters use `Digest`, `Mac` and `SecureRandom` with adapter-local Web Crypto layers. Public Promise/synchronous interfaces remain unchanged. Fixtures check hashes, MAC encodings, token byte counts and deterministic platform failures.
+
+### Provider SDK decision
+
+[OpenAI's v6 SDK](https://github.com/openai/openai-node/blob/v6.0.0/README.md) supports Workers and Chat Completions. The compatible-provider adapter retains bounded text-only SSE validation and unsupported-part rejection; using the SDK's raw response still requires that decoder. Effect HttpClient supplies the transport lifecycle without a second client abstraction.
+
+[Stripe v18](https://github.com/stripe/stripe-node/tree/v18.0.0) covers our operations and matches the pinned `2025-03-31.basil` API. Its [fetch transport](https://github.com/stripe/stripe-node/blob/v18.0.0/src/net/FetchHttpClient.ts) clears the timeout after headers and does not accept the caller's scoped cancellation signal. Preserving cancellation through body consumption would require a custom SDK transport. The existing narrow adapter now uses Effect HttpClient instead.
+
 ## Release verification and interpretation
 
 | Package/version | npm publication, UTC | Upstream verification                                                      |
