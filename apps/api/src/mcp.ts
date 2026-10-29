@@ -656,37 +656,55 @@ function registerMutationTools(env: ApiEnv) {
  * text vocabulary the tools use.
  */
 function registerOverviewResource(env: ApiEnv) {
-  return registerResource({
-    uri: OVERVIEW_RESOURCE_URI,
-    name: 'workspace-overview',
-    description: "The caller's workspace record with its notification feed, as JSON.",
-    mimeType: 'application/json',
-    content: Effect.gen(function* () {
-      const caller = yield* requireCaller()
-      const guarded = Effect.gen(function* () {
-        yield* authorizeMcpOperation(
-          caller,
-          READ_OPERATIONS.overview.permission,
-          MCP_READ_SCOPE
-        )
-        return yield* READ_OPERATIONS.overview.read()
-      }).pipe(Effect.scoped)
-      const outcome = yield* bridgedRead(env, caller, guarded)
-      if (Result.isFailure(outcome)) {
-        // The protocol's resource channel has no `isError` half, so every
-        // typed failure answers as an internal error carrying the same text
-        // vocabulary the tools use — one mapper, both channels.
-        return yield* Effect.fail(
-          new InternalError({ message: failureText(outcome.failure) })
-        )
-      }
-      // oxlint-disable-next-line effect/noGlobals -- MCP resource contents are JSON text by protocol definition
-      return JSON.stringify(outcome.success, null, 2)
-    }).pipe(
-      Effect.catchDefect(() =>
-        Effect.fail(new InternalError({ message: TOOL_FAILED_MESSAGE }))
+  return Effect.gen(function* () {
+    const services = (yield* Effect.context<
+      CapabilityReadServices | McpClientConnections | PlatformUserAdmin
+    >()).pipe(
+      Context.pick(
+        NotificationFeed,
+        PlatformUserAdmin,
+        WorkspaceMembership,
+        ApiTokenRegistry,
+        WebhookEndpoints,
+        WorkspaceSuspensionService,
+        StrongAuthentication,
+        AuditEventLog,
+        McpClientConnections
       )
     )
+    return yield* registerResource({
+      uri: OVERVIEW_RESOURCE_URI,
+      name: 'workspace-overview',
+      description: "The caller's workspace record with its notification feed, as JSON.",
+      mimeType: 'application/json',
+      content: Effect.gen(function* () {
+        const caller = yield* requireCaller()
+        const guarded = Effect.gen(function* () {
+          yield* authorizeMcpOperation(
+            caller,
+            READ_OPERATIONS.overview.permission,
+            MCP_READ_SCOPE
+          )
+          return yield* READ_OPERATIONS.overview.read()
+        }).pipe(Effect.scoped)
+        const outcome = yield* bridgedRead(env, caller, guarded)
+        if (Result.isFailure(outcome)) {
+          // The protocol's resource channel has no `isError` half, so every
+          // typed failure answers as an internal error carrying the same text
+          // vocabulary the tools use — one mapper, both channels.
+          return yield* Effect.fail(
+            new InternalError({ message: failureText(outcome.failure) })
+          )
+        }
+        // oxlint-disable-next-line effect/noGlobals -- MCP resource contents are JSON text by protocol definition
+        return JSON.stringify(outcome.success, null, 2)
+      }).pipe(
+        Effect.provideContext(services),
+        Effect.catchDefect(() =>
+          Effect.fail(new InternalError({ message: TOOL_FAILED_MESSAGE }))
+        )
+      )
+    })
   })
 }
 
@@ -819,35 +837,20 @@ export function mcpProtocolLayer(
   | GateServices
 > {
   const gate = HttpRouter.middleware(makeGate(env)).layer
-  const registrations: Layer.Layer<
-    never,
-    never,
-    | CapabilityReadServices
-    | CapabilityMutationServices
-    | McpClientConnections
-    | RateLimiter
-    | PlatformUserAdmin
-    | OAuthTokenVerifier
-  > = Layer.effectDiscard(
+  const registrations = Layer.effectDiscard(
     Effect.gen(function* () {
       yield* registerTools(env)
       yield* registerMutationTools(env)
       yield* registerOverviewResource(env)
     })
-  ).pipe(Layer.provide(McpServer.layer))
+  )
 
-  const protocol: Layer.Layer<never, never, HttpRouter.HttpRouter> = mcpLayerHttp({
+  return mcpLayerHttp({
     name: MCP_SERVER_NAME,
     version: '0.1.0',
     protocols: [v2025_11_25],
-    path: '/mcp'
-    // oxlint-disable-next-line eslint/no-restricted-properties -- the protocol layer's only build failure is an empty protocol list, and the list here is a non-empty literal; there is no runtime condition this layer could truthfully report
-  }).pipe(Layer.orDie)
-
-  return Layer.mergeAll(
-    // `orDie` on the protocol layer because its only build failure is an
-    // empty protocol list — a constant here, not a runtime condition.
-    protocol,
+    path: '/mcp',
     registrations
-  ).pipe(Layer.provide(gate))
+    // oxlint-disable-next-line eslint/no-restricted-properties -- the protocol layer's only build failure is an empty protocol list, and the list here is a non-empty literal; there is no runtime condition this layer could truthfully report
+  }).pipe(Layer.orDie, Layer.provide(gate))
 }
