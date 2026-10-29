@@ -1,4 +1,5 @@
-import { Effect, Result, Schema } from 'effect'
+import { Effect, Layer, Result, Schema } from 'effect'
+import { FetchHttpClient, HttpBody, HttpClient, HttpClientRequest } from 'effect/http'
 
 import { billingLifecycleStatuses } from '@b2b-saas-starter/db/enums'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -6,7 +7,7 @@ import { hmacSha256Hex } from './crypto.ts'
 import { billableSeatQuantity } from './plan-catalog.ts'
 
 /**
- * The Stripe provider adapter: the hand-rolled REST client, the inbound event
+ * The Stripe provider adapter: the Effect HTTP client, the inbound event
  * policy, and the webhook signature verifier. `billing.ts` composes this into
  * the capability; the background worker imports the event policy and the
  * verifier directly for its raw `fetch` handler. Nothing here reaches for the
@@ -151,13 +152,6 @@ function stripeCheckoutBody(input: {
 const PROVIDER_TIMEOUT = '10 seconds'
 const STRIPE_API_VERSION = '2025-03-31.basil'
 
-/**
- * The Workers global `fetch` wrapped at the platform-adapter boundary: an HTTP
- * client dependency would add weight, not safety, to one form-encoded POST,
- * but the call still gets `Effect.tryPromise`'s `AbortSignal` so interruption
- * and deadlines reach the socket, and transport failures are classified as
- * typed `CapabilityUnavailable` instead of defects.
- */
 function stripeUnavailable(reason: string): CapabilityUnavailable {
   return new CapabilityUnavailable({ capability: 'billing', reason })
 }
@@ -166,12 +160,6 @@ type StripeHttpResponse = {
   readonly status: number
   readonly ok: boolean
   readonly body: string
-}
-
-function readStripeResponse(response: Response): Promise<StripeHttpResponse> {
-  const status = response.status
-  const ok = response.ok
-  return response.text().then((responseBody) => ({ status, ok, body: responseBody }))
 }
 
 /** The idempotency header a provider-state POST carries, or no header at all. */
@@ -198,17 +186,33 @@ function stripeRequest(
     ...idempotencyHeader(idempotencyKey),
     'stripe-version': STRIPE_API_VERSION
   }
-  return Effect.tryPromise({
-    try: (signal) => {
-      const init: RequestInit = { method, headers: requestHeaders, signal }
-      if (body !== undefined) {
-        init.body = body
-      }
-      // oxlint-disable-next-line effect/noGlobals -- see docstring above
-      return fetch(url, init).then(readStripeResponse)
-    },
-    catch: () => stripeUnavailable('stripe request failed')
+  // stripe-node v18 matches Basil and supports fetch, but its timeout ends at
+  // response headers and does not accept the caller's cancellation signal.
+  // Keep one scoped request through body consumption, without transport retries.
+  return Effect.gen(function* () {
+    const client = yield* HttpClient.HttpClient
+    let request = HttpClientRequest.make(method)(url, { headers: requestHeaders })
+    if (body !== undefined) {
+      request = HttpClientRequest.setBody(
+        request,
+        HttpBody.raw(body, { contentType: 'application/x-www-form-urlencoded' })
+      )
+    }
+    const response = yield* HttpClient.withScope(client).execute(request)
+    return {
+      status: response.status,
+      ok: response.status >= 200 && response.status < 300,
+      body: yield* response.text
+    }
   }).pipe(
+    Effect.scoped,
+    Effect.provide(
+      FetchHttpClient.layer.pipe(
+        Layer.provide(Layer.sync(FetchHttpClient.Fetch, () => globalThis.fetch))
+      )
+    ),
+    Effect.provideService(FetchHttpClient.RequestInit, { redirect: 'manual' }),
+    Effect.mapError(() => stripeUnavailable('stripe request failed')),
     Effect.timeout(PROVIDER_TIMEOUT),
     // The deadline is the same "provider unreachable" failure the transport
     // path reports — never leak `TimeoutError` into the interface channel.
@@ -304,14 +308,7 @@ function requireCheckoutUrl(
   return Effect.succeed({ ...session, url: session.url })
 }
 
-/**
- * One form-encoded Stripe API call, via the Workers global `fetch` — the REST
- * API needs no SDK, and keeping the dependency out keeps the worker bundle
- * small and the failure surface explicit. The call carries an `AbortSignal`
- * from `Effect.tryPromise` so interruption and the 10s deadline reach the
- * socket, and transport failures surface as typed `CapabilityUnavailable`
- * instead of defects. Exported for tests.
- */
+/** Creates a checkout session with the caller's durable idempotency identity. */
 export const createStripeCheckoutSession = Effect.fn('Stripe.createCheckoutSession')(
   function* (input: {
     readonly secretKey: string

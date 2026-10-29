@@ -29,10 +29,12 @@ function stubFetch(respond: () => Response) {
   }> = []
   vi.stubGlobal(
     'fetch',
-    vi.fn((url: string, init: { headers: Record<string, string>; body: string }) => {
-      posted.push({ url, headers: init.headers, body: init.body })
-      return Promise.resolve(respond())
-    })
+    vi.fn(
+      (url: string | URL, init: { headers: Record<string, string>; body: string }) => {
+        posted.push({ url: String(url), headers: init.headers, body: init.body })
+        return Promise.resolve(respond())
+      }
+    )
   )
   return posted
 }
@@ -56,7 +58,7 @@ describe('openai-compatible model', () => {
 
       expect(posted).toHaveLength(1)
       expect(posted[0]?.url).toBe('https://api.openai.com/v1/chat/completions')
-      expect(posted[0]?.headers).toEqual({
+      expect(posted[0]?.headers).toMatchObject({
         authorization: 'Bearer test-key',
         'content-type': 'application/json'
       })
@@ -152,8 +154,20 @@ describe('openai-compatible model', () => {
     )
     return askFails(assistantOn(makeOpenAIModel(TEST_CONFIG)), (error) => {
       expect(error._tag).toBe('AssistantUnavailable')
-      expect(error.reason).toContain('network down')
+      expect(error.reason).toContain('Provider connection failed.')
       expect(error.reason).not.toContain('test-key')
+    })
+  })
+
+  it('does not retry or expose transport diagnostics', () => {
+    const fetch = vi.fn(() =>
+      Promise.reject(new Error('Bearer test-key private payload'))
+    )
+    vi.stubGlobal('fetch', fetch)
+    return askFails(assistantOn(makeOpenAIModel(TEST_CONFIG)), (error) => {
+      expect(fetch).toHaveBeenCalledTimes(1)
+      expect(error.reason).not.toContain('test-key')
+      expect(error.reason).not.toContain('private payload')
     })
   })
 

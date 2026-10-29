@@ -42,11 +42,14 @@ it.effect('times out while consuming the OpenAI body and aborts its request', ()
     let signal: AbortSignal | null | undefined
     vi.stubGlobal('fetch', (_url: string, init: RequestInit) => {
       signal = init.signal
-      const response = new Response()
-      vi.spyOn(response, 'json').mockImplementation(() => {
-        Effect.runSync(Deferred.succeed(consuming, undefined))
-        return new Promise(() => {})
-      })
+      const response = new Response(
+        new ReadableStream({
+          pull() {
+            Effect.runSync(Deferred.succeed(consuming, undefined))
+            return new Promise(() => {})
+          }
+        })
+      )
       return Promise.resolve(response)
     })
     const assistant = yield* AssistantService
