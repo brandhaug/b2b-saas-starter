@@ -214,9 +214,17 @@ Record the CI run URL and outcome; a passing local test is not live rollout evid
 
 `github.config.ts` owns repository metadata, merge settings, topics, labels,
 the default-branch ruleset, Actions permissions, fork approvals, artifact/log
-retention, and secret-scanning switches. The initial values preserve the existing
-repository policy, including the `ci` and `e2e` required checks. Add further checks
-to `branchRules` after their workflows have produced the exact check names.
+retention, and secret-scanning switches. The default-branch ruleset requires `ci`,
+`e2e`, `audit` and `Conventional commit title`, requires PRs with zero approvals,
+and blocks force pushes and deletion. Squash-only merges default to the validated
+PR title. Actions default to read-only access and cannot approve PR reviews.
+Secret scanning, push protection and the Update branch button are enabled;
+SHA-pin enforcement remains disabled.
+
+Merge the dependency-change audit workflow before applying this policy so existing
+dependency findings do not block unrelated PRs. The stack adopts the ruleset by
+its existing name. Legacy branch protection remains separately configured and
+GitHub enforces both; the ruleset also declares its existing protections.
 
 Run the GitHub-only operator stack with a classic PAT carrying `repo` scope, or
 a fine-grained token with repository Administration, Actions, Issues and

@@ -49,34 +49,45 @@ export const branchRules = {
   conditions: { include: ['~DEFAULT_BRANCH'], exclude: [] },
   bypassActors: [],
   rules: {
+    deletion: true,
+    nonFastForward: true,
+    pullRequest: {
+      requiredApprovingReviewCount: 0,
+      requireCodeOwnerReview: false,
+      requireLastPushApproval: false,
+      requireExtraApprovalForUnattributedChanges: false,
+      allowedMergeMethods: ['squash']
+    },
     requiredStatusChecks: {
       checks: [
         { context: 'ci', integrationId: 15_368 },
-        { context: 'e2e', integrationId: 15_368 }
+        { context: 'e2e', integrationId: 15_368 },
+        { context: 'audit', integrationId: 15_368 },
+        { context: 'Conventional commit title', integrationId: 15_368 }
       ],
       strictRequiredStatusChecksPolicy: false
     }
   }
 } satisfies Omit<GitHub.RulesetProps, 'owner' | 'repository'>
 
-/** Preserve the current repository defaults; workflows declare narrower permissions. */
+/** Read-only defaults; workflows explicitly request their required write permissions. */
 export const actionsSettings = {
   actions: { enabled: true, allowed_actions: 'all', sha_pinning_required: false },
   workflow: {
-    default_workflow_permissions: 'write',
-    can_approve_pull_request_reviews: true
+    default_workflow_permissions: 'read',
+    can_approve_pull_request_reviews: false
   },
   retention: { days: 90 },
   forks: { approval_policy: 'first_time_contributors' },
   repositoryPolicy: {
-    allow_update_branch: false,
+    allow_update_branch: true,
     allow_forking: true,
     web_commit_signoff_required: false,
     squash_merge_commit_title: 'PR_TITLE',
     squash_merge_commit_message: 'PR_BODY',
     security_and_analysis: {
-      secret_scanning: { status: 'disabled' },
-      secret_scanning_push_protection: { status: 'disabled' }
+      secret_scanning: { status: 'enabled' },
+      secret_scanning_push_protection: { status: 'enabled' }
     }
   }
 } satisfies Omit<GitHubControlsProps, 'owner' | 'repository'>

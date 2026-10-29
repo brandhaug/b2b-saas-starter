@@ -9,7 +9,9 @@ monitoring dispatches have the same default-branch restriction.
 
 ## Workflow dependencies
 
-Every third-party action is pinned to a full commit SHA with a version comment.
+Third-party actions generally use a full commit SHA with a version comment.
+The catalog-update action currently uses `@v1`; repository-wide SHA-pin enforcement
+is disabled.
 When updating an action, an operator should review the upstream release and
 changelog, resolve the release tag to its full commit, update the SHA and comment
 in one pull request, and let the normal CI, audit, and review protections run.
@@ -50,13 +52,15 @@ patterns covered by its current rules; it cannot prove that every provider token
 encoded value, runtime secret, or value stored outside Git is safe. Operators must
 still review secret changes and provider exposure.
 
-The audit job is a required check only after an operator adds its exact check name
-to the active default-branch ruleset. A green workflow before that change is
-informational and does not protect merges. Required review, stale-approval
-dismissal, approval of the latest push, and the absence of bypass actors are also
-operator-owned GitHub settings. Record the ruleset response, check-run URL, commit,
-and observation time in the private security record; do not commit credentials or
-private evidence links.
+`github.config.ts` requires the `audit` check after the GitHub-only stack is applied.
+PR dependency scans gate newly introduced package versions. A separate, non-required
+`full audit` check reports all dependency findings on PRs, after merge and on schedule.
+See [dependency security](dependency-security.md).
+The solo-maintainer policy requires PRs but zero approving reviews, with no bypass
+actors. It does not provide independent review of workflow or exception changes.
+The stack also enables GitHub secret scanning and push protection. Record actual
+ruleset/settings responses, check-run URL, commit and observation time in the
+private security record; checked-in configuration alone is not activation evidence.
 
 ## Credential incident path
 

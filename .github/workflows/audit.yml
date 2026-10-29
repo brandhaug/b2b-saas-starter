@@ -1,6 +1,6 @@
 name: Audit
 
-# Require the `audit` job in the default-branch ruleset.
+# Require only `audit`; `full audit` reports existing dependency debt on PRs.
 # Setup and verification: docs/dependency-security.md.
 
 on:
@@ -22,6 +22,12 @@ concurrency:
 
 jobs:
   audit:
+    name: ${{ matrix.scope == 'changes' && 'audit' || 'full audit' }}
+    strategy:
+      # Full-scan failures must not cancel the required dependency-change gate.
+      fail-fast: false
+      matrix:
+        scope: ${{ github.event_name == 'pull_request' && fromJSON('["changes", "full"]') || fromJSON('["full"]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -51,11 +57,18 @@ jobs:
         env:
           TRIVY_BINARY: trivy
       # Exceptions take effect only after review and merge into the trusted base.
-      # Workflow edit protection requires the settings in docs/dependency-security.md.
+      # Repository policy and solo-maintainer limitations: docs/dependency-security.md.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ (github.event.pull_request.base.ref == github.event.repository.default_branch && github.event.pull_request.base.sha) || github.event.repository.default_branch }}
           path: .audit-policy-base
           persist-credentials: false
       - name: Audit dependencies
-        run: node .github/scripts/run-trivy.ts .audit-policy-base
+        env:
+          AUDIT_SCOPE: ${{ matrix.scope }}
+        run: |
+          if [ "$AUDIT_SCOPE" = changes ]; then
+            node .github/scripts/run-trivy.ts .audit-policy-base --changes-only
+          else
+            node .github/scripts/run-trivy.ts .audit-policy-base
+          fi
