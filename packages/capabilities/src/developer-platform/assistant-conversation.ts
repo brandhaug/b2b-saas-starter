@@ -61,10 +61,28 @@ const interruptedPhase = {
 
 /** Persisted and disclosed attempts carry only fields valid for their phase. */
 export const ConversationAttempt = Schema.Union([
-  Schema.Struct({ ...attemptFields, ...activePhase }),
+  Schema.Struct({
+    ...attemptFields,
+    ...activePhase,
+    status: Schema.Literal('Accepted')
+  }),
+  Schema.Struct({
+    ...attemptFields,
+    ...activePhase,
+    status: Schema.Literal('Running')
+  }),
   Schema.Struct({ ...attemptFields, ...completedPhase }),
-  Schema.Struct({ ...attemptFields, ...interruptedPhase })
-])
+  Schema.Struct({
+    ...attemptFields,
+    ...interruptedPhase,
+    status: Schema.Literal('Interrupted')
+  }),
+  Schema.Struct({
+    ...attemptFields,
+    ...interruptedPhase,
+    status: Schema.Literal('Stopped')
+  })
+]).pipe(Schema.toTaggedUnion('status'))
 export type ConversationAttempt = typeof ConversationAttempt.Type
 
 /** Terminal facts are supplied by execution; restoration never invents them. */
@@ -192,9 +210,13 @@ export const ConversationAcceptance = Schema.Struct({
 })
 export type ConversationAcceptance = typeof ConversationAcceptance.Type
 
-export function activeConversationAttempt(attempt: ConversationAttempt): boolean {
-  return attempt.status === 'Accepted' || attempt.status === 'Running'
-}
+export const activeConversationAttempt = ConversationAttempt.match({
+  Accepted: () => true,
+  Running: () => true,
+  Completed: () => false,
+  Interrupted: () => false,
+  Stopped: () => false
+})
 
 /** Fixed field order makes key comparison independent of transport JSON ordering. */
 const encodeOperation = Schema.encodeSync(
