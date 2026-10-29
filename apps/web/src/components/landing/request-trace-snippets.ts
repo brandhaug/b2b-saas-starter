@@ -67,7 +67,7 @@ export const CALL_SITES: ReadonlyArray<TraceSnippet & { readonly label: string }
   {
     label: 'MCP tool',
     path: 'apps/api/src/mcp.ts',
-    code: `const caller = yield* requireCaller()
+    code: `const { caller } = yield* requireMcpRequest()
 const invoke = yield* decodeOperationInput(operation, payload)
 …
 const guarded = Effect.gen(function* () {
