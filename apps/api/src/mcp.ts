@@ -43,6 +43,7 @@ import {
   Context,
   Effect,
   Layer,
+  Option,
   Result,
   Schema,
   SchemaIssue,
@@ -52,6 +53,7 @@ import {
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from 'effect/http'
 import {
   McpServer,
+  middleware as mcpMiddleware,
   layerHttp as mcpLayerHttp,
   registerResource
 } from 'effect/ai/McpServer'
@@ -107,7 +109,7 @@ import {
  *
  * The server, its tools, and the overview resource are built once per isolate
  * as layers; what varies per caller travels with the request. The gate
- * middleware verifies the credential and publishes it as `CurrentMcpCaller`,
+ * middleware verifies the credential and publishes it as `CurrentMcpRequest`,
  * and Effect's RPC plumbing merges the request fiber's context into every
  * tool invocation — so a tool call resolves its caller's workspace and
  * nothing else, the same per-request scoping the old per-request server
@@ -130,17 +132,22 @@ import {
 const MCP_SERVER_NAME = 'b2b-saas-starter-mcp'
 const OVERVIEW_RESOURCE_URI = 'workspace://overview'
 
-/**
- * The verified MCP caller for the request in flight. The gate middleware sets
- * it; tool and resource handlers read it. A reference, not a required
- * service, because the handlers are registered once per isolate while the
- * caller arrives per request — outside a gated request the default (no
- * caller) is the honest answer, and every handler turns it into an internal
- * error rather than a silent wrong-workspace read.
- */
-const CurrentMcpCaller = Context.Reference<McpCaller | undefined>(
-  '@b2b-saas-starter/api/mcp/current-caller',
-  { defaultValue: () => undefined }
+/** Authority and transport facts supplied by the gate for this HTTP request. */
+class CurrentMcpRequest extends Context.Service<
+  CurrentMcpRequest,
+  {
+    readonly caller: McpCaller
+    readonly origin: string
+    readonly rateKey: string
+    readonly bearer: string | null
+  }
+>()('@b2b-saas-starter/api/mcp/current-request') {}
+
+// Raw addTool handlers only admit McpRequestContext in Effect 4.1. This
+// middleware declares their authority requirement to the transport; the
+// raw-handler bridge below fails closed if invoked outside that transport.
+const requestAuthority = mcpMiddleware((effect) =>
+  Effect.flatMap(CurrentMcpRequest, () => effect)
 )
 
 /**
@@ -370,18 +377,20 @@ function outcomeToToolResult(outcome: ToolOutcome): CallToolResult {
 }
 
 /**
- * The caller a handler authorizes as, or the internal error for an invocation
- * that never passed through the gate.
+ * Bridge the low-level addTool callback's fixed service type. Higher-level
+ * resource registration can express CurrentMcpRequest directly.
  */
-function requireCaller(): Effect.Effect<McpCaller, InternalError> {
-  return Effect.flatMap(CurrentMcpCaller, (caller) => {
-    if (caller === undefined) {
-      return Effect.fail(
-        new InternalError({ message: 'no MCP caller bound to this request' })
-      )
-    }
-    return Effect.succeed(caller)
-  })
+function requireMcpRequest() {
+  return Effect.flatMap(
+    Effect.serviceOption(CurrentMcpRequest),
+    Option.match({
+      onNone: () =>
+        Effect.fail(
+          new InternalError({ message: 'no MCP authority bound to this request' })
+        ),
+      onSome: Effect.succeed
+    })
+  )
 }
 
 /**
@@ -467,6 +476,7 @@ function decodeOperationInput(
 function registerTools(env: ApiEnv) {
   return Effect.gen(function* () {
     const registry = yield* McpServer
+    const registrationServices = yield* Effect.context<never>()
     // The isolate-level capability services, captured once: tool invocations
     // resolve them from this context rather than rebuilding any graph.
     const services = (yield* Effect.context<
@@ -492,10 +502,11 @@ function registerTools(env: ApiEnv) {
           title: operation.toolName,
           annotations: { readOnlyHint: true }
         }),
+        services: registrationServices,
         annotations: Context.empty(),
         handle: (payload) =>
           Effect.gen(function* () {
-            const caller = yield* requireCaller()
+            const { caller } = yield* requireMcpRequest()
             const invoke = yield* decodeOperationInput(operation, payload)
             // One guard + one capability read, on the caller's workspace.
             // The operation guard needs a Scope, which only exists inside the
@@ -527,16 +538,6 @@ function registerTools(env: ApiEnv) {
   })
 }
 
-type McpInvocation = {
-  readonly origin: string
-  readonly rateKey: string
-  readonly bearer: string | null
-}
-const CurrentMcpInvocation = Context.Reference<McpInvocation | undefined>(
-  '@b2b-saas-starter/api/mcp/invocation',
-  { defaultValue: () => undefined }
-)
-
 function mutationInputSchema(input: Schema.Constraint): ToolJson {
   if (Schema.toJsonSchemaDocument(input).schema.type === undefined) {
     return NO_TOOL_INPUT_SCHEMA
@@ -547,6 +548,7 @@ function mutationInputSchema(input: Schema.Constraint): ToolJson {
 function registerMutationTools(env: ApiEnv) {
   return Effect.gen(function* () {
     const registry = yield* McpServer
+    const registrationServices = yield* Effect.context<never>()
     const services = (yield* Effect.context<
       | CapabilityMutationServices
       | RateLimiter
@@ -575,14 +577,11 @@ function registerMutationTools(env: ApiEnv) {
           inputSchema: mutationInputSchema(operation.input),
           annotations: operation.annotations
         }),
+        services: registrationServices,
         annotations: Context.empty(),
         handle: (payload) =>
           Effect.gen(function* () {
-            yield* requireCaller()
-            const invocation = yield* CurrentMcpInvocation
-            if (invocation === undefined) {
-              return yield* new InternalError({ message: 'no MCP invocation context' })
-            }
+            const invocation = yield* requireMcpRequest()
             const verified = yield* Effect.result(
               Effect.gen(function* () {
                 yield* enforceRateLimitKey('rest_write', invocation.rateKey)
@@ -678,7 +677,7 @@ function registerOverviewResource(env: ApiEnv) {
       description: "The caller's workspace record with its notification feed, as JSON.",
       mimeType: 'application/json',
       content: Effect.gen(function* () {
-        const caller = yield* requireCaller()
+        const { caller } = yield* CurrentMcpRequest
         const guarded = Effect.gen(function* () {
           yield* authorizeMcpOperation(
             caller,
@@ -765,7 +764,11 @@ function makeGate(
   env: ApiEnv
 ): Effect.Effect<
   (
-    httpEffect: Effect.Effect<HttpServerResponse.HttpServerResponse, Types.unhandled>
+    httpEffect: Effect.Effect<
+      HttpServerResponse.HttpServerResponse,
+      Types.unhandled,
+      CurrentMcpRequest
+    >
   ) => Effect.Effect<
     HttpServerResponse.HttpServerResponse,
     Types.unhandled,
@@ -796,8 +799,8 @@ function makeGate(
                 // The HTTP handler transfers this scope to the response stream.
                 // The observation scope closes as soon as the response is returned.
                 Effect.provideService(Scope.Scope, requestScope),
-                Effect.provideService(CurrentMcpCaller, caller),
-                Effect.provideService(CurrentMcpInvocation, {
+                Effect.provideService(CurrentMcpRequest, {
+                  caller,
                   origin: new URL(webRequest(request).url).origin,
                   rateKey: clientKey(webRequest(request)),
                   bearer
@@ -836,14 +839,16 @@ export function mcpProtocolLayer(
   | PlatformUserAdmin
   | GateServices
 > {
-  const gate = HttpRouter.middleware(makeGate(env)).layer
+  const gate = HttpRouter.middleware<{ provides: CurrentMcpRequest }>()(
+    makeGate(env)
+  ).layer
   const registrations = Layer.effectDiscard(
     Effect.gen(function* () {
       yield* registerTools(env)
       yield* registerMutationTools(env)
       yield* registerOverviewResource(env)
     })
-  )
+  ).pipe(Layer.provide(requestAuthority.layer))
 
   return mcpLayerHttp({
     name: MCP_SERVER_NAME,

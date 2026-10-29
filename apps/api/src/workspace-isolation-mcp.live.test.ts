@@ -194,6 +194,25 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           expect(overviewResource.result.contents[0]?.text).toContain(
             'dev-contract-lab'
           )
+          // Request authority must not be captured at registration or borrowed
+          // from another concurrent tool/resource request on the same server.
+          const [readA, readB, resourceA, resourceB] = yield* Effect.all(
+            [
+              call(a, 'get_workspace_overview'),
+              call(b, 'get_workspace_overview'),
+              resource(a).pipe(
+                Effect.flatMap((response) => jsonBody(response, resourceResult))
+              ),
+              resource(b).pipe(
+                Effect.flatMap((response) => jsonBody(response, resourceResult))
+              )
+            ],
+            { concurrency: 'unbounded' }
+          )
+          expect(readA.content[0]?.text).toContain('dev-contract-lab')
+          expect(readB.content[0]?.text).toContain('other-lab')
+          expect(resourceA.result.contents[0]?.text).toContain('dev-contract-lab')
+          expect(resourceB.result.contents[0]?.text).toContain('other-lab')
           expect(
             (yield* call(owner, 'create_webhook', {
               url: 'https://blocked.example',
