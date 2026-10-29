@@ -133,7 +133,7 @@ const MCP_SERVER_NAME = 'b2b-saas-starter-mcp'
 const OVERVIEW_RESOURCE_URI = 'workspace://overview'
 
 /** Authority and transport facts supplied by the gate for this HTTP request. */
-class CurrentMcpRequest extends Context.Service<
+export class CurrentMcpRequest extends Context.Service<
   CurrentMcpRequest,
   {
     readonly caller: McpCaller
@@ -819,14 +819,18 @@ function makeGate(
   })
 }
 
-/**
- * The MCP protocol surface at `POST /mcp`: Effect's `McpServer` over
- * streamable HTTP (2025-11-25), its tools and resource projected row by row
- * from the shared operation table, and the credential gate wrapped around the
- * routes as middleware. Requires the isolate-level capability services —
- * `http.ts` provides the same `capabilities` value the REST groups ride on,
- * so one build serves both surfaces.
- */
+/** Catalog registrations shared by HTTP transport and protocol-level tests. */
+export function mcpRegistrations(env: ApiEnv) {
+  return Layer.effectDiscard(
+    Effect.gen(function* () {
+      yield* registerTools(env)
+      yield* registerMutationTools(env)
+      yield* registerOverviewResource(env)
+    })
+  ).pipe(Layer.provide(requestAuthority.layer))
+}
+
+/** Streamable HTTP transport with request-scoped credential and rate-limit gates. */
 export function mcpProtocolLayer(
   env: ApiEnv
 ): Layer.Layer<
@@ -842,20 +846,12 @@ export function mcpProtocolLayer(
   const gate = HttpRouter.middleware<{ provides: CurrentMcpRequest }>()(
     makeGate(env)
   ).layer
-  const registrations = Layer.effectDiscard(
-    Effect.gen(function* () {
-      yield* registerTools(env)
-      yield* registerMutationTools(env)
-      yield* registerOverviewResource(env)
-    })
-  ).pipe(Layer.provide(requestAuthority.layer))
-
   return mcpLayerHttp({
     name: MCP_SERVER_NAME,
     version: '0.1.0',
     protocols: [v2025_11_25],
     path: '/mcp',
-    registrations
+    registrations: mcpRegistrations(env)
     // oxlint-disable-next-line eslint/no-restricted-properties -- the protocol layer's only build failure is an empty protocol list, and the list here is a non-empty literal; there is no runtime condition this layer could truthfully report
   }).pipe(Layer.orDie, Layer.provide(gate))
 }
