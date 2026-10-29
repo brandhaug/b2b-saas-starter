@@ -1,14 +1,13 @@
-/**
- * Random hex from the platform CSPRNG.
- *
- * Signing secrets, bearer tokens and claim fences are credential material:
- * Effect's `Random` is a seedable PRNG and must never back them. Every package
- * that mints such a value needs these bytes, so the platform call and its lint
- * suppression live here once rather than in a copy per package.
- */
+import { Effect } from 'effect'
+import { SecureRandom } from 'effect/crypto'
+import { Hex } from 'effect/encoding'
+
+/** Credential bytes from the platform CSPRNG, never Effect's seedable Random. */
 export function randomHex(byteLength: number): string {
-  const bytes = new Uint8Array(byteLength)
-  // oxlint-disable-next-line effect/noGlobals -- platform adapter: credential material needs a CSPRNG, and Effect's Random is a seedable PRNG.
-  crypto.getRandomValues(bytes)
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+  return Effect.runSync(
+    SecureRandom.SecureRandom.use((random) => random.randomBytes(byteLength)).pipe(
+      Effect.map(Hex.encode),
+      Effect.provide(SecureRandom.layerWebCrypto)
+    )
+  )
 }

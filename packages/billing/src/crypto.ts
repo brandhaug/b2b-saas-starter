@@ -1,24 +1,16 @@
-function bytesToHex(bytes: ArrayBuffer): string {
-  return Array.from(new Uint8Array(bytes), (byte) =>
-    byte.toString(16).padStart(2, '0')
-  ).join('')
-}
+import { Effect, Layer } from 'effect'
+import { Mac, SecureRandom } from 'effect/crypto'
+import { Hex } from 'effect/encoding'
 
-// oxlint-disable-next-line effect/noAsyncFunction -- Web Crypto's HMAC API is promise-based; Stripe signature verification uses the platform Web Crypto implementation.
-export async function hmacSha256Hex(secret: string, payload: string): Promise<string> {
-  // oxlint-disable-next-line effect/noAsyncFunction -- Web Crypto awaits; see the note on the function
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
+const macLayer = Mac.layerWebCrypto.pipe(Layer.provide(SecureRandom.layerWebCrypto))
+
+// Keep platform selection here and rejection mapping in the Stripe adapter.
+export function hmacSha256Hex(secret: string, payload: string): Promise<string> {
+  return Effect.runPromise(
+    Effect.gen(function* () {
+      const mac = yield* Mac.Mac
+      const key = yield* Mac.key(Mac.hmacSha256, new TextEncoder().encode(secret))
+      return Hex.encode(yield* mac.sign(key, new TextEncoder().encode(payload)))
+    }).pipe(Effect.provide(macLayer))
   )
-  // oxlint-disable-next-line effect/noAsyncFunction -- Web Crypto awaits; see the note on the function
-  const signed = await crypto.subtle.sign(
-    'HMAC',
-    key,
-    new TextEncoder().encode(payload)
-  )
-  return bytesToHex(signed)
 }

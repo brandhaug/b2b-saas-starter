@@ -1,74 +1,55 @@
-/**
- * The package's single Web Crypto boundary. Consumers outside this package —
- * the background worker's webhook signature — import from here rather than
- * reaching for another crypto module. Random hex is the one exception: it is
- * the same CSPRNG read everywhere, so it lives once in
- * `@b2b-saas-starter/failure/crypto`.
- */
-function bytesToHex(bytes: ArrayBuffer): string {
-  return Array.from(new Uint8Array(bytes), (byte) =>
-    byte.toString(16).padStart(2, '0')
-  ).join('')
-}
+import { Effect, Layer } from 'effect'
+import { Digest, Mac, SecureRandom } from 'effect/crypto'
+import { Base64, Hex } from 'effect/encoding'
+
+// This adapter owns platform selection. Callers retain their Promise/synchronous
+// interfaces and map rejected operations to their existing domain failures.
+const macLayer = Mac.layerWebCrypto.pipe(Layer.provide(SecureRandom.layerWebCrypto))
 
 export function hashSha256(value: string): Promise<string> {
-  // oxlint-disable-next-line effect/noGlobals -- platform adapter: this module is the single Web Crypto boundary for the package; effect/Crypto has no Workers layer in core and would add a service requirement to every Live layer.
-  return crypto.subtle
-    .digest('SHA-256', new TextEncoder().encode(value))
-    .then(bytesToHex)
+  return Effect.runPromise(
+    Digest.Digest.use((digest) =>
+      digest.digestHex(Digest.sha256, new TextEncoder().encode(value))
+    ).pipe(Effect.provide(Digest.layerWebCrypto))
+  )
 }
 
-// oxlint-disable-next-line effect/noAsyncFunction -- Web Crypto's HMAC API is promise-based; see hashSha256 above — this module is the single Web Crypto boundary for the package.
-export async function hmacSha256Hex(secret: string, payload: string): Promise<string> {
-  // oxlint-disable-next-line effect/noAsyncFunction -- Web Crypto awaits; see the note on the function
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
+const sign = Effect.fn('Crypto.sign')(function* (secret: Uint8Array, payload: string) {
+  const mac = yield* Mac.Mac
+  const key = yield* Mac.key(Mac.hmacSha256, secret)
+  return yield* mac.sign(key, new TextEncoder().encode(payload))
+})
+
+export function hmacSha256Hex(secret: string, payload: string): Promise<string> {
+  return Effect.runPromise(
+    sign(new TextEncoder().encode(secret), payload).pipe(
+      Effect.map(Hex.encode),
+      Effect.provide(macLayer)
+    )
   )
-  // oxlint-disable-next-line effect/noAsyncFunction -- Web Crypto awaits; see the note on the function
-  const signed = await crypto.subtle.sign(
-    'HMAC',
-    key,
-    new TextEncoder().encode(payload)
-  )
-  return bytesToHex(signed)
 }
 
 /** Standard Webhooks uses a base64-encoded 256-bit key with a whsec_ prefix. */
 export function randomWebhookSecret(): string {
-  const bytes = new Uint8Array(32)
-  // oxlint-disable-next-line effect/noGlobals -- platform adapter: webhook signing keys require a CSPRNG.
-  crypto.getRandomValues(bytes)
-  // oxlint-disable-next-line effect/noGlobals -- base64 encoding at the Web Crypto platform boundary.
-  return `whsec_${btoa(String.fromCharCode(...bytes))}`
+  return Effect.runSync(
+    SecureRandom.SecureRandom.use((random) => random.randomBytes(32)).pipe(
+      Effect.map((bytes) => `whsec_${Base64.encode(bytes)}`),
+      Effect.provide(SecureRandom.layerWebCrypto)
+    )
+  )
 }
 
-// oxlint-disable-next-line effect/noAsyncFunction -- Web Crypto's HMAC API is promise-based at this platform boundary.
-export async function hmacSha256Base64(
-  secret: string,
-  payload: string
-): Promise<string> {
-  // oxlint-disable-next-line effect/noGlobals -- base64 decoding at the Web Crypto platform boundary.
-  const bytes = Uint8Array.from(atob(secret.slice('whsec_'.length)), (char) =>
-    char.charCodeAt(0)
+export function hmacSha256Base64(secret: string, payload: string): Promise<string> {
+  return Effect.runPromise(
+    Effect.gen(function* () {
+      // Keep Web Crypto's existing base64 acceptance, including whitespace.
+      const bytes = yield* Effect.try(() =>
+        // oxlint-disable-next-line effect/noGlobals -- preserve the platform base64 decoding contract at this adapter.
+        Uint8Array.from(atob(secret.slice('whsec_'.length)), (char) =>
+          char.charCodeAt(0)
+        )
+      )
+      return Base64.encode(yield* sign(bytes, payload))
+    }).pipe(Effect.provide(macLayer))
   )
-  // oxlint-disable-next-line effect/noAsyncFunction -- Web Crypto promise boundary.
-  const key = await crypto.subtle.importKey(
-    'raw',
-    bytes,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  )
-  // oxlint-disable-next-line effect/noAsyncFunction -- Web Crypto promise boundary.
-  const signed = await crypto.subtle.sign(
-    'HMAC',
-    key,
-    new TextEncoder().encode(payload)
-  )
-  // oxlint-disable-next-line effect/noGlobals -- base64 encoding at the Web Crypto platform boundary.
-  return btoa(String.fromCharCode(...new Uint8Array(signed)))
 }
