@@ -4,7 +4,8 @@ import {
   testSubscriptionFields
 } from './provider-test-fixtures.ts'
 import { afterEach, describe, expect, it, vi } from '@effect/vitest'
-import { Effect } from 'effect'
+import { Deferred, Effect, Fiber } from 'effect'
+import { TestClock } from 'effect/testing'
 
 import {
   createStripeCheckoutSession,
@@ -26,6 +27,52 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 describe('Stripe provider adapter', () => {
+  it.effect('keeps the deadline and cancellation active while reading the body', () =>
+    Effect.gen(function* () {
+      const reading = yield* Deferred.make<undefined>()
+      let signal: AbortSignal | null | undefined
+      const fetch = vi.fn((_url: unknown, init: RequestInit) => {
+        signal = init.signal
+        return Promise.resolve(
+          new Response(
+            new ReadableStream({
+              pull() {
+                Effect.runSync(Deferred.succeed(reading, undefined))
+                return new Promise(() => {})
+              }
+            })
+          )
+        )
+      })
+      vi.stubGlobal('fetch', fetch)
+      const fiber = yield* retrieveStripeCheckoutSession({
+        secretKey: 'secret',
+        sessionId: 'cs_held'
+      }).pipe(Effect.flip, Effect.forkChild)
+      yield* Deferred.await(reading)
+      yield* TestClock.adjust('10 seconds')
+      expect((yield* Fiber.join(fiber)).reason).toBe('stripe request timed out')
+      expect(signal?.aborted).toBe(true)
+      expect(fetch).toHaveBeenCalledTimes(1)
+    })
+  )
+
+  it.effect('refuses redirects without retrying or exposing the provider body', () => {
+    const fetch = vi.fn((_url: unknown, init: RequestInit) => {
+      expect(init.redirect).toBe('manual')
+      return Promise.resolve(jsonResponse({ error: 'private provider details' }, 307))
+    })
+    vi.stubGlobal('fetch', fetch)
+    return Effect.gen(function* () {
+      const error = yield* retrieveStripeCheckoutSession({
+        secretKey: 'secret',
+        sessionId: 'cs_redirect'
+      }).pipe(Effect.flip)
+      expect(error.reason).toBe('stripe http:307')
+      expect(fetch).toHaveBeenCalledTimes(1)
+    })
+  })
+
   it.effect('uses a stable idempotency key and sends ownership metadata', () => {
     const requests: Array<{
       url: string
@@ -35,10 +82,10 @@ describe('Stripe provider adapter', () => {
       'fetch',
       vi.fn(
         (
-          url: string,
+          url: string | URL,
           init: { readonly headers?: Record<string, string>; readonly body?: string }
         ) => {
-          requests.push({ url, init })
+          requests.push({ url: String(url), init })
           return Promise.resolve(
             jsonResponse({
               id: 'cs_test_1',
@@ -181,8 +228,8 @@ describe('Stripe provider adapter', () => {
       const requests: Array<{ url: string; init: RequestInit }> = []
       vi.stubGlobal(
         'fetch',
-        vi.fn((url: string, init: RequestInit) => {
-          requests.push({ url, init })
+        vi.fn((url: string | URL, init: RequestInit) => {
+          requests.push({ url: String(url), init })
           return Promise.resolve(jsonResponse({ id: 'si_1' }))
         })
       )
@@ -207,9 +254,9 @@ describe('Stripe provider adapter', () => {
       const requests: Array<{ url: string; init: RequestInit }> = []
       vi.stubGlobal(
         'fetch',
-        vi.fn((url: string, init: RequestInit) => {
-          requests.push({ url, init })
-          if (url.includes('/customers')) {
+        vi.fn((url: string | URL, init: RequestInit) => {
+          requests.push({ url: String(url), init })
+          if (String(url).includes('/customers')) {
             return Promise.resolve(
               jsonResponse({ id: 'cus_1', metadata: { workspaceId: 'wrk_1' } })
             )

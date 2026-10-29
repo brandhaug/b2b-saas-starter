@@ -1,7 +1,13 @@
-import { failureMessage } from '@b2b-saas-starter/failure'
 import { Effect, Layer, Option, Schema, Stream } from 'effect'
 import { AiError, LanguageModel, Model, type Response } from 'effect/ai'
-import { plainChat } from './text-model.ts'
+import {
+  FetchHttpClient,
+  HttpBody,
+  HttpClient,
+  HttpClientRequest,
+  HttpClientResponse
+} from 'effect/http'
+import { type ChatMessage, plainChat } from './text-model.ts'
 import { providerStreamError, providerTextStream } from './provider-stream.ts'
 
 // The single platform adapter: any OpenAI-compatible `/chat/completions`
@@ -15,6 +21,14 @@ export type OpenAIConfig = {
   readonly baseUrl?: string
   readonly modelId?: string
   readonly maxOutputTokens?: number
+}
+
+type ChatRequest = {
+  readonly model: string
+  readonly messages: ReadonlyArray<ChatMessage>
+  readonly max_tokens: number
+  readonly stream?: true
+  readonly stream_options?: { readonly include_usage: true }
 }
 
 const OpenAIFinishReason = Schema.Literals(['stop', 'length', 'content_filter'])
@@ -59,46 +73,55 @@ export function makeOpenAIModel(config: OpenAIConfig) {
     'content-type': 'application/json'
   }
 
+  // Keep the bounded text-only compatible protocol. The official openai v6 SDK
+  // supports Workers, but its SSE decoder would replace our strict framing and
+  // unsupported-part checks; using its raw response still needs this decoder.
+  const request = Effect.fn('OpenAI.request')(
+    function* (payload: ChatRequest) {
+      const client = yield* HttpClient.HttpClient
+      return yield* HttpClient.withScope(client).execute(
+        HttpClientRequest.post(chatUrl, { headers }).pipe(
+          HttpClientRequest.setBody(
+            // oxlint-disable-next-line effect/noGlobals -- selected outbound wire fields
+            HttpBody.raw(JSON.stringify(payload), { contentType: 'application/json' })
+          )
+        )
+      )
+    },
+    Effect.provide(
+      FetchHttpClient.layer.pipe(
+        Layer.provide(
+          // Resolve the platform transport per invocation, including test overrides.
+          Layer.sync(FetchHttpClient.Fetch, () => globalThis.fetch)
+        )
+      )
+    ),
+    Effect.provideService(FetchHttpClient.RequestInit, { redirect: 'manual' })
+  )
+
   function generateText(options: LanguageModel.ProviderOptions) {
     return Effect.gen(function* () {
       const plain = plainChat(options)
       if ('reason' in plain) {
         return yield* openAiError(plain.reason)
       }
-      const controller = yield* Effect.acquireRelease(
-        Effect.sync(() => new AbortController()),
-        (active) => Effect.sync(() => active.abort())
-      )
-      // Keep cancellation scoped across fetch and response consumption.
-      const response = yield* Effect.tryPromise({
-        try: () =>
-          // oxlint-disable-next-line effect/noGlobals -- raw fetch is the platform transport here
-          fetch(chatUrl, {
-            method: 'POST',
-            headers,
-            // oxlint-disable-next-line effect/noGlobals -- outbound request body, deliberately unvalidated: the wire shape contains only selected request fields, and a codec would decode what we just built
-            body: JSON.stringify({
-              model: modelId,
-              messages: plain.messages,
-              max_tokens: config.maxOutputTokens ?? 4096
-            }),
-            signal: controller.signal,
-            // Cloudflare Workers supports manual redirects; treating the 3xx
-            // response as an ordinary provider failure prevents following it
-            // or leaking auth.
-            redirect: 'manual'
-          }),
-        catch: (cause) =>
+      const response = yield* request({
+        model: modelId,
+        messages: plain.messages,
+        max_tokens: config.maxOutputTokens ?? 4096
+      }).pipe(
+        Effect.mapError(() =>
           openAiError(
             new AiError.NetworkError({
               reason: 'TransportError',
               method: 'POST',
-              url: chatUrl,
-              description: failureMessage(cause)
+              url: '',
+              description: 'Provider connection failed.'
             })
           )
-      })
-      if (!response.ok) {
+        )
+      )
+      if (response.status < 200 || response.status >= 300) {
         return yield* openAiError(
           AiError.reasonFromHttpStatus({
             status: response.status,
@@ -106,13 +129,15 @@ export function makeOpenAIModel(config: OpenAIConfig) {
           })
         )
       }
-      const raw: unknown = yield* Effect.tryPromise({
-        try: () => response.json(),
-        catch: (cause) =>
+      const raw: unknown = yield* response.json.pipe(
+        Effect.mapError(() =>
           openAiError(
-            new AiError.InvalidOutputError({ description: failureMessage(cause) })
+            new AiError.InvalidOutputError({
+              description: 'Provider response is invalid.'
+            })
           )
-      })
+        )
+      )
       const body = decodeOpenAIChatResponse(raw)
       if (Option.isNone(body)) {
         return yield* openAiError(
@@ -152,40 +177,34 @@ export function makeOpenAIModel(config: OpenAIConfig) {
             reason: plain.reason
           })
         }
-        const controller = yield* Effect.acquireRelease(
-          Effect.sync(() => new AbortController()),
-          (active) => Effect.sync(() => active.abort())
+        const response = yield* request({
+          model: modelId,
+          messages: plain.messages,
+          stream: true,
+          stream_options: { include_usage: true },
+          max_tokens: config.maxOutputTokens ?? 16_000
+        }).pipe(
+          Effect.mapError(() =>
+            providerStreamError(PROVIDER, 'Provider connection failed.')
+          )
         )
-        const response = yield* Effect.tryPromise({
-          try: () =>
-            // oxlint-disable-next-line effect/noGlobals -- provider transport boundary with scoped cancellation
-            fetch(chatUrl, {
-              method: 'POST',
-              headers,
-              redirect: 'manual',
-              signal: controller.signal,
-              // oxlint-disable-next-line effect/noGlobals -- outgoing provider wire payload
-              body: JSON.stringify({
-                model: modelId,
-                messages: plain.messages,
-                stream: true,
-                stream_options: { include_usage: true },
-                max_tokens: config.maxOutputTokens ?? 16_000
-              })
-            }),
-          catch: () => providerStreamError(PROVIDER, 'Provider connection failed.')
-        })
-        if (!response.ok || response.body === null) {
+        const web = HttpClientResponse.toWeb(response)
+        if (
+          response.status < 200 ||
+          response.status >= 300 ||
+          Option.isNone(web) ||
+          web.value.body === null
+        ) {
           return yield* providerStreamError(
             PROVIDER,
             `Provider refused streaming with status ${response.status}.`
           )
         }
         return providerTextStream(
-          response.body,
+          web.value.body,
           PROVIDER,
           modelId,
-          response.headers.get('x-request-id') ?? undefined
+          response.headers['x-request-id']
         )
       })
     )

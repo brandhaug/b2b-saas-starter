@@ -17,7 +17,7 @@ Effect `LanguageModel` adapters own inference. `AssistantService.ask` retains th
 
 - Callers supply `ProviderEnv`; this package reads no process environment or Worker binding directly.
 - Adapter failures use `AiError`. The stateless boundary maps them to `AssistantUnavailable`; the conversation boundary exposes safe `ConversationModelFailure` data without raw provider diagnostics.
-- OpenAI streaming scopes an AbortController around fetch and response consumption. Workers AI cancels its response reader; its binding provides no provider billing or cancellation guarantee before the response stream exists.
+- OpenAI uses `HttpClient.withScope` so cancellation owns the request through response consumption, including streaming. Keep manual redirects and no automatic inference retry. Workers AI cancels its response reader; its binding provides no provider billing or cancellation guarantee before the response stream exists.
 - Keep SDK UI-message types beside the host. This package exports application events and Effect streams.
 - Provider token limits use `max_tokens`, usage and finish reasons. The separate response byte cap detects a malformed/oversized provider response; it is not a token counter.
 
