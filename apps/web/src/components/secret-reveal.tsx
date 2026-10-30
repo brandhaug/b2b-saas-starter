@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
+import { useClipboard } from '@/hooks/use-clipboard'
 
 import { Button } from '@/components/ui/button'
 import { Identifier } from '@/components/page/identifier'
@@ -20,24 +21,12 @@ export function SecretReveal({
   readonly label: string
   readonly className?: string
 }) {
-  const [revealed, setRevealed] = useState(false)
-  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
-
-  useEffect(() => () => clearTimeout(timer.current), [])
-
-  async function copy() {
-    clearTimeout(timer.current)
-    // oxlint-disable-next-line effect/noTryCatch -- clipboard is a browser platform boundary; keep manual selection recovery local to the control.
-    try {
-      await navigator.clipboard.writeText(secret)
-      setCopyStatus('copied')
-      clearTimeout(timer.current)
-      timer.current = setTimeout(() => setCopyStatus('idle'), 2000)
-    } catch {
-      setCopyStatus('failed')
-    }
+  const [visibility, setVisibility] = useState({ secret, revealed: false })
+  if (visibility.secret !== secret) {
+    setVisibility({ secret, revealed: false })
   }
+  const revealed = visibility.secret === secret && visibility.revealed
+  const { status: copyStatus, copy } = useClipboard(secret, { successDuration: 2000 })
 
   return (
     // `flex-wrap` plus `min-w-0 break-all` on the code: a 40–64 character
@@ -56,7 +45,7 @@ export function SecretReveal({
         }
         aria-pressed={revealed}
         onClick={() => {
-          setRevealed((r) => !r)
+          setVisibility({ secret, revealed: !revealed })
         }}
       >
         {revealed ? m.hide_action() : m.action_show()}
@@ -66,6 +55,7 @@ export function SecretReveal({
         variant="ghost"
         className="shrink-0"
         aria-label={m.action_copy_named({ label })}
+        aria-disabled={copyStatus === 'pending'}
         onClick={() => void copy()}
       >
         {m.action_copy()}
