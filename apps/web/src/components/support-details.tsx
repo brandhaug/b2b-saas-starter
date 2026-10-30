@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useClipboard } from '@/hooks/use-clipboard'
 import { CopyIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import * as m from '@b2b-saas-starter/i18n/messages'
@@ -13,28 +13,28 @@ export function SupportDetails({
   readonly workspaceId?: string | undefined
   readonly appVersion?: string | undefined
 }) {
-  const [status, setStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const details = [`Route: ${routeName}`]
+  if (appVersion) {
+    details.push(`App version: ${appVersion}`)
+  }
+  if (workspaceId) {
+    details.push(`Workspace ID: ${workspaceId}`)
+  }
+  const value = details.join('\n')
+  const { status, copy } = useClipboard(value)
   async function copyDetails() {
-    const details = [`Time (UTC): ${new Date().toISOString()}`, `Route: ${routeName}`]
-    if (appVersion) {
-      details.push(`App version: ${appVersion}`)
-    }
-    if (workspaceId) {
-      details.push(`Workspace ID: ${workspaceId}`)
-    }
     // No request reference is exposed by the current UI error contract.
     // Never replace it with a page trace or an incoming correlation header.
-    // oxlint-disable-next-line effect/noTryCatch -- clipboard platform boundary; handle denied access and unsupported browsers without shipping Effect
-    try {
-      await navigator.clipboard.writeText(details.join('\n'))
-      setStatus('copied')
-    } catch {
-      setStatus('failed')
-    }
+    await copy(`Time (UTC): ${new Date().toISOString()}\n${value}`)
   }
   return (
     <div className="grid justify-items-start gap-2">
-      <Button type="button" variant="outline" onClick={() => void copyDetails()}>
+      <Button
+        type="button"
+        variant="outline"
+        aria-disabled={status === 'pending'}
+        onClick={() => void copyDetails()}
+      >
         <CopyIcon className="size-4" />
         {m.support_copy_details()}
       </Button>

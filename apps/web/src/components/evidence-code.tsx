@@ -4,6 +4,7 @@ import { CopyIcon, WrapTextIcon } from 'lucide-react'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { useClipboard } from '@/hooks/use-clipboard'
 
 /** Displays already-authorized diagnostic text without interpreting it as markup. */
 export function EvidenceCode({
@@ -15,17 +16,7 @@ export function EvidenceCode({
 }) {
   const labelId = useId()
   const [wrap, setWrap] = useState(true)
-  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
-
-  async function copy() {
-    // oxlint-disable-next-line effect/noTryCatch -- Clipboard is a browser platform boundary; refusals stay in the local presentation layer.
-    try {
-      await navigator.clipboard.writeText(value)
-      setCopyStatus('copied')
-    } catch {
-      setCopyStatus('failed')
-    }
-  }
+  const { status: copyStatus, copy } = useClipboard(value)
 
   return (
     <div className="min-w-0 border border-border bg-card">
@@ -49,6 +40,7 @@ export function EvidenceCode({
             size="icon-xs"
             variant="ghost"
             aria-label={m.evidence_copy_named({ label })}
+            aria-disabled={copyStatus === 'pending'}
             onClick={() => void copy()}
           >
             <CopyIcon />
@@ -70,7 +62,8 @@ export function EvidenceCode({
         aria-live="polite"
         className={cn(
           'block text-sm',
-          copyStatus !== 'idle' && 'border-t border-border px-3 py-2',
+          (copyStatus === 'copied' || copyStatus === 'failed') &&
+            'border-t border-border px-3 py-2',
           copyStatus === 'failed' ? 'text-destructive' : 'text-status-ok'
         )}
       >

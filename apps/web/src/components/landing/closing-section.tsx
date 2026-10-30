@@ -1,7 +1,7 @@
 import { LightRays } from '@/components/landing/light-rays'
 import { Link } from '@tanstack/react-router'
 import { ArrowRightIcon, ClipboardIcon } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useClipboard } from '@/hooks/use-clipboard'
 import { Button } from '@/components/ui/button'
 import { buttonVariants } from '@/lib/button-variants'
 import { cn } from '@/lib/utils'
@@ -18,40 +18,10 @@ function ClosingSection() {
   // The whole command block, one click into the clipboard: the clone line
   // plus every quickstart step, `&&`-joined so it pastes as one paste. Same
   // copy pattern as secret-reveal: await, confirm visibly, clear after 2s.
-  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
-  const timer = useRef<number | undefined>(undefined)
-  const mounted = useRef(true)
-
-  useEffect(() => {
-    mounted.current = true
-    return () => {
-      mounted.current = false
-      window.clearTimeout(timer.current)
-      timer.current = undefined
-    }
-  }, [])
-
-  async function copyCommands() {
-    // oxlint-disable-next-line effect/noTryCatch -- Clipboard is a browser platform boundary; refusals stay in the local presentation layer.
-    try {
-      await navigator.clipboard.writeText(COPY_COMMAND)
-      if (!mounted.current) {
-        return
-      }
-      setCopyStatus('copied')
-    } catch {
-      if (!mounted.current) {
-        return
-      }
-      setCopyStatus('failed')
-    }
-
-    window.clearTimeout(timer.current)
-    timer.current = window.setTimeout(() => {
-      timer.current = undefined
-      setCopyStatus('idle')
-    }, 2000)
-  }
+  const { status: copyStatus, copy: copyCommands } = useClipboard(COPY_COMMAND, {
+    successDuration: 2000,
+    failureDuration: 2000
+  })
 
   return (
     <section className="band-deep relative isolate overflow-hidden bg-background text-foreground">
@@ -104,6 +74,7 @@ function ClosingSection() {
                 variant="outline"
                 size="icon-xs"
                 aria-label={m.action_copy_commands()}
+                aria-disabled={copyStatus === 'pending'}
                 onClick={() => void copyCommands()}
               >
                 <ClipboardIcon className="size-3.5" />
