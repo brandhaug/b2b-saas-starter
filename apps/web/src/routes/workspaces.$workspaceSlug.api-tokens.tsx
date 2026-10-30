@@ -1,4 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useSuspenseQuery } from '@tanstack/react-query'
+import { pageQueryOptions } from '@/lib/page-query'
 import { pageTitle } from '@/components/page/page-title'
 import { RoutePending } from '@/components/route-pending'
 import { workspaceRouteError } from '@/components/workspace-route-error'
@@ -20,10 +22,17 @@ const ApiTokensRouteError = workspaceRouteError({
 // The auth gate lives on the /workspaces layout route (workspaces.tsx);
 // `context.session` arrives from there. The page's own read permission
 // (`apiToken:list`) is a hard gate inside the loader.
+function apiTokensQuery(actorId: string, workspaceSlug: string) {
+  return pageQueryOptions(['workspace-api-tokens', actorId, workspaceSlug], () =>
+    loadWorkspaceApiTokensServerFn({ data: { workspaceSlug } })
+  )
+}
+
 export const Route = createFileRoute('/workspaces/$workspaceSlug/api-tokens')({
-  loader: ({ params }) =>
-    loadWorkspaceApiTokensServerFn({
-      data: { workspaceSlug: params.workspaceSlug }
+  loader: ({ params, context }) =>
+    context.queryClient.query({
+      ...apiTokensQuery(context.session.user.id, params.workspaceSlug),
+      staleTime: 0
     }),
   pendingComponent: RoutePending,
   errorComponent: ApiTokensRouteError,
@@ -43,7 +52,9 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/api-tokens')({
  */
 function WorkspaceApiTokensRoute() {
   const { workspaceSlug } = Route.useParams()
-  const data = Route.useLoaderData()
+  const { data } = useSuspenseQuery(
+    apiTokensQuery(Route.useRouteContext().session.user.id, workspaceSlug)
+  )
   const systemRole = Route.useRouteContext().session.user.role
   return (
     <WorkspaceApiTokensPage

@@ -1,6 +1,8 @@
 import { redirectSearch } from '@/lib/utils'
 import { loadOwnedConversationsServerFn } from '@/lib/server/account-conversations'
 import { createFileRoute } from '@tanstack/react-router'
+import { useSuspenseQuery } from '@tanstack/react-query'
+import { pageQueryOptions } from '@/lib/page-query'
 import { AccountPage } from '@/components/account-page'
 import { pageTitle } from '@/components/page/page-title'
 import { authClient } from '@/lib/auth-client'
@@ -13,6 +15,24 @@ import { m } from '@b2b-saas-starter/i18n/messages'
 // user-level, not workspace-level, so the route keeps its own session gate
 // (same reasoning as /invitations/accept). There is no workspace to resolve —
 // and nothing to be a member of.
+function accountQuery(actorId: string) {
+  return pageQueryOptions(['account-page', actorId], async () => {
+    // oxlint-disable-next-line effect/noNewPromise -- independent client-safe server reads
+    const [account, connections] = await Promise.all([
+      loadAccountPageServerFn(),
+      loadMcpClientConnectionsServerFn()
+    ])
+    return { ...account, connections }
+  })
+}
+
+function conversationsQuery(actorId: string) {
+  return pageQueryOptions(
+    ['account-conversations', actorId],
+    loadOwnedConversationsServerFn
+  )
+}
+
 export const Route = createFileRoute('/account')({
   validateSearch: redirectSearch,
   beforeLoad: async ({ location }) => {
@@ -23,14 +43,19 @@ export const Route = createFileRoute('/account')({
   // call (see `account.effects.ts`); the MCP clients connected to this
   // account (ADR 0068) ride beside it via their own server fn — all
   // identity-keyed, no workspace involved.
-  loader: async () => {
+  loader: async ({ context }) => {
     // oxlint-disable-next-line effect/noNewPromise -- TanStack loaders are promise-shaped; Promise.all keeps the account read and the MCP-client read parallel
-    const [account, connections, ownedConversations] = await Promise.all([
-      loadAccountPageServerFn(),
-      loadMcpClientConnectionsServerFn(),
-      loadOwnedConversationsServerFn()
+    const [account, ownedConversations] = await Promise.all([
+      context.queryClient.query({
+        ...accountQuery(context.session.user.id),
+        staleTime: 0
+      }),
+      context.queryClient.query({
+        ...conversationsQuery(context.session.user.id),
+        staleTime: 0
+      })
     ])
-    return { ...account, connections, ownedConversations }
+    return { ...account, ownedConversations }
   },
   component: AccountRoute,
   head: () => ({ meta: [{ title: pageTitle(m.public_meta_account()) }] })
@@ -45,8 +70,12 @@ export const Route = createFileRoute('/account')({
 function AccountRoute() {
   const { session } = Route.useRouteContext()
   const { redirect } = Route.useSearch()
-  const { deletionPlan, preferences, connections, ownedConversations } =
-    Route.useLoaderData()
+  const {
+    data: { deletionPlan, preferences, connections }
+  } = useSuspenseQuery(accountQuery(session.user.id))
+  const { data: ownedConversations } = useSuspenseQuery(
+    conversationsQuery(session.user.id)
+  )
   // The current session token never rides the SSR payload (see `RouteSession`
   // in lib/server/auth.ts) — the panel reads it from the client session hook.
   const currentSession = authClient.useSession()

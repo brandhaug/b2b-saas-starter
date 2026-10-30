@@ -1,4 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useSuspenseQuery } from '@tanstack/react-query'
+import { pageQueryOptions } from '@/lib/page-query'
 import { pageTitle } from '@/components/page/page-title'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceMembersPage } from '@/components/workspace-members-page'
@@ -7,9 +9,18 @@ import { m } from '@b2b-saas-starter/i18n/messages'
 
 // The auth gate lives on the /workspaces layout route (workspaces.tsx);
 // `context.session` arrives from there.
+function membersQuery(actorId: string, workspaceSlug: string) {
+  return pageQueryOptions(['workspace-members', actorId, workspaceSlug], () =>
+    loadWorkspaceMembersServerFn({ data: { workspaceSlug } })
+  )
+}
+
 export const Route = createFileRoute('/workspaces/$workspaceSlug/members')({
-  loader: ({ params }) =>
-    loadWorkspaceMembersServerFn({ data: { workspaceSlug: params.workspaceSlug } }),
+  loader: ({ params, context }) =>
+    context.queryClient.query({
+      ...membersQuery(context.session.user.id, params.workspaceSlug),
+      staleTime: 0
+    }),
   pendingComponent: RoutePending,
   component: WorkspaceMembersRoute,
   head: ({ params }) => ({
@@ -27,8 +38,8 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/members')({
  */
 function WorkspaceMembersRoute() {
   const { workspaceSlug } = Route.useParams()
-  const data = Route.useLoaderData()
   const session = Route.useRouteContext().session
+  const { data } = useSuspenseQuery(membersQuery(session.user.id, workspaceSlug))
   return (
     <WorkspaceMembersPage
       workspaceSlug={workspaceSlug}

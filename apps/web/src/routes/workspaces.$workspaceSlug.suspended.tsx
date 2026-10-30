@@ -1,4 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useSuspenseQuery } from '@tanstack/react-query'
+import { pageQueryOptions } from '@/lib/page-query'
 
 import { SuspendedWorkspaceRecovery } from '@/components/suspended-workspace-recovery'
 import { pageTitle } from '@/components/page/page-title'
@@ -6,9 +8,18 @@ import { RoutePending } from '@/components/route-pending'
 import { loadWorkspaceRecoveryServerFn } from '@/lib/server/workspace-suspension'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
+function recoveryQuery(actorId: string, workspaceSlug: string) {
+  return pageQueryOptions(['workspace-recovery', actorId, workspaceSlug], () =>
+    loadWorkspaceRecoveryServerFn({ data: { workspaceSlug } })
+  )
+}
+
 export const Route = createFileRoute('/workspaces/$workspaceSlug/suspended')({
-  loader: ({ params }) =>
-    loadWorkspaceRecoveryServerFn({ data: { workspaceSlug: params.workspaceSlug } }),
+  loader: ({ params, context }) =>
+    context.queryClient.query({
+      ...recoveryQuery(context.session.user.id, params.workspaceSlug),
+      staleTime: 0
+    }),
   pendingComponent: RoutePending,
   component: SuspendedWorkspaceRoute,
   head: ({ params }) => ({
@@ -19,7 +30,12 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/suspended')({
 })
 
 function SuspendedWorkspaceRoute() {
-  const data = Route.useLoaderData()
+  const { data } = useSuspenseQuery(
+    recoveryQuery(
+      Route.useRouteContext().session.user.id,
+      Route.useParams().workspaceSlug
+    )
+  )
   const systemRole = Route.useRouteContext().session.user.role
   return (
     <SuspendedWorkspaceRecovery

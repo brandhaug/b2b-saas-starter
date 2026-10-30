@@ -1,4 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useSuspenseQuery } from '@tanstack/react-query'
+import { pageQueryOptions } from '@/lib/page-query'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceDashboardPage } from '@/components/workspace-dashboard-page'
 import { pageTitle } from '@/components/page/page-title'
@@ -7,13 +9,22 @@ import { m } from '@b2b-saas-starter/i18n/messages'
 
 // The auth gate lives on the /workspaces layout route (workspaces.tsx);
 // `context.session` arrives from there.
+function dashboardQuery(actorId: string, workspaceSlug: string) {
+  return pageQueryOptions(['workspace-dashboard', actorId, workspaceSlug], () =>
+    loadWorkspaceDashboardServerFn({ data: { workspaceSlug } })
+  )
+}
+
 export const Route = createFileRoute('/workspaces/$workspaceSlug/')({
   // The `workspaceDashboard` projection — shared with the REST `overview`
   // endpoint so app and Capability Interface views cannot drift — plus the
   // soft segments the attention feed reads, each dropped (null) for an actor
   // without its permission, plus the onboarding checklist.
-  loader: ({ params }) =>
-    loadWorkspaceDashboardServerFn({ data: { workspaceSlug: params.workspaceSlug } }),
+  loader: ({ params, context }) =>
+    context.queryClient.query({
+      ...dashboardQuery(context.session.user.id, params.workspaceSlug),
+      staleTime: 0
+    }),
   pendingComponent: RoutePending,
   component: WorkspaceDashboardRoute,
   head: ({ params }) => ({
@@ -29,6 +40,12 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/')({
  * tree every page preloads.
  */
 function WorkspaceDashboardRoute() {
+  const { data } = useSuspenseQuery(
+    dashboardQuery(
+      Route.useRouteContext().session.user.id,
+      Route.useParams().workspaceSlug
+    )
+  )
   const systemRole = Route.useRouteContext().session.user.role
-  return <WorkspaceDashboardPage data={Route.useLoaderData()} systemRole={systemRole} />
+  return <WorkspaceDashboardPage data={data} systemRole={systemRole} />
 }

@@ -1,5 +1,7 @@
 import { type NotificationKind } from '@b2b-saas-starter/capabilities/notifications/notification-kinds'
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { useSuspenseQuery } from '@tanstack/react-query'
+import { pageQueryOptions } from '@/lib/page-query'
 import { NotificationPreferencesPanel } from '@/components/notification-preferences-panel'
 import { EmailDeliveryPanel } from '@/components/email-delivery-panel'
 import { OwnEmailResend } from '@/components/own-email-resend'
@@ -25,30 +27,38 @@ import { m } from '@b2b-saas-starter/i18n/messages'
  * (`account_.notifications`) rather than nested under `/account`, whose
  * component has no `<Outlet />` and would swallow a child.
  */
+function notificationsQuery(actorId: string) {
+  return pageQueryOptions(['account-notifications', actorId], async () => {
+    // oxlint-disable-next-line effect/noNewPromise -- independent client-safe server reads
+    const [preferences, deliveries, turnstileSiteKey] = await Promise.all([
+      loadNotificationPreferencesServerFn(),
+      loadOwnEmailDeliveryServerFn(),
+      getTurnstileSiteKey()
+    ])
+    return { ...preferences, deliveries, turnstileSiteKey }
+  })
+}
+
 export const Route = createFileRoute('/account_/notifications')({
   validateSearch: (search) => pickOptionalStrings(search, ['kind', 'tableViews']),
   beforeLoad: async ({ location }) => {
     const session = await requireSession(location.href)
     return { session }
   },
-  loader: async () => {
-    // oxlint-disable-next-line effect/noNewPromise -- parallel client-safe server-fn calls; importing Effect here would ship its runtime
-    const [preferences, deliveries, turnstileSiteKey] = await Promise.all([
-      loadNotificationPreferencesServerFn(),
-      loadOwnEmailDeliveryServerFn(),
-      // Env-gated server-only read: `null` renders no widget and sends no
-      // token, so the resend buttons work provider-light.
-      getTurnstileSiteKey()
-    ])
-    return { ...preferences, deliveries, turnstileSiteKey }
-  },
+  loader: ({ context }) =>
+    context.queryClient.query({
+      ...notificationsQuery(context.session.user.id),
+      staleTime: 0
+    }),
   component: AccountNotificationsRoute,
   head: () => ({ meta: [{ title: pageTitle(m.notification_preferences()) }] })
 })
 
 function AccountNotificationsRoute() {
   const { session } = Route.useRouteContext()
-  const { preferences, deliveries, turnstileSiteKey } = Route.useLoaderData()
+  const {
+    data: { preferences, deliveries, turnstileSiteKey }
+  } = useSuspenseQuery(notificationsQuery(session.user.id))
   const { kind } = Route.useSearch()
   let highlightKind: NotificationKind | undefined
   if (isNotificationKind(kind)) {

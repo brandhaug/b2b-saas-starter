@@ -7,6 +7,8 @@ import {
 import { type AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { pageTitle } from '@/components/page/page-title'
 import { createFileRoute } from '@tanstack/react-router'
+import { useSuspenseQuery } from '@tanstack/react-query'
+import { pageQueryOptions } from '@/lib/page-query'
 
 import { AdminUserActions } from '@/components/admin-user-actions'
 import { AdminFailedDeliveries } from '@/components/admin-failed-deliveries'
@@ -175,6 +177,10 @@ function suspensionView(workspace: AdminWorkspace) {
   return { ...withExplanation, suspendedAt: workspace.suspension.changedAt }
 }
 
+function adminQuery(actorId: string, input: Parameters<typeof loadAdminPage>[0]) {
+  return pageQueryOptions(['admin-page', actorId, input], () => loadAdminPage(input))
+}
+
 export const Route = createFileRoute('/admin')({
   validateSearch: workspaceViewSearch,
   loaderDeps: ({ search }) => ({
@@ -189,17 +195,22 @@ export const Route = createFileRoute('/admin')({
     return { session }
   },
   // Parallel system-level reads; no workspace context is borrowed.
-  loader: ({ deps }) => loadAdminPage(deps),
+  loader: ({ deps, context }) =>
+    context.queryClient.query({
+      ...adminQuery(context.session.user.id, deps),
+      staleTime: 0
+    }),
   pendingComponent: RoutePending,
   component: AdminPage,
   head: () => ({ meta: [{ title: pageTitle(m.public_meta_admin()) }] })
 })
 
 function AdminPage() {
-  const { users, events, failedDeliveries, emailDeliveries, workspaces } =
-    Route.useLoaderData()
   const { session } = Route.useRouteContext()
   const search = Route.useSearch()
+  const {
+    data: { users, events, failedDeliveries, emailDeliveries, workspaces }
+  } = useSuspenseQuery(adminQuery(session.user.id, Route.useLoaderDeps()))
 
   return (
     <WorkspaceShell viewer={null} systemRole={session.user.role} workspaceSlug={null}>
