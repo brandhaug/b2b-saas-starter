@@ -18,8 +18,6 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 
-const ACCOUNTS_QUERY_KEY: ReadonlyArray<unknown> = ['account', 'linked-providers']
-
 /**
  * One linked sign-in method, narrowed to the fields the panel reads: `id` is
  * the account row's id — the value `unlinkAccount` takes — and `providerId`
@@ -60,9 +58,13 @@ function toViewModels(
  * list is this panel's own query, so actions refetch it instead of
  * invalidating the route, and every failure reads through `ActionFeedback`.
  */
-export function LinkedAccountsPanel() {
+export function LinkedAccountsPanel({
+  userId = 'current'
+}: {
+  readonly userId?: string
+}) {
   const { hydrated, rows, loadError, isPending, refetch } = useAuthClientRows({
-    queryKey: ACCOUNTS_QUERY_KEY,
+    queryKey: ['account', userId, 'linked-providers'],
     list: () => authClient.listAccounts(),
     toRows: toViewModels,
     loadFailedMessage: m.load_linked_providers_failed()
@@ -110,6 +112,7 @@ export function LinkedAccountsPanel() {
                       render={
                         <Button
                           variant="ghost"
+                          disabled={act.pending}
                           aria-label={m.unlink_named({ name: row.methodLabel })}
                         />
                       }
@@ -126,6 +129,7 @@ export function LinkedAccountsPanel() {
                       <AlertDialogFooter>
                         <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
                         <AlertDialogAction
+                          disabled={act.pending}
                           onClick={() =>
                             act.run(() =>
                               authClient.unlinkAccount({ accountId: row.accountId })

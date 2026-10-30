@@ -1,6 +1,6 @@
 import { roleLabel, statusLabel } from '@/lib/value-labels'
 import { type Invitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
-import { useState } from 'react'
+import { type ComponentProps } from 'react'
 import { toast } from 'sonner'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -79,7 +79,11 @@ function invitationSendLabel(sent: SentInvitation) {
   return m.workspace_invitation_created_unsent(values)
 }
 
-export function InvitationPanel({
+export function InvitationPanel(props: ComponentProps<typeof WorkspaceInvitations>) {
+  return <WorkspaceInvitations key={props.workspaceSlug} {...props} />
+}
+
+function WorkspaceInvitations({
   workspaceSlug,
   viewer,
   invitations,
@@ -118,13 +122,13 @@ export function InvitationPanel({
       return invitation.email
     }
   )
-  const [sent, setSent] = useState<SentInvitation | null>(null)
 
   const cancel = useServerAction(
     (invitationId: string) =>
       cancelInvitationServerFn({ data: { workspaceSlug, invitationId } }),
     {
       failureMessage: m.invitation_cancel_failed(),
+      identityKey: workspaceSlug,
       onSuccess: (_, invitationId) => {
         const invitation = invitations.find(
           (candidate) => candidate.id === invitationId
@@ -143,9 +147,10 @@ export function InvitationPanel({
       resendInvitationServerFn({ data: { workspaceSlug, invitationId } }),
     {
       failureMessage: m.email_delivery_resend_failed(),
-      onSuccess: (result) => setSent(result)
+      identityKey: workspaceSlug
     }
   )
+  const sent = resend.result
 
   // A cancel failure renders on the row that produced it and is cleared by
   // the next cancel — the shared per-row failure hook.
@@ -237,7 +242,8 @@ export function InvitationPanel({
                         <Button
                           variant="outline"
                           disabled={
-                            resend.pendingInput === invitation.id ||
+                            resend.pending ||
+                            cancel.pending ||
                             emailDeliveries.find(
                               (record) => record.referenceId === invitation.id
                             )?.resendAllowed === false
@@ -253,7 +259,7 @@ export function InvitationPanel({
                       {invitation.status === 'pending' ? (
                         <Button
                           variant="ghost"
-                          disabled={cancel.pendingInput === invitation.id}
+                          disabled={cancel.pending || resend.pending}
                           onClick={() =>
                             void cancelOnRow(invitation.id, () =>
                               cancel.runAsync(invitation.id)

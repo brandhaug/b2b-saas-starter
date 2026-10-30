@@ -4,7 +4,7 @@ import {
   type WorkspaceRole
 } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { MoreHorizontalIcon, SearchIcon } from 'lucide-react'
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useState, type ComponentProps } from 'react'
 import { toast } from 'sonner'
 
 import { ActionFeedback } from '@/components/page/action-feedback'
@@ -139,6 +139,7 @@ function MemberActions({
               <Button
                 variant="ghost"
                 size="icon-xs"
+                disabled={changing || removing || leaving}
                 aria-label={m.members_more_actions({ name: member.name })}
               />
             }
@@ -187,7 +188,11 @@ function MemberActions({
   )
 }
 
-export function MembersPanel({
+export function MembersPanel(props: ComponentProps<typeof WorkspaceMembers>) {
+  return <WorkspaceMembers key={props.workspaceSlug} {...props} />
+}
+
+function WorkspaceMembers({
   workspaceSlug,
   members,
   viewer,
@@ -205,7 +210,9 @@ export function MembersPanel({
   const table = useTableView('members', fields)
   const query = view.query ?? ''
   const requestedPage = pageFrom(view.page)
-  const [confirmingMember, setConfirmingMember] = useState<Member | null>(null)
+  const [confirmingMemberId, setConfirmingMemberId] = useState<string | null>(null)
+  const confirmingMember =
+    members.find((member) => member.id === confirmingMemberId) ?? null
   const [leaveArmed, setLeaveArmed] = useState(false)
   const { failure: failedRow, runWith: runOnRow } = useKeyedFailure<string>()
   const changeRole = useServerAction(
@@ -213,6 +220,7 @@ export function MembersPanel({
       changeMemberRoleServerFn({ data: { workspaceSlug, userId, role } }),
     {
       failureMessage: m.member_role_change_failed(),
+      identityKey: workspaceSlug,
       onSuccess: (_, { userId, role }) => {
         const member = members.find((candidate) => candidate.id === userId)
         toast.success(
@@ -228,6 +236,7 @@ export function MembersPanel({
       removeMemberServerFn({ data: { workspaceSlug, userId } }),
     {
       failureMessage: m.member_remove_failed(),
+      identityKey: workspaceSlug,
       onSuccess: (_, { userId }) => {
         const member = members.find((candidate) => candidate.id === userId)
         toast.success(
@@ -242,6 +251,7 @@ export function MembersPanel({
     () => leaveWorkspaceServerFn({ data: { workspaceSlug } }),
     {
       failureMessage: m.member_leave_failed(),
+      identityKey: workspaceSlug,
       invalidate: false,
       onSuccess: () => window.location.assign('/workspaces')
     }
@@ -362,8 +372,8 @@ export function MembersPanel({
                     canManage={canManage}
                     canRemove={canRemove}
                     viewer={viewer}
-                    changing={changeRole.pendingInput?.userId === member.id}
-                    removing={removeMember.pendingInput?.userId === member.id}
+                    changing={changeRole.pending}
+                    removing={removeMember.pending}
                     leaving={leaveWorkspace.pending}
                     leaveArmed={leaveArmed && member.id === actorUserId}
                     onRoleChange={(role) =>
@@ -371,7 +381,7 @@ export function MembersPanel({
                         changeRole.runAsync({ userId: member.id, role })
                       )
                     }
-                    onRemove={() => setConfirmingMember(member)}
+                    onRemove={() => setConfirmingMemberId(member.id)}
                     onLeave={() => {
                       setLeaveArmed(false)
                       void runOnRow(actorUserId, () => leaveWorkspace.runAsync())
@@ -422,7 +432,7 @@ export function MembersPanel({
         open={confirmingMember !== null}
         onOpenChange={(open) => {
           if (!open) {
-            setConfirmingMember(null)
+            setConfirmingMemberId(null)
           }
         }}
       >
@@ -440,7 +450,7 @@ export function MembersPanel({
               disabled={removeMember.pending}
               onClick={() => {
                 const member = confirmingMember
-                setConfirmingMember(null)
+                setConfirmingMemberId(null)
                 if (member !== null) {
                   void runOnRow(member.id, () =>
                     removeMember.runAsync({ userId: member.id })

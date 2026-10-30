@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useServerAction } from '@/hooks/use-server-action'
+import { useQuery } from '@tanstack/react-query'
+import { pageQueryOptions } from '@/lib/page-query'
 import { type OwnedConversation } from '@/lib/server/account-conversations'
 import { type ConversationResult } from '@/lib/server/assistant-conversations'
 import { callConversation } from '@/lib/assistant-conversation-call'
@@ -19,29 +21,44 @@ import {
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 export function AccountConversationsPanel({
+  userId,
   initial,
+  load,
   remove
 }: {
+  readonly userId: string
+  readonly load: () => Promise<ConversationResult<ReadonlyArray<OwnedConversation>>>
   readonly initial: ConversationResult<ReadonlyArray<OwnedConversation>>
   readonly remove: (input: {
     readonly data: { readonly conversationId: string }
   }) => Promise<ConversationResult<void>>
 }) {
-  const [removed, setRemoved] = useState<ReadonlySet<string>>(() => new Set())
-  const [pending, setPending] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(initial.ok ? null : initial.message)
-  const rows = initial.ok ? initial.value.filter((row) => !removed.has(row.id)) : []
-  async function deleteOwned(conversationId: string) {
-    setPending(conversationId)
-    const result = await callConversation(() => remove({ data: { conversationId } }))
-    setPending(null)
-    if (!result.ok) {
-      setError(result.message)
-      return
+  const query = useQuery({
+    ...pageQueryOptions(['account-conversations', userId], () =>
+      callConversation(load)
+    ),
+    initialData: initial,
+    gcTime: 0
+  })
+  const action = useServerAction(
+    (conversationId: string) =>
+      callConversation(() => remove({ data: { conversationId } })),
+    {
+      failureMessage: m.assistant_unreachable(),
+      identityKey: userId,
+      invalidate: false,
+      onSuccess: async (result) => {
+        if (result.ok) {
+          await query.refetch()
+        }
+      }
     }
-    setError(null)
-    setRemoved((current) => new Set([...current, conversationId]))
-  }
+  )
+  const error =
+    action.error ??
+    (action.result?.ok === false ? action.result.message : null) ??
+    (query.data.ok ? null : query.data.message)
+  const rows = query.data.ok ? query.data.value : []
   return (
     <Panel
       title={m.assistant_conversations_title()}
@@ -68,7 +85,7 @@ export function AccountConversationsPanel({
             <AlertDialog>
               <AlertDialogTrigger
                 render={
-                  <Button variant="outline" size="xs" disabled={pending !== null} />
+                  <Button variant="outline" size="xs" disabled={action.pending} />
                 }
               >
                 {m.assistant_conversations_delete()}
@@ -82,7 +99,10 @@ export function AccountConversationsPanel({
                 </AlertDialogDescription>
                 <AlertDialogFooter>
                   <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => void deleteOwned(row.id)}>
+                  <AlertDialogAction
+                    disabled={action.pending}
+                    onClick={() => action.run(row.id)}
+                  >
                     {m.assistant_conversations_delete()}
                   </AlertDialogAction>
                 </AlertDialogFooter>

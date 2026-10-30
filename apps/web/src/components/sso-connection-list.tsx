@@ -116,7 +116,7 @@ function ConnectionRow({
   readonly remove: ReturnType<typeof useServerAction<string, boolean>>
   readonly test: ReturnType<typeof useServerAction<string, SsoTestResult>>
 }) {
-  const updating = update.pendingInput?.providerId === connection.id
+  const busy = update.pending || test.pending || remove.pending
   return (
     <Item variant="outline" size="sm">
       <ItemContent>
@@ -158,7 +158,7 @@ function ConnectionRow({
           <>
             <Button
               variant="ghost"
-              disabled={test.pendingInput === connection.id}
+              disabled={busy}
               onClick={() => test.run(connection.id)}
             >
               {test.pendingInput === connection.id ? (
@@ -168,7 +168,7 @@ function ConnectionRow({
             </Button>
             <Button
               variant="ghost"
-              disabled={updating}
+              disabled={busy}
               onClick={() =>
                 update.run({
                   workspaceSlug,
@@ -187,7 +187,7 @@ function ConnectionRow({
           <ConfirmButton
             label={m.action_remove()}
             confirmLabel={m.sso_connection_remove()}
-            busy={remove.pendingInput === connection.id}
+            busy={busy}
             onConfirm={() => remove.run(connection.id)}
             target={connection.domain}
           />
@@ -198,7 +198,7 @@ function ConnectionRow({
           <Switch
             id={`require-sso-${connection.id}`}
             checked={connection.requireSso}
-            disabled={updating}
+            disabled={busy}
             onCheckedChange={(checked) =>
               update.run({
                 workspaceSlug,

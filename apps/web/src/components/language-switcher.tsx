@@ -22,7 +22,7 @@ import {
 import { useClientValue } from '@/lib/client-only-value'
 import { presentationSettings } from '@/lib/i18n'
 import { hasEditedForms } from '@/lib/unsaved-form'
-import { callServerFn } from '@/lib/server-call'
+import { useServerAction } from '@/hooks/use-server-action'
 import { setLocalePreferencesServerFn } from '@/lib/server/account-preferences'
 import { LocaleFlag } from '@/components/locale-flag'
 import { usePreview } from '@/lib/preview-context'
@@ -31,31 +31,29 @@ export function LanguageSwitcher() {
   const preview = usePreview()
   const hydrated = useClientValue(() => true, false)
   const [pending, setPending] = useState<Locale | null>(null)
-  const [status, setStatus] = useState<'idle' | 'saving'>('idle')
-  const [error, setError] = useState<string | null>(null)
-
-  async function switchLanguage(locale: Locale) {
-    setStatus('saving')
-    setError(null)
-    if (!preview && presentationSettings().authenticated) {
-      const result = await callServerFn(
-        () => setLocalePreferencesServerFn({ data: { locale } }),
-        m.shell_save_error()
-      )
-      if (!result.ok) {
-        setError(result.message)
-        setStatus('idle')
-        return
+  const switchLanguage = useServerAction(
+    (locale: Locale) => setLocalePreferencesServerFn({ data: { locale } }),
+    {
+      failureMessage: m.shell_save_error(),
+      invalidate: false,
+      onSuccess: async (_, locale) => {
+        await setLocale(locale)
       }
     }
-    await setLocale(locale)
+  )
+  function selectLanguage(locale: Locale) {
+    if (preview || !presentationSettings().authenticated) {
+      void setLocale(locale)
+    } else {
+      switchLanguage.run(locale)
+    }
   }
 
   return (
     <div data-locale-control className="grid gap-1">
       <Select
         value={getLocale()}
-        disabled={!hydrated || status === 'saving'}
+        disabled={!hydrated || switchLanguage.pending}
         onValueChange={(value) => {
           if (value === null) {
             return
@@ -67,7 +65,7 @@ export function LanguageSwitcher() {
           if (hasEditedForms()) {
             setPending(locale)
           } else {
-            void switchLanguage(locale)
+            selectLanguage(locale)
           }
         }}
       >
@@ -93,9 +91,9 @@ export function LanguageSwitcher() {
           </SelectGroup>
         </SelectContent>
       </Select>
-      {error ? (
+      {switchLanguage.error ? (
         <p role="alert" className="text-xs text-destructive">
-          {error}
+          {switchLanguage.error}
         </p>
       ) : null}
       <AlertDialog
@@ -114,9 +112,10 @@ export function LanguageSwitcher() {
           <AlertDialogFooter>
             <AlertDialogCancel>{m.shell_cancel()}</AlertDialogCancel>
             <AlertDialogAction
+              disabled={switchLanguage.pending}
               onClick={() => {
                 if (pending) {
-                  void switchLanguage(pending)
+                  selectLanguage(pending)
                 }
               }}
             >

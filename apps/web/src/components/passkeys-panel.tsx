@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useForm } from '@tanstack/react-form'
 import { authClient } from '@/lib/auth-client'
 import {
   AlertDialog,
@@ -20,8 +21,6 @@ import { useAuthClientAction, useAuthClientRows } from '@/hooks/use-auth-client-
 import { unwrapAuthResult } from '@/lib/auth-result'
 import { formatTimestamp } from '@/lib/format-date'
 import { m } from '@b2b-saas-starter/i18n/messages'
-
-const PASSKEYS_QUERY_KEY: ReadonlyArray<unknown> = ['account', 'passkeys']
 
 /** One Better Auth passkey row, as the panel reads it. */
 type PasskeyRecord = {
@@ -69,9 +68,9 @@ function toViewModels(passkeys: ReadonlyArray<PasskeyRecord>): Array<PasskeyRowV
  * actions refetch it instead of invalidating the route, and every failure
  * reads through `ActionFeedback`.
  */
-export function PasskeysPanel() {
+export function PasskeysPanel({ userId = 'current' }: { readonly userId?: string }) {
   const { hydrated, rows, loadError, isPending, refetch } = useAuthClientRows({
-    queryKey: PASSKEYS_QUERY_KEY,
+    queryKey: ['account', userId, 'passkeys'],
     list: () => authClient.passkey.listUserPasskeys(),
     toRows: toViewModels,
     loadFailedMessage: m.load_passkeys_failed()
@@ -133,6 +132,7 @@ export function PasskeysPanel() {
                   render={
                     <Button
                       variant="ghost"
+                      disabled={remove.pending}
                       aria-label={m.remove_passkey_named({ name: row.label })}
                     />
                   }
@@ -148,7 +148,10 @@ export function PasskeysPanel() {
                   </AlertDialogDescription>
                   <AlertDialogFooter>
                     <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => remove.run({ id: row.id })}>
+                    <AlertDialogAction
+                      disabled={remove.pending}
+                      onClick={() => remove.run({ id: row.id })}
+                    >
                       {m.remove_passkey_action()}
                     </AlertDialogAction>
                   </AlertDialogFooter>
@@ -179,9 +182,8 @@ function AddPasskeyForm({
   /** Signals the panel to refetch its list; the query, not local state, owns it. */
   readonly onDone: () => void
 }) {
-  const [name, setName] = useState('')
   const add = useServerAction(
-    () => {
+    (name: string) => {
       const trimmed = name.trim()
       return unwrapAuthResult(
         () =>
@@ -193,30 +195,44 @@ function AddPasskeyForm({
       failureMessage: m.passkey_add_failed(),
       invalidate: false,
       onSuccess: () => {
-        setName('')
         onDone()
       }
     }
   )
+  const form = useForm({
+    defaultValues: { name: '' },
+    onSubmit: async ({ value }) => {
+      const outcome = await add.runAsync(value.name)
+      if (outcome.ok) {
+        form.reset()
+      }
+    }
+  })
 
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault()
-        add.run()
+        void form.handleSubmit()
       }}
       className="grid gap-3 border-t border-border pt-4"
     >
-      <div className="grid gap-1.5">
-        <Label htmlFor="passkey-name">{m.form_passkey_name()}</Label>
-        <Input
-          id="passkey-name"
-          placeholder={m.passkey_name_placeholder()}
-          autoComplete="off"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-        />
-      </div>
+      <form.Field name="name">
+        {(field) => (
+          <div className="grid gap-1.5">
+            <Label htmlFor="passkey-name">{m.form_passkey_name()}</Label>
+            <Input
+              id="passkey-name"
+              disabled={add.pending}
+              placeholder={m.passkey_name_placeholder()}
+              autoComplete="off"
+              value={field.state.value}
+              onBlur={field.handleBlur}
+              onChange={(event) => field.handleChange(event.target.value)}
+            />
+          </div>
+        )}
+      </form.Field>
       <Button type="submit" variant="outline" className="w-fit" disabled={add.pending}>
         {m.add_passkey()}
       </Button>
@@ -240,23 +256,6 @@ function RenamePasskey({
   readonly onDone: () => void
 }) {
   const [armed, setArmed] = useState(false)
-  const [name, setName] = useState(row.label)
-  const rename = useServerAction(
-    () =>
-      unwrapAuthResult(
-        () => authClient.passkey.updatePasskey({ id: row.id, name: name.trim() }),
-        m.passkey_action_failed()
-      ),
-    {
-      failureMessage: m.passkey_action_failed(),
-      invalidate: false,
-      onSuccess: () => {
-        setArmed(false)
-        onDone()
-      }
-    }
-  )
-
   if (!armed) {
     return (
       <Button
@@ -269,10 +268,46 @@ function RenamePasskey({
     )
   }
   return (
+    <RenamePasskeyForm row={row} onCancel={() => setArmed(false)} onDone={onDone} />
+  )
+}
+
+function RenamePasskeyForm({
+  row,
+  onCancel,
+  onDone
+}: {
+  readonly row: PasskeyRowView
+  readonly onCancel: () => void
+  readonly onDone: () => void
+}) {
+  const rename = useServerAction(
+    (name: string) =>
+      unwrapAuthResult(
+        () => authClient.passkey.updatePasskey({ id: row.id, name: name.trim() }),
+        m.passkey_action_failed()
+      ),
+    {
+      failureMessage: m.passkey_action_failed(),
+      invalidate: false,
+      onSuccess: () => {
+        onCancel()
+        onDone()
+      }
+    }
+  )
+
+  const form = useForm({
+    defaultValues: { name: row.label },
+    onSubmit: async ({ value }) => {
+      await rename.runAsync(value.name)
+    }
+  })
+  return (
     <form
       onSubmit={(event) => {
         event.preventDefault()
-        rename.run()
+        void form.handleSubmit()
       }}
       // Wraps rather than squeezes: on a narrow row the field takes the full
       // width and the two actions drop to the next line.
@@ -282,24 +317,28 @@ function RenamePasskey({
       <Label htmlFor={`passkey-rename-${row.id}`} className="sr-only">
         {m.new_name()}
       </Label>
-      <Input
-        id={`passkey-rename-${row.id}`}
-        value={name}
-        autoComplete="off"
-        onChange={(event) => setName(event.target.value)}
-        required
-        className="h-8 max-md:h-11 w-full sm:w-36"
-      />
+      <form.Field name="name">
+        {(field) => (
+          <Input
+            id={`passkey-rename-${row.id}`}
+            disabled={rename.pending}
+            value={field.state.value}
+            autoComplete="off"
+            onBlur={field.handleBlur}
+            onChange={(event) => field.handleChange(event.target.value)}
+            required
+            className="h-8 max-md:h-11 w-full sm:w-36"
+          />
+        )}
+      </form.Field>
       <Button type="submit" variant="outline" disabled={rename.pending}>
         {m.save_action()}
       </Button>
       <Button
         type="button"
         variant="ghost"
-        onClick={() => {
-          setName(row.label)
-          setArmed(false)
-        }}
+        disabled={rename.pending}
+        onClick={onCancel}
       >
         {m.common_cancel()}
       </Button>

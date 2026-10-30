@@ -28,6 +28,49 @@ function Providers({ children }: { readonly children: ReactNode }) {
 }
 
 describe('NotificationPreferencesPanel', () => {
+  it('renders later server preferences after a completed change', async () => {
+    const { preferences } = await loadNotificationPreferencesHandler()
+    const setPreference = vi.fn<SetNotificationPreference>(async (input) => ({
+      ...preferences[0]!,
+      ...input.data
+    }))
+    const client = new QueryClient()
+    function panel(channel: 'instant' | 'digest') {
+      return (
+        <QueryClientProvider client={client}>
+          <NotificationPreferencesPanel
+            preferences={preferences.map((row) =>
+              row.kind === 'announcement'
+                ? {
+                    kind: row.kind,
+                    label: row.label,
+                    description: row.description,
+                    security: row.security,
+                    isDefault: row.isDefault,
+                    channel
+                  }
+                : row
+            )}
+            setPreference={setPreference}
+          />
+        </QueryClientProvider>
+      )
+    }
+    const rendered = render(panel('instant'))
+    const group = screen.getByRole('radiogroup', {
+      name: 'Announcements email channel'
+    })
+    within(group).getByRole('radio', { name: 'Off' }).click()
+    await waitFor(() => expect(setPreference).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(client.isMutating()).toBe(0))
+    rendered.rerender(panel('digest'))
+    expect(
+      within(group)
+        .getByRole('radio', { name: 'Daily digest' })
+        .getAttribute('aria-checked')
+    ).toBe('true')
+  })
+
   it('renders one row per kind from the real loader payload and saves a change', async () => {
     const { preferences } = await loadNotificationPreferencesHandler()
     const setPreference = vi.fn<SetNotificationPreference>((input) =>

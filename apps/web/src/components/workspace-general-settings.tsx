@@ -61,6 +61,7 @@ export function WorkspaceGeneralSettings({
     <div className="grid gap-6">
       {canRename ? (
         <RenameForm
+          key={`rename:${workspaceSlug}:${currentName}`}
           workspaceSlug={workspaceSlug}
           currentName={currentName}
           rename={rename}
@@ -68,6 +69,7 @@ export function WorkspaceGeneralSettings({
       ) : null}
       {canDelete ? (
         <DeleteSection
+          key={`delete:${workspaceSlug}`}
           workspaceSlug={workspaceSlug}
           name={currentName}
           remove={remove}
@@ -86,27 +88,26 @@ function RenameForm({
   readonly currentName: string
   readonly rename: RenameWorkspace
 }) {
-  const [savedName, setSavedName] = useState(currentName)
-  const form = useForm({
-    defaultValues: { name: savedName },
-    onSubmit: async ({ value }) => {
-      await submit.runAsync(value.name.trim())
-    }
-  })
   const submit = useServerAction(
     (name: string) => rename({ data: { workspaceSlug, name } }),
     {
       failureMessage: m.workspace_rename_failed(),
+      identityKey: workspaceSlug,
       onSuccess: ({ name }) => {
         // The response is the new server truth. Resetting establishes it as
         // the form baseline before the loader refresh completes, so Save stays
         // disabled after success while a later rename back remains possible.
-        setSavedName(name)
         form.reset({ name })
         toast.success(m.workspace_renamed_to({ name }))
       }
     }
   )
+  const form = useForm({
+    defaultValues: { name: submit.result?.name ?? currentName },
+    onSubmit: async ({ value }) => {
+      await submit.runAsync(value.name.trim())
+    }
+  })
 
   return (
     <form
@@ -133,6 +134,7 @@ function RenameForm({
             <div className="w-full [&>div>label]:sr-only">
               <FormTextField
                 name={field.name}
+                disabled={submit.pending}
                 label={m.form_workspace_name()}
                 value={field.state.value}
                 errors={field.state.meta.errors}
@@ -145,18 +147,18 @@ function RenameForm({
         )}
       </form.Field>
       <form.Subscribe
-        selector={(state): readonly [boolean, string] => [
+        selector={(state): readonly [boolean, boolean] => [
           state.canSubmit,
-          state.values.name
+          state.isDefaultValue
         ]}
       >
-        {([canSubmit, name]) => (
+        {([canSubmit, isDefaultValue]) => (
           <div className="flex flex-col-reverse gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
             <ActionFeedback error={submit.error} />
             <Button
               type="submit"
               // A no-op save (the current name) does nothing worth a request.
-              disabled={!canSubmit || name.trim() === savedName}
+              disabled={!canSubmit || isDefaultValue || submit.pending}
               className="sm:ml-auto"
             >
               {m.save_name()}
@@ -179,18 +181,18 @@ function DeleteSection({
 }) {
   const [open, setOpen] = useState(false)
   // The typed-name gate: confirm unlocks only when this matches the slug.
-  const [typed, setTyped] = useState('')
   const cancelRef = useRef<HTMLButtonElement | null>(null)
 
   // No loader to re-run: the workspace is gone and its routes no longer
   // resolve, so a former owner lands on the workspaces list instead.
   const confirmDelete = useServerAction(() => remove({ data: { workspaceSlug } }), {
     failureMessage: m.workspace_delete_failed(),
+    identityKey: workspaceSlug,
     invalidate: false,
     onSuccess: () => window.location.assign('/workspaces')
   })
 
-  const armed = typed.trim() === workspaceSlug
+  const form = useForm({ defaultValues: { typed: '' } })
 
   return (
     <div className="grid gap-3 border-t border-border pt-6">
@@ -203,7 +205,7 @@ function DeleteSection({
         onOpenChange={(nextOpen) => {
           setOpen(nextOpen)
           if (!nextOpen) {
-            setTyped('')
+            form.reset()
           }
         }}
       >
@@ -223,24 +225,35 @@ function DeleteSection({
             <Label htmlFor="delete-workspace-confirm">
               {m.type_slug_to_confirm({ slug: workspaceSlug })}
             </Label>
-            <Input
-              id="delete-workspace-confirm"
-              value={typed}
-              onChange={(event) => setTyped(event.target.value)}
-              autoComplete="off"
-              spellCheck={false}
-              className="w-full"
-            />
+            <form.Field name="typed">
+              {(field) => (
+                <Input
+                  id="delete-workspace-confirm"
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  autoComplete="off"
+                  spellCheck={false}
+                  className="w-full"
+                />
+              )}
+            </form.Field>
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel ref={cancelRef}>{m.common_cancel()}</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              disabled={!armed}
-              onClick={() => confirmDelete.run()}
+            <form.Subscribe
+              selector={(state) => state.values.typed.trim() === workspaceSlug}
             >
-              {m.delete_workspace_permanently()}
-            </AlertDialogAction>
+              {(armed) => (
+                <AlertDialogAction
+                  variant="destructive"
+                  disabled={!armed || confirmDelete.pending}
+                  onClick={() => confirmDelete.run()}
+                >
+                  {m.delete_workspace_permanently()}
+                </AlertDialogAction>
+              )}
+            </form.Subscribe>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

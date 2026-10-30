@@ -55,6 +55,8 @@ describe('TwoFactorPanel', () => {
     await waitFor(() => expect(verifyTotp).toHaveBeenCalledWith({ code: '123456' }))
     const status = await screen.findByRole('status')
     expect(status.textContent).toContain('now on')
+    expect(screen.getByRole('button', { name: 'Turn off' })).not.toBeNull()
+    expect(screen.queryByRole('button', { name: 'Start setup' })).toBeNull()
   })
 
   it('shows the one-time backup codes from the enable response', async () => {
@@ -114,6 +116,8 @@ describe('TwoFactorPanel', () => {
     )
     const status = await screen.findByRole('status')
     expect(status.textContent).toContain('off')
+    expect(screen.getByRole('button', { name: 'Start setup' })).not.toBeNull()
+    expect(screen.queryByRole('button', { name: 'Regenerate backup codes' })).toBeNull()
   })
 
   it('surfaces a wrong-password failure without flipping state', async () => {
@@ -149,7 +153,9 @@ describe('TwoFactorPanel', () => {
 
     // Done dismisses the one-time reveal; the codes are not shown again.
     fireEvent.click(screen.getByRole('button', { name: 'I saved my codes' }))
-    expect(screen.queryByRole('region', { name: 'Backup codes' })).toBeNull()
+    await waitFor(() =>
+      expect(screen.queryByRole('region', { name: 'Backup codes' })).toBeNull()
+    )
   })
 
   it('surfaces a failed backup-code regeneration without clearing the password state flip', async () => {

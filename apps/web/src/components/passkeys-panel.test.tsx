@@ -44,6 +44,31 @@ describe('PasskeysPanel', () => {
     deletePasskey.mockResolvedValue({ data: null })
   })
 
+  it('opens a fresh rename draft from refreshed server data', async () => {
+    listPasskeys.mockResolvedValue({
+      data: [passkey({ id: 'pk_mac', name: 'MacBook' })]
+    })
+    renderWithQueryClient(<PasskeysPanel />)
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Rename MacBook passkey' })
+    )
+    fireEvent.change(screen.getByLabelText('New name'), {
+      target: { value: 'Discard me' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    listPasskeys.mockResolvedValue({
+      data: [passkey({ id: 'pk_mac', name: 'Renamed elsewhere' })]
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add passkey' }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Rename Renamed elsewhere passkey' })
+    )
+    expect(screen.getByLabelText('New name')).toHaveProperty(
+      'value',
+      'Renamed elsewhere'
+    )
+  })
+
   it('lists named and unnamed passkeys with their sync state', async () => {
     listPasskeys.mockResolvedValue({
       data: [

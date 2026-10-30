@@ -88,15 +88,16 @@ function toViewModels(sessions: ReadonlyArray<SessionRecord>): Array<SessionRowV
  * The sessions query is shared cache, not component state — the shared
  * `useAuthClientRows` owns the how (`hooks/use-auth-client-rows.ts`).
  */
-const SESSIONS_QUERY_KEY: ReadonlyArray<unknown> = ['account', 'sessions']
 
 export function SessionsPanel({
-  currentSessionToken
+  currentSessionToken,
+  userId = 'current'
 }: {
   readonly currentSessionToken: string
+  readonly userId?: string
 }) {
   const { hydrated, rows, loadError, isPending, refetch } = useAuthClientRows({
-    queryKey: SESSIONS_QUERY_KEY,
+    queryKey: ['account', userId, 'sessions'],
     list: () => authClient.listSessions(),
     toRows: toViewModels,
     loadFailedMessage: m.load_sessions_failed()
@@ -119,7 +120,9 @@ export function SessionsPanel({
       actions={
         othersExist ? (
           <AlertDialog>
-            <AlertDialogTrigger render={<Button variant="outline" />}>
+            <AlertDialogTrigger
+              render={<Button variant="outline" disabled={act.pending} />}
+            >
               {m.auth_sign_out_everywhere()}
             </AlertDialogTrigger>
             <AlertDialogContent>
@@ -130,6 +133,7 @@ export function SessionsPanel({
               <AlertDialogFooter>
                 <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
                 <AlertDialogAction
+                  disabled={act.pending}
                   onClick={() => act.run(() => authClient.revokeOtherSessions())}
                 >
                   {m.sign_out()}
@@ -183,6 +187,7 @@ export function SessionsPanel({
                       render={
                         <Button
                           variant="ghost"
+                          disabled={act.pending}
                           aria-label={m.revoke_session_named({ name: row.deviceLabel })}
                         />
                       }
@@ -199,6 +204,7 @@ export function SessionsPanel({
                       <AlertDialogFooter>
                         <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
                         <AlertDialogAction
+                          disabled={act.pending}
                           onClick={() =>
                             act.run(() =>
                               authClient.revokeSession({ token: row.token })
