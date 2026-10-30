@@ -5,3 +5,9 @@ Request-scoped page loaders call capability services directly. Browser operation
 Native Foldkit models and messages replace React and TanStack state. Commands return operation outcomes as messages; subscriptions and managed resources own observation and cleanup. Query-backed views preserve URL state. The user-approved migration retains SSR using exactly pinned experimental Foldkit packages. It does not relax authorization, error disclosure, localization or provider-light behavior. Upgrades require compiled-host and browser acceptance checks.
 
 This replaces the original TanStack loader/server-function and Query implementation while retaining the in-process capability boundary.
+
+Links between routes use document navigation; query-backed controls within a page
+use browser history and native model updates. Document-owned integrations such as
+the analytics beacon initialize once per document after consent. Their acceptance
+checks distinguish navigation loads from duplicate initialization and preserve the
+no-requests-before-consent and no-requests-after-withdrawal guarantees.

@@ -58,8 +58,13 @@ test.describe('configured browser analytics', () => {
     await expect(page.locator(beaconSelector)).toHaveCount(1)
     await page.getByRole('link', { name: 'Explore demo', exact: true }).first().click()
     await expect(page).toHaveURL(/\/demo$/)
+    await expect(page.locator('html')).toHaveAttribute('data-analytics-loaded', 'true')
+    await page.waitForLoadState('networkidle')
     await expect(page.locator(beaconSelector)).toHaveCount(1)
-    expect(requests).toHaveLength(1)
+    // Native route links load a new document. Each accepted document loads one
+    // beacon; the previous document may report on pagehide while consent is valid.
+    expect(requests.filter((url) => url.endsWith('beacon.min.js'))).toHaveLength(2)
+    const beforeWithdrawal = requests.length
     await page.getByRole('button', { name: 'Analytics settings', exact: true }).click()
     await consent
       .getByRole('button', { name: 'Decline analytics', exact: true })
@@ -74,9 +79,9 @@ test.describe('configured browser analytics', () => {
     ).toBeVisible()
     await expect(page.locator(beaconSelector)).toHaveCount(0)
     // The already-loaded beacon must not flush a final payload on withdrawal.
-    expect(requests).toHaveLength(1)
+    expect(requests).toHaveLength(beforeWithdrawal)
     await testInfo.attach('consent-evidence', {
-      body: JSON.stringify({ beforeConsent: 0, scriptLoads: 1, afterWithdrawal: 0 }),
+      body: JSON.stringify({ beforeConsent: 0, scriptLoads: 2, afterWithdrawal: 0 }),
       contentType: 'application/json'
     })
   })
