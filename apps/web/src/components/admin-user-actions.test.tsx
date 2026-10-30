@@ -10,6 +10,17 @@ import { type SystemUser } from '@/lib/server/admin'
 import { UserAdminRefusedError } from '@/lib/capability-error'
 import { renderWithRouter } from '@/test/router-harness'
 
+function deferred<A>() {
+  let settle: ((value: A) => void) | undefined
+  const promise = new Promise<A>((resolve) => {
+    settle = resolve
+  })
+  if (settle === undefined) {
+    throw new Error('Promise executor did not run synchronously')
+  }
+  return { promise, resolve: settle }
+}
+
 const users: ReadonlyArray<SystemUser> = [
   {
     id: 'usr_dev',
@@ -51,6 +62,39 @@ describe('AdminUserActions', () => {
     listWorkspaces.mockResolvedValue([membership])
     changeUserRole.mockReset()
     changeUserRole.mockResolvedValue({ ...membership.member, role: 'admin' })
+  })
+
+  it('loads a directly linked user and ignores a late response after history selection changes', async () => {
+    const first = deferred<ReadonlyArray<WorkspaceWithMembership>>()
+    const secondUser = { ...users[0]!, id: 'usr_other', name: 'Other User' }
+    const secondMembership = {
+      ...membership,
+      workspace: { ...membership.workspace, id: 'wrk_2', name: 'Other Workspace' },
+      member: { ...membership.member, id: 'usr_other' }
+    }
+    listWorkspaces.mockImplementation(({ data }) =>
+      data.userId === 'usr_dev' ? first.promise : Promise.resolve([secondMembership])
+    )
+    const { router } = await renderWithRouter(
+      <AdminUserActions
+        users={[...users, secondUser]}
+        listWorkspaces={listWorkspaces}
+        changeUserRole={changeUserRole}
+      />,
+      { initialEntry: '/?record=usr_dev' }
+    )
+    await waitFor(() =>
+      expect(listWorkspaces).toHaveBeenCalledWith({ data: { userId: 'usr_dev' } })
+    )
+    await router.navigate({ to: '/', search: { record: 'usr_other' } })
+    await screen.findByLabelText('Make admin: Other Workspace')
+    first.resolve([membership])
+    await waitFor(() =>
+      expect(screen.queryByLabelText('Make admin: Starter Lab')).toBeNull()
+    )
+    router.history.back()
+    await screen.findByLabelText('Make admin: Starter Lab')
+    expect(screen.queryByLabelText('Make admin: Other Workspace')).toBeNull()
   })
 
   it('loads the memberships and names each role button by its workspace', async () => {

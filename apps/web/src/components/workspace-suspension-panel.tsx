@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useForm } from '@tanstack/react-form'
 
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { Button } from '@/components/ui/button'
@@ -45,12 +45,28 @@ export function WorkspaceSuspensionPanel({
   readonly suspend: SuspendWorkspace
   readonly reactivate: ReactivateWorkspace
 }) {
-  const [internalReason, setInternalReason] = useState('')
-  const [customerExplanation, setCustomerExplanation] = useState('')
   const active = suspension.status === 'active'
+  const form = useForm({
+    defaultValues: { internalReason: '', customerExplanation: '' },
+    validators: {
+      onSubmit: ({ value }) =>
+        !value.internalReason.trim() || (active && !value.customerExplanation.trim())
+          ? m.admin_workspace_internal_reason_hint()
+          : undefined
+    },
+    onSubmit: async ({ value }) => {
+      await change.runAsync(value)
+    }
+  })
 
   const change = useServerAction(
-    async () => {
+    async ({
+      internalReason,
+      customerExplanation
+    }: {
+      readonly internalReason: string
+      readonly customerExplanation: string
+    }) => {
       if (active) {
         return suspend({
           data: {
@@ -71,12 +87,24 @@ export function WorkspaceSuspensionPanel({
     }
   )
 
-  const canSuspend =
-    internalReason.trim().length > 0 &&
-    (!active || customerExplanation.trim().length > 0)
-
   return (
-    <div className="grid gap-4 rounded-none border border-border p-4">
+    <form
+      className="grid gap-4 rounded-none border border-border p-4"
+      aria-label={workspaceName}
+      onSubmit={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        const { values, isSubmitting } = form.state
+        if (
+          isSubmitting ||
+          !values.internalReason.trim() ||
+          (active && !values.customerExplanation.trim())
+        ) {
+          return
+        }
+        void form.handleSubmit()
+      }}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="grid gap-1">
           <h3 className="text-sm font-semibold">{workspaceName}</h3>
@@ -84,14 +112,27 @@ export function WorkspaceSuspensionPanel({
             {active ? m.admin_workspace_active() : m.admin_workspace_suspended()}
           </p>
         </div>
-        <Button
-          variant={active ? 'destructive' : 'default'}
-          disabled={change.pending || !canSuspend}
-          onClick={() => change.run()}
+        <form.Subscribe
+          selector={(state) => ({
+            values: state.values,
+            isSubmitting: state.isSubmitting
+          })}
         >
-          {change.pending ? <Spinner data-icon="inline-start" /> : null}
-          {active ? m.admin_workspace_suspend() : m.admin_workspace_reactivate()}
-        </Button>
+          {({ values, isSubmitting }) => (
+            <Button
+              type="submit"
+              variant={active ? 'destructive' : 'default'}
+              disabled={
+                isSubmitting ||
+                !values.internalReason.trim() ||
+                (active && !values.customerExplanation.trim())
+              }
+            >
+              {change.pending ? <Spinner data-icon="inline-start" /> : null}
+              {active ? m.admin_workspace_suspend() : m.admin_workspace_reactivate()}
+            </Button>
+          )}
+        </form.Subscribe>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -99,13 +140,18 @@ export function WorkspaceSuspensionPanel({
           <Label htmlFor={`${workspaceId}-internal-reason`}>
             {m.admin_workspace_internal_reason()}
           </Label>
-          <Textarea
-            id={`${workspaceId}-internal-reason`}
-            value={internalReason}
-            onChange={(event) => setInternalReason(event.target.value)}
-            placeholder={m.admin_workspace_internal_reason_placeholder()}
-            aria-describedby={`${workspaceId}-internal-hint`}
-          />
+          <form.Field name="internalReason">
+            {(field) => (
+              <Textarea
+                id={`${workspaceId}-internal-reason`}
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={(event) => field.handleChange(event.target.value)}
+                placeholder={m.admin_workspace_internal_reason_placeholder()}
+                aria-describedby={`${workspaceId}-internal-hint`}
+              />
+            )}
+          </form.Field>
           <p
             id={`${workspaceId}-internal-hint`}
             className="text-xs text-muted-foreground"
@@ -118,13 +164,18 @@ export function WorkspaceSuspensionPanel({
             <Label htmlFor={`${workspaceId}-customer-explanation`}>
               {m.admin_workspace_customer_explanation()}
             </Label>
-            <Textarea
-              id={`${workspaceId}-customer-explanation`}
-              value={customerExplanation}
-              onChange={(event) => setCustomerExplanation(event.target.value)}
-              placeholder={m.admin_workspace_customer_explanation_placeholder()}
-              aria-describedby={`${workspaceId}-customer-hint`}
-            />
+            <form.Field name="customerExplanation">
+              {(field) => (
+                <Textarea
+                  id={`${workspaceId}-customer-explanation`}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  placeholder={m.admin_workspace_customer_explanation_placeholder()}
+                  aria-describedby={`${workspaceId}-customer-hint`}
+                />
+              )}
+            </form.Field>
             <p
               id={`${workspaceId}-customer-hint`}
               className="text-xs text-muted-foreground"
@@ -143,6 +194,6 @@ export function WorkspaceSuspensionPanel({
       )}
 
       {change.error === null ? null : <ActionFeedback error={change.error} />}
-    </div>
+    </form>
   )
 }

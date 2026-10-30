@@ -3,7 +3,6 @@ import { useNavigate, useRouter, useRouterState } from '@tanstack/react-router'
 import { TableViewControls } from './table-view-controls'
 import { parseTableView, serializeTableView } from '@/lib/table-view'
 import { statusLabel } from '@/lib/value-labels'
-import { useState } from 'react'
 import { type GlobalWebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import {
   DataTable,
@@ -24,25 +23,21 @@ import {
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 function ReplayAction({ delivery }: { readonly delivery: GlobalWebhookDelivery }) {
-  // The queue's own answer to a replay: a refusal reason, or the id of the
-  // copy it enqueued. Failures are the hook's; only these belong here.
-  const [outcome, setOutcome] = useState<string | null>(null)
-  const [queued, setQueued] = useState(false)
   const replay = useServerAction(
     () => replayFailedDeliveryServerFn({ data: { deliveryId: delivery.id } }),
     {
       failureMessage: m.replay_failed(),
-      invalidate: false,
-      onSuccess: (result) => {
-        if (result.status === 'refused') {
-          setOutcome(result.reason)
-          return
-        }
-        setQueued(true)
-        setOutcome(m.replay_queued({ id: result.deliveryId }))
-      }
+      invalidate: false
     }
   )
+  const result = replay.result
+  let outcome: string | null = null
+  if (result !== undefined) {
+    outcome =
+      result.status === 'refused'
+        ? result.reason
+        : m.replay_queued({ id: result.deliveryId })
+  }
   const message =
     replay.error === null ? outcome : `${replay.error} ${m.replay_pending_copy()}`
   return (
@@ -50,11 +45,8 @@ function ReplayAction({ delivery }: { readonly delivery: GlobalWebhookDelivery }
       <Button
         variant="outline"
         size="xs"
-        disabled={replay.pending || queued}
-        onClick={() => {
-          setOutcome(null)
-          replay.run(undefined)
-        }}
+        disabled={replay.pending || result?.status === 'queued'}
+        onClick={() => replay.run(undefined)}
         aria-label={m.replay_named({ id: delivery.id })}
       >
         {replay.pending ? m.replay_queuing() : m.replay_action()}

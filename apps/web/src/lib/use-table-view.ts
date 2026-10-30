@@ -70,14 +70,26 @@ export function useTableView(
     next: TableView | ((current: TableView) => TableView),
     replace = false
   ) {
-    const nextView = typeof next === 'function' ? next(view) : next
     void navigate({
       to: '.',
-      search: (previous) => ({
-        ...previous,
-        tableViews: updateTableViews(previous.tableViews, key, nextView),
-        page: resetPage ? undefined : previous.page
-      }),
+      search: (previous) => {
+        const current = parseTableView(readViews(previous.tableViews)[key], fields)
+        const nextView = typeof next === 'function' ? next(current) : next
+        const criteriaChanged =
+          current.query !== nextView.query ||
+          current.match !== nextView.match ||
+          JSON.stringify(current.filters) !== JSON.stringify(nextView.filters) ||
+          JSON.stringify(current.sorts) !== JSON.stringify(nextView.sorts)
+        return {
+          ...previous,
+          tableViews: updateTableViews(
+            previous.tableViews,
+            key,
+            criteriaChanged ? { ...nextView, pageIndex: 0 } : nextView
+          ),
+          page: resetPage ? undefined : previous.page
+        }
+      },
       resetScroll: false,
       replace
     })

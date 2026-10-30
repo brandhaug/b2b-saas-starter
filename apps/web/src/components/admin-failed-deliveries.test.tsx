@@ -130,7 +130,7 @@ describe('AdminFailedDeliveries', () => {
     await act(async () => {
       response.resolve({ status: 'refused', reason: 'Endpoint is disabled' })
     })
-    expect(screen.getByText('Endpoint is disabled')).not.toBeNull()
+    expect(await screen.findByText('Endpoint is disabled')).not.toBeNull()
     expect(screen.getByRole('button', { name: 'Replay whd_terminal' })).toHaveProperty(
       'disabled',
       false
