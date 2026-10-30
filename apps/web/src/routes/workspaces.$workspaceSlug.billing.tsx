@@ -1,5 +1,7 @@
 import { purchaseIntent } from '@/lib/purchase-intent'
 import { createFileRoute } from '@tanstack/react-router'
+import { useSuspenseQuery } from '@tanstack/react-query'
+import { pageQueryOptions } from '@/lib/page-query'
 import { pageTitle } from '@/components/page/page-title'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceBillingPage } from '@/components/workspace-billing-page'
@@ -23,11 +25,18 @@ function decodeBillingSearch(search: unknown): BillingSearch {
 
 // The auth gate lives on the /workspaces layout route (workspaces.tsx);
 // `context.session` arrives from there.
+function billingQuery(actorId: string, workspaceSlug: string) {
+  return pageQueryOptions(['workspace-billing', actorId, workspaceSlug], () =>
+    loadWorkspaceBillingServerFn({ data: { workspaceSlug } })
+  )
+}
+
 export const Route = createFileRoute('/workspaces/$workspaceSlug/billing')({
   validateSearch: (search) => decodeBillingSearch(search),
-  loader: ({ params }) =>
-    loadWorkspaceBillingServerFn({
-      data: { workspaceSlug: params.workspaceSlug }
+  loader: ({ params, context }) =>
+    context.queryClient.query({
+      ...billingQuery(context.session.user.id, params.workspaceSlug),
+      staleTime: 0
     }),
   pendingComponent: RoutePending,
   component: WorkspaceBillingRoute,
@@ -47,7 +56,9 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/billing')({
 function WorkspaceBillingRoute() {
   const { workspaceSlug } = Route.useParams()
   const { checkout, purchase } = Route.useSearch()
-  const data = Route.useLoaderData()
+  const { data } = useSuspenseQuery(
+    billingQuery(Route.useRouteContext().session.user.id, workspaceSlug)
+  )
   const systemRole = Route.useRouteContext().session.user.role
   return (
     <WorkspaceBillingPage

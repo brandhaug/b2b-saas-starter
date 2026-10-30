@@ -1,4 +1,6 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router'
+import { useSuspenseQuery } from '@tanstack/react-query'
+import { pageQueryOptions } from '@/lib/page-query'
 import { pageTitle } from '@/components/page/page-title'
 import { workspaceRouteError } from '@/components/workspace-route-error'
 import { RoutePending } from '@/components/route-pending'
@@ -58,6 +60,20 @@ function decodeSearch(search: unknown): AuditSearch {
   return pickOptionalStrings(search, AUDIT_SEARCH_KEYS)
 }
 
+function auditQuery(actorId: string, workspaceSlug: string, search: AuditSearch) {
+  return pageQueryOptions(['workspace-audit', actorId, workspaceSlug, search], () =>
+    loadWorkspaceAuditEventsServerFn({
+      data: {
+        workspaceSlug,
+        filters: auditFiltersFromSearch(search),
+        ...(search.cursor !== undefined && { cursor: search.cursor }),
+        ...(search.event && { event: search.event }),
+        view: auditViewFromSearch(search.view)
+      }
+    })
+  )
+}
+
 export const Route = createFileRoute('/workspaces/$workspaceSlug/audit')({
   validateSearch: (search) => decodeSearch(search),
   loaderDeps: ({ search }) => ({ search: decodeSearch(search) }),
@@ -66,15 +82,10 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/audit')({
     // a selected event is fetched so detail failures do not look like a
     // missing event.
     staleReloadMode: 'blocking',
-    handler: ({ params, deps }) =>
-      loadWorkspaceAuditEventsServerFn({
-        data: {
-          workspaceSlug: params.workspaceSlug,
-          filters: auditFiltersFromSearch(deps.search),
-          ...(deps.search.cursor !== undefined && { cursor: deps.search.cursor }),
-          ...(deps.search.event && { event: deps.search.event }),
-          view: auditViewFromSearch(deps.search.view)
-        }
+    handler: ({ params, deps, context }) =>
+      context.queryClient.query({
+        ...auditQuery(context.session.user.id, params.workspaceSlug, deps.search),
+        staleTime: 0
       })
   },
   pendingComponent: RoutePending,
@@ -89,8 +100,14 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/audit')({
  * render the page with plain props — no route tree, no mocked hooks. */
 function WorkspaceAuditRoute() {
   const { workspaceSlug } = Route.useParams()
-  const data = Route.useLoaderData()
   const search = Route.useSearch()
+  const { data } = useSuspenseQuery(
+    auditQuery(
+      Route.useRouteContext().session.user.id,
+      workspaceSlug,
+      Route.useLoaderDeps().search
+    )
+  )
   const router = useRouter()
   // Full replacement, not a merge with the previous search: the page always
   // hands back complete state (a filter change drops the cursor by omitting

@@ -1,4 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useSuspenseQuery } from '@tanstack/react-query'
+import { pageQueryOptions } from '@/lib/page-query'
 import { pageTitle } from '@/components/page/page-title'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceSettingsPage } from '@/components/workspace-settings-page'
@@ -7,12 +9,21 @@ import { m } from '@b2b-saas-starter/i18n/messages'
 
 // The auth gate lives on the /workspaces layout route (workspaces.tsx);
 // `context.session` arrives from there.
+function settingsQuery(actorId: string, workspaceSlug: string) {
+  return pageQueryOptions(['workspace-settings', actorId, workspaceSlug], () =>
+    loadWorkspaceSettingsServerFn({ data: { workspaceSlug } })
+  )
+}
+
 export const Route = createFileRoute('/workspaces/$workspaceSlug/settings')({
   // The loader assembles the payload per actor: a segment the actor may not
   // read is never read, so it arrives as `null` rather than as data the
   // component has to remember to hide.
-  loader: ({ params }) =>
-    loadWorkspaceSettingsServerFn({ data: { workspaceSlug: params.workspaceSlug } }),
+  loader: ({ params, context }) =>
+    context.queryClient.query({
+      ...settingsQuery(context.session.user.id, params.workspaceSlug),
+      staleTime: 0
+    }),
   pendingComponent: RoutePending,
   component: WorkspaceSettingsRoute,
   head: ({ params }) => ({
@@ -30,7 +41,9 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/settings')({
  */
 function WorkspaceSettingsRoute() {
   const { workspaceSlug } = Route.useParams()
-  const data = Route.useLoaderData()
+  const { data } = useSuspenseQuery(
+    settingsQuery(Route.useRouteContext().session.user.id, workspaceSlug)
+  )
   const systemRole = Route.useRouteContext().session.user.role
   return (
     <WorkspaceSettingsPage
