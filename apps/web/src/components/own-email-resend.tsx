@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, type ComponentProps } from 'react'
+import { useAuthRequest } from '@/components/auth/auth-request'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import {
   requestPasswordResetWithAuthClient,
@@ -8,9 +9,6 @@ import {
 } from '@/components/auth/auth-client-ports'
 import { useTurnstileChallenge } from '@/components/auth/turnstile-challenge'
 import { Button } from './ui/button'
-import { useServerAction } from '@/hooks/use-server-action'
-
-export { type RequestPasswordReset, type SendVerificationEmail }
 
 /**
  * The account page's two "send it again" buttons. Both hit gated auth
@@ -20,7 +18,11 @@ export { type RequestPasswordReset, type SendVerificationEmail }
  * is configured. With it unconfigured `turnstileSiteKey` is `null`, no widget
  * renders and no token is sent — the buttons behave exactly as before.
  */
-export function OwnEmailResend({
+export function OwnEmailResend(props: ComponentProps<typeof OwnEmailResendContent>) {
+  return <OwnEmailResendContent key={props.email} {...props} />
+}
+
+function OwnEmailResendContent({
   email,
   verified,
   turnstileSiteKey = null,
@@ -36,34 +38,30 @@ export function OwnEmailResend({
 }) {
   const [feedback, setFeedback] = useState<string | null>(null)
   const challenge = useTurnstileChallenge(turnstileSiteKey)
-  const resend = useServerAction(
-    (flow: 'verification' | 'recovery') => {
-      setFeedback(null)
-      const turnstileToken = challenge.token
-      // Single-use: the second button needs its own challenge.
-      challenge.consume()
-      return flow === 'verification'
-        ? sendVerificationEmail({ email, callbackPath: '/account', turnstileToken })
-        : requestReset({ email, turnstileToken })
-    },
-    {
-      failureMessage: m.email_delivery_resend_failed(),
-      onSuccess: (result) => {
-        setFeedback(
-          result.error
-            ? m.email_delivery_resend_failed()
-            : m.email_delivery_resend_requested()
-        )
-      }
-    }
-  )
+  const resend = useAuthRequest(m.email_delivery_resend_failed())
 
   function run(flow: 'verification' | 'recovery'): void {
     if (challenge.missing) {
       setFeedback(challenge.missingMessage)
       return
     }
-    resend.run(flow)
+    void resend.run(async (request) => {
+      setFeedback(null)
+      const turnstileToken = challenge.token
+      // Single-use: the second button needs its own challenge.
+      challenge.consume()
+      const result = await (flow === 'verification'
+        ? sendVerificationEmail({ email, callbackPath: '/account', turnstileToken })
+        : requestReset({ email, turnstileToken }))
+      if (!request.current()) {
+        return
+      }
+      setFeedback(
+        result.error
+          ? m.email_delivery_resend_failed()
+          : m.email_delivery_resend_requested()
+      )
+    })
   }
 
   return (

@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, type ComponentProps } from 'react'
+import { useAuthRequest, useAuthRequestScope } from '@/components/auth/auth-request'
 import { pageTitle } from '@/components/page/page-title'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
@@ -36,7 +37,13 @@ function TwoFactorRoute() {
  * Auth's short-lived two-factor cookie — there is no session yet, and this is
  * the only thing that turns the challenge into one.
  */
-export function TwoFactorChallengePage({
+export function TwoFactorChallengePage(
+  props: ComponentProps<typeof TwoFactorChallengeContent>
+) {
+  return <TwoFactorChallengeContent key={props.redirect ?? ''} {...props} />
+}
+
+function TwoFactorChallengeContent({
   redirect
 }: {
   readonly redirect?: string | undefined
@@ -47,9 +54,12 @@ export function TwoFactorChallengePage({
   // keeps the redirect target (and any OAuth continuation) it arrived with.
   const [method, setMethod] = useState<'totp' | 'backup'>('totp')
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const scope = useAuthRequestScope()
+  const totp = useAuthRequest(m.public_auth_verification_failed(), scope)
+  const backup = useAuthRequest(m.public_auth_verification_failed(), scope)
   // Unchecked by default: trusting a device skips this challenge for thirty
   // days, so it is an explicit opt-in every time, never a remembered one.
-  const [trustDevice, setTrustDevice] = useState(false)
+  const trustForm = useForm({ defaultValues: { trustDevice: false } })
 
   /**
    * The one outcome ladder both methods share: a challenge that completes an
@@ -72,39 +82,58 @@ export function TwoFactorChallengePage({
 
   const totpForm = useForm({
     defaultValues: { code: '' },
-    onSubmit: async ({ value }) => {
-      setSubmitError(null)
-      finishChallenge(
-        await authClient.twoFactor.verifyTotp({ code: value.code, trustDevice })
-      )
-    }
+    onSubmit: async ({ value }) =>
+      totp.run(async (request) => {
+        setSubmitError(null)
+        const result = await authClient.twoFactor.verifyTotp({
+          code: value.code,
+          trustDevice: trustForm.getFieldValue('trustDevice')
+        })
+        if (!request.current()) {
+          return
+        }
+        if (!result.error) {
+          request.win()
+        }
+        finishChallenge(result)
+      })
   })
 
   const backupForm = useForm({
     defaultValues: { code: '' },
-    onSubmit: async ({ value }) => {
-      setSubmitError(null)
-      finishChallenge(
-        await authClient.twoFactor.verifyBackupCode({
+    onSubmit: async ({ value }) =>
+      backup.run(async (request) => {
+        setSubmitError(null)
+        const result = await authClient.twoFactor.verifyBackupCode({
           code: value.code.trim(),
-          trustDevice
+          trustDevice: trustForm.getFieldValue('trustDevice')
         })
-      )
-    }
+        if (!request.current()) {
+          return
+        }
+        if (!result.error) {
+          request.win()
+        }
+        finishChallenge(result)
+      })
   })
 
   // Both methods trust the same device cookie, so the control renders once
   // and rides whichever form is showing — the label association survives the
   // swap because the id is stable.
   const trustControl = (
-    <Label htmlFor="trust-device">
-      <Checkbox
-        id="trust-device"
-        checked={trustDevice}
-        onCheckedChange={setTrustDevice}
-      />
-      {m.trust_device()}
-    </Label>
+    <trustForm.Field name="trustDevice">
+      {(field) => (
+        <Label htmlFor="trust-device">
+          <Checkbox
+            id="trust-device"
+            checked={field.state.value}
+            onCheckedChange={field.handleChange}
+          />
+          {m.trust_device()}
+        </Label>
+      )}
+    </trustForm.Field>
   )
 
   // The method switch rides the card footer, after the point of action, like
@@ -114,7 +143,13 @@ export function TwoFactorChallengePage({
     <Button
       type="button"
       variant="link"
+      disabled={totp.pending || backup.pending}
       onClick={() => {
+        if (scope.busy()) {
+          return
+        }
+        totp.reset()
+        backup.reset()
         setSubmitError(null)
         setMethod(method === 'totp' ? 'backup' : 'totp')
       }}
@@ -138,7 +173,7 @@ export function TwoFactorChallengePage({
             submittingLabel={m.verifying()}
           />
         }
-        error={submitError}
+        error={submitError ?? backup.error}
         footer={methodToggle}
       >
         <backupForm.Field name="code" validators={{ onChange: backupCodeValidator }}>
@@ -177,7 +212,7 @@ export function TwoFactorChallengePage({
           submittingLabel={m.verifying()}
         />
       }
-      error={submitError}
+      error={submitError ?? totp.error}
       footer={methodToggle}
     >
       <totpForm.Field name="code" validators={{ onChange: sixDigitCodeValidator }}>

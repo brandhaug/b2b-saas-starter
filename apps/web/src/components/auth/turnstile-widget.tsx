@@ -18,6 +18,7 @@ function loadTurnstileScript(): Promise<TurnstileApi> {
       if (window.turnstile === undefined) {
         // Allow a later mount to retry: the failed promise is not cached.
         scriptPromise = undefined
+        document.getElementById(SCRIPT_ID)?.remove()
         // oxlint-disable-next-line effect/noNewError -- browser-platform failure signal; there is no Effect context here to lift into
         reject(new Error('Turnstile loaded without its API'))
         return
@@ -45,6 +46,7 @@ function loadTurnstileScript(): Promise<TurnstileApi> {
       () => {
         // Allow a later mount to retry.
         scriptPromise = undefined
+        script.remove()
         // oxlint-disable-next-line effect/noNewError -- browser-platform failure signal; there is no Effect context here to lift into
         reject(new Error('Failed to load the Turnstile script'))
       },
@@ -105,7 +107,9 @@ export function TurnstileWidget({
       .catch(() => {
         // A failed script load must not wedge the form silently forever; the
         // submit-side token requirement surfaces the state to the visitor.
-        onTokenRef.current(null)
+        if (!cancelled) {
+          onTokenRef.current(null)
+        }
       })
 
     return () => {

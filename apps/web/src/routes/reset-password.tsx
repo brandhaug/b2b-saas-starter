@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, type ComponentProps } from 'react'
+import { useAuthRequest } from '@/components/auth/auth-request'
 import { pageTitle } from '@/components/page/page-title'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
@@ -33,7 +34,16 @@ function ResetPasswordRoute() {
   return <ResetPasswordPage token={token} error={error} />
 }
 
-export function ResetPasswordPage({
+export function ResetPasswordPage(props: ComponentProps<typeof ResetPasswordContent>) {
+  return (
+    <ResetPasswordContent
+      key={`${props.token ?? ''}:${props.error ?? ''}`}
+      {...props}
+    />
+  )
+}
+
+function ResetPasswordContent({
   token,
   error
 }: {
@@ -42,22 +52,31 @@ export function ResetPasswordPage({
 }) {
   const router = useRouter()
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const reset = useAuthRequest(m.public_auth_reset_failed())
   const form = useForm({
     defaultValues: { password: '', confirm: '' } satisfies ResetPasswordValues,
-    onSubmit: async ({ value }) => {
-      setSubmitError(null)
-      const result = await authClient.resetPassword({
-        newPassword: value.password,
-        token: token ?? ''
+    onSubmit: async ({ value }) =>
+      reset.run(async (request) => {
+        if (!token || error) {
+          return
+        }
+        setSubmitError(null)
+        const result = await authClient.resetPassword({
+          newPassword: value.password,
+          token
+        })
+        if (!request.current()) {
+          return
+        }
+        if (result.error) {
+          setSubmitError(authErrorCopy(result.error, m.public_auth_reset_failed()))
+          return
+        }
+        // The reset revokes every session (revokeSessionsOnPasswordReset), so
+        // the only honest next step is a fresh sign-in.
+        request.win()
+        router.history.push('/sign-in')
       })
-      if (result.error) {
-        setSubmitError(authErrorCopy(result.error, m.public_auth_reset_failed()))
-        return
-      }
-      // The reset revokes every session (revokeSessionsOnPasswordReset), so
-      // the only honest next step is a fresh sign-in.
-      router.history.push('/sign-in')
-    }
   })
 
   // No token, or the token-exchange hop already rejected it: one opaque
@@ -95,7 +114,7 @@ export function ResetPasswordPage({
           submittingLabel={m.resetting()}
         />
       }
-      error={submitError}
+      error={submitError ?? reset.error}
     >
       <form.Field name="password" validators={{ onChange: passwordValidator }}>
         {(field) => (

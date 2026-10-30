@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { type ComponentProps } from 'react'
+import { useForm } from '@tanstack/react-form'
+import { useAuthRequest, useAuthRequestScope } from '@/components/auth/auth-request'
 import { createFileRoute } from '@tanstack/react-router'
 import { PlugZapIcon } from 'lucide-react'
 import { AuthNoticeCard } from '@/components/auth/auth-card-form'
@@ -81,7 +83,11 @@ function assignLocation(url: string) {
   window.location.assign(url)
 }
 
-export function OAuthConsentPage({
+export function OAuthConsentPage(props: ComponentProps<typeof OAuthConsentContent>) {
+  return <OAuthConsentContent key={props.payload.oauthQuery ?? ''} {...props} />
+}
+
+function OAuthConsentContent({
   payload,
   request,
   grant,
@@ -97,38 +103,49 @@ export function OAuthConsentPage({
 }) {
   const oauthQuery = payload.oauthQuery
   const resources = new URLSearchParams(oauthQuery ?? '').getAll('resource')
-  const [workspaceId, setWorkspaceId] = useState<string | null>(
-    payload.workspaces.length === 1
-      ? (payload.workspaces[0]?.workspace.id ?? null)
-      : null
-  )
-  const [pending, setPending] = useState<'grant' | 'deny' | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const requestScope = useAuthRequestScope()
+  const grantRequest = useAuthRequest(m.oauth_grant_failed(), requestScope)
+  const denyRequest = useAuthRequest(m.oauth_deny_failed(), requestScope)
+  const pending = grantRequest.pending || denyRequest.pending
+  const form = useForm({
+    defaultValues: {
+      workspaceId:
+        payload.workspaces.length === 1
+          ? (payload.workspaces[0]?.workspace.id ?? '')
+          : ''
+    }
+  })
 
   const clientName =
     payload.client?.name ?? request?.clientId ?? m.oauth_unnamed_client()
-  const canGrant = request !== null && oauthQuery !== null && workspaceId !== null
 
   async function decide(action: 'grant' | 'deny') {
-    if (oauthQuery === null) {
-      setError(m.oauth_request_missing())
+    const decision = action === 'grant' ? grantRequest : denyRequest
+    if (requestScope.busy()) {
       return
     }
-    setPending(action)
-    setError(null)
-    const outcome =
-      action === 'deny'
-        ? await callServerFn(
-            () => deny({ data: { oauthQuery } }),
-            m.oauth_deny_failed()
-          )
-        : await grantPicked(oauthQuery)
-    if (!outcome.ok) {
-      setPending(null)
-      setError(outcome.message)
-      return
-    }
-    assign(outcome.value.url)
+    grantRequest.reset()
+    denyRequest.reset()
+    await decision.run(async (attempt) => {
+      if (oauthQuery === null) {
+        return m.oauth_request_missing()
+      }
+      const outcome =
+        action === 'deny'
+          ? await callServerFn(
+              () => deny({ data: { oauthQuery } }),
+              m.oauth_deny_failed()
+            )
+          : await grantPicked(oauthQuery)
+      if (!outcome.ok) {
+        return outcome.message
+      }
+      if (!attempt.current()) {
+        return
+      }
+      attempt.win()
+      assign(outcome.value.url)
+    })
   }
 
   /**
@@ -137,7 +154,8 @@ export function OAuthConsentPage({
    * with a reason instead of declining the request the user just accepted.
    */
   async function grantPicked(query: string): Promise<ConsentOutcome> {
-    if (workspaceId === null) {
+    const workspaceId = form.getFieldValue('workspaceId')
+    if (!payload.workspaces.some(({ workspace }) => workspace.id === workspaceId)) {
       // The Allow control is disabled without a pick; this is the honest
       // answer if one ever gets through.
       return { ok: false, message: m.oauth_pick_workspace() }
@@ -156,7 +174,7 @@ export function OAuthConsentPage({
           ? m.oauth_connect_with_uri({ uri: payload.client.uri })
           : m.oauth_connect_without_uri()
       }
-      error={error}
+      error={grantRequest.error ?? denyRequest.error}
     >
       {request === null ? (
         <ActionFeedback error={m.oauth_request_missing()} />
@@ -180,28 +198,35 @@ export function OAuthConsentPage({
             {payload.workspaces.length === 0 ? (
               <p className="text-sm text-muted-foreground">{m.oauth_no_membership()}</p>
             ) : (
-              <RadioGroup
-                value={workspaceId}
-                onValueChange={(value) => setWorkspaceId(String(value))}
-                aria-label={m.oauth_workspace()}
-              >
-                {payload.workspaces.map(({ workspace, memberCount }) => (
-                  <Label
-                    key={workspace.id}
-                    className="flex items-start gap-3 rounded-sm border border-border px-3 py-2 has-data-checked:border-primary"
+              <form.Field name="workspaceId">
+                {(field) => (
+                  <RadioGroup
+                    value={field.state.value}
+                    onValueChange={field.handleChange}
+                    disabled={pending}
+                    aria-label={m.oauth_workspace()}
                   >
-                    <RadioGroupItem value={workspace.id} className="mt-0.5" />
-                    <span className="grid gap-0.5">
-                      <span className="text-sm">{workspace.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {workspace.slug} ·{' '}
-                        <span className="font-mono tabular-nums">{memberCount}</span>{' '}
-                        {m.oauth_member_count({ count: memberCount })}
-                      </span>
-                    </span>
-                  </Label>
-                ))}
-              </RadioGroup>
+                    {payload.workspaces.map(({ workspace, memberCount }) => (
+                      <Label
+                        key={workspace.id}
+                        className="flex items-start gap-3 rounded-sm border border-border px-3 py-2 has-data-checked:border-primary"
+                      >
+                        <RadioGroupItem value={workspace.id} className="mt-0.5" />
+                        <span className="grid gap-0.5">
+                          <span className="text-sm">{workspace.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {workspace.slug} ·{' '}
+                            <span className="font-mono tabular-nums">
+                              {memberCount}
+                            </span>{' '}
+                            {m.oauth_member_count({ count: memberCount })}
+                          </span>
+                        </span>
+                      </Label>
+                    ))}
+                  </RadioGroup>
+                )}
+              </form.Field>
             )}
             <p className="text-xs text-muted-foreground">{m.oauth_role_scope()}</p>
           </section>
@@ -244,20 +269,30 @@ export function OAuthConsentPage({
             <Button
               type="button"
               variant="outline"
-              disabled={pending !== null || oauthQuery === null}
+              disabled={pending || oauthQuery === null}
               onClick={() => void decide('deny')}
             >
-              {pending === 'deny' ? <Spinner /> : null}
+              {denyRequest.pending ? <Spinner /> : null}
               {m.oauth_decline()}
             </Button>
-            <Button
-              type="button"
-              disabled={!canGrant || pending !== null}
-              onClick={() => void decide('grant')}
-            >
-              {pending === 'grant' ? <Spinner /> : null}
-              {m.oauth_allow()}
-            </Button>
+            <form.Subscribe selector={(state) => state.values.workspaceId}>
+              {(workspaceId) => (
+                <Button
+                  type="button"
+                  disabled={
+                    oauthQuery === null ||
+                    !payload.workspaces.some(
+                      ({ workspace }) => workspace.id === workspaceId
+                    ) ||
+                    pending
+                  }
+                  onClick={() => void decide('grant')}
+                >
+                  {grantRequest.pending ? <Spinner /> : null}
+                  {m.oauth_allow()}
+                </Button>
+              )}
+            </form.Subscribe>
           </div>
         </>
       )}
