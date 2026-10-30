@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { type ConversationSummary } from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversation'
+import { useCallback } from 'react'
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
+import { useServerAction } from '@/hooks/use-server-action'
 import { type ConversationPorts } from '@/lib/server/assistant-conversations'
 import { Button } from '@/components/ui/button'
 import { Panel } from '@/components/page/panel'
@@ -10,6 +11,7 @@ import { ConversationDetail } from './workspace-assistant-conversations-detail'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 export type PersistentAssistant = {
+  readonly actorId?: string
   readonly ports: ConversationPorts
   readonly conversationId?: string | undefined
   readonly onSelectConversation: (id: string | undefined) => void
@@ -31,79 +33,75 @@ export function WorkspaceAssistantConversations({
   readonly persistent: PersistentAssistant
 }) {
   const { ports, conversationId, onSelectConversation } = persistent
-  const [conversations, setConversations] = useState<
-    ReadonlyArray<ConversationSummary>
-  >([])
-  const [nextCursor, setNextCursor] = useState<string | null>(null)
-  const listEpoch = useRef(0)
-  const [loading, setLoading] = useState(true)
-  const [creating, setCreating] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- Stable loader identity bounds the initial external server read to workspace changes.
-  const load = useCallback(
-    async (cursor?: string) => {
-      const requestEpoch = ++listEpoch.current
-      setLoading(true)
+  const queryClient = useQueryClient()
+  const firstPage: string | undefined = undefined
+  const directory = useInfiniteQuery({
+    queryKey: ['assistant-directory', persistent.actorId, workspaceSlug],
+    initialPageParam: firstPage,
+    queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
       const data = { workspaceSlug }
-      if (cursor !== undefined) {
-        Object.assign(data, { cursor })
+      if (pageParam !== undefined) {
+        Object.assign(data, { cursor: pageParam })
       }
       const result = await callConversation(() => ports.list({ data }))
-      if (requestEpoch !== listEpoch.current) {
-        return
-      }
-      // oxlint-disable-next-line react-doctor/no-loading-flag-reset-outside-finally -- callConversation folds transport rejections into a result and never rejects.
-      setLoading(false)
       if (!result.ok) {
-        setError(result.message)
-        setConversations([])
-        return
+        // oxlint-disable-next-line effect/noThrowStatement, effect/noNewError -- Query must reject failed pages to retain the previous cursor; capability copy is already safe for the browser.
+        throw new Error(result.message)
       }
-      const page = result.value
-      setError(null)
-      setNextCursor(page.nextCursor)
-      setConversations((current) => {
-        if (cursor === undefined) {
-          return page.items
-        }
-        const rows = new Map(current.map((row) => [row.id, row]))
-        for (const row of page.items) {
-          rows.set(row.id, row)
-        }
-        return [...rows.values()]
-      })
+      return result.value
     },
-    [ports, workspaceSlug]
+    getNextPageParam: (page) => page.nextCursor ?? undefined,
+    retry: false
+  })
+  const conversations = [
+    ...new Map(
+      directory.data?.pages.flatMap((page) =>
+        page.items.map((row) => [row.id, row] as const)
+      )
+    ).values()
+  ]
+  const loading = directory.isFetching
+  function refresh() {
+    return queryClient.invalidateQueries({
+      queryKey: ['assistant-directory', persistent.actorId, workspaceSlug]
+    })
+  }
+  const createAction = useServerAction(
+    () => callConversation(() => ports.create({ data: { workspaceSlug } })),
+    {
+      failureMessage: m.assistant_unreachable(),
+      identityKey: `${persistent.actorId ?? ''}:${workspaceSlug}:${conversationId ?? ''}`,
+      invalidate: false,
+      onSuccess: async (result) => {
+        if (result.ok) {
+          onSelectConversation(result.value.id)
+          await refresh()
+        }
+      }
+    }
   )
-  useEffect(() => {
-    // oxlint-disable-next-line react/set-state-in-effect -- Initial synchronization with the server conversation directory.
-    void load()
-  }, [load])
+  const creating = createAction.pending
+  const error =
+    createAction.error ??
+    (createAction.result?.ok === false ? createAction.result.message : null) ??
+    directory.error?.message ??
+    null
   // oxlint-disable-next-line react-doctor/react-compiler-no-manual-memoization -- Stable observer callback avoids reconnecting the socket when a directory read completes.
   const accessLost = useCallback(() => {
-    setConversations([])
-    setNextCursor(null)
-    void load()
-  }, [load])
-  async function create() {
-    setCreating(true)
-    const result = await callConversation(() =>
-      ports.create({ data: { workspaceSlug } })
-    )
-    setCreating(false)
-    if (!result.ok) {
-      setError(result.message)
-      return
-    }
-    onSelectConversation(result.value.id)
-    await load()
-  }
+    void queryClient.resetQueries({
+      queryKey: ['assistant-directory', persistent.actorId, workspaceSlug]
+    })
+  }, [queryClient, workspaceSlug, persistent.actorId])
   return (
     <Panel
       title={m.assistant_conversations_title()}
       description={m.assistant_conversations_private()}
       actions={
-        <Button variant="outline" disabled={creating} onClick={() => void create()}>
+        <Button
+          variant="outline"
+          disabled={creating}
+          onClick={() => createAction.run(undefined)}
+        >
           {creating ? <Spinner data-icon="inline-start" /> : null}
           {m.assistant_conversations_new()}
         </Button>
@@ -132,11 +130,11 @@ export function WorkspaceAssistantConversations({
               {m.assistant_conversations_empty()}
             </p>
           ) : null}
-          {nextCursor ? (
+          {directory.hasNextPage ? (
             <Button
               variant="ghost"
               disabled={loading}
-              onClick={() => void load(nextCursor)}
+              onClick={() => void directory.fetchNextPage({ cancelRefetch: false })}
             >
               {m.assistant_conversations_more()}
             </Button>
@@ -144,7 +142,8 @@ export function WorkspaceAssistantConversations({
         </nav>
         {conversationId ? (
           <ConversationDetail
-            key={conversationId}
+            actorId={persistent.actorId}
+            key={`${workspaceSlug}:${conversationId}`}
             workspaceSlug={workspaceSlug}
             conversationId={conversationId}
             configured={configured}
@@ -153,10 +152,10 @@ export function WorkspaceAssistantConversations({
             ports={ports}
             onSelectTask={onSelectTask}
             onAccessLost={accessLost}
-            onChanged={() => void load()}
+            onChanged={refresh}
             onDeleted={() => {
               onSelectConversation(undefined)
-              void load()
+              return refresh()
             }}
           />
         ) : (

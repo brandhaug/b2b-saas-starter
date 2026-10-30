@@ -3,6 +3,7 @@ import {
   type PersistentAssistant
 } from './workspace-assistant-conversations'
 import { useEffect, useRef, useState } from 'react'
+import { useForm, useSelector } from '@tanstack/react-form'
 import { Link } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -98,7 +99,7 @@ type AssistantPageProps = {
 export function WorkspaceAssistantPage(props: AssistantPageProps) {
   return (
     <AssistantPage
-      key={`${props.workspaceSlug}:${props.selectedTaskId ?? ''}:${props.selectedDeliveryId ?? ''}`}
+      key={`${props.persistent?.actorId ?? props.investigation?.actorId ?? ''}:${props.workspaceSlug}:${props.selectedTaskId ?? ''}:${props.selectedDeliveryId ?? ''}`}
       {...props}
     />
   )
@@ -115,14 +116,15 @@ function AssistantPage({
   onSelectTask,
   persistent
 }: AssistantPageProps) {
-  const [activeTaskId, setActiveTaskId] = useState(
+  const [localTaskId, setLocalTaskId] = useState<string>()
+  const activeTaskId =
     selectedTaskId ??
-      (selectedDeliveryId
-        ? investigation?.tasks.find(
-            (task) => task.sourceDeliveryId === selectedDeliveryId
-          )?.id
-        : investigation?.tasks[0]?.id)
-  )
+    localTaskId ??
+    (selectedDeliveryId
+      ? investigation?.tasks.find(
+          (task) => task.sourceDeliveryId === selectedDeliveryId
+        )?.id
+      : investigation?.tasks[0]?.id)
   const mounted = useRef(true)
   useEffect(() => {
     mounted.current = true
@@ -131,10 +133,16 @@ function AssistantPage({
     }
   }, [])
   function selectTask(taskId: string) {
-    setActiveTaskId(taskId)
+    if (!onSelectTask) {
+      setLocalTaskId(taskId)
+    }
     onSelectTask?.(taskId)
   }
-  const [question, setQuestion] = useState('')
+  const form = useForm({
+    defaultValues: { question: '' },
+    onSubmit: async () => submit()
+  })
+  const question = useSelector(form.store, (state) => state.values.question)
   const action = useServerAction(ask, {
     failureMessage: m.assistant_unreachable(),
     invalidate: false
@@ -144,15 +152,18 @@ function AssistantPage({
   const canUseAssistant =
     data.configured && viewerCan(data.viewer, { assistant: ['read'] })
   async function submit() {
-    const trimmed = question.trim()
+    const trimmed = form.state.values.question.trim()
     if (!trimmed || pending) {
       return
     }
-    setQuestion('')
-    setTranscript((items) => [
-      ...items,
-      { id: crypto.randomUUID(), role: 'user', text: trimmed, provider: null }
-    ])
+    form.reset()
+    const entry: TranscriptEntry = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      text: trimmed,
+      provider: null
+    }
+    setTranscript((items) => [...items, entry])
     const request =
       activeTaskId === undefined
         ? { workspaceSlug, question: trimmed }
@@ -212,7 +223,7 @@ function AssistantPage({
               className="grid gap-2"
               onSubmit={(event) => {
                 event.preventDefault()
-                void submit()
+                void form.handleSubmit()
               }}
             >
               {activeTaskId ? (
@@ -229,7 +240,9 @@ function AssistantPage({
                     id="assistant-question"
                     aria-label={m.your_question()}
                     value={question}
-                    onChange={(event) => setQuestion(event.target.value)}
+                    onChange={(event) =>
+                      form.setFieldValue('question', event.target.value)
+                    }
                     maxLength={2000}
                     rows={3}
                     placeholder={m.assistant_placeholder()}
@@ -269,7 +282,7 @@ function AssistantPage({
           modelConfigured={data.configured}
           canReplay={viewerCan(data.viewer, { webhook: ['replay'] })}
           selectedDeliveryId={selectedDeliveryId}
-          selectedTaskId={selectedTaskId}
+          selectedTaskId={activeTaskId}
           onSelectTask={selectTask}
         />
       ) : null}

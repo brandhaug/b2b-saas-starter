@@ -16,6 +16,8 @@ import {
   cancelAssistantTaskServerFn
 } from '@/lib/server/assistant-tasks'
 import { createFileRoute } from '@tanstack/react-router'
+import { useSuspenseQuery } from '@tanstack/react-query'
+import { pageQueryOptions } from '@/lib/page-query'
 import { pageTitle } from '@/components/page/page-title'
 import { RoutePending } from '@/components/route-pending'
 import { WorkspaceAssistantPage } from '@/components/workspace-assistant-page'
@@ -32,13 +34,40 @@ const conversationPorts: ConversationPorts = {
   remove: deleteConversationServerFn
 }
 
+async function listInvestigationTasks(workspaceSlug: string) {
+  const page = await loadAssistantPageServerFn({ data: { workspaceSlug } })
+  return page.investigations?.tasks ?? []
+}
+
+function assistantQuery(actorId: string, workspaceSlug: string) {
+  return pageQueryOptions(['workspace-assistant', actorId, workspaceSlug], () =>
+    loadAssistantPageServerFn({ data: { workspaceSlug } })
+  )
+}
+
 export const Route = createFileRoute('/workspaces/$workspaceSlug/assistant')({
   validateSearch: (search) =>
     pickOptionalStrings(search, ['deliveryId', 'taskId', 'conversationId']),
-  loader: ({ params }) =>
-    loadAssistantPageServerFn({
-      data: { workspaceSlug: params.workspaceSlug }
-    }),
+  loader: async ({ params, context }) => {
+    // The task list owns mutation results. Refresh through its query function
+    // so cancellation by a newer mutation protects those results.
+    // oxlint-disable-next-line effect/noNewPromise -- refresh independent page and task-list queries in parallel
+    const [data] = await Promise.all([
+      context.queryClient.query({
+        ...assistantQuery(context.session.user.id, params.workspaceSlug),
+        staleTime: 0
+      }),
+      context.queryClient.invalidateQueries({
+        queryKey: [
+          'assistant-investigation-tasks',
+          context.session.user.id,
+          params.workspaceSlug
+        ],
+        exact: true
+      })
+    ])
+    return data
+  },
   pendingComponent: RoutePending,
   component: WorkspaceAssistantRoute,
   head: ({ params }) => ({
@@ -50,7 +79,8 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/assistant')({
  * so tests render the page with plain props — no route tree, no mocked hooks. */
 function WorkspaceAssistantRoute() {
   const { workspaceSlug } = Route.useParams()
-  const data = Route.useLoaderData()
+  const { session } = Route.useRouteContext()
+  const { data } = useSuspenseQuery(assistantQuery(session.user.id, workspaceSlug))
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
   return (
@@ -59,6 +89,7 @@ function WorkspaceAssistantRoute() {
       data={data}
       ask={askAssistantServerFn}
       persistent={{
+        actorId: session.user.id,
         ports: conversationPorts,
         conversationId: search.conversationId,
         onSelectConversation: (conversationId) => {
@@ -75,7 +106,9 @@ function WorkspaceAssistantRoute() {
       {...(data.investigations
         ? {
             investigation: {
+              actorId: session.user.id,
               ...data.investigations,
+              list: listInvestigationTasks,
               create: createAssistantTaskServerFn,
               get: getAssistantTaskServerFn,
               approve: approveAssistantTaskServerFn,
@@ -83,7 +116,7 @@ function WorkspaceAssistantRoute() {
             }
           }
         : {})}
-      systemRole={Route.useRouteContext().session.user.role}
+      systemRole={session.user.role}
     />
   )
 }

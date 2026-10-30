@@ -1,21 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
+import { useForm, useSelector } from '@tanstack/react-form'
+import { useServerAction } from '@/hooks/use-server-action'
 import { skipToken, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select'
+import { DeliveryPicker } from './workspace-assistant-delivery-picker'
 import { Panel } from '@/components/page/panel'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { Spinner } from '@/components/ui/spinner'
-import { useServerCall } from '@/hooks/use-server-call'
 import { callServerFn } from '@/lib/server-call'
 import { formatTimestampOr } from '@/lib/format-date'
 import { statusLabel as deliveryStatusLabel } from '@/lib/value-labels'
@@ -23,7 +17,11 @@ import { type WebhookInvestigationTask } from '@b2b-saas-starter/capabilities/de
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 export type AssistantInvestigationPorts = {
+  readonly actorId?: string
   readonly tasks: ReadonlyArray<WebhookInvestigationTask>
+  readonly list?: (
+    workspaceSlug: string
+  ) => Promise<ReadonlyArray<WebhookInvestigationTask>>
   readonly deliveries?: ReadonlyArray<{
     readonly id: string
     readonly endpointId: string
@@ -47,6 +45,32 @@ export type AssistantInvestigationPorts = {
   readonly cancel: (input: {
     readonly data: { readonly workspaceSlug: string; readonly taskId: string }
   }) => Promise<WebhookInvestigationTask>
+}
+
+async function updateTask(
+  ports: AssistantInvestigationPorts,
+  operation: 'approve' | 'cancel',
+  data: { workspaceSlug: string; taskId: string },
+  current: () => boolean,
+  remember: (task: WebhookInvestigationTask) => void
+) {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Raw server rejection is rethrown unchanged to the shared safe UI error boundary.
+  return ports[operation]({ data }).catch(async (error: unknown) => {
+    // Approval can commit before queue delivery fails. Recover its saved replay
+    // while the mutation stays busy, so retry cannot overtake the recovery read.
+    const get = ports.get
+    if (get && current()) {
+      const actual = await callServerFn(
+        () => get({ data }),
+        m.assistant_task_refresh_failed()
+      )
+      if (actual.ok && current()) {
+        remember(actual.value)
+      }
+    }
+    // oxlint-disable-next-line effect/noThrowStatement -- Preserve the server rejection for useServerAction's safe UI error boundary.
+    throw error
+  })
 }
 
 function statusLabel(status: WebhookInvestigationTask['status']) {
@@ -88,10 +112,12 @@ type InvestigationProps = {
   readonly onSelectTask?: ((taskId: string) => void) | undefined
 }
 
+type InvestigationValues = { deliveryId: string; question: string }
+
 export function WorkspaceAssistantInvestigation(props: InvestigationProps) {
   return (
     <Investigation
-      key={`${props.workspaceSlug}:${props.selectedTaskId ?? ''}:${props.selectedDeliveryId ?? ''}`}
+      key={`${props.investigation.actorId ?? ''}:${props.workspaceSlug}:${props.selectedTaskId ?? ''}:${props.selectedDeliveryId ?? ''}`}
       {...props}
     />
   )
@@ -106,29 +132,78 @@ function Investigation({
   selectedTaskId,
   onSelectTask
 }: InvestigationProps) {
-  const call = useServerCall()
   const queryClient = useQueryClient()
-  const [deliveryId, setDeliveryId] = useState(selectedDeliveryId ?? '')
-  const [question, setQuestion] = useState<string>(() =>
-    m.assistant_investigation_default_question()
-  )
-  const [savedTasks, setSavedTasks] = useState<ReadonlyArray<WebhookInvestigationTask>>(
-    []
-  )
-  const tasks = [
-    ...savedTasks,
-    ...investigation.tasks.filter(
-      (task) => !savedTasks.some((saved) => saved.id === task.id)
-    )
+  const defaultValues: InvestigationValues = {
+    deliveryId: selectedDeliveryId ?? '',
+    question: m.assistant_investigation_default_question()
+  }
+  const form = useForm({
+    defaultValues,
+    onSubmit: async () => create()
+  })
+  const { deliveryId, question } = useSelector(form.store, (state) => state.values)
+  const taskListKey = [
+    'assistant-investigation-tasks',
+    investigation.actorId,
+    workspaceSlug
   ]
-  const [activeTaskId, setActiveTaskId] = useState(
+  const listTasks = investigation.list
+  const taskList = useQuery({
+    queryKey: taskListKey,
+    queryFn: listTasks ? () => listTasks(workspaceSlug) : skipToken,
+    initialData: investigation.tasks,
+    gcTime: 0
+  })
+  const tasks = taskList.data ?? []
+  const [localTaskId, setLocalTaskId] = useState<string>()
+  const activeTaskId =
     selectedTaskId ??
-      (selectedDeliveryId
-        ? tasks.find((task) => task.sourceDeliveryId === selectedDeliveryId)?.id
-        : tasks[0]?.id)
+    localTaskId ??
+    (selectedDeliveryId
+      ? tasks.find((task) => task.sourceDeliveryId === selectedDeliveryId)?.id
+      : tasks[0]?.id)
+  const action = useServerAction(
+    async (input: {
+      operation: 'create' | 'approve' | 'cancel'
+      deliveryId: string
+      question: string
+      taskId: string | undefined
+    }) => {
+      if (input.operation === 'create') {
+        return investigation.create({
+          data: {
+            workspaceSlug,
+            deliveryId: input.deliveryId,
+            question: input.question
+          }
+        })
+      }
+      const version = selectionVersion.current
+      const taskId = input.taskId ?? ''
+      await queryClient.cancelQueries({
+        queryKey: [
+          'assistant-investigation',
+          investigation.actorId,
+          workspaceSlug,
+          taskId
+        ]
+      })
+      return updateTask(
+        investigation,
+        input.operation,
+        { workspaceSlug, taskId },
+        () => version === selectionVersion.current,
+        remember
+      )
+    },
+    {
+      failureMessage: m.investigation_failed(),
+      invalidate: false,
+      identityKey: `${investigation.actorId ?? ''}:${workspaceSlug}:${activeTaskId ?? ''}`
+    }
   )
-  const [pending, setPending] = useState<'create' | 'approve' | 'cancel' | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const pending = action.pendingInput?.operation ?? null
+  const error = action.error
   const selectionVersion = useRef(0)
   useEffect(
     () => () => {
@@ -139,7 +214,12 @@ function Investigation({
 
   const initialTask = tasks.find((task) => task.id === activeTaskId)
   const get = investigation.get
-  const queryKey = ['assistant-investigation', workspaceSlug, activeTaskId]
+  const queryKey = [
+    'assistant-investigation',
+    investigation.actorId,
+    workspaceSlug,
+    activeTaskId
+  ]
   const taskQuery = useQuery({
     queryKey,
     queryFn:
@@ -168,19 +248,27 @@ function Investigation({
   const refreshError = taskQuery.data?.ok === false ? taskQuery.data.message : null
 
   function remember(task: WebhookInvestigationTask) {
-    queryClient.setQueryData(['assistant-investigation', workspaceSlug, task.id], {
-      ok: true,
-      value: task
-    })
-    setSavedTasks((current) => [task, ...current.filter((item) => item.id !== task.id)])
+    void queryClient.cancelQueries({ queryKey: taskListKey, exact: true })
+    queryClient.setQueryData(
+      ['assistant-investigation', investigation.actorId, workspaceSlug, task.id],
+      {
+        ok: true,
+        value: task
+      }
+    )
+    queryClient.setQueryData<ReadonlyArray<WebhookInvestigationTask>>(
+      taskListKey,
+      (current) => [task, ...(current ?? []).filter((item) => item.id !== task.id)]
+    )
   }
 
   function select(task: WebhookInvestigationTask) {
     selectionVersion.current += 1
-    setPending(null)
-    setError(null)
-    setActiveTaskId(task.id)
-    setDeliveryId(task.sourceDeliveryId)
+    action.reset()
+    if (!onSelectTask) {
+      setLocalTaskId(task.id)
+    }
+    form.setFieldValue('deliveryId', task.sourceDeliveryId)
     onSelectTask?.(task.id)
   }
 
@@ -190,68 +278,43 @@ function Investigation({
       return
     }
     const version = selectionVersion.current
-    setPending('create')
-    setError(null)
-    const result = await call(
-      () =>
-        investigation.create({
-          data: { workspaceSlug, deliveryId: value, question: question.trim() }
-        }),
-      m.investigation_failed()
-    )
+    const result = await action.runAsync({
+      operation: 'create',
+      deliveryId: value,
+      question: question.trim(),
+      taskId: undefined
+    })
     if (version !== selectionVersion.current) {
       return
     }
-    setPending(null)
     if (!result.ok) {
-      setError(result.message)
       return
     }
     remember(result.value)
     select(result.value)
   }
 
-  async function update(action: 'approve' | 'cancel') {
+  async function update(operation: 'approve' | 'cancel') {
     if (!selected || pending || !canReplay) {
       return
     }
     const version = selectionVersion.current
-    setPending(action)
-    setError(null)
-    await queryClient.cancelQueries({ queryKey })
-    const result = await call(
-      () => investigation[action]({ data: { workspaceSlug, taskId: selected.id } }),
-      m.investigation_failed()
-    )
+    const result = await runUpdate(operation, selected.id)
     if (version !== selectionVersion.current) {
       return
     }
     if (result.ok) {
       remember(result.value)
-      setPending(null)
       onSelectTask?.(result.value.id)
       return
     }
-    // Approval can commit before the queue rejects. Read the saved approval so
-    // retry uses its existing replay ID rather than presenting a new proposal.
-    if (get) {
-      const actual = await call(
-        () => get({ data: { workspaceSlug, taskId: selected.id } }),
-        m.assistant_task_refresh_failed()
-      )
-      if (version !== selectionVersion.current) {
-        return
-      }
-      if (actual.ok) {
-        remember(actual.value)
-      }
-    }
-    setPending(null)
-    setError(result.message)
+  }
+
+  function runUpdate(operation: 'approve' | 'cancel', taskId: string) {
+    return action.runAsync({ operation, taskId, deliveryId, question })
   }
 
   const deliveries = investigation.deliveries ?? []
-  const selectedDelivery = deliveries.find((delivery) => delivery.id === deliveryId)
   const visibleTasks =
     selected && !tasks.some((task) => task.id === selected.id)
       ? [selected, ...tasks]
@@ -267,42 +330,11 @@ function Investigation({
         <FieldGroup>
           <Field>
             <FieldLabel htmlFor="delivery-id">{m.delivery_id_label()}</FieldLabel>
-            {deliveries.length > 0 ? (
-              <Select
-                value={deliveryId || null}
-                onValueChange={(value) => setDeliveryId(value ?? '')}
-              >
-                <SelectTrigger id="delivery-id" className="w-full min-w-0">
-                  <SelectValue placeholder={m.assistant_select_delivery()}>
-                    {selectedDelivery
-                      ? `${selectedDelivery.eventType} · ${selectedDelivery.id}`
-                      : deliveryId}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {deliveries.map((delivery) => (
-                      <SelectItem key={delivery.id} value={delivery.id}>
-                        <span className="grid min-w-0 gap-1 whitespace-normal wrap-anywhere">
-                          <span>
-                            {delivery.eventType} ·{' '}
-                            {deliveryStatusLabel(delivery.status)}
-                          </span>
-                          <span>{delivery.endpointUrl}</span>
-                          <span className="font-mono">{delivery.id}</span>
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            ) : (
-              <Input
-                id="delivery-id"
-                value={deliveryId}
-                onChange={(event) => setDeliveryId(event.target.value)}
-              />
-            )}
+            <DeliveryPicker
+              deliveries={deliveries}
+              value={deliveryId}
+              onChange={(value) => form.setFieldValue('deliveryId', value)}
+            />
           </Field>
           <Field>
             <FieldLabel htmlFor="investigation-question">
@@ -312,13 +344,13 @@ function Investigation({
               id="investigation-question"
               value={question}
               maxLength={2000}
-              onChange={(event) => setQuestion(event.target.value)}
+              onChange={(event) => form.setFieldValue('question', event.target.value)}
             />
           </Field>
           <div>
             <Button
               disabled={pending !== null || !deliveryId.trim() || !question.trim()}
-              onClick={() => void create()}
+              onClick={() => void form.handleSubmit()}
             >
               {pending === 'create' ? <Spinner data-icon="inline-start" /> : null}
               {m.investigate_action()}
@@ -354,7 +386,9 @@ function Investigation({
                       <span className="truncate">{task.evidence.endpointUrl}</span>
                       <span>
                         {statusLabel(
-                          task.id === selected?.id ? selected.status : task.status
+                          selected && task.id === selected.id
+                            ? selected.status
+                            : task.status
                         )}
                       </span>
                     </span>
