@@ -1,5 +1,5 @@
 import { QRCodeSVG } from 'qrcode.react'
-import { useState } from 'react'
+import { useForm } from '@tanstack/react-form'
 import { sixDigitCodeValidator } from '@/components/auth/auth-client-ports'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,8 +16,9 @@ import { m } from '@b2b-saas-starter/i18n/messages'
  * The two-factor panel's flows, extracted from
  * `components/two-factor-panel.tsx` so the panel reads as the state machine
  * it is (off → enrollment → on) and each flow stays independently readable.
- * Each flow owns its own field state and its own `useServerAction`; nothing
- * is shared but the enrollment hand-off, which crosses through the panel.
+ * Form owns field values. Disable and regeneration share an action so they
+ * cannot change the same factor concurrently. The one-time reveal closes on
+ * completion or panel unmount.
  *
  * Failure copy comes from the shared code table
  * (`lib/auth-error-copy.ts`): the call site's constant is the fallback for
@@ -51,9 +52,8 @@ export function EnableFlow({
   readonly onStart: () => void
   readonly onEnrolled: (enrollment: Enrollment) => void
 }) {
-  const [password, setPassword] = useState('')
   const enroll = useServerAction(
-    async () => {
+    async (password: string) => {
       const result = await authClient.twoFactor.enable({ password })
       if (result.error) {
         return authFailure(authErrorCopy(result.error, m.two_factor_setup_failed()))
@@ -87,15 +87,14 @@ export function EnableFlow({
         id="twofactor-password-on"
         label={m.form_password()}
         submitLabel={m.start_setup()}
-        value={password}
         busy={enroll.pending}
-        onChange={setPassword}
-        onSubmit={() => {
+        onSubmit={async (password) => {
           onStart()
-          enroll.run()
+          const outcome = await enroll.runAsync(password)
+          return outcome.ok
         }}
       />
-      <SubmitError message={enroll.error} />
+      <ActionFeedback error={enroll.error} />
     </>
   )
 }
@@ -112,14 +111,10 @@ export function EnrollmentFlow({
 }: {
   readonly enrollment: Enrollment
   readonly onStart: () => void
-  readonly onVerified: () => void
+  readonly onVerified: () => void | Promise<void>
 }) {
-  const [code, setCode] = useState('')
-  // The client-side 6-digit gate never reaches the plugin, so it is the one
-  // failure this component holds itself.
-  const [invalidCode, setInvalidCode] = useState<string | null>(null)
   const verify = useServerAction(
-    async () => {
+    async (code: string) => {
       const result = await authClient.twoFactor.verifyTotp({ code })
       return result.error
         ? authFailure(authErrorCopy(result.error, m.auth_invalid_code()))
@@ -127,6 +122,13 @@ export function EnrollmentFlow({
     },
     { failureMessage: m.auth_invalid_code(), invalidate: false, onSuccess: onVerified }
   )
+  const form = useForm({
+    defaultValues: { code: '' },
+    onSubmit: async ({ value }) => {
+      onStart()
+      await verify.runAsync(value.code)
+    }
+  })
   const secretFromUri = parseSecretFromUri(enrollment.totpURI)
 
   return (
@@ -150,94 +152,62 @@ export function EnrollmentFlow({
       <form
         onSubmit={(event) => {
           event.preventDefault()
-          onStart()
-          // Same 6-digit gate as the sign-in challenge page — the shared validator.
-          const message = sixDigitCodeValidator({ value: code })
-          setInvalidCode(message ?? null)
-          if (message === undefined) {
-            verify.run()
-          }
+          void form.handleSubmit()
         }}
         className="grid gap-3"
       >
-        <div className="grid gap-1.5">
-          <Label htmlFor="twofactor-code">{m.form_verification_code()}</Label>
-          <Input
-            id="twofactor-code"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            placeholder={m.totp_code_placeholder()}
-            value={code}
-            onChange={(event) => setCode(event.target.value)}
-            required
-          />
-        </div>
+        <form.Field name="code" validators={{ onChange: sixDigitCodeValidator }}>
+          {(field) => (
+            <div className="grid gap-1.5">
+              <Label htmlFor="twofactor-code">{m.form_verification_code()}</Label>
+              <Input
+                id="twofactor-code"
+                disabled={verify.pending}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder={m.totp_code_placeholder()}
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={(event) => field.handleChange(event.target.value)}
+                required
+              />
+              <ActionFeedback error={field.state.meta.errors[0] ?? null} />
+            </div>
+          )}
+        </form.Field>
         <Button type="submit" className="w-fit" disabled={verify.pending}>
           {m.verify_code()}
         </Button>
       </form>
-      <SubmitError message={invalidCode ?? verify.error} />
+      <ActionFeedback error={verify.error} />
     </>
   )
 }
 
 /** Turning two-factor off, behind its own password confirmation. */
-export function DisableFlow({
+export function EnabledFlows({
   onStart,
   onDisabled
 }: {
   readonly onStart: () => void
-  readonly onDisabled: () => void
+  readonly onDisabled: () => void | Promise<void>
 }) {
-  const [password, setPassword] = useState('')
-  const turnOff = useServerAction(
-    async () => {
-      const result = await authClient.twoFactor.disable({ password })
-      return result.error
-        ? authFailure(authErrorCopy(result.error, m.two_factor_disable_failed()))
-        : null
-    },
-    {
-      failureMessage: m.two_factor_disable_failed(),
-      invalidate: false,
-      onSuccess: () => {
-        setPassword('')
-        onDisabled()
-      }
-    }
-  )
-
-  return (
-    <>
-      <PasswordForm
-        id="twofactor-password-off"
-        label={m.form_password()}
-        submitLabel={m.turn_off()}
-        variant="outline"
-        value={password}
-        busy={turnOff.pending}
-        onChange={setPassword}
-        onSubmit={() => {
-          onStart()
-          turnOff.run()
-        }}
-      />
-      <SubmitError message={turnOff.error} />
-    </>
-  )
-}
-
-/**
- * Regenerating the backup codes. New codes invalidate every previous one, so
- * they get the same one-time reveal as enrollment — until the user says they
- * saved them. Its password is its own: turn-off should not trust what was
- * typed here, and vice versa.
- */
-export function RegenerateFlow({ onStart }: { readonly onStart: () => void }) {
-  const [password, setPassword] = useState('')
-  const [codes, setCodes] = useState<ReadonlyArray<string> | null>(null)
   const regenerate = useServerAction(
-    async () => {
+    async ({
+      operation,
+      password
+    }: {
+      operation: 'disable' | 'regenerate'
+      password: string
+    }) => {
+      if (operation === 'disable') {
+        const result = await authClient.twoFactor
+          .disable({ password })
+          .catch(() => authFailure(m.two_factor_disable_failed()))
+        return result.error
+          ? authFailure(authErrorCopy(result.error, m.two_factor_disable_failed()))
+          : null
+      }
       const result = await authClient.twoFactor.generateBackupCodes({ password })
       if (result.error) {
         return authFailure(
@@ -255,32 +225,48 @@ export function RegenerateFlow({ onStart }: { readonly onStart: () => void }) {
     {
       failureMessage: m.backup_codes_regenerate_failed(),
       invalidate: false,
-      onSuccess: (backupCodes: ReadonlyArray<string>) => {
-        setPassword('')
-        setCodes(backupCodes)
+      onSuccess: async (backupCodes) => {
+        if (backupCodes === null) {
+          await onDisabled()
+        }
       }
     }
   )
+  const codes = regenerate.result ?? null
 
   return (
     <>
+      <PasswordForm
+        id="twofactor-password-off"
+        label={m.form_password()}
+        submitLabel={m.turn_off()}
+        variant="outline"
+        busy={regenerate.pending}
+        onSubmit={async (password) => {
+          onStart()
+          const outcome = await regenerate.runAsync({ operation: 'disable', password })
+          return outcome.ok
+        }}
+      />
       {codes === null ? null : (
-        <BackupCodesSection codes={codes} onDismiss={() => setCodes(null)} />
+        <BackupCodesSection codes={codes} onDismiss={regenerate.reset} />
       )}
       <PasswordForm
         id="twofactor-password-regen"
         label={m.form_confirm_password()}
         submitLabel={m.regenerate_backup_codes()}
         variant="outline"
-        value={password}
         busy={regenerate.pending}
-        onChange={setPassword}
-        onSubmit={() => {
+        onSubmit={async (password) => {
           onStart()
-          regenerate.run()
+          const outcome = await regenerate.runAsync({
+            operation: 'regenerate',
+            password
+          })
+          return outcome.ok
         }}
       />
-      <SubmitError message={regenerate.error} />
+      <ActionFeedback error={regenerate.error} />
     </>
   )
 }
@@ -291,39 +277,51 @@ function PasswordForm({
   label,
   submitLabel,
   variant,
-  value,
   busy,
-  onChange,
   onSubmit
 }: {
   readonly id: string
   readonly label: string
   readonly submitLabel: string
   readonly variant?: 'outline'
-  readonly value: string
   readonly busy: boolean
-  readonly onChange: (value: string) => void
-  readonly onSubmit: () => void
+  readonly onSubmit: (password: string) => Promise<boolean>
 }) {
+  const form = useForm({
+    defaultValues: { password: '' },
+    onSubmit: async ({ value }) => {
+      if (!busy && (await onSubmit(value.password))) {
+        form.reset()
+      }
+    }
+  })
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault()
-        onSubmit()
+        if (!busy) {
+          void form.handleSubmit()
+        }
       }}
       className="grid gap-3"
     >
-      <div className="grid gap-1.5">
-        <Label htmlFor={id}>{label}</Label>
-        <Input
-          id={id}
-          type="password"
-          autoComplete="current-password"
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          required
-        />
-      </div>
+      <form.Field name="password">
+        {(field) => (
+          <div className="grid gap-1.5">
+            <Label htmlFor={id}>{label}</Label>
+            <Input
+              id={id}
+              type="password"
+              disabled={busy}
+              autoComplete="current-password"
+              value={field.state.value}
+              onBlur={field.handleBlur}
+              onChange={(event) => field.handleChange(event.target.value)}
+              required
+            />
+          </div>
+        )}
+      </form.Field>
       <Button
         type="submit"
         {...(variant === undefined ? {} : { variant })}
@@ -334,10 +332,6 @@ function PasswordForm({
       </Button>
     </form>
   )
-}
-
-function SubmitError({ message }: { readonly message: string | null }) {
-  return <ActionFeedback error={message} />
 }
 
 /**

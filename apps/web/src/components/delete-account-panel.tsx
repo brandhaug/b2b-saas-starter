@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { TriangleAlertIcon } from 'lucide-react'
 import { useState } from 'react'
+import { useForm } from '@tanstack/react-form'
 import { useServerAction } from '@/hooks/use-server-action'
 import { describeDeleteFailure } from '@/lib/delete-account-failure'
 import { deleteAccountServerFn, type AccountDeletionPlan } from '@/lib/server/account'
@@ -43,7 +44,6 @@ export function DeleteAccountPanel({
     readonly password: string
   }) => Promise<AccountDeletionPlan>
 }) {
-  const [password, setPassword] = useState('')
   const [confirming, setConfirming] = useState(false)
 
   const remove = useServerAction(
@@ -58,6 +58,14 @@ export function DeleteAccountPanel({
       }
     }
   )
+  const form = useForm({
+    defaultValues: { password: '' },
+    onSubmit: async ({ value }) => {
+      setConfirming(false)
+      await remove.runAsync(value)
+      form.reset()
+    }
+  })
 
   if (!plan.canDelete) {
     const blockedOwners = plan.steps.filter(
@@ -159,17 +167,23 @@ export function DeleteAccountPanel({
         }}
         className="grid gap-3"
       >
-        <div className="grid gap-1.5">
-          <Label htmlFor="delete-account-password">{m.form_password()}</Label>
-          <Input
-            id="delete-account-password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-          />
-        </div>
+        <form.Field name="password">
+          {(field) => (
+            <div className="grid gap-1.5">
+              <Label htmlFor="delete-account-password">{m.form_password()}</Label>
+              <Input
+                id="delete-account-password"
+                disabled={remove.pending}
+                type="password"
+                autoComplete="current-password"
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={(event) => field.handleChange(event.target.value)}
+                required
+              />
+            </div>
+          )}
+        </form.Field>
         <Button
           type="submit"
           variant="destructive"
@@ -198,10 +212,9 @@ export function DeleteAccountPanel({
           <AlertDialogFooter>
             <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
             <AlertDialogAction
+              disabled={remove.pending}
               onClick={() => {
-                setConfirming(false)
-                remove.run({ password })
-                setPassword('')
+                void form.handleSubmit()
               }}
             >
               {m.confirm_delete_account()}

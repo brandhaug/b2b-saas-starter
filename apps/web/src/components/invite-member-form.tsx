@@ -1,8 +1,9 @@
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { type WorkspaceRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
-import { useState } from 'react'
+import { useForm } from '@tanstack/react-form'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { ActionFeedback } from '@/components/page/action-feedback'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -25,6 +26,25 @@ type SendResult =
   | { readonly email: string; readonly ok: true; readonly sent: SentInvitation }
   | { readonly email: string; readonly ok: false; readonly message: string }
 
+type InviteValues = { emails: string; role: WorkspaceRole }
+
+const DEFAULT_VALUES: InviteValues = {
+  emails: '',
+  role: 'member'
+}
+
+function validateEmails({ value }: { value: string }) {
+  const addresses = addressesFrom(value)
+  if (addresses.length === 0) {
+    return m.invitation_batch_required()
+  }
+  const invalid = addresses.filter((email) => !EMAIL_PATTERN.test(email))
+  if (invalid.length > 0) {
+    return m.invitation_batch_invalid({ emails: invalid.join(', ') })
+  }
+  return
+}
+
 function addressesFrom(value: string) {
   return [
     ...new Set(
@@ -41,11 +61,10 @@ export function InviteMemberForm({
 }: {
   readonly workspaceSlug: string
 }) {
-  const [emails, setEmails] = useState('')
-  const [role, setRole] = useState<WorkspaceRole>('member')
-  const [batchRole, setBatchRole] = useState<WorkspaceRole | null>(null)
-  const [validationError, setValidationError] = useState<string | null>(null)
-  const [results, setResults] = useState<ReadonlyArray<SendResult>>([])
+  return <WorkspaceInviteForm key={workspaceSlug} workspaceSlug={workspaceSlug} />
+}
+
+function WorkspaceInviteForm({ workspaceSlug }: { readonly workspaceSlug: string }) {
   const send = useServerAction(
     ({
       email,
@@ -57,51 +76,57 @@ export function InviteMemberForm({
       sendInvitationServerFn({
         data: { workspaceSlug, email, role: invitationRole }
       }),
-    { failureMessage: m.invitation_send_failed() }
+    {
+      failureMessage: m.invitation_send_failed(),
+      identityKey: workspaceSlug,
+      invalidate: false
+    }
   )
-
-  async function sendAddresses(
-    addresses: ReadonlyArray<string>,
-    invitationRole: WorkspaceRole
-  ) {
-    const next: Array<SendResult> = []
-    // Invitations deliberately run in order: the UI reports a stable result for
-    // each address and reuses the existing one-at-a-time server mutation.
-    for (const email of addresses) {
-      // eslint-disable-next-line no-await-in-loop, react-doctor/async-await-in-loop
-      const outcome = await send.runAsync({ email, role: invitationRole })
-      next.push(
-        outcome.ok
-          ? { email, ok: true, sent: outcome.value }
-          : { email, ok: false, message: outcome.message }
-      )
-    }
-    setResults((current) => {
+  const batch = useServerAction(
+    async ({
+      addresses,
+      role: invitationRole,
+      previous = []
+    }: {
+      readonly addresses: ReadonlyArray<string>
+      readonly role: WorkspaceRole
+      readonly previous?: ReadonlyArray<SendResult>
+    }) => {
+      const next: Array<SendResult> = []
+      // Invitations deliberately run in order: the UI reports a stable result for
+      // each address and reuses the existing one-at-a-time server mutation.
+      for (const email of addresses) {
+        // eslint-disable-next-line no-await-in-loop, react-doctor/async-await-in-loop
+        const outcome = await send.runAsync({ email, role: invitationRole })
+        next.push(
+          outcome.ok
+            ? { email, ok: true, sent: outcome.value }
+            : { email, ok: false, message: outcome.message }
+        )
+      }
       const attempted = new Set(addresses)
-      return [...current.filter((result) => !attempted.has(result.email)), ...next]
-    })
-    if (next.every((result) => result.ok)) {
-      setEmails('')
+      return {
+        role: invitationRole,
+        results: [...previous.filter((result) => !attempted.has(result.email)), ...next]
+      }
+    },
+    {
+      failureMessage: m.invitation_send_failed(),
+      identityKey: workspaceSlug,
+      onSuccess: ({ results }) => {
+        if (results.every((result) => result.ok)) {
+          form.setFieldValue('emails', '')
+        }
+      }
     }
-  }
-
-  function submit() {
-    const addresses = addressesFrom(emails)
-    if (addresses.length === 0) {
-      setValidationError(m.invitation_batch_required())
-      return
+  )
+  const form = useForm({
+    defaultValues: DEFAULT_VALUES,
+    onSubmit: async ({ value }) => {
+      await batch.runAsync({ addresses: addressesFrom(value.emails), role: value.role })
     }
-    const invalid = addresses.filter((email) => !EMAIL_PATTERN.test(email))
-    if (invalid.length > 0) {
-      setValidationError(m.invitation_batch_invalid({ emails: invalid.join(', ') }))
-      return
-    }
-    setValidationError(null)
-    setResults([])
-    setBatchRole(role)
-    void sendAddresses(addresses, role)
-  }
-
+  })
+  const results = batch.result?.results ?? []
   const failed = results.filter((result) => !result.ok)
   const succeeded = results.length - failed.length
   return (
@@ -109,47 +134,57 @@ export function InviteMemberForm({
       className="grid gap-4"
       onSubmit={(event) => {
         event.preventDefault()
-        submit()
+        void form.handleSubmit()
       }}
     >
-      <Field data-invalid={validationError === null ? undefined : true}>
-        <FieldLabel htmlFor="invitation-emails">
-          {m.invitation_emails_label()}
-        </FieldLabel>
-        <Textarea
-          id="invitation-emails"
-          value={emails}
-          onChange={(event) => setEmails(event.target.value)}
-          placeholder={m.invitation_email_placeholder()}
-          aria-invalid={validationError === null ? undefined : true}
-          aria-describedby="invitation-emails-hint"
-          rows={4}
-          disabled={send.pending}
-        />
-        <FieldDescription id="invitation-emails-hint">
-          {validationError ?? m.invitation_emails_hint()}
-        </FieldDescription>
-      </Field>
-      <FieldSet>
-        <FieldLegend variant="label">{m.common_role()}</FieldLegend>
-        <RadioGroup
-          value={role}
-          onValueChange={setRole}
-          disabled={send.pending}
-          className="flex flex-wrap gap-3"
-        >
-          {workspaceRoles.map((candidate) => (
-            <FieldLabel key={candidate}>
-              <RadioGroupItem value={candidate} />
-              <span>{roleLabel(candidate)}</span>
+      <form.Field name="emails" validators={{ onSubmit: validateEmails }}>
+        {(field) => (
+          <Field data-invalid={field.state.meta.errors.length > 0 || undefined}>
+            <FieldLabel htmlFor="invitation-emails">
+              {m.invitation_emails_label()}
             </FieldLabel>
-          ))}
-        </RadioGroup>
-      </FieldSet>
-      <Button type="submit" disabled={send.pending} className="justify-self-start">
-        {send.pending ? <Spinner data-icon="inline-start" /> : null}
+            <Textarea
+              id="invitation-emails"
+              value={field.state.value}
+              onBlur={field.handleBlur}
+              onChange={(event) => field.handleChange(event.target.value)}
+              placeholder={m.invitation_email_placeholder()}
+              aria-invalid={field.state.meta.errors.length > 0 || undefined}
+              aria-describedby="invitation-emails-hint"
+              rows={4}
+              disabled={batch.pending}
+            />
+            <FieldDescription id="invitation-emails-hint">
+              {field.state.meta.errors[0] ?? m.invitation_emails_hint()}
+            </FieldDescription>
+          </Field>
+        )}
+      </form.Field>
+      <form.Field name="role">
+        {(field) => (
+          <FieldSet>
+            <FieldLegend variant="label">{m.common_role()}</FieldLegend>
+            <RadioGroup
+              value={field.state.value}
+              onValueChange={field.handleChange}
+              disabled={batch.pending}
+              className="flex flex-wrap gap-3"
+            >
+              {workspaceRoles.map((candidate) => (
+                <FieldLabel key={candidate}>
+                  <RadioGroupItem value={candidate} />
+                  <span>{roleLabel(candidate)}</span>
+                </FieldLabel>
+              ))}
+            </RadioGroup>
+          </FieldSet>
+        )}
+      </form.Field>
+      <Button type="submit" disabled={batch.pending} className="justify-self-start">
+        {batch.pending ? <Spinner data-icon="inline-start" /> : null}
         {m.form_send_invitation()}
       </Button>
+      <ActionFeedback error={batch.error} />
       {results.length > 0 ? (
         <Alert variant={failed.length === 0 ? 'ok' : 'destructive'}>
           <AlertTitle>
@@ -184,18 +219,19 @@ export function InviteMemberForm({
               <Button
                 type="button"
                 variant="outline"
-                disabled={send.pending || batchRole === null}
+                disabled={batch.pending}
                 className="justify-self-start"
                 onClick={() => {
-                  if (batchRole !== null) {
-                    void sendAddresses(
-                      failed.map((result) => result.email),
-                      batchRole
-                    )
+                  if (batch.result) {
+                    batch.run({
+                      addresses: failed.map((result) => result.email),
+                      role: batch.result.role,
+                      previous: results
+                    })
                   }
                 }}
               >
-                {send.pending ? <Spinner data-icon="inline-start" /> : null}
+                {batch.pending ? <Spinner data-icon="inline-start" /> : null}
                 {m.invitation_retry_failed()}
               </Button>
             ) : null}

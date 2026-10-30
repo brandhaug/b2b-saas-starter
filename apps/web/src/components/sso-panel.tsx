@@ -1,5 +1,5 @@
 import { type SsoConnection } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
-import { useState } from 'react'
+import { type ComponentProps } from 'react'
 import { useForm } from '@tanstack/react-form'
 
 import { ConnectionList } from '@/components/sso-connection-list'
@@ -129,16 +129,6 @@ function defaultPorts(): SsoPanelPorts {
   }
 }
 
-/** The create submit control. */
-function AddConnectionButton({ disabled }: { readonly disabled: boolean }) {
-  return (
-    <Button type="submit" disabled={disabled} className="justify-self-start">
-      {disabled ? <Spinner data-icon="inline-start" /> : null}
-      {m.sso_add_connection()}
-    </Button>
-  )
-}
-
 /** The provisioning-role radio group, identical for both protocols. */
 function RoleRadioGroup({
   value,
@@ -207,7 +197,11 @@ function toCreatePayload(
   }
 }
 
-export function SsoPanel({
+export function SsoPanel(props: ComponentProps<typeof WorkspaceSsoPanel>) {
+  return <WorkspaceSsoPanel key={props.workspaceSlug} {...props} />
+}
+
+function WorkspaceSsoPanel({
   workspaceSlug,
   connections,
   ports = defaultPorts(),
@@ -220,34 +214,41 @@ export function SsoPanel({
   /** Per-action gating, decided by role: create, update (test/flip), remove. */
   readonly viewer: Viewer
 }) {
-  const [testResult, setTestResult] = useState<
-    ({ readonly providerId: string } & SsoTestResult) | null
-  >(null)
-
   const canCreate = viewerCan(viewer, { sso: ['create'] })
   const canUpdate = viewerCan(viewer, { sso: ['update'] })
   const canRemove = viewerCan(viewer, { sso: ['remove'] })
 
   const create = useServerAction(
     (value: SsoFormValues) => ports.create(toCreatePayload(workspaceSlug, value)),
-    { failureMessage: m.sso_create_failed() }
+    { failureMessage: m.sso_create_failed(), identityKey: workspaceSlug }
   )
 
   const update = useServerAction(
     (input: UpdateSsoConnectionInput) => ports.update(input),
-    { failureMessage: m.sso_update_failed() }
+    {
+      failureMessage: m.sso_update_failed(),
+      identityKey: workspaceSlug,
+      onSuccess: () => test.reset()
+    }
   )
 
   const remove = useServerAction(
     (providerId: string) => ports.remove({ workspaceSlug, providerId }),
-    { failureMessage: m.sso_remove_failed() }
+    {
+      failureMessage: m.sso_remove_failed(),
+      identityKey: workspaceSlug,
+      onSuccess: () => test.reset()
+    }
   )
 
   const test = useServerAction(
-    (providerId: string) => ports.test({ workspaceSlug, providerId }),
+    async (providerId: string) => ({
+      providerId,
+      ...(await ports.test({ workspaceSlug, providerId }))
+    }),
     {
       failureMessage: m.sso_test_failed(),
-      onSuccess: (result, providerId) => setTestResult({ providerId, ...result })
+      identityKey: workspaceSlug
     }
   )
 
@@ -279,172 +280,186 @@ export function SsoPanel({
           }}
           className="grid gap-4"
         >
-          <form.Field name="protocol">
-            {(field) => (
-              <FieldSet>
-                <FieldLegend variant="label">{m.sso_protocol()}</FieldLegend>
-                <RadioGroup
-                  name={field.name}
-                  value={field.state.value}
-                  onValueChange={(next) =>
-                    field.handleChange(next === 'saml' ? 'saml' : 'oidc')
-                  }
-                  className="flex flex-wrap gap-3"
-                >
-                  <FieldLabel>
-                    <RadioGroupItem value="oidc" />
-                    <span>{m.sso_oidc()}</span>
-                  </FieldLabel>
-                  <FieldLabel>
-                    <RadioGroupItem value="saml" />
-                    <span>{m.sso_saml()}</span>
-                  </FieldLabel>
-                </RadioGroup>
-              </FieldSet>
-            )}
-          </form.Field>
-
-          <form.Subscribe selector={(state) => state.values.protocol}>
-            {(protocol) =>
-              protocol === 'oidc' ? (
-                <>
-                  <form.Field
-                    name="issuer"
-                    validators={{
-                      onChange: ({ value }: { value: string }) => validateIssuer(value)
-                    }}
-                  >
-                    {(field) => (
-                      <FormTextField
-                        name={field.name}
-                        label={m.sso_issuer()}
-                        value={field.state.value}
-                        errors={field.state.meta.errors}
-                        onBlur={field.handleBlur}
-                        onChange={field.handleChange}
-                        placeholder={m.sso_issuer_placeholder()}
-                      />
-                    )}
-                  </form.Field>
-                  <form.Field name="clientId">
-                    {(field) => (
-                      <FormTextField
-                        name={field.name}
-                        label={m.sso_client_id()}
-                        value={field.state.value}
-                        errors={field.state.meta.errors}
-                        onBlur={field.handleBlur}
-                        onChange={field.handleChange}
-                      />
-                    )}
-                  </form.Field>
-                  <form.Field name="clientSecret">
-                    {(field) => (
-                      <FormTextField
-                        name={field.name}
-                        label={m.sso_client_secret()}
-                        type="password"
-                        autoComplete="off"
-                        value={field.state.value}
-                        errors={field.state.meta.errors}
-                        onBlur={field.handleBlur}
-                        onChange={field.handleChange}
-                      />
-                    )}
-                  </form.Field>
-                </>
-              ) : (
-                <>
-                  <form.Field
-                    name="metadataUrl"
-                    validators={{
-                      onChange: ({ value }: { value: string }) =>
-                        validateMetadataUrl(value)
-                    }}
-                  >
-                    {(field) => (
-                      <FormTextField
-                        name={field.name}
-                        label={m.sso_metadata_url()}
-                        value={field.state.value}
-                        errors={field.state.meta.errors}
-                        onBlur={field.handleBlur}
-                        onChange={field.handleChange}
-                        placeholder={m.sso_metadata_url_placeholder()}
-                      />
-                    )}
-                  </form.Field>
-                  <form.Field name="metadataXml">
-                    {(field) => (
-                      <div className="grid gap-2">
-                        <Label htmlFor={field.name}>{m.sso_metadata_xml()}</Label>
-                        <Textarea
-                          id={field.name}
-                          name={field.name}
-                          value={field.state.value}
-                          onBlur={field.handleBlur}
-                          onChange={(event) => field.handleChange(event.target.value)}
-                          rows={4}
-                          placeholder={m.sso_metadata_xml_placeholder()}
-                          className="font-mono text-xs"
-                        />
-                      </div>
-                    )}
-                  </form.Field>
-                  <form.Subscribe selector={(state) => state.errors}>
-                    {(errors) =>
-                      errors.length === 0 ? null : (
-                        <FieldError>{errors.join(', ')}</FieldError>
-                      )
+          <fieldset
+            disabled={create.pending}
+            className="contents"
+            aria-label={m.sso_add_connection()}
+          >
+            <form.Field name="protocol">
+              {(field) => (
+                <FieldSet>
+                  <FieldLegend variant="label">{m.sso_protocol()}</FieldLegend>
+                  <RadioGroup
+                    name={field.name}
+                    value={field.state.value}
+                    onValueChange={(next) =>
+                      field.handleChange(next === 'saml' ? 'saml' : 'oidc')
                     }
-                  </form.Subscribe>
-                </>
-              )
-            }
-          </form.Subscribe>
+                    className="flex flex-wrap gap-3"
+                  >
+                    <FieldLabel>
+                      <RadioGroupItem value="oidc" />
+                      <span>{m.sso_oidc()}</span>
+                    </FieldLabel>
+                    <FieldLabel>
+                      <RadioGroupItem value="saml" />
+                      <span>{m.sso_saml()}</span>
+                    </FieldLabel>
+                  </RadioGroup>
+                </FieldSet>
+              )}
+            </form.Field>
 
-          <form.Field
-            name="domain"
-            validators={{
-              onChange: ({ value }: { value: string }) => validateDomain(value)
-            }}
-          >
-            {(field) => (
-              <FormTextField
-                name={field.name}
-                label={m.sso_email_domain()}
-                value={field.state.value}
-                errors={field.state.meta.errors}
-                onBlur={field.handleBlur}
-                onChange={field.handleChange}
-                placeholder={m.sso_domain_placeholder()}
-              />
-            )}
-          </form.Field>
+            <form.Subscribe selector={(state) => state.values.protocol}>
+              {(protocol) =>
+                protocol === 'oidc' ? (
+                  <>
+                    <form.Field
+                      name="issuer"
+                      validators={{
+                        onChange: ({ value }: { value: string }) =>
+                          validateIssuer(value)
+                      }}
+                    >
+                      {(field) => (
+                        <FormTextField
+                          name={field.name}
+                          label={m.sso_issuer()}
+                          value={field.state.value}
+                          errors={field.state.meta.errors}
+                          onBlur={field.handleBlur}
+                          onChange={field.handleChange}
+                          placeholder={m.sso_issuer_placeholder()}
+                        />
+                      )}
+                    </form.Field>
+                    <form.Field name="clientId">
+                      {(field) => (
+                        <FormTextField
+                          name={field.name}
+                          label={m.sso_client_id()}
+                          value={field.state.value}
+                          errors={field.state.meta.errors}
+                          onBlur={field.handleBlur}
+                          onChange={field.handleChange}
+                        />
+                      )}
+                    </form.Field>
+                    <form.Field name="clientSecret">
+                      {(field) => (
+                        <FormTextField
+                          name={field.name}
+                          label={m.sso_client_secret()}
+                          type="password"
+                          autoComplete="off"
+                          value={field.state.value}
+                          errors={field.state.meta.errors}
+                          onBlur={field.handleBlur}
+                          onChange={field.handleChange}
+                        />
+                      )}
+                    </form.Field>
+                  </>
+                ) : (
+                  <>
+                    <form.Field
+                      name="metadataUrl"
+                      validators={{
+                        onChange: ({ value }: { value: string }) =>
+                          validateMetadataUrl(value)
+                      }}
+                    >
+                      {(field) => (
+                        <FormTextField
+                          name={field.name}
+                          label={m.sso_metadata_url()}
+                          value={field.state.value}
+                          errors={field.state.meta.errors}
+                          onBlur={field.handleBlur}
+                          onChange={field.handleChange}
+                          placeholder={m.sso_metadata_url_placeholder()}
+                        />
+                      )}
+                    </form.Field>
+                    <form.Field name="metadataXml">
+                      {(field) => (
+                        <div className="grid gap-2">
+                          <Label htmlFor={field.name}>{m.sso_metadata_xml()}</Label>
+                          <Textarea
+                            id={field.name}
+                            name={field.name}
+                            value={field.state.value}
+                            onBlur={field.handleBlur}
+                            onChange={(event) => field.handleChange(event.target.value)}
+                            rows={4}
+                            placeholder={m.sso_metadata_xml_placeholder()}
+                            className="font-mono text-xs"
+                          />
+                        </div>
+                      )}
+                    </form.Field>
+                    <form.Subscribe selector={(state) => state.errors}>
+                      {(errors) =>
+                        errors.length === 0 ? null : (
+                          <FieldError>{errors.join(', ')}</FieldError>
+                        )
+                      }
+                    </form.Subscribe>
+                  </>
+                )
+              }
+            </form.Subscribe>
 
-          <form.Field name="defaultWorkspaceRole">
-            {(field) => (
-              <RoleRadioGroup
-                value={field.state.value}
-                onChange={(role) => field.handleChange(role)}
-              />
-            )}
-          </form.Field>
+            <form.Field
+              name="domain"
+              validators={{
+                onChange: ({ value }: { value: string }) => validateDomain(value)
+              }}
+            >
+              {(field) => (
+                <FormTextField
+                  name={field.name}
+                  label={m.sso_email_domain()}
+                  value={field.state.value}
+                  errors={field.state.meta.errors}
+                  onBlur={field.handleBlur}
+                  onChange={field.handleChange}
+                  placeholder={m.sso_domain_placeholder()}
+                />
+              )}
+            </form.Field>
 
-          <ActionFeedback error={create.error} />
+            <form.Field name="defaultWorkspaceRole">
+              {(field) => (
+                <RoleRadioGroup
+                  value={field.state.value}
+                  onChange={(role) => field.handleChange(role)}
+                />
+              )}
+            </form.Field>
 
-          <form.Subscribe
-            selector={(state): readonly [boolean, boolean] => [
-              state.canSubmit,
-              state.isSubmitting
-            ]}
-          >
-            {([canSubmit, isSubmitting]) => (
-              <AddConnectionButton
-                disabled={!canSubmit || isSubmitting || create.pending}
-              />
-            )}
-          </form.Subscribe>
+            <ActionFeedback error={create.error} />
+
+            <form.Subscribe
+              selector={(state): readonly [boolean, boolean] => [
+                state.canSubmit,
+                state.isSubmitting
+              ]}
+            >
+              {([canSubmit, isSubmitting]) => (
+                <Button
+                  type="submit"
+                  className="justify-self-start"
+                  disabled={!canSubmit || isSubmitting || create.pending}
+                >
+                  {isSubmitting || create.pending ? (
+                    <Spinner data-icon="inline-start" />
+                  ) : null}
+                  {m.sso_add_connection()}
+                </Button>
+              )}
+            </form.Subscribe>
+          </fieldset>
         </form>
       </CreateSection>
 
@@ -453,7 +468,7 @@ export function SsoPanel({
         connections={connections}
         canUpdate={canUpdate}
         canRemove={canRemove}
-        testResult={testResult}
+        testResult={test.result ?? null}
         update={update}
         remove={remove}
         test={test}

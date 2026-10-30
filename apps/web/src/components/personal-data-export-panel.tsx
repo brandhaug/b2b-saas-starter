@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
@@ -46,14 +45,11 @@ export function PersonalDataExportPanel({
   readonly request?: RequestPersonalDataExport
   readonly download?: DownloadPersonalDataExport
 }) {
-  const [exported, setExported] = useState<PersonalDataExport | null>(null)
   const requestAction = useServerAction(() => request(), {
     failureMessage: m.personal_data_export_request_failed(),
-    onSuccess: (value) => {
-      setExported(value)
-    },
     invalidate: false
   })
+  const exported = requestAction.result ?? null
   const downloadAction = useServerAction(download, {
     failureMessage: m.personal_data_export_download_failed(),
     onSuccess: ({ fileName, json }) => {
@@ -71,7 +67,6 @@ export function PersonalDataExportPanel({
           type="button"
           variant={exported === null ? 'default' : 'outline'}
           onClick={() => {
-            requestAction.reset()
             downloadAction.reset()
             requestAction.run()
           }}
@@ -87,7 +82,6 @@ export function PersonalDataExportPanel({
             type="button"
             variant="outline"
             onClick={() => {
-              requestAction.reset()
               downloadAction.reset()
               downloadAction.run({ data: { exportId: exported.id } })
             }}

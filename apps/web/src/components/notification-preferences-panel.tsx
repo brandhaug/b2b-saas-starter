@@ -1,5 +1,4 @@
 import { type NotificationChannel } from '@b2b-saas-starter/capabilities/notifications/notification-kinds'
-import { useState } from 'react'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { Badge } from '@/components/ui/badge'
 import { FieldLabel } from '@/components/ui/field'
@@ -47,13 +46,6 @@ export function NotificationPreferencesPanel({
   readonly highlightKind?: NotificationPreferenceRow['kind'] | undefined
   readonly setPreference?: SetNotificationPreference
 }) {
-  // Optimistic view: the loader owns the truth after `router.invalidate()`,
-  // this only keeps the clicked radio checked while the call is in flight —
-  // and on a failed save the override is dropped so the row falls back to
-  // loader truth instead of showing a channel the server refused.
-  const [overrides, setOverrides] = useState<
-    Readonly<Partial<Record<NotificationPreferenceRow['kind'], NotificationChannel>>>
-  >({})
   const action = useServerAction(
     (input: {
       kind: NotificationPreferenceRow['kind']
@@ -63,13 +55,7 @@ export function NotificationPreferencesPanel({
   )
 
   function select(row: NotificationPreferenceRow, channel: NotificationChannel) {
-    setOverrides((current) => ({ ...current, [row.kind]: channel }))
-    void (async () => {
-      const outcome = await action.runAsync({ kind: row.kind, channel })
-      if (!outcome.ok) {
-        setOverrides(({ [row.kind]: _failed, ...fallback }) => fallback)
-      }
-    })()
+    action.run({ kind: row.kind, channel })
   }
 
   return (
@@ -77,8 +63,8 @@ export function NotificationPreferencesPanel({
       <ActionFeedback error={action.error} />
       <ul className="divide-y divide-border">
         {preferences.map((row) => {
-          const value = overrides[row.kind] ?? row.channel
           const pending = action.pendingInput?.kind === row.kind
+          const value = pending ? action.pendingInput.channel : row.channel
           const highlighted = row.kind === highlightKind
           return (
             <li

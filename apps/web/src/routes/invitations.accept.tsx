@@ -138,6 +138,7 @@ function PendingInvitation({
     () => acceptInvitation({ data: { invitationId: preview.invitationId } }),
     {
       failureMessage: m.accept_invitation_failed(),
+      identityKey: preview.invitationId,
       invalidate: false,
       onSuccess: async (joined) => {
         await router.navigate({

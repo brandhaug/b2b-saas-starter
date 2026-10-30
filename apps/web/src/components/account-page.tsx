@@ -2,6 +2,7 @@ import { safeRedirect } from '@/lib/utils'
 import { AccountConversationsPanel } from '@/components/account-conversations-panel'
 import {
   deleteOwnedConversationServerFn,
+  loadOwnedConversationsServerFn,
   type OwnedConversation
 } from '@/lib/server/account-conversations'
 import { type ConversationResult } from '@/lib/server/assistant-conversations'
@@ -61,7 +62,12 @@ export function AccountPage({
   readonly currentSessionToken: string
 }) {
   return (
-    <WorkspaceShell viewer={null} systemRole={session.user.role} workspaceSlug={null}>
+    <WorkspaceShell
+      key={session.user.id}
+      viewer={null}
+      systemRole={session.user.role}
+      workspaceSlug={null}
+    >
       {redirect ? (
         <Link
           to={safeRedirect(redirect)}
@@ -89,7 +95,7 @@ export function AccountPage({
           impersonatedBy={session.impersonatedBy}
           message={m.shell_impersonated_sign_in()}
         >
-          <LinkedAccountsPanel />
+          <LinkedAccountsPanel userId={session.user.id} />
         </WhileNotImpersonating>
       </Panel>
 
@@ -104,7 +110,10 @@ export function AccountPage({
           impersonatedBy={session.impersonatedBy}
           message={m.shell_impersonated_two_factor()}
         >
-          <TwoFactorPanel twoFactorEnabled={session.user.twoFactorEnabled} />
+          <TwoFactorPanel
+            userId={session.user.id}
+            twoFactorEnabled={session.user.twoFactorEnabled}
+          />
         </WhileNotImpersonating>
       </Panel>
 
@@ -116,7 +125,7 @@ export function AccountPage({
           impersonatedBy={session.impersonatedBy}
           message={m.shell_impersonated_passkeys()}
         >
-          <PasskeysPanel />
+          <PasskeysPanel userId={session.user.id} />
         </WhileNotImpersonating>
       </Panel>
 
@@ -134,11 +143,16 @@ export function AccountPage({
       </Panel>
       {ownedConversations ? (
         <AccountConversationsPanel
+          userId={session.user.id}
           initial={ownedConversations}
+          load={loadOwnedConversationsServerFn}
           remove={deleteOwnedConversationServerFn}
         />
       ) : null}
-      <SessionsPanel currentSessionToken={currentSessionToken} />
+      <SessionsPanel
+        userId={session.user.id}
+        currentSessionToken={currentSessionToken}
+      />
 
       {preferences === undefined ? null : (
         <Panel

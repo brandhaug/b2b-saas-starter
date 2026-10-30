@@ -131,9 +131,11 @@ describe('WorkspaceSettingsPage lifecycle ports', () => {
     fireEvent.change(screen.getByLabelText('Workspace name'), {
       target: { value: 'Starter Lab' }
     })
-    expect(
-      screen.getByRole('button', { name: 'Save name' }).hasAttribute('disabled')
-    ).toBe(false)
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Save name' }).hasAttribute('disabled')
+      ).toBe(false)
+    )
     fireEvent.click(screen.getByRole('button', { name: 'Save name' }))
     await waitFor(() => expect(rename).toHaveBeenCalledTimes(2))
     expect(rename).toHaveBeenLastCalledWith({

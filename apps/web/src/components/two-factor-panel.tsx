@@ -1,13 +1,39 @@
-import { useState, type ReactNode } from 'react'
+import { useReducer, type ReactNode } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { authClient } from '@/lib/auth-client'
+import { unwrapAuthResult } from '@/lib/auth-result'
+import { useClientValue } from '@/lib/client-only-value'
 import { ShieldCheckIcon } from 'lucide-react'
 import {
-  DisableFlow,
+  EnabledFlows,
   EnableFlow,
   EnrollmentFlow,
-  RegenerateFlow,
   type Enrollment
 } from '@/components/auth/two-factor-flows'
 import { m } from '@b2b-saas-starter/i18n/messages'
+
+type SetupState =
+  | { readonly step: 'idle'; readonly message: string | null }
+  | { readonly step: 'enrolling'; readonly enrollment: Enrollment }
+
+type SetupEvent =
+  | { readonly type: 'start' }
+  | { readonly type: 'enrolled'; readonly enrollment: Enrollment }
+  | { readonly type: 'completed'; readonly message: string }
+
+function setupTransition(state: SetupState, event: SetupEvent): SetupState {
+  switch (event.type) {
+    case 'start': {
+      return state.step === 'enrolling' ? state : { step: 'idle', message: null }
+    }
+    case 'enrolled': {
+      return { step: 'enrolling', enrollment: event.enrollment }
+    }
+    case 'completed': {
+      return { step: 'idle', message: event.message }
+    }
+  }
+}
 
 /**
  * Account-level two-factor management: enable (password → one-time QR/secret
@@ -15,44 +41,58 @@ import { m } from '@b2b-saas-starter/i18n/messages'
  * (password). TOTP only, matching the plugin's configuration in
  * `packages/auth`.
  *
- * This module is the state machine — off → enrollment → on — and the frame
- * every step renders in; the flows themselves live beside the other auth
- * components in `auth/two-factor-flows.tsx`, each owning its own field state
- * and its own `useServerAction` (calling the Better Auth client directly).
- * Nothing is shared but the enrollment hand-off and the status line, both of
- * which cross between flows here — a single password field behind all of
- * them used to mean "Turn off" and "Regenerate" typed into each other.
+ * Query owns the enabled flag. The reducer holds only the enrollment reveal
+ * and completion message. Disable and regeneration share one mutation, while
+ * each password form owns its own values.
  */
 export function TwoFactorPanel({
-  twoFactorEnabled
+  twoFactorEnabled,
+  userId = 'current'
 }: {
   // Optional/nullable to match the plugin's declared field shape; anything
   // truthy means "on".
   readonly twoFactorEnabled?: boolean | null | undefined
+  readonly userId?: string
 }) {
-  const [enrollment, setEnrollment] = useState<Enrollment | null>(null)
-  const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+  const hydrated = useClientValue(() => true, false)
+  const queryKey = ['account', userId, 'two-factor']
+  const { data: enabled } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      const session = await unwrapAuthResult(
+        () => authClient.getSession(),
+        m.two_factor_setup_failed()
+      )
+      return Boolean(session?.user.twoFactorEnabled)
+    },
+    initialData: Boolean(twoFactorEnabled),
+    enabled: hydrated,
+    staleTime: 60_000,
+    retry: false
+  })
+  const [setup, dispatch] = useReducer(setupTransition, { step: 'idle', message: null })
   function clearStatus() {
-    setStatusMessage(null)
+    dispatch({ type: 'start' })
   }
 
-  if (enrollment !== null) {
+  if (setup.step === 'enrolling') {
     return (
       <PanelFrame heading={m.setup_authenticator()} tone="enabled">
         <EnrollmentFlow
-          enrollment={enrollment}
+          enrollment={setup.enrollment}
           onStart={clearStatus}
-          onVerified={() => {
-            setEnrollment(null)
-            setStatusMessage(m.two_factor_now_on())
+          onVerified={async () => {
+            await queryClient.cancelQueries({ queryKey, exact: true })
+            queryClient.setQueryData(queryKey, true)
+            dispatch({ type: 'completed', message: m.two_factor_now_on() })
           }}
         />
-        <StatusMessage message={statusMessage} />
       </PanelFrame>
     )
   }
 
-  if (twoFactorEnabled) {
+  if (enabled) {
     return (
       <PanelFrame heading={m.status()} tone="enabled">
         <p className="text-sm text-muted-foreground">
@@ -63,12 +103,15 @@ export function TwoFactorPanel({
           />
           {m.two_factor_on_description()}
         </p>
-        <DisableFlow
+        <EnabledFlows
           onStart={clearStatus}
-          onDisabled={() => setStatusMessage(m.auth_two_factor_off())}
+          onDisabled={async () => {
+            await queryClient.cancelQueries({ queryKey, exact: true })
+            queryClient.setQueryData(queryKey, false)
+            dispatch({ type: 'completed', message: m.auth_two_factor_off() })
+          }}
         />
-        <RegenerateFlow onStart={clearStatus} />
-        <StatusMessage message={statusMessage} />
+        <StatusMessage message={setup.message} />
       </PanelFrame>
     )
   }
@@ -83,8 +126,11 @@ export function TwoFactorPanel({
         />
         {m.two_factor_off_description()}
       </p>
-      <EnableFlow onStart={clearStatus} onEnrolled={setEnrollment} />
-      <StatusMessage message={statusMessage} />
+      <EnableFlow
+        onStart={clearStatus}
+        onEnrolled={(enrollment) => dispatch({ type: 'enrolled', enrollment })}
+      />
+      <StatusMessage message={setup.message} />
     </PanelFrame>
   )
 }
