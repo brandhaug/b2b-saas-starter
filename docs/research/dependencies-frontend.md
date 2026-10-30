@@ -1,5 +1,9 @@
 # Frontend, content, email and i18n dependency audit
 
+This records the pre-Foldkit dependency evaluation. The later user-approved
+native web migration supersedes its React/TanStack recommendation. See
+[current web architecture](../../ARCHITECTURE.md#native-web-application).
+
 > Current implementation: PostHog has been removed. Optional browser analytics
 > uses an Alchemy-managed Cloudflare Web Analytics site; server telemetry retains
 > Workers Logs/Issues and optional Effect OTLP. PostHog findings below describe

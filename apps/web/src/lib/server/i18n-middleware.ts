@@ -31,13 +31,15 @@ export async function localizeRequest(
   next: () => Promise<Response>
 ): Promise<Response> {
   const pathname = new URL(request.url).pathname
-  if (isUnlocalizedPath(pathname)) {
+  const applicationCall = pathname.startsWith('/api/web/')
+  if (!applicationCall && isUnlocalizedPath(pathname)) {
     return next()
   }
 
-  const session = needsAccountPresentation(pathname)
-    ? await readOptionalSession()
-    : null
+  const session =
+    applicationCall || needsAccountPresentation(pathname)
+      ? await readOptionalSession()
+      : null
   const preferences = session
     ? await runCapabilities(
         Effect.flatMap(AccountPreferencesService, (service) =>
@@ -57,7 +59,13 @@ export async function localizeRequest(
       .join(';')
     headers.set('cookie', `${otherCookies}; starter_locale=${accountLocale}`)
   }
-  const detectionRequest = new Request(request.url, { headers, method: request.method })
+  // The generated locale matcher excludes /api for protocol callbacks. Application
+  // calls need the account/cookie strategy, without rewriting the actual request.
+  const detectionUrl = applicationCall ? new URL('/account', request.url) : request.url
+  const detectionRequest = new Request(detectionUrl, {
+    headers,
+    method: request.method
+  })
   return paraglideMiddleware(detectionRequest, () =>
     withPresentation(
       {

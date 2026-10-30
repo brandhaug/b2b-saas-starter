@@ -4,6 +4,7 @@ import { Effect, Schema } from 'effect'
 
 import { authAvailability } from '../auth-runtime'
 import { memoizePerRequest, withWebRequestScope } from '../observability'
+import { withAuthCookies } from './auth-response'
 
 /**
  * The one Better Auth session read in the web app. The route gates
@@ -33,7 +34,10 @@ export class SessionReadFailed extends Schema.TaggedError<SessionReadFailed>()(
 
 const READ_FAILED_REASON = 'the session read failed'
 
-function runSessionRead(headers: Headers): Promise<Session | null> {
+function runSessionRead(
+  headers: Headers,
+  propagateCookies: boolean
+): Promise<Session | null> {
   const availability = authAvailability()
   if (!availability.available) {
     return Effect.runPromise(Effect.succeed(null))
@@ -43,7 +47,9 @@ function runSessionRead(headers: Headers): Promise<Session | null> {
       { event: 'auth.session' },
       Effect.gen(function* () {
         const auth = yield* Auth.Tag
-        const session = yield* auth.api.getSession({ headers })
+        const session = yield* propagateCookies
+          ? withAuthCookies(auth.full.getSession({ headers }))
+          : auth.api.getSession({ headers })
         // Whether the read found a session is the useful fact. Never the
         // token, never the email.
         yield* Effect.annotateLogsScoped({ authenticated: session !== null })
@@ -59,11 +65,10 @@ function runSessionRead(headers: Headers): Promise<Session | null> {
  * One read per request through `memoizePerRequest`: a route whose `beforeLoad`
  * gate, a server function and the auth catchall's pre-handler guards all read
  * the same session must not pay three DB round-trips for one document request.
- * Slots live on the request's telemetry, so they survive Start re-wrapping the
- * `Request` mid-flight. Rejects when the read fails.
+ * Slots live on the request's telemetry. Rejects when the read fails.
  */
 export function readSessionFromHeaders(headers: Headers): Promise<Session | null> {
-  return memoizePerRequest('auth.session', () => runSessionRead(headers))
+  return memoizePerRequest('auth.session', () => runSessionRead(headers, true))
 }
 
 /**
@@ -89,5 +94,5 @@ export function sessionFromHeaders(
  * must never overwrite it (nor be answered from it).
  */
 export function readSessionForCookie(cookie: string): Promise<Session | null> {
-  return runSessionRead(new Headers({ cookie }))
+  return runSessionRead(new Headers({ cookie }), false)
 }

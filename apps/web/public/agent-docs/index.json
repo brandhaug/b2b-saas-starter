@@ -8,7 +8,7 @@
       "canonicalUrl": "/en/docs/architecture/effect-v4-backbone",
       "markdownUrl": "/agent-docs/architecture/effect-v4-backbone.md",
       "sourcePath": "apps/web/content/docs/architecture/effect-v4-backbone.mdx",
-      "digest": "sha256:6152d70ac0b98e72cc38928927d4ed9811e153ac6fced2ba2514057472d27c47"
+      "digest": "sha256:79e5b1a128e9fcb09a6c90372b7bd8a6c29a324fd8e33ac92202e60084ded84d"
     },
     {
       "id": "docs/architecture/overview",
@@ -26,7 +26,7 @@
       "canonicalUrl": "/en/docs/architecture/workers",
       "markdownUrl": "/agent-docs/architecture/workers.md",
       "sourcePath": "apps/web/content/docs/architecture/workers.mdx",
-      "digest": "sha256:af52c12f30e7c33d1a761393318fc4bbf5b15389d09899104d99d7e91b6f40ba"
+      "digest": "sha256:042e64981dd0a9ff55779e9b9c876de0be3d298745f5c7936e620a064f167674"
     },
     {
       "id": "docs/capability-interfaces/api-tokens",
@@ -89,7 +89,7 @@
       "canonicalUrl": "/en/docs/getting-started/first-business-feature",
       "markdownUrl": "/agent-docs/getting-started/first-business-feature.md",
       "sourcePath": "apps/web/content/docs/getting-started/first-business-feature.mdx",
-      "digest": "sha256:f316442451e838c10bdcd0741d58bd45d7fac5324d822787f57f4e8716b87319"
+      "digest": "sha256:adae5b17d75ce38005ec611f3a7e1676d39ed371ef6fdf83a76c085128f2427b"
     },
     {
       "id": "docs/getting-started/optional-providers",

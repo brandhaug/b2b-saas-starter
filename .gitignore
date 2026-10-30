@@ -11,7 +11,7 @@ dist-docs-runtime
 .env.*
 !.env.example
 bun.lockb
-test-results
+test-results*
 .auth
 playwright-report
 coverage

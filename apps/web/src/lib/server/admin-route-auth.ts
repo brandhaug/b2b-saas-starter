@@ -1,7 +1,7 @@
 import { adminSystemRole } from '@b2b-saas-starter/db/enums'
-import { notFound, redirect } from '@tanstack/react-router'
+import { notFound, redirect } from '../../http/navigation'
 import { requireSession, type RouteSession } from './auth'
-import { strongAuthenticationStatusServerFn } from './strong-authentication'
+import { readStrongAuthenticationStatus } from './strong-authentication.effects'
 
 /**
  * Route gate for admin-only routes. Requires a session AND the privileged
@@ -16,7 +16,7 @@ export async function requireAdmin(redirectTo: string): Promise<RouteSession> {
     // oxlint-disable-next-line effect/noThrowStatement -- `throw notFound()` is TanStack Router's 404 control-flow API
     throw notFound()
   }
-  const authentication = await strongAuthenticationStatusServerFn()
+  const authentication = await readStrongAuthenticationStatus()
   if (!authentication.qualified) {
     // oxlint-disable-next-line effect/noThrowStatement -- navigation gates redirect to an accessible verification flow
     throw redirect({ to: '/verify-authentication', search: { redirect: redirectTo } })

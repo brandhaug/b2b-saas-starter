@@ -13,9 +13,7 @@ test('visitors browse every workspace section without authentication', async ({
   await expect(
     page.getByRole('heading', { name: 'Starter Lab', exact: true })
   ).toBeVisible()
-  await page
-    .locator('header [data-slot="select-trigger"]:enabled')
-    .waitFor({ state: 'attached' })
+  await page.locator('header select:enabled').waitFor({ state: 'attached' })
   const navigation = page.locator('aside').getByRole('navigation')
   for (const name of [
     'Members',
@@ -49,9 +47,7 @@ test('preview forms and destructive dialogs explain refusal without sending or c
     }
   })
   await page.goto('/demo/members')
-  await page
-    .locator('header [data-slot="select-trigger"]:enabled')
-    .waitFor({ state: 'attached' })
+  await page.locator('header select:enabled').waitFor({ state: 'attached' })
   await page.getByRole('button', { name: 'Invite a member', exact: true }).click()
   await page.getByLabel('Email addresses', { exact: true }).fill('visitor@example.com')
   await page.getByRole('button', { name: 'Send invitation', exact: true }).click()
@@ -61,9 +57,7 @@ test('preview forms and destructive dialogs explain refusal without sending or c
   await expect(page).toHaveURL(/\/demo\/members\?/)
 
   await page.goto('/demo/settings')
-  await page
-    .locator('header [data-slot="select-trigger"]:enabled')
-    .waitFor({ state: 'attached' })
+  await page.locator('header select:enabled').waitFor({ state: 'attached' })
   await page.getByRole('button', { name: 'Delete workspace', exact: true }).click()
   const dialog = page.getByRole('alertdialog')
   await expect(dialog).toBeVisible()
@@ -86,7 +80,7 @@ test('token creation, replacement, and webhook creation refuse locally', async (
   page
 }) => {
   const writes: Array<string> = []
-  await page.route('**/_serverFn/**', (route) => {
+  await page.route('**/api/web/**', (route) => {
     if (route.request().method() === 'POST') {
       writes.push(route.request().url())
       return route.abort()
@@ -94,9 +88,7 @@ test('token creation, replacement, and webhook creation refuse locally', async (
     return route.continue()
   })
   await page.goto('/demo/api-tokens')
-  await page
-    .locator('header [data-slot="select-trigger"]:enabled')
-    .waitFor({ state: 'attached' })
+  await page.locator('header select:enabled').waitFor({ state: 'attached' })
   await page.getByRole('button', { name: 'Create a token', exact: true }).click()
   await page.getByLabel('Token name', { exact: true }).fill('Visitor token')
   await page.getByRole('button', { name: 'Create token', exact: true }).click()
@@ -124,9 +116,7 @@ test('token creation, replacement, and webhook creation refuse locally', async (
     replacement.getByText(/This preview is read-only. No changes were made./)
   ).toBeVisible()
   await page.goto('/demo/webhooks')
-  await page
-    .locator('header [data-slot="select-trigger"]:enabled')
-    .waitFor({ state: 'attached' })
+  await page.locator('header select:enabled').waitFor({ state: 'attached' })
   await page.getByRole('button', { name: 'Register an endpoint', exact: true }).click()
   await page
     .getByLabel('Endpoint URL', { exact: true })
@@ -156,7 +146,7 @@ test('workspace tabs and member lookup survive sharing and reload', async ({
   await expect(page.getByText('martin@example.com', { exact: true })).not.toBeVisible()
   await page.reload()
   await expect(page.getByText('engineer@example.com', { exact: true })).toBeVisible()
-  await page.locator('header [data-slot="select-trigger"]:enabled').waitFor()
+  await page.locator('header select:enabled').waitFor()
   await page.getByRole('textbox', { name: 'Search members by name or email' }).fill('')
   await expect(page).not.toHaveURL(/query=/)
   await expect(page.getByText('martin@example.com', { exact: true })).toBeVisible()

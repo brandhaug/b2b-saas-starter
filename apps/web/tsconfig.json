@@ -3,7 +3,9 @@
   "compilerOptions": {
     "paths": {
       "@/*": ["./src/*"],
-      "virtual:docs-search": ["./src/docs-search-index.d.ts"]
+      "virtual:docs-search": ["./src/docs-search-index.d.ts"],
+      "virtual:foldkit/fetch": ["./src/foldkit-fetch.d.ts"],
+      "virtual:foldkit-docs": ["./src/foldkit/docs/virtual.d.ts"]
     },
     "types": [
       "vite/client",
@@ -18,6 +20,9 @@
     "scripts/*.ts",
     "vite.config.ts",
     "vitest.lifecycle.config.ts",
+    "vite.docs-runtime.config.ts",
+    "vitest.docs-runtime.config.ts",
+    "test/docs",
     "test/assistant/lifecycle*.ts",
     "playwright.config.ts"
   ]

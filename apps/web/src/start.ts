@@ -1,92 +1,69 @@
 import { databaseIsReady } from '@b2b-saas-starter/db/service'
 import { isMaintenanceMode } from '@b2b-saas-starter/env/server'
+import { env } from 'cloudflare:workers'
 import { Effect } from 'effect'
-import { localizeRequest } from '@/lib/server/i18n-middleware'
-import { uiErrorAdapter } from '@/lib/ui-error'
+import { localizeRequest } from './lib/server/i18n-middleware'
 import {
-  createCsrfMiddleware,
-  createMiddleware,
-  createStart
-} from '@tanstack/react-start'
-import { runWebRequestScope, webRuntime } from '@/lib/observability'
-import { enforceRequiredEnvOnce } from '@/lib/server/env-gate'
-import { maintenanceResponse } from '@/lib/maintenance'
-import { env as cloudflareEnv } from 'cloudflare:workers'
+  runWebRequestScope,
+  webRuntime,
+  withWebRequestScope
+} from './lib/observability'
+import { enforceRequiredEnvOnce } from './lib/server/env-gate'
+import { maintenanceResponse } from './lib/maintenance'
+import { applyResponseCookies, withRequest } from './lib/request-context'
 
-/**
- * One wide event per web request. Every server request — SSR document renders
- * and server-function calls alike — passes through here, so this is the only
- * place the web worker opens a request scope: it continues any inbound
- * `traceparent`, builds the OTLP exporters for this invocation, and emits the
- * canonical line when the response is ready. Loaders and server functions join
- * the scope through `withWebRequestScope` instead of opening their own.
- */
-const observabilityMiddleware = createMiddleware({ type: 'request' }).server(
-  ({ request, next, handlerType, serverFnMeta }) =>
+/** Request identity, telemetry and locale enclose both HTTP calls and SSR. */
+export async function runRequest(
+  request: Request,
+  next: () => Promise<Response>
+): Promise<Response> {
+  await enforceRequiredEnvOnce()
+  return withRequest(request, () =>
     runWebRequestScope(
-      { request, handlerType, serverFnId: serverFnMeta?.name },
+      {
+        request,
+        handlerType: new URL(request.url).pathname.startsWith('/api/web/')
+          ? 'httpApi'
+          : 'document'
+      },
       async () => {
-        const result = await next()
-        return result.response
-      }
-    )
-)
-
-const csrfMiddleware = createCsrfMiddleware({
-  filter: ({ handlerType }) => handlerType === 'serverFn'
-})
-
-const configGateMiddleware = createMiddleware({ type: 'request' }).server(
-  async ({ next }) => {
-    // Before the request scope opens: the gate's `config.insecure` event (a
-    // non-production deployment with insecure required env) is standalone, not
-    // folded into the first request's wide event. In production the gate
-    // throws, failing every request until the deployment is fixed.
-    await enforceRequiredEnvOnce()
-    return next()
-  }
-)
-
-const maintenanceMiddleware = createMiddleware({ type: 'request' }).server(
-  ({ request, next }) => {
-    if (new URL(request.url).pathname === '/ready') {
-      // The probe runs on the app's runtime like every other server-side
-      // effect (ADR 0050): a bare `Effect.runPromise` would build and tear
-      // down its own, so the readiness check would be the one request whose
-      // failures never reach the loggers.
-      return webRuntime.runPromise(
-        databaseIsReady(cloudflareEnv.DB).pipe(
-          Effect.map((available) => {
-            const ready =
-              available && !isMaintenanceMode(cloudflareEnv.MAINTENANCE_MODE)
-            return Response.json(
-              { status: ready ? 'ready' : 'not_ready' },
-              { status: ready ? 200 : 503 }
+        if (new URL(request.url).pathname === '/ready') {
+          return webRuntime.runPromise(
+            databaseIsReady(env.DB).pipe(
+              Effect.map((available) => {
+                const ready = available && !isMaintenanceMode(env.MAINTENANCE_MODE)
+                return Response.json(
+                  { status: ready ? 'ready' : 'not_ready' },
+                  { status: ready ? 200 : 503 }
+                )
+              })
             )
-          })
-        )
-      )
-    }
-    const response = maintenanceResponse(request, cloudflareEnv.MAINTENANCE_MODE)
-    return response === null ? next() : response
-  }
-)
-
-const localeMiddleware = createMiddleware({ type: 'request' }).server(
-  ({ request, next }) =>
-    localizeRequest(request, async () => {
-      const result = await next()
-      return result.response
-    })
-)
-
-export const startInstance = createStart(() => ({
-  serializationAdapters: [uiErrorAdapter],
-  requestMiddleware: [
-    configGateMiddleware,
-    maintenanceMiddleware,
-    observabilityMiddleware,
-    csrfMiddleware,
-    localeMiddleware
-  ]
-}))
+          )
+        }
+        const maintenance = maintenanceResponse(request, env.MAINTENANCE_MODE)
+        if (maintenance) {
+          return maintenance
+        }
+        // oxlint-disable-next-line anti-slop/no-unknown-parameters -- unknown thrown values are classified at the Fetch boundary and never serialized
+        return localizeRequest(request, next).catch((error: unknown) => {
+          if (error instanceof Response) {
+            return error
+          }
+          return webRuntime.runPromise(
+            withWebRequestScope(
+              { event: 'web.response_failure' },
+              Effect.logError(error).pipe(
+                Effect.as(
+                  Response.json(
+                    { error: 'unavailable' },
+                    { status: 503, headers: { 'Cache-Control': 'private, no-store' } }
+                  )
+                )
+              )
+            )
+          )
+        })
+      }
+    ).then(applyResponseCookies)
+  )
+}

@@ -1,23 +1,14 @@
 import { localAssistantSockets } from './scripts/local-socket-plugin'
+import { foldkitPreview } from './scripts/foldkit-preview'
+import { browserBoundary } from './scripts/browser-boundary'
 import { docsSearchIndex } from './scripts/docs-search-index'
-import { remarkSourceExamples } from './scripts/source-examples'
-import mdx from '@mdx-js/rollup'
+import { foldkitDocs } from './src/foldkit/docs/build'
 import tailwindcss from '@tailwindcss/vite'
-import { devtools } from '@tanstack/devtools-vite'
-import { tanstackStart } from '@tanstack/react-start/plugin/vite'
-import viteReact, { reactCompilerPreset } from '@vitejs/plugin-react'
-import babel from '@rolldown/plugin-babel'
+import { foldkit } from '@foldkit/vite-plugin'
 import { execFileSync } from 'node:child_process'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type * as LocalWorkerRuntime from './scripts/local-worker-runtime.mjs'
-// Named export rather than the identical default, so the local name matches
-// what the package exports.
-import { rehypePrettyCode } from 'rehype-pretty-code'
-import rehypeSlug from 'rehype-slug'
-import remarkFrontmatter from 'remark-frontmatter'
-import remarkGfm from 'remark-gfm'
-import remarkMdxFrontmatter from 'remark-mdx-frontmatter'
 import { defineConfig, lazyPlugins, loadEnv, type PluginOption } from 'vite-plus'
 
 // Which `cloudflare:workers` shim to alias, or null to leave the specifier
@@ -43,22 +34,11 @@ function resolveWorkersShim(command: 'build' | 'serve', mode: string): string | 
 
 // Without the shim (alchemy's deploy build), the two build targets need
 // opposite treatment for `cloudflare:workers`: the client bundle must keep
-// a resolvable stand-in (the inert shim evaluates to an all-undefined env
-// bag in the browser), while the server bundle must externalize it so the
-// deployed worker supplies the real `env` bindings — bundling the shim
-// server-side would deploy `env.DB: undefined` and run the whole app
-// provider-light. A `configEnvironment` plugin is used (rather than
-// `environments` config) because it merges after the TanStack Start
-// plugin defines its own environments.
-function cloudflareWorkersDeployPlugin(
-  inertShimPath: string,
-  enabled: boolean
-): PluginOption {
+// rejection, while the server bundle must externalize it so the deployed
+// Worker supplies the real bindings. A browser import is a boundary violation.
+function cloudflareWorkersDeployPlugin(enabled: boolean): PluginOption {
   return {
     name: 'b2b-starter:cloudflare-workers-deploy-resolution',
-    // The TanStack Start plugin replaces the ssr environment's
-    // `rolldownOptions` during planning, so `external` cannot be declared
-    // through environment config — resolve per environment here instead.
     resolveId: {
       handler(source: string) {
         if (!enabled || !source.startsWith('cloudflare:')) {
@@ -69,11 +49,8 @@ function cloudflareWorkersDeployPlugin(
           // the real module with the live `env` bindings.
           return { id: source, external: true }
         }
-        if (this.environment.name === 'client' && source === 'cloudflare:workers') {
-          // The browser cannot resolve a runtime module: stand in the
-          // inert shim (an all-undefined env bag — the client never reads
-          // a binding).
-          return inertShimPath
+        if (this.environment.name === 'client') {
+          return this.error(`Server-only import in browser graph: ${source}`)
         }
         return null
       }
@@ -145,6 +122,12 @@ function localWorkerLifecyclePlugin(): PluginOption {
 }
 
 export default defineConfig(({ command, mode }) => {
+  let outputRoot = 'dist'
+  if (mode === 'e2e') {
+    outputRoot = 'dist-e2e'
+  } else if (mode === 'docs-runtime') {
+    outputRoot = 'dist-docs-runtime'
+  }
   const workersShim = resolveWorkersShim(command, mode)
   if (command === 'build' && mode !== 'test') {
     execFileSync(
@@ -178,14 +161,11 @@ export default defineConfig(({ command, mode }) => {
     // uploads every `dist/server` chunk the deploy build emits, and that
     // build bundles node_modules (the injected Cloudflare plugin resolves
     // with `noExternal`, since workerd cannot resolve bare specifiers).
-    // Unminified, the bundled server tree blew the free Workers size limit;
-    // minified, it still carried client-only vendor graphs (browser analytics)
-    // emitted as never-executed lazy chunks.
-    // ADR 0063 strips those at the source and is the rule for any new
-    // browser-only dynamic import.
+    // Minification does not remove every browser-only vendor graph from SSR.
+    // Inspect deployment-shaped chunks after dependency changes (ADR 0063).
     build: {
       minify: true,
-      outDir: mode === 'e2e' ? 'dist-e2e' : 'dist'
+      outDir: `${outputRoot}/client`
     },
     // `forwardConsole` auto-enables when an AI coding agent is detected, and
     // mirrored `[Server]` errors (e.g. the pre-migration MissingD1Binding 500
@@ -199,6 +179,7 @@ export default defineConfig(({ command, mode }) => {
       watch: { ignored: ['**/packages/i18n/src/generated/**'] }
     },
     preview: { port: 3071, host: 'localhost' },
+    appType: 'custom',
     resolve: {
       tsconfigPaths: true,
       alias: workersShimAlias
@@ -207,65 +188,30 @@ export default defineConfig(({ command, mode }) => {
       lazyPlugins(() => [
         i18nCatalogPlugin(),
         docsSearchIndex(),
+        foldkitDocs(),
         ...(workersShim === null
           ? []
-          : [localWorkerLifecyclePlugin(), localAssistantSockets()]),
-        devtools(),
+          : [
+              localWorkerLifecyclePlugin(),
+              localAssistantSockets(`${outputRoot}/server`)
+            ]),
         tailwindcss(),
-        // Route tests colocate with their route files; the generator would
-        // otherwise warn that each `*.test.tsx` exports no Route.
-        tanstackStart({
-          server: { entry: workersShim === null ? './worker.ts' : './server.ts' },
-          importProtection: {
-            // Vitest imports server handlers directly in its client environment.
-            // Dev, production, and the compiled E2E build enforce the boundary.
-            enabled: mode !== 'test',
-            client: { files: ['**/*.server.*', '**/*.effects.ts'] }
-          },
-          router: {
-            routeFileIgnorePattern: '\\.test\\.'
-          }
-        }),
-        {
-          enforce: 'pre',
-          ...mdx({
-            remarkPlugins: [
-              remarkFrontmatter,
-              remarkMdxFrontmatter,
-              remarkGfm,
-              [remarkSourceExamples, { root: resolve(import.meta.dirname, '../..') }]
-            ],
-            rehypePlugins: [
-              rehypeSlug,
-              [
-                rehypePrettyCode,
-                // Dual-theme keeps rehype-pretty-code emitting the `--shiki-dark*`
-                // custom properties that index.css reads. Both slots are dark:
-                // the app has one scheme. Catppuccin Mocha matches the page
-                // palette; index.css additionally pins the pre background to
-                // var(--card) so code blocks sit on the token surface.
-                { theme: { dark: 'catppuccin-mocha', light: 'catppuccin-mocha' } }
-              ]
-            ]
-          })
-        },
-        viteReact(),
-        // React Compiler via the rolldown Babel bridge (plugin-react v6 API).
-        // Email templates are invoked directly (no React dispatcher) when
-        // rendering HTML, so compiler-inserted hooks crash there.
-        babel({
-          // A custom exclude replaces the plugin defaults. Keep vendor and
-          // Rolldown runtime exclusions so dev does not recompile dependencies.
-          exclude: [
-            /[/\\]node_modules[/\\]|^\0rolldown\/runtime\.js$/,
-            /packages[/\\]email[/\\]/
-          ],
-          presets: [reactCompilerPreset()]
-        }),
-        cloudflareWorkersDeployPlugin(
-          resolve(import.meta.dirname, './src/lib/cloudflare-workers-shim.ts'),
-          workersShim === null
-        )
+        ...(mode === 'test'
+          ? []
+          : foldkit({
+              devToolsMcpPort: false,
+              ssr: {
+                serverEntry: '/src/entry.server.ts',
+                clientEntry: '/src/foldkit/browser.ts',
+                build: {
+                  clientOutDir: `${outputRoot}/client`,
+                  serverOutDir: `${outputRoot}/server`
+                }
+              }
+            })),
+        foldkitPreview(`${outputRoot}/server`),
+        browserBoundary(),
+        cloudflareWorkersDeployPlugin(workersShim === null)
         // `lazyPlugins` returns `PluginOption[] | undefined` when the plugin factories are
         // skipped (vp check/lint/fmt don't need them), but this repo's
         // `exactOptionalPropertyTypes: true` rejects the explicit `undefined` against
@@ -274,7 +220,6 @@ export default defineConfig(({ command, mode }) => {
     test: {
       globals: true,
       environment: 'jsdom',
-      setupFiles: ['./src/test/setup.ts'],
       exclude: [
         'e2e/**',
         'test/assistant/*.pool.test.ts',

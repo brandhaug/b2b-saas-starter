@@ -34,7 +34,8 @@ export function installAssistantSocketBridge(server, connect) {
       sockets.handleUpgrade(request, socket, head, (client) => {
         void coupleWebSocket(client, response.webSocket).catch(() => client.terminate())
       })
-    } catch {
+    } catch (error) {
+      console.error('Local assistant socket upgrade failed', error)
       socket.end(
         'HTTP/1.1 503 Connection unavailable\r\nConnection: close\r\nContent-Length: 0\r\n\r\n'
       )

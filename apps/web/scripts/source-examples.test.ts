@@ -1,10 +1,8 @@
 import { mkdtemp, mkdir, writeFile, rm, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import mdx from '@mdx-js/rollup'
-import { build } from 'vite'
 import { expect, test } from 'vite-plus/test'
-import { remarkSourceExamples } from './source-examples'
+import { compileDocument } from '../src/foldkit/docs/build'
 
 test('documentation builds validate current source and preserve explicit snippet text', async () => {
   const root = await mkdtemp(join(tmpdir(), 'source-examples-'))
@@ -13,24 +11,11 @@ test('documentation builds validate current source and preserve explicit snippet
   await mkdir(join(root, 'src'))
   const sourceFile = join(root, 'src/example.ts')
   async function compile(meta: string, text = source) {
-    await writeFile(file, `# Example\n\n\`\`\`ts ${meta}\n${text}\n\`\`\`\n`)
-    const result = await build({
-      configFile: false,
-      root,
-      logLevel: 'silent',
-      plugins: [mdx({ remarkPlugins: [[remarkSourceExamples, { root }]] })],
-      build: {
-        write: false,
-        minify: false,
-        lib: { entry: file, formats: ['es'] },
-        rolldownOptions: { external: ['react/jsx-runtime'] }
-      }
-    })
-    const outputs = Array.isArray(result) ? result : [result]
-    return outputs
-      .flatMap((output) => ('output' in output ? output.output : []))
-      .map((output) => (output.type === 'chunk' ? output.code : ''))
-      .join('\n')
+    const markdown = `# Example\n\n\`\`\`ts ${meta}\n${text}\n\`\`\`\n`
+    const result = await compileDocument(markdown, file, root)
+    // Syntax highlighting splits source into spans. Assert rendered text as well
+    // as link destinations while exercising the shipped static HTML compiler.
+    return result.html.replaceAll(/<\/?span\b[^>]*>/g, '')
   }
   try {
     await writeFile(sourceFile, `// heading\n${source}\n`)

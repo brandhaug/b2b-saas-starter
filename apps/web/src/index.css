@@ -487,6 +487,27 @@
     background-color 140ms ease,
     border-color 140ms ease;
 }
+.native-faq-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  overflow: hidden;
+  visibility: hidden;
+  transition:
+    grid-template-rows 240ms var(--ease-ui-out),
+    visibility 240ms;
+}
+.native-faq-panel[data-open='true'] {
+  grid-template-rows: 1fr;
+  visibility: visible;
+}
+:root[data-input-modality='keyboard'] [role='menuitem']:focus {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+@media (prefers-reduced-motion: reduce) {
+  .native-faq-panel {
+    transition-duration: 0s;
+  }
+}
 @media (prefers-reduced-motion: no-preference) {
   :root[data-input-modality='pointer']
     .ui-pressable:active:not(:disabled, [aria-disabled='true']) {

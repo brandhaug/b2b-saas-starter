@@ -1,4 +1,7 @@
-import { createServerFn } from '@tanstack/react-start'
+import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/http-api'
+import { makeBrowserClient, dataCall } from '@/http/client'
+import { WebErrors } from '@/http/errors'
+import * as Responses from '@/http/contracts/purchase'
 import { Schema } from 'effect'
 import { type DisplayedPlan } from '@b2b-saas-starter/billing/billing'
 
@@ -15,16 +18,29 @@ export type PurchasePayload = {
   readonly workspaces: ReadonlyArray<{ readonly slug: string; readonly name: string }>
 }
 
-export const loadPurchaseServerFn = createServerFn({ method: 'GET' })
-  .validator(Schema.decodeUnknownSync(PurchaseInput))
-  .handler(async ({ data }): Promise<PurchasePayload> => {
-    const { loadPurchaseHandler } = await import('./purchase.effects')
-    return loadPurchaseHandler(data)
-  })
+export const Api = HttpApi.make('web-purchase').add(
+  HttpApiGroup.make('calls').add(
+    HttpApiEndpoint.post('loadPurchaseServerFn', '/api/web/loadPurchaseServerFn', {
+      payload: PurchaseInput,
+      success: Responses.loadPurchaseServerFnResponse,
+      error: WebErrors
+    }),
+    HttpApiEndpoint.post(
+      'continuePurchaseServerFn',
+      '/api/web/continuePurchaseServerFn',
+      {
+        payload: PurchaseCheckoutInput,
+        success: Responses.continuePurchaseServerFnResponse,
+        error: WebErrors
+      }
+    )
+  )
+)
 
-export const continuePurchaseServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(PurchaseCheckoutInput))
-  .handler(async ({ data }): Promise<{ url: string }> => {
-    const { startCheckoutHandler } = await import('./billing.effects')
-    return startCheckoutHandler(data, data)
-  })
+const browser = makeBrowserClient(Api)
+
+export const continuePurchaseServerFn = dataCall(
+  browser,
+  PurchaseCheckoutInput,
+  (client, payload) => client.calls.continuePurchaseServerFn({ payload })
+)

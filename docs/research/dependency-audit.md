@@ -1,5 +1,10 @@
 # Dependency audit
 
+This audit predates the user-approved Foldkit migration. Its React/TanStack
+retention recommendation is historical; [current web architecture](../../ARCHITECTURE.md#native-web-application)
+describes the native implementation. Other dependency findings retain their
+recorded scope and evidence.
+
 > Current implementation: PostHog has been removed. Optional browser analytics
 > uses an Alchemy-managed Cloudflare Web Analytics site; server telemetry retains
 > Workers Logs/Issues and optional Effect OTLP. PostHog findings below describe

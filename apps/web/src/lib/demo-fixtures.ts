@@ -4,44 +4,20 @@ import {
   seedWorkspaceRecord
 } from '@b2b-saas-starter/capabilities/governance/workspace-identity.seed'
 import { type Notification } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
-import { type NotificationPreview } from '@/components/live-notifications'
+import { type NotificationPreview } from './notification-preview'
 import { LocalizedError } from '@/lib/localized-error'
 import { type WorkspaceViewer } from '@/lib/permissions'
 import { type AssistantPagePayload } from '@/lib/server/assistant'
 import { type WorkspaceApiTokensPayload } from '@/lib/server/api-tokens'
 import { type WorkspaceAuditPayload } from '@/lib/server/workspace-audit'
 import { type WorkspaceBillingPayload } from '@/lib/server/billing'
-import { type BillingPorts } from '@/components/workspace-billing'
+import { type BillingPorts } from './billing-ports'
 import { type WorkspaceDashboardPayload } from '@/lib/server/workspace-dashboard'
 import { type WorkspaceMembersPayload } from '@/lib/server/workspace-members'
 import { type WorkspaceSettingsPayload } from '@/lib/server/workspace-settings'
 import { type WorkspaceWebhooksPayload } from '@/lib/server/webhooks'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
-export type DemoSection =
-  | 'overview'
-  | 'members'
-  | 'billing'
-  | 'api-tokens'
-  | 'webhooks'
-  | 'audit'
-  | 'settings'
-  | 'assistant'
-  | 'notifications'
-const demoSections: ReadonlyArray<DemoSection> = [
-  'overview',
-  'members',
-  'billing',
-  'api-tokens',
-  'webhooks',
-  'audit',
-  'settings',
-  'assistant',
-  'notifications'
-]
-export function isDemoSection(value: string): value is DemoSection {
-  return demoSections.some((section) => section === value)
-}
 const viewer = { role: 'owner' } satisfies WorkspaceViewer
 /**
  * The preview roster is the seed workspace's roster. Retyping it here is how
@@ -448,12 +424,6 @@ export const demoFixtures = {
   readonly assistant: AssistantPagePayload
 }
 
-export const demoNotificationPorts = {
-  // oxlint-disable-next-line typescript/require-await -- static preview port implements the production promise contract without I/O
-  list: async () => notifications,
-  // oxlint-disable-next-line effect/noNewPromise -- this port deliberately rejects to make standalone preview usage explicitly read-only
-  markRead: () => Promise.reject(new LocalizedError(m.shell_demo_read_only()))
-}
 /**
  * Billing's server functions, refused. Without these the page falls back to
  * the real checkout and portal server fns, so a guest clicking Upgrade in the

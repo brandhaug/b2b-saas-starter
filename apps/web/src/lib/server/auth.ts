@@ -1,14 +1,6 @@
-import { getLocale } from '@b2b-saas-starter/i18n/runtime'
-import { DEFAULT_LOCALE, isLocale } from '@b2b-saas-starter/i18n/locale'
-import { presentationSettings } from '../i18n'
 import { UiError } from '../ui-error'
 import { type Session } from '@b2b-saas-starter/auth'
-import { redirect } from '@tanstack/react-router'
-import {
-  createIsomorphicFn,
-  createServerFn,
-  createServerOnlyFn
-} from '@tanstack/react-start'
+import { redirect } from '../../http/navigation'
 import { Effect } from 'effect'
 import { currentRequest } from '../request-context'
 import { readSessionFromHeaders } from './auth-session-read'
@@ -18,7 +10,7 @@ import { readSessionFromHeaders } from './auth-session-read'
  * `auth-session-read.ts`, which owns the span, the `authenticated` annotation
  * and the one-read-per-request memoization the auth catchall's guards join.
  */
-export const readOptionalSession = createServerOnlyFn((): Promise<Session | null> => {
+export function readOptionalSession(): Promise<Session | null> {
   const request = currentRequest()
   // No ambient request (unit tests, scripts) means no cookie jar to read —
   // that is an unauthenticated caller, not a crash.
@@ -27,11 +19,7 @@ export const readOptionalSession = createServerOnlyFn((): Promise<Session | null
     return Promise.resolve(null)
   }
   return readSessionFromHeaders(request.headers)
-})
-
-const getSessionServerFn = createServerFn({ method: 'GET' }).handler(
-  readOptionalSession
-)
+}
 
 /**
  * The session projection route context carries. `beforeLoad` results are
@@ -78,25 +66,6 @@ export function toRouteSession(session: Session): RouteSession {
   }
 }
 
-/** Entering the app from a public translation must use the saved account settings. */
-const synchronizePresentation = createIsomorphicFn()
-  .server((_session: Session, _href: string) => undefined)
-  .client((session: Session, href: string) => {
-    const settings = presentationSettings()
-    const accountLocale = isLocale(session.user.locale)
-      ? session.user.locale
-      : DEFAULT_LOCALE
-    const localeChanged = accountLocale !== getLocale()
-    const zoneChanged =
-      session.user.timeZone !== null &&
-      session.user.timeZone !== undefined &&
-      session.user.timeZone !== settings.timeZone
-    if (localeChanged || zoneChanged || !settings.authenticated) {
-      // oxlint-disable-next-line effect/noThrowStatement -- full document navigation establishes account presentation before rendering gated content
-      throw redirect({ href, reloadDocument: true })
-    }
-  })
-
 /**
  * Route gate for `beforeLoad`. Redirects unauthenticated visitors to
  * `/sign-in` and returns the projected session so loaders can pass the actor
@@ -107,14 +76,13 @@ const synchronizePresentation = createIsomorphicFn()
  */
 export async function requireSession(
   redirectTo: string,
-  loadSession: () => Promise<Session | null> = getSessionServerFn
+  loadSession: () => Promise<Session | null> = readOptionalSession
 ): Promise<RouteSession> {
   const session = await loadSession()
   if (!session) {
     // oxlint-disable-next-line effect/noThrowStatement -- `throw redirect()` is TanStack Router's navigation control-flow API
     throw redirect({ to: '/sign-in', search: { redirect: redirectTo } })
   }
-  synchronizePresentation(session, redirectTo)
   return toRouteSession(session)
 }
 

@@ -47,9 +47,10 @@ export class WorkspaceNotFound extends Schema.TaggedError<WorkspaceNotFound>()(
 ) {}
 ```
 
-The web app loads server state through TanStack Start loaders and server
-functions. Browser modules must not import server adapters or their runtime
-dependencies.
+The web app uses request-scoped page loaders and Effect HttpApi contracts.
+Native Foldkit models and messages use Effect Schema; commands execute browser
+operations and return messages to pure updates. Browser modules must not import
+server adapters or their runtime dependencies.
 
 Follow [First business feature](/docs/getting-started/first-business-feature) to add
 a workspace-owned resource through D1, Effect adapters, permissions, UI, and REST.

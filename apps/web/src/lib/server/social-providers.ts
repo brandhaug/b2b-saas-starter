@@ -1,18 +1,14 @@
-import { createServerFn } from '@tanstack/react-start'
+import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/http-api'
+import { WebErrors } from '@/http/errors'
+import * as Responses from '@/http/contracts/social-providers'
+import { Schema } from 'effect'
 
-import { type SocialProviderId } from '@b2b-saas-starter/env/server'
-
-/**
- * Social sign-in wiring for the web app, in a **client-safe** module: the
- * client-safe half of the `social-providers.effects.ts` split (see
- * apps/web/AGENTS.md for the rule and `assert-client-boundary.mjs` for the
- * enforcement). With no `*_CLIENT_ID` / `*_CLIENT_SECRET` pair set, no
- * provider is active and the auth screens render exactly as they did before
- * social sign-in existed (provider-light rule).
- */
-export const getSocialProviderIds = createServerFn({
-  method: 'GET'
-}).handler(async (): Promise<ReadonlyArray<SocialProviderId>> => {
-  const { readSocialProviderIdsHandler } = await import('./social-providers.effects')
-  return readSocialProviderIdsHandler()
-})
+export const Api = HttpApi.make('web-social-providers').add(
+  HttpApiGroup.make('calls').add(
+    HttpApiEndpoint.post('getSocialProviderIds', '/api/web/getSocialProviderIds', {
+      payload: Schema.Struct({}),
+      success: Responses.getSocialProviderIdsResponse,
+      error: WebErrors
+    })
+  )
+)

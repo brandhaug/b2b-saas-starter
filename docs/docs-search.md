@@ -1,7 +1,7 @@
 # Public documentation search
 
 Open **Search documentation** in the docs navigation, or find it in the public
-header's command palette. `/en/docs/search` and `/nb/docs/search` search the same
+header's command palette. `/docs/search` and `/no/docs/search` search the same
 English article content. Queries remain in the URL's `q` parameter so refresh,
 back, and shared links retain the search. Queries are limited to 200 characters.
 
@@ -33,8 +33,9 @@ near the first matching term, an article link, and a source link. Article links
 preserve the public locale and do not preload compiled MDX on result focus.
 
 The index has no internal docs or workspace data inputs. MDX/YAML parsers and
-Effect metadata validation run only in Vite, never in the browser. The index loads
-with the search route. Existing article components retain per-article lazy loads.
+frontmatter validation run only in Vite, never in the browser. The search route
+includes its index in SSR flags. Foldkit compiles article HTML on the server;
+the browser receives no React MDX components or article implementation chunks.
 
 ## Verification
 
@@ -50,12 +51,12 @@ E2E_PORT=43871 pnpm run validate
 Choose another unused port if another worktree owns it. The focused Playwright
 run uses the compiled preview. It checks empty and no-result states, a body-text
 match, source and locale routes, Tab/Enter navigation, mobile refresh, and the
-requested scripts. It also verifies the built Quickstart digest and excludes
-compiled article requests before result navigation. Attachments include desktop
+requested scripts. It also verifies Quickstart's digest in the SSR search flags
+and excludes article-body markup from downloaded scripts. Attachments include desktop
 and mobile screenshots and the script request list; the JSON report is
 `apps/web/playwright-report/results.json`.
 
-### Observed run
+### Historical React baseline
 
 On 2026-10-25, the implementation integrated with `master` at `731fc604`
 passed `CI=1 E2E_PORT=43871 E2E_STARTUP_TIMEOUT=360000 pnpm run validate`.

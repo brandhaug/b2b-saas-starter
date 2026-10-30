@@ -23,7 +23,6 @@ import { magicLink } from 'better-auth/plugins/magic-link'
 import { organization } from 'better-auth/plugins/organization'
 import { twoFactor } from 'better-auth/plugins/two-factor'
 import { username } from 'better-auth/plugins/username'
-import { tanstackStartCookies } from 'better-auth/tanstack-start'
 import { Effect } from 'effect'
 import { isLocale } from '@b2b-saas-starter/i18n/locale'
 import {
@@ -705,10 +704,7 @@ export function makeAuthOptions(options: AuthConfigInterface) {
       // user column, no migration, and a wiped cookie is cosmetic, not data
       // loss). The cookie is client-readable on purpose; the client plugin
       // reads it on the sign-in screen.
-      lastLoginMethod(),
-      // Better Auth requires cookie-integration plugins last so cookies set by
-      // other plugins' hooks are forwarded to the framework cookie store.
-      tanstackStartCookies()
+      lastLoginMethod()
     )
   }
 }

@@ -1,30 +1,38 @@
-import { createIsomorphicFn } from '@tanstack/react-start'
-import { getRequest } from '@tanstack/react-start/server'
+import { AsyncLocalStorage } from 'node:async_hooks'
 
-/**
- * The in-flight server request, or `undefined` when there is none.
- *
- * This is the seam `src/lib/observability.ts` joins nested work to the one
- * request scope through, and the seam its tests replace. It lives in its own
- * module for both reasons: `createIsomorphicFn` keeps `getRequest` out of the
- * browser bundle (client-side navigations re-run loaders with no request to
- * join), and one lookup means one thing to mock.
- */
-export const currentRequest: () => Request | undefined = createIsomorphicFn()
-  .server(() => ambientRequest())
-  .client(() => undefined)
+// Server-only. Browser clients import contracts, never this request authority.
+type RequestContext = {
+  readonly request: Request
+  readonly cookies: Array<string>
+}
 
-/**
- * `getRequest()` throws when it runs outside TanStack Start's request storage.
- * That is not an error here: no ambient request is a real state — unit tests,
- * scripts, any non-request code path — and it is exactly the `undefined` this
- * function is typed to return.
- */
-function ambientRequest(): Request | undefined {
-  // oxlint-disable-next-line effect/noTryCatch -- `getRequest()` signals "no request context" by throwing; there is no non-throwing accessor to check first
-  try {
-    return getRequest()
-  } catch {
-    return undefined
+const requests = new AsyncLocalStorage<RequestContext>()
+
+export function currentRequest(): Request | undefined {
+  return requests.getStore()?.request
+}
+
+export function withRequest<A>(request: Request, run: () => A): A {
+  return requests.run({ request, cookies: [] }, run)
+}
+
+/** Keep each Set-Cookie verbatim; commas in Expires are not cookie separators. */
+export function captureResponseCookies(headers: Headers): void {
+  requests.getStore()?.cookies.push(...headers.getSetCookie())
+}
+
+/** Runs inside withRequest after success, redirect or sanitized failure assembly. */
+export function applyResponseCookies(response: Response): Response {
+  const cookies = requests.getStore()?.cookies
+  if (!cookies?.length) {
+    return response
   }
+  // Passing the response as init also retains Workers' websocket upgrade metadata.
+  const outgoing = new Response(response.body, response)
+  const direct = response.headers.getSetCookie()
+  outgoing.headers.delete('set-cookie')
+  for (const cookie of [...cookies, ...direct]) {
+    outgoing.headers.append('set-cookie', cookie)
+  }
+  return outgoing
 }

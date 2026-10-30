@@ -14,6 +14,7 @@ import {
   TestD1
 } from '@b2b-saas-starter/capabilities/testing/live-harness'
 import { fixtureAuthModule } from '@/test/fixture-session'
+import { notFound } from '@/http/navigation'
 import type * as AuthModule from './auth'
 import type * as DashboardModule from './workspace-dashboard.effects'
 
@@ -123,19 +124,17 @@ describe('browser server handler Workspace isolation', () => {
     ])
     expect(own.unreadCount).toBe(1)
     const missing = dashboard({ workspaceSlug: 'missing-lab' })
-    await expect(missing).rejects.toEqual({ isNotFound: true })
-    await expect(dashboard({ workspaceSlug: 'other-lab' })).rejects.toEqual({
-      isNotFound: true
-    })
+    await expect(missing).rejects.toEqual(notFound())
+    await expect(dashboard({ workspaceSlug: 'other-lab' })).rejects.toEqual(notFound())
     actor.userId = 'usr_outsider'
     const other = await dashboard({ workspaceSlug: 'other-lab' })
     expect(other.notifications.map((notification) => notification.id)).toEqual([
       'not_isolation_b'
     ])
     expect(other.unreadCount).toBe(1)
-    await expect(dashboard({ workspaceSlug: 'dev-contract-lab' })).rejects.toEqual({
-      isNotFound: true
-    })
+    await expect(dashboard({ workspaceSlug: 'dev-contract-lab' })).rejects.toEqual(
+      notFound()
+    )
     actor.userId = 'usr_joiner'
     const fullAccess = await dashboard({ workspaceSlug: 'dev-contract-lab' })
     expect(fullAccess.viewer).toEqual({
@@ -181,7 +180,7 @@ describe('browser server handler Workspace isolation', () => {
         endpointId: foreignId,
         enabled: false
       })
-    ).rejects.toEqual({ isNotFound: true })
+    ).rejects.toEqual(notFound())
     for (const endpointId of [foreignId, 'missing-endpoint']) {
       await expect(
         webhooks.updateWebhookEndpointHandler({
@@ -252,15 +251,15 @@ describe('browser server handler Workspace isolation', () => {
       })
     ).rejects.toMatchObject({ name: 'ForbiddenError' })
     await execute(`DELETE FROM workspace_members WHERE id='mem_isolation_multi_a'`)
-    await expect(dashboard({ workspaceSlug: 'dev-contract-lab' })).rejects.toEqual({
-      isNotFound: true
-    })
+    await expect(dashboard({ workspaceSlug: 'dev-contract-lab' })).rejects.toEqual(
+      notFound()
+    )
     await expect(
       webhooks.rotateWebhookSecretHandler({
         workspaceSlug: 'dev-contract-lab',
         endpointId: created.endpoint.id
       })
-    ).rejects.toEqual({ isNotFound: true })
+    ).rejects.toEqual(notFound())
     // Removing access to A does not remove this user's legitimate membership in B.
     const remainingAccess = await dashboard({ workspaceSlug: 'other-lab' })
     expect(remainingAccess.viewer).toEqual({

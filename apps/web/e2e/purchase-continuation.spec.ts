@@ -16,8 +16,9 @@ test.beforeEach(async ({ context }, info) => {
 test('purchase intent survives sign-in and sign-up navigation', async ({ page }) => {
   await page.goto('/pricing')
   const anonymousRefusal = await submitPurchase(page, 'starter-lab')
+  expect(anonymousRefusal.status()).toBe(401)
   expect(await anonymousRefusal.text()).toContain('unauthorized')
-  await page.getByRole('button', { name: 'Continue with Team', exact: true }).click()
+  await page.getByRole('link', { name: 'Continue with Team', exact: true }).click()
   await expect(page).toHaveURL(/\/sign-in\?redirect=/)
   await page.getByRole('link', { name: 'Create one' }).click()
   expect(new URL(page.url()).searchParams.get('redirect')).toBe('/purchase?plan=team')
@@ -48,6 +49,7 @@ test('owner selects a workspace and retains the plan through privileged authenti
     page.getByRole('button', { name: 'Continue to checkout' })
   ).toBeDisabled()
   const inactiveCheckout = await submitPurchase(page, 'starter-lab')
+  expect(inactiveCheckout.status()).toBe(503)
   expect(await inactiveCheckout.text()).toContain('unavailable')
   await page.reload()
   await expect(page.getByRole('heading', { name: 'Continue with Team' })).toBeVisible()
@@ -87,9 +89,11 @@ test('member cannot select a workspace for purchase or act through a crafted bil
     page.getByRole('button', { name: 'Starter Lab', exact: true })
   ).toHaveCount(0)
   const memberRefusal = await submitPurchase(page, 'starter-lab')
+  expect(memberRefusal.status()).toBe(403)
   expect(await memberRefusal.text()).toContain('forbidden')
   const foreignRefusal = await submitPurchase(page, 'not-your-workspace')
-  expect(await foreignRefusal.text()).toContain('isNotFound')
+  expect(foreignRefusal.status()).toBe(404)
+  expect(await foreignRefusal.json()).toMatchObject({ code: 'not_found' })
   await page.goto('/workspaces/starter-lab/billing?purchase=team')
   await expect(page.getByRole('button', { name: 'Continue to checkout' })).toHaveCount(
     0
@@ -172,7 +176,8 @@ test('signup carries email verification return and a new workspace keeps the pla
   })
   await signInWithPassword(outsider, 'engineer@example.com', '/account')
   const refused = await submitPurchase(outsider, `purchase-${suffix}`)
-  expect(await refused.text()).toContain('isNotFound')
+  expect(refused.status()).toBe(404)
+  expect(await refused.json()).toMatchObject({ code: 'not_found' })
   await outsider.goto(`/workspaces/purchase-${suffix}/billing?purchase=team`)
   await expect(
     outsider.getByRole('heading', { name: 'Page not found', exact: true })

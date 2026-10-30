@@ -1,5 +1,5 @@
 # Exclude browser vendors from worker bundles
 
-Browser-only dynamic imports use a literal `createClientOnlyFn` in the component module. TanStack Start's transform removes the loader from the server graph; placing an import inside an effect alone still lets the bundler emit its vendor chunks into the worker upload. A shared wrapper would hide the compiler-recognized call.
+Keep the browser boot entry separate from the server-renderable Foldkit program. Browser APIs run through commands and scoped resources after hydration. Merely moving a dynamic import into a command does not guarantee that its vendor graph disappears from the Worker upload; check the emitted server chunks.
 
-This applies to the browser error-reporting loader. Verify the deployment-shaped bundle, because a standalone build can externalize packages that deployment bundles.
+The former literal `createClientOnlyFn` rule depended on TanStack's compiler and no longer applies. Verify the deployment-shaped bundle, because a standalone build can externalize packages that deployment bundles. The browser module-graph guard separately rejects server implementation imports in client output.

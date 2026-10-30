@@ -61,7 +61,7 @@ describe('admin failed deliveries boundary', () => {
         workspaceSlug: 'starter-lab',
         deliveryId: 'whd_seed_dead_lettered'
       })
-    ).rejects.toMatchObject({ isNotFound: true })
+    ).rejects.toMatchObject({ code: 'not_found' })
   })
 
   it.each(['user', 'owner'])(

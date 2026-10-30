@@ -26,7 +26,7 @@ setup(
     await signInWithPassword(page, 'demo@starter.local', '/account')
     await confirmPasswordForEnrollment(page)
     await page.getByRole('link', { name: 'Open account security', exact: true }).click()
-    await page.waitForURL('**/account')
+    await page.waitForURL((url) => url.pathname === '/account')
     await expect(page.getByText(/No passkeys yet/)).toBeVisible()
     const cdp = await context.newCDPSession(page)
     // The first enrolled key qualifies this session for subsequent enrollment.

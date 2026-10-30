@@ -7,7 +7,7 @@ import type * as SocketBoundary from '../src/lib/server/assistant-conversation-s
 
 type Entry = Pick<typeof SocketBoundary, 'connectAssistantConversation'>
 
-export function localAssistantSockets(): Plugin {
+export function localAssistantSockets(serverOutDir: string): Plugin {
   return {
     name: 'b2b-starter:local-assistant-sockets',
     configureServer(server) {
@@ -30,11 +30,8 @@ export function localAssistantSockets(): Plugin {
       server.httpServer.once('close', close)
     },
     configurePreviewServer(server) {
-      const directory =
-        server.config.environments.ssr?.build.outDir ??
-        resolve(server.config.build.outDir, 'server')
       const entryUrl = pathToFileURL(
-        resolve(server.config.root, directory, 'server.js')
+        resolve(server.config.root, serverOutDir, 'fetch.js')
       ).href
       const close = installAssistantSocketBridge(
         server.httpServer,

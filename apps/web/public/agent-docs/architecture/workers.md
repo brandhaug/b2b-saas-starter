@@ -8,13 +8,18 @@ Language: en
 
 ## Web Worker
 
-`apps/web` runs TanStack Start SSR and server functions. It serves the public
+`apps/web` runs native Foldkit SSR and typed HTTP operations. It serves the public
 site, authentication, workspaces, `/account`, and `/admin`. Better Auth lives
 at `/api/auth/*`; its cookies authenticate web requests.
 
-Server functions call `packages/capabilities` directly. The web Worker does not
+HTTP handlers call `packages/capabilities` directly. The web Worker does not
 call the API Worker for page data. Auth requests use separate read, write, and
 sign-in rate-limit buckets.
+
+The UI uses schema-defined models and messages, updates, commands and managed
+browser resources. Browser calls use Effect HttpApi contracts under `/api/web/`.
+The Worker dispatches authentication, discovery and readiness before Foldkit's
+HTML content negotiation, so JSON clients reach their protocol handlers.
 
 ## API Worker
 

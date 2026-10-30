@@ -11,6 +11,7 @@ import { requireRequestSession } from './auth'
 import { sessionCall } from './plugin-call'
 import { RateLimiter, makeRateLimiterLayer } from '../rate-limit'
 import { env } from 'cloudflare:workers'
+import { BetterAuthApiError } from 'effectful-better-auth'
 
 /**
  * One strong-authentication evidence read per request, per session.
@@ -80,9 +81,16 @@ export async function verifyCurrentPassword(password: string): Promise<boolean> 
     return false
   }
   return sessionCall((api, headers) =>
-    api.verifyPassword({ body: { password }, headers }).pipe(
-      Effect.as(true),
-      Effect.catch(() => Effect.succeed(false))
-    )
+    api.verifyPassword({ body: { password }, headers })
+  ).then(
+    () => true,
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- classify the Promise rejection by the official typed API error
+    (error: unknown) => {
+      if (error instanceof BetterAuthApiError) {
+        return false
+      }
+      // oxlint-disable-next-line effect/noThrowStatement -- preserve non-plugin failures at the Promise boundary
+      throw error
+    }
   )
 }

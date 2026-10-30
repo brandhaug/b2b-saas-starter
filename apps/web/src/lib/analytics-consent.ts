@@ -56,10 +56,6 @@ function rememberRefusal(): boolean {
   return hasRefusalCookie()
 }
 
-export function serverAnalyticsConsent(): 'loading' {
-  return 'loading'
-}
-
 /** The beacon has no teardown API. Block its exit reports before destroying this document. */
 function blockOutgoingDocument(): void {
   if (document.querySelector('meta[data-analytics-stopped]')) {

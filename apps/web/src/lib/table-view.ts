@@ -344,6 +344,15 @@ function matches(
   }
 }
 
+export function isActiveTableFilter(filter: TableView['filters'][number]): boolean {
+  return (
+    filter.field.length > 0 &&
+    (filter.operator === 'isEmpty' ||
+      filter.operator === 'isNotEmpty' ||
+      filter.value.trim().length > 0)
+  )
+}
+
 export function applyTableView<T>(
   rows: ReadonlyArray<T>,
   view: TableView,
@@ -352,13 +361,7 @@ export function applyTableView<T>(
     field: string
   ) => string | number | boolean | Date | null | undefined
 ): Array<T> {
-  const activeFilters = view.filters.filter(
-    (filter) =>
-      filter.field.length > 0 &&
-      (filter.operator === 'isEmpty' ||
-        filter.operator === 'isNotEmpty' ||
-        filter.value.trim().length > 0)
-  )
+  const activeFilters = view.filters.filter(isActiveTableFilter)
   const filtered = rows.filter((row) => {
     if (activeFilters.length === 0) {
       return true

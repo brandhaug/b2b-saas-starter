@@ -38,7 +38,12 @@ const testAuth = vi.hoisted(async () => {
   class TestAuth extends Context.Service<
     TestAuth,
     {
-      readonly api: { readonly getSession: () => Effect.Effect<Session> }
+      readonly full: {
+        readonly getSession: () => Effect.Effect<{
+          headers: Headers
+          response: Session
+        }>
+      }
       readonly instance: {
         readonly $context: Promise<{
           internalAdapter: { findSession: typeof state.findSession }
@@ -75,9 +80,12 @@ vi.mock('@/lib/auth-runtime', async () => {
                     })
                   )
                 },
-                api: {
+                full: {
                   getSession: () =>
-                    Effect.succeed(fixtureSession({ userId: 'usr_actor' }))
+                    Effect.succeed({
+                      headers: new Headers(),
+                      response: fixtureSession({ userId: 'usr_actor' })
+                    })
                 }
               }),
               Effect.scoped

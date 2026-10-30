@@ -1,5 +1,3 @@
-export { cn } from 'cn'
-
 /**
  * Only allow same-origin path redirects (prevents open redirects via the
  * `?redirect=` search param on /sign-in). Anything that is not a plain

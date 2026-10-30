@@ -99,34 +99,10 @@
       }
     }
   ],
-  "shell_table_sort_asc": "Sorter etter {column}, nå stigende",
-  "shell_table_sort_desc": "Sorter etter {column}, nå synkende",
-  "shell_table_sort": "Sorter etter {column}",
-  "shell_table_empty": "Ingen resultater.",
   "shell_table_previous": "Forrige",
   "shell_table_next": "Neste",
   "shell_chart_empty": "Ingen webhook-endepunkter er konfigurert ennå.",
   "shell_chart_delivered": "{percent} levert",
-  "shell_table_page": [
-    {
-      "declarations": [
-        "input count",
-        "input rows",
-        "input page",
-        "input pages",
-        "local category = count: plural"
-      ],
-      "selectors": ["category"],
-      "match": {
-        "category=one": "Side {page} av {pages} · {rows} rad",
-        "category=other": "Side {page} av {pages} · {rows} rader"
-      }
-    }
-  ],
-  "shell_confirm_again": "Trykk igjen for å bekrefte",
-  "shell_confirm_target": "Trykk igjen for å bekrefte {target}",
-  "shell_cancel_target": "Avbryt {target}",
-  "shell_action_target": "{action} {target}",
   "shell_role_owner": "eier",
   "shell_role_admin": "administrator",
   "shell_role_member": "medlem",

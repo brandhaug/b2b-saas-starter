@@ -1,22 +1,11 @@
-import {
-  type SsoConnection,
-  type SsoRoutingDecision
-} from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
-import { createServerFn } from '@tanstack/react-start'
+import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/http-api'
+import { makeBrowserClient, dataCall } from '@/http/client'
+import { WebErrors } from '@/http/errors'
+import * as Responses from '@/http/contracts/workspace-sso'
 import { Schema } from 'effect'
 
 import { EMAIL_PATTERN } from '../email-pattern'
 
-/**
- * The workspace-SSO server functions, in a **client-safe** module — the
- * client-safe half of the `workspace-sso.effects.ts` split; see
- * apps/web/AGENTS.md for the rule and `scripts/assert-client-boundary.mjs`
- * for the enforcement. Each input is written once, as its Effect Schema: the
- * validator is the single strict decode, and the derived type types both the
- * client stub and the effects handler.
- */
-
-/** A connection domain: labels, dots, hyphens — never an @ or a slash. */
 const Domain = Schema.String.check(
   Schema.isMinLength(3),
   Schema.isPattern(/^(?!-)[a-z0-9-]+(\.[a-z0-9-]+)+$/i)
@@ -88,7 +77,6 @@ const UpdateSsoConnectionInput = Schema.Struct({
 
 export type UpdateSsoConnectionInput = typeof UpdateSsoConnectionInput.Type
 
-/** Remove and test both address one connection, by provider id. */
 const RemoveSsoConnectionInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
   providerId: Schema.NonEmptyString
@@ -106,28 +94,6 @@ const RoutingInput = Schema.Struct({
 
 export type RoutingInput = typeof RoutingInput.Type
 
-export const createSsoConnectionServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(CreateSsoConnectionInput))
-  .handler(async ({ data }): Promise<SsoConnection> => {
-    const { createSsoConnectionHandler } = await import('./workspace-sso.effects')
-    return createSsoConnectionHandler(data)
-  })
-
-export const updateSsoConnectionServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(UpdateSsoConnectionInput))
-  .handler(async ({ data }): Promise<SsoConnection | null> => {
-    const { updateSsoConnectionHandler } = await import('./workspace-sso.effects')
-    return updateSsoConnectionHandler(data)
-  })
-
-export const removeSsoConnectionServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(RemoveSsoConnectionInput))
-  .handler(async ({ data }): Promise<boolean> => {
-    const { removeSsoConnectionHandler } = await import('./workspace-sso.effects')
-    return removeSsoConnectionHandler(data)
-  })
-
-/** The settings form's Test button answer: a verdict, never an error. */
 export type SsoTestResult =
   | { readonly outcome: 'passed' }
   | {
@@ -136,22 +102,84 @@ export type SsoTestResult =
       readonly message: string
     }
 
-export const testSsoConnectionServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(RemoveSsoConnectionInput))
-  .handler(async ({ data }): Promise<SsoTestResult> => {
-    const { testSsoConnectionHandler } = await import('./workspace-sso.effects')
-    return testSsoConnectionHandler(data)
-  })
+export const Api = HttpApi.make('web-workspace-sso').add(
+  HttpApiGroup.make('calls').add(
+    HttpApiEndpoint.post(
+      'createSsoConnectionServerFn',
+      '/api/web/createSsoConnectionServerFn',
+      {
+        payload: CreateSsoConnectionInput,
+        success: Responses.createSsoConnectionServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post(
+      'updateSsoConnectionServerFn',
+      '/api/web/updateSsoConnectionServerFn',
+      {
+        payload: UpdateSsoConnectionInput,
+        success: Responses.updateSsoConnectionServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post(
+      'removeSsoConnectionServerFn',
+      '/api/web/removeSsoConnectionServerFn',
+      {
+        payload: RemoveSsoConnectionInput,
+        success: Responses.removeSsoConnectionServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post(
+      'testSsoConnectionServerFn',
+      '/api/web/testSsoConnectionServerFn',
+      {
+        payload: RemoveSsoConnectionInput,
+        success: Responses.testSsoConnectionServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post(
+      'resolveSsoRoutingServerFn',
+      '/api/web/resolveSsoRoutingServerFn',
+      {
+        payload: RoutingInput,
+        success: Responses.resolveSsoRoutingServerFnResponse,
+        error: WebErrors
+      }
+    )
+  )
+)
 
-/**
- * The sign-in page's routing ask, as a server fn: does this email's domain
- * belong to an enabled connection? See `resolveSsoRoutingHandler` in
- * `workspace-sso.effects.ts` for why it is deliberately **not** session-gated
- * and why it is rate limited on the client key instead.
- */
-export const resolveSsoRoutingServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(RoutingInput))
-  .handler(async ({ data }): Promise<SsoRoutingDecision | null> => {
-    const { resolveSsoRoutingHandler } = await import('./workspace-sso.effects')
-    return resolveSsoRoutingHandler(data)
-  })
+const browser = makeBrowserClient(Api)
+
+export const createSsoConnectionServerFn = dataCall(
+  browser,
+  CreateSsoConnectionInput,
+  (client, payload) => client.calls.createSsoConnectionServerFn({ payload })
+)
+
+export const updateSsoConnectionServerFn = dataCall(
+  browser,
+  UpdateSsoConnectionInput,
+  (client, payload) => client.calls.updateSsoConnectionServerFn({ payload })
+)
+
+export const removeSsoConnectionServerFn = dataCall(
+  browser,
+  RemoveSsoConnectionInput,
+  (client, payload) => client.calls.removeSsoConnectionServerFn({ payload })
+)
+
+export const testSsoConnectionServerFn = dataCall(
+  browser,
+  RemoveSsoConnectionInput,
+  (client, payload) => client.calls.testSsoConnectionServerFn({ payload })
+)
+
+export const resolveSsoRoutingServerFn = dataCall(
+  browser,
+  RoutingInput,
+  (client, payload) => client.calls.resolveSsoRoutingServerFn({ payload })
+)

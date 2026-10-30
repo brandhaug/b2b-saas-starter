@@ -1,21 +1,42 @@
-import { createServerFn } from '@tanstack/react-start'
+import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/http-api'
+import { makeBrowserClient, dataCall, readCall } from '@/http/client'
+import { WebErrors } from '@/http/errors'
+import * as Responses from '@/http/contracts/strong-authentication'
 import { Schema } from 'effect'
 
-import { type StrongAuthenticationStatus } from '@b2b-saas-starter/capabilities/governance/strong-authentication'
-export type { StrongAuthenticationStatus } from '@b2b-saas-starter/capabilities/governance/strong-authentication'
-
-export const strongAuthenticationStatusServerFn = createServerFn({
-  method: 'GET'
-}).handler(async (): Promise<StrongAuthenticationStatus> => {
-  const { readStrongAuthenticationStatus } =
-    await import('./strong-authentication.effects')
-  return readStrongAuthenticationStatus()
-})
-
 const VerifyCurrentPasswordInput = Schema.Struct({ password: Schema.NonEmptyString })
-export const verifyCurrentPasswordServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(VerifyCurrentPasswordInput))
-  .handler(async ({ data }): Promise<boolean> => {
-    const { verifyCurrentPassword } = await import('./strong-authentication.effects')
-    return verifyCurrentPassword(data.password)
-  })
+
+export const Api = HttpApi.make('web-strong-authentication').add(
+  HttpApiGroup.make('calls').add(
+    HttpApiEndpoint.post(
+      'strongAuthenticationStatusServerFn',
+      '/api/web/strongAuthenticationStatusServerFn',
+      {
+        payload: Schema.Struct({}),
+        success: Responses.strongAuthenticationStatusServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post(
+      'verifyCurrentPasswordServerFn',
+      '/api/web/verifyCurrentPasswordServerFn',
+      {
+        payload: VerifyCurrentPasswordInput,
+        success: Responses.verifyCurrentPasswordServerFnResponse,
+        error: WebErrors
+      }
+    )
+  )
+)
+
+const browser = makeBrowserClient(Api)
+
+export const strongAuthenticationStatusServerFn = readCall(browser, (client) =>
+  client.calls.strongAuthenticationStatusServerFn({ payload: {} })
+)
+
+export const verifyCurrentPasswordServerFn = dataCall(
+  browser,
+  VerifyCurrentPasswordInput,
+  (client, payload) => client.calls.verifyCurrentPasswordServerFn({ payload })
+)

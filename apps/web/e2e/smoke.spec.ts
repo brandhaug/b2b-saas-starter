@@ -87,9 +87,7 @@ test('knowledge search loads metadata without downloading article bodies', async
   // Knowledge search belongs to the public header; credential entry has its
   // own focused shell. Wait for the header's hydration gate before clicking.
   await page.goto('/')
-  await page
-    .locator('header [data-slot="select-trigger"]:enabled')
-    .waitFor({ state: 'attached' })
+  await page.locator('header select:enabled').waitFor({ state: 'attached' })
   await page
     .getByRole('button', { name: 'Search', exact: true })
     .filter({ visible: true })
@@ -185,7 +183,7 @@ test('seeded demo user can request a magic link', async ({ page }) => {
   // Non-disclosing confirmation: the link itself lands in the dev console log
   // (log-mode email dispatch), which the browser cannot reach — the send
   // succeeding is what this flow asserts.
-  await expect(page.getByRole('alert')).toContainText(
+  await expect(page.getByRole('status')).toContainText(
     'check your inbox for a sign-in link'
   )
 })

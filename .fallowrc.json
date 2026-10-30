@@ -17,7 +17,11 @@
     // Loaded as the main worker by the Cloudflare Vitest plugin.
     "apps/web/test/assistant/lifecycle-worker.ts",
     // Resolved by the dedicated docs runtime Vite plugin.
-    "apps/web/test/docs/metadata-gate.effects.ts",
+    "apps/web/test/docs/render-gate.ts",
+    // Foldkit's Vite plugin resolves these entries through generated modules.
+    "apps/web/src/entry.server.ts",
+    "apps/web/src/worker.ts",
+    "apps/web/src/foldkit/browser.ts",
     // Vite+ supplies Vitest transitively; Fallow's Vitest detection requires
     // a direct dependency in packages without their own test config.
     "infra/*.test.ts",
@@ -32,11 +36,38 @@
     "packages/email/src/previews/*.tsx"
   ],
   "ignoreExportsUsedInFile": true,
+  // Foldkit subprograms intentionally share the Model/Message/update/view
+  // interface. Schema values and their inferred types also share a name.
+  "ignoreExports": [
+    {
+      "file": "apps/web/src/foldkit/**/*.ts",
+      "exports": [
+        "Flags",
+        "Model",
+        "Message",
+        "Page",
+        "init",
+        "update",
+        "view",
+        "subscriptions",
+        "managedResources",
+        "flagsForPage",
+        "navigation",
+        "execute",
+        "form"
+      ]
+    },
+    { "file": "apps/web/src/http/page-contract.ts", "exports": ["Page"] },
+    // Feature namespaces expose the same contract and handler entry names.
+    { "file": "apps/web/src/lib/server/*.ts", "exports": ["Api"] },
+    { "file": "apps/web/src/http/handlers/*.ts", "exports": ["Api", "handlers"] }
+  ],
   "ignoreDependencies": [
+    // Agreed exact companion-package pin; current views use Foldkit HTML directly.
+    "@foldkit/ui",
     "@b2b-saas-starter/db",
     // The inlang SDK loads this through the local data-URL plugin bridge.
     "@inlang/plugin-message-format",
-    "@base-ui/react",
     // Satisfies alchemy's peer dependency: alchemy's static imports resolve it
     // eagerly at deploy time, so no first-party source file imports it.
     "@effect/platform-node",
@@ -45,9 +76,6 @@
     // file imports it.
     "@react-email/ui",
     "@tailwindcss/typography",
-    "babel-plugin-react-compiler",
-    "class-variance-authority",
-    "cmdk",
     "eslint-plugin-better-tailwindcss",
     // lint.config.ts loads this subpath through jsPlugins rather than an import.
     "oxlint-plugin-effect",
@@ -60,16 +88,11 @@
     "@alchemy.run/github",
     "@distilled.cloud/cloudflare",
     "effect",
-    "sonner",
     "tw-animate-css"
   ],
-  // apps/web/src/components/ui is vendored shadcn output: every primitive stays
-  // exported even when a given screen uses only some of them, and its deps
-  // (@base-ui/react, cva, cmdk, sonner) are consumed only from there.
   "ignorePatterns": [
     "vendor/**",
     "apps/web/src/index.css",
-    "apps/web/src/components/ui/**",
     "packages/i18n/src/generated/**",
     "packages/i18n/.generated/**"
   ],

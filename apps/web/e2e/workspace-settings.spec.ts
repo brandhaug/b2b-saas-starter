@@ -7,9 +7,7 @@ import { isolatedClientIp } from './test-isolation'
 // case uses the worker-scoped qualified session fixture.
 async function signIn(page: Page, email: string, redirect: string): Promise<void> {
   await signInWithPassword(page, email, redirect)
-  await page
-    .locator('header [data-slot="select-trigger"]:enabled')
-    .waitFor({ state: 'attached' })
+  await page.locator('header select:enabled').waitFor({ state: 'attached' })
 }
 
 test.beforeEach(async ({ context }, testInfo) => {
@@ -39,10 +37,10 @@ test('a member sees no api token form and no webhook delivery card', async ({
   // Everything the matrix denies a member is absent, not disabled: the loader
   // never read it, so there is nothing on the page to disable.
   await expect(page.getByRole('button', { name: 'Create token' })).toHaveCount(0)
-  // `exact` matters: the page description names both sections in prose, which
-  // is copy rather than workspace data and stays for every role.
-  await expect(page.getByText('API tokens', { exact: true })).toHaveCount(0)
-  await expect(page.getByText('Outbound webhooks', { exact: true })).toHaveCount(0)
+  // Check workspace content, not public documentation titles in the search palette.
+  const content = page.getByRole('main')
+  await expect(content.getByText('API tokens', { exact: true })).toHaveCount(0)
+  await expect(content.getByText('Outbound webhooks', { exact: true })).toHaveCount(0)
 
   await page.goto('/workspaces/starter-lab')
   // `exact` matters here too: a member's notification feed legitimately shows

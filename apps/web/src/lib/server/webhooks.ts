@@ -1,29 +1,15 @@
+import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/http-api'
+import { makeBrowserClient, dataCall } from '@/http/client'
+import { WebErrors } from '@/http/errors'
+import * as Responses from '@/http/contracts/webhooks'
 import {
   CreateWebhookEndpointPayload,
   UpdateWebhookEndpointPayload,
-  type CreatedWebhookEndpoint,
   type WebhookEndpoint
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
-import {
-  type WebhookDelivery,
-  type WebhookDeliveryAttempt
-} from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
+import { type WebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { type WorkspaceViewer } from '@/lib/permissions'
-import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
-
-/**
- * The webhook server functions, in a **client-safe** module — the client-safe
- * half of the `webhooks.effects.ts` split; see apps/web/AGENTS.md for the
- * rule and `scripts/assert-client-boundary.mjs` for the enforcement. Each
- * input is written once, as its Effect Schema: the validator is the single
- * strict decode, and the derived type types both the client stub and the
- * effects handler.
- *
- * The behaviour itself is tested as the handlers in the effects file
- * (`webhooks.test.ts` imports `webhooks.effects.ts` directly), driven with
- * mocked sessions against the Seed layer.
- */
 
 const CreateWebhookInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
@@ -35,7 +21,6 @@ const WorkspaceWebhooksInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString
 })
 
-/** Rotate-secret and test-event share this shape: one endpoint, by id. */
 const EndpointMutationInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
   endpointId: Schema.NonEmptyString
@@ -58,21 +43,6 @@ export type EndpointMutationInput = typeof EndpointMutationInput.Type
 export type UpdateEndpointInput = typeof UpdateEndpointInput.Type
 export type ReplayDeliveryInput = typeof ReplayDeliveryInput.Type
 
-export const createWebhookEndpointServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(CreateWebhookInput))
-  .handler(async ({ data }): Promise<CreatedWebhookEndpoint> => {
-    const { createWebhookEndpointHandler } = await import('./webhooks.effects')
-    return createWebhookEndpointHandler(data)
-  })
-
-/**
- * The webhooks payload.
- *
- * Like tokens, reading webhooks is itself a permission: `webhook:list` is
- * withheld from a plain `member`, so the page hard-gates on it — a member
- * meeting the URL directly gets the denial, not an empty list. Deliveries are
- * fetched per endpoint so each endpoint card can show its recent attempts.
- */
 export type WorkspaceWebhooksPayload = {
   readonly viewer: WorkspaceViewer | null
   readonly unreadCount: number
@@ -83,48 +53,110 @@ export type WorkspaceWebhooksPayload = {
   >
 }
 
-/**
- * The webhooks route's loader. `webhook:list` is the page's own read
- * permission and a hard gate.
- */
-export const loadWorkspaceWebhooksServerFn = createServerFn({ method: 'GET' })
-  .validator(Schema.decodeUnknownSync(WorkspaceWebhooksInput))
-  .handler(async ({ data }): Promise<WorkspaceWebhooksPayload> => {
-    const { loadWorkspaceWebhooksHandler } = await import('./webhooks.effects')
-    return loadWorkspaceWebhooksHandler(data)
-  })
+export const Api = HttpApi.make('web-webhooks').add(
+  HttpApiGroup.make('calls').add(
+    HttpApiEndpoint.post(
+      'createWebhookEndpointServerFn',
+      '/api/web/createWebhookEndpointServerFn',
+      {
+        payload: CreateWebhookInput,
+        success: Responses.createWebhookEndpointServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post(
+      'loadWorkspaceWebhooksServerFn',
+      '/api/web/loadWorkspaceWebhooksServerFn',
+      {
+        payload: WorkspaceWebhooksInput,
+        success: Responses.loadWorkspaceWebhooksServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post(
+      'updateWebhookEndpointServerFn',
+      '/api/web/updateWebhookEndpointServerFn',
+      {
+        payload: UpdateEndpointInput,
+        success: Responses.updateWebhookEndpointServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post(
+      'rotateWebhookSecretServerFn',
+      '/api/web/rotateWebhookSecretServerFn',
+      {
+        payload: EndpointMutationInput,
+        success: Responses.rotateWebhookSecretServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post(
+      'replayWebhookDeliveryServerFn',
+      '/api/web/replayWebhookDeliveryServerFn',
+      {
+        payload: ReplayDeliveryInput,
+        success: Responses.replayWebhookDeliveryServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post('sendTestEventServerFn', '/api/web/sendTestEventServerFn', {
+      payload: EndpointMutationInput,
+      success: Responses.sendTestEventServerFnResponse,
+      error: WebErrors
+    }),
+    HttpApiEndpoint.post(
+      'listWebhookDeliveryAttemptsServerFn',
+      '/api/web/listWebhookDeliveryAttemptsServerFn',
+      {
+        payload: ReplayDeliveryInput,
+        success: Responses.listWebhookDeliveryAttemptsServerFnResponse,
+        error: WebErrors
+      }
+    )
+  )
+)
 
-export const updateWebhookEndpointServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(UpdateEndpointInput))
-  .handler(async ({ data }): Promise<WebhookEndpoint> => {
-    const { updateWebhookEndpointHandler } = await import('./webhooks.effects')
-    return updateWebhookEndpointHandler(data)
-  })
+const browser = makeBrowserClient(Api)
 
-export const rotateWebhookSecretServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(EndpointMutationInput))
-  .handler(async ({ data }): Promise<string> => {
-    const { rotateWebhookSecretHandler } = await import('./webhooks.effects')
-    return rotateWebhookSecretHandler(data)
-  })
+export const createWebhookEndpointServerFn = dataCall(
+  browser,
+  CreateWebhookInput,
+  (client, payload) => client.calls.createWebhookEndpointServerFn({ payload })
+)
 
-export const replayWebhookDeliveryServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(ReplayDeliveryInput))
-  .handler(async ({ data }): Promise<{ readonly deliveryId: string }> => {
-    const { replayWebhookDeliveryHandler } = await import('./webhooks.effects')
-    return replayWebhookDeliveryHandler(data)
-  })
+export const loadWorkspaceWebhooksServerFn = dataCall(
+  browser,
+  WorkspaceWebhooksInput,
+  (client, payload) => client.calls.loadWorkspaceWebhooksServerFn({ payload })
+)
 
-export const sendTestEventServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(EndpointMutationInput))
-  .handler(async ({ data }): Promise<{ readonly deliveryId: string }> => {
-    const { sendTestEventHandler } = await import('./webhooks.effects')
-    return sendTestEventHandler(data)
-  })
+export const updateWebhookEndpointServerFn = dataCall(
+  browser,
+  UpdateEndpointInput,
+  (client, payload) => client.calls.updateWebhookEndpointServerFn({ payload })
+)
 
-export const listWebhookDeliveryAttemptsServerFn = createServerFn({ method: 'GET' })
-  .validator(Schema.decodeUnknownSync(ReplayDeliveryInput))
-  .handler(async ({ data }): Promise<ReadonlyArray<WebhookDeliveryAttempt>> => {
-    const { listWebhookDeliveryAttemptsHandler } = await import('./webhooks.effects')
-    return listWebhookDeliveryAttemptsHandler(data)
-  })
+export const rotateWebhookSecretServerFn = dataCall(
+  browser,
+  EndpointMutationInput,
+  (client, payload) => client.calls.rotateWebhookSecretServerFn({ payload })
+)
+
+export const replayWebhookDeliveryServerFn = dataCall(
+  browser,
+  ReplayDeliveryInput,
+  (client, payload) => client.calls.replayWebhookDeliveryServerFn({ payload })
+)
+
+export const sendTestEventServerFn = dataCall(
+  browser,
+  EndpointMutationInput,
+  (client, payload) => client.calls.sendTestEventServerFn({ payload })
+)
+
+export const listWebhookDeliveryAttemptsServerFn = dataCall(
+  browser,
+  ReplayDeliveryInput,
+  (client, payload) => client.calls.listWebhookDeliveryAttemptsServerFn({ payload })
+)

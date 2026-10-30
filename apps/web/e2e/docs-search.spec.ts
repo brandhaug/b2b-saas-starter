@@ -1,7 +1,8 @@
 /* oxlint-disable effect/noNodeBuiltinImport -- Playwright verifies built browser assets against the local public content tree. */
 import { expect, test } from '@playwright/test'
+import { Effect } from 'effect'
 import { createHash } from 'node:crypto'
-import { readdirSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 
 const publicDocs = new URL('../content/docs/', import.meta.url)
 
@@ -9,13 +10,6 @@ test('public docs search supports empty states, body matches and keyboard naviga
   page
 }, testInfo) => {
   const scripts: Array<string> = []
-  const assets = new URL('../dist-e2e/client/assets/', import.meta.url)
-  const articleChunks = readdirSync(assets).filter(
-    (file) =>
-      file.endsWith('.js') &&
-      /as frontmatter\s*\}/.test(readFileSync(new URL(file, assets), 'utf8'))
-  )
-  expect(articleChunks.length).toBeGreaterThan(0)
   page.on('request', (request) => {
     if (request.resourceType() === 'script') {
       scripts.push(request.url())
@@ -23,8 +17,9 @@ test('public docs search supports empty states, body matches and keyboard naviga
   })
   const response = await page.goto('/docs/search')
   expect(response?.status()).toBe(200)
+  const document = (await response?.text()) ?? ''
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
-  await page.locator('header [data-slot="select-trigger"]:enabled').waitFor()
+  await page.locator('header select:enabled').waitFor()
   const input = page.getByRole('searchbox', { name: 'Search documentation' })
   await expect(page.getByRole('status')).toContainText('Search the English guides')
   await input.fill('   ')
@@ -46,24 +41,35 @@ test('public docs search supports empty states, body matches and keyboard naviga
     'href',
     /github.com\/brandhaug\/b2b-saas-starter\/blob\/master\/apps\/web\/content\/docs\//
   )
-  expect(
-    scripts.filter(
+  expect(scripts.filter((url) => url.includes('.mdx'))).toEqual([])
+  expect(scripts.length).toBeGreaterThan(0)
+  // Foldkit renders article HTML on the server. Verify every downloaded script,
+  // independent of chunk names, while retaining search provenance checks.
+  const downloadedScripts = await Effect.runPromise(
+    Effect.forEach(
+      scripts,
       (url) =>
-        url.includes('.mdx') || articleChunks.some((file) => url.endsWith(`/${file}`))
+        Effect.promise(async () => {
+          const asset = await page.request.get(url)
+          expect(asset.ok()).toBe(true)
+          return asset.text()
+        }),
+      { concurrency: 'unbounded' }
     )
-  ).toEqual([])
-  const searchChunk = scripts.find((url) => url.includes('/_knowledge.docs.search-'))
-  expect(searchChunk).toBeDefined()
-  const searchResponse = await page.request.get(searchChunk ?? '')
-  const bundle = await searchResponse.text()
+  )
+  const bundle = downloadedScripts.join('\n')
+  expect(bundle).not.toMatch(
+    /<h2[^>]+id=["']install-and-run|\\u003ch2[^\n]+install-and-run/
+  )
   const quickstartSource = readFileSync(
     new URL('getting-started/quickstart.mdx', publicDocs),
     'utf8'
   ).replaceAll('\r\n', '\n')
-  expect(bundle).toContain(
+  // Search metadata travels in the request-specific SSR flags, not app code.
+  expect(document).toContain(
     `sha256:${createHash('sha256').update(quickstartSource).digest('hex')}`
   )
-  expect(bundle).toContain('getting-started/quickstart')
+  expect(document).toContain('getting-started/quickstart')
   expect(bundle).not.toMatch(
     /@mdx-js|js-yaml|capability\.workspace|\/docs\/agents\/|mdxjsEsm/
   )

@@ -1,6 +1,5 @@
 // @vitest-environment node
 import { afterAll, beforeAll, expect, it } from '@effect/vitest'
-import { defaultParseSearch, defaultStringifySearch } from '@tanstack/react-router'
 import { Effect, Schema } from 'effect'
 import { Auth, MCP_WORKSPACE_SELECTED_HEADER } from '@b2b-saas-starter/auth'
 import {
@@ -39,11 +38,11 @@ function redirectTarget(response: Response) {
 }
 
 function routedQuery(url: URL) {
-  return signedOAuthQuery(defaultStringifySearch(defaultParseSearch(url.search)))
+  return signedOAuthQuery(new URL(url.href).search)
 }
 
 it.live(
-  'verifies the issuer signature after router serialization through consent and PKCE exchange',
+  'verifies the issuer signature after native URL navigation through consent and PKCE exchange',
   () =>
     Effect.gen(function* () {
       const auth = yield* Auth.Tag

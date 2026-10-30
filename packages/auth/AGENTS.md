@@ -6,7 +6,7 @@ Owns Better Auth configuration and plugin-to-schema mapping. Apps supply configu
 
 - Keep `makeAuthOptions` a single non-union object type and the plugin array inside `plugins(...)`. Widening either silently loses plugin-added session fields. `SessionUserRole` guards that inference.
 - `runBackground` is required and becomes `advanced.backgroundTasks.handler`; the app handles rejection. Ports retain Better Auth's callback signatures so adapters assign directly.
-- `jwt` precedes `mcp`; `tanstackStartCookies` stays last so other plugins' cookies reach the framework store.
+- `jwt` precedes `mcp`. Do not install a framework cookie plugin. Direct HTTP handlers return Better Auth's response; native application calls use the official `full` API and request-scoped outgoing cookies.
 - `modelName` refers to the Drizzle schema export, not the SQL table. Map `organizationId` to `workspaceId`; put custom fields in `additionalFields`, never `metadata`. New workspace-table columns need matching entries or plugin responses omit them.
 - Organization endpoints and request permission checks share [`authz`](../authz/AGENTS.md) roles. Roles stay static and single; Better Auth's comma-joined roles violate the database enum. Admin configuration uses `adminSystemRole` from `db/enums`.
 

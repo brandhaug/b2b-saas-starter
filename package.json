@@ -2,7 +2,7 @@
   "name": "b2b-saas-starter",
   "version": "0.1.0",
   "private": true,
-  "description": "Cloudflare-first B2B SaaS starter monorepo with TanStack Start, Effect v4, Drizzle D1, Better Auth, and Alchemy.",
+  "description": "Cloudflare-first B2B SaaS starter monorepo with Foldkit, Effect v4, Drizzle D1, Better Auth, and Alchemy.",
   "homepage": "https://github.com/brandhaug/b2b-saas-starter#readme",
   "bugs": {
     "url": "https://github.com/brandhaug/b2b-saas-starter/issues"

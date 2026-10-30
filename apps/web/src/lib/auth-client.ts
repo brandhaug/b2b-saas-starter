@@ -9,7 +9,7 @@ import {
   twoFactorClient,
   usernameClient
 } from 'better-auth/client/plugins'
-import { createAuthClient } from 'better-auth/react'
+import { createAuthClient } from 'better-auth/client'
 
 export const authClient = createAuthClient({
   // `oauthProviderClient` attaches the page's signed OAuth query to sign-in

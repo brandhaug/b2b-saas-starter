@@ -1,7 +1,7 @@
 # Architecture overview
 
 ```text
-Browser ── SSR / server functions / auth ──> apps/web
+Browser ── Foldkit SSR / typed HTTP / auth ──> apps/web
 External clients ── REST / MCP ───────────> apps/api
 Queues / cron ───────────────────────────> apps/background
                                               │
@@ -13,7 +13,7 @@ All three Workers ──> packages/capabilities ────┤
 
 | Area                                                | Responsibility                                                                                                                      |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| [Web Worker](apps/web/AGENTS.md)                    | Public content, authenticated UI, server functions, and Better Auth endpoints. Calls capabilities in-process.                       |
+| [Web Worker](apps/web/AGENTS.md)                    | Foldkit SSR, authenticated UI, typed HTTP operations, and Better Auth endpoints. Calls capabilities in-process.                     |
 | [API Worker](apps/api/AGENTS.md)                    | REST, OpenAPI/Scalar reference, and stateful streamable-HTTP MCP. Both interfaces dispatch through the workspace operation catalog. |
 | [Background Worker](apps/background/AGENTS.md)      | Webhook delivery, workspace exports, billing reconciliation, notification email and fenced conversation cleanup.                    |
 | [Capabilities](packages/capabilities/AGENTS.md)     | Business use cases with Effect contracts and equivalent Seed/Live adapters.                                                         |
@@ -34,6 +34,30 @@ The public `/demo` preview renders shared application pages with synthetic data.
 Its forms and dialogs are inspectable, but actions return a preview explanation
 without calling authenticated operations. It does not read live privileged
 records or persist simulated changes. See the [showcase decision](docs/adr/0016-homepage-as-architecture-showcase.md).
+
+### Native web application
+
+`apps/web/src/foldkit` owns schema-defined models and messages, pure updates,
+views, commands, subscriptions, and managed browser resources. The browser hydrates
+the server-rendered model. React email templates remain in `packages/email`.
+
+`src/http/page-loader.ts` resolves page authorization and data before
+`src/entry.server.ts` renders within the request's observability and locale scope.
+Document metadata stays associated with that rendered application, never a shared
+current-user variable. Foldkit's experimental SSR packages are pinned exactly;
+upgrades require compiled-host and browser acceptance checks.
+
+Browser operations use Effect HttpApi contracts and generated clients. Their JSON
+POST endpoints under `/api/web/` require explicit client intent and same-origin
+checks. Server handlers recheck session, membership, suspension and permissions,
+then call capabilities in-process. `scripts/browser-boundary.ts` rejects server
+implementation and React/TanStack modules in the browser module graph.
+
+The production entry `src/worker.ts` handles HTTP protocol paths before Foldkit's
+HTML negotiation and exports the conversation Durable Object. Alchemy uses
+`Website.Vite` with that explicit entry. The Node development/preview host uses
+the same protocol split. Client assets and the server bundle have separate output
+directories; missing assets do not fall back to an application document.
 
 ### Billing lifecycle and entitlements
 
@@ -133,7 +157,7 @@ without a model provider; replay dispatch requires the webhook queue binding.
 - Cloudflare Queues carry webhook, export, billing, and instant-notification work. Webhooks and billing have dead-letter consumers. Durable application records retain outcomes and support recovery.
 - Optional R2 stores gzipped JSON workspace exports with seven-day retention. There is no general file-upload workflow.
 - Checked-in MDX supplies public articles and navigation metadata. LLM summaries are static public files maintained alongside the articles.
-- Public documentation search builds a text-only index from `apps/web/content/docs` through `apps/web/scripts/docs-search-index.ts`. Its dedicated route loads records without compiled article components. [Search maintenance and verification](docs/docs-search.md) describes the index contract and browser checks.
+- Public documentation search builds a text-only index from `apps/web/content/docs` through `apps/web/scripts/docs-search-index.ts`. Search records enter request-specific SSR flags. Article HTML is compiled by `src/foldkit/docs/build.ts` for server rendering, without a React MDX runtime in the browser. [Search maintenance and verification](docs/docs-search.md) describes the index contract and browser checks.
 
 ## Deployment & Infrastructure
 
@@ -188,7 +212,7 @@ Workspace roles are owner, admin, and member. System admin is a separate role an
 
 [authz](packages/authz/AGENTS.md) owns one permission decision for sessions, API tokens, and MCP principals. Every endpoint names a permission. Workspace resolution conceals unknown and inaccessible workspaces with the same error.
 
-Loaders gate their primary read and omit unauthorized secondary reads before execution. Their actor-specific payload types live in the web app. Components use the same permissions for presentation; server functions recheck every mutation.
+Loaders gate their primary read and omit unauthorized secondary reads before execution. Their actor-specific payload types live in the web app. Views use the same permissions for presentation; HTTP operation handlers recheck every mutation.
 
 Plugin-backed workspace mutations require session bindings. The API cannot substitute a bearer token for the plugin's required session headers; unsupported operations remain outside its catalog.
 

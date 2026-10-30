@@ -1,10 +1,17 @@
 import { MissingD1Binding } from './auth-local-d1'
 import { Auth, type AuthOptions } from '@b2b-saas-starter/auth'
-import { MissingRequestHeaders, runAuth, type Api } from 'effectful-better-auth'
+import {
+  CurrentHeaders,
+  MissingRequestHeaders,
+  runAuth,
+  type Api,
+  type ApiFull
+} from 'effectful-better-auth'
 import { Effect } from 'effect'
 
 import { authAvailability } from '../auth-runtime'
 import { currentRequest } from '../request-context'
+import { withAuthCookies, type AuthResponse } from './auth-response'
 
 /**
  * The two ways the server-only `*-binding.ts` adapters (invitation, member,
@@ -12,10 +19,8 @@ import { currentRequest } from '../request-context'
  * app half of the binding ports `@b2b-saas-starter/capabilities` declares.
  *
  * They live here, in a server-only module, rather than beside `starterEnv` in
- * `../capabilities.ts`: that module is bundled for the browser too (client-side
- * navigations re-run loaders against the Seed layer), and importing
- * `packages/auth` there would drag the whole Better Auth server instance into
- * the client bundle. Server functions pass an adapter in per call instead.
+ * browser contracts must never import the Better Auth server instance.
+ * Application handlers pass an adapter in per call instead.
  *
  * Rejections are left raw so the capability's classifier can read the plugin
  * error's `statusCode` (see `plugin-binding-failure.ts` in the capabilities
@@ -32,7 +37,7 @@ type AuthApi = Api<AuthOptions>
  * reason these adapters have to exist in the app at all. Headers are read at
  * call time, so one module-level adapter serves every request without
  * capturing one. The library carries them as ambient `CurrentHeaders`, so
- * `api.*` calls inside `build` may omit `headers`; the raw `Headers` are still
+ * `full.*` calls inside `build` may omit `headers`; the raw `Headers` are still
  * handed to `build` for the callers that forward them elsewhere (the MCP
  * consent re-entry builds a request carrier from them). A call with no
  * in-flight request rejects with the library's `MissingRequestHeaders`, which
@@ -40,7 +45,10 @@ type AuthApi = Api<AuthOptions>
  * runtime is touched, so a no-request caller never boots the auth instance.
  */
 export function sessionCall<A, E>(
-  build: (api: AuthApi, headers: Headers) => Effect.Effect<A, E>
+  build: (
+    api: ApiFull<AuthOptions>,
+    headers: Headers
+  ) => Effect.Effect<AuthResponse<A>, E>
 ): Promise<A> {
   const headers = currentRequest()?.headers
   if (headers === undefined) {
@@ -50,12 +58,11 @@ export function sessionCall<A, E>(
   if (!auth.available) {
     return Effect.runPromise(Effect.fail(new MissingD1Binding({ property: 'DB' })))
   }
-  return runAuth<AuthOptions, A, E>({
-    tag: Auth.Tag,
-    runtime: auth.runtime,
-    headers,
-    build: (api) => build(api, headers)
-  })
+  return auth.runtime.runPromise(
+    Effect.flatMap(Auth.Tag, ({ full }) => withAuthCookies(build(full, headers))).pipe(
+      Effect.provideService(CurrentHeaders, headers)
+    )
+  )
 }
 
 /**

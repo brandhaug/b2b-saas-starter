@@ -28,7 +28,7 @@ test('an unconfigured deployment has no analytics requests or consent prompt', a
   test.skip(configured, 'run without the optional token or controller configuration')
   const requests = await interceptAnalytics(page)
   await page.goto('/')
-  await page.locator('header [data-slot="select-trigger"]:enabled').waitFor()
+  await page.locator('header select:enabled').waitFor()
   await expect(page.locator(beaconSelector)).toHaveCount(0)
   await expect(page.getByRole('region', { name: 'Browser analytics' })).toHaveCount(0)
   expect(requests).toEqual([])

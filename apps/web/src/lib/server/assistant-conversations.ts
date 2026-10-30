@@ -1,12 +1,11 @@
+import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/http-api'
+import { makeBrowserClient, dataCall } from '@/http/client'
+import { WebErrors } from '@/http/errors'
+import * as Responses from '@/http/contracts/assistant-conversations'
 import {
   ConversationSend,
-  type ConversationSummary,
-  type ConversationList,
-  type ConversationPage,
-  type ConversationAcceptance,
-  type ConversationAttempt
+  type ConversationPage
 } from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversation'
-import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
 
 export type ConversationHistory = typeof ConversationPage.Type
@@ -61,77 +60,114 @@ export type ConversationSendInput = typeof SendInput.Type
 export type ConversationAttemptInput = typeof AttemptInput.Type
 export type ConversationRetryInput = typeof RetryInput.Type
 
-export const createConversationServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(WorkspaceInput))
-  .handler(async ({ data }): Promise<ConversationResult<ConversationSummary>> => {
-    const { createConversationHandler } =
-      await import('./assistant-conversations.effects')
-    return createConversationHandler(data)
-  })
-export const listConversationsServerFn = createServerFn({ method: 'GET' })
-  .validator(Schema.decodeUnknownSync(ListInput))
-  .handler(async ({ data }): Promise<ConversationResult<ConversationList>> => {
-    const { listConversationsHandler } =
-      await import('./assistant-conversations.effects')
-    return listConversationsHandler(data)
-  })
-export const conversationHistoryServerFn = createServerFn({ method: 'GET' })
-  .validator(Schema.decodeUnknownSync(HistoryInput))
-  .handler(async ({ data }): Promise<ConversationResult<ConversationHistory>> => {
-    const { conversationHistoryHandler } =
-      await import('./assistant-conversations.effects')
-    return conversationHistoryHandler(data)
-  })
-export const sendConversationServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(SendInput))
-  .handler(async ({ data }): Promise<ConversationResult<ConversationAcceptance>> => {
-    const { sendConversationHandler } =
-      await import('./assistant-conversations.effects')
-    return sendConversationHandler(data)
-  })
-export const retryConversationServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(RetryInput))
-  .handler(async ({ data }): Promise<ConversationResult<ConversationAcceptance>> => {
-    const { retryConversationHandler } =
-      await import('./assistant-conversations.effects')
-    return retryConversationHandler(data)
-  })
-export const stopConversationServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(AttemptInput))
-  .handler(async ({ data }): Promise<ConversationResult<ConversationAttempt>> => {
-    const { stopConversationHandler } =
-      await import('./assistant-conversations.effects')
-    return stopConversationHandler(data)
-  })
-export const deleteConversationServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(ConversationInput))
-  .handler(async ({ data }): Promise<ConversationResult<void>> => {
-    const { deleteConversationHandler } =
-      await import('./assistant-conversations.effects')
-    return deleteConversationHandler(data)
-  })
+export const Api = HttpApi.make('web-assistant-conversations').add(
+  HttpApiGroup.make('calls').add(
+    HttpApiEndpoint.post(
+      'createConversationServerFn',
+      '/api/web/createConversationServerFn',
+      {
+        payload: WorkspaceInput,
+        success: Responses.createConversationServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post(
+      'listConversationsServerFn',
+      '/api/web/listConversationsServerFn',
+      {
+        payload: ListInput,
+        success: Responses.listConversationsServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post(
+      'conversationHistoryServerFn',
+      '/api/web/conversationHistoryServerFn',
+      {
+        payload: HistoryInput,
+        success: Responses.conversationHistoryServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post(
+      'sendConversationServerFn',
+      '/api/web/sendConversationServerFn',
+      {
+        payload: SendInput,
+        success: Responses.sendConversationServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post(
+      'retryConversationServerFn',
+      '/api/web/retryConversationServerFn',
+      {
+        payload: RetryInput,
+        success: Responses.retryConversationServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post(
+      'stopConversationServerFn',
+      '/api/web/stopConversationServerFn',
+      {
+        payload: AttemptInput,
+        success: Responses.stopConversationServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post(
+      'deleteConversationServerFn',
+      '/api/web/deleteConversationServerFn',
+      {
+        payload: ConversationInput,
+        success: Responses.deleteConversationServerFnResponse,
+        error: WebErrors
+      }
+    )
+  )
+)
 
-/** Components accept the same ports in tests and the authenticated route. */
-export type ConversationPorts = {
-  readonly create: (input: {
-    readonly data: ConversationWorkspaceInput
-  }) => Promise<ConversationResult<ConversationSummary>>
-  readonly list: (input: {
-    readonly data: ConversationListInput
-  }) => Promise<ConversationResult<ConversationList>>
-  readonly history: (input: {
-    readonly data: ConversationHistoryInput
-  }) => Promise<ConversationResult<ConversationHistory>>
-  readonly send: (input: {
-    readonly data: ConversationSendInput
-  }) => Promise<ConversationResult<ConversationAcceptance>>
-  readonly retry: (input: {
-    readonly data: ConversationRetryInput
-  }) => Promise<ConversationResult<ConversationAcceptance>>
-  readonly stop: (input: {
-    readonly data: ConversationAttemptInput
-  }) => Promise<ConversationResult<ConversationAttempt>>
-  readonly remove: (input: {
-    readonly data: ConversationReadInput
-  }) => Promise<ConversationResult<void>>
-}
+const browser = makeBrowserClient(Api)
+
+export const createConversationServerFn = dataCall(
+  browser,
+  WorkspaceInput,
+  (client, payload) => client.calls.createConversationServerFn({ payload })
+)
+
+export const listConversationsServerFn = dataCall(
+  browser,
+  ListInput,
+  (client, payload) => client.calls.listConversationsServerFn({ payload })
+)
+
+export const conversationHistoryServerFn = dataCall(
+  browser,
+  HistoryInput,
+  (client, payload) => client.calls.conversationHistoryServerFn({ payload })
+)
+
+export const sendConversationServerFn = dataCall(
+  browser,
+  SendInput,
+  (client, payload) => client.calls.sendConversationServerFn({ payload })
+)
+
+export const retryConversationServerFn = dataCall(
+  browser,
+  RetryInput,
+  (client, payload) => client.calls.retryConversationServerFn({ payload })
+)
+
+export const stopConversationServerFn = dataCall(
+  browser,
+  AttemptInput,
+  (client, payload) => client.calls.stopConversationServerFn({ payload })
+)
+
+export const deleteConversationServerFn = dataCall(
+  browser,
+  ConversationInput,
+  (client, payload) => client.calls.deleteConversationServerFn({ payload })
+)

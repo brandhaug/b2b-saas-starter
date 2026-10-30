@@ -1,14 +1,18 @@
-import { createServerFn } from '@tanstack/react-start'
+import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/http-api'
+import { WebErrors } from '@/http/errors'
+import * as Responses from '@/http/contracts/email-verification'
+import { Schema } from 'effect'
 
-/**
- * The client-safe server-function half of the email-verification status read.
- * The session lookup stays behind the lazy effects import so route loaders can
- * call this during client navigation without shipping server auth code.
- */
-export const getEmailVerificationStatusServerFn = createServerFn({
-  method: 'GET'
-}).handler(async (): Promise<boolean> => {
-  const { readEmailVerificationStatusHandler } =
-    await import('./email-verification.effects')
-  return readEmailVerificationStatusHandler()
-})
+export const Api = HttpApi.make('web-email-verification').add(
+  HttpApiGroup.make('calls').add(
+    HttpApiEndpoint.post(
+      'getEmailVerificationStatusServerFn',
+      '/api/web/getEmailVerificationStatusServerFn',
+      {
+        payload: Schema.Struct({}),
+        success: Responses.getEmailVerificationStatusServerFnResponse,
+        error: WebErrors
+      }
+    )
+  )
+)

@@ -1,26 +1,15 @@
+import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/http-api'
+import { makeBrowserClient, dataCall } from '@/http/client'
+import { WebErrors } from '@/http/errors'
+import * as Responses from '@/http/contracts/notification-preferences'
 import { type NotificationPreference } from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
 import {
   notificationChannels,
   notificationKinds,
   type NotificationKind as Kind
 } from '@b2b-saas-starter/db/enums'
-import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
 
-/**
- * The notification-preference server functions, in a **client-safe** module:
- * the client-safe half of the `notification-preferences.effects.ts` split
- * (see apps/web/AGENTS.md for the rule and `assert-client-boundary.mjs` for
- * the enforcement). Each input is written once, as its Effect Schema — the
- * validator is the single strict decode, and the derived type below types
- * both the client stub and the effects handler.
- */
-
-/**
- * One row of the `/account` preferences section: the resolved preference plus
- * the copy the page shows for it. Assembled server-side (in the effects
- * file) so the component renders words and never imports the kind table.
- */
 export type NotificationPreferenceRow = NotificationPreference & {
   readonly label: string
   readonly description: string
@@ -39,39 +28,37 @@ const SetNotificationPreferenceInput = Schema.Struct({
 
 export type SetNotificationPreferenceInput = typeof SetNotificationPreferenceInput.Type
 
-/**
- * The `/account/notifications` loader segment: the signed-in user's full
- * preference matrix.
- */
-export const loadNotificationPreferencesServerFn = createServerFn({
-  method: 'GET'
-}).handler(async (): Promise<NotificationPreferencesPayload> => {
-  const { loadNotificationPreferencesHandler } =
-    await import('./notification-preferences.effects')
-  return loadNotificationPreferencesHandler()
-})
-
-/**
- * Stores one choice for the signed-in user. The session gate is the whole
- * authorization: a preference is the user's own, keyed by their id, so no
- * workspace permission applies and no other user's row is reachable.
- */
-export const setNotificationPreferenceServerFn = createServerFn({
-  method: 'POST'
-})
-  .validator(Schema.decodeUnknownSync(SetNotificationPreferenceInput))
-  .handler(async ({ data }): Promise<NotificationPreferenceRow> => {
-    const { setNotificationPreferenceHandler } =
-      await import('./notification-preferences.effects')
-    return setNotificationPreferenceHandler(data)
-  })
-
-/**
- * Whether a `?kind=` search value names a real kind. Reads the stored kind
- * tuple from `@b2b-saas-starter/db/enums` rather than the capability's kind
- * table: the table lives beside Effect schemas, and this probe runs in the
- * browser on the unsubscribe route.
- */
 export function isNotificationKind(value: string | undefined): value is Kind {
   return value !== undefined && notificationKinds.some((kind) => kind === value)
 }
+
+export const Api = HttpApi.make('web-notification-preferences').add(
+  HttpApiGroup.make('calls').add(
+    HttpApiEndpoint.post(
+      'loadNotificationPreferencesServerFn',
+      '/api/web/loadNotificationPreferencesServerFn',
+      {
+        payload: Schema.Struct({}),
+        success: Responses.loadNotificationPreferencesServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post(
+      'setNotificationPreferenceServerFn',
+      '/api/web/setNotificationPreferenceServerFn',
+      {
+        payload: SetNotificationPreferenceInput,
+        success: Responses.setNotificationPreferenceServerFnResponse,
+        error: WebErrors
+      }
+    )
+  )
+)
+
+const browser = makeBrowserClient(Api)
+
+export const setNotificationPreferenceServerFn = dataCall(
+  browser,
+  SetNotificationPreferenceInput,
+  (client, payload) => client.calls.setNotificationPreferenceServerFn({ payload })
+)

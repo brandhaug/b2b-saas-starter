@@ -99,34 +99,10 @@
       }
     }
   ],
-  "shell_table_sort_asc": "Sort by {column}, currently ascending",
-  "shell_table_sort_desc": "Sort by {column}, currently descending",
-  "shell_table_sort": "Sort by {column}",
-  "shell_table_empty": "No results.",
   "shell_table_previous": "Previous",
   "shell_table_next": "Next",
   "shell_chart_empty": "No webhook endpoints configured yet.",
   "shell_chart_delivered": "{percent} delivered",
-  "shell_table_page": [
-    {
-      "declarations": [
-        "input count",
-        "input rows",
-        "input page",
-        "input pages",
-        "local category = count: plural"
-      ],
-      "selectors": ["category"],
-      "match": {
-        "category=one": "Page {page} of {pages} · {rows} row",
-        "category=other": "Page {page} of {pages} · {rows} rows"
-      }
-    }
-  ],
-  "shell_confirm_again": "Press again to confirm",
-  "shell_confirm_target": "Press again to confirm {target}",
-  "shell_cancel_target": "Cancel {target}",
-  "shell_action_target": "{action} {target}",
   "shell_role_owner": "owner",
   "shell_role_admin": "admin",
   "shell_role_member": "member",

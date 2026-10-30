@@ -1,17 +1,17 @@
-import { Deferred, Effect } from 'effect'
+import { Deferred, Effect, Schema } from 'effect'
 import { type Page } from '@playwright/test'
 import { expect, signInWithPassword, test } from './authentication'
 import { hasLocalD1State } from '../src/lib/local-d1-state'
 import { isolatedClientIp } from './test-isolation'
 
 function auditRequest(url: URL) {
-  return (
-    url.pathname.startsWith('/_serverFn/') &&
-    url.searchParams.get('payload')?.includes('aud_token') === true
-  )
+  return url.pathname === '/api/web/loadWorkspaceAuditEventsServerFn'
 }
 
 const auditPath = '/workspaces/starter-lab/audit'
+const isTokenDetailRequest = Schema.is(
+  Schema.Struct({ event: Schema.Literal('aud_token') })
+)
 
 async function signIn(page: Page, email: string) {
   await signInWithPassword(page, email, auditPath)
@@ -30,9 +30,7 @@ test('event links preserve filters, keyboard focus, and back/forward history', a
 }) => {
   const page = ownerPage
   await page.goto(auditPath)
-  await page
-    .locator('header [data-slot="select-trigger"]:enabled')
-    .waitFor({ state: 'attached' })
+  await page.locator('header select:enabled').waitFor({ state: 'attached' })
   await page.getByRole('button', { name: 'Actor', exact: true }).click()
   const filters = page.getByRole('dialog', { name: 'Actor', exact: true })
   await filters.getByRole('radio', { name: 'Ops Lead', exact: true }).click()
@@ -123,14 +121,17 @@ test('a failed detail request shows a retryable error instead of a missing event
 }) => {
   const page = ownerPage
   await page.goto(auditPath)
-  await page
-    .locator('header [data-slot="select-trigger"]:enabled')
-    .waitFor({ state: 'attached' })
+  await page.locator('header select:enabled').waitFor({ state: 'attached' })
   await expect(
     page.getByRole('link', { name: /^Inspect API token created/ })
   ).toBeVisible()
   const release = Deferred.makeUnsafe<boolean>()
   await page.route(auditRequest, async (route) => {
+    const payload: unknown = route.request().postDataJSON()
+    if (!isTokenDetailRequest(payload)) {
+      await route.continue()
+      return
+    }
     await Effect.runPromise(Deferred.await(release))
     await route.abort('failed')
   })

@@ -4,6 +4,10 @@ The public tutorial is at `/docs/getting-started/first-business-feature`.
 `workspace-notes.patch` contains reader-added code, not an installed Starter
 feature. Its base is `caf4756fd620a660743f2734b85aad151d75a82a`.
 
+The recorded recipe uses React/TanStack and predates the native Foldkit web app.
+These results are baseline evidence, not validation of a current Foldkit notes
+implementation. Apply the preserved patch only to its recorded base.
+
 ## Observed results
 
 Verified locally on 2026-10-06 with the companion patch applied. The patch was
@@ -46,12 +50,13 @@ From a clean checkout containing the tutorial, create a separate example checkou
 and local database. Use an unused sibling directory name if this one exists.
 
 ```bash
-git worktree add --detach ../first-business-feature-example HEAD
+example_patch="$PWD/docs/examples/first-business-feature/workspace-notes.patch"
+git worktree add --detach ../first-business-feature-example caf4756fd620a660743f2734b85aad151d75a82a
 cd ../first-business-feature-example
 vp install
 cp .env.example .env
-git apply --check docs/examples/first-business-feature/workspace-notes.patch
-git apply docs/examples/first-business-feature/workspace-notes.patch
+git apply --check "$example_patch"
+git apply "$example_patch"
 pnpm run db:generate
 pnpm run db:migrate:local
 pnpm run db:seed

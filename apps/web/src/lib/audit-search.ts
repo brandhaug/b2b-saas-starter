@@ -17,8 +17,6 @@ export type WorkspaceAuditSearchUpdate = {
   readonly view?: string
 }
 
-export type ApplyWorkspaceAuditSearch = (search: WorkspaceAuditSearchUpdate) => void
-
 /**
  * Drops empty and undefined values so cleared controls disappear from the URL
  * entirely. Typed on the search-update shape itself — a key that is not part

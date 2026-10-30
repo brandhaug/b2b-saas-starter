@@ -1,5 +1,7 @@
-import { type WebhookInvestigationTask } from '@b2b-saas-starter/capabilities/developer-platform/webhook-investigation-tasks'
-import { createServerFn } from '@tanstack/react-start'
+import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/http-api'
+import { makeBrowserClient, dataCall } from '@/http/client'
+import { WebErrors } from '@/http/errors'
+import * as Responses from '@/http/contracts/assistant-tasks'
 import { Schema } from 'effect'
 
 const CreateTaskInput = Schema.Struct({
@@ -14,30 +16,69 @@ const TaskInput = Schema.Struct({
 export type CreateTaskInput = typeof CreateTaskInput.Type
 export type TaskInput = typeof TaskInput.Type
 
-export const createAssistantTaskServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(CreateTaskInput))
-  .handler(async ({ data }): Promise<WebhookInvestigationTask> => {
-    const { createAssistantTaskHandler } = await import('./assistant-tasks.effects')
-    return createAssistantTaskHandler(data)
-  })
+export const Api = HttpApi.make('web-assistant-tasks').add(
+  HttpApiGroup.make('calls').add(
+    HttpApiEndpoint.post(
+      'createAssistantTaskServerFn',
+      '/api/web/createAssistantTaskServerFn',
+      {
+        payload: CreateTaskInput,
+        success: Responses.createAssistantTaskServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post(
+      'getAssistantTaskServerFn',
+      '/api/web/getAssistantTaskServerFn',
+      {
+        payload: TaskInput,
+        success: Responses.getAssistantTaskServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post(
+      'approveAssistantTaskServerFn',
+      '/api/web/approveAssistantTaskServerFn',
+      {
+        payload: TaskInput,
+        success: Responses.approveAssistantTaskServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post(
+      'cancelAssistantTaskServerFn',
+      '/api/web/cancelAssistantTaskServerFn',
+      {
+        payload: TaskInput,
+        success: Responses.cancelAssistantTaskServerFnResponse,
+        error: WebErrors
+      }
+    )
+  )
+)
 
-export const getAssistantTaskServerFn = createServerFn({ method: 'GET' })
-  .validator(Schema.decodeUnknownSync(TaskInput))
-  .handler(async ({ data }): Promise<WebhookInvestigationTask> => {
-    const { getAssistantTaskHandler } = await import('./assistant-tasks.effects')
-    return getAssistantTaskHandler(data)
-  })
+const browser = makeBrowserClient(Api)
 
-export const approveAssistantTaskServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(TaskInput))
-  .handler(async ({ data }): Promise<WebhookInvestigationTask> => {
-    const { approveAssistantTaskHandler } = await import('./assistant-tasks.effects')
-    return approveAssistantTaskHandler(data)
-  })
+export const createAssistantTaskServerFn = dataCall(
+  browser,
+  CreateTaskInput,
+  (client, payload) => client.calls.createAssistantTaskServerFn({ payload })
+)
 
-export const cancelAssistantTaskServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(TaskInput))
-  .handler(async ({ data }): Promise<WebhookInvestigationTask> => {
-    const { cancelAssistantTaskHandler } = await import('./assistant-tasks.effects')
-    return cancelAssistantTaskHandler(data)
-  })
+export const getAssistantTaskServerFn = dataCall(
+  browser,
+  TaskInput,
+  (client, payload) => client.calls.getAssistantTaskServerFn({ payload })
+)
+
+export const approveAssistantTaskServerFn = dataCall(
+  browser,
+  TaskInput,
+  (client, payload) => client.calls.approveAssistantTaskServerFn({ payload })
+)
+
+export const cancelAssistantTaskServerFn = dataCall(
+  browser,
+  TaskInput,
+  (client, payload) => client.calls.cancelAssistantTaskServerFn({ payload })
+)

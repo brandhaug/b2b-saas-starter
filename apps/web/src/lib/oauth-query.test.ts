@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vite-plus/test'
 import { consentRequest, scopeLabel, signedOAuthQuery } from './oauth-query'
-import { defaultParseSearch, defaultStringifySearch } from '@tanstack/react-router'
 
 describe('signedOAuthQuery', () => {
   it('keeps the signature, the signed-name list, and the named parameters only', () => {
@@ -16,7 +15,7 @@ describe('signedOAuthQuery', () => {
     expect(signedOAuthQuery('')).toBeNull()
   })
 
-  it('restores router-serialized repeated fields while retaining signed values', () => {
+  it('retains repeated fields and opaque signed values through native URL navigation', () => {
     const original = new URLSearchParams({
       client_id: 'https://client.example/metadata.json',
       state: 'opaque+state/with=encoding',
@@ -27,7 +26,7 @@ describe('signedOAuthQuery', () => {
     }
     original.append('resource', 'https://api.example/assistant')
     original.append('resource', 'https://api.example/mcp')
-    const routed = defaultStringifySearch(defaultParseSearch(`?${original}`))
+    const routed = new URL(`https://starter.test/oauth/consent?${original}`).search
     const restored = new URLSearchParams(
       signedOAuthQuery(`${routed}&redirect=/evil`) ?? ''
     )
@@ -37,7 +36,7 @@ describe('signedOAuthQuery', () => {
     expect(restored.has('redirect')).toBe(false)
   })
 
-  it('refuses malformed router arrays without altering opaque signed JSON strings', () => {
+  it('refuses malformed signed-name lists without altering opaque signed JSON strings', () => {
     expect(signedOAuthQuery('?sig=x&ba_param=%5Bbroken')).toBeNull()
     expect(signedOAuthQuery('?sig=x&ba_param=%5B1%5D')).toBeNull()
     const params = new URLSearchParams({ sig: 'x', state: '["opaque"]' })

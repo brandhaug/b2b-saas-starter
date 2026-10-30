@@ -5,9 +5,7 @@ test('public pricing labels annual example totals without a discount claim', asy
   page
 }, testInfo) => {
   await page.goto('/pricing')
-  await page
-    .locator('header [data-slot="select-trigger"]:enabled')
-    .waitFor({ state: 'attached' })
+  await page.locator('header select:enabled').waitFor({ state: 'attached' })
   await expect(page.getByRole('heading', { name: 'Team', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Annual', exact: true }).click()
   await expect(page.getByText('$144.00/seat/year', { exact: true })).toBeVisible()

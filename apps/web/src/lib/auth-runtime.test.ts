@@ -1,4 +1,3 @@
-import { isRedirect } from '@tanstack/react-router'
 import { describe, expect, it } from 'vite-plus/test'
 import { authAvailability } from './auth-runtime'
 import { requireSession } from './server/auth'
@@ -26,7 +25,11 @@ describe('auth without D1', () => {
       () => undefined,
       (error: unknown) => error
     )
-    expect(isRedirect(refusal)).toBe(true)
+    expect(refusal).toBeInstanceOf(Response)
+    if (refusal instanceof Response) {
+      expect(refusal.status).toBe(302)
+      expect(refusal.headers.get('location')).toBe('/sign-in?redirect=%2Fdemo')
+    }
   })
 
   it('answers guidance at auth and discovery HTTP boundaries', async () => {

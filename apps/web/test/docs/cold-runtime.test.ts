@@ -1,6 +1,6 @@
 // @vitest-environment node
 /* oxlint-disable effect/noNodeBuiltinImport -- native workerd integration test owns local bundle paths. */
-import { resolve } from 'node:path'
+import { resolve as resolvePath } from 'node:path'
 import { globSync } from 'node:fs'
 import { Miniflare, convertV4MiniflareOptions, Response, type Request } from 'miniflare'
 import { expect, it } from 'vite-plus/test'
@@ -9,17 +9,17 @@ import { workerCompatibility } from '../../../../infra/bindings'
 const locales = ['en', 'nb']
 
 function runtime(gate?: (request: Request) => Promise<Response> | Response) {
-  const root = resolve(import.meta.dirname, '../../dist-docs-runtime/server')
+  const root = resolvePath(import.meta.dirname, '../../dist-docs-runtime/server')
   const serviceBindings: Record<string, NonNullable<typeof gate>> = {}
   if (gate !== undefined) {
-    serviceBindings.DOCS_METADATA_GATE = gate
+    serviceBindings.DOCS_RENDER_GATE = gate
   }
   return new Miniflare(
     convertV4MiniflareOptions({
-      modules: ['worker.js', ...globSync('assets/**/*.js', { cwd: root })].map(
+      modules: ['fetch.js', ...globSync('assets/**/*.js', { cwd: root })].map(
         (path) => ({
           type: 'ESModule',
-          path: resolve(root, path)
+          path: resolvePath(root, path)
         })
       ),
       modulesRoot: root,
@@ -41,7 +41,7 @@ async function article(worker: Miniflare, locale: string) {
 
 function expectArticle(result: Awaited<ReturnType<typeof article>>, locale: string) {
   expect(result.status).toBe(200)
-  expect(result.body).toContain(`<html lang="${locale}"`)
+  expect(result.body.match(/<html\b[^>]*>/)?.[0]).toContain(`lang="${locale}"`)
   expect(result.body).toContain('Quickstart')
   expect(result.body).toMatch(
     /<h2\b[^>]*id="install-and-run"[^>]*>Install and run<\/h2>/
@@ -49,7 +49,7 @@ function expectArticle(result: Awaited<ReturnType<typeof article>>, locale: stri
   expect(result.body).toContain(`${locale === 'nb' ? '/no' : ''}/docs/`)
   expect(result.body).toContain(locale === 'nb' ? 'Kom i gang' : 'Getting started')
   expect(result.body).not.toContain(locale === 'nb' ? 'Getting started' : 'Kom i gang')
-  expect(result.body).not.toContain('Controlled metadata loading failure')
+  expect(result.body).not.toContain('Controlled rendering failure')
 }
 
 it('serves overlapping cold docs and warm locale-specific follow-ups in workerd', async () => {
@@ -65,28 +65,32 @@ it('serves overlapping cold docs and warm locale-specific follow-ups in workerd'
   }
 }, 30_000)
 
-it('keeps overlapping pending metadata work owned by each request', async () => {
-  const release = Promise.withResolvers<boolean>()
+it('keeps overlapping pending document renders owned by each request', async () => {
+  const gateControl = { release: () => {} }
+  // Miniflare's service-binding callback waits for the test to release both requests.
+  const pendingGate = new Promise<void>((resolve) => {
+    gateControl.release = resolve
+  })
   const arrived = new Set<string>()
   const worker = runtime(async (request) => {
     arrived.add(new URL(request.headers.get('x-docs-request')!).pathname.split('/')[1]!)
-    await release.promise
+    await pendingGate
     return new Response('')
   })
   const pending = locales.map((locale) => article(worker, locale))
   try {
     await expect.poll(() => arrived.size, { timeout: 5000 }).toBe(2)
-    release.resolve(true)
+    gateControl.release()
     const results = await Promise.all(pending)
     results.forEach((result, index) => expectArticle(result, locales[index]!))
   } finally {
-    release.resolve(true)
+    gateControl.release()
     await Promise.allSettled(pending)
     await worker.dispose()
   }
 }, 30_000)
 
-it('recovers after the first metadata boundary rejects in the same isolate', async () => {
+it('recovers after the first document render rejects in the same isolate', async () => {
   let attempts = 0
   let failing = true
   const worker = runtime(() => {
@@ -103,7 +107,9 @@ it('recovers after the first metadata boundary rejects in the same isolate', asy
     expect(attempts).toBeGreaterThan(failedAttempts)
     const completedAttempts = attempts
     expectArticle(await article(worker, 'en'), 'en')
-    expect(attempts).toBe(completedAttempts)
+    // Native metadata is compiled at build time. Each request still owns its
+    // render, rather than reusing another request's pending or failed response.
+    expect(attempts).toBeGreaterThan(completedAttempts)
   } finally {
     await worker.dispose()
   }

@@ -20,8 +20,8 @@ import { webMemberBinding } from './member-binding'
  * `statusCode` appearing on this error — or the classifier changing its mind
  * about a missing status — fails here.
  *
- * Under Vitest there is no TanStack request storage, so `currentRequest()`
- * answers `undefined` and every headered call below takes that branch.
+ * Outside a native request scope, `currentRequest()` answers `undefined`
+ * and every headered call below takes that branch.
  */
 
 const TaggedRejection = Schema.Struct({ _tag: Schema.String })

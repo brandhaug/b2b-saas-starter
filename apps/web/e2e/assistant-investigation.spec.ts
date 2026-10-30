@@ -9,9 +9,7 @@ test('retains an approved investigation after an unavailable queue', async ({
   test.skip(!hasLocalD1State(), 'requires migrated and seeded local D1')
   const page = ownerPage
   await page.goto('/workspaces/starter-lab/assistant?deliveryId=whd_seed_dead_lettered')
-  await page
-    .locator('header [data-slot="select-trigger"]:enabled')
-    .waitFor({ state: 'attached' })
+  await page.locator('header select:enabled').waitFor({ state: 'attached' })
   await page
     .getByLabel('Investigation request')
     .fill('Investigate the exhausted receiver failure')
@@ -23,7 +21,9 @@ test('retains an approved investigation after an unavailable queue', async ({
   const taskUrl = page.url()
   await page.reload()
   await expect(
-    page.getByText('Investigate the exhausted receiver failure', { exact: true })
+    page
+      .getByRole('article', { name: 'Webhook investigation' })
+      .getByText('Investigate the exhausted receiver failure', { exact: true })
   ).toBeVisible()
   await page.getByRole('button', { name: 'Approve replay', exact: true }).click()
   await expect(

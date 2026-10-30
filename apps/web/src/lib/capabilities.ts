@@ -24,7 +24,7 @@ import {
 } from '@b2b-saas-starter/capabilities/workspace-context'
 import { type CapabilityServices } from '@b2b-saas-starter/capabilities/layers'
 import { env as cloudflareEnv } from 'cloudflare:workers'
-import { notFound } from '@tanstack/react-router'
+import { notFound } from '../http/navigation'
 import { Cause, Effect, Exit, Option, type Scope } from 'effect'
 
 import {

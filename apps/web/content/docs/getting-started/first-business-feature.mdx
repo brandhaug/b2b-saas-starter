@@ -18,6 +18,13 @@ API-token rules continue to apply.
 
 ## Baseline and reader changes
 
+This executable recipe targets the recorded React/TanStack baseline
+`caf4756fd620a660743f2734b85aad151d75a82a`, before the Foldkit migration.
+Its capability, persistence and authorization examples remain useful; its web
+page code is historical. Current web features use Foldkit models/messages and
+Effect HttpApi contracts, described in [Workers](/docs/architecture/workers).
+Run this patch against its baseline, not the current Starter.
+
 The baseline Starter already contains D1, the `WorkspaceContext` membership
 resolver, authorization guards, audited mutations, the authenticated Workspace
 shell, and the shared Effect HTTP contract. It does **not** contain notes.
@@ -35,12 +42,13 @@ Use a disposable checkout to try the finished recipe. Keep your main development
 database separate. From the root of a clean checkout containing this tutorial:
 
 ```bash
-git worktree add --detach ../first-business-feature-example HEAD
+example_patch="$PWD/docs/examples/first-business-feature/workspace-notes.patch"
+git worktree add --detach ../first-business-feature-example caf4756fd620a660743f2734b85aad151d75a82a
 cd ../first-business-feature-example
 vp install
 cp .env.example .env
-git apply --check docs/examples/first-business-feature/workspace-notes.patch
-git apply docs/examples/first-business-feature/workspace-notes.patch
+git apply --check "$example_patch"
+git apply "$example_patch"
 pnpm run db:generate
 pnpm run db:migrate:local
 pnpm run db:seed

@@ -1,19 +1,18 @@
-import { createServerFn } from '@tanstack/react-start'
+import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/http-api'
+import { WebErrors } from '@/http/errors'
+import * as Responses from '@/http/contracts/workspace-directory'
+import { Schema } from 'effect'
 
-import { type WorkspaceDirectory } from '../workspace-directory'
-
-/**
- * The workspace-directory loader, in a **client-safe** module: the
- * client-safe half of the `workspace-directory.effects.ts` split (see
- * apps/web/AGENTS.md for the rule and `assert-client-boundary.mjs` for the
- * enforcement). The directory type still ships with this half; the
- * `listWorkspacesForUser` projection and its Effect wiring stay in the
- * effects half.
- */
-export const loadWorkspaceDirectoryServerFn = createServerFn({
-  method: 'GET'
-}).handler(async (): Promise<WorkspaceDirectory> => {
-  const { loadWorkspaceDirectoryHandler } =
-    await import('./workspace-directory.effects')
-  return loadWorkspaceDirectoryHandler()
-})
+export const Api = HttpApi.make('web-workspace-directory').add(
+  HttpApiGroup.make('calls').add(
+    HttpApiEndpoint.post(
+      'loadWorkspaceDirectoryServerFn',
+      '/api/web/loadWorkspaceDirectoryServerFn',
+      {
+        payload: Schema.Struct({}),
+        success: Responses.loadWorkspaceDirectoryServerFnResponse,
+        error: WebErrors
+      }
+    )
+  )
+)

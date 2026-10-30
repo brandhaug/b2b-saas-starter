@@ -1,23 +1,8 @@
-import { type CreatedWorkspace } from '@b2b-saas-starter/capabilities/governance/workspace-lifecycle'
-import { type Workspace } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
-import { createServerFn } from '@tanstack/react-start'
+import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/http-api'
+import { makeBrowserClient, dataCall } from '@/http/client'
+import { WebErrors } from '@/http/errors'
+import * as Responses from '@/http/contracts/workspace-lifecycle'
 import { Schema } from 'effect'
-
-/**
- * Server functions for the workspace lifecycle, in a **client-safe** module —
- * the `invitations.ts` pattern: create (from the signed-in user's "my
- * workspaces" page — no workspace context exists yet), rename and delete
- * (settings route). The two authz statements that were declared but never
- * enforced — `organization:update` and `organization:delete` — are enforced
- * in the effects file, exactly where every other workspace mutation's gate
- * lives.
- *
- * The client-safe half of the `workspace-lifecycle.effects.ts` split; see
- * apps/web/AGENTS.md for the rule and `scripts/assert-client-boundary.mjs`
- * for the enforcement. Each input is written once, as its Effect Schema: the
- * validator is the single strict decode, and the derived types below type
- * both the client stub and the effects handlers.
- */
 
 // The slug rule is lowercase letters, digits, and inner hyphens; the plugin
 // enforces uniqueness on top of it.
@@ -43,26 +28,57 @@ export type CreateWorkspaceInput = typeof CreateWorkspaceInput.Type
 export type RenameWorkspaceInput = typeof RenameWorkspaceInput.Type
 export type DeleteWorkspaceInput = typeof DeleteWorkspaceInput.Type
 
-export const createWorkspaceServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(CreateWorkspaceInput))
-  .handler(async ({ data }): Promise<CreatedWorkspace> => {
-    const { createWorkspaceHandler } = await import('./workspace-lifecycle.effects')
-    return createWorkspaceHandler(data)
-  })
-
 // Rename and delete ARE workspace-scoped: the settings route resolves the
 // workspace and the permission gates prove the actor may touch it.
 
-export const renameWorkspaceServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(RenameWorkspaceInput))
-  .handler(async ({ data }): Promise<Workspace> => {
-    const { renameWorkspaceHandler } = await import('./workspace-lifecycle.effects')
-    return renameWorkspaceHandler(data)
-  })
+export const Api = HttpApi.make('web-workspace-lifecycle').add(
+  HttpApiGroup.make('calls').add(
+    HttpApiEndpoint.post(
+      'createWorkspaceServerFn',
+      '/api/web/createWorkspaceServerFn',
+      {
+        payload: CreateWorkspaceInput,
+        success: Responses.createWorkspaceServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post(
+      'renameWorkspaceServerFn',
+      '/api/web/renameWorkspaceServerFn',
+      {
+        payload: RenameWorkspaceInput,
+        success: Responses.renameWorkspaceServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post(
+      'deleteWorkspaceServerFn',
+      '/api/web/deleteWorkspaceServerFn',
+      {
+        payload: DeleteWorkspaceInput,
+        success: Responses.deleteWorkspaceServerFnResponse,
+        error: WebErrors
+      }
+    )
+  )
+)
 
-export const deleteWorkspaceServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(DeleteWorkspaceInput))
-  .handler(async ({ data }): Promise<void> => {
-    const { deleteWorkspaceHandler } = await import('./workspace-lifecycle.effects')
-    return deleteWorkspaceHandler(data)
-  })
+const browser = makeBrowserClient(Api)
+
+export const createWorkspaceServerFn = dataCall(
+  browser,
+  CreateWorkspaceInput,
+  (client, payload) => client.calls.createWorkspaceServerFn({ payload })
+)
+
+export const renameWorkspaceServerFn = dataCall(
+  browser,
+  RenameWorkspaceInput,
+  (client, payload) => client.calls.renameWorkspaceServerFn({ payload })
+)
+
+export const deleteWorkspaceServerFn = dataCall(
+  browser,
+  DeleteWorkspaceInput,
+  (client, payload) => client.calls.deleteWorkspaceServerFn({ payload })
+)

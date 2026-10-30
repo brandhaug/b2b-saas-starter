@@ -392,14 +392,14 @@ describe('makeAuthOptions', () => {
   })
 
   describe('last-login method', () => {
-    it('includes the core plugin, before the cookie bridge', () => {
+    it('includes the core plugin without a framework cookie bridge', () => {
       // Cookie-backed only (no `storeInDatabase`, so no user column and no
-      // migration). Presence and position are the two things this file pins;
+      // migration). Presence and framework independence are pinned here;
       // the inference contract stays guarded by `SessionUserRole`.
       const options = makeAuthOptions(baseConfig).plugins
       const ids = options.map((plugin) => pluginId(plugin))
       expect(ids).toContain('last-login-method')
-      expect(ids.at(-1)).toBe('tanstack-start-cookies')
+      expect(ids).not.toContain('tanstack-start-cookies')
     })
   })
 
@@ -468,8 +468,8 @@ describe('mcp oauth plugins', () => {
     expect(ids).toContain('cimd')
     // `mcp()` reads the jwt plugin at init; jwt has to be registered first.
     expect(ids.indexOf('jwt')).toBeLessThan(ids.indexOf('oauth-provider'))
-    // Cookie integration stays last (see the plugin table in AGENTS.md).
-    expect(ids.at(-1)).toBe('tanstack-start-cookies')
+    // HTTP responses and the native request boundary carry cookies.
+    expect(ids).not.toContain('tanstack-start-cookies')
   })
 
   it('binds access tokens to the configured MCP resource and both starter pages', () => {

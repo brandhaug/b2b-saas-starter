@@ -1,3 +1,7 @@
+import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/http-api'
+import { makeBrowserClient, dataCall, readCall } from '@/http/client'
+import { WebErrors } from '@/http/errors'
+import * as Responses from '@/http/contracts/billing'
 import { billingIntervals } from '@b2b-saas-starter/db/enums'
 import {
   type BillingLifecycle,
@@ -11,37 +15,19 @@ import {
   type SeatUsage
 } from '@b2b-saas-starter/billing/plan-catalog'
 import { type WorkspaceViewer } from '@/lib/permissions'
-import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
 
-/**
- * The billing server functions and the billing loader, in a **client-safe**
- * module — the client-safe half of the `billing.effects.ts` split; see
- * apps/web/AGENTS.md for the rule and `scripts/assert-client-boundary.mjs`
- * for the enforcement. Each input is written once, as its Effect Schema: the
- * validator is the single strict decode, and the derived types below type
- * both the client stub and the effects handlers.
- */
-
-/**
- * The billing page payload: the workspace's current plan, the catalog, and
- * whether checkout is actually wired. `stripeConfigured` comes from the
- * Billing capability itself — the one definition of "Stripe is configured",
- * the same predicate `startCheckout` enforces — so the page can say "billing
- * is not configured" honestly instead of rendering a button that can only
- * fail.
- */
 export type WorkspaceBillingPayload = {
   readonly viewer: WorkspaceViewer | null
   readonly workspaceName: string
   readonly unreadCount: number
   readonly plans: ReadonlyArray<DisplayedPlan>
-  /** True when configured provider pricing could not be read or validated. */
+
   readonly pricingUnavailable: boolean
   readonly currentPlanId: string
-  /** Current roster size and the plan's included-seat terms. */
+
   readonly seatUsage: SeatUsage
-  /** True when the Billing capability has its provider wired. */
+
   readonly stripeConfigured: boolean
   readonly synchronization: BillingSynchronizationStatus
   readonly lifecycle: BillingLifecycle
@@ -90,45 +76,93 @@ export type ReconcileCheckout = (input: {
   readonly data: WorkspaceBillingInput
 }) => Promise<ReconcileResult>
 
-/** The billing route's loader. */
-export const loadWorkspaceBillingServerFn = createServerFn({ method: 'GET' })
-  .validator(Schema.decodeUnknownSync(WorkspaceBillingInput))
-  .handler(async ({ data }): Promise<WorkspaceBillingPayload> => {
-    const { loadWorkspaceBillingHandler } = await import('./billing.effects')
-    return loadWorkspaceBillingHandler(data)
-  })
-
-export const loadPublicPricingServerFn = createServerFn({ method: 'GET' }).handler(
-  async (): Promise<PublicPricingPayload> => {
-    const { loadPublicPricingHandler } = await import('./billing.effects')
-    return loadPublicPricingHandler()
-  }
+export const Api = HttpApi.make('web-billing').add(
+  HttpApiGroup.make('calls').add(
+    HttpApiEndpoint.post(
+      'loadWorkspaceBillingServerFn',
+      '/api/web/loadWorkspaceBillingServerFn',
+      {
+        payload: WorkspaceBillingInput,
+        success: Responses.loadWorkspaceBillingServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post(
+      'loadPublicPricingServerFn',
+      '/api/web/loadPublicPricingServerFn',
+      {
+        payload: Schema.Struct({}),
+        success: Responses.loadPublicPricingServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post('startCheckoutServerFn', '/api/web/startCheckoutServerFn', {
+      payload: StartCheckoutInput,
+      success: Responses.startCheckoutServerFnResponse,
+      error: WebErrors
+    }),
+    HttpApiEndpoint.post(
+      'startPortalSessionServerFn',
+      '/api/web/startPortalSessionServerFn',
+      {
+        payload: PortalInput,
+        success: Responses.startPortalSessionServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post(
+      'reconcileCheckoutReturnServerFn',
+      '/api/web/reconcileCheckoutReturnServerFn',
+      {
+        payload: WorkspaceBillingInput,
+        success: Responses.reconcileCheckoutReturnServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post(
+      'selectBillingResourcesServerFn',
+      '/api/web/selectBillingResourcesServerFn',
+      {
+        payload: SelectResourcesInput,
+        success: Responses.selectBillingResourcesServerFnResponse,
+        error: WebErrors
+      }
+    )
+  )
 )
 
-export const startCheckoutServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(StartCheckoutInput))
-  .handler(async ({ data }): Promise<{ url: string }> => {
-    const { startCheckoutHandler } = await import('./billing.effects')
-    return startCheckoutHandler(data)
-  })
+const browser = makeBrowserClient(Api)
 
-export const startPortalSessionServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(PortalInput))
-  .handler(async ({ data }): Promise<{ url: string }> => {
-    const { startPortalSessionHandler } = await import('./billing.effects')
-    return startPortalSessionHandler(data)
-  })
+export const loadWorkspaceBillingServerFn = dataCall(
+  browser,
+  WorkspaceBillingInput,
+  (client, payload) => client.calls.loadWorkspaceBillingServerFn({ payload })
+)
 
-export const reconcileCheckoutReturnServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(WorkspaceBillingInput))
-  .handler(async ({ data }): Promise<ReconcileResult> => {
-    const { reconcileCheckoutReturnHandler } = await import('./billing.effects')
-    return reconcileCheckoutReturnHandler(data)
-  })
+export const loadPublicPricingServerFn = readCall(browser, (client) =>
+  client.calls.loadPublicPricingServerFn({ payload: {} })
+)
 
-export const selectBillingResourcesServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(SelectResourcesInput))
-  .handler(async ({ data }): Promise<ResourceSelection> => {
-    const { selectBillingResourcesHandler } = await import('./billing.effects')
-    return selectBillingResourcesHandler(data)
-  })
+export const startCheckoutServerFn = dataCall(
+  browser,
+  StartCheckoutInput,
+  (client, payload) => client.calls.startCheckoutServerFn({ payload })
+)
+
+export const startPortalSessionServerFn = dataCall(
+  browser,
+  PortalInput,
+  (client, payload) => client.calls.startPortalSessionServerFn({ payload })
+)
+
+export const reconcileCheckoutReturnServerFn = dataCall(
+  browser,
+  WorkspaceBillingInput,
+  (client, payload) => client.calls.reconcileCheckoutReturnServerFn({ payload })
+)
+
+export const selectBillingResourcesServerFn = dataCall(
+  browser,
+  SelectResourcesInput,
+  (client, payload) => client.calls.selectBillingResourcesServerFn({ payload })
+)

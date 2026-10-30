@@ -2,7 +2,7 @@
 
 <img src="apps/web/public/assets/starter-logo.png" alt="" width="96" height="96" />
 
-A Cloudflare-first repository for building a B2B SaaS with TanStack Start, Effect v4, Drizzle D1, Better Auth, and Alchemy.
+A Cloudflare-first repository for building a B2B SaaS with Foldkit, Effect v4, Drizzle D1, Better Auth, and Alchemy.
 
 The public site explains the repository. The Reference Application demonstrates workspaces, membership and permissions, billing, API tokens, webhooks, notifications, audit events, and account administration.
 

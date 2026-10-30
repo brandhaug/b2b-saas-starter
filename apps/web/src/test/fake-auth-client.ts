@@ -21,13 +21,10 @@ import { vi } from 'vite-plus/test'
  *
  * Every endpoint is an unstubbed `vi.fn()` (calls return `undefined` until a
  * test answers them), so a test that forgets to mock an endpoint it exercises
- * fails loudly instead of silently passing. `$store` and `useSession` keep
- * `src/test/setup.ts` and the shell working under the mock.
+ * fails loudly instead of silently passing.
  */
 export function fakeAuthClient() {
   return {
-    $store: { atoms: { session: { subscribe: () => {} } } },
-    useSession: vi.fn(() => ({ data: null, isPending: false, error: null })),
     getLastUsedLoginMethod: vi.fn((): string | null => null),
     listAccounts: vi.fn(),
     unlinkAccount: vi.fn(),

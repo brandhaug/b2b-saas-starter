@@ -1,15 +1,14 @@
 import { resolve } from 'node:path'
-import { defineConfig, mergeConfig } from 'vite-plus'
+import { defineConfig, mergeConfig, type Plugin } from 'vite-plus'
 import baseConfig from './vite.config'
 
-// Native SSR, with a test-only gate around the real metadata enumeration.
+// Native SSR, with a test-only gate around request-owned document rendering.
 export default defineConfig((environment) =>
-  mergeConfig(baseConfig(environment), {
-    build: { outDir: 'dist-docs-runtime' },
+  mergeConfig(baseConfig({ ...environment, mode: 'docs-runtime' }), {
     ssr: { noExternal: true, target: 'webworker' },
     plugins: [
       {
-        name: 'docs-runtime-metadata-gate',
+        name: 'docs-runtime-render-gate',
         enforce: 'pre',
         configEnvironment(name: string) {
           if (name !== 'ssr') {
@@ -28,15 +27,20 @@ export default defineConfig((environment) =>
           }
         },
         resolveId(source: string, importer: string | undefined) {
+          if (source.startsWith('@tanstack/')) {
+            return this.error(
+              `Legacy runtime dependency ${source} imported by ${importer}`
+            )
+          }
           if (
-            /(?:^|\/)docs\.effects(?:\.ts)?$/.test(source) &&
-            importer?.includes('/src/lib/docs.ts')
+            source.endsWith('/src/entry.server.ts') &&
+            !importer?.endsWith('/test/docs/render-gate.ts')
           ) {
-            return resolve(import.meta.dirname, 'test/docs/metadata-gate.effects.ts')
+            return resolve(import.meta.dirname, 'test/docs/render-gate.ts')
           }
           return null
         }
-      }
+      } satisfies Plugin
     ]
   })
 )

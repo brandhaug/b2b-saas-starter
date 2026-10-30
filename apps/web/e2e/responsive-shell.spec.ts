@@ -41,7 +41,7 @@ for (const { locale, signInLabel, demoLabel } of [
       .toBeLessThanOrEqual(1)
     await expectPageFits(page)
     await expect(
-      page.getByRole('button', { name: signInLabel, exact: true })
+      page.locator('header').getByRole('link', { name: signInLabel, exact: true })
     ).toBeInViewport({ ratio: 1 })
     await expect(
       page.getByRole('link', { name: demoLabel, exact: true }).first()
@@ -69,9 +69,7 @@ test('the short preview navigation can scroll to the explicit sign-in exit', asy
 }) => {
   await page.setViewportSize({ width: 320, height: 400 })
   await page.goto('/demo')
-  await page
-    .locator('header [data-slot="select-trigger"]:enabled')
-    .waitFor({ state: 'attached' })
+  await page.locator('header select:enabled').waitFor({ state: 'attached' })
   await expectPageFits(page)
   await page.getByRole('button', { name: 'Open navigation', exact: true }).click()
   const dialog = page.getByRole('dialog')
@@ -88,9 +86,7 @@ test.describe('owner controls on a narrow screen', () => {
   test.beforeEach(async ({ ownerPage }) => {
     test.skip(!hasLocalD1State(), 'requires migrated and seeded local D1')
     await ownerPage.goto('/workspaces/starter-lab/members')
-    await ownerPage
-      .locator('header [data-slot="select-trigger"]:enabled')
-      .waitFor({ state: 'attached' })
+    await ownerPage.locator('header select:enabled').waitFor({ state: 'attached' })
   })
 
   test('the roster and armed removal fit without horizontal panning', async ({
@@ -120,9 +116,7 @@ test.describe('owner controls on a narrow screen', () => {
     page
   }) => {
     await page.goto('/workspaces/starter-lab/settings')
-    await page
-      .locator('header [data-slot="select-trigger"]:enabled')
-      .waitFor({ state: 'attached' })
+    await page.locator('header select:enabled').waitFor({ state: 'attached' })
     await page.getByRole('button', { name: 'Delete workspace', exact: true }).click()
     const dialog = page.getByRole('alertdialog')
     await expect(dialog).toBeVisible()

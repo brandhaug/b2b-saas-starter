@@ -21,9 +21,7 @@ test('an opening FAQ reverses from its current height without jumping', async ({
   page
 }) => {
   await page.goto('/')
-  await page
-    .locator('header [data-slot="select-trigger"]:enabled')
-    .waitFor({ state: 'attached' })
+  await page.locator('header select:enabled').waitFor({ state: 'attached' })
   const question = page.locator('#faq').getByRole('button').nth(1)
   await question.scrollIntoViewIfNeeded()
 
@@ -64,11 +62,12 @@ test('an opening FAQ reverses from its current height without jumping', async ({
 
 test('a confirmation stays centered while it fades out', async ({ page }) => {
   await page.goto('/demo/settings')
-  await page
-    .locator('header [data-slot="select-trigger"]:enabled')
-    .waitFor({ state: 'attached' })
+  await page.locator('header select:enabled').waitFor({ state: 'attached' })
   await page.getByRole('button', { name: 'Delete workspace', exact: true }).click()
-  const dialog = page.getByRole('alertdialog', { includeHidden: true })
+  const dialog = page.getByRole('alertdialog', {
+    name: 'Delete workspace',
+    includeHidden: true
+  })
   await expect(dialog).toBeVisible()
   const centerBefore = await dialog.evaluate(async (element) => {
     await Promise.all(element.getAnimations().map((animation) => animation.finished))

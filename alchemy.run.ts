@@ -363,6 +363,8 @@ export const Stack = Alchemy.Stack(
     const web = yield* Cloudflare.Website.Vite('web', {
       name: names.worker('web'),
       rootDir: './apps/web',
+      main: 'src/worker.ts',
+      assets: { notFoundHandling: 'none' },
       domain: domains?.web ?? null,
       env: {
         ASSISTANT_CONVERSATIONS: Cloudflare.DurableObject(

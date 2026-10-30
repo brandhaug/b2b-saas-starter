@@ -1,5 +1,9 @@
 # Runtime dependency audit
 
+The web framework and CSRF discussion below records the pre-Foldkit audit.
+Current browser operations use Effect HttpApi and `apps/web/src/http/csrf.ts`;
+see [current web architecture](../../ARCHITECTURE.md#native-web-application).
+
 > Current implementation: PostHog has been removed. Optional browser analytics
 > uses an Alchemy-managed Cloudflare Web Analytics site; server telemetry retains
 > Workers Logs/Issues and optional Effect OTLP. PostHog findings below describe

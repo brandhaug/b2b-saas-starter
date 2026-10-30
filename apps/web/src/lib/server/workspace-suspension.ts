@@ -1,4 +1,7 @@
-import { createServerFn } from '@tanstack/react-start'
+import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/http-api'
+import { makeBrowserClient, dataCall } from '@/http/client'
+import { WebErrors } from '@/http/errors'
+import * as Responses from '@/http/contracts/workspace-suspension'
 import { Schema } from 'effect'
 
 import { type ApiToken } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
@@ -12,21 +15,12 @@ type WorkspaceSuspensionPayload = Pick<
   'workspaceId' | 'status' | 'customerExplanation' | 'changedAt'
 >
 
-/** The workspace identity every suspension read carries. */
 type WorkspaceSuspensionIdentity = WorkspaceSuspensionPayload & {
   readonly workspaceName: string
   readonly viewer: WorkspaceViewer
 }
 
 export type WorkspaceSuspensionGatePayload = WorkspaceSuspensionIdentity & {
-  /**
-   * Whether this session still owes privileged-authentication proof for this
-   * workspace. The gate read reports it instead of failing on it, so the
-   * subtree's `beforeLoad` can send the actor to /verify-authentication as a
-   * redirect — a page load, not an error boundary. It rides this payload
-   * rather than a second server fn because the gate already resolves the
-   * actor and the workspace on the same request.
-   */
   readonly strongAuthenticationRequired: boolean
 }
 
@@ -38,18 +32,33 @@ export type WorkspaceRecoveryPayload = WorkspaceSuspensionIdentity & {
   readonly ssoConnections: ReadonlyArray<SsoConnection> | null
 }
 
-export const loadWorkspaceSuspensionServerFn = createServerFn({ method: 'GET' })
-  .validator(Schema.decodeUnknownSync(WorkspaceSlugInput))
-  .handler(async ({ data }): Promise<WorkspaceSuspensionGatePayload> => {
-    const { loadWorkspaceSuspensionHandler } =
-      await import('./workspace-suspension.effects')
-    return loadWorkspaceSuspensionHandler(data)
-  })
+export const Api = HttpApi.make('web-workspace-suspension').add(
+  HttpApiGroup.make('calls').add(
+    HttpApiEndpoint.post(
+      'loadWorkspaceSuspensionServerFn',
+      '/api/web/loadWorkspaceSuspensionServerFn',
+      {
+        payload: WorkspaceSlugInput,
+        success: Responses.loadWorkspaceSuspensionServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post(
+      'loadWorkspaceRecoveryServerFn',
+      '/api/web/loadWorkspaceRecoveryServerFn',
+      {
+        payload: WorkspaceSlugInput,
+        success: Responses.loadWorkspaceRecoveryServerFnResponse,
+        error: WebErrors
+      }
+    )
+  )
+)
 
-export const loadWorkspaceRecoveryServerFn = createServerFn({ method: 'GET' })
-  .validator(Schema.decodeUnknownSync(WorkspaceSlugInput))
-  .handler(async ({ data }): Promise<WorkspaceRecoveryPayload> => {
-    const { loadWorkspaceRecoveryHandler } =
-      await import('./workspace-suspension.effects')
-    return loadWorkspaceRecoveryHandler(data)
-  })
+const browser = makeBrowserClient(Api)
+
+export const loadWorkspaceRecoveryServerFn = dataCall(
+  browser,
+  WorkspaceSlugInput,
+  (client, payload) => client.calls.loadWorkspaceRecoveryServerFn({ payload })
+)

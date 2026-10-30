@@ -4,7 +4,7 @@ test('keyboard menus retain visible focus and short-screen commands stay reachab
   page
 }) => {
   await page.goto('/demo/api-tokens')
-  await page.locator('header [data-slot="select-trigger"]:enabled').waitFor()
+  await page.locator('header select:enabled').waitFor()
   const actions = page.getByRole('button', { name: /^More actions for / }).first()
   await actions.focus()
   await page.keyboard.press('Enter')
@@ -39,7 +39,7 @@ test('pointer press feedback respects reduced motion and keyboard activation', a
   page
 }) => {
   await page.goto('/demo')
-  await page.locator('header [data-slot="select-trigger"]:enabled').waitFor()
+  await page.locator('header select:enabled').waitFor()
   const search = page.getByRole('button', { name: 'Search', exact: true })
   await search.hover()
   await page.mouse.down()
@@ -65,7 +65,7 @@ test('reduced-motion drawers preserve a fade without positional movement', async
 }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto('/demo/members')
-  await page.locator('header [data-slot="select-trigger"]:enabled').waitFor()
+  await page.locator('header select:enabled').waitFor()
   await page.getByRole('button', { name: 'Invite a member', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Invite a member' })
   await expect(dialog).toBeVisible()

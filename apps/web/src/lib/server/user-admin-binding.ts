@@ -35,9 +35,8 @@ export const webUserAdminBinding: PlatformUserAdminBinding = {
   },
   // Both impersonation endpoints answer with cookies (the target's session
   // cookie plus the signed `admin_session` cookie holding the admin's own
-  // token, and the reverse on stop). `tanstackStartCookies()` forwards them to
-  // the server-function response, so the caller's next navigation runs as the
-  // impersonated user — nothing here reads the response.
+  // token, and the reverse on stop). sessionCall captures full API headers;
+  // runRequest attaches each cookie to the outgoing HTTP response.
   impersonateUser: async (input) => {
     await sessionCall((api, headers) =>
       api.impersonateUser({ body: { userId: input.userId }, headers })

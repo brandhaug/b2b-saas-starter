@@ -1,21 +1,38 @@
-import { createServerFn } from '@tanstack/react-start'
+import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/http-api'
+import { makeBrowserClient, dataCall } from '@/http/client'
+import { WebErrors } from '@/http/errors'
+import * as Responses from '@/http/contracts/account-conversations'
 import { Schema } from 'effect'
-import { type ConversationResult } from './assistant-conversations'
 
-/** Identity-owned deletion metadata contains no workspace title or conversation content. */
-export type OwnedConversation = { readonly id: string; readonly createdAt: string }
 const DeleteInput = Schema.Struct({ conversationId: Schema.NonEmptyString })
-export const loadOwnedConversationsServerFn = createServerFn({ method: 'GET' }).handler(
-  async (): Promise<ConversationResult<ReadonlyArray<OwnedConversation>>> => {
-    const { loadOwnedConversationsHandler } =
-      await import('./account-conversations.effects')
-    return loadOwnedConversationsHandler()
-  }
+
+export const Api = HttpApi.make('web-account-conversations').add(
+  HttpApiGroup.make('calls').add(
+    HttpApiEndpoint.post(
+      'loadOwnedConversationsServerFn',
+      '/api/web/loadOwnedConversationsServerFn',
+      {
+        payload: Schema.Struct({}),
+        success: Responses.loadOwnedConversationsServerFnResponse,
+        error: WebErrors
+      }
+    ),
+    HttpApiEndpoint.post(
+      'deleteOwnedConversationServerFn',
+      '/api/web/deleteOwnedConversationServerFn',
+      {
+        payload: DeleteInput,
+        success: Responses.deleteOwnedConversationServerFnResponse,
+        error: WebErrors
+      }
+    )
+  )
 )
-export const deleteOwnedConversationServerFn = createServerFn({ method: 'POST' })
-  .validator(Schema.decodeUnknownSync(DeleteInput))
-  .handler(async ({ data }): Promise<ConversationResult<void>> => {
-    const { deleteOwnedConversationHandler } =
-      await import('./account-conversations.effects')
-    return deleteOwnedConversationHandler(data)
-  })
+
+const browser = makeBrowserClient(Api)
+
+export const deleteOwnedConversationServerFn = dataCall(
+  browser,
+  DeleteInput,
+  (client, payload) => client.calls.deleteOwnedConversationServerFn({ payload })
+)

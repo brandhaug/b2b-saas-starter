@@ -51,7 +51,9 @@ The current toolchain is Vite+ 1.1.0, with the `vite` alias pointing to
 `@voidzero-dev/vite-plus-core@1.1.0` and Vitest/coverage at 5.0.3. This fixes
 [the bundled launch-editor advisory](https://github.com/advisories/GHSA-698v-4r3x-3vcv)
 affecting Vite+ through 1.0.0. Keep these versions coordinated through the target
-migrator; the existing React plugin remains compatible.
+migrator. The web app uses the pinned Foldkit Vite plugin. Verify upgrades with
+both the compiled HTTP-host tests and browser acceptance suite because SSR uses
+Foldkit's experimental API.
 
 ## Type checking
 

@@ -1,17 +1,14 @@
-import { createServerFn } from '@tanstack/react-start'
+import { HttpApi, HttpApiEndpoint, HttpApiGroup } from 'effect/http-api'
+import { WebErrors } from '@/http/errors'
+import * as Responses from '@/http/contracts/turnstile'
+import { Schema } from 'effect'
 
-/**
- * Turnstile wiring for the web app (ADR 0031), in a **client-safe** module:
- * the client-safe half of the `turnstile.effects.ts` split (see
- * apps/web/AGENTS.md for the rule and `assert-client-boundary.mjs` for the
- * enforcement). Both halves stay env-gated: with the TURNSTILE variables
- * unset the layer verifies nothing (the capability reports `inactive`) and
- * the site key reads as `null`, so no widget renders — the sign-up form
- * behaves exactly as it does without the provider.
- */
-export const getTurnstileSiteKey = createServerFn({ method: 'GET' }).handler(
-  async (): Promise<string | null> => {
-    const { readSiteKeyHandler } = await import('./turnstile.effects')
-    return readSiteKeyHandler()
-  }
+export const Api = HttpApi.make('web-turnstile').add(
+  HttpApiGroup.make('calls').add(
+    HttpApiEndpoint.post('getTurnstileSiteKey', '/api/web/getTurnstileSiteKey', {
+      payload: Schema.Struct({}),
+      success: Responses.getTurnstileSiteKeyResponse,
+      error: WebErrors
+    })
+  )
 )

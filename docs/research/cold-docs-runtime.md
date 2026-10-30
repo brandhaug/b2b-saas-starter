@@ -1,5 +1,10 @@
 # Cold docs runtime checks
 
+This is evidence for the previous React MDX pipeline. Native Foldkit compiles
+article HTML on the server and uses a browser module-graph guard instead of
+`assert-client-boundary.mjs`. These measurements are not Foldkit results; see
+[current search verification](../docs-search.md#verification).
+
 ## Failure scenarios recorded before implementation
 
 - Overlapping first docs requests in one fresh workerd isolate could share pending

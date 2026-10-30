@@ -23,8 +23,9 @@ test('switches public language, keeps it through navigation and refresh, and exp
     'href',
     /\/no$/u
   )
-  await page.getByRole('combobox', { name: 'Language', exact: true }).click()
-  await page.getByRole('option', { name: 'Norsk' }).click()
+  await page
+    .getByRole('combobox', { name: 'Language', exact: true })
+    .selectOption({ label: 'Norsk' })
   await expect(page).toHaveURL(/\/no\/?(?:#faq)?$/u)
   await expect(page.locator('html')).toHaveAttribute('lang', 'nb')
   await expect(page.locator('link[rel="alternate"][hreflang="en"]')).toHaveAttribute(
@@ -41,8 +42,9 @@ test('switches public language, keeps it through navigation and refresh, and exp
   await expect(
     page.getByRole('combobox', { name: 'Språk', exact: true })
   ).toContainText('Norsk')
-  await page.getByRole('combobox', { name: 'Språk', exact: true }).click()
-  await page.getByRole('option', { name: 'English' }).click()
+  await page
+    .getByRole('combobox', { name: 'Språk', exact: true })
+    .selectOption({ label: 'English' })
   await expect(page).toHaveURL(/\/docs\/getting-started\/quickstart$/u)
   expect(new URL(page.url()).pathname).toBe('/docs/getting-started/quickstart')
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
@@ -52,15 +54,17 @@ test('warns before a language switch discards form edits', async ({ page }) => {
   await page.goto('/sign-in')
   await page.locator('form[data-hydrated="true"]').waitFor()
   await page.getByRole('textbox', { name: /email/iu }).fill('draft@example.com')
-  await page.getByRole('combobox', { name: 'Language', exact: true }).click()
-  await page.getByRole('option', { name: 'Norsk' }).click()
+  await page
+    .getByRole('combobox', { name: 'Language', exact: true })
+    .selectOption({ label: 'Norsk' })
   await expect(page.getByRole('alertdialog')).toBeVisible()
   await page.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(page.getByRole('textbox', { name: /email/iu })).toHaveValue(
     'draft@example.com'
   )
-  await page.getByRole('combobox', { name: 'Language', exact: true }).click()
-  await page.getByRole('option', { name: 'Norsk' }).click()
+  await page
+    .getByRole('combobox', { name: 'Language', exact: true })
+    .selectOption({ label: 'Norsk' })
   await page.getByRole('button', { name: 'Switch language', exact: true }).click()
   await expect(page.locator('html')).toHaveAttribute('lang', 'nb')
   await expect(page).toHaveURL(/\/sign-in$/u)
@@ -109,8 +113,10 @@ test('saved account language and time zone override browser preferences in a new
   try {
     await page.goto('/account')
     await page.locator('html[data-authenticated="true"]').waitFor()
-    await page.locator('form').getByRole('combobox', { name: 'Language' }).click()
-    await page.getByRole('option', { name: 'Norsk' }).click()
+    await page
+      .locator('form')
+      .getByRole('combobox', { name: 'Language' })
+      .selectOption({ label: 'Norsk' })
     await page.locator('input[name="timeZone"]').fill('Europe/Oslo')
     await page.getByRole('button', { name: 'Save preferences', exact: true }).click()
     await expect(page.locator('html')).toHaveAttribute('lang', 'nb')
@@ -155,9 +161,7 @@ test('saved account language and time zone override browser preferences in a new
     // The app's deletion capability owns cleanup; the raw auth endpoint is
     // intentionally unavailable. Either language may be active after a failure.
     await page.goto('/account')
-    await page
-      .locator('header [data-slot="select-trigger"]:enabled')
-      .waitFor({ state: 'attached' })
+    await page.locator('header select:enabled').waitFor({ state: 'attached' })
     await page.locator('#delete-account-password').fill(isolatedAccountPassword)
     await page.getByRole('button', { name: /^(Delete account|Slett konto)$/ }).click()
     await page
@@ -175,9 +179,7 @@ test('saved account language and time zone override browser preferences in a new
       .getByRole('button', { name: /^(Confirm password|Bekreft passord)$/ })
       .click()
     await page.waitForURL(/\/account$/)
-    await page
-      .locator('header [data-slot="select-trigger"]:enabled')
-      .waitFor({ state: 'attached' })
+    await page.locator('header select:enabled').waitFor({ state: 'attached' })
     await expect(page.locator('#delete-account-password')).toBeVisible()
     await page.locator('#delete-account-password').fill(isolatedAccountPassword)
     await page.getByRole('button', { name: /^(Delete account|Slett konto)$/ }).click()
@@ -194,13 +196,12 @@ test('saved account language and time zone override browser preferences in a new
 test('the language picker works in the Norwegian mobile menu', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/no/')
-  await page
-    .locator('header [data-slot="select-trigger"]:enabled')
-    .waitFor({ state: 'attached' })
+  await page.locator('header select:enabled').waitFor({ state: 'attached' })
   await page.getByRole('button', { name: 'Åpne meny', exact: true }).click()
   await expect(page.getByRole('dialog')).toBeVisible()
-  await page.getByRole('combobox', { name: 'Språk', exact: true }).click()
-  await page.getByRole('option', { name: 'English' }).click()
+  await page
+    .getByRole('combobox', { name: 'Språk', exact: true })
+    .selectOption({ label: 'English' })
   await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/u)
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
   expect(
