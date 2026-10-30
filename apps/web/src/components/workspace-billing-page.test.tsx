@@ -307,6 +307,26 @@ describe('WorkspaceBillingPage route', () => {
     expect(reconcile).not.toHaveBeenCalled()
   })
 
+  it('allows a failed checkout-return reconciliation to be retried', async () => {
+    const reconcile = vi
+      .fn<ReconcileCheckout>()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue({
+        workspaceId: 'wrk_starter',
+        outcome: 'delayed',
+        drift: ['provider_snapshot_missing']
+      })
+    await renderBilling(
+      { ...fixture(), stripeConfigured: true },
+      { checkoutReturn: true, reconcileCheckoutReturn: reconcile }
+    )
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(reconcile).toHaveBeenCalledTimes(2))
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull()
+    )
+  })
+
   it('keeps partially filled and full selections editable when pricing is unavailable', async () => {
     await renderBilling({ ...fixture(), stripeConfigured: true })
     expect(screen.getByText(/Plan pricing is temporarily unavailable/)).not.toBeNull()

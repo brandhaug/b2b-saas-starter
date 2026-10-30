@@ -13,6 +13,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { FormSubmitButton } from '@/components/form-submit-button'
 import { createWebhookEndpointServerFn } from '@/lib/server/webhooks'
 import { useServerCall } from '@/hooks/use-server-call'
+import { useServerAction } from '@/hooks/use-server-action'
+import { Button } from '@/components/ui/button'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 type WebhookValues = {
@@ -52,12 +54,23 @@ export function WebhookForm({
   createEndpoint = createWebhookEndpointServerFn
 }: {
   readonly workspaceSlug: string
-  readonly onCreated?: (created: CreatedWebhookEndpoint) => void
+  readonly onCreated?: (created: CreatedWebhookEndpoint) => void | Promise<void>
   readonly createEndpoint?: CreateWebhookEndpoint
 }) {
   const callServerFn = useServerCall()
-  const [created, setCreated] = useState<CreatedWebhookEndpoint | null>(null)
+  const [created, setCreated] = useState<{
+    readonly value: CreatedWebhookEndpoint
+    readonly refresh: 'needed' | 'complete'
+  } | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const refreshAction = useServerAction(
+    async (value: CreatedWebhookEndpoint) => onCreated?.(value),
+    {
+      failureMessage: m.shell_error(),
+      invalidate: false,
+      identityKey: workspaceSlug
+    }
+  )
   const form = useForm({
     defaultValues: DEFAULT_VALUES,
     onSubmit: async ({ value }) => {
@@ -83,18 +96,33 @@ export function WebhookForm({
       }
       // No toast: the inline ok alert below carries the created endpoint
       // and its signing secret — the corner copy would say less.
-      setCreated(outcome.value)
-      onCreated?.(outcome.value)
-      form.reset()
+      setCreated({ value: outcome.value, refresh: 'needed' })
+      await refresh(outcome.value)
     }
   })
+
+  async function refresh(value: CreatedWebhookEndpoint) {
+    const outcome = await refreshAction.runAsync(value)
+    setCreated({ value, refresh: outcome.ok ? 'complete' : 'needed' })
+    setSubmitError(outcome.ok ? null : outcome.message)
+    if (outcome.ok) {
+      form.reset()
+    }
+  }
 
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault()
         event.stopPropagation()
-        void form.handleSubmit()
+        if (form.state.isSubmitting || refreshAction.pending) {
+          return
+        }
+        if (created?.refresh === 'needed') {
+          void refresh(created.value)
+        } else {
+          void form.handleSubmit()
+        }
       }}
       className="grid gap-4"
     >
@@ -134,7 +162,17 @@ export function WebhookForm({
         )}
       </form.Field>
 
-      <FormSubmitButton form={form} label={m.webhook_create_action()} />
+      {created?.refresh === 'needed' ? (
+        <Button
+          type="button"
+          disabled={refreshAction.pending}
+          onClick={() => void refresh(created.value)}
+        >
+          {m.retry_action()}
+        </Button>
+      ) : (
+        <FormSubmitButton form={form} label={m.webhook_create_action()} />
+      )}
 
       {created ? (
         // `ok`, not the neutral default: this is the one moment the signing
@@ -143,7 +181,7 @@ export function WebhookForm({
         <Alert variant="ok" className="justify-self-start">
           <AlertTitle>{m.webhook_created_copy_notice()}</AlertTitle>
           <AlertDescription>
-            <Identifier className="px-2 py-1">{created.signingSecret}</Identifier>
+            <Identifier className="px-2 py-1">{created.value.signingSecret}</Identifier>
           </AlertDescription>
         </Alert>
       ) : null}

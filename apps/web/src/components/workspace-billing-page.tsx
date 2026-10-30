@@ -13,6 +13,7 @@ import { WorkspaceCrumb } from '@/components/page/workspace-crumb'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { BillingPlans, type BillingPorts } from '@/components/workspace-billing'
 import { ActionFeedback } from '@/components/page/action-feedback'
+import { Button } from '@/components/ui/button'
 import { viewerCan } from '@/lib/permissions'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
@@ -60,7 +61,8 @@ export function WorkspaceBillingPage({
   const reconcile = useServerAction(
     () => reconcileCheckoutReturn({ data: { workspaceSlug } }),
     {
-      failureMessage: m.billing_sync_delayed()
+      failureMessage: m.billing_sync_delayed(),
+      identityKey: workspaceSlug
     }
   )
   useEffect(() => {
@@ -113,12 +115,14 @@ export function WorkspaceBillingPage({
       />
       {purchaseIntent ? (
         <PurchaseConfirmation
+          key={`${workspaceSlug}:${purchaseIntent.planId}`}
           intent={purchaseIntent}
           workspaceSlug={workspaceSlug}
           data={data}
         />
       ) : (
         <BillingPlans
+          key={workspaceSlug}
           workspaceSlug={workspaceSlug}
           currentPlanId={data.currentPlanId}
           seatUsage={data.seatUsage}
@@ -141,6 +145,15 @@ export function WorkspaceBillingPage({
         </output>
       ) : null}
       <ActionFeedback error={reconcile.error} />
+      {reconcile.error && canManageBilling && stripeConfigured ? (
+        <Button
+          variant="outline"
+          disabled={reconcile.pending}
+          onClick={() => reconcile.run(undefined)}
+        >
+          {m.retry_action()}
+        </Button>
+      ) : null}
     </WorkspaceShell>
   )
 }

@@ -15,6 +15,7 @@ import {
   type ReplaceApiTokenInput
 } from '@/lib/server/api-tokens'
 import { useServerCall } from '@/hooks/use-server-call'
+import { useServerAction } from '@/hooks/use-server-action'
 import { formatDateTime, formatTimestampOr } from '@/lib/format-date'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
@@ -40,6 +41,11 @@ export function ApiTokenReplacementForm({
   const callServerFn = useServerCall()
   const [created, setCreated] = useState<ReplacedApiToken | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const refreshAction = useServerAction(onReplaced, {
+    failureMessage: m.shell_error(),
+    invalidate: false,
+    identityKey: `${workspaceSlug}:${token.id}`
+  })
   const form = useForm({
     defaultValues: { scopes: token.scopes, overlapSeconds: '3600' },
     onSubmit: async ({ value }) => {
@@ -61,9 +67,14 @@ export function ApiTokenReplacementForm({
         return
       }
       setCreated(result.value)
-      await onReplaced()
+      await refresh()
     }
   })
+
+  async function refresh() {
+    const outcome = await refreshAction.runAsync(undefined)
+    setError(outcome.ok ? null : outcome.message)
+  }
 
   if (created) {
     return (
@@ -87,6 +98,20 @@ export function ApiTokenReplacementForm({
             </p>
           </AlertDescription>
         </Alert>
+        {error ? (
+          <>
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+            <Button
+              type="button"
+              disabled={refreshAction.pending}
+              onClick={() => void refresh()}
+            >
+              {m.retry_action()}
+            </Button>
+          </>
+        ) : null}
         <Button variant="outline" onClick={onClose} className="justify-self-start">
           {m.action_close_replacement()}
         </Button>
@@ -101,7 +126,9 @@ export function ApiTokenReplacementForm({
       onSubmit={(event) => {
         event.preventDefault()
         event.stopPropagation()
-        void form.handleSubmit()
+        if (!form.state.isSubmitting) {
+          void form.handleSubmit()
+        }
       }}
     >
       <h3 className="text-sm font-medium">

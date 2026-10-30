@@ -1,7 +1,7 @@
 import { statusLabel } from '@/lib/value-labels'
 import { type WebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { type WebhookEndpoint } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
-import { Fragment, useState } from 'react'
+import { Fragment, useRef, useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { MoreHorizontalIcon } from 'lucide-react'
@@ -174,6 +174,7 @@ export function WebhooksPanel({
   readonly listDeliveryAttempts?: ListDeliveryAttempts
 }) {
   const router = useRouter()
+  const actionInFlight = useRef(false)
   const fields = webhookListFields()
   const { view, update } = useWorkspaceView()
   const [rotatedSecret, setRotatedSecret] = useState<{
@@ -206,15 +207,12 @@ export function WebhooksPanel({
   )
 
   const rotate = useServerAction(
-    (endpointId: string) => rotateSecret({ data: { workspaceSlug, endpointId } }),
+    async (endpointId: string) => {
+      const secret = await rotateSecret({ data: { workspaceSlug, endpointId } })
+      setRotatedSecret({ endpointId, secret })
+    },
     {
-      failureMessage: m.secret_rotate_failed(),
-      onSuccess: (secret, endpointId) => {
-        // No toast: the row's inline ok alert below is where the one-time
-        // secret is revealed — the corner copy would announce the rotation
-        // without the value.
-        setRotatedSecret({ endpointId, secret })
-      }
+      failureMessage: m.secret_rotate_failed()
     }
   )
 
@@ -223,12 +221,24 @@ export function WebhooksPanel({
   const { failure: failedRow, runWith: runOnRow } = useKeyedFailure<string>()
 
   async function disableOnRow(endpointId: string) {
-    await runOnRow(endpointId, () => disable.runAsync(endpointId))
+    if (actionInFlight.current) {
+      return
+    }
+    actionInFlight.current = true
+    await runOnRow(endpointId, () => disable.runAsync(endpointId)).finally(() => {
+      actionInFlight.current = false
+    })
   }
 
   async function rotateOnRow(endpointId: string) {
+    if (actionInFlight.current) {
+      return
+    }
+    actionInFlight.current = true
     setRotatedSecret(null)
-    await runOnRow(endpointId, () => rotate.runAsync(endpointId))
+    await runOnRow(endpointId, () => rotate.runAsync(endpointId)).finally(() => {
+      actionInFlight.current = false
+    })
   }
 
   const busyId = disable.pendingInput ?? rotate.pendingInput ?? null
@@ -265,7 +275,7 @@ export function WebhooksPanel({
         >
           <WebhookForm
             workspaceSlug={workspaceSlug}
-            onCreated={() => void router.invalidate()}
+            onCreated={() => router.invalidate()}
             {...(createEndpoint === undefined ? {} : { createEndpoint })}
           />
         </CreateAction>
@@ -337,6 +347,7 @@ export function WebhooksPanel({
                           <DropdownMenuTrigger
                             render={
                               <Button
+                                disabled={busyId !== null}
                                 variant="ghost"
                                 size="icon-xs"
                                 aria-label={m.developer_list_more_actions_named({
@@ -350,6 +361,7 @@ export function WebhooksPanel({
                           <DropdownMenuContent>
                             {canDisable ? (
                               <DropdownMenuItem
+                                disabled={busyId !== null}
                                 onClick={() => setConfirmingId(endpoint.id)}
                               >
                                 {m.disable_action()}
@@ -357,6 +369,7 @@ export function WebhooksPanel({
                             ) : null}
                             {canRotate ? (
                               <DropdownMenuItem
+                                disabled={busyId !== null}
                                 onClick={() => void rotateOnRow(endpoint.id)}
                               >
                                 {m.rotate_secret()}
@@ -369,7 +382,7 @@ export function WebhooksPanel({
                             label={m.disable_action()}
                             confirmLabel={m.confirm_disable()}
                             armed={confirmingId === endpoint.id}
-                            busy={busyId === endpoint.id}
+                            busy={busyId !== null}
                             onArm={() => setConfirmingId(endpoint.id)}
                             onCancel={() => setConfirmingId(null)}
                             onConfirm={() => void disableOnRow(endpoint.id)}
@@ -405,6 +418,7 @@ export function WebhooksPanel({
 
       {drawerEndpoint === null ? null : (
         <WebhookDeliveriesDrawer
+          key={`${workspaceSlug}:${drawerEndpoint.id}`}
           workspaceSlug={workspaceSlug}
           endpoint={drawerEndpoint}
           open

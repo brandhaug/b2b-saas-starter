@@ -4,12 +4,11 @@ import {
   type BillingSynchronizationStatus
 } from '@b2b-saas-starter/billing/billing'
 import { Check, Minus, ExternalLink } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
+import { DowngradeResourceSelector } from './workspace-billing-resources'
 import { Link } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Label } from '@/components/ui/label'
 import {
   type Plan,
   type BillingInterval,
@@ -64,7 +63,6 @@ export type BillingPorts = {
   readonly selectBillingResources: SelectBillingResources
 }
 
-const EMPTY_RESOURCE_IDS: ReadonlyArray<string> = []
 const EMPTY_RESOURCES: ReadonlyArray<{ readonly id: string; readonly name: string }> =
   []
 const EMPTY_WEBHOOKS: ReadonlyArray<{ readonly id: string; readonly url: string }> = []
@@ -202,6 +200,7 @@ export function BillingPlans({
   readonly startPortalSession?: StartPortalSession
   readonly selectBillingResources?: SelectBillingResources
 }) {
+  const handoffInFlight = useRef(false)
   const [interval, setInterval] = useState<BillingInterval>(
     lifecycle.interval === 'year' &&
       plans.some((plan) => plan.annualProviderPrice !== undefined)
@@ -235,6 +234,23 @@ export function BillingPlans({
   )
 
   const currentPlan = plans.find((plan) => plan.id === currentPlanId)
+  async function handoff(
+    request:
+      | { readonly kind: 'portal' }
+      | { readonly kind: 'checkout'; readonly planId: string }
+  ) {
+    if (handoffInFlight.current) {
+      return
+    }
+    handoffInFlight.current = true
+    await (
+      request.kind === 'portal'
+        ? portal.runAsync(undefined)
+        : upgrade.runAsync(request.planId)
+    ).finally(() => {
+      handoffInFlight.current = false
+    })
+  }
 
   return (
     <>
@@ -248,8 +264,8 @@ export function BillingPlans({
           stripeConfigured && canManageBilling ? (
             <Button
               variant="secondary"
-              disabled={portal.pending}
-              onClick={() => portal.run(undefined)}
+              disabled={portal.pending || upgrade.pending}
+              onClick={() => void handoff({ kind: 'portal' })}
             >
               {portal.pending ? (
                 <Spinner data-icon="inline-start" />
@@ -339,7 +355,7 @@ export function BillingPlans({
           stripeConfigured={stripeConfigured}
           interval={interval}
           onChange={setInterval}
-          disabled={upgrade.pending}
+          disabled={upgrade.pending || portal.pending}
         />
         {pricingUnavailable ? (
           <p className="mb-4 rounded-md border border-dashed p-4 text-sm text-muted-foreground">
@@ -365,7 +381,8 @@ export function BillingPlans({
                 canManageBilling={canManageBilling}
                 stripeConfigured={stripeConfigured}
                 pendingPlan={upgrade.pendingInput ?? null}
-                onUpgrade={() => upgrade.run(plan.id)}
+                handoffPending={portal.pending || upgrade.pending}
+                onUpgrade={() => void handoff({ kind: 'checkout', planId: plan.id })}
               />
             </PlanTile>
           ))}
@@ -442,6 +459,7 @@ function PlanAction({
   canManageBilling,
   stripeConfigured,
   pendingPlan,
+  handoffPending,
   onUpgrade
 }: {
   readonly plan: BillingPlan
@@ -450,6 +468,7 @@ function PlanAction({
   readonly canManageBilling: boolean
   readonly stripeConfigured: boolean
   readonly pendingPlan: string | null
+  readonly handoffPending: boolean
   readonly onUpgrade: () => void
 }) {
   if (plan.id === currentPlanId || !canManageBilling) {
@@ -472,7 +491,7 @@ function PlanAction({
     return stripeConfigured ? (
       <UpgradeButton
         planName={plan.name}
-        disabled={pendingPlan !== null}
+        disabled={handoffPending}
         busy={pendingPlan === plan.id}
         onUpgrade={onUpgrade}
       />
@@ -630,19 +649,6 @@ function formatBillingDate(value: string): string {
   return formatDate(value, getLocale(), { dateStyle: 'medium' }, 'UTC')
 }
 
-function toggleResource(
-  id: string,
-  limit: number,
-  set: (update: (selected: ReadonlyArray<string>) => ReadonlyArray<string>) => void
-): void {
-  set((selected) => {
-    if (selected.includes(id)) {
-      return selected.filter((item) => item !== id)
-    }
-    return selected.length < limit ? [...selected, id] : selected
-  })
-}
-
 function BillingResourceAccess({
   canManageBilling,
   currentPlanId,
@@ -695,175 +701,6 @@ function BillingResourceAccess({
     )
   }
   return null
-}
-
-function DowngradeResourceSelector({
-  workspaceSlug,
-  resourceSelection,
-  apiTokens,
-  webhookEndpoints,
-  selectBillingResources,
-  resourceEntitlements
-}: {
-  readonly workspaceSlug: string
-  readonly resourceSelection: {
-    readonly apiTokenIds: ReadonlyArray<string>
-    readonly webhookEndpointIds: ReadonlyArray<string>
-  } | null
-  readonly apiTokens: ReadonlyArray<{ readonly id: string; readonly name: string }>
-  readonly webhookEndpoints: ReadonlyArray<{
-    readonly id: string
-    readonly url: string
-  }>
-  readonly selectBillingResources: SelectBillingResources
-  readonly resourceEntitlements: {
-    readonly apiTokens: ResourceEntitlement
-    readonly webhookEndpoints: ResourceEntitlement
-  }
-}) {
-  // The comparable projection of the server's selection, not its arrays: the
-  // page polls `router.invalidate()`, so every poll hands down fresh array
-  // identities for unchanged data and an identity-keyed resync below would
-  // discard an unsaved draft mid-edit.
-  const serverTokenKey = selectionKey(resourceSelection?.apiTokenIds, apiTokens, 2)
-  const serverWebhookKey = selectionKey(
-    resourceSelection?.webhookEndpointIds,
-    webhookEndpoints,
-    1
-  )
-  const [tokenIds, setTokenIds] = useState<ReadonlyArray<string>>(() =>
-    selectionFromKey(serverTokenKey)
-  )
-  const [webhookIds, setWebhookIds] = useState<ReadonlyArray<string>>(() =>
-    selectionFromKey(serverWebhookKey)
-  )
-  const selection = useServerAction(
-    (input: Parameters<SelectBillingResources>[0]) => selectBillingResources(input),
-    {
-      failureMessage: m.billing_save_selection_failed(),
-      invalidate: true
-    }
-  )
-  useEffect(() => {
-    // The loader is the external source of truth once its selection actually
-    // changes; a refresh that returns the same selection leaves the draft be.
-    // oxlint-disable-next-line react-hooks/set-state-in-effect -- synchronizes the local draft with a changed server selection
-    setTokenIds(selectionFromKey(serverTokenKey))
-    setWebhookIds(selectionFromKey(serverWebhookKey))
-  }, [serverTokenKey, serverWebhookKey])
-  const overLimit = [
-    resourceEntitlements.apiTokens,
-    resourceEntitlements.webhookEndpoints
-  ].some(({ used, limit }) => limit !== null && used > limit)
-  if (!overLimit) {
-    return null
-  }
-  function save(): void {
-    selection.run({
-      data: {
-        workspaceSlug,
-        apiTokenIds: [...tokenIds],
-        webhookEndpointIds: [...webhookIds]
-      }
-    })
-  }
-  return (
-    <Panel title={m.billing_resource_selection_title()}>
-      <p className="mb-4 text-sm text-muted-foreground">
-        {m.billing_resource_selection_description()}
-      </p>
-      <div className="grid gap-4 md:grid-cols-2">
-        <ResourceChoices
-          label={m.nav_api_tokens()}
-          items={apiTokens}
-          selected={tokenIds}
-          disabled={selection.pending}
-          onToggle={(id) => toggleResource(id, 2, setTokenIds)}
-        />
-        <ResourceChoices
-          label={m.nav_webhook_endpoints()}
-          items={webhookEndpoints}
-          selected={webhookIds}
-          disabled={selection.pending}
-          onToggle={(id) => toggleResource(id, 1, setWebhookIds)}
-        />
-      </div>
-      <Button className="mt-4" disabled={selection.pending} onClick={save}>
-        {selection.pending ? <Spinner data-icon="inline-start" /> : null}
-        {m.billing_save_selection()}
-      </Button>
-      <ActionFeedback error={selection.error} />
-    </Panel>
-  )
-}
-
-function reconcileSelection(
-  selected: ReadonlyArray<string>,
-  available: ReadonlyArray<string>,
-  limit: number
-): ReadonlyArray<string> {
-  const availableIds = new Set(available)
-  return selected.filter((id) => availableIds.has(id)).slice(0, limit)
-}
-
-const RESOURCE_ID_SEPARATOR = ','
-
-/**
- * The server's normalized selection as one value that compares by content.
- * Resource ids carry no comma, so joining them round-trips exactly.
- */
-function selectionKey(
-  selected: ReadonlyArray<string> | undefined,
-  available: ReadonlyArray<{ readonly id: string }>,
-  limit: number
-): string {
-  return reconcileSelection(
-    selected ?? EMPTY_RESOURCE_IDS,
-    available.map(({ id }) => id),
-    limit
-  ).join(RESOURCE_ID_SEPARATOR)
-}
-
-function selectionFromKey(key: string): ReadonlyArray<string> {
-  return key === '' ? EMPTY_RESOURCE_IDS : key.split(RESOURCE_ID_SEPARATOR)
-}
-
-function ResourceChoices({
-  label,
-  items,
-  selected,
-  disabled,
-  onToggle
-}: {
-  readonly label: string
-  readonly items: ReadonlyArray<{
-    readonly id: string
-    readonly name?: string
-    readonly url?: string
-  }>
-  readonly selected: ReadonlyArray<string>
-  readonly disabled: boolean
-  readonly onToggle: (id: string) => void
-}) {
-  const selectedIds = new Set(selected)
-  return (
-    <fieldset>
-      <legend className="text-sm font-medium">{label}</legend>
-      <div className="mt-2 grid gap-2">
-        {items.map((item) => (
-          <Label key={item.id} htmlFor={`billing-resource-${item.id}`}>
-            <Checkbox
-              id={`billing-resource-${item.id}`}
-              checked={selectedIds.has(item.id)}
-              disabled={disabled}
-              onCheckedChange={() => onToggle(item.id)}
-            />
-            <code>{item.name ?? item.url ?? item.id}</code>
-          </Label>
-        ))}
-      </div>
-    </fieldset>
-  )
 }
 
 function EntitlementRow({

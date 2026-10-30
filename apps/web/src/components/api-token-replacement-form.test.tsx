@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { renderWithRouter } from '@/test/router-harness'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { type ApiToken } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import {
@@ -20,7 +21,7 @@ const replaceToken = vi.fn<ReplaceApiToken>()
 const onReplaced = vi.fn<() => Promise<void>>()
 const onClose = vi.fn<() => void>()
 function renderForm() {
-  render(
+  return renderWithRouter(
     <ApiTokenReplacementForm
       workspaceSlug="starter-lab"
       token={token}
@@ -44,8 +45,19 @@ describe('ApiTokenReplacementForm', () => {
     })
   })
 
+  it('keeps the one-time secret and retries only the failed refresh', async () => {
+    onReplaced.mockRejectedValueOnce(new Error('offline'))
+    await renderForm()
+    fireEvent.click(screen.getByRole('button', { name: 'Create replacement' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(onReplaced).toHaveBeenCalledTimes(2))
+    expect(replaceToken).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Show Replacement API token' }))
+    expect(screen.getByText('bsk_replacement_secret')).not.toBeNull()
+  })
+
   it('offers only existing scopes and preserves the secret through list refresh', async () => {
-    renderForm()
+    await renderForm()
     expect(screen.getAllByRole('checkbox')).toHaveLength(1)
     fireEvent.click(screen.getByRole('button', { name: 'Create replacement' }))
     await waitFor(() => expect(onReplaced).toHaveBeenCalledOnce())
@@ -69,7 +81,7 @@ describe('ApiTokenReplacementForm', () => {
   })
 
   it('submits immediate retirement when overlap is zero', async () => {
-    renderForm()
+    await renderForm()
     fireEvent.change(screen.getByLabelText('Old credential overlap (seconds)'), {
       target: { value: '0' }
     })
@@ -87,7 +99,7 @@ describe('ApiTokenReplacementForm', () => {
   })
 
   it('rejects overlap above 24 hours and leaves failures retryable', async () => {
-    renderForm()
+    await renderForm()
     fireEvent.change(screen.getByLabelText('Old credential overlap (seconds)'), {
       target: { value: '86401' }
     })

@@ -1,5 +1,6 @@
 import { type CreatedApiToken } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { renderWithRouter } from '@/test/router-harness'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { ApiTokenForm, type CreateApiToken } from './api-token-form'
 
@@ -20,7 +21,9 @@ const createdToken: CreatedApiToken = {
 const createToken = vi.fn<CreateApiToken>()
 
 function renderForm() {
-  return render(<ApiTokenForm workspaceSlug="starter-lab" createToken={createToken} />)
+  return renderWithRouter(
+    <ApiTokenForm workspaceSlug="starter-lab" createToken={createToken} />
+  )
 }
 
 describe('ApiTokenForm', () => {
@@ -29,8 +32,29 @@ describe('ApiTokenForm', () => {
     createToken.mockResolvedValue(createdToken)
   })
 
+  it('retries only refresh after a successful token creation', async () => {
+    const onCreated = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue(undefined)
+    await renderWithRouter(
+      <ApiTokenForm
+        workspaceSlug="starter-lab"
+        createToken={createToken}
+        onCreated={onCreated}
+      />
+    )
+    fireEvent.change(screen.getByLabelText('Token name'), {
+      target: { value: 'CI token' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Create token' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+    await waitFor(() => expect(onCreated).toHaveBeenCalledTimes(2))
+    expect(createToken).toHaveBeenCalledTimes(1)
+  })
+
   it('shows a validation error for an empty token name', async () => {
-    renderForm()
+    await renderForm()
     const input = screen.getByLabelText('Token name')
     fireEvent.change(input, { target: { value: 'x' } })
     fireEvent.change(input, { target: { value: '' } })
@@ -39,7 +63,7 @@ describe('ApiTokenForm', () => {
   })
 
   it('shows a validation error when the name exceeds 100 characters', async () => {
-    renderForm()
+    await renderForm()
     fireEvent.change(screen.getByLabelText('Token name'), {
       target: { value: 'a'.repeat(101) }
     })
@@ -47,7 +71,7 @@ describe('ApiTokenForm', () => {
   })
 
   it('requires at least one scope', async () => {
-    renderForm()
+    await renderForm()
     // "read" is checked by default — uncheck it.
     const [readCheckbox] = screen.getAllByRole('checkbox')
     expect(readCheckbox).toBeDefined()
@@ -56,7 +80,7 @@ describe('ApiTokenForm', () => {
   })
 
   it('submits valid input and reveals the created token once', async () => {
-    renderForm()
+    await renderForm()
     fireEvent.change(screen.getByLabelText('Token name'), {
       target: { value: 'CI token' }
     })
@@ -73,7 +97,7 @@ describe('ApiTokenForm', () => {
 
   it('surfaces server errors from the server function', async () => {
     createToken.mockRejectedValueOnce(new Error('nope'))
-    renderForm()
+    await renderForm()
     fireEvent.change(screen.getByLabelText('Token name'), {
       target: { value: 'CI token' }
     })
@@ -85,7 +109,7 @@ describe('ApiTokenForm', () => {
 
 it('submits the chosen expiry as UTC', async () => {
   createToken.mockResolvedValue(createdToken)
-  renderForm()
+  await renderForm()
   fireEvent.change(screen.getByLabelText('Token name'), {
     target: { value: 'Expiring' }
   })
