@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { type ServerActionOutcome } from './use-server-action'
 
 /**
@@ -17,6 +17,13 @@ import { type ServerActionOutcome } from './use-server-action'
  * failure replaces it.
  */
 export function useKeyedFailure<K>() {
+  const request = useRef(0)
+  useEffect(
+    () => () => {
+      request.current += 1
+    },
+    []
+  )
   const [failure, setFailure] = useState<{
     readonly key: K
     readonly message: string
@@ -26,7 +33,11 @@ export function useKeyedFailure<K>() {
     key: K,
     run: () => Promise<ServerActionOutcome<A>>
   ): Promise<void> {
+    const current = ++request.current
     const outcome = await run()
+    if (current !== request.current) {
+      return
+    }
     if (outcome.ok) {
       setFailure(null)
     } else {
