@@ -32,6 +32,23 @@ async function settleAct(pending: Promise<void>): Promise<void> {
 }
 
 describe('useKeyedFailure', () => {
+  it('ignores an earlier success after a newer request fails', async () => {
+    const first = deferredOutcome<null>()
+    const second = deferredOutcome<null>()
+    const { result } = renderHook(() => useKeyedFailure<string>())
+    let oldRun!: Promise<void>
+    let newRun!: Promise<void>
+    act(() => {
+      oldRun = result.current.runWith('old', first.run)
+      newRun = result.current.runWith('new', second.run)
+    })
+    second.settle({ ok: false, message: 'new failure' })
+    await settleAct(newRun)
+    first.settle({ ok: true, value: null })
+    await settleAct(oldRun)
+    expect(result.current.failure).toEqual({ key: 'new', message: 'new failure' })
+  })
+
   it('keeps the previous failure visible while the next run is in flight', async () => {
     const first = deferredOutcome<null>()
     const second = deferredOutcome<null>()
