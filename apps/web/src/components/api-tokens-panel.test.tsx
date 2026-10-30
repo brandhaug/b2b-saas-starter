@@ -5,6 +5,17 @@ import { ApiTokensPanel, type RevokeApiToken } from './api-tokens-panel'
 import { type CreateApiToken } from './api-token-form'
 import { renderWithRouter } from '@/test/router-harness'
 
+function deferred<A>() {
+  let settle: ((value: A) => void) | undefined
+  const promise = new Promise<A>((resolve) => {
+    settle = resolve
+  })
+  if (settle === undefined) {
+    throw new Error('Promise executor did not run synchronously')
+  }
+  return { promise, resolve: settle }
+}
+
 const token: ApiToken = {
   id: 'tok_ci',
   name: 'CI token',
@@ -43,6 +54,31 @@ describe('ApiTokensPanel', () => {
     revokeToken.mockReset()
     revokeToken.mockResolvedValue(true)
     createToken.mockReset()
+  })
+
+  it('restores replacement selection from the URL', async () => {
+    await renderPanel({ role: 'owner', initialEntry: '/?record=tok_ci' })
+    expect(screen.getByRole('form', { name: 'Replace CI token' })).not.toBeNull()
+  })
+
+  it('disables other row menus while revocation is pending', async () => {
+    const pending = deferred<boolean>()
+    revokeToken.mockReturnValue(pending.promise)
+    await renderPanel({
+      role: 'owner',
+      tokens: [token, { ...token, id: 'tok_other', name: 'Other token' }]
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for CI token' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Revoke' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm revoke' }))
+    await waitFor(() =>
+      expect(
+        screen
+          .getByRole('button', { name: 'More actions for Other token' })
+          .hasAttribute('disabled')
+      ).toBe(true)
+    )
+    pending.resolve(true)
   })
 
   it('offers the create form and the revoke control to a role that holds both', async () => {

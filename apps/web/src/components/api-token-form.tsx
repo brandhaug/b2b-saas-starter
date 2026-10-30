@@ -10,9 +10,11 @@ import { CheckboxSetField } from '@/components/checkbox-set-field'
 import { FormTextField } from '@/components/form-text-field'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { FormSubmitButton } from '@/components/form-submit-button'
+import { Button } from '@/components/ui/button'
 import { SecretReveal } from '@/components/secret-reveal'
 import { createApiTokenServerFn } from '@/lib/server/api-tokens'
 import { useServerCall } from '@/hooks/use-server-call'
+import { useServerAction } from '@/hooks/use-server-action'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 type ApiTokenValues = {
@@ -65,8 +67,19 @@ export function ApiTokenForm({
   readonly createToken?: CreateApiToken
 }) {
   const callServerFn = useServerCall()
-  const [created, setCreated] = useState<CreatedApiToken | null>(null)
+  const [created, setCreated] = useState<{
+    readonly value: CreatedApiToken
+    readonly refresh: 'needed' | 'complete'
+  } | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const refreshAction = useServerAction(
+    async (value: CreatedApiToken) => onCreated?.(value),
+    {
+      failureMessage: m.shell_error(),
+      invalidate: false,
+      identityKey: workspaceSlug
+    }
+  )
   const form = useForm({
     defaultValues: DEFAULT_TOKEN_VALUES,
     onSubmit: async ({ value }) => {
@@ -94,21 +107,36 @@ export function ApiTokenForm({
       // No toast: the inline ok alert reveals the token's one-time secret —
       // a corner copy would announce the creation without the thing the
       // reader actually needs to copy.
-      setCreated(outcome.value)
+      setCreated({ value: outcome.value, refresh: 'needed' })
       // Awaited so the loader invalidation completes within the submit flow:
       // fire-and-forget here is how the list stayed a create behind until a
       // reload.
-      await onCreated?.(outcome.value)
-      form.reset()
+      await refresh(outcome.value)
     }
   })
+
+  async function refresh(value: CreatedApiToken) {
+    const outcome = await refreshAction.runAsync(value)
+    setCreated({ value, refresh: outcome.ok ? 'complete' : 'needed' })
+    setSubmitError(outcome.ok ? null : outcome.message)
+    if (outcome.ok) {
+      form.reset()
+    }
+  }
 
   return (
     <form
       onSubmit={(event) => {
         event.preventDefault()
         event.stopPropagation()
-        void form.handleSubmit()
+        if (form.state.isSubmitting || refreshAction.pending) {
+          return
+        }
+        if (created?.refresh === 'needed') {
+          void refresh(created.value)
+        } else {
+          void form.handleSubmit()
+        }
       }}
       className="grid gap-4"
     >
@@ -170,7 +198,17 @@ export function ApiTokenForm({
       </form.Field>
       <p className="text-xs text-muted-foreground">{m.form_expiry_hint()}</p>
 
-      <FormSubmitButton form={form} label={m.form_create_token()} />
+      {created?.refresh === 'needed' ? (
+        <Button
+          type="button"
+          disabled={refreshAction.pending}
+          onClick={() => void refresh(created.value)}
+        >
+          {m.retry_action()}
+        </Button>
+      ) : (
+        <FormSubmitButton form={form} label={m.form_create_token()} />
+      )}
 
       {created ? (
         // The one secret this form ever shows: the `ok` variant separates it
@@ -180,7 +218,7 @@ export function ApiTokenForm({
           <AlertTitle>{m.token_created_copy_now()}</AlertTitle>
           <AlertDescription>
             <SecretReveal
-              secret={created.token}
+              secret={created.value.token}
               label={m.form_api_token()}
               className="flex items-center gap-2"
             />

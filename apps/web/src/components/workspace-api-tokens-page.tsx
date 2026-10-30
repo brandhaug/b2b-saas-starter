@@ -39,7 +39,12 @@ export function WorkspaceApiTokensPage({
         title={m.page_api_tokens()}
         description={m.page_api_tokens_description()}
       />
-      <ApiTokensPanel workspaceSlug={workspaceSlug} tokens={tokens} viewer={viewer} />
+      <ApiTokensPanel
+        key={workspaceSlug}
+        workspaceSlug={workspaceSlug}
+        tokens={tokens}
+        viewer={viewer}
+      />
     </WorkspaceShell>
   )
 }

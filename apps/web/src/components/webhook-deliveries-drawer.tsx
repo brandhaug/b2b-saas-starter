@@ -181,7 +181,7 @@ export function WebhookDeliveriesDrawer({
                             <Button
                               variant="ghost"
                               size="xs"
-                              disabled={replay.pendingInput === delivery.id}
+                              disabled={replay.pending}
                               onClick={() => replay.run(delivery.id)}
                             >
                               {replay.pendingInput === delivery.id ? (

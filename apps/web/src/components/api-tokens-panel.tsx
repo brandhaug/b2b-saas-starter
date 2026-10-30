@@ -48,6 +48,7 @@ import {
 } from '@/components/developer-list-controls'
 import { useDeveloperListView } from '@/lib/developer-list'
 import { type TableViewField } from '@/lib/table-view'
+import { useWorkspaceView } from '@/lib/workspace-view'
 
 function tokenListFields(): ReadonlyArray<TableViewField> {
   return [
@@ -169,7 +170,8 @@ export function ApiTokensPanel({
   const router = useRouter()
   const now = useExpiryClock(tokens)
   const fields = tokenListFields()
-  const [replacing, setReplacing] = useState<ApiToken | null>(null)
+  const { view, update } = useWorkspaceView()
+  const replacing = tokens.find((token) => token.id === view.record) ?? null
   // Revocation is irreversible, so it takes a click to arm and a second to
   // commit — the same two-step pattern the settings page's delete uses.
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
@@ -252,13 +254,13 @@ export function ApiTokensPanel({
         )
       }
     >
-      {replacing ? (
+      {canCreate && replacing ? (
         <ApiTokenReplacementForm
-          key={replacing.id}
+          key={`${workspaceSlug}:${replacing.id}`}
           workspaceSlug={workspaceSlug}
           token={replacing}
           onReplaced={() => router.invalidate()}
-          onClose={() => setReplacing(null)}
+          onClose={() => update({ record: undefined }, true)}
           {...(replaceToken === undefined ? {} : { replaceToken })}
         />
       ) : null}
@@ -329,6 +331,7 @@ export function ApiTokensPanel({
                         <DropdownMenuTrigger
                           render={
                             <Button
+                              disabled={revoke.pending || replacing !== null}
                               variant="ghost"
                               size="icon-xs"
                               aria-label={m.developer_list_more_actions_named({
@@ -344,12 +347,18 @@ export function ApiTokensPanel({
                           token.replacedByTokenId === null &&
                           (token.expiresAt === null ||
                             Date.parse(token.expiresAt) > now) ? (
-                            <DropdownMenuItem onClick={() => setReplacing(token)}>
+                            <DropdownMenuItem
+                              disabled={revoke.pending}
+                              onClick={() => update({ record: token.id })}
+                            >
                               {m.action_replace()}
                             </DropdownMenuItem>
                           ) : null}
                           {canRevoke ? (
-                            <DropdownMenuItem onClick={() => setConfirmingId(token.id)}>
+                            <DropdownMenuItem
+                              disabled={revoke.pending}
+                              onClick={() => setConfirmingId(token.id)}
+                            >
                               {m.action_revoke()}
                             </DropdownMenuItem>
                           ) : null}
@@ -364,7 +373,7 @@ export function ApiTokensPanel({
                           label={m.action_revoke()}
                           confirmLabel={m.action_confirm_revoke()}
                           armed={confirmingId === token.id}
-                          busy={revoke.pendingInput === token.id}
+                          busy={revoke.pending || replacing !== null}
                           onArm={() => setConfirmingId(token.id)}
                           onCancel={() => setConfirmingId(null)}
                           onConfirm={() => void revokeTokenOnRow(token.id)}

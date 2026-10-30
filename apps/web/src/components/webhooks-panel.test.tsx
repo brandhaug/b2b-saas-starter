@@ -10,6 +10,17 @@ import {
 import { type ReplayDelivery, type SendTestEvent } from './webhook-deliveries-drawer'
 import { renderWithRouter } from '@/test/router-harness'
 
+function deferred<A>() {
+  let settle: ((value: A) => void) | undefined
+  const promise = new Promise<A>((resolve) => {
+    settle = resolve
+  })
+  if (settle === undefined) {
+    throw new Error('Promise executor did not run synchronously')
+  }
+  return { promise, resolve: settle }
+}
+
 const delivery: WebhookDelivery = {
   id: 'dlv_1',
   endpointId: 'whe_1',
@@ -243,6 +254,25 @@ describe('WebhooksPanel', () => {
     })
   })
 
+  it('disables all endpoint actions while a rotation owns the secret slot', async () => {
+    const pending = deferred<string>()
+    rotateSecret.mockReturnValue(pending.promise)
+    const other = { ...endpoint, id: 'whe_other', url: 'https://other.test/hook' }
+    await renderPanel({ role: 'owner', endpoints: [endpoint, other] })
+    fireEvent.click(
+      screen.getByRole('button', { name: `More actions for ${endpoint.url}` })
+    )
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Rotate secret' }))
+    await waitFor(() => expect(rotateSecret).toHaveBeenCalledTimes(1))
+    expect(
+      screen
+        .getByRole('button', { name: `More actions for ${other.url}` })
+        .hasAttribute('disabled')
+    ).toBe(true)
+    pending.resolve('whsec_current')
+    await screen.findByText('Secret rotated. Copy it now, it will not be shown again.')
+  })
+
   it('surfaces a failure from either mutation on the row it happened on', async () => {
     updateEndpoint.mockRejectedValue(new Error('Endpoint already disabled'))
     await renderPanel({ role: 'owner' })
@@ -267,6 +297,25 @@ describe('WebhookDeliveriesDrawer', () => {
     ...endpoint,
     deliveries: [delivery, failedDelivery]
   }
+
+  it('serializes replays across delivery rows', async () => {
+    const pending = deferred<{ readonly deliveryId: string }>()
+    replayDelivery.mockReturnValue(pending.promise)
+    await renderPanel({
+      role: 'owner',
+      endpoints: [
+        {
+          ...endpoint,
+          deliveries: [failedDelivery, { ...failedDelivery, id: 'dlv_other' }]
+        }
+      ]
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Deliveries \(2\)/ }))
+    const buttons = await screen.findAllByRole('button', { name: 'Replay' })
+    fireEvent.click(buttons[0]!)
+    await waitFor(() => expect(buttons[1]!.hasAttribute('disabled')).toBe(true))
+    pending.resolve({ deliveryId: 'new_delivery' })
+  })
 
   it('opens per endpoint and shows the attempt timeline with evidence', async () => {
     await renderPanel({ role: 'owner', endpoints: [endpointWithFailure] })

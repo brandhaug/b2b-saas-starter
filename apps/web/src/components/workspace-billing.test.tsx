@@ -161,13 +161,18 @@ async function renderPlans(options?: {
  * object identities, which is exactly what the page's polling invalidation
  * produces.
  */
-function PollingBillingPlans() {
+function PollingBillingPlans({
+  removeDraft = false
+}: {
+  readonly removeDraft?: boolean
+}) {
   const [refreshes, setRefreshes] = useState(0)
   const apiTokens = [
     { id: 'tok_1', name: 'First token' },
     { id: 'tok_2', name: 'Second token' },
-    { id: 'tok_3', name: 'Third token' }
-  ]
+    { id: 'tok_3', name: 'Third token' },
+    { id: 'tok_4', name: 'Fourth token' }
+  ].filter((token) => !removeDraft || refreshes === 0 || token.id !== 'tok_2')
   const webhookEndpoints = [{ id: 'wh_1', url: 'https://example.test/hook-one' }]
   const resourceSelection = { apiTokenIds: ['tok_1'], webhookEndpointIds: [] }
   return (
@@ -223,6 +228,35 @@ function PollingBillingPlans() {
 }
 
 describe('BillingPlans', () => {
+  it('prevents checkout while a portal handoff is pending', async () => {
+    let finish: ((value: { url: string }) => void) | undefined
+    vi.mocked(portal).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve
+      })
+    )
+    const assign = vi.fn()
+    vi.stubGlobal('location', {
+      assign,
+      href: 'http://localhost/workspaces/starter-lab/billing'
+    })
+    try {
+      await renderPlans({ currentPlanId: 'starter' })
+      fireEvent.click(screen.getByRole('button', { name: /manage billing/i }))
+      await vi.waitFor(() =>
+        expect(
+          screen
+            .getByRole('button', { name: /upgrade to team/i })
+            .hasAttribute('disabled')
+        ).toBe(true)
+      )
+      finish?.({ url: 'https://billing.stripe.com/p/session/test' })
+      await vi.waitFor(() => expect(assign).toHaveBeenCalled())
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('shows delayed updates without presenting an unverified upgrade', async () => {
     await renderPlans({ currentPlanId: 'starter', status: 'delayed' })
     expect(screen.getByRole('status').textContent).toContain('retrying automatically')
@@ -426,6 +460,26 @@ describe('BillingPlans', () => {
         .getByRole('checkbox', { name: 'Second token' })
         .getAttribute('aria-checked')
     ).toBe('true')
+  })
+
+  it('removes a disappeared unsaved resource without restoring the saved draft', async () => {
+    await renderWithRouter(<PollingBillingPlans removeDraft />, {
+      path: '/workspaces/starter-lab/billing'
+    })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'First token' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Second token' }))
+    fireEvent.click(screen.getByRole('button', { name: 'refresh loader' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Third token' }))
+    fireEvent.click(screen.getByRole('button', { name: /save selection/i }))
+    await vi.waitFor(() =>
+      expect(selectResources).toHaveBeenLastCalledWith({
+        data: {
+          workspaceSlug: 'starter-lab',
+          apiTokenIds: ['tok_3'],
+          webhookEndpointIds: []
+        }
+      })
+    )
   })
 
   it('shows active-status renewal grace alongside scheduled cancellation', async () => {

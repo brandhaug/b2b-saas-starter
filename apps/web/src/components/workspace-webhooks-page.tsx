@@ -53,6 +53,7 @@ export function WorkspaceWebhooksPage({
             label: m.endpoints_title(),
             content: (
               <WebhooksPanel
+                key={workspaceSlug}
                 workspaceSlug={workspaceSlug}
                 endpoints={endpoints}
                 viewer={viewer}
