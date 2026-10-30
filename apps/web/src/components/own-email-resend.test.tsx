@@ -1,9 +1,8 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { OwnEmailResend } from './own-email-resend'
-import { renderWithQueryClient } from '@/test/query-harness'
+import { renderWithRouter } from '@/test/router-harness'
 import { authClientDouble } from '@/test/fake-auth-client'
-import type * as RouterModule from '@tanstack/react-router'
 
 /**
  * Both buttons hit Turnstile-gated auth endpoints, so the component drives
@@ -16,10 +15,6 @@ vi.mock('@/lib/auth-client', async () => {
   const doubles = await import('@/test/fake-auth-client')
   return { authClient: doubles.authClientDouble }
 })
-vi.mock('@tanstack/react-router', async (importOriginal) => ({
-  ...(await importOriginal<typeof RouterModule>()),
-  useRouter: () => ({ invalidate: vi.fn() })
-}))
 
 const origin = 'http://localhost:3000'
 
@@ -31,7 +26,9 @@ describe('own email resend', () => {
 
   it('restarts the normal verification flow without replaying a stored delivery', async () => {
     authClientDouble.sendVerificationEmail.mockResolvedValue({ error: null })
-    renderWithQueryClient(<OwnEmailResend email="owner@example.com" verified={false} />)
+    await renderWithRouter(
+      <OwnEmailResend email="owner@example.com" verified={false} />
+    )
     fireEvent.click(
       screen.getByRole('button', { name: 'Send a fresh verification email' })
     )
@@ -48,7 +45,7 @@ describe('own email resend', () => {
     authClientDouble.requestPasswordReset.mockRejectedValue(
       new Error('Network unavailable')
     )
-    renderWithQueryClient(<OwnEmailResend email="owner@example.com" verified />)
+    await renderWithRouter(<OwnEmailResend email="owner@example.com" verified />)
     const button = screen.getByRole('button', { name: 'Start a new password reset' })
     fireEvent.click(button)
     await screen.findByText('The email request failed. Try again later.')
@@ -63,7 +60,7 @@ describe('own email resend', () => {
   })
 
   it('refuses to send while a configured challenge is unanswered', async () => {
-    renderWithQueryClient(
+    await renderWithRouter(
       <OwnEmailResend
         email="owner@example.com"
         verified={false}

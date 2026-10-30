@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useAuthRequest, useAuthRequestScope } from '@/components/auth/auth-request'
 import { pageTitle } from '@/components/page/page-title'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
@@ -56,31 +57,42 @@ export function ForgotPasswordPage({
   const router = useRouter()
   // `form` → the request form; `link-sent` → the link confirmation; `code` →
   // code entry plus the new password.
-  const [stage, setStage] = useState<'form' | 'link-sent' | 'code'>('form')
-  const [email, setEmail] = useState('')
+  const [state, setState] = useState<
+    { stage: 'form' | 'link-sent' } | { stage: 'code'; email: string }
+  >({ stage: 'form' })
+  const scope = useAuthRequestScope()
+  const linkRequest = useAuthRequest(m.public_auth_request_failed(), scope)
+  const codeRequest = useAuthRequest(m.public_auth_send_code_failed(), scope)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const challenge = useTurnstileChallenge(turnstileSiteKey)
 
   const form = useForm({
     defaultValues: { email: '' },
-    onSubmit: async ({ value }) => {
-      setSubmitError(null)
-      if (challenge.missing) {
-        setSubmitError(challenge.missingMessage)
-        return
-      }
-      const result = await requestReset({
-        email: value.email,
-        turnstileToken: challenge.token
+    onSubmit: async ({ value }) =>
+      linkRequest.run(async (request) => {
+        setSubmitError(null)
+        if (challenge.missing) {
+          setSubmitError(challenge.missingMessage)
+          return
+        }
+        const result = await requestReset({
+          email: value.email,
+          turnstileToken: challenge.token
+        }).finally(() => {
+          if (request.current()) {
+            challenge.consume()
+          }
+        })
+        if (!request.current()) {
+          return
+        }
+        // Single-use: the code button below needs its own challenge.
+        if (result.error) {
+          setSubmitError(authErrorCopy(result.error, m.public_auth_request_failed()))
+          return
+        }
+        setState({ stage: 'link-sent' })
       })
-      // Single-use: the code button below needs its own challenge.
-      challenge.consume()
-      if (result.error) {
-        setSubmitError(authErrorCopy(result.error, m.public_auth_request_failed()))
-        return
-      }
-      setStage('link-sent')
-    }
   })
 
   async function sendCode(): Promise<void> {
@@ -89,31 +101,38 @@ export function ForgotPasswordPage({
     // Only a valid address moves on; an invalid one runs the form's own
     // validators so the field shows why.
     if (emailValidator({ value: address }) !== undefined) {
-      await form.handleSubmit()
+      await form.validateAllFields('submit')
       return
     }
     if (challenge.missing) {
       setSubmitError(challenge.missingMessage)
       return
     }
-    const result = await requestResetCode({
-      email: address,
-      turnstileToken: challenge.token
+    await codeRequest.run(async (request) => {
+      const result = await requestResetCode({
+        email: address,
+        turnstileToken: challenge.token
+      }).finally(() => {
+        if (request.current()) {
+          challenge.consume()
+        }
+      })
+      if (!request.current()) {
+        return
+      }
+      if (result.error) {
+        setSubmitError(authErrorCopy(result.error, m.public_auth_send_code_failed()))
+        return
+      }
+      setState({ stage: 'code', email: address })
     })
-    challenge.consume()
-    if (result.error) {
-      setSubmitError(authErrorCopy(result.error, m.public_auth_send_code_failed()))
-      return
-    }
-    setEmail(address)
-    setStage('code')
   }
 
-  if (stage === 'code') {
+  if (state.stage === 'code') {
     return (
       <EmailCodeExchangePage
         purpose="forget-password"
-        email={email}
+        email={state.email}
         turnstileSiteKey={turnstileSiteKey}
         title={m.enter_your_code()}
         // The code request endpoint holds the same non-disclosure contract
@@ -140,7 +159,7 @@ export function ForgotPasswordPage({
           router.history.push('/sign-in')
         }}
         differentEmailLabel={m.use_link_instead()}
-        onDifferentEmail={() => setStage('form')}
+        onDifferentEmail={() => setState({ stage: 'form' })}
         renderExtraFields={(codeForm) => (
           <>
             <codeForm.Field
@@ -196,7 +215,7 @@ export function ForgotPasswordPage({
     )
   }
 
-  if (stage === 'link-sent') {
+  if (state.stage === 'link-sent') {
     return (
       <AuthNoticeCard
         title={m.reset_your_password()}
@@ -236,6 +255,7 @@ export function ForgotPasswordPage({
         <div className="grid gap-3">
           <AuthSubmitButton
             form={form}
+            disabled={codeRequest.pending}
             icon={<MailQuestionIcon className="size-4" />}
             label={m.form_send_reset_link()}
             submittingLabel={m.sending()}
@@ -243,7 +263,7 @@ export function ForgotPasswordPage({
           <Button
             type="button"
             variant="secondary"
-            disabled={!form.state.canSubmit || form.state.isSubmitting}
+            disabled={codeRequest.pending || linkRequest.pending}
             onClick={() => {
               void sendCode()
             }}
@@ -252,7 +272,7 @@ export function ForgotPasswordPage({
           </Button>
         </div>
       }
-      error={submitError}
+      error={submitError ?? codeRequest.error ?? linkRequest.error}
       footer={
         <p className="text-center text-sm text-muted-foreground">
           {m.remembered_it()}{' '}

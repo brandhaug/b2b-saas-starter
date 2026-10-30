@@ -1,13 +1,13 @@
-import { useState } from 'react'
+import { useState, type ComponentProps } from 'react'
+import { useForm } from '@tanstack/react-form'
+import { useAuthRequest } from './auth-request'
 import { Link } from '@tanstack/react-router'
 import { AuthCardForm } from './auth-card-form'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { authClient } from '@/lib/auth-client'
-import { authFailure } from '@/lib/auth-result'
 import { authErrorCopy } from '@/lib/auth-error-copy'
-import { useServerAction } from '@/hooks/use-server-action'
 import {
   strongAuthenticationStatusServerFn,
   verifyCurrentPasswordServerFn,
@@ -16,7 +16,18 @@ import {
 import { safeRedirect } from '@/lib/utils'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
-export function VerifyAuthenticationPage({
+export function VerifyAuthenticationPage(
+  props: ComponentProps<typeof VerifyAuthenticationContent>
+) {
+  return (
+    <VerifyAuthenticationContent
+      key={`${props.redirect ?? ''}:${props.recent ?? false}:${props.twoFactorEnabled}`}
+      {...props}
+    />
+  )
+}
+
+function VerifyAuthenticationContent({
   status,
   twoFactorEnabled,
   redirect,
@@ -27,51 +38,70 @@ export function VerifyAuthenticationPage({
   readonly recent?: boolean
   readonly redirect?: string | undefined
 }) {
-  const [password, setPassword] = useState('')
-  const [code, setCode] = useState('')
   const [notice, setNotice] = useState<string | null>(null)
-  const verify = useServerAction(
-    async (method: 'password' | 'passkey') => {
+  const verify = useAuthRequest(m.security_verification_failed())
+  const form = useForm({
+    defaultValues: { password: '', code: '' },
+    onSubmit: async ({ value }) => run('password', value)
+  })
+  async function run(method: 'password' | 'passkey', value = form.state.values) {
+    await verify.run(async (request) => {
       setNotice(null)
       if (method === 'passkey') {
-        const result = await authClient.signIn.passkey()
+        const result = await authClient.signIn.passkey(undefined, {
+          signal: request.signal
+        })
+        if (!request.current()) {
+          return
+        }
         if (result.error) {
-          return authFailure(
-            authErrorCopy(result.error, m.security_verification_failed())
-          )
+          return authErrorCopy(result.error, m.security_verification_failed())
+        }
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- cancelled SDK ceremonies can have no response body
+        if (result.data === null || result.data === undefined) {
+          return m.security_verification_failed()
         }
       } else {
-        const checked = await verifyCurrentPasswordServerFn({ data: { password } })
-        if (!checked) {
-          return authFailure(m.security_verification_failed())
+        const checked = await verifyCurrentPasswordServerFn({
+          data: { password: value.password }
+        })
+        if (!request.current()) {
+          return
         }
-        setPassword('')
+        if (!checked) {
+          return m.security_verification_failed()
+        }
+        form.setFieldValue('password', '')
         if (!twoFactorEnabled && !recent) {
           setNotice(m.security_enroll_next())
           return null
         }
         if (twoFactorEnabled) {
           const checkedCode = await authClient.twoFactor.verifyTotp({
-            code,
+            code: value.code,
             trustDevice: false
           })
+          if (!request.current()) {
+            return
+          }
           if (checkedCode.error) {
-            return authFailure(
-              authErrorCopy(checkedCode.error, m.security_verification_failed())
-            )
+            return authErrorCopy(checkedCode.error, m.security_verification_failed())
           }
         }
       }
       const current = await strongAuthenticationStatusServerFn()
+      if (!request.current()) {
+        return
+      }
       if (recent ? !current.recent : !current.qualified) {
-        return authFailure(m.security_verification_failed())
+        return m.security_verification_failed()
       }
       // Full navigation reads the newly verified session before loading protected data.
+      request.win()
       window.location.assign(safeRedirect(redirect))
       return null
-    },
-    { failureMessage: m.security_verification_failed(), invalidate: false }
-  )
+    })
+  }
 
   return (
     <AuthCardForm
@@ -81,7 +111,7 @@ export function VerifyAuthenticationPage({
           ? m.security_recent_authentication_required()
           : m.security_authentication_required()
       }
-      form={{ handleSubmit: () => verify.run('password') }}
+      form={form}
       error={verify.error}
       notice={notice ?? (status.recovering ? m.security_recovery_notice() : null)}
       submit={
@@ -97,7 +127,7 @@ export function VerifyAuthenticationPage({
             type="button"
             variant="outline"
             disabled={verify.pending}
-            onClick={() => verify.run('passkey')}
+            onClick={() => void run('passkey')}
           >
             {m.security_verify_passkey()}
           </Button>
@@ -124,35 +154,45 @@ export function VerifyAuthenticationPage({
       }
     >
       <FieldGroup>
-        <Field>
-          <FieldLabel htmlFor="security-password">{m.form_password()}</FieldLabel>
-          <Input
-            id="security-password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-            disabled={verify.pending}
-          />
-        </Field>
+        <form.Field name="password">
+          {(field) => (
+            <Field>
+              <FieldLabel htmlFor="security-password">{m.form_password()}</FieldLabel>
+              <Input
+                id="security-password"
+                type="password"
+                autoComplete="current-password"
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={(event) => field.handleChange(event.target.value)}
+                required
+                disabled={verify.pending}
+              />
+            </Field>
+          )}
+        </form.Field>
         {twoFactorEnabled ? (
-          <Field>
-            <FieldLabel htmlFor="security-code">
-              {m.security_authenticator_code()}
-            </FieldLabel>
-            <Input
-              id="security-code"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              pattern="[0-9]{6}"
-              maxLength={6}
-              value={code}
-              onChange={(event) => setCode(event.target.value)}
-              required
-              disabled={verify.pending}
-            />
-          </Field>
+          <form.Field name="code">
+            {(field) => (
+              <Field>
+                <FieldLabel htmlFor="security-code">
+                  {m.security_authenticator_code()}
+                </FieldLabel>
+                <Input
+                  id="security-code"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  required
+                  disabled={verify.pending}
+                />
+              </Field>
+            )}
+          </form.Field>
         ) : null}
       </FieldGroup>
     </AuthCardForm>

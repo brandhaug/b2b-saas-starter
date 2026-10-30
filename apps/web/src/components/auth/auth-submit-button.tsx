@@ -27,11 +27,13 @@ export function AuthSubmitButton({
   form,
   icon,
   label,
+  disabled = false,
   submittingLabel
 }: {
   readonly form: SubscribableForm
   readonly icon?: ReactNode
   readonly label: string
+  readonly disabled?: boolean
   /** Announced to assistive tech while submitting; never swaps the visible label. */
   readonly submittingLabel: string
 }) {
@@ -46,7 +48,7 @@ export function AuthSubmitButton({
         <>
           <Button
             type="submit"
-            disabled={!canSubmit || isSubmitting}
+            disabled={disabled || !canSubmit || isSubmitting}
             aria-busy={isSubmitting}
           >
             <span className="inline-flex size-4 shrink-0" aria-hidden="true">

@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
 import { m } from '@b2b-saas-starter/i18n/messages'
@@ -159,7 +159,12 @@ describe('SignInPage', () => {
     })
     await renderPage()
 
-    await waitFor(() => expect(signInPasskey).toHaveBeenCalledWith({ autoFill: true }))
+    await waitFor(() =>
+      expect(signInPasskey).toHaveBeenCalledWith(
+        { autoFill: true },
+        { signal: expect.any(AbortSignal) }
+      )
+    )
   })
 
   it('keeps a failed conditional-UI preload silent', async () => {
@@ -184,12 +189,14 @@ describe('SignInPage', () => {
     const button = screen.getByRole<HTMLButtonElement>('button', {
       name: 'Sign in with a passkey'
     })
-    // The preload is provably in flight (pending disables the button), then
-    // provably settled (pending clears) — only then is "no alert" a claim
-    // about the settled state rather than about timing.
-    await waitFor(() => expect(button.disabled).toBe(true))
-    failPreload?.()
-    await waitFor(() => expect(button.disabled).toBe(false))
+    // Wait for the request, then settle it explicitly. Passive discovery
+    // must leave the manual fallback enabled for its entire lifetime.
+    await waitFor(() => expect(signInPasskey).toHaveBeenCalledOnce())
+    expect(button.disabled).toBe(false)
+    await act(async () => {
+      failPreload?.()
+    })
+    expect(button.disabled).toBe(false)
     expect(screen.queryByRole('alert')).toBeNull()
     // A visitor-initiated attempt after the silent preload still surfaces:
     // the suppression names the preload, not every passkey failure.
@@ -250,6 +257,7 @@ describe('SignInPage', () => {
       await waitFor(() => expect(signInSocial).toHaveBeenCalledTimes(1))
       expect(signInSocial).toHaveBeenCalledWith({
         provider: 'github',
+        disableRedirect: true,
         errorCallbackURL: `${window.location.origin}/sign-in?redirect=%2Fworkspaces`,
         callbackURL: `${window.location.origin}/workspaces`
       })
@@ -261,6 +269,7 @@ describe('SignInPage', () => {
       await waitFor(() => expect(signInSocial).toHaveBeenCalledTimes(1))
       expect(signInSocial).toHaveBeenCalledWith({
         provider: 'github',
+        disableRedirect: true,
         errorCallbackURL: `${window.location.origin}/sign-in?redirect=%2Fworkspaces%2Fstarter-lab`,
         callbackURL: `${window.location.origin}/workspaces/starter-lab`
       })

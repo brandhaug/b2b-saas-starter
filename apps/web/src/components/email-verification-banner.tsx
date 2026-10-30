@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, type ComponentProps } from 'react'
+import { useAuthRequest } from '@/components/auth/auth-request'
 import { MailWarningIcon } from 'lucide-react'
 import {
   sendVerificationEmailWithAuthClient,
@@ -18,7 +19,18 @@ export { type SendVerificationEmail }
  * nobody could read a gating email), so this is a nudge on every workspace
  * surface, not a lock on any of them.
  */
-export function EmailVerificationBanner({
+export function EmailVerificationBanner(
+  props: ComponentProps<typeof EmailVerificationBannerContent>
+) {
+  return (
+    <EmailVerificationBannerContent
+      key={`${props.email}:${props.callbackPath ?? ''}`}
+      {...props}
+    />
+  )
+}
+
+function EmailVerificationBannerContent({
   email,
   callbackPath,
   sendVerificationEmail = sendVerificationEmailWithAuthClient,
@@ -38,6 +50,7 @@ export function EmailVerificationBanner({
   const [sent, setSent] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const challenge = useTurnstileChallenge(turnstileSiteKey)
+  const request = useAuthRequest(m.public_auth_send_email_failed())
 
   if (sent) {
     return (
@@ -52,22 +65,30 @@ export function EmailVerificationBanner({
   }
 
   async function resend() {
-    setSendError(null)
-    if (challenge.missing) {
-      setSendError(challenge.missingMessage)
-      return
-    }
-    const result = await sendVerificationEmail({
-      email,
-      callbackPath,
-      turnstileToken: challenge.token
+    await request.run(async (attempt) => {
+      setSendError(null)
+      if (challenge.missing) {
+        setSendError(challenge.missingMessage)
+        return
+      }
+      const result = await sendVerificationEmail({
+        email,
+        callbackPath,
+        turnstileToken: challenge.token
+      }).finally(() => {
+        if (attempt.current()) {
+          challenge.consume()
+        }
+      })
+      if (!attempt.current()) {
+        return
+      }
+      if (result.error) {
+        setSendError(authErrorCopy(result.error, m.public_auth_send_email_failed()))
+        return
+      }
+      setSent(true)
     })
-    challenge.consume()
-    if (result.error) {
-      setSendError(authErrorCopy(result.error, m.public_auth_send_email_failed()))
-      return
-    }
-    setSent(true)
   }
 
   return (
@@ -78,15 +99,20 @@ export function EmailVerificationBanner({
       <AlertDescription className="flex flex-wrap items-center gap-3">
         <span className="flex-1">
           {m.workspace_email_unverified()}
-          {sendError ? (
+          {(sendError ?? request.error) ? (
             <span role="alert" className="text-destructive">
               {' '}
-              {sendError}
+              {sendError ?? request.error}
             </span>
           ) : null}
         </span>
         {challenge.widget}
-        <Button type="button" variant="outline" onClick={() => void resend()}>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={request.pending}
+          onClick={() => void resend()}
+        >
           {m.workspace_resend_verification()}
         </Button>
       </AlertDescription>

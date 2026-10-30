@@ -8,16 +8,18 @@ import { m } from '@b2b-saas-starter/i18n/messages'
  */
 export function ResendCodeButton({
   cooldownSeconds,
+  pending = false,
   onResend
 }: {
   readonly cooldownSeconds: number
+  readonly pending?: boolean
   readonly onResend: () => Promise<void>
 }) {
   return (
     <Button
       type="button"
       variant="secondary"
-      disabled={cooldownSeconds > 0}
+      disabled={pending || cooldownSeconds > 0}
       onClick={() => {
         void onResend()
       }}

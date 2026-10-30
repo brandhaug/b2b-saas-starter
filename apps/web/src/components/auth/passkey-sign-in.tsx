@@ -1,90 +1,65 @@
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { FingerprintIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { authClient } from '@/lib/auth-client'
-import { authFailure } from '@/lib/auth-result'
 import { authErrorCopy } from '@/lib/auth-error-copy'
-import { useServerAction } from '@/hooks/use-server-action'
 import { conditionalMediationAvailable } from '@/lib/webauthn-support'
 import { oauthContinuationUrl } from '@/lib/oauth-continuation'
 import { safeRedirect } from '@/lib/utils'
+import { useAuthRequest, type AuthRequest } from './auth-request'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
-function passkeyFailed(): string {
-  return m.public_auth_passkey_sign_in_failed()
-}
-
-/**
- * The passkey sign-in block on the sign-in page: the button, its action, and
- * the conditional-UI preload. Same destination as the password form, different
- * credential — a success carries the session (passkey sign-in needs no
- * two-factor hop, the ceremony already proved two factors, ADR 0056); a
- * cancellation or failure lands as this block's own message, never as a
- * password failure. Extracted from the page so the credential form and this
- * alternative credential stay independently readable.
- *
- * Failures surface only for attempts the visitor started: the conditional-UI
- * preload that runs on mount fails routinely (no passkeys on the device, a
- * browser without support), and announcing that through the alert channel
- * would interrupt screen-reader users before they touch anything (WCAG
- * 3.3.1, 4.1.3).
- */
+/** Passive discovery never disables the explicit fallback or announces failures. */
 export function PasskeySignIn({
   redirect
 }: {
   readonly redirect?: string | undefined
 }) {
   const router = useRouter()
-  // Which surface started the in-flight attempt. A ref, not state: it names
-  // the attempt already running, and the alert's render reads it without
-  // re-rendering anything.
-  const initiatedBy = useRef<'autofill' | 'button'>('button')
+  const explicit = useAuthRequest(m.public_auth_passkey_sign_in_failed())
+  const passive = useAuthRequest(m.public_auth_passkey_sign_in_failed())
 
-  const passkeySignIn = useServerAction(
-    async (input: { readonly autoFill?: boolean } | undefined) => {
-      const result = await authClient.signIn.passkey(input)
-      if (result.error) {
-        return authFailure(authErrorCopy(result.error, passkeyFailed()))
-      }
-      // oxlint-disable-next-line typescript/no-unnecessary-condition -- a cancelled ceremony answers a success envelope with an empty body; the probe keeps the empty case from navigating
-      if (result.data !== null && result.data !== undefined) {
-        // A sign-in an MCP client started resumes the authorization first:
-        // `oauthProviderClient` attaches the signed OAuth query to this call
-        // too, so the provider answers with the next hop — the same
-        // continuation the password path takes.
-        const continuation = oauthContinuationUrl(result.data)
-        if (continuation !== null) {
-          window.location.assign(continuation)
-          return
-        }
-        router.history.push(safeRedirect(redirect))
-      }
-    },
-    { failureMessage: passkeyFailed(), invalidate: false }
-  )
-
-  // Conditional UI: where the browser supports passkey autofill, arm it on
-  // mount so the email field can offer the user's passkeys before they type
-  // a password (the `webauthn` autocomplete token on the field is the other
-  // half of the contract). Where it does not, the button below is the
-  // fallback and nothing is preloaded.
-  useEffect(() => {
-    // A property, not a bare `let`: the cleanup writes it from another
-    // function, and a closure-captured `let cancelled = false` reads as a
-    // literal `false` to the type-aware linter inside this IIFE.
-    const state = { cancelled: false }
-    void (async () => {
-      const available = await conditionalMediationAvailable()
-      if (available && !state.cancelled) {
-        initiatedBy.current = 'autofill'
-        passkeySignIn.run({ autoFill: true })
-      }
-    })()
-    return () => {
-      state.cancelled = true
+  async function authenticate(request: AuthRequest, autoFill: boolean) {
+    const result = await authClient.signIn.passkey(
+      autoFill ? { autoFill: true } : undefined,
+      { signal: request.signal }
+    )
+    if (!request.current()) {
+      return
     }
-    // oxlint-disable-next-line react-hooks/exhaustive-deps -- the preload runs once per mount; re-arming on every identity change would relaunch the ceremony while it is already pending
+    if (result.error) {
+      return authErrorCopy(result.error, m.public_auth_passkey_sign_in_failed())
+    }
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- the SDK can return an empty body for a cancelled ceremony
+    if (result.data !== null && result.data !== undefined) {
+      request.win()
+      const continuation = oauthContinuationUrl(result.data)
+      if (continuation === null) {
+        router.history.push(safeRedirect(redirect))
+      } else {
+        window.location.assign(continuation)
+      }
+    }
+    return null
+  }
+
+  useEffect(() => {
+    const lifetime = { cancelled: false }
+    void conditionalMediationAvailable()
+      .then((available) => {
+        if (available && !lifetime.cancelled) {
+          void passive.run(async (request) => {
+            await authenticate(request, true)
+          }, true)
+        }
+        return null
+      })
+      .catch(() => undefined)
+    return () => {
+      lifetime.cancelled = true
+    }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- conditional discovery is armed once per mounted screen
   }, [])
 
   return (
@@ -92,25 +67,24 @@ export function PasskeySignIn({
       <Button
         type="button"
         variant="outline"
-        disabled={passkeySignIn.pending}
+        disabled={explicit.pending}
         onClick={() => {
-          // `undefined` = no autofill: the button opens the modal
-          // ceremony; the type makes the explicit argument honest.
-          initiatedBy.current = 'button'
-          passkeySignIn.run(undefined)
+          void explicit.run(async (request) => {
+            const error = await authenticate(request, false)
+            if (error) {
+              return error
+            }
+          })
         }}
       >
         <FingerprintIcon className="size-4" />
         {m.public_auth_sign_in_with_passkey()}
       </Button>
-      {/* Autofill-initiated failures stay silent (see the component doc): a
-          preload that finds no passkey is the normal case, not an error the
-          visitor needs announced. */}
-      {passkeySignIn.error !== null && initiatedBy.current === 'button' ? (
+      {explicit.error === null ? null : (
         <p role="alert" className="text-xs text-destructive">
-          {passkeySignIn.error}
+          {explicit.error}
         </p>
-      ) : null}
+      )}
     </div>
   )
 }

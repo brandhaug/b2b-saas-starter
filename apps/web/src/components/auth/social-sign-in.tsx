@@ -1,4 +1,6 @@
 import { type ReactNode, type SVGProps } from 'react'
+import { useAuthRequest } from './auth-request'
+import { authErrorCopy, signInFailed } from '@/lib/auth-error-copy'
 import { useClientValue } from '@/lib/client-only-value'
 import { safeRedirect } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -39,6 +41,7 @@ export function SocialSignInButtons({
   readonly providers: ReadonlyArray<SocialProviderId>
   readonly redirectTo?: string | undefined
 }) {
+  const action = useAuthRequest(signInFailed())
   if (providers.length === 0) {
     return null
   }
@@ -52,13 +55,26 @@ export function SocialSignInButtons({
               key={provider}
               type="button"
               variant="secondary"
+              disabled={action.pending}
               onClick={() => {
-                // Better Auth's client navigates to the authorize URL itself
-                // when the endpoint answers `{ url, redirect: true }`.
-                void authClient.signIn.social({
-                  provider,
-                  errorCallbackURL: `${window.location.origin}/sign-in?redirect=${encodeURIComponent(safeRedirect(redirectTo))}`,
-                  callbackURL: `${window.location.origin}${safeRedirect(redirectTo)}`
+                // Own the redirect so a result from a page already left cannot navigate.
+                void action.run(async (request) => {
+                  const result = await authClient.signIn.social({
+                    provider,
+                    disableRedirect: true,
+                    errorCallbackURL: `${window.location.origin}/sign-in?redirect=${encodeURIComponent(safeRedirect(redirectTo))}`,
+                    callbackURL: `${window.location.origin}${safeRedirect(redirectTo)}`
+                  })
+                  if (!request.current()) {
+                    return
+                  }
+                  if (result.error) {
+                    return authErrorCopy(result.error, signInFailed())
+                  }
+                  if (result.data.url) {
+                    request.win()
+                    window.location.assign(result.data.url)
+                  }
                 })
               }}
             >
@@ -70,6 +86,11 @@ export function SocialSignInButtons({
           )
         })}
       </div>
+      {action.error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {action.error}
+        </p>
+      ) : null}
       <div className="flex items-center gap-3" aria-hidden="true">
         <span className="h-px flex-1 bg-border" />
         <span className="text-xs text-muted-foreground">

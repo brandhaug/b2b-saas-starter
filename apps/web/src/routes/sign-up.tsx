@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useState, type ComponentProps } from 'react'
+import { useAuthRequest } from '@/components/auth/auth-request'
+import { AuthRequestBoundary } from '@/components/auth/auth-request-boundary'
 import { pageTitle } from '@/components/page/page-title'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
@@ -17,7 +19,7 @@ import { getSocialProviderIds } from '@/lib/server/social-providers'
 import { getTurnstileSiteKey } from '@/lib/server/turnstile'
 import { redirectSearch, safeRedirect } from '@/lib/utils'
 import { authErrorCopy } from '@/lib/auth-error-copy'
-import { TurnstileWidget } from '@/components/auth/turnstile-widget'
+import { useTurnstileChallenge } from '@/components/auth/turnstile-challenge'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 export type { SignUpWithEmail } from '@/components/auth/auth-client-ports'
@@ -65,7 +67,15 @@ function SignUpRoute() {
   )
 }
 
-export function SignUpPage({
+export function SignUpPage(props: ComponentProps<typeof SignUpPageContent>) {
+  return (
+    <AuthRequestBoundary key={props.redirect ?? ''}>
+      <SignUpPageContent {...props} />
+    </AuthRequestBoundary>
+  )
+}
+
+function SignUpPageContent({
   redirect,
   signUp = signUpWithAuthClient,
   turnstileSiteKey = null,
@@ -81,39 +91,47 @@ export function SignUpPage({
 }) {
   const router = useRouter()
   const [submitError, setSubmitError] = useState<string | null>(null)
-  // The challenge token; single-use, so a failed sign-up clears it and the
-  // visitor answers a fresh challenge on retry.
-  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  // Every registration attempt consumes and resets its challenge.
+  const challenge = useTurnstileChallenge(turnstileSiteKey)
+  const signup = useAuthRequest(m.public_auth_sign_up_failed())
   const form = useForm({
     defaultValues: { name: '', email: '', password: '' } satisfies SignUpValues,
-    onSubmit: async ({ value }) => {
-      setSubmitError(null)
-      if (turnstileSiteKey !== null && turnstileToken === null) {
-        setSubmitError(m.complete_bot_check())
-        return
-      }
-      const result = await signUp({
-        callbackPath: redirect
-          ? `/verify-email?redirect=${encodeURIComponent(safeRedirect(redirect))}`
-          : undefined,
-        name: value.name,
-        email: value.email,
-        password: value.password,
-        turnstileToken: turnstileToken ?? undefined
+    onSubmit: async ({ value }) =>
+      signup.run(async (request) => {
+        setSubmitError(null)
+        if (challenge.missing) {
+          setSubmitError(m.complete_bot_check())
+          return
+        }
+        const result = await signUp({
+          callbackPath: redirect
+            ? `/verify-email?redirect=${encodeURIComponent(safeRedirect(redirect))}`
+            : undefined,
+          name: value.name,
+          email: value.email,
+          password: value.password,
+          turnstileToken: challenge.token
+        }).finally(() => {
+          if (request.current()) {
+            challenge.consume()
+          }
+        })
+        if (!request.current()) {
+          return
+        }
+        if (result.error) {
+          // The captcha refusals (`captcha_rejected`, `captcha_unavailable`)
+          // are codes in the shared table, so the challenge-reset below is the
+          // only thing this branch adds to the mapped copy.
+          setSubmitError(authErrorCopy(result.error, m.public_auth_sign_up_failed()))
+          return
+        }
+        // Registration signs the user in (auto sign-in) and emails a
+        // verification link; the unverified banner on /workspaces carries the
+        // rest of the story.
+        request.win()
+        router.history.push(safeRedirect(redirect))
       })
-      if (result.error) {
-        // The captcha refusals (`captcha_rejected`, `captcha_unavailable`)
-        // are codes in the shared table, so the challenge-reset below is the
-        // only thing this branch adds to the mapped copy.
-        setTurnstileToken(null)
-        setSubmitError(authErrorCopy(result.error, m.public_auth_sign_up_failed()))
-        return
-      }
-      // Registration signs the user in (auto sign-in) and emails a
-      // verification link; the unverified banner on /workspaces carries the
-      // rest of the story.
-      router.history.push(safeRedirect(redirect))
-    }
   })
 
   return (
@@ -130,7 +148,7 @@ export function SignUpPage({
           submittingLabel={m.creating_account()}
         />
       }
-      error={submitError}
+      error={submitError ?? signup.error}
       footer={
         <p className="text-center text-sm text-muted-foreground">
           {m.already_have_account()}{' '}
@@ -202,9 +220,7 @@ export function SignUpPage({
         )}
       </form.Field>
 
-      {turnstileSiteKey === null ? null : (
-        <TurnstileWidget siteKey={turnstileSiteKey} onToken={setTurnstileToken} />
-      )}
+      {challenge.widget}
     </AuthCardForm>
   )
 }

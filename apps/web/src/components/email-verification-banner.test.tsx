@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { renderWithRouter } from '@/test/router-harness'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import {
   EmailVerificationBanner,
@@ -30,14 +31,14 @@ describe('EmailVerificationBanner', () => {
     sendVerificationEmail.mockResolvedValue({ error: null })
   })
 
-  it('nudges with the address and a resend button', () => {
-    render(banner())
+  it('nudges with the address and a resend button', async () => {
+    await renderWithRouter(banner())
     screen.getByText(/Your email address is not verified yet/)
     expect(resendButton()).not.toBeNull()
   })
 
   it('sends to the signed-in address and confirms', async () => {
-    render(banner())
+    await renderWithRouter(banner())
     fireEvent.click(resendButton())
     await waitFor(() => expect(sendVerificationEmail).toHaveBeenCalledTimes(1))
     expect(sendVerificationEmail).toHaveBeenCalledWith({
@@ -58,7 +59,7 @@ describe('EmailVerificationBanner', () => {
     sendVerificationEmail.mockResolvedValueOnce({
       error: { code: 'rate_limited' }
     })
-    render(banner())
+    await renderWithRouter(banner())
     fireEvent.click(resendButton())
     const alert = await screen.findByRole('alert')
     // The banner carries the error inline after its own sentence, so the

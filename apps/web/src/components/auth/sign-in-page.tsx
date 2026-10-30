@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useState, type ComponentProps } from 'react'
+import { useAuthRequest, type AuthRequest } from './auth-request'
+import { AuthRequestBoundary } from './auth-request-boundary'
 import { Link, useRouter } from '@tanstack/react-router'
 import { useForm } from '@tanstack/react-form'
 import { KeyRoundIcon, MailIcon } from 'lucide-react'
@@ -22,7 +24,7 @@ import {
   twoFactorRequiredMessage
 } from '@/lib/two-factor-refusal'
 import { FormTextField } from '@/components/form-text-field'
-import { TurnstileWidget } from '@/components/auth/turnstile-widget'
+import { useTurnstileChallenge } from '@/components/auth/turnstile-challenge'
 import { Button } from '@/components/ui/button'
 import { authClient } from '@/lib/auth-client'
 import { authErrorCopy, signInFailed } from '@/lib/auth-error-copy'
@@ -118,7 +120,8 @@ async function applySignInOutcome({
   resolveRouting,
   push,
   onSubmitError,
-  onSsoNotice
+  onSsoNotice,
+  request
 }: {
   readonly email: string
   readonly password: string
@@ -128,12 +131,16 @@ async function applySignInOutcome({
   readonly push: (target: string) => void
   readonly onSubmitError: (message: string) => void
   readonly onSsoNotice: (message: string) => void
+  readonly request: AuthRequest
 }): Promise<void> {
   // Domain routing first (ADR 0069): an email whose domain belongs to an
   // enabled connection goes to that IdP — the password path is never even
   // attempted. `requireSso` domains are additionally refused server-side, so
   // a direct POST cannot sidestep the rule.
   const routing = await resolveRouting(email)
+  if (!request.current()) {
+    return
+  }
   if (routing !== null) {
     const sso = await authClient.signIn.sso({
       email,
@@ -142,12 +149,16 @@ async function applySignInOutcome({
       // not one. `safeRedirect` has already constrained the path.
       callbackURL: `${window.location.origin}${safeRedirect(redirect)}`
     })
+    if (!request.current()) {
+      return
+    }
     if (sso.error) {
       onSubmitError(authErrorCopy(sso.error, m.sso_failed()))
       return
     }
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- a routing match without a URL is the plugin's own degenerate answer; the explicit failure below beats a silent password retry
     if (sso.data?.url) {
+      request.win()
       window.location.assign(sso.data.url)
       return
     }
@@ -158,6 +169,9 @@ async function applySignInOutcome({
     return
   }
   const result = await authClient.signIn.email({ email, password })
+  if (!request.current()) {
+    return
+  }
   if (result.error) {
     // The server-side gate answers a require-SSO domain with this code;
     // surface it as guidance rather than a bare failed sign-in.
@@ -172,6 +186,7 @@ async function applySignInOutcome({
   // is the parse step (and handles a body the typed `data` claims cannot
   // happen — the wire answers less than the type promises).
   const twoFactorRedirect = wantsTwoFactorRedirect(result.data)
+  request.win()
   if (twoFactorRedirect) {
     // Two-factor is enabled: the credentials set a short-lived challenge
     // cookie, not a session. The code lands on the challenge page, which
@@ -206,7 +221,15 @@ async function applySignInOutcome({
  * params and loader values, and from tests with plain props, no route tree
  * and no mocked router.
  */
-export function SignInPage({
+export function SignInPage(props: ComponentProps<typeof SignInPageContent>) {
+  return (
+    <AuthRequestBoundary key={props.redirect ?? ''}>
+      <SignInPageContent {...props} />
+    </AuthRequestBoundary>
+  )
+}
+
+function SignInPageContent({
   redirect,
   searchError,
   socialProviders = NO_SOCIAL_PROVIDERS,
@@ -233,13 +256,14 @@ export function SignInPage({
   // The Local Auth Paths as one screen's modes: password (default) and the
   // emailed link. Mode is UI state, not a route, so switching loses nothing
   // but the unused field.
-  const [mode, setMode] = useState<'password' | 'link'>('password')
+  const [stage, setStage] = useState<'password' | 'link' | 'link-sent'>('password')
+  const mode = stage === 'password' ? 'password' : 'link'
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [ssoNotice, setSsoNotice] = useState<string | null>(null)
-  const [linkSent, setLinkSent] = useState(false)
-  // The challenge token; single-use, so a failed send clears it and the
-  // visitor answers a fresh challenge on retry.
-  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  // Every send consumes the challenge, including a rejected transport.
+  const challenge = useTurnstileChallenge(turnstileSiteKey)
+  const passwordRequest = useAuthRequest(signInFailed())
+  const linkRequest = useAuthRequest(m.auth_send_link_failed())
   // The refusal-hop notice is derived, not state: it describes how the visit
   // arrived, and a submit's own notice (fresher, from something the visitor
   // just did) supersedes it.
@@ -253,50 +277,61 @@ export function SignInPage({
 
   const passwordForm = useForm({
     defaultValues: { email: '', password: '' } satisfies SignInValues,
-    onSubmit: async ({ value }) => {
-      setSubmitError(null)
-      setSsoNotice(null)
-      await applySignInOutcome({
-        email: value.email,
-        password: value.password,
-        redirect,
-        resolveRouting,
-        push: (target) => {
-          router.history.push(target)
-        },
-        onSubmitError: setSubmitError,
-        onSsoNotice: setSsoNotice
+    onSubmit: async ({ value }) =>
+      passwordRequest.run(async (request) => {
+        setSubmitError(null)
+        setSsoNotice(null)
+        await applySignInOutcome({
+          email: value.email,
+          password: value.password,
+          redirect,
+          resolveRouting,
+          request,
+          push: (target) => {
+            router.history.push(target)
+          },
+          onSubmitError: setSubmitError,
+          onSsoNotice: setSsoNotice
+        })
       })
-    }
   })
 
   const linkForm = useForm({
     defaultValues: { email: '' },
-    onSubmit: async ({ value }) => {
-      setSubmitError(null)
-      if (turnstileSiteKey !== null && turnstileToken === null) {
-        setSubmitError(m.complete_bot_check_link())
-        return
-      }
-      const result = await sendMagicLink({
-        email: value.email,
-        turnstileToken: turnstileToken ?? undefined
+    onSubmit: async ({ value }) =>
+      linkRequest.run(async (request) => {
+        setSubmitError(null)
+        if (challenge.missing) {
+          setSubmitError(m.complete_bot_check_link())
+          return
+        }
+        const result = await sendMagicLink({
+          email: value.email,
+          turnstileToken: challenge.token
+        }).finally(() => {
+          if (request.current()) {
+            challenge.consume()
+          }
+        })
+        if (!request.current()) {
+          return
+        }
+        if (result.error) {
+          // The captcha refusals (`captcha_rejected`, `captcha_unavailable`)
+          // are codes in the shared table, so the challenge-reset below is the
+          // only thing this branch adds to the mapped copy.
+          setSubmitError(authErrorCopy(result.error, m.auth_send_link_failed()))
+          return
+        }
+        setStage('link-sent')
       })
-      if (result.error) {
-        // The captcha refusals (`captcha_rejected`, `captcha_unavailable`)
-        // are codes in the shared table, so the challenge-reset below is the
-        // only thing this branch adds to the mapped copy.
-        setTurnstileToken(null)
-        setSubmitError(authErrorCopy(result.error, m.auth_send_link_failed()))
-        return
-      }
-      setLinkSent(true)
-    }
   })
 
   function fillDemoCredentials(credentials: { email: string; password: string }) {
-    setMode('password')
-    setLinkSent(false)
+    if (passwordRequest.busy()) {
+      return
+    }
+    setStage('password')
     setSubmitError(null)
     setSsoNotice(null)
     passwordForm.setFieldValue('email', credentials.email)
@@ -304,12 +339,12 @@ export function SignInPage({
   }
 
   if (mode === 'link') {
-    if (linkSent) {
+    if (stage === 'link-sent') {
       return (
         <AuthNoticeCard
           title={m.sign_in_with_email_link()}
           description={m.email_link_description()}
-          error={submitError}
+          error={submitError ?? linkRequest.error}
           footer={signInFooter({
             mode,
             redirect,
@@ -337,7 +372,7 @@ export function SignInPage({
             submittingLabel={m.sending()}
           />
         }
-        error={submitError}
+        error={submitError ?? linkRequest.error}
         notice={ssoNotice ?? authenticationNotice}
         footer={signInFooter({
           mode,
@@ -363,16 +398,16 @@ export function SignInPage({
               />
             )}
           </linkForm.Field>
-          {turnstileSiteKey === null ? null : (
-            <TurnstileWidget siteKey={turnstileSiteKey} onToken={setTurnstileToken} />
-          )}
+          {challenge.widget}
           <Button
             type="button"
             variant="link"
             onClick={() => {
+              if (linkRequest.busy()) {
+                return
+              }
               setSubmitError(null)
-              setLinkSent(false)
-              setMode('password')
+              setStage('password')
             }}
             className="justify-start p-0 text-sm"
           >
@@ -397,7 +432,7 @@ export function SignInPage({
           submittingLabel={m.signing_in()}
         />
       }
-      error={submitError}
+      error={submitError ?? passwordRequest.error}
       notice={ssoNotice ?? authenticationNotice}
       footer={signInFooter({
         mode,
@@ -405,8 +440,11 @@ export function SignInPage({
         socialProviders,
         onFillDemoCredentials: fillDemoCredentials,
         onUseLink: () => {
+          if (passwordRequest.busy()) {
+            return
+          }
           setSubmitError(null)
-          setMode('link')
+          setStage('link')
         }
       })}
     >
