@@ -1,6 +1,6 @@
 # Design
 
-The public site and Reference Application share shadcn/ui, Tailwind semantic tokens, and one Catppuccin Mocha scheme. Public pages distinguish themselves through composition and landing-page display type. [PRODUCT.md](PRODUCT.md) defines the audience and voice.
+The public site and Reference Application share native Foldkit controls, Tailwind semantic tokens, and one Catppuccin Mocha scheme. Shared control styles live in `apps/web/src/foldkit/shared/view.ts`. Public pages distinguish themselves through composition and landing-page display type. [PRODUCT.md](PRODUCT.md) defines the audience and voice.
 
 [apps/web/src/index.css](apps/web/src/index.css) is the source of truth for color values, typography tokens, radii, and theme scopes. Component variants own control dimensions. Change those definitions rather than maintaining copies here.
 
@@ -98,8 +98,8 @@ jumps settle immediately. Pointer
 presses on shared buttons use a small scale response. The document records the
 input method before control handlers run, including controls in portals.
 
-Base UI starting and ending states drive interruptible popup and sheet
-transitions. Sheets move from their anchored edge; dialogs stay centered.
+Foldkit models and managed resources own popup and sheet transition state and
+cleanup. Sheets move from their anchored edge; dialogs stay centered.
 Reduced motion retains fades and removes movement. The command palette opens
 and closes immediately, fits the dynamic viewport, and scrolls its results.
 Accordion height transitions reverse from their current position.

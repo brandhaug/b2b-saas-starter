@@ -179,6 +179,30 @@ describe('WorkspaceAssistantInvestigation', () => {
 })
 
 describe('saved investigations', () => {
+  // A paginated list can omit a valid URL-selected task. Its detail must still
+  // load, without substituting the first listed task or losing replay controls.
+  it('loads a directly linked task outside the initial task list', async () => {
+    const older = task({ id: 'task_older', sourceDeliveryId: 'whd_older' })
+    const get = vi.fn().mockResolvedValue(older)
+    await renderWorkbench(
+      {
+        tasks: [task()],
+        get,
+        create: vi.fn(),
+        approve: vi.fn(),
+        cancel: vi.fn()
+      },
+      '/workspaces/starter-lab/assistant?taskId=task_older'
+    )
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith({
+        data: { workspaceSlug: 'starter-lab', taskId: 'task_older' }
+      })
+    )
+    expect(await screen.findByText('whd_older')).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Approve replay' })).toBeDefined()
+  })
+
   it('polls a restored pending replay until delivered, then stops', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     const pending = task({

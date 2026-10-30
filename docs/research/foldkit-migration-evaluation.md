@@ -21,8 +21,9 @@ Browser acceptance remains the integration boundary. The React baseline passed
 65 browser tests with 11 optional analytics skips. The first integrated native
 validation passed 73 with the same 11 skips. Later visual corrections exposed a
 320px demo overflow; responsive button wrapping fixed it and the focused responsive
-suite passed. Final integrated `pnpm run validate` then passed, including 73 browser
-tests in 34.2 seconds with 11 optional analytics skips. Independent review results
+suite passed. After review repairs and upstream dependency integration, final
+`pnpm run validate` passed on the tree committed as `2dad439c`, including 74 browser
+tests in 34.7 seconds with 11 optional analytics skips. Independent review results
 and their exact revisions belong in the PR.
 
 SSR tests also exercise overlapping request-owned documentation rendering and
@@ -71,22 +72,22 @@ opens a fresh browser context for measurement. The baseline checkout has its own
 migrated and seeded local D1. CPU and network are unthrottled; background machine
 load is uncontrolled. These are local lab samples, not field Web Vitals.
 
-| Route                              | React LCP ms | Native LCP ms | React TTFB ms    | Native TTFB ms    |
-| ---------------------------------- | ------------ | ------------- | ---------------- | ----------------- |
-| `/`                                | 96, 92, 108  | 132, 136, 196 | 44.5, 36.5, 49.0 | 85.4, 88.7, 138.2 |
-| `/sign-in`                         | 56, 64, 36   | 76, 32, 32    | 13.8, 11.5, 8.0  | 22.3, 11.2, 11.6  |
-| `/docs/getting-started/quickstart` | 64, 84, 84   | 92, 96, 68    | 12.9, 21.5, 15.5 | 40.4, 47.0, 26.4  |
+| Route                              | React LCP ms | Native LCP ms | React TTFB ms    | Native TTFB ms   |
+| ---------------------------------- | ------------ | ------------- | ---------------- | ---------------- |
+| `/`                                | 96, 92, 108  | 100, 96, 92   | 44.5, 36.5, 49.0 | 58.0, 54.1, 53.3 |
+| `/sign-in`                         | 56, 64, 36   | 28, 28, 24    | 13.8, 11.5, 8.0  | 8.5, 7.9, 7.9    |
+| `/docs/getting-started/quickstart` | 64, 84, 84   | 60, 60, 60    | 12.9, 21.5, 15.5 | 23.2, 23.2, 22.1 |
 
 | Route                              | React transferred JS bytes | Native transferred JS bytes | React decoded JS bytes | Native decoded JS bytes | React / native script count |
 | ---------------------------------- | -------------------------: | --------------------------: | ---------------------: | ----------------------: | --------------------------- |
-| `/`                                |                     405011 |                      370340 |                1087893 |                 1548794 | 89 / 1                      |
-| `/sign-in`                         |                     396131 |                      370340 |                1053821 |                 1548794 | 92 / 1                      |
-| `/docs/getting-started/quickstart` |                     397100 |                      370340 |                1059636 |                 1548794 | 90 / 1                      |
+| `/`                                |                     405011 |                      370341 |                1087893 |                 1548794 | 89 / 1                      |
+| `/sign-in`                         |                     396131 |                      370341 |                1053821 |                 1548794 | 92 / 1                      |
+| `/docs/getting-started/quickstart` |                     397100 |                      370341 |                1059636 |                 1548794 | 90 / 1                      |
 
 Native transferred JavaScript is about 6.5–8.6% smaller, but decoded JavaScript is
 about 42–47% larger. One script replaces many route/module requests. Fewer requests
 and fewer transferred bytes do not establish lower parse or execution cost.
-The native homepage's observed LCP and TTFB are worse in these samples.
+Homepage median LCP is unchanged; homepage and docs TTFB are higher in these samples.
 
 Accumulated layout shift at the measurement boundary changed from
 0.0000151 to 0.0000943 on the homepage, 0.0073802 to 0.0037036 on sign-in,
@@ -94,7 +95,7 @@ and 0.0000151 to zero on quickstart. This sum is not the session-window CLS metr
 
 The representative sign-in interaction fills the email field, asserts the resulting
 value, then waits two animation frames. React samples were 40.3, 54.1 and 73.2ms;
-native samples were 67.1, 98.5 and 197.5ms. These durations include Playwright
+native samples were 42.0, 35.0 and 34.8ms. These durations include Playwright
 transport, actionability and assertion overhead. They are a repeatable end-to-end
 response proxy, not input-to-paint or INP measurements. No field INP evidence was
 collected, and this one interaction does not characterize the whole application.

@@ -345,15 +345,16 @@ function updateWorkspace(
       const next = { ...model, ready: true }
       if (model.page._tag === 'assistant' && !model.flags.preview) {
         const result = perform(next, { _tag: 'ListConversations', cursor: null })
+        const taskId = query(next, 'taskId') || next.assistant.selectedTask?.id
         return {
           ...result,
           commands: [
             ...(result.commands ?? []),
-            ...(next.assistant.selectedTask
+            ...(taskId
               ? [
                   Run({
                     model: result.model,
-                    action: { _tag: 'ReadTask', id: next.assistant.selectedTask.id }
+                    action: { _tag: 'ReadTask', id: taskId }
                   })
                 ]
               : [])
