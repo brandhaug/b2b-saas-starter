@@ -51,7 +51,8 @@ Remaining constraints:
 
 - Foldkit SSR is experimental. Exact package pins and compiled-host checks remain
   necessary for upgrades.
-- Better Auth 1.7.13 lists at most 100 unordered sessions without pagination. The
+- Better Auth's session listing uses an unpaginated adapter read, bounded to 100
+  unordered rows in the verified 1.7.13 baseline and retained by the 1.7.14 update. The
   UI merges the authoritative current session, but other-session listing and SDK
   bulk revocation remain bounded.
 - Concurrent local browser hosts produced `SQLITE_BUSY_RECOVERY`. The final D1
