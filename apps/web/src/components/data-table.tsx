@@ -22,7 +22,9 @@ import {
   type ColumnDef,
   type ReactTable,
   type RowData,
-  type SortingState
+  type SortingState,
+  type PaginationState,
+  type Updater
 } from '@tanstack/react-table'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -102,9 +104,22 @@ type DataTableProps<TData extends RowData> = {
   readonly manualSorting?: boolean
   readonly sort?: {
     readonly value: SortingState
-    readonly onChange: (value: SortingState) => void
+    readonly onChange: (value: Updater<SortingState>) => void
+  }
+  readonly search?: {
+    readonly value: string
+    readonly onChange: (value: string) => void
+  }
+  readonly pagination?: {
+    readonly value: PaginationState
+    readonly onChange: (value: Updater<PaginationState>) => void
   }
   readonly children: ReactNode
+}
+
+type ControlledPaginationOptions = {
+  onPaginationChange?: (next: Updater<PaginationState>) => void
+  autoResetPageIndex?: boolean
 }
 
 function DataTableTable<TData extends RowData>({
@@ -337,24 +352,36 @@ export function DataTable<TData extends RowData>({
   tableLabel,
   manualSorting = false,
   sort,
+  search,
+  pagination,
   children
 }: DataTableProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>([])
-  const [globalFilter, setGlobalFilter] = useState('')
+  const [localFilter, setLocalFilter] = useState('')
+  const globalFilter = search?.value ?? localFilter
+  const setGlobalFilter = search?.onChange ?? setLocalFilter
   const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({})
+  const state = { sorting: sort?.value ?? sorting, globalFilter, columnVisibility }
+  const paginationOptions: ControlledPaginationOptions = {}
+  if (pagination) {
+    paginationOptions.onPaginationChange = pagination.onChange
+    paginationOptions.autoResetPageIndex = false
+  }
   const table = useTable({
     features: dataTableFeatures,
     data,
     columns,
-    state: { sorting: sort?.value ?? sorting, globalFilter, columnVisibility },
+    state: pagination ? { ...state, pagination: pagination.value } : state,
+    ...paginationOptions,
     onSortingChange: (next) => {
-      const value = functionalUpdate(next, sort?.value ?? sorting)
       if (sort) {
-        sort.onChange(value)
+        sort.onChange(next)
       } else {
-        setSorting(value)
+        setSorting((current) => functionalUpdate(next, current))
       }
-      table.setPageIndex(0)
+      if (!pagination) {
+        table.setPageIndex(0)
+      }
     },
     enableSorting: !manualSorting,
     manualSorting,
@@ -373,7 +400,9 @@ export function DataTable<TData extends RowData>({
         pagination: table.state.pagination,
         setGlobalFilter: (filterValue: string) => {
           setGlobalFilter(filterValue)
-          table.setPageIndex(0)
+          if (!pagination) {
+            table.setPageIndex(0)
+          }
         },
         previousPage: () => table.previousPage(),
         nextPage: () => table.nextPage(),

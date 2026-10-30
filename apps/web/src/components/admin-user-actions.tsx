@@ -4,7 +4,8 @@ import {
   type WorkspaceRole
 } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { type WorkspaceWithMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
-import { useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useWorkspaceView } from '@/lib/workspace-view'
 
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -67,87 +68,104 @@ export function AdminUserActions({
   readonly listWorkspaces?: ListUserWorkspaces
   readonly changeUserRole?: ChangeUserWorkspaceRole
 }) {
-  const [selectedId, setSelectedId] = useState<string>(users[0]?.id ?? '')
-  const [memberships, setMemberships] =
-    useState<ReadonlyArray<WorkspaceWithMembership> | null>(null)
+  const { view, update } = useWorkspaceView()
+  const selectedId = view.record ?? users[0]?.id ?? ''
+  return (
+    <div className="grid gap-2 rounded-none bg-muted p-3">
+      <p className="text-xs text-muted-foreground">{m.workspace_roles()}</p>
+      <Select
+        value={selectedId}
+        onValueChange={(value) => update({ record: String(value) })}
+        items={users.map((user) => ({
+          value: user.id,
+          label: `${user.name} (${user.email})`
+        }))}
+      >
+        <SelectTrigger aria-label={m.select_user()} className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            {users.map((user) => (
+              <SelectItem key={user.id} value={user.id}>
+                {user.name} ({user.email})
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+      <UserMembershipEditor
+        key={selectedId}
+        users={users}
+        selectedId={selectedId}
+        enabled={view.record !== undefined}
+        selectUser={(record) => update({ record })}
+        listWorkspaces={listWorkspaces}
+        changeUserRole={changeUserRole}
+      />
+    </div>
+  )
+}
 
-  /** The one read this editor makes: every membership held by one user. */
-  function readMemberships(userId: string) {
-    return listWorkspaces({ data: { userId } })
-  }
-
-  // A read, so there is no loader to re-run — it just refills the editor.
-  const loadWorkspaces = useServerAction(readMemberships, {
-    failureMessage: m.load_workspaces_failed(),
-    invalidate: false,
-    onSuccess: setMemberships
+function UserMembershipEditor({
+  users,
+  selectedId,
+  enabled,
+  selectUser,
+  listWorkspaces,
+  changeUserRole
+}: {
+  readonly users: ReadonlyArray<SystemUser>
+  readonly selectedId: string
+  readonly enabled: boolean
+  readonly selectUser: (id: string) => void
+  readonly listWorkspaces: ListUserWorkspaces
+  readonly changeUserRole: ChangeUserWorkspaceRole
+}) {
+  const queryClient = useQueryClient()
+  const selected = users.find((user) => user.id === selectedId)
+  const loadWorkspaces = useQuery({
+    queryKey: ['admin-user-workspaces', selectedId],
+    queryFn: () => listWorkspaces({ data: { userId: selectedId } }),
+    enabled: enabled && selected !== undefined,
+    retry: false
   })
-
-  // Re-reads the memberships after the write, through the same folded call, so
-  // the editor shows the role it just wrote and a read failure lands in error
-  // state instead of escaping as an unhandled rejection.
   const changeRole = useServerAction(
-    async (change: RoleChange) => {
-      await changeUserRole({
+    (change: RoleChange) =>
+      changeUserRole({
         data: {
           userId: change.member.id,
           workspaceId: change.workspaceId,
           role: change.role
         }
-      })
-      return readMemberships(change.member.id)
-    },
-    { failureMessage: m.role_change_failed(), onSuccess: setMemberships }
+      }),
+    {
+      failureMessage: m.role_change_failed(),
+      onSuccess: (_member, change) =>
+        queryClient.invalidateQueries({
+          queryKey: ['admin-user-workspaces', change.member.id],
+          exact: true
+        })
+    }
   )
-
-  function selectUser(userId: string) {
-    setSelectedId(userId)
-    setMemberships(null)
-    loadWorkspaces.run(userId)
-  }
-
-  const busy = loadWorkspaces.pending || changeRole.pending
-  const error = loadWorkspaces.error ?? changeRole.error
-  const selected = users.find((user) => user.id === selectedId)
+  const memberships = loadWorkspaces.data
+  const busy = loadWorkspaces.isFetching || changeRole.pending
+  const error = loadWorkspaces.isError ? m.load_workspaces_failed() : changeRole.error
 
   return (
     <div className="grid gap-4">
-      <div className="grid gap-2 rounded-none bg-muted p-3">
-        <p className="text-xs text-muted-foreground">{m.workspace_roles()}</p>
-        <Select
-          value={selectedId}
-          onValueChange={(value) => selectUser(String(value))}
-          items={users.map((user) => ({
-            value: user.id,
-            label: `${user.name} (${user.email})`
-          }))}
-        >
-          <SelectTrigger
-            aria-label={m.select_user()}
-            className="w-full"
-            disabled={busy}
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              {users.map((user) => (
-                <SelectItem key={user.id} value={user.id}>
-                  {user.name} ({user.email})
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
+      <div className="grid gap-2">
         <Button
           variant="ghost"
-          disabled={busy || !selectedId}
-          onClick={() => selectUser(selectedId)}
+          disabled={busy || !selected}
+          onClick={() =>
+            enabled ? void loadWorkspaces.refetch() : selectUser(selectedId)
+          }
         >
           {m.admin_load_workspaces()}
-          {loadWorkspaces.pending ? <Spinner data-icon="inline-end" /> : null}
+          {loadWorkspaces.isFetching ? <Spinner data-icon="inline-end" /> : null}
         </Button>
-        {memberships === null ? null : (
+        {memberships === undefined ? null : (
           <MembershipList
             memberships={memberships}
             selectedName={selected?.name}

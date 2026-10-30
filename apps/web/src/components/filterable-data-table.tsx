@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react'
-import { type RowData } from '@tanstack/react-table'
+import { functionalUpdate, type RowData } from '@tanstack/react-table'
 import { applyTableView, type TableViewField } from '@/lib/table-view'
 import { useTableView } from '@/lib/use-table-view'
 import { TableViewControls } from './table-view-controls'
@@ -48,19 +48,40 @@ export function FilterableDataTable<TData extends RowData>({
       {...(pageSize === undefined ? {} : { pageSize })}
       tableLabel={tableLabel}
       emptyMessage={emptyMessage}
+      search={{
+        value: view.query ?? '',
+        onChange: (query) => setView((current) => ({ ...current, query }))
+      }}
+      pagination={{
+        value: { pageIndex: view.pageIndex ?? 0, pageSize: pageSize ?? 10 },
+        onChange: (next) =>
+          setView((current) => ({
+            ...current,
+            pageIndex: functionalUpdate(next, {
+              pageIndex: current.pageIndex ?? 0,
+              pageSize: pageSize ?? 10
+            }).pageIndex
+          }))
+      }}
       sort={{
         value: view.sorts.map((item) => ({
           id: item.field,
           desc: item.direction === 'desc'
         })),
         onChange: (sorting) =>
-          setView({
-            ...view,
-            sorts: sorting.map((item) => ({
+          setView((current) => ({
+            ...current,
+            sorts: functionalUpdate(
+              sorting,
+              current.sorts.map((item) => ({
+                id: item.field,
+                desc: item.direction === 'desc'
+              }))
+            ).map((item) => ({
               field: item.id,
               direction: item.desc ? 'desc' : 'asc'
             }))
-          })
+          }))
       }}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">

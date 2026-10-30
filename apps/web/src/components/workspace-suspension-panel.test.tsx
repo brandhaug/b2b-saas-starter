@@ -8,7 +8,52 @@ import {
 } from './workspace-suspension-panel'
 import { renderWithRouter } from '@/test/router-harness'
 
+function deferred<A>() {
+  let settle: ((value: A) => void) | undefined
+  const promise = new Promise<A>((resolve) => {
+    settle = resolve
+  })
+  if (settle === undefined) {
+    throw new Error('Promise executor did not run synchronously')
+  }
+  return { promise, resolve: settle }
+}
+
 describe('WorkspaceSuspensionPanel', () => {
+  it('validates form submission and submits trimmed reasons once while pending', async () => {
+    const pending = deferred<undefined>()
+    const suspend = vi.fn<SuspendWorkspace>().mockReturnValue(pending.promise)
+    await renderWithRouter(
+      <WorkspaceSuspensionPanel
+        workspaceId="wrk_1"
+        workspaceName="Starter Lab"
+        suspension={{ status: 'active' }}
+        suspend={suspend}
+        reactivate={vi.fn<ReactivateWorkspace>()}
+      />
+    )
+    const form = screen.getByRole('form', { name: 'Starter Lab' })
+    fireEvent.submit(form)
+    expect(suspend).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByLabelText('Internal reason'), {
+      target: { value: '  Review  ' }
+    })
+    fireEvent.change(screen.getByLabelText('Customer explanation'), {
+      target: { value: ' Contact support. ' }
+    })
+    fireEvent.submit(form)
+    fireEvent.submit(form)
+    await waitFor(() => expect(suspend).toHaveBeenCalledTimes(1))
+    expect(suspend).toHaveBeenCalledWith({
+      data: {
+        workspaceId: 'wrk_1',
+        internalReason: 'Review',
+        customerExplanation: 'Contact support.'
+      }
+    })
+    pending.resolve(undefined)
+  })
+
   it('requires both reasons and keeps the internal note separate', async () => {
     const suspend = vi.fn<SuspendWorkspace>().mockResolvedValue(undefined)
     const reactivate = vi.fn<ReactivateWorkspace>().mockResolvedValue(undefined)

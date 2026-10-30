@@ -28,6 +28,28 @@ function Harness({ resetPage = true }: { readonly resetPage?: boolean }) {
 }
 
 describe('useTableView', () => {
+  it('composes two functional updates before a rerender', async () => {
+    function RapidUpdates() {
+      const { view, setView } = useTableView('members', fields, false)
+      return (
+        <Button
+          onClick={() => {
+            setView((current) => ({ ...current, match: 'any' }))
+            setView((current) => ({
+              ...current,
+              sorts: [{ field: 'name', direction: 'desc' }]
+            }))
+          }}
+        >
+          {view.match}:{view.sorts.length}
+        </Button>
+      )
+    }
+    await renderWithRouter(<RapidUpdates />)
+    fireEvent.click(screen.getByRole('button'))
+    await waitFor(() => expect(screen.getByRole('button').textContent).toBe('any:1'))
+  })
+
   it('preserves another list pagination when this table does not use URL pagination', async () => {
     const { router } = await renderWithRouter(<Harness resetPage={false} />, {
       initialEntry: '/?page=3&invitationQuery=invite'

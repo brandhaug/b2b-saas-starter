@@ -24,6 +24,8 @@ export type TableViewField = {
 }
 
 export type TableView = {
+  readonly query?: string
+  readonly pageIndex?: number
   readonly match: TableViewMatch
   readonly filters: ReadonlyArray<{
     readonly field: string
@@ -146,18 +148,37 @@ export function parseTableView(
     seenSortFields.add(sort.field)
     return true
   })
-  return {
+  let view: TableView = {
     match: decoded.match === 'any' ? 'any' : 'all',
     filters,
     sorts
   }
+  if (
+    typeof decoded.query === 'string' &&
+    decoded.query.length <= 512 &&
+    decoded.query !== ''
+  ) {
+    view = { ...view, query: decoded.query }
+  }
+  if (Number.isSafeInteger(decoded.pageIndex) && Number(decoded.pageIndex) > 0) {
+    view = { ...view, pageIndex: Number(decoded.pageIndex) }
+  }
+  return view
 }
 
 export function serializeTableView(view: TableView): string | undefined {
-  if (view.filters.length === 0 && view.sorts.length === 0 && view.match === 'all') {
+  if (
+    view.filters.length === 0 &&
+    view.sorts.length === 0 &&
+    view.match === 'all' &&
+    !view.query &&
+    !view.pageIndex
+  ) {
     return undefined
   }
   return JSON.stringify({
+    query: view.query || undefined,
+    pageIndex: view.pageIndex || undefined,
     match: view.match,
     filters: view.filters.slice(0, MAX_ITEMS),
     sorts: view.sorts.slice(0, MAX_ITEMS)
