@@ -33,6 +33,11 @@ test('reopens a private conversation across tabs without a configured provider',
   await expect(secondTab.getByText(connected, { exact: true })).toBeVisible()
   await secondTab.close()
   await page.goto('/workspaces/starter-lab')
+  await page.goBack()
+  await expect(page).toHaveURL(conversationUrl)
+  await expect(page.getByText(connected, { exact: true })).toBeVisible()
+  await page.goForward()
+  await expect(page).toHaveURL(/\/workspaces\/starter-lab$/)
   await page.goto(conversationUrl)
   await expect(page.getByText(connected, { exact: true })).toBeVisible()
   await page.screenshot({

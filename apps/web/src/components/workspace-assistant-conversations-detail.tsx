@@ -1,4 +1,6 @@
-import { useRef, useState } from 'react'
+import { useRef } from 'react'
+import { useForm, useSelector } from '@tanstack/react-form'
+import { useServerAction } from '@/hooks/use-server-action'
 import { Link } from '@tanstack/react-router'
 import {
   type ConversationPorts,
@@ -25,6 +27,7 @@ import { ConversationHistoryList } from './workspace-assistant-conversations-his
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 export function ConversationDetail({
+  actorId,
   workspaceSlug,
   conversationId,
   configured,
@@ -36,6 +39,7 @@ export function ConversationDetail({
   onChanged,
   onAccessLost
 }: {
+  readonly actorId?: string | undefined
   readonly workspaceSlug: string
   readonly conversationId: string
   readonly configured: boolean
@@ -43,19 +47,47 @@ export function ConversationDetail({
   readonly taskIds: ReadonlyArray<string>
   readonly ports: ConversationPorts
   readonly onSelectTask: (id: string) => void
-  readonly onDeleted: () => void
+  readonly onDeleted: () => void | Promise<void>
   readonly onAccessLost: () => void
-  readonly onChanged: () => void
+  readonly onChanged: () => void | Promise<void>
 }) {
   const state = useAssistantConversation(
     workspaceSlug,
     conversationId,
     ports,
-    onAccessLost
+    onAccessLost,
+    actorId
   )
-  const [question, setQuestion] = useState('')
-  const [pending, setPending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const form = useForm({
+    defaultValues: { question: '' },
+    onSubmit: async () => send()
+  })
+  const question = useSelector(form.store, (value) => value.values.question)
+  const action = useServerAction(
+    (input: {
+      call: () => Promise<ConversationResult<unknown>>
+      kind: 'change' | 'delete'
+    }) => callConversation(input.call),
+    {
+      failureMessage: m.assistant_unreachable(),
+      invalidate: false,
+      identityKey: `${actorId ?? ''}:${workspaceSlug}:${conversationId}`,
+      onSuccess: async (result, input) => {
+        if (!result.ok) {
+          return
+        }
+        if (input.kind === 'delete') {
+          await onDeleted()
+          return
+        }
+        await onChanged()
+        await state.refresh()
+      }
+    }
+  )
+  const pending = action.pending
+  const error =
+    action.error ?? (action.result?.ok === false ? action.result.message : null)
   const sendIntent = useRef<{
     readonly question: string
     readonly taskId: string | undefined
@@ -74,17 +106,10 @@ export function ConversationDetail({
     if (pending) {
       return false
     }
-    setPending(true)
-    setError(null)
-    const result = await callConversation(call)
-    // oxlint-disable-next-line react-doctor/no-loading-flag-reset-outside-finally -- callConversation folds transport rejections into a result and never rejects.
-    setPending(false)
-    if (!result.ok) {
-      setError(result.message)
+    const result = await action.runAsync({ call, kind: 'change' })
+    if (!result.ok || !result.value.ok) {
       return false
     }
-    onChanged()
-    await state.refresh()
     return true
   }
   async function send() {
@@ -107,7 +132,7 @@ export function ConversationDetail({
       Object.assign(data, { taskId })
     }
     if (await perform(() => ports.send({ data }))) {
-      setQuestion('')
+      form.reset()
       sendIntent.current = null
     }
   }
@@ -128,17 +153,10 @@ export function ConversationDetail({
     }
   }
   async function remove() {
-    setPending(true)
-    const result = await callConversation(() =>
-      ports.remove({ data: { workspaceSlug, conversationId } })
-    )
-    // oxlint-disable-next-line react-doctor/no-loading-flag-reset-outside-finally -- callConversation folds transport rejections into a result and never rejects.
-    setPending(false)
-    if (!result.ok) {
-      setError(result.message)
-      return
-    }
-    onDeleted()
+    await action.runAsync({
+      kind: 'delete',
+      call: () => ports.remove({ data: { workspaceSlug, conversationId } })
+    })
   }
   // oxlint-disable-next-line react-doctor/prefer-module-scope-static-value -- Locale message functions must run during render after language changes.
   const connectionLabels = {
@@ -168,7 +186,7 @@ export function ConversationDetail({
             </AlertDialogDescription>
             <AlertDialogFooter>
               <AlertDialogCancel>{m.common_cancel()}</AlertDialogCancel>
-              <AlertDialogAction onClick={() => void remove()}>
+              <AlertDialogAction disabled={blocked} onClick={() => void remove()}>
                 {m.assistant_conversations_delete()}
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -231,7 +249,7 @@ export function ConversationDetail({
         className="grid gap-3 border-t border-border pt-4"
         onSubmit={(event) => {
           event.preventDefault()
-          void send()
+          void form.handleSubmit()
         }}
       >
         {taskId ? (
@@ -244,7 +262,7 @@ export function ConversationDetail({
           <Textarea
             id="conversation-question"
             value={question}
-            onChange={(event) => setQuestion(event.target.value)}
+            onChange={(event) => form.setFieldValue('question', event.target.value)}
             maxLength={2000}
             rows={3}
             disabled={blocked || active || !configured}
