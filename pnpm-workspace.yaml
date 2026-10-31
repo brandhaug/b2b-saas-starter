@@ -26,8 +26,8 @@ catalog:
   '@cloudflare/ai-chat': 0.12.2
   agents: 0.30.1
   ai: 7.0.154
-  '@cloudflare/workers-types': 5.20261027.1
-  '@cloudflare/vitest-plugin': 1.4.8
+  '@cloudflare/workers-types': 5.20261028.1
+  '@cloudflare/vitest-plugin': 1.4.9
   '@effect/platform-node': 4.1.0
   '@effect/sql-d1': 4.1.0
   '@effect/vitest': 4.1.0
@@ -62,7 +62,7 @@ catalog:
   '@vitejs/plugin-react': 6.1.1
   '@vitest/coverage-v8': 5.0.3
   ws: 8.22.0
-  miniflare: 5.20261023.0-beta
+  miniflare: 5.20261023.1-beta
   esbuild: 0.28.2
   alchemy: 2.0.0-beta.84
   '@alchemy.run/cloudflare': 2.0.0-beta.84
@@ -104,7 +104,7 @@ catalog:
   tsrs: 0.18.0-ts7.1.0-dev.20260929
   vite: npm:@voidzero-dev/vite-plus-core@1.1.0
   vitest: 5.0.3
-  wrangler: 4.153.0
+  wrangler: 4.154.0
   vite-plus: 1.1.0
 
 minimumReleaseAgeExclude:
