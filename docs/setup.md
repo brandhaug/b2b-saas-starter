@@ -3,7 +3,11 @@
 ## Local development
 
 Requires the [Vite+ CLI](https://viteplus.dev) (`vp`), which provides the
-pinned Node runtime and pnpm.
+pinned Node 26 runtime and pnpm. `.node-version` selects the exact runtime for
+local commands and CI; `package.json` requires Node 26.13.0 or a later 26.x release.
+
+To use the same version outside the repo, run `vp env install 26.13.0` and
+`vp env default 26.13.0`. Check resolution with `vp env current` and `node --version`.
 
 ```bash
 git clone git@github.com:brandhaug/b2b-saas-starter.git
@@ -52,6 +56,36 @@ The current toolchain is Vite+ 1.1.0, with the `vite` alias pointing to
 [the bundled launch-editor advisory](https://github.com/advisories/GHSA-698v-4r3x-3vcv)
 affecting Vite+ through 1.0.0. Keep these versions coordinated through the target
 migrator; the existing React plugin remains compatible.
+
+### Node 26 feature assessment
+
+[Node 26](https://nodejs.org/en/blog/release/v26.0.0) enables Temporal,
+Map/WeakMap upsert methods and `Iterator.concat()`, and updates the built-in HTTP
+client to Undici 8. [26.13.0](https://nodejs.org/en/blog/release/v26.13.0) is the
+first Lithium LTS release, supported through April 2029.
+
+The runtime upgrade supplies the HTTP client improvements to Node tooling without
+code changes. Keep the existing native TypeScript execution for repository scripts;
+Node 26 removes `--experimental-transform-types`, which these scripts do not use.
+
+Temporal is worth considering when a Node-only tool needs calendar or time-zone
+arithmetic. The backup and recovery scripts currently compare UTC instants and
+elapsed milliseconds, so a conversion would add churn without solving a current
+problem. The existing Maps mostly index records or select the newest backup per
+day; upsert and iterator sequencing do not simplify those operations enough to
+justify a rewrite. No feature-specific code changes are needed for this upgrade.
+
+The [26.x changelog](https://github.com/nodejs/node/blob/v26.13.0/doc/changelogs/CHANGELOG_V26.md)
+also adds `crypto.randomUUIDv7()`, ZIP readers, `node:bench`, and
+`--process-timeout`. Consider the benchmark tools for a measured Node-script
+bottleneck. The repo has no Node-only requirement for ordered UUIDs or ZIP
+processing, and its CI jobs already bound execution time. Keep D1 access through
+Wrangler and the existing Vitest/Playwright coverage rather than adopting Node's
+SQLite or test runner APIs. FFI and virtual filesystems have no starter use case.
+
+Application code runs in Cloudflare Workers and browsers. Verify those runtimes
+before adopting these APIs in shared code; upgrading the local Node runtime does
+not establish their availability there.
 
 ## Type checking
 
@@ -144,7 +178,7 @@ remote D1 use the credentials in `packages/db/drizzle.config.ts`.
 ## Agent skills
 
 The `implement` workflow is included in the repo. Install its supporting skills
-globally with `pnpm run skills:setup` using Node 24 and Git.
+with `pnpm run skills:setup` using Node 26 and Git.
 See [shared skills](./agents/skills.md) for discovery, licenses, and updates.
 
 ## Deploying
