@@ -120,36 +120,33 @@ function fetchSource(
   temporary: string
 ) {
   const key = JSON.stringify([repository, revision])
-  const cached = cache.get(key)
-  if (cached) {
-    return cached
-  }
-  if (!/^[\da-f]{40}$/.test(revision)) {
-    throw new Error('Manifest revision must be a full commit SHA')
-  }
-  const checkout = join(temporary, String(cache.size))
-  for (const args of [
-    ['init', '--quiet', checkout],
-    ['-C', checkout, 'fetch', '--quiet', '--depth=1', repository, revision],
-    [
-      '-C',
-      checkout,
-      '-c',
-      'core.hooksPath=/dev/null',
-      'checkout',
-      '--quiet',
-      '--detach',
-      'FETCH_HEAD'
-    ]
-  ]) {
-    execFileSync('git', args, {
-      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
-      timeout: 180_000,
-      stdio: 'pipe'
-    })
-  }
-  cache.set(key, checkout)
-  return checkout
+  return cache.getOrInsertComputed(key, () => {
+    if (!/^[\da-f]{40}$/.test(revision)) {
+      throw new Error('Manifest revision must be a full commit SHA')
+    }
+    const checkout = join(temporary, String(cache.size))
+    for (const args of [
+      ['init', '--quiet', checkout],
+      ['-C', checkout, 'fetch', '--quiet', '--depth=1', repository, revision],
+      [
+        '-C',
+        checkout,
+        '-c',
+        'core.hooksPath=/dev/null',
+        'checkout',
+        '--quiet',
+        '--detach',
+        'FETCH_HEAD'
+      ]
+    ]) {
+      execFileSync('git', args, {
+        env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+        timeout: 180_000,
+        stdio: 'pipe'
+      })
+    }
+    return checkout
+  })
 }
 
 function inside(folder: string, path: string) {
