@@ -825,7 +825,7 @@ const { lint = {} } = defineConfig({
           'apps/web/scripts/agent-exports.verify.mjs'
         ],
         rules: {
-          // These CLIs and their tests run directly on Node 24, before app tooling.
+          // These CLIs and their tests run directly on Node 26, before app tooling.
           'vitest/no-import-node-test': 'off',
           'vitest/prefer-each': 'off'
         }

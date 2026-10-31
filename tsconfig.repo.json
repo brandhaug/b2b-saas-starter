@@ -7,7 +7,7 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "types": ["node"],
-    // Node 24 ships ES2025 built-ins (`RegExp.escape`) the CLIs use; the
+    // Node 26 ships ES2025 built-ins (`RegExp.escape`) the CLIs use; the
     // shared base targets the oldest runtime the app packages support.
     "lib": ["ES2025", "DOM", "DOM.Iterable"]
   },

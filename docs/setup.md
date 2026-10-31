@@ -3,7 +3,11 @@
 ## Local development
 
 Requires the [Vite+ CLI](https://viteplus.dev) (`vp`), which provides the
-pinned Node runtime and pnpm.
+pinned Node 26 runtime and pnpm. `.node-version` selects the exact runtime for
+local commands and CI; `package.json` requires Node 26.13.0 or a later 26.x release.
+
+To use the same version outside the repo, run `vp env install 26.13.0` and
+`vp env default 26.13.0`. Check resolution with `vp env current` and `node --version`.
 
 ```bash
 git clone git@github.com:brandhaug/b2b-saas-starter.git
@@ -144,7 +148,7 @@ remote D1 use the credentials in `packages/db/drizzle.config.ts`.
 ## Agent skills
 
 The `implement` workflow is included in the repo. Install its supporting skills
-globally with `pnpm run skills:setup` using Node 24 and Git.
+with `pnpm run skills:setup` using Node 26 and Git.
 See [shared skills](./agents/skills.md) for discovery, licenses, and updates.
 
 ## Deploying

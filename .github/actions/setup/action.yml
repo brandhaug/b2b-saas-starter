@@ -29,7 +29,7 @@ runs:
     - uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
       with:
         path: ~/.local/share/pnpm/store
-        key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+        key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml', '.node-version') }}
         restore-keys: |
           ${{ runner.os }}-pnpm-
     - run: vp install --frozen-lockfile
@@ -49,9 +49,9 @@ runs:
           packages/*/node_modules/.vite/vitest
           infra/node_modules/.vite/vitest
         # Task fingerprints already invalidate entries when source/config
-        # inputs change. Keep the archive scoped to this job and lockfile so
+        # inputs change. Keep the archive scoped to this job, runtime and lockfile so
         # a cache from quality/build cannot be mistaken for a test cache, and
         # dependency changes never fall back to an older dependency graph.
-        key: vite-task-${{ runner.os }}-${{ runner.arch }}-${{ github.workflow }}-${{ github.job }}-${{ strategy.job-index }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.run_id }}-${{ github.run_attempt }}
+        key: vite-task-${{ runner.os }}-${{ runner.arch }}-${{ github.workflow }}-${{ github.job }}-${{ strategy.job-index }}-${{ hashFiles('pnpm-lock.yaml', '.node-version') }}-${{ github.run_id }}-${{ github.run_attempt }}
         restore-keys: |
-          vite-task-${{ runner.os }}-${{ runner.arch }}-${{ github.workflow }}-${{ github.job }}-${{ strategy.job-index }}-${{ hashFiles('pnpm-lock.yaml') }}-
+          vite-task-${{ runner.os }}-${{ runner.arch }}-${{ github.workflow }}-${{ github.job }}-${{ strategy.job-index }}-${{ hashFiles('pnpm-lock.yaml', '.node-version') }}-

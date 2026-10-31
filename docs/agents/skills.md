@@ -25,7 +25,7 @@ This ignored directory stays outside the automatically discovered skill catalog.
 
 ## Setup
 
-With Node 24 and Git installed, run:
+With Node 26 and Git installed, run:
 
 ```bash
 pnpm run skills:setup
