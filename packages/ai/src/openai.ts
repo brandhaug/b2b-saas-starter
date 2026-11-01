@@ -73,9 +73,10 @@ export function makeOpenAIModel(config: OpenAIConfig) {
     'content-type': 'application/json'
   }
 
-  // Keep the bounded text-only compatible protocol. The official openai v6 SDK
-  // supports Workers, but its SSE decoder would replace our strict framing and
-  // unsupported-part checks; using its raw response still needs this decoder.
+  // openai 7.47.0's chat.completions.create stream stops at [DONE], accepting
+  // trailing data, and has no SSE event-size limit. Keep the bounded strict
+  // decoder and scoped transport; .asResponse() would retain both beneath an SDK.
+  // Checked operations and source evidence: docs/research/effect-4-adoption.md.
   const request = Effect.fn('OpenAI.request')(
     function* (payload: ChatRequest) {
       const client = yield* HttpClient.HttpClient

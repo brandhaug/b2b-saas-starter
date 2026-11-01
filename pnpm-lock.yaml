@@ -261,6 +261,9 @@ catalogs:
     standardwebhooks:
       specifier: 1.1.1
       version: 1.1.1
+    stripe:
+      specifier: 23.1.0
+      version: 23.1.0
     tailwindcss:
       specifier: 4.3.3
       version: 4.3.3
@@ -947,6 +950,9 @@ importers:
       effect:
         specifier: 'catalog:'
         version: 4.1.0
+      stripe:
+        specifier: 'catalog:'
+        version: 23.1.0(@types/node@26.6.6)
     devDependencies:
       '@effect/vitest':
         specifier: 4.1.0
@@ -7052,6 +7058,15 @@ packages:
     resolution: {integrity: sha512-vavAMRXOgBVNF6nyEEmL3DBK19iRpDcoIwW+swQ+CbGiu7lju6t+JklA1MHweoWtadgt4ISVUsXLyDq34ddcwA==}
     engines: {node: '>=4'}
 
+  stripe@23.1.0:
+    resolution: {integrity: sha512-fVUfMSfTPoukfoV//MUKAx2+YxyKmYaYtnAL9VkfnHfaPNQylFdWZMD+zgUFerI8rjbaiER8Vzj2XEUQ2AhAsQ==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@types/node': '>=20'
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
+
   strnum@2.5.1:
     resolution: {integrity: sha512-UM4nTLWzQiDBseVxUGxN0wJzIk0UU89Qi7pKXz9qISo+lhviJikTuikBsK/oFRlpvYHvSdz0TVoLyQ+sEpYwxA==}
 
@@ -13001,6 +13016,10 @@ snapshots:
       ansi-regex: 6.5.0
 
   strip-bom@3.0.0: {}
+
+  stripe@23.1.0(@types/node@26.6.6):
+    optionalDependencies:
+      '@types/node': 26.6.6
 
   strnum@2.5.1:
     dependencies:
