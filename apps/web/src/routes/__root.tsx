@@ -9,8 +9,8 @@ import '@fontsource-variable/geist-mono/index.css'
 // Latin variable woff2 for the text faces that render above the fold,
 // resolved by Vite so the preload href always matches the emitted asset.
 // Without these, the fonts start loading two round-trips deep (CSS → font
-// file) after first paint. Public and entry-auth layouts own the Geist Serif
-// preload; workspace pages still use the sans face.
+// file) after first paint. Public/entry-auth layouts and app page headers
+// own the Geist Serif preload, alongside the titles that use it.
 import geistLatinWoff2 from '@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url'
 import geistMonoLatinWoff2 from '@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2?url'
 import { type QueryClient } from '@tanstack/react-query'
