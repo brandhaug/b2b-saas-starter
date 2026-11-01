@@ -26,10 +26,11 @@ export default defineConfig({
     // timeout — a three-minute hang whose only symptom is a missing banner.
     // Fail fast instead so the cause is visible.
     command: devServer
-      ? `pnpm run dev --port ${port} --strictPort`
+      ? 'pnpm run dev'
       : `pnpm run build:e2e && pnpm run serve:e2e --port ${port} --strictPort`,
     url: baseURL,
     env: {
+      DEV_WEB_PORT: String(port),
       BETTER_AUTH_URL: baseURL,
       BETTER_AUTH_TRUSTED_ORIGINS: baseURL
     },

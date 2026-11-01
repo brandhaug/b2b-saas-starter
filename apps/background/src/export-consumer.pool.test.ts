@@ -9,7 +9,7 @@ import { applyPoolMigrations, consume, db, row, rows } from './test-pool.ts'
 
 // The export consumer's queue-runtime contract (ADR 0055), inside workerd
 // through `@cloudflare/vitest-plugin`: real D1 (the committed
-// migrations), the real R2 bucket from `wrangler.jsonc`, and real acks —
+// migrations), the real R2 bucket from `vite.config.ts`, and real acks —
 // asserted with `getQueueResult()`. Exports have no dead-letter queue: the
 // row is the record, so both a completed and a failed build end in an ack,
 // with the row carrying the outcome. No async functions on purpose — the
@@ -21,7 +21,7 @@ const WORKSPACE_SLUG = 'pool-exports'
 const EXPORT_ID = 'wexp_pool'
 const OBJECT_KEY = `workspaces/${WORKSPACE_ID}/${EXPORT_ID}.json.gz`
 
-/** The R2 binding the pool provisioned from `wrangler.jsonc`; always present under the pool. */
+/** The R2 binding the pool provisioned from `vite.config.ts`; always present under the pool. */
 function bucket() {
   const binding = env.WORKSPACE_EXPORT_BUCKET
   if (binding === undefined) {

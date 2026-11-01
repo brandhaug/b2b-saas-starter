@@ -74,11 +74,11 @@
     "packages/i18n/.generated/**"
   ],
   "dynamicallyLoaded": [
+    "apps/web/src/worker.ts",
     "packages/i18n/plugin-message-format.js",
     "apps/web/content/blog/*.mdx",
     "apps/web/content/docs/**/*.mdx",
     "apps/web/src/lib/cloudflare-workers-shim.ts",
-    "apps/web/src/lib/cloudflare-workers-shim-dev.ts",
     "apps/web/scripts/cloudflare-workers-shim-e2e.ts"
   ],
   "resolve": {

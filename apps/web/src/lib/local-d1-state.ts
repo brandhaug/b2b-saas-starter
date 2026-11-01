@@ -1,18 +1,15 @@
-// Single source of truth for the persisted local D1 location in packages/db
-// (created by `pnpm run db:migrate:local`). Node-only: the e2e smoke spec
-// imports it directly (Playwright runs in Node), and the dev shim imports it
-// dynamically behind its `import.meta.env.SSR` guard so the browser never
-// evaluates the node:* imports.
+// Node-only browser-test storage discovery. Alchemy dev and the compiled
+// Miniflare preview deliberately use separate disposable databases.
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
-/** Absolute path to packages/db, resolved from this module's location. */
-export const dbPackageDir = join(import.meta.dirname, '../../../../packages/db')
-
-/** Wrangler persist root passed to getPlatformProxy. */
-export const localD1PersistPath = join(dbPackageDir, '.wrangler/state/v3')
+const root = join(import.meta.dirname, '../../../..')
+export const localD1Directory =
+  process.env.E2E_SERVER === 'dev'
+    ? join(root, '.alchemy/local/d1/cloudflare-runtime-D1DatabaseObject')
+    : join(root, 'packages/db/.wrangler/state/v3/d1/miniflare-D1DatabaseObject')
 
 /** Whether a migrated local D1 exists under the persist root. */
 export function hasLocalD1State(): boolean {
-  return existsSync(join(localD1PersistPath, 'd1'))
+  return existsSync(localD1Directory)
 }

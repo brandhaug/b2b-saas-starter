@@ -6,9 +6,9 @@ Canonical: /en/docs/getting-started/cloudflare-deployment
 Source: apps/web/content/docs/getting-started/cloudflare-deployment.mdx
 Language: en
 
-Alchemy declares production resources in `alchemy.run.ts`. Shared queue and
-rate-limit settings live in `infra/bindings.ts`; `pnpm run infra:wrangler`
-generates local Wrangler configurations from those settings.
+Alchemy declares local and production resources in `alchemy.run.ts`. Shared
+queue and rate-limit settings live in `infra/bindings.ts`. `pnpm run dev` runs
+the stack with Alchemy's local emulators, without generated Wrangler configs.
 
 ## Deploy
 

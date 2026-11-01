@@ -35,14 +35,6 @@ jobs:
       # Fallow is pinned in the workspace catalog so local and CI runs use the
       # same analyzer binary.
       - run: vp run dead-code
-      # The wrangler configs are generated from infra/bindings.ts. Regenerating
-      # them must be a no-op; a hand-edited config (or a spec change nobody
-      # re-ran) shows up as a diff here instead of as a worker that drifted
-      # from its production deploy.
-      - name: Wrangler configs are up to date
-        run: |
-          pnpm run infra:wrangler
-          git diff --exit-code -- apps/*/wrangler.jsonc
 
   # Web and capabilities tests can start immediately instead of waiting for
   # dependency tests. The complementary filters include every workspace,
@@ -157,6 +149,26 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  alchemy-local:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm -C apps/web exec playwright install --with-deps --only-shell chromium
+      # Fresh Alchemy state, migrations and seed; no Wrangler database or credentials.
+      - run: pnpm run test:e2e:alchemy
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() }}
+        with:
+          name: alchemy-local-${{ github.run_attempt }}
+          path: |
+            apps/web/test-results
+            apps/web/playwright-report
+          retention-days: 14
+
   analytics-consent:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -186,14 +198,15 @@ jobs:
   # Preserve the required check name while each shard owns its local D1.
   e2e:
     if: ${{ always() }}
-    needs: [e2e-shards, analytics-consent]
+    needs: [e2e-shards, analytics-consent, alchemy-local]
     runs-on: ubuntu-latest
     steps:
       - name: Verify every E2E shard succeeded
         env:
           RESULT: ${{ needs.e2e-shards.result }}
           ANALYTICS_RESULT: ${{ needs.analytics-consent.result }}
-        run: test "$RESULT" = success && test "$ANALYTICS_RESULT" = success
+          ALCHEMY_RESULT: ${{ needs.alchemy-local.result }}
+        run: test "$RESULT" = success && test "$ANALYTICS_RESULT" = success && test "$ALCHEMY_RESULT" = success
 
   deploy:
     if: >-

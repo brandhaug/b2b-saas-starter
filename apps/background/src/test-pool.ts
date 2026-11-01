@@ -14,7 +14,7 @@ import worker from './index.ts'
  * The scaffolding every `*.pool.test.ts` suite shares, so the next pool test
  * starts at `consume` instead of re-deriving the handler wiring: the worker's
  * real `queue` handler invoked the way the runtime invokes it (batch, env,
- * ctx), the D1 binding the pool provisioned from `wrangler.jsonc`, and the
+ * ctx), the D1 binding the pool provisioned from `vite.config.ts`, and the
  * committed migrations (a plain-data binding, installed by `vitest.config.ts`)
  * applied to that D1. Queue-specific fixtures — message builders, table
  * seeds — stay beside their suite.
@@ -23,11 +23,11 @@ import worker from './index.ts'
 /** D1 hands text and integer columns back as strings, numbers, or null. */
 export type PoolRow = Readonly<Record<string, string | number | null>>
 
-/** The D1 binding the pool provisioned from `wrangler.jsonc`; always present under the pool. */
+/** The D1 binding the pool provisioned from `vite.config.ts`; always present under the pool. */
 export function db(): D1Database {
   const binding = env.DB
   if (binding === undefined) {
-    // oxlint-disable-next-line effect/noThrowStatement, effect/noNewError -- a missing binding means the pool never started (wrangler.jsonc unreadable); there is no Effect channel to defect into from a promise-based helper, and no test could run past this
+    // oxlint-disable-next-line effect/noThrowStatement, effect/noNewError -- a missing binding means the pool configuration is invalid; there is no Effect channel to defect into from a promise-based helper, and no test could run past this
     throw new Error('expected the workers pool to provision the DB binding')
   }
   return binding

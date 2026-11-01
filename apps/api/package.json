@@ -3,7 +3,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --local --port 8787 --inspector-port 9787",
     "build": "tsrs --noEmit",
     "typecheck": "tsrs --noEmit",
     "test": "vp test run --passWithNoTests"

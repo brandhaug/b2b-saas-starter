@@ -1,5 +1,8 @@
 import { requiredEnv } from './scripts/lib/env.ts'
 import * as Alchemy from 'alchemy'
+import { AlchemyContext } from 'alchemy/AlchemyContext'
+import { localState } from 'alchemy/State/LocalState'
+import * as Layer from 'effect/Layer'
 import * as Output from 'alchemy/Output'
 import * as Cloudflare from '@alchemy.run/cloudflare'
 import * as Effect from 'effect/Effect'
@@ -117,7 +120,6 @@ function presentEntries<A>(
 // `deploy:stage`/`destroy:stage` scripts pass `$ALCHEMY_STAGE` through as the
 // flag). It is read inside the Stack below via the `Stage` service, so the
 // module scope only resolves the values that do not depend on it.
-const BETTER_AUTH_SECRET = Redacted.make(requiredEnv('BETTER_AUTH_SECRET'))
 // Preview stages (ADR 0054) can derive their URL from the account's
 // `workers.dev` subdomain instead of requiring a per-PR `BETTER_AUTH_URL`.
 const CLOUDFLARE_WORKERS_SUBDOMAIN = readEnv('CLOUDFLARE_WORKERS_SUBDOMAIN')
@@ -202,12 +204,8 @@ const observability: Cloudflare.WorkerObservability = {
 // services; the web worker serves the document and stays near the eyeball.
 const smartPlacement: Cloudflare.WorkerPlacement = { mode: 'smart' }
 
-// One worker shape shared by all three workers: the compatibility date comes
-// from `infra/bindings.ts`, the same constant `infra/write-wrangler.ts`
-// generates each wrangler.jsonc from, so production can never run a different
-// runtime behavior than local dev — a date that silently dropped off the web
-// worker once already (it defaulted to Alchemy's fallback while wrangler dev
-// pinned one).
+// One Worker shape for local development and production. Runtime compatibility
+// also feeds isolated workerd tests through infra/bindings.ts.
 const workerDefaults = {
   // Keep the stable workers.dev address as the default public host when a
   // deployment has no custom domain, without publishing per-version previews.
@@ -223,43 +221,83 @@ export const Stack = Alchemy.Stack(
   'b2b-saas-starter',
   {
     providers: Cloudflare.providers(),
-    state: Cloudflare.state()
+    state: Layer.unwrap(
+      Effect.map(AlchemyContext, ({ dev }) => (dev ? localState() : Cloudflare.state()))
+    )
   },
   Effect.gen(function* () {
     // `prod` keeps the historical names; any other stage gets its own D1,
     // queues, and Workers under `b2b-saas-starter-<stage>-…` (infra/bindings.ts).
     const stage = yield* Alchemy.Stage
+    const { dev } = yield* AlchemyContext
+    const webPort = dev
+      ? yield* Config.Port('DEV_WEB_PORT').pipe(Config.withDefault(3071))
+      : 3071
+    const apiPort = dev
+      ? yield* Config.Port('DEV_API_PORT').pipe(Config.withDefault(8787))
+      : 8787
+    const backgroundPort = dev
+      ? yield* Config.Port('DEV_BACKGROUND_PORT').pipe(Config.withDefault(8788))
+      : 8788
+    const BETTER_AUTH_SECRET = Redacted.make(
+      dev
+        ? readEnv('BETTER_AUTH_SECRET') || 'local-dev-secret'
+        : requiredEnv('BETTER_AUTH_SECRET')
+    )
     const names = stageResourceNames(stage)
     const emailFrom = emailFromForStage(stage)
-    const subdomain =
-      CLOUDFLARE_WORKERS_SUBDOMAIN ||
-      (yield* Effect.tryPromise({
-        try: () =>
-          resolveSubdomain(
-            requiredEnv('CLOUDFLARE_ACCOUNT_ID'),
-            requiredEnv('CLOUDFLARE_API_TOKEN')
-          ),
-        catch: (cause) =>
-          new Config.ConfigError(
-            new SourceError({
-              message: 'Cannot discover the deployment account workers.dev subdomain',
-              cause
-            })
-          )
-      }))
-    const origins = deploymentOrigins(stage, subdomain, settings.production.domains)
-    const providerEnv = { ...providerEnvForStage(stage), API_PUBLIC_URL: origins.api }
-    const domains = stage === productionStage ? settings.production.domains : undefined
+    const subdomain = dev
+      ? ''
+      : CLOUDFLARE_WORKERS_SUBDOMAIN ||
+        (yield* Effect.tryPromise({
+          try: () =>
+            resolveSubdomain(
+              requiredEnv('CLOUDFLARE_ACCOUNT_ID'),
+              requiredEnv('CLOUDFLARE_API_TOKEN')
+            ),
+          catch: (cause) =>
+            new Config.ConfigError(
+              new SourceError({
+                message: 'Cannot discover the deployment account workers.dev subdomain',
+                cause
+              })
+            )
+        }))
+    const origins = dev
+      ? {
+          web: `http://localhost:${webPort}`,
+          api: `http://localhost:${apiPort}`,
+          background: `http://localhost:${backgroundPort}`
+        }
+      : deploymentOrigins(stage, subdomain, settings.production.domains)
+    const localProviderEnv: Record<string, string> = {}
+    if (dev) {
+      localProviderEnv.ENVIRONMENT = 'development'
+      localProviderEnv.MCP_OAUTH_ISSUER = `${origins.web}/api/auth`
+      localProviderEnv.MCP_RESOURCE_URL = `${origins.api}/mcp`
+      localProviderEnv.ASSISTANT_RESOURCE_URL = `${origins.api}/assistant`
+    }
+    const providerEnv = {
+      ...providerEnvForStage(stage),
+      API_PUBLIC_URL: origins.api,
+      ...localProviderEnv
+    }
+    const domains =
+      !dev && stage === productionStage ? settings.production.domains : undefined
     const BETTER_AUTH_URL = origins.web
     const BETTER_AUTH_TRUSTED_ORIGINS = origins.web
 
-    const db = yield* Cloudflare.D1.Database('b2b-saas-starter-db', {
+    const databaseProps: Cloudflare.D1.DatabaseProps = {
       name: names.database,
       // Alchemy 2.0 takes the migrations input as `migrations` ({ dir, table? });
       // a `migrationsDir` prop is silently dropped and the database deploys with
       // no schema applied.
       migrations: { dir: './packages/db/migrations' }
-    })
+    }
+    if (dev) {
+      databaseProps.importFiles = ['./.alchemy/local-seed.sql']
+    }
+    const db = yield* Cloudflare.D1.Database('b2b-saas-starter-db', databaseProps)
 
     const webhookDeadLetterQueue = yield* Cloudflare.Queues.Queue('webhook-queue-dlq', {
       name: names.webhookDeadLetterQueue
@@ -348,7 +386,7 @@ export const Stack = Alchemy.Stack(
     // Alchemy owns the site and token. Explicit embedding avoids edge injection
     // and lets the application withhold all analytics until browser consent.
     const webAnalytics =
-      stage === productionStage
+      !dev && stage === productionStage
         ? yield* Cloudflare.Rum.Site('web-analytics', {
             host: new URL(BETTER_AUTH_URL).hostname,
             autoInstall: false
@@ -361,6 +399,7 @@ export const Stack = Alchemy.Stack(
     }
 
     const web = yield* Cloudflare.Website.Vite('web', {
+      dev: { port: webPort, strictPort: true },
       name: names.worker('web'),
       rootDir: './apps/web',
       domain: domains?.web ?? null,
@@ -390,6 +429,7 @@ export const Stack = Alchemy.Stack(
     })
 
     const api = yield* Cloudflare.Worker('api', {
+      dev: { port: apiPort, strictPort: true },
       name: names.worker('api'),
       main: workerMainPath('api'),
       domain: domains?.api ?? null,
@@ -416,6 +456,7 @@ export const Stack = Alchemy.Stack(
     })
 
     const background = yield* Cloudflare.Worker('background', {
+      dev: { port: backgroundPort, strictPort: true },
       name: names.worker('background'),
       main: workerMainPath('background'),
       domain: domains?.background ?? null,
@@ -435,13 +476,12 @@ export const Stack = Alchemy.Stack(
         ...workspaceExportBindings,
         ...providerEnv,
         RETENTION_DATABASE_TARGET: Output.map(db.databaseId, (databaseId) =>
-          retentionTargetKey('remote', stage, databaseId)
+          retentionTargetKey(dev ? 'local' : 'remote', stage, databaseId)
         )
       },
       ...workerDefaults,
       placement: smartPlacement,
-      // The daily notification digest (ADR 0061) — same constant the
-      // generated wrangler.jsonc carries under `triggers.crons`.
+      // Scheduled jobs run through the same triggers locally and in production.
       crons: [
         notificationDigestCron,
         notificationDigestRetryCron,

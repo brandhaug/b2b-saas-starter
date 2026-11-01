@@ -20,12 +20,9 @@ import remarkGfm from 'remark-gfm'
 import remarkMdxFrontmatter from 'remark-mdx-frontmatter'
 import { defineConfig, lazyPlugins, loadEnv, type PluginOption } from 'vite-plus'
 
-// Which `cloudflare:workers` shim to alias, or null to leave the specifier
-// alone (the deployed worker resolves it natively). `vite dev` gets the dev
-// shim, and the dedicated e2e build gets its Node preview shim; both attach
-// persisted local D1 when packages/db has migrated state. Tests and ordinary
-// opt-in builds keep the inert shim so bundles never pull in wrangler.
-function resolveWorkersShim(command: 'build' | 'serve', mode: string): string | null {
+// Alchemy supplies native bindings in development and deployment. Only isolated
+// tests, standalone builds, and the compiled Node E2E preview need a shim.
+function resolveWorkersShim(mode: string): string | null {
   if (
     mode !== 'test' &&
     mode !== 'e2e' &&
@@ -36,9 +33,7 @@ function resolveWorkersShim(command: 'build' | 'serve', mode: string): string | 
   if (mode === 'e2e') {
     return './scripts/cloudflare-workers-shim-e2e.ts'
   }
-  return command === 'serve' && mode !== 'test'
-    ? './src/lib/cloudflare-workers-shim-dev.ts'
-    : './src/lib/cloudflare-workers-shim.ts'
+  return './src/lib/cloudflare-workers-shim.ts'
 }
 
 // Without the shim (alchemy's deploy build), the two build targets need
@@ -145,7 +140,7 @@ function localWorkerLifecyclePlugin(): PluginOption {
 }
 
 export default defineConfig(({ command, mode }) => {
-  const workersShim = resolveWorkersShim(command, mode)
+  const workersShim = resolveWorkersShim(mode)
   if (command === 'build' && mode !== 'test') {
     execFileSync(
       process.execPath,

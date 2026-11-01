@@ -137,7 +137,7 @@ without a model provider; replay dispatch requires the webhook queue binding.
 
 ## Deployment & Infrastructure
 
-[alchemy.run.ts](alchemy.run.ts) provisions Workers, D1, SQLite conversation Durable Objects, queues, optional providers, and bindings. [infra/bindings.ts](infra/bindings.ts) owns resource names, rate-limit specifications, and cron schedules. Generated Wrangler configs support local development and database commands; change the source specifications and run `pnpm run infra:wrangler`.
+[alchemy.run.ts](alchemy.run.ts) provisions Workers, D1, SQLite conversation Durable Objects, queues, optional providers, and bindings for both deployment and `alchemy dev`. [infra/bindings.ts](infra/bindings.ts) owns resource names, rate-limit specifications, and cron schedules. Local development uses Alchemy's local state and emulators; no app Wrangler configs are maintained. `packages/db/wrangler.jsonc` remains a CLI/test helper for database operations and the compiled E2E preview.
 
 Each stage has isolated resources. `pr-<number>` stages disable optional providers and use public demo credentials; they must contain only synthetic data. The [preview workflow](.github/workflows/preview.yml) deploys and removes them with the PR lifecycle. Production deploys after CI/E2E on `master`, or through manual dispatch. See [deployment setup](docs/deploying.md).
 

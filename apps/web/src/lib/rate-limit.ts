@@ -14,7 +14,7 @@ import { Context, Layer } from 'effect'
 
 // Thin config module over @b2b-saas-starter/rate-limit: the binding names and
 // fallback limits come from `@b2b-saas-starter/infra` — the same records the
-// generated wrangler config and Alchemy's bindings are emitted from (a plain
+// Alchemy bindings are emitted from (a plain
 // leaf module, safe for the client bundle) — so this file owns only the
 // mechanism wiring. The mechanism (Cloudflare binding dispatch, module-scope
 // in-memory fallback, degraded-mode telemetry, clientKey) lives in the shared
@@ -23,7 +23,7 @@ import { Context, Layer } from 'effect'
 // request and never limit anything.
 
 // The env type is derived from the infra name record, not spelled: renaming a
-// binding in infra renames the key here and in the generated wrangler config
+// binding in infra renames the key here and in Alchemy
 // together, and a bucket added to infra surfaces here the moment its row is
 // written.
 export type RateLimitBindings = Readonly<

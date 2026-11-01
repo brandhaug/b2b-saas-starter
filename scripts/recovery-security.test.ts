@@ -14,7 +14,7 @@ import {
 
 const run = promisify(execFile)
 const ROOT = join(import.meta.dirname, '..')
-const CONFIG = join(ROOT, 'apps', 'api', 'wrangler.jsonc')
+const CONFIG = join(ROOT, 'packages', 'db', 'wrangler.jsonc')
 
 const bundle: SecurityEvidenceBundle = {
   version: 1,

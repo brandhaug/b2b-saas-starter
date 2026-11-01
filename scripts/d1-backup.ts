@@ -23,7 +23,7 @@ import { requiredEnv } from './lib/env.ts'
 const exec = promisify(execFile)
 const ROOT = join(import.meta.dirname, '..')
 const DEFAULT_WRANGLER = join(ROOT, 'node_modules', '.bin', 'wrangler')
-const CONFIG = join(ROOT, 'apps', 'api', 'wrangler.jsonc')
+const CONFIG = join(ROOT, 'packages', 'db', 'wrangler.jsonc')
 const MAGIC = Buffer.from('D1BACKUP\0', 'ascii')
 const COMPLETION_SUFFIX = '.complete.enc'
 const BACKUP_WINDOW_MS = 60_000

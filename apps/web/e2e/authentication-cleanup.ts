@@ -3,10 +3,10 @@ import assert from 'node:assert/strict'
 import { readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { localD1PersistPath } from '../src/lib/local-d1-state'
+import { localD1Directory } from '../src/lib/local-d1-state'
 
 export function removeBrowserTestPasskeys(): void {
-  const directory = join(localD1PersistPath, 'd1/miniflare-D1DatabaseObject')
+  const directory = localD1Directory
   const filename = readdirSync(directory).find(
     (name) => name.endsWith('.sqlite') && name !== 'metadata.sqlite'
   )

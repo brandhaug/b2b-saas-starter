@@ -80,7 +80,7 @@
       "canonicalUrl": "/en/docs/getting-started/cloudflare-deployment",
       "markdownUrl": "/agent-docs/getting-started/cloudflare-deployment.md",
       "sourcePath": "apps/web/content/docs/getting-started/cloudflare-deployment.mdx",
-      "digest": "sha256:108a272777388182de29b3e42c0aee7abf3d700e87204abfe79f7a0dc9486de1"
+      "digest": "sha256:48a6ae9e737afbbf4fcbeb94f2b474b0823fa4d32671c89269568a6ef9a0a5be"
     },
     {
       "id": "docs/getting-started/first-business-feature",
@@ -251,7 +251,7 @@
       "canonicalUrl": "/en/docs/operations/outbound-webhooks",
       "markdownUrl": "/agent-docs/operations/outbound-webhooks.md",
       "sourcePath": "apps/web/content/docs/operations/outbound-webhooks.mdx",
-      "digest": "sha256:638995a68563557798209fdd656a436d5fbe6d7b49349ef278d735fbcb1e2d2a"
+      "digest": "sha256:ebbbd8953deb7d9ca5ee40d1e6c38012972666700d3c73e5f3de4837df1fb307"
     }
   ]
 }

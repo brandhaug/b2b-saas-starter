@@ -2,7 +2,12 @@ import { cloudflareTest } from '@cloudflare/vitest-plugin'
 import { configDefaults, defineConfig } from 'vite-plus'
 
 import { readPoolMigrations } from './migrations.config.ts'
-import { productionStage, stageResourceNames } from '../../infra/bindings.ts'
+import {
+  productionStage,
+  stageResourceNames,
+  workerCompatibility,
+  queueBindingKeys
+} from '../../infra/bindings.ts'
 
 // Two projects, one file set each: the existing `*.test.ts` suites keep the
 // plain Node runner they run under today, and only the `*.pool.test.ts`
@@ -68,11 +73,26 @@ export default defineConfig({
         extends: false,
         plugins: [
           cloudflareTest({
-            // The generated wrangler config is the bindings source: the same
-            // D1 database, queue producers, and compatibility flags the
-            // worker deploys with, simulated by miniflare.
-            wrangler: { configPath: './wrangler.jsonc' },
+            // Isolated handler fixtures. Full-stack wiring belongs to Alchemy.
             miniflare: {
+              compatibilityDate: workerCompatibility.date,
+              compatibilityFlags: [...workerCompatibility.flags],
+              d1Databases: ['DB'],
+              r2Buckets: ['WORKSPACE_EXPORT_BUCKET'],
+              queueProducers: {
+                [queueBindingKeys.webhookQueue]:
+                  stageResourceNames(productionStage).webhookQueue,
+                [queueBindingKeys.billingQueue]:
+                  stageResourceNames(productionStage).billingQueue,
+                [queueBindingKeys.notificationEmailQueue]:
+                  stageResourceNames(productionStage).notificationEmailQueue
+              },
+              durableObjects: {
+                ASSISTANT_CONVERSATIONS: {
+                  className: 'WorkspaceAssistantConversation',
+                  scriptName: stageResourceNames(productionStage).worker('web')
+                }
+              },
               bindings: { TEST_MIGRATIONS: migrations },
               // These queue suites never access private conversations. Resolve the
               // cross-worker namespace and fail loudly if a queue path starts doing so;

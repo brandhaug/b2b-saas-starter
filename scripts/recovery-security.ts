@@ -7,7 +7,7 @@ import { parseArgs, promisify } from 'node:util'
 import { SecurityEvidenceRecord } from '@b2b-saas-starter/capabilities/governance/security-recovery-evidence'
 import { Schema } from 'effect'
 
-const CONFIG = join(import.meta.dirname, '..', 'apps', 'api', 'wrangler.jsonc')
+const CONFIG = join(import.meta.dirname, '..', 'packages', 'db', 'wrangler.jsonc')
 
 const execFilePromise = promisify(execFile)
 
