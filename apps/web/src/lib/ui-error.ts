@@ -14,6 +14,7 @@ export type UiErrorCode =
   | 'unauthorized'
   | 'strong_authentication_required'
   | 'invalid_timezone'
+  | 'invalid_calendar_day'
   | 'invalid_locale'
 
 export class UiError extends Error {
@@ -51,4 +52,8 @@ export const uiErrorAdapter = createSerializationAdapter({
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- TanStack error boundaries accept arbitrary thrown values; this predicate validates the UI error class.
 export function isStrongAuthenticationError(error: unknown): boolean {
   return error instanceof UiError && error.code === 'strong_authentication_required'
+}
+
+export function isInvalidCalendarDayError(error: unknown): error is UiError {
+  return error instanceof UiError && error.code === 'invalid_calendar_day'
 }

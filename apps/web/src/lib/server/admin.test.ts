@@ -10,6 +10,7 @@ import { replayWebhookDeliveryHandler } from './webhooks.effects'
 import type * as AuthModule from './auth'
 import * as capabilities from '../capabilities'
 import { webRuntime } from '../observability'
+import { withPresentation } from './i18n-context'
 
 type AdminTestActor = {
   userId: string
@@ -44,6 +45,29 @@ describe('admin failed deliveries boundary', () => {
     actor.role = 'admin'
     actor.impersonatedBy = null
     actor.signedIn = true
+  })
+
+  // A global delivery filter must use the same safe refusal as workspace audit.
+  it('maps a skipped last-attempt day to an allowlisted UI error', async () => {
+    await expect(
+      withPresentation(
+        { timeZone: 'Pacific/Apia', authenticated: true, needsTimeZone: false },
+        () =>
+          loadFailedDeliveriesHandler({
+            view: {
+              match: 'all',
+              filters: [
+                { field: 'lastAttemptAt', operator: 'is', value: '2011-12-30' }
+              ],
+              sorts: []
+            }
+          })
+      )
+    ).rejects.toMatchObject({
+      name: 'UiError',
+      code: 'invalid_calendar_day',
+      details: {}
+    })
   })
 
   it('lets a system admin with no workspace membership read and replay globally', async () => {

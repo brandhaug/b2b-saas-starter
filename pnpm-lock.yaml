@@ -186,6 +186,9 @@ catalogs:
     fallow:
       specifier: 3.37.0
       version: 3.37.0
+    ipaddr.js:
+      specifier: 2.5.0
+      version: 2.5.0
     js-yaml:
       specifier: 5.5.0
       version: 5.5.0
@@ -966,6 +969,9 @@ importers:
       effect:
         specifier: 'catalog:'
         version: 4.1.0
+      ipaddr.js:
+        specifier: 'catalog:'
+        version: 2.5.0
     devDependencies:
       '@effect/vitest':
         specifier: 4.1.0
@@ -5941,6 +5947,10 @@ packages:
 
   inline-style-parser@0.2.9:
     resolution: {integrity: sha512-IttN8BqKLxzUrnTqHI+/hwAJQItBAUjdoHERCDv+oOuX48VP6bzW8+QjOXSfoevzq3YrYAwX1uLHp8TqO9yIeg==}
+
+  ipaddr.js@2.5.0:
+    resolution: {integrity: sha512-aq+t5NAc+cS6rZQQVWC2x98CPqGtKKTMDd4Gaodv0wShnItdKg/51djkGJ1hqH+Oy0ivDftCbSLCQob8zso01w==}
+    engines: {node: '>= 10'}
 
   is-alphabetical@2.0.1:
     resolution: {integrity: sha512-FWyyY60MeTNyeSRpkM2Iry0G9hpr7/9kD40mD/cGQEuilcZYS4okz8SN2Q6rLCJ8gbCt6fN+rC+6tMGS99LaxQ==}
@@ -11415,6 +11425,8 @@ snapshots:
   inline-style-parser@0.2.7: {}
 
   inline-style-parser@0.2.9: {}
+
+  ipaddr.js@2.5.0: {}
 
   is-alphabetical@2.0.1: {}
 
