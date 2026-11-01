@@ -1,4 +1,4 @@
-import { defineRule } from '@oxlint/plugins'
+import { defineRule } from 'vite-plus/lint/plugins'
 
 /**
  * Reports an `interface` declared inside a `declare module` / `declare global` /

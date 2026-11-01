@@ -39,9 +39,9 @@ jobs:
 
       # The catalogs are pnpm-defined, so the action installs and audits
       # through pnpm (auto-detected from pnpm-workspace.yaml).
-      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
-      - uses: brandhaug/catalog-update-action@v1
+      - uses: brandhaug/catalog-update-action@631844f2157e6f96f27b94b88a174e076ff78c9d # v1.0.14
         with:
           config: '.catalog-updaterc.json'
           dry-run: 'false'

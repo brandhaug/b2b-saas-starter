@@ -42,6 +42,7 @@ export const currentTraceparent: Effect.Effect<string | undefined> = Effect.map(
 export const currentTraceId: Effect.Effect<string> = Effect.map(
   Effect.option(Effect.currentParentSpan),
   Option.match({
+    // oxlint-disable-next-line effect/noGlobals -- telemetry's platform adapter must create correlation ids before application services exist
     onNone: () => globalThis.crypto.randomUUID(),
     onSome: (span) => span.traceId
   })

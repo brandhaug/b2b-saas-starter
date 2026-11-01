@@ -26,7 +26,7 @@ runs:
         # selects pnpm from package.json's packageManager without Corepack.
         echo "$HOME/.local/share/vite-plus/bin" >> "$GITHUB_PATH"
       shell: bash
-    - uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.local/share/pnpm/store
         key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml', '.node-version') }}
@@ -38,7 +38,7 @@ runs:
     # needs a matching save step.
     - name: Cache Vite Task results
       if: ${{ inputs.cache-task == 'true' }}
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         # Vite Task reads Vitest's result metadata. Restore it too so a fresh
         # runner does not invalidate test tasks because that metadata is missing.

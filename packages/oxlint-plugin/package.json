@@ -11,10 +11,9 @@
     "test": "vp test run --passWithNoTests"
   },
   "dependencies": {
-    "@oxlint/plugins": "catalog:"
+    "vite-plus": "catalog:"
   },
   "devDependencies": {
-    "typescript": "catalog:",
-    "vite-plus": "catalog:"
+    "typescript": "catalog:"
   }
 }

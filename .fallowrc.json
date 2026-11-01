@@ -3,6 +3,9 @@
   "rules": {
     "circular-dependencies": "error"
   },
+  "health": {
+    "maxFileLines": 1000
+  },
   "entry": [
     "alchemy.run.ts",
     "alchemy.bootstrap.ts",
@@ -33,20 +36,15 @@
   ],
   "ignoreExportsUsedInFile": true,
   "ignoreDependencies": [
-    "@b2b-saas-starter/db",
     // The inlang SDK loads this through the local data-URL plugin bridge.
     "@inlang/plugin-message-format",
-    "@base-ui/react",
-    // Satisfies alchemy's peer dependency: alchemy's static imports resolve it
-    // eagerly at deploy time, so no first-party source file imports it.
-    "@effect/platform-node",
+    // Root lint.config.ts loads the ESLint subpath; Fallow misses this imported config.
+    "@inlang/paraglide-js",
     // Email preview server requirement: `email dev` prompts to install this
     // unless it is present; the preview loads it dynamically, so no source
     // file imports it.
     "@react-email/ui",
     "@tailwindcss/typography",
-    "babel-plugin-react-compiler",
-    "class-variance-authority",
     "cmdk",
     "eslint-plugin-better-tailwindcss",
     // lint.config.ts loads this subpath through jsPlugins rather than an import.
@@ -55,12 +53,10 @@
     "tailwindcss",
     // Root-level deploy/seed tooling: alchemy.run.ts and scripts/seed.ts are
     // infrastructure entries, not production runtime.
-    "alchemy",
     "@alchemy.run/cloudflare",
     "@alchemy.run/github",
     "@distilled.cloud/cloudflare",
     "effect",
-    "sonner",
     "tw-animate-css"
   ],
   // apps/web/src/components/ui is vendored shadcn output: every primitive stays

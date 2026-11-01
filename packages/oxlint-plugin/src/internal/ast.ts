@@ -1,9 +1,9 @@
-import { type ESTree } from '@oxlint/plugins'
+import { type ESTree } from 'vite-plus/lint/plugins'
 
 /**
  * The AST plumbing the starter rules share, and nothing else.
  *
- * Rules load inside oxlint's plugin runtime, so `@oxlint/plugins` stays the only
+ * Rules load inside oxlint's plugin runtime, so `vite-plus` stays the only
  * dependency: no `effect/Option` here. "Not found" is `undefined`, which is what
  * the oxc ESTree nodes already use for absent children.
  */
@@ -99,7 +99,7 @@ export function isIdentifier(
 /**
  * The parent link, or `undefined` at the root.
  *
- * `@oxlint/plugins` types `node.parent` as always present, but oxlint passes `null`
+ * Vite+'s plugin types declare `node.parent` as always present, but oxlint passes `null`
  * for the `Program` node, so a rule that walks upward and reads `.type` off it
  * throws at runtime. The type is wrong, which also means `no-unnecessary-condition`
  * calls the guard redundant and will happily delete it again. Annotating the value

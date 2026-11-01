@@ -1,4 +1,4 @@
-import { definePlugin } from '@oxlint/plugins'
+import { definePlugin } from 'vite-plus/lint/plugins'
 import noDarkPrefix from './rules/no-dark-prefix.ts'
 import noEffectInternalTags from './rules/no-effect-internal-tags.ts'
 import noHexColor from './rules/no-hex-color.ts'
