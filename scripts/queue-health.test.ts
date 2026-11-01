@@ -27,14 +27,14 @@ test('reads provider metrics without consuming any messages', async () => {
     environment,
     (url, init) => {
       assert.equal(
-        url,
+        url instanceof Request ? url.url : String(url),
         `https://api.cloudflare.com/client/v4/accounts/${account}/queues/${queueId}/metrics`
       )
-      assert.equal(init?.method, undefined)
+      assert.equal(init?.method, 'GET')
       return Promise.resolve(
         Response.json({
           success: true,
-          result: { backlog_count: 0, oldest_message_timestamp_ms: 0 }
+          result: { backlog_bytes: 0, backlog_count: 0, oldest_message_timestamp_ms: 0 }
         })
       )
     },

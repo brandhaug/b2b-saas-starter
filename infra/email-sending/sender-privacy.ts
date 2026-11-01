@@ -1,13 +1,15 @@
 import { Effect, Schema } from 'effect'
-import { HttpClientRequest } from 'effect/http'
+import {
+  getSubdomain,
+  editSubdomain,
+  type GetSubdomainResponse
+} from '@distilled.cloud/cloudflare/email-sending'
 import {
   Domain,
   Identifier,
-  apiUrl,
   authenticatedEmailClient,
   checkEnvironment,
-  emailApi,
-  envelope,
+  emailOperations,
   failure,
   missing,
   validateSenderZone
@@ -24,14 +26,14 @@ export type SenderPrivacyAttributes = SenderPrivacyProps & {
   readonly previewEnabled: boolean
 }
 const decodeProps = Schema.decodeEffect(SenderPrivacyProps)
-const Sender = Schema.Struct({
-  tag: Identifier,
-  name: Domain,
-  enabled: Schema.Boolean,
-  preview_enabled: Schema.Boolean
-})
-const SenderResponse = envelope(Sender)
-const DisablePreview = Schema.Struct({ preview_enabled: Schema.Literal(false) })
+const decodeSender = Schema.decodeUnknownEffect(
+  Schema.Struct({
+    tag: Identifier,
+    name: Domain,
+    enabled: Schema.Boolean,
+    previewEnabled: Schema.Boolean
+  })
+)
 
 const senderApi = Effect.fn('EmailSending.senderApi')(function* (
   input: SenderPrivacyProps
@@ -41,12 +43,14 @@ const senderApi = Effect.fn('EmailSending.senderApi')(function* (
   const props = yield* decodeProps(input).pipe(
     Effect.mapError(() => failure('scope', 'Invalid sender privacy scope'))
   )
-  const api = emailApi(environment.client)
-  yield* validateSenderZone(api, props)
-  const url = `${apiUrl}/zones/${props.zoneId}/email/sending/subdomains/${props.subdomainId}`
+  const run = yield* emailOperations
+  yield* validateSenderZone(run, props)
   const validate = Effect.fn('EmailSending.validateSender')(function* (
-    value: Schema.Schema.Type<typeof Sender>
+    response: GetSubdomainResponse
   ) {
+    const value = yield* decodeSender(response).pipe(
+      Effect.mapError(() => failure('sender', 'Malformed Cloudflare sender'))
+    )
     if (value.tag !== props.subdomainId || value.name !== props.domain) {
       return yield* failure(
         'scope',
@@ -56,23 +60,37 @@ const senderApi = Effect.fn('EmailSending.senderApi')(function* (
     if (!value.enabled) {
       return yield* failure('sender', 'Sending domain is not enabled')
     }
-    return { ...props, previewEnabled: value.preview_enabled }
+    return { ...props, previewEnabled: value.previewEnabled }
   })
-  return { api, url, validate }
+  function get() {
+    return run(
+      'GET',
+      getSubdomain({ zoneId: props.zoneId, subdomainId: props.subdomainId })
+    )
+  }
+  function disable() {
+    return run(
+      'PATCH',
+      editSubdomain({
+        zoneId: props.zoneId,
+        subdomainId: props.subdomainId,
+        previewEnabled: false
+      })
+    )
+  }
+  return { get, disable, validate }
 })
 
 /** Observe the setting so Alchemy detects remote drift. A missing sender is not recreated here. */
 export const readSenderPrivacy = Effect.fn('EmailSending.readSenderPrivacy')(function* (
   props: SenderPrivacyProps
 ) {
-  const { api, url, validate } = yield* senderApi(props)
-  const response = yield* missing(
-    api.decode(SenderResponse, HttpClientRequest.get(url))
-  )
+  const { get, validate } = yield* senderApi(props)
+  const response = yield* missing(get())
   if (!response) {
     return
   }
-  return yield* validate(response.result)
+  return yield* validate(response)
 })
 
 /** https://developers.cloudflare.com/api/resources/email_sending/subresources/subdomains/methods/edit/
@@ -80,18 +98,12 @@ export const readSenderPrivacy = Effect.fn('EmailSending.readSenderPrivacy')(fun
  */
 export const ensureSenderPrivacy = Effect.fn('EmailSending.ensureSenderPrivacy')(
   function* (props: SenderPrivacyProps) {
-    const { api, url, validate } = yield* senderApi(props)
-    const response = yield* api.decode(SenderResponse, HttpClientRequest.get(url))
-    const observed = yield* validate(response.result)
+    const { get, disable, validate } = yield* senderApi(props)
+    const observed = yield* validate(yield* get())
     if (!observed.previewEnabled) {
       return observed
     }
-    const request = yield* HttpClientRequest.schemaBodyJson(DisablePreview)(
-      HttpClientRequest.patch(url),
-      { preview_enabled: false }
-    ).pipe(Effect.mapError(() => failure('privacy', 'Invalid sender privacy request')))
-    const updated = yield* api.decode(SenderResponse, request)
-    const final = yield* validate(updated.result)
+    const final = yield* validate(yield* disable())
     if (final.previewEnabled) {
       return yield* failure(
         'privacy',

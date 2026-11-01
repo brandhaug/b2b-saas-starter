@@ -2,7 +2,6 @@ import { isResolved } from 'alchemy/Diff'
 import * as Provider from 'alchemy/Provider'
 import { Resource } from 'alchemy/Resource'
 import { Effect } from 'effect'
-import { HttpClient } from 'effect/http'
 import { authenticatedEmailClient } from './email-sending/api.ts'
 import {
   ensureSenderPrivacy,
@@ -43,9 +42,7 @@ export const EmailSendingSubscriptionProvider = Provider.effect(
   EmailSendingSubscription,
   Effect.gen(function* () {
     const environment = yield* authenticatedEmailClient
-    const lifecycle = yield* makeEmailSendingLifecycle(environment).pipe(
-      Effect.provideService(HttpClient.HttpClient, environment.client)
-    )
+    const lifecycle = yield* makeEmailSendingLifecycle(environment)
     return {
       stables: ['subscriptionId', 'accountId', 'zoneId', 'domain', 'queueId'],
       diff: ({ olds, news }) =>

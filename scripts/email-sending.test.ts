@@ -1,4 +1,5 @@
 import { CloudflareEnvironment } from '@alchemy.run/cloudflare'
+import { type Credentials, fromApiToken } from '@distilled.cloud/cloudflare/Credentials'
 import { Stage } from 'alchemy/Stage'
 import { Effect, Redacted } from 'effect'
 import { HttpClient, HttpClientResponse } from 'effect/http'
@@ -121,11 +122,16 @@ function scenario(exchanges: Array<Exchange>, stage = 'prod') {
     })
   )
   function runEffect<A, E>(
-    effect: Effect.Effect<A, E, HttpClient.HttpClient | CloudflareEnvironment | Stage>
+    effect: Effect.Effect<
+      A,
+      E,
+      HttpClient.HttpClient | CloudflareEnvironment | Stage | Credentials
+    >
   ) {
     // oxlint-disable-next-line starter/no-run-promise-in-tests -- Scoped HTTP driver bridges the provider to vite-plus Promise assertions, with a scripted transport and no live clocks.
     return Effect.runPromise(
       effect.pipe(
+        Effect.provide(fromApiToken({ apiToken: Redacted.make('test-token') })),
         Effect.provideService(HttpClient.HttpClient, client),
         Effect.provideService(
           CloudflareEnvironment,
@@ -152,6 +158,7 @@ function scenario(exchanges: Array<Exchange>, stage = 'prod') {
       Effect.runPromise(
         makeEmailSendingLifecycle({ accountId, stage }).pipe(
           Effect.flatMap(f),
+          Effect.provide(fromApiToken({ apiToken: Redacted.make('test-token') })),
           Effect.provideService(HttpClient.HttpClient, client),
           Effect.scoped
         )

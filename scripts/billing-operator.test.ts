@@ -54,9 +54,9 @@ describe('billing operator CLI', () => {
     expect(result.checkoutClaims).toHaveLength(1)
     expect(requests).toHaveLength(4)
     expect(requests[0]?.url).toContain('/d1/database/database-1/query')
-    expect(requests[0]?.init?.headers).toMatchObject({
-      Authorization: 'Bearer token-1'
-    })
+    expect(new Headers(requests[0]?.init?.headers).get('authorization')).toBe(
+      'Bearer token-1'
+    )
   })
 
   it('pushes an authenticated JSON operator retry only when executed', async () => {
@@ -84,7 +84,7 @@ describe('billing operator CLI', () => {
     expect(requests).toHaveLength(1)
     expect(requests[0]?.url).toContain('/queues/queue-1/messages')
     const body = requests[0]?.init?.body
-    expect(body).toBe(
+    expect(await new Response(body).text()).toBe(
       JSON.stringify({
         body: {
           kind: 'billing.seat_sync',

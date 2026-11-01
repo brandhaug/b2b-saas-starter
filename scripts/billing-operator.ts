@@ -1,27 +1,22 @@
 import { parseArgs } from 'node:util'
 
 import { Effect, Option, Schema } from 'effect'
+import { queryDatabase } from '@distilled.cloud/cloudflare/d1'
+import { pushMessage } from '@distilled.cloud/cloudflare/queues'
 
 import { required } from './lib/env.ts'
+import { withCloudflareToken } from './lib/cloudflare.ts'
 
 type FetchImplementation = typeof globalThis.fetch
 type Environment = Readonly<Record<string, string | undefined>>
 
-const API_ROOT = 'https://api.cloudflare.com/client/v4'
 const INSPECTION_LIMIT = 25
 
-const CloudflareError = Schema.Struct({ message: Schema.String })
-const CloudflareEnvelope = Schema.Struct({
-  success: Schema.Boolean,
-  errors: Schema.optionalKey(Schema.Array(CloudflareError)),
-  result: Schema.optionalKey(Schema.Unknown)
-})
 const D1QueryResult = Schema.Struct({
   results: Schema.optionalKey(
     Schema.Array(Schema.Record(Schema.String, Schema.Unknown))
   )
 })
-const decodeCloudflareEnvelope = Schema.decodeUnknownEffect(CloudflareEnvelope)
 const decodeD1QueryResults = Schema.decodeUnknownEffect(Schema.Array(D1QueryResult))
 const decodeStringOption = Schema.decodeUnknownOption(Schema.String)
 const decodeErrorOption = Schema.decodeUnknownOption(
@@ -148,51 +143,6 @@ function config(options: CliOptions, environment: Environment): OperatorConfig {
   return result
 }
 
-function cloudflareRequest(input: {
-  readonly config: OperatorConfig
-  readonly path: string
-  readonly method: 'POST'
-  readonly body: unknown
-  readonly fetchImpl: FetchImplementation
-}) {
-  const apiToken = required(input.config.apiToken, 'CLOUDFLARE_API_TOKEN')
-  return Effect.tryPromise({
-    try: (signal) =>
-      input
-        .fetchImpl(`${API_ROOT}${input.path}`, {
-          method: input.method,
-          headers: {
-            Authorization: `Bearer ${apiToken}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(input.body),
-          signal
-        })
-        .then((response) =>
-          response.text().then((text) => ({ status: response.status, text }))
-        ),
-    catch: () => new Error('Cloudflare API request failed')
-  }).pipe(
-    Effect.flatMap(({ status, text }) => {
-      let json: unknown
-      try {
-        json = JSON.parse(text)
-      } catch {
-        return Effect.fail(new Error(`Cloudflare API returned HTTP ${status}`))
-      }
-      return decodeCloudflareEnvelope(json).pipe(
-        Effect.flatMap((envelope) => {
-          if (!envelope.success || status < 200 || status >= 300) {
-            const message = envelope.errors?.[0]?.message ?? `HTTP ${status}`
-            return Effect.fail(new Error(`Cloudflare API: ${message}`))
-          }
-          return Effect.succeed(envelope.result)
-        })
-      )
-    })
-  )
-}
-
 function queryD1(
   operatorConfig: OperatorConfig,
   sql: string,
@@ -204,15 +154,13 @@ function queryD1(
     operatorConfig.databaseId,
     'CLOUDFLARE_DATABASE_ID or --database'
   )
-  return cloudflareRequest({
-    config: operatorConfig,
-    method: 'POST',
-    path: `/accounts/${encodeURIComponent(accountId)}/d1/database/${encodeURIComponent(databaseId)}/query`,
-    body: { sql, params },
+  return withCloudflareToken(
+    queryDatabase({ accountId, databaseId, sql, params: [...params] }),
+    required(operatorConfig.apiToken, 'CLOUDFLARE_API_TOKEN'),
     fetchImpl
-  }).pipe(
+  ).pipe(
     Effect.flatMap((result) =>
-      decodeD1QueryResults(result).pipe(
+      decodeD1QueryResults(result.result).pipe(
         Effect.map((queries) => queries[0]?.results ?? [])
       )
     )
@@ -309,13 +257,11 @@ function retry(
     })
   }
   const accountId = required(operatorConfig.accountId, 'CLOUDFLARE_ACCOUNT_ID')
-  return cloudflareRequest({
-    config: operatorConfig,
-    method: 'POST',
-    path: `/accounts/${encodeURIComponent(accountId)}/queues/${encodeURIComponent(queueId)}/messages`,
-    body: { body: message, content_type: 'json' },
+  return withCloudflareToken(
+    pushMessage({ accountId, queueId, body: message, contentType: 'json' }),
+    required(operatorConfig.apiToken, 'CLOUDFLARE_API_TOKEN'),
     fetchImpl
-  }).pipe(Effect.as({ dryRun: false, queue: queueId, message }))
+  ).pipe(Effect.as({ dryRun: false, queue: queueId, message }))
 }
 
 function main(

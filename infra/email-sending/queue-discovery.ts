@@ -1,4 +1,5 @@
 import { Effect, Schema } from 'effect'
+import { getQueue } from '@distilled.cloud/cloudflare/queues'
 import { HttpClientRequest } from 'effect/http'
 import {
   Identifier,
@@ -8,7 +9,7 @@ import {
   checkEnvironment,
   checkPage,
   emailApi,
-  envelope,
+  emailOperations,
   failure
 } from './api.ts'
 
@@ -24,9 +25,9 @@ const QueuePage = Schema.Struct({
   result: Schema.Array(Queue),
   result_info: Schema.optionalKey(PageInfo)
 })
-const QueueDetail = envelope(Queue)
 
 /** Read-only lookup; the app stack continues to own this queue.
+ * Distilled rc.17 listQueues has no page/name inputs; retain this paginated adapter.
  * Wire query follows Wrangler 4.149.0 deploy-helpers/src/triggers/queue-consumers.ts.
  * https://developers.cloudflare.com/api/resources/queues/methods/list/
  */
@@ -76,19 +77,17 @@ export const discoverEmailEventsQueue = Effect.fn('EmailSending.discoverQueue')(
         `Production email-events queue not found: ${props.queueName}`
       )
     }
-    const response = yield* api.decode(
-      QueueDetail,
-      HttpClientRequest.get(`${collection}/${match.queue_id}`)
+    const run = yield* emailOperations
+    const response = yield* run(
+      'GET',
+      getQueue({ accountId: props.accountId, queueId: match.queue_id })
     )
-    if (
-      response.result.queue_id !== match.queue_id ||
-      response.result.queue_name !== props.queueName
-    ) {
+    if (response.queueId !== match.queue_id || response.queueName !== props.queueName) {
       return yield* failure(
         'scope',
         'Queue detail does not match the account/name/ID scope'
       )
     }
-    return response.result.queue_id
+    return match.queue_id
   }
 )

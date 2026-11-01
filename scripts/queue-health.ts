@@ -1,22 +1,22 @@
 // Node operator CLI: Promise-native fetch/process boundary; no application runtime.
 // oxlint-disable effect/noNewPromise
-import { Schema } from 'effect'
+import { Effect, Schema } from 'effect'
+import { getMetricsQueue } from '@distilled.cloud/cloudflare/queues'
 import { requiredEnv } from './lib/env.ts'
+import { withCloudflareToken } from './lib/cloudflare.ts'
 
 const QueueTarget = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
   deadLetter: Schema.Boolean
 })
-const QueueMetrics = Schema.Struct({
-  success: Schema.Boolean,
-  result: Schema.Struct({
-    backlog_count: Schema.Number,
-    oldest_message_timestamp_ms: Schema.Number
-  })
-})
 const decodeTargets = Schema.decodeUnknownSync(Schema.Array(QueueTarget))
-const decodeMetrics = Schema.decodeUnknownSync(QueueMetrics)
+const decodeMetrics = Schema.decodeUnknownSync(
+  Schema.Struct({
+    backlogCount: Schema.Number,
+    oldestMessageTimestampMs: Schema.Number
+  })
+)
 
 type Environment = Readonly<Record<string, string | undefined>>
 type QueueObservation = {
@@ -60,22 +60,17 @@ export async function inspectQueues(
   }
   return Promise.all(
     targets.map(async (target) => {
-      const response = await request(
-        `https://api.cloudflare.com/client/v4/accounts/${account}/queues/${target.id}/metrics`,
-        {
-          headers: { authorization: `Bearer ${token}` },
-          signal: AbortSignal.timeout(10_000)
-        }
+      const metrics = decodeMetrics(
+        await Effect.runPromise(
+          withCloudflareToken(
+            getMetricsQueue({ accountId: account, queueId: target.id }),
+            token,
+            request
+          ).pipe(Effect.timeout('10 seconds'))
+        )
       )
-      if (!response.ok) {
-        throw new Error(`Queue metrics request failed with HTTP ${response.status}`)
-      }
-      const metrics = decodeMetrics(await response.json())
-      if (!metrics.success) {
-        throw new Error('Cloudflare rejected queue metrics request')
-      }
-      const count = metrics.result.backlog_count
-      const oldest = metrics.result.oldest_message_timestamp_ms
+      const count = metrics.backlogCount
+      const oldest = metrics.oldestMessageTimestampMs
       let oldestAgeMs: number | null = null
       if (oldest > 0 && oldest <= now) {
         oldestAgeMs = now - oldest
