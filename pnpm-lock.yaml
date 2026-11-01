@@ -37,11 +37,11 @@ catalogs:
       specifier: 0.12.2
       version: 0.12.2
     '@cloudflare/vitest-plugin':
-      specifier: 1.4.9
-      version: 1.4.9
+      specifier: 1.4.10
+      version: 1.4.10
     '@cloudflare/workers-types':
-      specifier: 5.20261028.1
-      version: 5.20261028.1
+      specifier: 5.20261029.1
+      version: 5.20261029.1
     '@distilled.cloud/cloudflare':
       specifier: 1.0.0-rc.17
       version: 1.0.0-rc.17
@@ -211,8 +211,8 @@ catalogs:
       specifier: 2.2.1
       version: 2.2.1
     miniflare:
-      specifier: 5.20261023.1-beta
-      version: 5.20261023.1-beta
+      specifier: 5.20261023.2-beta
+      version: 5.20261023.2-beta
     minisearch:
       specifier: 7.2.0
       version: 7.2.0
@@ -286,8 +286,8 @@ catalogs:
       specifier: 5.0.5
       version: 5.0.5
     wrangler:
-      specifier: 4.154.0
-      version: 4.154.0
+      specifier: 4.155.0
+      version: 4.155.0
     ws:
       specifier: 8.22.0
       version: 8.22.0
@@ -317,10 +317,10 @@ importers:
         version: link:packages/db
       better-auth:
         specifier: 'catalog:'
-        version: 1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@7.29.7(supports-color@10.2.2))(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5)
+        version: 1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@7.29.7(supports-color@10.2.2))(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5)
       drizzle-orm:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7)
+        version: 1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7)
     devDependencies:
       '@alchemy.run/cloudflare':
         specifier: 'catalog:'
@@ -330,7 +330,7 @@ importers:
         version: 2.0.0-beta.84(alchemy@2.0.0-beta.84(patch_hash=a73960c1c83bc900f144626d1c7a61d87f27224fbeef5a5e35e85b46e5a6d4e5)(@effect/platform-node@4.1.0(effect@4.1.0)(redis@6.3.1))(@effect/vitest@4.1.0(effect@4.1.0)(vitest@5.0.5))(@types/react@19.3.0)(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(effect@4.1.0)(ws@8.22.0))(effect@4.1.0)
       '@cloudflare/workers-types':
         specifier: 'catalog:'
-        version: 5.20261028.1
+        version: 5.20261029.1
       '@distilled.cloud/cloudflare':
         specifier: 'catalog:'
         version: 1.0.0-rc.17(effect@4.1.0)
@@ -381,7 +381,7 @@ importers:
         version: 5.0.5(@types/node@26.6.6)(@vitest/browser-preview@5.0.5)(@vitest/coverage-v8@5.0.5)(@vitest/ui@5.0.5(vitest@5.0.5))(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(jsdom@30.1.3(@noble/hashes@2.4.0))
       wrangler:
         specifier: 'catalog:'
-        version: 4.154.0(@cloudflare/workers-types@5.20261028.1)(@types/node@26.6.6)
+        version: 4.155.0(@cloudflare/workers-types@5.20261029.1)(@types/node@26.6.6)
 
   apps/api:
     dependencies:
@@ -424,7 +424,7 @@ importers:
     devDependencies:
       '@cloudflare/workers-types':
         specifier: 'catalog:'
-        version: 5.20261028.1
+        version: 5.20261029.1
       '@effect/vitest':
         specifier: 4.1.0
         version: 4.1.0(effect@4.1.0)(vitest@5.0.5)
@@ -442,7 +442,7 @@ importers:
         version: 5.0.5(@types/node@26.6.6)(@vitest/browser-preview@5.0.5)(@vitest/coverage-v8@5.0.5)(@vitest/ui@5.0.5(vitest@5.0.5))(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(jsdom@30.1.3(@noble/hashes@2.4.0))
       wrangler:
         specifier: 'catalog:'
-        version: 4.154.0(@cloudflare/workers-types@5.20261028.1)(@types/node@26.6.6)
+        version: 4.155.0(@cloudflare/workers-types@5.20261029.1)(@types/node@26.6.6)
 
   apps/background:
     dependencies:
@@ -485,10 +485,10 @@ importers:
     devDependencies:
       '@cloudflare/vitest-plugin':
         specifier: 'catalog:'
-        version: 1.4.9(@cloudflare/workers-types@5.20261028.1)(@types/node@26.6.6)(vitest@5.0.5)
+        version: 1.4.10(@cloudflare/workers-types@5.20261029.1)(@types/node@26.6.6)(vitest@5.0.5)
       '@cloudflare/workers-types':
         specifier: 'catalog:'
-        version: 5.20261028.1
+        version: 5.20261029.1
       '@effect/vitest':
         specifier: 4.1.0
         version: 4.1.0(effect@4.1.0)(vitest@5.0.5)
@@ -512,7 +512,7 @@ importers:
         version: 5.0.5(@types/node@26.6.6)(@vitest/browser-preview@5.0.5)(@vitest/coverage-v8@5.0.5)(@vitest/ui@5.0.5(vitest@5.0.5))(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(jsdom@30.1.3(@noble/hashes@2.4.0))
       wrangler:
         specifier: 'catalog:'
-        version: 4.154.0(@cloudflare/workers-types@5.20261028.1)(@types/node@26.6.6)
+        version: 4.155.0(@cloudflare/workers-types@5.20261029.1)(@types/node@26.6.6)
 
   apps/web:
     dependencies:
@@ -563,13 +563,13 @@ importers:
         version: 1.9.0(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@better-auth/oauth-provider':
         specifier: 1.7.14
-        version: 1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(better-call@1.4.4(zod@4.6.7))
+        version: 1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(better-call@1.4.4(zod@4.6.7))
       '@better-auth/passkey':
         specifier: 'catalog:'
-        version: 1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(better-call@1.4.4(zod@4.6.7))(nanostores@1.5.5)
+        version: 1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(better-call@1.4.4(zod@4.6.7))(nanostores@1.5.5)
       '@better-auth/sso':
         specifier: 'catalog:'
-        version: 1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(better-call@1.4.4(zod@4.6.7))
+        version: 1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(better-call@1.4.4(zod@4.6.7))
       '@cloudflare/ai-chat':
         specifier: 'catalog:'
         version: 0.12.2(agents@0.31.0(@ai-sdk/provider@4.0.34)(@babel/core@8.0.9)(@babel/runtime@8.0.10)(@modelcontextprotocol/client@2.3.1)(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.156(zod@4.6.7))(react@19.3.1)(rolldown@1.2.13)(zod@4.6.7))(ai@7.0.156(zod@4.6.7))(react@19.3.1)
@@ -614,7 +614,7 @@ importers:
         version: 7.0.156(zod@4.6.7)
       better-auth:
         specifier: 'catalog:'
-        version: 1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5)
+        version: 1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5)
       class-variance-authority:
         specifier: 'catalog:'
         version: 0.7.1
@@ -626,13 +626,13 @@ importers:
         version: 0.5.0
       drizzle-orm:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7)
+        version: 1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7)
       effect:
         specifier: 'catalog:'
         version: 4.1.0
       effectful-better-auth:
         specifier: 'catalog:'
-        version: 1.0.9(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(effect@4.1.0)
+        version: 1.0.9(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(effect@4.1.0)
       lucide-react:
         specifier: 'catalog:'
         version: 1.64.0(@types/react@19.3.0)(react@19.3.1)
@@ -663,10 +663,10 @@ importers:
         version: 8.0.9
       '@cloudflare/vitest-plugin':
         specifier: 'catalog:'
-        version: 1.4.9(@cloudflare/workers-types@5.20261028.1)(@types/node@26.6.6)(vitest@5.0.5)
+        version: 1.4.10(@cloudflare/workers-types@5.20261029.1)(@types/node@26.6.6)(vitest@5.0.5)
       '@cloudflare/workers-types':
         specifier: 'catalog:'
-        version: 5.20261028.1
+        version: 5.20261029.1
       '@effect/vitest':
         specifier: 4.1.0
         version: 4.1.0(effect@4.1.0)(vitest@5.0.5)
@@ -738,7 +738,7 @@ importers:
         version: 2.2.1
       miniflare:
         specifier: 'catalog:'
-        version: 5.20261023.1-beta(@types/node@26.6.6)
+        version: 5.20261023.2-beta(@types/node@26.6.6)
       rehype-pretty-code:
         specifier: 'catalog:'
         version: 0.14.5(shiki@4.5.0)
@@ -857,28 +857,28 @@ importers:
         version: link:../i18n
       '@better-auth/cimd':
         specifier: 'catalog:'
-        version: 1.7.14(39e57f3ee3864b369f76054eb3cb494e)
+        version: 1.7.14(78007f110a71089dd8320618d9601d6c)
       '@better-auth/mcp':
         specifier: 'catalog:'
-        version: 1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(better-call@1.4.4(zod@4.6.7))
+        version: 1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(better-call@1.4.4(zod@4.6.7))
       '@better-auth/passkey':
         specifier: 'catalog:'
-        version: 1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(better-call@1.4.4(zod@4.6.7))(nanostores@1.5.5)
+        version: 1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(better-call@1.4.4(zod@4.6.7))(nanostores@1.5.5)
       '@better-auth/sso':
         specifier: 'catalog:'
-        version: 1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(better-call@1.4.4(zod@4.6.7))
+        version: 1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(better-call@1.4.4(zod@4.6.7))
       better-auth:
         specifier: 'catalog:'
-        version: 1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5)
+        version: 1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5)
       drizzle-orm:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7)
+        version: 1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7)
       effect:
         specifier: 'catalog:'
         version: 4.1.0
       effectful-better-auth:
         specifier: 'catalog:'
-        version: 1.0.9(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(effect@4.1.0)
+        version: 1.0.9(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(effect@4.1.0)
     devDependencies:
       '@better-auth/utils':
         specifier: 0.5.1
@@ -909,7 +909,7 @@ importers:
         version: link:../db
       better-auth:
         specifier: 'catalog:'
-        version: 1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5)
+        version: 1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5)
       effect:
         specifier: 'catalog:'
         version: 4.1.0
@@ -946,7 +946,7 @@ importers:
         version: link:../logger
       drizzle-orm:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7)
+        version: 1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7)
       effect:
         specifier: 'catalog:'
         version: 4.1.0
@@ -995,7 +995,7 @@ importers:
         version: link:../logger
       drizzle-orm:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7)
+        version: 1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7)
       effect:
         specifier: 'catalog:'
         version: 4.1.0
@@ -1032,7 +1032,7 @@ importers:
         version: 4.1.0(effect@4.1.0)
       drizzle-orm:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7)
+        version: 1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7)
       effect:
         specifier: 'catalog:'
         version: 4.1.0
@@ -1042,7 +1042,7 @@ importers:
         version: 2.0.0-beta.84(alchemy@2.0.0-beta.84(patch_hash=a73960c1c83bc900f144626d1c7a61d87f27224fbeef5a5e35e85b46e5a6d4e5)(@effect/platform-node@4.1.0(effect@4.1.0)(redis@6.3.1))(@effect/vitest@4.1.0(effect@4.1.0)(vitest@5.0.5))(@types/react@19.3.0)(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(effect@4.1.0)(ws@8.22.0))(effect@4.1.0)
       '@cloudflare/workers-types':
         specifier: 'catalog:'
-        version: 5.20261028.1
+        version: 5.20261029.1
       '@effect/vitest':
         specifier: 4.1.0
         version: 4.1.0(effect@4.1.0)(vitest@5.0.5)
@@ -1063,7 +1063,7 @@ importers:
         version: 5.0.5(@types/node@26.6.6)(@vitest/browser-preview@5.0.5)(@vitest/coverage-v8@5.0.5)(@vitest/ui@5.0.5(vitest@5.0.5))(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(jsdom@30.1.3(@noble/hashes@2.4.0))
       wrangler:
         specifier: 'catalog:'
-        version: 4.154.0(@cloudflare/workers-types@5.20261028.1)(@types/node@26.6.6)
+        version: 4.155.0(@cloudflare/workers-types@5.20261029.1)(@types/node@26.6.6)
 
   packages/email:
     dependencies:
@@ -1124,7 +1124,7 @@ importers:
         version: link:../failure
       drizzle-orm:
         specifier: 'catalog:'
-        version: 1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7)
+        version: 1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7)
       effect:
         specifier: 'catalog:'
         version: 4.1.0
@@ -1828,8 +1828,8 @@ packages:
       workerd:
         optional: true
 
-  '@cloudflare/vitest-plugin@1.4.9':
-    resolution: {integrity: sha512-v+MYOXzQ+d0VgTSDwLT/MTpl30RYy2S+3vF/cHmHEuJSwocsVsDqD3GwKs9ahKNgaZpzLDt8wM2DgYiYsxvWlQ==}
+  '@cloudflare/vitest-plugin@1.4.10':
+    resolution: {integrity: sha512-F6klOeT/Wx0gKvZ4zpYVBixP6TjcT4OD/L/RJK3Yq3SwRmd+v96/y037xUEsvGytdUisL9X5Jw3ADuNdvwBHdg==}
     peerDependencies:
       vitest: 5.0.5
 
@@ -1893,8 +1893,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@cloudflare/workers-types@5.20261028.1':
-    resolution: {integrity: sha512-a0Ceo9MtNZej9s7iZAvYD0txFXlFb1le4rhJ+x4mrC02hsXy4T0RHCqpX1zEOnrI1504Ro8HwJQtKMh2/MVDCw==}
+  '@cloudflare/workers-types@5.20261029.1':
+    resolution: {integrity: sha512-HwLwogkO/PnT4oXC8Y6wMQpgYbT3TEbWHytHV56F2tz9eLJBcgf4/VMjk5FYriAYHX6JOutS+tU6miuopKfCKw==}
 
   '@cloudflare/workers-types@5.20261031.1':
     resolution: {integrity: sha512-2BR1pUhsivjMcqncHjbK1+v/HtOyiUAzMcf3jHt1ZOIiDOktnoeEoBuiEgyJOJ6iFgVLt4Zj7HzPrBjq5zLqQQ==}
@@ -6509,8 +6509,8 @@ packages:
     resolution: {integrity: sha512-VP79XUPxV2CigYP3jWwAUFSku2aKqBH7uTAapFWCBqutsbmDo96KY5o8uh6U+/YSIn5OxJnXp73beVkpqMIGhA==}
     engines: {node: '>=18'}
 
-  miniflare@5.20261023.1-beta:
-    resolution: {integrity: sha512-hgm1AJhwC6W+iaRhvMnfs7bPOsxjKa8LXTFR2WVPA5qA9KhpyBd2LddmT+9M9tm65VZ8YWkwQGvB+cKbqJoKeA==}
+  miniflare@5.20261023.2-beta:
+    resolution: {integrity: sha512-sXpZloQnIUe4raXXdwwqd2ioRHox9a/1B4nB2/p4JWKDwGuVgEK4DugCNgIeQf0iVuSgBItdYpodJe4iwY6SrQ==}
     engines: {node: '>=22.0.0'}
 
   minimatch@11.0.1:
@@ -7477,8 +7477,8 @@ packages:
     engines: {node: '>=16'}
     hasBin: true
 
-  wrangler@4.154.0:
-    resolution: {integrity: sha512-duA4dckBE/51ibAlGh2mUYcvGiu7sZFcn61I+KfNEeK5KQzKKEth9Xf5ROatoPBOebYPz0gfknXOCjBhwLOo8Q==}
+  wrangler@4.155.0:
+    resolution: {integrity: sha512-gBKtAg2e0abQDvXPRQu611YMTd/cfAaJTOLAs/89tTxFxEeUyC260MRJRK+m3gLmQjDYWFwJv+ErwuJ/GuALpA==}
     engines: {node: '>=22.0.0'}
     hasBin: true
     peerDependencies:
@@ -8021,11 +8021,11 @@ snapshots:
 
   '@bcoe/v8-coverage@1.0.2': {}
 
-  '@better-auth/cimd@1.7.14(39e57f3ee3864b369f76054eb3cb494e)':
+  '@better-auth/cimd@1.7.14(78007f110a71089dd8320618d9601d6c)':
     dependencies:
       '@better-auth/core': 1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5)
-      '@better-auth/oauth-provider': 1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(better-call@1.4.4(zod@4.6.7))
-      better-auth: 1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5)
+      '@better-auth/oauth-provider': 1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(better-call@1.4.4(zod@4.6.7))
+      better-auth: 1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5)
       better-call: 1.4.4(zod@4.6.7)
 
   '@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5)':
@@ -8039,12 +8039,12 @@ snapshots:
       nanostores: 1.5.5
       zod: 4.6.7
 
-  '@better-auth/drizzle-adapter@1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))':
+  '@better-auth/drizzle-adapter@1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))':
     dependencies:
       '@better-auth/core': 1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5)
       '@better-auth/utils': 0.5.1
     optionalDependencies:
-      drizzle-orm: 1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7)
+      drizzle-orm: 1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7)
 
   '@better-auth/kysely-adapter@1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(kysely@0.29.7)':
     dependencies:
@@ -8053,11 +8053,11 @@ snapshots:
     optionalDependencies:
       kysely: 0.29.7
 
-  '@better-auth/mcp@1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(better-call@1.4.4(zod@4.6.7))':
+  '@better-auth/mcp@1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(better-call@1.4.4(zod@4.6.7))':
     dependencies:
       '@better-auth/core': 1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5)
-      '@better-auth/oauth-provider': 1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(better-call@1.4.4(zod@4.6.7))
-      better-auth: 1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5)
+      '@better-auth/oauth-provider': 1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(better-call@1.4.4(zod@4.6.7))
+      better-auth: 1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5)
       better-call: 1.4.4(zod@4.6.7)
       jose: 6.2.13
     transitivePeerDependencies:
@@ -8074,24 +8074,24 @@ snapshots:
       '@better-auth/core': 1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5)
       '@better-auth/utils': 0.5.1
 
-  '@better-auth/oauth-provider@1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(better-call@1.4.4(zod@4.6.7))':
+  '@better-auth/oauth-provider@1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(better-call@1.4.4(zod@4.6.7))':
     dependencies:
       '@better-auth/core': 1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5)
       '@better-auth/utils': 0.5.1
       '@better-fetch/fetch': 1.3.3
-      better-auth: 1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5)
+      better-auth: 1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5)
       better-call: 1.4.4(zod@4.6.7)
       jose: 6.2.13
       zod: 4.6.7
 
-  '@better-auth/passkey@1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(better-call@1.4.4(zod@4.6.7))(nanostores@1.5.5)':
+  '@better-auth/passkey@1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(better-call@1.4.4(zod@4.6.7))(nanostores@1.5.5)':
     dependencies:
       '@better-auth/core': 1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5)
       '@better-auth/utils': 0.5.1
       '@better-fetch/fetch': 1.3.3
       '@simplewebauthn/browser': 13.3.0
       '@simplewebauthn/server': 13.3.3
-      better-auth: 1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5)
+      better-auth: 1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5)
       better-call: 1.4.4(zod@4.6.7)
       nanostores: 1.5.5
       zod: 4.6.7
@@ -8101,13 +8101,13 @@ snapshots:
       '@better-auth/core': 1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5)
       '@better-auth/utils': 0.5.1
 
-  '@better-auth/sso@1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(better-call@1.4.4(zod@4.6.7))':
+  '@better-auth/sso@1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(better-call@1.4.4(zod@4.6.7))':
     dependencies:
       '@better-auth/core': 1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5)
       '@better-auth/utils': 0.5.1
       '@better-fetch/fetch': 1.3.3
       '@xmldom/xmldom': 0.9.12
-      better-auth: 1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5)
+      better-auth: 1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5)
       better-call: 1.4.4(zod@4.6.7)
       fast-xml-parser: 5.11.2
       jose: 6.2.13
@@ -8212,13 +8212,13 @@ snapshots:
     optionalDependencies:
       workerd: 1.20261023.1
 
-  '@cloudflare/vitest-plugin@1.4.9(@cloudflare/workers-types@5.20261028.1)(@types/node@26.6.6)(vitest@5.0.5)':
+  '@cloudflare/vitest-plugin@1.4.10(@cloudflare/workers-types@5.20261029.1)(@types/node@26.6.6)(vitest@5.0.5)':
     dependencies:
       cjs-module-lexer: 1.2.3
       esbuild: 0.28.2
-      miniflare: 5.20261023.1-beta(@types/node@26.6.6)
+      miniflare: 5.20261023.2-beta(@types/node@26.6.6)
       vitest: 5.0.5(@types/node@26.6.6)(@vitest/browser-preview@5.0.5)(@vitest/coverage-v8@5.0.5)(@vitest/ui@5.0.5(vitest@5.0.5))(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(jsdom@30.1.3(@noble/hashes@2.4.0))
-      wrangler: 4.154.0(@cloudflare/workers-types@5.20261028.1)(@types/node@26.6.6)
+      wrangler: 4.155.0(@cloudflare/workers-types@5.20261029.1)(@types/node@26.6.6)
       zod: 4.6.6
     transitivePeerDependencies:
       - '@cloudflare/workers-types'
@@ -8256,7 +8256,7 @@ snapshots:
   '@cloudflare/workerd-windows-64@1.20261023.1':
     optional: true
 
-  '@cloudflare/workers-types@5.20261028.1': {}
+  '@cloudflare/workers-types@5.20261029.1': {}
 
   '@cloudflare/workers-types@5.20261031.1': {}
 
@@ -10747,10 +10747,10 @@ snapshots:
 
   before-after-hook@4.0.0: {}
 
-  better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@7.29.7(supports-color@10.2.2))(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5):
+  better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@7.29.7(supports-color@10.2.2))(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5):
     dependencies:
       '@better-auth/core': 1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5)
-      '@better-auth/drizzle-adapter': 1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))
+      '@better-auth/drizzle-adapter': 1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))
       '@better-auth/kysely-adapter': 1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(kysely@0.29.7)
       '@better-auth/memory-adapter': 1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)
       '@better-auth/mongo-adapter': 1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)
@@ -10769,7 +10769,7 @@ snapshots:
     optionalDependencies:
       '@tanstack/react-start': 1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2)
       drizzle-kit: 1.0.0-rc.5-ab785fc
-      drizzle-orm: 1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7)
+      drizzle-orm: 1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7)
       next: 16.4.3(@babel/core@7.29.7(supports-color@10.2.2))(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
@@ -10777,10 +10777,10 @@ snapshots:
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
-  better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5):
+  better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5):
     dependencies:
       '@better-auth/core': 1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5)
-      '@better-auth/drizzle-adapter': 1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))
+      '@better-auth/drizzle-adapter': 1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))
       '@better-auth/kysely-adapter': 1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(kysely@0.29.7)
       '@better-auth/memory-adapter': 1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)
       '@better-auth/mongo-adapter': 1.7.14(@better-auth/core@1.7.14(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.4(zod@4.6.7))(jose@6.2.13)(kysely@0.29.7)(nanostores@1.5.5))(@better-auth/utils@0.5.1)
@@ -10799,7 +10799,7 @@ snapshots:
     optionalDependencies:
       '@tanstack/react-start': 1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2)
       drizzle-kit: 1.0.0-rc.5-ab785fc
-      drizzle-orm: 1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7)
+      drizzle-orm: 1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7)
       next: 16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
@@ -11039,9 +11039,9 @@ snapshots:
       get-tsconfig: 4.14.3
       jiti: 2.7.0
 
-  drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7):
+  drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7):
     optionalDependencies:
-      '@cloudflare/workers-types': 5.20261028.1
+      '@cloudflare/workers-types': 5.20261029.1
       '@effect/sql-d1': 4.1.0(effect@4.1.0)
       effect: 4.1.0
       valibot: 1.5.0(typescript@7.0.2)
@@ -11049,9 +11049,9 @@ snapshots:
 
   effect@4.1.0: {}
 
-  effectful-better-auth@1.0.9(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(effect@4.1.0):
+  effectful-better-auth@1.0.9(better-auth@1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(effect@4.1.0):
     dependencies:
-      better-auth: 1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261028.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5)
+      better-auth: 1.7.14(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.2)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261029.1)(@effect/sql-d1@4.1.0(effect@4.1.0))(effect@4.1.0)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5)
       effect: 4.1.0
 
   electron-to-chromium@1.5.471: {}
@@ -12210,7 +12210,7 @@ snapshots:
 
   mimic-function@5.0.1: {}
 
-  miniflare@5.20261023.1-beta(@types/node@26.6.6):
+  miniflare@5.20261023.2-beta(@types/node@26.6.6):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       sharp: 0.35.5(@types/node@26.6.6)
@@ -13445,18 +13445,18 @@ snapshots:
       '@cloudflare/workerd-linux-arm64': 1.20261023.1
       '@cloudflare/workerd-windows-64': 1.20261023.1
 
-  wrangler@4.154.0(@cloudflare/workers-types@5.20261028.1)(@types/node@26.6.6):
+  wrangler@4.155.0(@cloudflare/workers-types@5.20261029.1)(@types/node@26.6.6):
     dependencies:
       '@cloudflare/kv-asset-handler': 0.5.0
       '@cloudflare/unenv-preset': 2.16.2(unenv@2.0.0-rc.24)(workerd@1.20261023.1)
       blake3-wasm: 2.1.5
       esbuild: 0.28.2
-      miniflare: 5.20261023.1-beta(@types/node@26.6.6)
+      miniflare: 5.20261023.2-beta(@types/node@26.6.6)
       path-to-regexp: 6.3.0
       unenv: 2.0.0-rc.24
       workerd: 1.20261023.1
     optionalDependencies:
-      '@cloudflare/workers-types': 5.20261028.1
+      '@cloudflare/workers-types': 5.20261029.1
       fsevents: 2.3.3
     transitivePeerDependencies:
       - '@types/node'
