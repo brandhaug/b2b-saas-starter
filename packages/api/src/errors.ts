@@ -2,6 +2,7 @@ import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { WorkspaceSuspended } from '@b2b-saas-starter/capabilities/errors'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { Schema } from 'effect'
+import { publicProblem } from './problems.ts'
 
 /**
  * The contract's error half: the tagged error schemas the API worker serves,
@@ -44,7 +45,10 @@ const GUARD_FAILURE_SCHEMAS = [
 export const GuardFailure = Schema.Union(GUARD_FAILURE_SCHEMAS)
 export type GuardFailure = typeof GuardFailure.Type
 
-const encodeGuardFailure = Schema.encodeSync(GuardFailure)
+const GuardProblem = Schema.Union(
+  GUARD_FAILURE_SCHEMAS.map((schema) => publicProblem(schema))
+)
+const encodeGuardFailure = Schema.encodeSync(GuardProblem)
 
 /**
  * Status by tag: the same status each schema's `httpApiStatus` annotation
@@ -68,7 +72,7 @@ const GUARD_FAILURE_STATUS = {
  */
 export type GuardFailureResponse = {
   readonly status: number
-  readonly body: typeof GuardFailure.Encoded
+  readonly body: typeof GuardProblem.Encoded
 }
 
 export function guardFailureResponse(error: GuardFailure): GuardFailureResponse {

@@ -17,7 +17,7 @@ import { WideEventLoggerLive } from '@b2b-saas-starter/logger'
 import { describe, expect, it } from '@effect/vitest'
 import { DateTime, Effect, FileSystem, Layer, Path, Schema } from 'effect'
 import { Etag, HttpPlatform, HttpRouter } from 'effect/http'
-import { HttpApi, HttpApiBuilder } from 'effect/http-api'
+import { HttpApi, HttpApiBuilder, HttpApiMiddleware } from 'effect/http-api'
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from 'jose'
 import { assistantConversationsGroup } from './assistant-conversation-handlers.ts'
 import { assistantBearerAuth } from './assistant-conversation-guards.ts'
@@ -175,6 +175,7 @@ const fixture = Effect.fn('AssistantRestTest.fixture')(function* () {
         HttpApiBuilder.layer(api).pipe(
           Layer.provide(assistantConversationsGroup({})),
           Layer.provide(assistantBearerAuth({})),
+          Layer.provide(HttpApiMiddleware.layerProblemDetails()),
           HttpRouter.provideRequest(dependencies),
           Layer.provide(dependencies),
           Layer.provide(platform),

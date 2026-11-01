@@ -140,6 +140,43 @@ describe('MCP workspace mutations over streamable HTTP', () => {
         yield* Effect.promise(() => reader.initialize())
         const before = yield* call(admin, 'list_audit_events')
         const tokens = yield* call(admin, 'list_api_tokens')
+        const listed = yield* Effect.promise(() => reader.rpc('tools/list')).pipe(
+          Effect.flatMap((response) =>
+            jsonBody(
+              response,
+              Schema.Struct({
+                result: Schema.Struct({
+                  tools: Schema.Array(Schema.Struct({ name: Schema.String }))
+                })
+              })
+            )
+          )
+        )
+        expect(listed.result.tools.map((tool) => tool.name)).toContain(
+          'get_workspace_overview'
+        )
+        for (const write of writes) {
+          expect(listed.result.tools.map((tool) => tool.name)).not.toContain(write.name)
+        }
+        const discovery = yield* Effect.promise(() =>
+          handler(
+            new Request('https://api.test/mcp/discovery', {
+              headers: { authorization: `Bearer ${SEED_READONLY_API_TOKEN}` }
+            })
+          )
+        ).pipe(
+          Effect.flatMap((response) =>
+            jsonBody(
+              response,
+              Schema.Struct({
+                tools: Schema.Array(Schema.Struct({ name: Schema.String }))
+              })
+            )
+          )
+        )
+        expect(discovery.tools.map((tool) => tool.name)).toEqual(
+          listed.result.tools.map((tool) => tool.name)
+        )
         for (const write of writes) {
           const result = yield* call(reader, write.name, write.args)
           expect(result.isError).toBe(true)

@@ -58,6 +58,7 @@ import {
 import { AssistantConversationsApi } from './assistant-conversations.ts'
 
 import { RateLimited, Unauthorized, WorkspaceExportNotDownloadable } from './errors.ts'
+import { publicProblem } from './problems.ts'
 
 // The contract's error schemas and their HTTP encoding live in `./errors.ts`
 // (subpath `@b2b-saas-starter/api/errors`) — not re-exported here, so the
@@ -152,27 +153,31 @@ export class BearerAuth extends HttpApiMiddleware.Service<
   }
 >()('@b2b-saas-starter/api/BearerAuth', {
   security: { bearer: HttpApiSecurity.bearer },
-  error: [Unauthorized, RateLimited, CapabilityUnavailable]
+  error: [
+    publicProblem(Unauthorized),
+    publicProblem(RateLimited),
+    publicProblem(CapabilityUnavailable)
+  ]
 }) {}
 
 // HttpApi reads these tuple element types to build each endpoint's error union.
 // Every member is a failure some handler actually constructs: an error no
 // handler can answer with is a documented status no client will ever see.
 const WORKSPACE_ERRORS = [
-  WorkspaceNotFound,
-  Unauthorized,
-  AuthorizationDenied,
-  WorkspaceSuspended,
-  RateLimited,
-  CapabilityUnavailable
+  publicProblem(WorkspaceNotFound),
+  publicProblem(Unauthorized),
+  publicProblem(AuthorizationDenied),
+  publicProblem(WorkspaceSuspended),
+  publicProblem(RateLimited),
+  publicProblem(CapabilityUnavailable)
 ] as const
 
 const PROTECTED_ERRORS = [
-  Unauthorized,
-  AuthorizationDenied,
-  WorkspaceSuspended,
-  RateLimited,
-  CapabilityUnavailable
+  publicProblem(Unauthorized),
+  publicProblem(AuthorizationDenied),
+  publicProblem(WorkspaceSuspended),
+  publicProblem(RateLimited),
+  publicProblem(CapabilityUnavailable)
 ] as const
 
 export const SlugParams = Schema.Struct({ slug: Schema.String })
@@ -319,7 +324,11 @@ export const ApiTokenApi = HttpApiGroup.make('api-token-registry')
       params: SlugParams,
       payload: CreateApiTokenPayload,
       success: CreatedApiTokenSchema.pipe(HttpApiSchema.status(201)),
-      error: [InvalidApiTokenInput, PlanLimitExceeded, ...WORKSPACE_ERRORS]
+      error: [
+        publicProblem(InvalidApiTokenInput),
+        publicProblem(PlanLimitExceeded),
+        ...WORKSPACE_ERRORS
+      ]
     })
   )
   .add(
@@ -327,7 +336,11 @@ export const ApiTokenApi = HttpApiGroup.make('api-token-registry')
       params: TokenIdParams,
       payload: ReplaceApiTokenPayload,
       success: ReplacedApiTokenSchema.pipe(HttpApiSchema.status(201)),
-      error: [InvalidApiTokenInput, ApiTokenNotRotatable, ...WORKSPACE_ERRORS]
+      error: [
+        publicProblem(InvalidApiTokenInput),
+        publicProblem(ApiTokenNotRotatable),
+        ...WORKSPACE_ERRORS
+      ]
     })
   )
   .add(
@@ -345,7 +358,11 @@ export const WebhookApi = HttpApiGroup.make('webhook-endpoints')
       params: SlugParams,
       payload: CreateWebhookEndpointPayload,
       success: WebhookEndpoint.pipe(HttpApiSchema.status(201)),
-      error: [InvalidWebhookUrl, PlanLimitExceeded, ...WORKSPACE_ERRORS]
+      error: [
+        publicProblem(InvalidWebhookUrl),
+        publicProblem(PlanLimitExceeded),
+        ...WORKSPACE_ERRORS
+      ]
     })
   )
   .add(
@@ -353,14 +370,18 @@ export const WebhookApi = HttpApiGroup.make('webhook-endpoints')
       params: EndpointParams,
       payload: UpdateWebhookEndpointPayload,
       success: WebhookEndpoint,
-      error: [InvalidWebhookUrl, WebhookEndpointNotFound, ...WORKSPACE_ERRORS]
+      error: [
+        publicProblem(InvalidWebhookUrl),
+        publicProblem(WebhookEndpointNotFound),
+        ...WORKSPACE_ERRORS
+      ]
     })
   )
   .add(
     HttpApiEndpoint.delete('delete', '/workspaces/:slug/webhooks/:endpointId', {
       params: EndpointParams,
       success: DeletedResponse,
-      error: [WebhookEndpointNotFound, ...WORKSPACE_ERRORS]
+      error: [publicProblem(WebhookEndpointNotFound), ...WORKSPACE_ERRORS]
     })
   )
   .add(
@@ -370,7 +391,7 @@ export const WebhookApi = HttpApiGroup.make('webhook-endpoints')
       {
         params: EndpointParams,
         success: RotatedWebhookSecret,
-        error: [WebhookEndpointNotFound, ...WORKSPACE_ERRORS]
+        error: [publicProblem(WebhookEndpointNotFound), ...WORKSPACE_ERRORS]
       }
     )
   )
@@ -381,7 +402,11 @@ export const WebhookApi = HttpApiGroup.make('webhook-endpoints')
       {
         params: EndpointParams,
         success: QueuedDeliveryResponse.pipe(HttpApiSchema.status(201)),
-        error: [WebhookEndpointNotFound, WebhookDispatchRejected, ...WORKSPACE_ERRORS]
+        error: [
+          publicProblem(WebhookEndpointNotFound),
+          publicProblem(WebhookDispatchRejected),
+          ...WORKSPACE_ERRORS
+        ]
       }
     )
   )
@@ -392,7 +417,11 @@ export const WebhookApi = HttpApiGroup.make('webhook-endpoints')
       {
         params: DeliveryParams,
         success: QueuedDeliveryResponse.pipe(HttpApiSchema.status(201)),
-        error: [WebhookDeliveryNotFound, WebhookDispatchRejected, ...WORKSPACE_ERRORS]
+        error: [
+          publicProblem(WebhookDeliveryNotFound),
+          publicProblem(WebhookDispatchRejected),
+          ...WORKSPACE_ERRORS
+        ]
       }
     )
   )
@@ -430,7 +459,7 @@ export const WorkspaceExportApi = HttpApiGroup.make('workspace-exports')
       {
         params: ExportIdParams,
         success: WorkspaceExportDownloadLinkDto,
-        error: [WorkspaceExportNotDownloadable, ...WORKSPACE_ERRORS]
+        error: [publicProblem(WorkspaceExportNotDownloadable), ...WORKSPACE_ERRORS]
       }
     )
   )
@@ -447,7 +476,7 @@ export const AssistantApi = HttpApiGroup.make('assistant')
         usedTools: AssistantReply.fields.usedTools,
         assistantConfigured: Schema.Boolean
       }),
-      error: [...PROTECTED_ERRORS, AssistantUnavailable]
+      error: [...PROTECTED_ERRORS, publicProblem(AssistantUnavailable)]
     })
   )
   .middleware(BearerAuth)
@@ -483,6 +512,7 @@ export const StarterApi = HttpApi.make('b2b-saas-starter')
   .add(AssistantApi)
   .add(AssistantConversationsApi)
   .add(McpApi)
+  .middleware(HttpApiMiddleware.ProblemDetails)
   .annotateMerge(
     OpenApi.annotations({
       title: 'B2B SaaS Starter API',

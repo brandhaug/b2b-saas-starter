@@ -53,7 +53,10 @@ function guardResponse(
   error: RateLimited | CapabilityUnavailable
 ): HttpServerResponse.HttpServerResponse {
   const { status, body } = guardFailureResponse(error)
-  return HttpServerResponse.jsonUnsafe(body, { status })
+  return HttpServerResponse.jsonUnsafe(body, {
+    status,
+    contentType: 'application/problem+json'
+  })
 }
 
 export function exportDownloadLayer(env: ApiEnv) {

@@ -15,6 +15,14 @@ HTTP and protocol `2025-11-25`. Initialize a session and send its
 `mcp-session-id` with later requests. `GET /mcp` returns 405; discovery is at
 `GET /mcp/discovery` and through the protocol's `tools/list`.
 
+Discovery lists only operations the current request may authorize. OAuth lists
+recheck workspace identity, membership, consent scopes, suspension and required
+authentication assurance. API-token lists use the token's permissions. The REST
+discovery endpoint accepts API tokens; OAuth clients use MCP protocol discovery.
+Each direct call still repeats its execution checks, even if the client learned
+the name from an earlier list. Discovery does not execute mutations or consume
+their write-rate allowance.
+
 Read tools include `get_workspace_overview`, `list_members`,
 `list_notifications`, `list_api_tokens`, `list_webhooks`,
 `list_webhook_deliveries`, `list_webhook_delivery_attempts`, and `list_audit_events`, with the
