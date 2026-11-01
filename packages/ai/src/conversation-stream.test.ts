@@ -31,6 +31,41 @@ const layer = selectConversationModelLayer(
 )
 
 describe('conversation model streaming', () => {
+  // SDK replacement failure modes: silently discard data after DONE, accept
+  // refusal/unknown deltas, or buffer an unbounded SSE event before validation.
+  it.effect(
+    'rejects trailing data, refusal and unknown parts, and oversized SSE events',
+    () =>
+      Effect.gen(function* () {
+        for (const [events, reason] of [
+          [
+            [
+              '{"choices":[{"delta":{"content":"answer"},"finish_reason":"stop"}]}',
+              '[DONE]',
+              '{"choices":[{"delta":{"content":"late"}}]}'
+            ],
+            'provider'
+          ],
+          [['{"choices":[{"delta":{"refusal":"refused"}}]}', '[DONE]'], 'provider'],
+          [['{"choices":[{"delta":{"future_part":"unknown"}}]}', '[DONE]'], 'provider'],
+          [
+            [`{"choices":[{"delta":{"content":"${'x'.repeat(131_073)}"}}]}`, '[DONE]'],
+            'unsupported'
+          ]
+        ] as const) {
+          stubResponse(events)
+          const model = yield* ConversationModel
+          const prompt = yield* model.prepare({
+            workspaceSlug: 'starter-lab',
+            question: 'Explain',
+            history: []
+          })
+          const error = yield* model.stream(prompt).pipe(Stream.runCollect, Effect.flip)
+          expect(error).toMatchObject({ _tag: 'ConversationModelFailure', reason })
+          expect(fetch).toHaveBeenCalledTimes(1)
+        }
+      }).pipe(Effect.provide(layer))
+  )
   it.effect(
     'preserves partial output and token usage when the provider reaches its output limit',
     () => {

@@ -296,6 +296,8 @@ describe('Stripe provider adapter', () => {
 })
 
 describe('Stripe webhook signature verification', () => {
+  // Failure modes: future replay, off-by-one tolerance, zero disabling validation,
+  // payload byte drift, permissive SDK parseInt timestamps, and crypto rejection.
   /* oxlint-disable effect/noAsyncFunction -- these tests exercise the real Web Crypto the verifier depends on */
   const nowSeconds = 1_700_000_000
   function fixedNow(): number {
@@ -376,6 +378,84 @@ describe('Stripe webhook signature verification', () => {
       await expect(
         verifyStripeSignature({ secret: 'whsec_test', payload, header }, fixedNow)
       ).resolves.toBe(false)
+    }
+  })
+
+  it('uses the injected clock for inclusive past and future tolerance', async () => {
+    const payload = 'signed payload é\n'
+    for (const [offset, accepted] of [
+      [-301, false],
+      [-300, true],
+      [0, true],
+      [300, true],
+      [301, false]
+    ] as const) {
+      const timestamp = nowSeconds + offset
+      const valid = await signature('whsec_test', payload, timestamp)
+      await expect(
+        verifyStripeSignature(
+          {
+            secret: 'whsec_test',
+            payload,
+            header: `t=${timestamp},v1=${valid}`
+          },
+          fixedNow
+        )
+      ).resolves.toBe(accepted)
+    }
+  })
+
+  it('keeps zero tolerance exact and verifies the original payload bytes', async () => {
+    const payload = 'signed payload é\n'
+    const valid = await signature('whsec_test', payload, nowSeconds)
+    const header = ` t = ${nowSeconds} , v1 = ${valid} `
+    await expect(
+      verifyStripeSignature(
+        { secret: 'whsec_test', payload, header, toleranceSeconds: 0 },
+        fixedNow
+      )
+    ).resolves.toBe(true)
+    await expect(
+      verifyStripeSignature(
+        { secret: 'whsec_test', payload: payload.trim(), header },
+        fixedNow
+      )
+    ).resolves.toBe(false)
+    await expect(
+      verifyStripeSignature(
+        { secret: 'whsec_test', payload, header, toleranceSeconds: 0 },
+        () => fixedNow() + 1000
+      )
+    ).resolves.toBe(false)
+    await expect(
+      verifyStripeSignature(
+        { secret: 'whsec_test', payload, header, toleranceSeconds: 0 },
+        () => fixedNow() - 1000
+      )
+    ).resolves.toBe(false)
+    for (const timestamp of [`${nowSeconds}junk`, 'NaN', 'Infinity']) {
+      await expect(
+        verifyStripeSignature(
+          { secret: 'whsec_test', payload, header: `t=${timestamp},v1=${valid}` },
+          fixedNow
+        )
+      ).resolves.toBe(false)
+    }
+  })
+
+  it('preserves platform crypto rejection instead of reporting a verified signature', async () => {
+    const payload = 'p'
+    const valid = await signature('whsec_test', payload, nowSeconds)
+    vi.spyOn(crypto.subtle, 'sign').mockRejectedValue(new Error('sign refused'))
+    try {
+      await expect(
+        verifyStripeSignature(
+          { secret: 'whsec_test', payload, header: `t=${nowSeconds},v1=${valid}` },
+          fixedNow
+        )
+      ).rejects.toBeDefined()
+    } finally {
+      vi.restoreAllMocks()
     }
   })
   /* oxlint-enable effect/noAsyncFunction */
