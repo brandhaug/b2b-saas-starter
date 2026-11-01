@@ -153,9 +153,7 @@ overrides:
   '@better-auth/oauth-provider': 'catalog:'
   vite@*: 'catalog:'
   vitest@*: 'catalog:'
-  # @tailwindcss/typography 0.5.20 pins vulnerable 6.0.10 exactly.
-  # Remove when its own pin includes the patched parser release.
-  postcss-selector-parser@<7.1.6: 7.1.6
+  minimatch@<11.0.1: 11.0.1
 patchedDependencies:
   alchemy@2.0.0-beta.84: patches/alchemy@2.0.0-beta.84.patch
 peerDependencyRules:
