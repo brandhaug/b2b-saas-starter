@@ -17,13 +17,13 @@ describe('AuthCardForm', () => {
 
     const form = screen.getByLabelText('Email').closest('form')
     if (!(form instanceof HTMLFormElement)) {
-      throw new Error('Email field should be inside the auth form')
+      throw new TypeError('Email field should be inside the auth form')
     }
     expect(form.getAttribute('method')).toBe('post')
     expect(form.getAttribute('data-hydrated')).toBe('true')
     const fieldset = form.querySelector('fieldset')
     if (!(fieldset instanceof HTMLFieldSetElement)) {
-      throw new Error('Auth controls should be guarded by a fieldset')
+      throw new TypeError('Auth controls should be guarded by a fieldset')
     }
     expect(fieldset.disabled).toBe(false)
 

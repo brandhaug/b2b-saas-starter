@@ -19,10 +19,11 @@ Do not replace an immutable revision with a tag. Local composite actions are par
 of this repository and are reviewed with the workflow that calls them.
 The Vite+ installer is downloaded from an immutable upstream commit over HTTPS
 and checked against a recorded SHA-256 before execution. The current pin is
-[the v1.1.0 installer](https://github.com/voidzero-dev/vite-plus/blob/3aa366ee03ac162f5acfd8ee7c752a8245d904c6/packages/cli/install.sh),
-with SHA-256 `e79e48da3b2817c179f581c943e2e1ccf0c690d32d0ed11b8cbfbebd7196918f`.
-The v1.1.0 installer was fetched and compared with v1.0.0; its bytes and digest
-are unchanged. CI selects the fixed CLI with `VP_VERSION=1.1.0`.
+[the v1.4.0 installer](https://github.com/voidzero-dev/vite-plus/blob/102fe8edad2c45690f24830feee30bfe242817ee/packages/cli/install.sh),
+with SHA-256 `6eaf139e16d45849bebc4a7de0dbc2992fd3b3a86a3f37bf7922b685f3a60d9e`.
+Compared with v1.1.0, this installer adds SHA-512 platform-archive verification
+against registry metadata and rejects HTTP download errors. CI provides `shasum`
+for both bootstrap and archive verification and selects `VP_VERSION=1.4.0`.
 The public `vite.plus` bootstrap changes independently of `VP_VERSION`, so it
 is not a reproducible download target. Update the source commit and digest only
 after reviewing the matching installer release, recording both in the same change.

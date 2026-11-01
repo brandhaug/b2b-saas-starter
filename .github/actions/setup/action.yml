@@ -19,10 +19,10 @@ runs:
         installer="$(mktemp)"
         trap 'rm -f "$installer"' EXIT
         # The public bootstrap changes independently of the pinned CLI release.
-        curl -fsSL https://raw.githubusercontent.com/voidzero-dev/vite-plus/3aa366ee03ac162f5acfd8ee7c752a8245d904c6/packages/cli/install.sh -o "$installer" # v1.1.0
-        echo 'e79e48da3b2817c179f581c943e2e1ccf0c690d32d0ed11b8cbfbebd7196918f  '"$installer" | shasum -a 256 -c -
-        VP_VERSION=1.1.0 VP_NODE_MANAGER=yes bash "$installer"
-        # Expose vp and its managed Node/pnpm shims to later steps. Vite+ 1.1
+        curl -fsSL https://raw.githubusercontent.com/voidzero-dev/vite-plus/102fe8edad2c45690f24830feee30bfe242817ee/packages/cli/install.sh -o "$installer" # v1.4.0
+        echo '6eaf139e16d45849bebc4a7de0dbc2992fd3b3a86a3f37bf7922b685f3a60d9e  '"$installer" | shasum -a 256 -c -
+        VP_VERSION=1.4.0 VP_NODE_MANAGER=yes bash "$installer"
+        # Expose vp and its managed Node/pnpm shims to later steps. Vite+ 1.4
         # selects pnpm from package.json's packageManager without Corepack.
         echo "$HOME/.local/share/vite-plus/bin" >> "$GITHUB_PATH"
       shell: bash
