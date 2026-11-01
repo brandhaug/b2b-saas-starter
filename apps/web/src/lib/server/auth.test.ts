@@ -107,7 +107,7 @@ describe('requireRequestSessionEffect', () => {
       Exit.isFailure(settled) ? Cause.squash(settled.cause) : settled.value
     )
     if (!(caught instanceof UnauthorizedError)) {
-      throw new Error('the gate must answer its own typed failure')
+      throw new TypeError('the gate must answer its own typed failure')
     }
     expect(caught.code).toBe('unauthorized')
     // The message is a server-side diagnostic; the client rebuilds the error

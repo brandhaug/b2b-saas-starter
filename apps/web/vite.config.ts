@@ -218,7 +218,7 @@ export default defineConfig(({ command, mode }) => {
             client: { files: ['**/*.server.*', '**/*.effects.ts'] }
           },
           router: {
-            routeFileIgnorePattern: '\\.test\\.'
+            routeFileIgnorePattern: String.raw`\.test\.`
           }
         }),
         {
