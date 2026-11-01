@@ -22,6 +22,70 @@ const fields: ReadonlyArray<TableViewField> = [
 ]
 
 describe('table view model', () => {
+  it('keeps nulls out of negative contains and uses case-insensitive text predicates', () => {
+    const rows = [{ name: null }, { name: 'Alpha' }, { name: 'BETA' }]
+    expect(
+      applyTableView(
+        rows,
+        {
+          ...defaultTableView,
+          filters: [{ field: 'name', operator: 'notContains', value: 'ALP' }]
+        },
+        (row) => row.name
+      )
+    ).toEqual([rows[2]])
+    expect(
+      applyTableView(
+        rows,
+        {
+          ...defaultTableView,
+          filters: [{ field: 'name', operator: 'is', value: 'beta' }]
+        },
+        (row) => row.name
+      )
+    ).toEqual([rows[2]])
+  })
+
+  it('preserves any/all, null inequality, and stable sort priority', () => {
+    const rows = [
+      { name: 'Beta', rank: 2 },
+      { name: 'Alpha', rank: 1 },
+      { name: null, rank: 1 },
+      { name: 'Alpha', rank: 1 }
+    ]
+    function getValue(row: (typeof rows)[number], field: string) {
+      return field === 'name' ? row.name : row.rank
+    }
+    const view: TableView = {
+      match: 'any',
+      filters: [
+        { field: 'name', operator: 'is', value: 'Beta' },
+        { field: 'rank', operator: 'is', value: '1' }
+      ],
+      sorts: [
+        { field: 'rank', direction: 'asc' },
+        { field: 'name', direction: 'asc' }
+      ]
+    }
+    expect(applyTableView(rows, view, getValue)).toEqual([
+      rows[1],
+      rows[3],
+      rows[2],
+      rows[0]
+    ])
+    expect(applyTableView(rows, { ...view, match: 'all' }, getValue)).toEqual([])
+    expect(
+      applyTableView(
+        rows,
+        {
+          ...defaultTableView,
+          filters: [{ field: 'name', operator: 'isNot', value: 'Alpha' }]
+        },
+        getValue
+      )
+    ).toEqual([rows[0], rows[2]])
+  })
+
   it('ignores malformed and unknown entries', () => {
     const serialized = JSON.stringify({
       match: 'wat',

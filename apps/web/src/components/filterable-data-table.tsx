@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react'
 import { functionalUpdate, type RowData } from '@tanstack/react-table'
-import { applyTableView, type TableViewField } from '@/lib/table-view'
+import { tableViewOptions, type TableViewField } from '@/lib/table-view'
 import { useTableView } from '@/lib/use-table-view'
 import { TableViewControls } from './table-view-controls'
 import {
@@ -14,7 +14,7 @@ export type DataTableField<TData> = TableViewField & {
   readonly value: (row: TData) => string | number | boolean | Date | null | undefined
 }
 
-/** Shares URL-backed controls with lists while TanStack owns table rendering and pagination. */
+/** Shares URL controls and row-model policies with lists; DataTable executes the view. */
 export function FilterableDataTable<TData extends RowData>({
   viewKey,
   fields,
@@ -37,14 +37,17 @@ export function FilterableDataTable<TData extends RowData>({
   readonly children: ReactNode
 }) {
   const { view, setView } = useTableView(viewKey, fields, false)
-  const filtered = applyTableView(data, { ...view, sorts: [] }, (row, field) =>
-    fields.find((candidate) => candidate.id === field)?.value(row)
+  const options = tableViewOptions<TData>(
+    view,
+    (row, field) => fields.find((candidate) => candidate.id === field)?.value(row),
+    fields
   )
 
   return (
     <DataTable
       columns={columns}
-      data={filtered}
+      data={data}
+      viewOptions={options}
       {...(pageSize === undefined ? {} : { pageSize })}
       tableLabel={tableLabel}
       emptyMessage={emptyMessage}
