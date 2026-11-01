@@ -1,4 +1,7 @@
 import * as Schema from 'effect/Schema'
+import * as Effect from 'effect/Effect'
+import { getSubdomain } from '@distilled.cloud/cloudflare/workers'
+import { withCloudflareToken } from '../scripts/lib/cloudflare.ts'
 import {
   productionStage,
   stageResourceNames,
@@ -42,23 +45,15 @@ export function deploymentOrigins(
   return { web: origin('web'), api: origin('api'), background: origin('background') }
 }
 
-const decodeSubdomainResponse = Schema.decodeUnknownSync(
-  Schema.Struct({ result: Schema.Struct({ subdomain: Schema.NonEmptyString }) })
-)
-
 export async function resolveSubdomain(
   accountId: string,
   token: string,
   fetchImpl: (input: string, init?: RequestInit) => Promise<Response> = fetch
 ): Promise<string> {
-  const response = await fetchImpl(
-    `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/subdomain`,
-    { headers: { Authorization: `Bearer ${token}` } }
+  const response = await Effect.runPromise(
+    withCloudflareToken(getSubdomain({ accountId }), token, (input, init) =>
+      fetchImpl(input instanceof Request ? input.url : String(input), init)
+    )
   )
-  if (!response.ok) {
-    throw new Error(`Cloudflare API returned HTTP ${response.status}`)
-  }
-  return decodeSubdomainName(
-    decodeSubdomainResponse(await response.json()).result.subdomain
-  )
+  return decodeSubdomainName(response.subdomain)
 }

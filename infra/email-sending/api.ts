@@ -1,7 +1,17 @@
 import { CloudflareEnvironment } from '@alchemy.run/cloudflare'
+import {
+  Credentials,
+  formatHeaders,
+  apiTokenCredentials,
+  apiKeyCredentials,
+  oauthCredentials
+} from '@distilled.cloud/cloudflare/Credentials'
+import { none } from '@distilled.cloud/cloudflare/Retry'
+import { getZone } from '@distilled.cloud/cloudflare/zones'
 import { Stage } from 'alchemy/Stage'
-import { Effect, Redacted, Schema } from 'effect'
+import { Effect, Match, Redacted, Schema } from 'effect'
 import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/http'
+import { requireCloudflareSuccess } from '../../scripts/lib/cloudflare.ts'
 
 export const apiUrl = 'https://api.cloudflare.com/client/v4'
 export const Identifier = Schema.String.check(Schema.isPattern(/^[a-f0-9]{32}$/u))
@@ -12,9 +22,7 @@ export const PageInfo = Schema.Struct({
   page: Schema.Int.check(Schema.isGreaterThanOrEqualTo(1)),
   total_pages: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 })
-export function envelope<A>(result: Schema.ConstraintDecoder<A>) {
-  return Schema.Struct({ success: Schema.Literal(true), result })
-}
+const decodePageInfo = Schema.decodeEffect(PageInfo)
 
 // oxlint-disable-next-line unicorn/throw-new-error -- TaggedError is Effect's error-class factory.
 export class EmailSendingError extends Schema.TaggedError<EmailSendingError>()(
@@ -53,24 +61,64 @@ export const checkEnvironment = Effect.fn('EmailSending.checkEnvironment')(funct
 
 /** Shares Alchemy credentials without modifying permissions or persisted auth. */
 export const authenticatedEmailClient = Effect.gen(function* () {
-  const credentials = yield* yield* CloudflareEnvironment
+  const environment = yield* yield* CloudflareEnvironment
+  const credentials = Match.value(environment).pipe(
+    Match.when({ type: 'apiKey' }, (value) =>
+      apiKeyCredentials({ apiKey: value.apiKey, email: Redacted.value(value.email) })
+    ),
+    Match.when({ type: 'apiToken' }, (value) =>
+      apiTokenCredentials({ apiToken: value.apiToken })
+    ),
+    Match.when({ type: 'oauth' }, (value) =>
+      oauthCredentials({ accessToken: value.accessToken })
+    ),
+    Match.exhaustive
+  )
   const stage = yield* Stage
   const transport = yield* HttpClient.HttpClient
-  const client = HttpClient.mapRequest(transport, (request) => {
-    if (credentials.type === 'apiKey') {
-      return request.pipe(
-        HttpClientRequest.setHeaders({
-          'X-Auth-Key': Redacted.value(credentials.apiKey),
-          'X-Auth-Email': Redacted.value(credentials.email)
+  const client = HttpClient.mapRequest(
+    transport,
+    HttpClientRequest.setHeaders(formatHeaders(credentials))
+  )
+  return { accountId: environment.accountId, stage, client }
+})
+
+/** Capture provider services; retain sanitized errors and exact HTTP missing semantics. */
+export const emailOperations = Effect.gen(function* () {
+  const credentials = yield* Credentials
+  const client = yield* HttpClient.HttpClient
+  return <A, E>(
+    operation: string,
+    effect: Effect.Effect<A, E, Credentials | HttpClient.HttpClient>
+  ) =>
+    Effect.gen(function* () {
+      let status: number | undefined
+      const observedClient = HttpClient.tap(client, (response) =>
+        Effect.sync(() => {
+          status = response.status
         })
       )
-    }
-    return HttpClientRequest.bearerToken(
-      request,
-      credentials.type === 'apiToken' ? credentials.apiToken : credentials.accessToken
-    )
-  })
-  return { accountId: credentials.accountId, stage, client }
+      return yield* effect.pipe(
+        none,
+        Effect.provideService(Credentials, credentials),
+        Effect.provideService(
+          HttpClient.HttpClient,
+          requireCloudflareSuccess(observedClient)
+        ),
+        Effect.mapError(() => {
+          const details = {
+            operation,
+            message:
+              status !== undefined && (status < 200 || status >= 300)
+                ? `Cloudflare ${operation} returned HTTP ${status}`
+                : 'Malformed Cloudflare response or transport failure'
+          }
+          return new EmailSendingError(
+            status === undefined ? details : { ...details, status }
+          )
+        })
+      )
+    })
 })
 
 export function emailApi(client: HttpClient.HttpClient) {
@@ -106,7 +154,7 @@ export function emailApi(client: HttpClient.HttpClient) {
   }
 }
 
-const Zone = envelope(
+const decodeZone = Schema.decodeUnknownEffect(
   Schema.Struct({
     id: Identifier,
     name: Domain,
@@ -115,23 +163,22 @@ const Zone = envelope(
 )
 export const validateSenderZone = Effect.fn('EmailSending.validateSenderZone')(
   function* (
-    api: ReturnType<typeof emailApi>,
+    run: Effect.Success<typeof emailOperations>,
     props: { zoneId: string; accountId: string; domain: string }
   ) {
-    const zone = yield* api.decode(
-      Zone,
-      HttpClientRequest.get(`${apiUrl}/zones/${props.zoneId}`)
+    const zone = yield* run('GET', getZone({ zoneId: props.zoneId })).pipe(
+      Effect.flatMap(decodeZone),
+      Effect.catchTag('SchemaError', () =>
+        Effect.fail(failure('GET', 'Malformed Cloudflare zone'))
+      )
     )
-    if (zone.result.id !== props.zoneId || zone.result.account.id !== props.accountId) {
+    if (zone.id !== props.zoneId || zone.account.id !== props.accountId) {
       return yield* failure(
         'scope',
         'Sending zone does not belong to the configured account'
       )
     }
-    if (
-      props.domain !== zone.result.name &&
-      !props.domain.endsWith(`.${zone.result.name}`)
-    ) {
+    if (props.domain !== zone.name && !props.domain.endsWith(`.${zone.name}`)) {
       return yield* failure('scope', 'Sender domain is outside the configured zone')
     }
   }
@@ -152,7 +199,7 @@ export const validateEmailSender = Effect.fn('EmailSending.validateEmailSender')
     const props = yield* decodeSenderScope(input).pipe(
       Effect.mapError(() => failure('scope', 'Invalid sender account, zone or domain'))
     )
-    yield* validateSenderZone(emailApi(environment.client), props)
+    yield* validateSenderZone(yield* emailOperations, props)
   }
 )
 
@@ -160,6 +207,9 @@ export const checkPage = Effect.fn('EmailSending.checkPage')(function* (
   info: Schema.Schema.Type<typeof PageInfo>,
   requested: number
 ) {
+  yield* decodePageInfo(info).pipe(
+    Effect.mapError(() => failure('list', 'Invalid pagination'))
+  )
   if (
     info.page !== requested ||
     info.total_pages > 1000 ||

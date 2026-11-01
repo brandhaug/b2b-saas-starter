@@ -3,7 +3,7 @@
 import { strict as assert } from 'node:assert'
 import { test } from 'vite-plus/test'
 import { CloudflareEnvironment } from '@alchemy.run/cloudflare'
-import { Credentials } from '@distilled.cloud/cloudflare/Credentials'
+import { fromApiToken } from '@distilled.cloud/cloudflare/Credentials'
 import { SendingSubdomainProvider } from '@alchemy.run/cloudflare/Email'
 import * as Plan from 'alchemy/Plan'
 import { ResourceExpr, PropExpr } from 'alchemy/Output'
@@ -118,6 +118,7 @@ async function planFor(name: string) {
     }
   })
   const dependencies = Layer.mergeAll(
+    fromApiToken({ apiToken: Redacted.make('test-token') }),
     Layer.succeed(
       HttpClient.HttpClient,
       HttpClient.make(() =>
@@ -137,18 +138,7 @@ async function planFor(name: string) {
       })
     )
   )
-  const senderProvider = SendingSubdomainProvider().pipe(
-    Layer.provide(
-      Layer.succeed(
-        Credentials,
-        Effect.succeed({
-          type: 'apiToken',
-          apiBaseUrl: 'https://api.cloudflare.com/client/v4',
-          apiToken: Redacted.make('test-token')
-        })
-      )
-    )
-  )
+  const senderProvider = SendingSubdomainProvider()
   const providers = Layer.mergeAll(
     senderProvider,
     EmailSendingPrivacyProvider,

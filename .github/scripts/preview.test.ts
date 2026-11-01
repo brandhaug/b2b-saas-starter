@@ -15,9 +15,12 @@ test('preview URL resolution validates Cloudflare response and formats worker UR
       url,
       authorization: new Headers(init?.headers).get('authorization') ?? ''
     })
-    return new Response(JSON.stringify({ result: { subdomain: 'example' } }), {
-      status: 200
-    })
+    return new Response(
+      JSON.stringify({ success: true, result: { subdomain: 'example' } }),
+      {
+        status: 200
+      }
+    )
   })
   assert.equal(subdomain, 'example')
   assert.deepEqual(calls, [
@@ -45,7 +48,8 @@ test('preview URL command writes GITHUB_ENV without echoing the token', async ()
       CLOUDFLARE_ACCOUNT_ID: 'account',
       CLOUDFLARE_API_TOKEN: 'secret'
     },
-    async () => new Response(JSON.stringify({ result: { subdomain: 'example' } })),
+    async () =>
+      new Response(JSON.stringify({ success: true, result: { subdomain: 'example' } })),
     async (value) => {
       output = value
     }

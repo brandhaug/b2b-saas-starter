@@ -1,21 +1,16 @@
 import { Effect } from 'effect'
-import { HttpClient, HttpClientRequest } from 'effect/http'
+import * as Queues from '@distilled.cloud/cloudflare/queues'
 import {
-  apiUrl,
   checkEnvironment,
   checkPage,
-  emailApi,
+  emailOperations,
   failure,
   missing,
   validateSenderZone
 } from './api.ts'
 import {
-  Creation,
-  Deleted,
-  Mutation,
-  Queue,
-  SubscriptionPage,
-  SubscriptionResponse,
+  decodeSubscription,
+  decodeSubscriptions,
   attributes,
   decodeProps,
   events,
@@ -26,11 +21,17 @@ import {
   type Subscription
 } from './subscription-model.ts'
 
-/** The supplied HTTP client must already carry authentication. Construction makes no requests. */
+function decode(value: unknown) {
+  return decodeSubscription(value).pipe(
+    Effect.mapError(() => failure('decode', 'Malformed Cloudflare subscription'))
+  )
+}
+
+/** Captures the SDK credentials and HTTP transport. Construction makes no requests. */
 export const makeEmailSendingLifecycle = Effect.fn('EmailSending.makeLifecycle')(
   function* (environment: { accountId: string; stage: string }) {
-    const api = emailApi(yield* HttpClient.HttpClient)
-    const collection = `${apiUrl}/accounts/${environment.accountId}/event_subscriptions/subscriptions`
+    const run = yield* emailOperations
+    const accountId = environment.accountId
     const checkScope = Effect.fn('EmailSending.checkScope')(function* (
       props: EmailSendingSubscriptionProps
     ) {
@@ -46,11 +47,10 @@ export const makeEmailSendingLifecycle = Effect.fn('EmailSending.makeLifecycle')
     })
     function get(id: string) {
       return missing(
-        api.decode(
-          SubscriptionResponse,
-          HttpClientRequest.get(`${collection}/${encodeURIComponent(id)}`)
+        run('GET', Queues.getSubscription({ accountId, subscriptionId: id })).pipe(
+          Effect.flatMap(decode)
         )
-      ).pipe(Effect.map((response) => response?.result))
+      )
     }
     const assertObserved = Effect.fn('EmailSending.assertObserved')(function* (
       value: Subscription,
@@ -59,7 +59,7 @@ export const makeEmailSendingLifecycle = Effect.fn('EmailSending.makeLifecycle')
     ) {
       if (
         !sameSource(value, scope) ||
-        value.destination.queue_id !== scope.queueId ||
+        value.destination.queueId !== scope.queueId ||
         (id !== undefined && value.id !== id)
       ) {
         return yield* failure(
@@ -75,15 +75,27 @@ export const makeEmailSendingLifecycle = Effect.fn('EmailSending.makeLifecycle')
       let current = 1
       let total = 1
       do {
-        const response = yield* api.decode(
-          SubscriptionPage,
-          HttpClientRequest.get(collection).pipe(
-            HttpClientRequest.setUrlParams({ page: current, per_page: 100 })
+        const response = yield* run(
+          'GET',
+          Queues.listSubscriptions({ accountId, page: current, perPage: 100 })
+        )
+        const info = response.resultInfo
+        if (
+          info?.page === undefined ||
+          info.page === null ||
+          info.totalPages === undefined ||
+          info.totalPages === null
+        ) {
+          return yield* failure('list', 'Malformed Cloudflare pagination')
+        }
+        yield* checkPage({ page: info.page, total_pages: info.totalPages }, current)
+        total = info.totalPages
+        const values = yield* decodeSubscriptions(response.result).pipe(
+          Effect.mapError(() =>
+            failure('list', 'Malformed Cloudflare subscription list')
           )
         )
-        yield* checkPage(response.result_info, current)
-        total = response.result_info.total_pages
-        matches.push(...response.result.filter((value) => sameSource(value, props)))
+        matches.push(...values.filter((value) => sameSource(value, props)))
         current += 1
       } while (current <= total)
       if (matches.length > 1) {
@@ -106,14 +118,12 @@ export const makeEmailSendingLifecycle = Effect.fn('EmailSending.makeLifecycle')
     })
     const validateDestination = Effect.fn('EmailSending.validateDestination')(
       function* (props: EmailSendingSubscriptionProps) {
-        yield* validateSenderZone(api, props)
-        const queue = yield* api.decode(
-          Queue,
-          HttpClientRequest.get(
-            `${apiUrl}/accounts/${props.accountId}/queues/${props.queueId}`
-          )
+        yield* validateSenderZone(run, props)
+        const queue = yield* run(
+          'GET',
+          Queues.getQueue({ accountId, queueId: props.queueId })
         )
-        if (queue.result.queue_id !== props.queueId) {
+        if (queue.queueId !== props.queueId) {
           return yield* failure(
             'scope',
             'Queue response does not match the configured queue'
@@ -165,40 +175,38 @@ export const makeEmailSendingLifecycle = Effect.fn('EmailSending.makeLifecycle')
         if (!value) {
           value = yield* find(props)
         }
-        const desired = Mutation.make({
+        const desired: Omit<Queues.PatchSubscriptionRequest, 'subscriptionId'> = {
+          accountId,
           name: props.name,
           enabled: true,
           events,
-          destination: { type: 'queues.queue', queue_id: props.queueId }
-        })
+          destination: { type: 'queues.queue', queueId: props.queueId }
+        }
         if (!value) {
-          const body = Creation.make({
-            ...desired,
-            source: {
-              type: 'email.sending',
-              zone_id: props.zoneId,
-              domain: props.domain
-            }
-          })
-          const input = yield* HttpClientRequest.schemaBodyJson(Creation)(
-            HttpClientRequest.post(collection),
-            body
-          ).pipe(
-            Effect.mapError(() => failure('create', 'Invalid subscription request'))
-          )
-          value = (yield* api.decode(SubscriptionResponse, input)).result
+          value = yield* run(
+            'POST',
+            Queues.createSubscription({
+              accountId,
+              name: props.name,
+              enabled: true,
+              events,
+              destination: { type: 'queues.queue', queueId: props.queueId },
+              source: {
+                type: 'email.sending',
+                zoneId: props.zoneId,
+                domain: props.domain
+              }
+            })
+          ).pipe(Effect.flatMap(decode))
         } else if (
           value.name !== props.name ||
           !value.enabled ||
           !sameEvents(value.events)
         ) {
-          const input = yield* HttpClientRequest.schemaBodyJson(Mutation)(
-            HttpClientRequest.patch(`${collection}/${value.id}`),
-            desired
-          ).pipe(
-            Effect.mapError(() => failure('update', 'Invalid subscription request'))
-          )
-          const updated = (yield* api.decode(SubscriptionResponse, input)).result
+          const updated = yield* run(
+            'PATCH',
+            Queues.patchSubscription({ ...desired, subscriptionId: value.id })
+          ).pipe(Effect.flatMap(decode))
           yield* assertObserved(updated, props, value.id)
           value = updated
         }
@@ -221,7 +229,10 @@ export const makeEmailSendingLifecycle = Effect.fn('EmailSending.makeLifecycle')
         }
         yield* assertObserved(value, output, output.subscriptionId)
         yield* missing(
-          api.decode(Deleted, HttpClientRequest.delete(`${collection}/${value.id}`))
+          run(
+            'DELETE',
+            Queues.deleteSubscription({ accountId, subscriptionId: value.id })
+          )
         )
       })
     }
