@@ -8,7 +8,10 @@
 // Pure string/SQL helpers plus one JSON decoder: no wrangler spawn, so
 // scripts can share them without inheriting a process.
 import { createHash } from 'node:crypto'
+import { timestampPrefixMillis } from '@alchemy.run/sql/Migrations/Utils'
 import { Schema } from 'effect'
+
+export { sqlLiteral } from '@alchemy.run/sql/Migrations/Utils'
 
 // The exact CREATE TABLE alchemy runs on first contact with a database.
 export const ENSURE_BOOKKEEPING_TABLE = `CREATE TABLE IF NOT EXISTS __alchemy_migrations (
@@ -19,28 +22,6 @@ export const ENSURE_BOOKKEEPING_TABLE = `CREATE TABLE IF NOT EXISTS __alchemy_mi
   applied_at TEXT
 );`
 
-export function sqlLiteral(value: string): string {
-  return `'${value.replaceAll("'", "''")}'`
-}
-
-// Mirrors alchemy's timestampPrefixMillis: `YYYYMMDDHHMMSS` folder prefix →
-// epoch millis, null when the folder name carries no such prefix. Internal:
-// `bookkeepingRecord` is the only caller and the only shape a script needs.
-function timestampPrefixMillis(name: string): number | null {
-  const prefix = name.slice(0, 14)
-  if (!/^\d{14}$/.test(prefix)) {
-    return null
-  }
-  return Date.UTC(
-    Number.parseInt(prefix.slice(0, 4), 10),
-    Number.parseInt(prefix.slice(4, 6), 10) - 1,
-    Number.parseInt(prefix.slice(6, 8), 10),
-    Number.parseInt(prefix.slice(8, 10), 10),
-    Number.parseInt(prefix.slice(10, 12), 10),
-    Number.parseInt(prefix.slice(12, 14), 10)
-  )
-}
-
 /** The bookkeeping row alchemy writes for one applied migration. */
 export type BookkeepingRecord = {
   readonly hash: string
@@ -50,7 +31,7 @@ export type BookkeepingRecord = {
 export function bookkeepingRecord(name: string, sql: string): BookkeepingRecord {
   return {
     hash: createHash('sha256').update(sql).digest('hex'),
-    createdAtMillis: timestampPrefixMillis(name)
+    createdAtMillis: timestampPrefixMillis(name) ?? null
   }
 }
 
