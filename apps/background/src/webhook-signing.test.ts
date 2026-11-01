@@ -1,7 +1,7 @@
 import { activeSigningSecrets } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { randomWebhookSecret } from '@b2b-saas-starter/capabilities/crypto'
 import { describe, expect, it, vi } from '@effect/vitest'
-import { DateTime, Effect } from 'effect'
+import { DateTime, Effect, Result } from 'effect'
 import { Webhook } from 'standardwebhooks'
 import { computeWebhookSignature, signatureHeaderValue } from './webhook-signing.ts'
 
@@ -26,6 +26,41 @@ const signedHeaders = Effect.fn('Test.signedHeaders')(function* (
 })
 
 describe('Standard Webhooks reference verifier interoperability', () => {
+  // Failure modes: UTF-8/body/identity/timestamp drift, double version prefixes,
+  // reversed rotation keys, or malformed secrets escaping as defects.
+  it.effect('matches a fixed HMAC vector and keeps current-key-first headers', () =>
+    Effect.gen(function* () {
+      const current = yield* computeWebhookSignature(
+        currentSecret,
+        messageId,
+        1_700_000_000,
+        body
+      )
+      const previous = yield* computeWebhookSignature(
+        previousSecret,
+        messageId,
+        1_700_000_000,
+        body
+      )
+      expect(current).toBe('v1,B+5UtzyHA35rTG8GXVw5cibhrX7uk81/MvcTch6gDOE=')
+      expect(signatureHeaderValue([current, previous])).toBe(`${current} ${previous}`)
+    })
+  )
+
+  it.effect('reports invalid secrets as typed availability failures', () =>
+    Effect.gen(function* () {
+      for (const secret of ['whsec_', 'whsec_!!!!']) {
+        const result = yield* Effect.result(
+          computeWebhookSignature(secret, messageId, 1_700_000_000, body)
+        )
+        expect(Result.isFailure(result)).toBe(true)
+        if (Result.isFailure(result)) {
+          expect(result.failure._tag).toBe('CapabilityUnavailable')
+        }
+      }
+    })
+  )
+
   it.effect(
     'verifies exact UTF-8 bytes and rejects changed body, identity, and stale time',
     () =>
