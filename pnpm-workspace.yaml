@@ -147,41 +147,18 @@ minimumReleaseAgeExclude:
 overrides:
   '@effect/sql-d1': 'catalog:'
   '@effect/vitest': 'catalog:'
-  '@effect/sql-sqlite-do': 4.1.0
   jose: 'catalog:'
   '@better-auth/utils': 'catalog:'
   # MCP and CIMD must use the same OAuth provider release as the app.
   '@better-auth/oauth-provider': 'catalog:'
-  brace-expansion: 5.0.12
-  fast-uri: 3.1.8
-  hono: 4.13.11
-  ip-address: 10.7.1
-  js-yaml: 4.3.2
-  nanoid: 3.3.18
-  postcss: 8.5.24
-  sharp: 0.35.5
-  shell-quote: 1.11.0
-  socket.io-parser: 4.2.7
-  next: 16.4.1
-  undici: 7.30.1
-  # GHSA-5qjj-4xww-7phc: Alchemy's Prisma dev tool pins vulnerable 1.2.0.
-  # Remove when @prisma/dev updates its own dependency to >=1.4.2.
-  '@prisma/dev>valibot': 1.4.2
-  # @prisma/dev pins a node-server release affected by path traversal advisories.
-  # Remove when @prisma/dev updates its own dependency to >=1.19.15.
-  '@prisma/dev>@hono/node-server': 1.19.15
-  ws: 8.21.0
   vite@*: 'catalog:'
   vitest@*: 'catalog:'
+  # Vite+ 1.1.0 pins vulnerable Vitest 5.0.3 browser packages.
+  # Remove when the toolchain's own pins are >=5.0.5.
   '@vitest/browser@>=5.0.0-beta.6 <5.0.5': 5.0.5
   '@vitest/ui@>=5.0.0-beta.6 <5.0.5': 5.0.5
-  zod@<4.6.6: 4.6.6
-  body-parser@>=2.0.0 <2.4.0: 2.4.0
-  undici@>=7.0.0 <7.30.1: 7.30.1
-  undici@>=7.15.0 <7.30.1: 7.30.1
-  undici@>=7.18.0 <7.30.1: 7.30.1
-  fast-uri@>=3.0.0 <3.1.9: 3.1.9
-  fast-uri@>=3.1.3 <3.1.9: 3.1.9
+  # @tailwindcss/typography 0.5.20 pins vulnerable 6.0.10 exactly.
+  # Remove when its own pin includes the patched parser release.
   postcss-selector-parser@<7.1.6: 7.1.6
 patchedDependencies:
   alchemy@2.0.0-beta.84: patches/alchemy@2.0.0-beta.84.patch
