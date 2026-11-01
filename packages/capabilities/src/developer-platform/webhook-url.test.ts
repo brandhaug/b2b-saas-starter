@@ -12,6 +12,29 @@ const seedWorkspaceLayer = Layer.merge(
 )
 
 describe('validateWebhookUrl', () => {
+  // Failure modes: multicast escapes, short IPv6 groups are right-padded,
+  // compressed public addresses are rejected, or mapped IPv4 bypasses policy.
+  it.each([
+    ['https://[ff00::]/', false],
+    ['https://[ffff::1]/', false],
+    ['https://[fc::1]/', true],
+    ['https://[fe8::1]/', true],
+    ['https://[::2]/', true],
+    ['https://[::]/', false],
+    ['https://[2001:4860:4860::8888]/', true],
+    ['https://[fbff::1]/', true],
+    ['https://[fe00::1]/', true],
+    ['https://[fe7f::1]/', true],
+    ['https://[febf::1]/', false],
+    ['https://[fec0::1]/', true],
+    ['https://[::ffff:224.0.0.1]/', false],
+    ['https://[::ffff:8.8.8.8]/', true],
+    ['https://2130706433/', false],
+    ['https://0x7f000001/', false]
+  ])('classifies normalized literal %s', (url, valid) => {
+    expect(validateWebhookUrl(url).valid).toBe(valid)
+  })
+
   it('accepts public https URLs', () => {
     expect(validateWebhookUrl('https://example.com/hooks')).toEqual({ valid: true })
     expect(validateWebhookUrl('https://hooks.example.com:8443/hooks')).toEqual({

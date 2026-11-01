@@ -1,4 +1,5 @@
-import { isStrongAuthenticationError } from '@/lib/ui-error'
+import { isInvalidCalendarDayError, isStrongAuthenticationError } from '@/lib/ui-error'
+import { CalendarFilterError } from './calendar-filter-error'
 import { Link, useParams, useRouter } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty'
@@ -49,6 +50,9 @@ export function workspaceRouteError(copy: WorkspaceRouteErrorCopy) {
     // where the slug param does not exist. The shell then anchors its sidebar
     // to the last visited workspace instead of emptying the column.
     const { workspaceSlug } = useParams({ strict: false })
+    if (isInvalidCalendarDayError(error)) {
+      return <CalendarFilterError error={error} />
+    }
     if (isStrongAuthenticationError(error)) {
       return <StrongAuthenticationNotice />
     }

@@ -1,6 +1,9 @@
 {
   "shell_toast_notifications": "Varsler",
   "shell_toast_close": "Lukk varsel",
+  "shell_invalid_calendar_day": "Et datofilter er ugyldig, eller datoen finnes ikke i tidssonen din. Fjern filtrene og velg en annen dato.",
+  "shell_calendar_filter_title": "Velg en annen dato",
+  "shell_clear_calendar_filters": "Fjern filtre",
   "shell_demo_read_only": "Denne forhåndsvisningen er skrivebeskyttet. Ingen endringer ble gjort. Logg inn for å bruke denne handlingen.",
   "shell_description": "B2B SaaS-startmal for Cloudflare med TanStack Start, Effect v4, Drizzle D1, Better Auth, REST, MCP, e-post og tester.",
   "shell_not_found": "Fant ikke siden",

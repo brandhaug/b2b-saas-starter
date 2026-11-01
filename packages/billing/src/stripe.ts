@@ -1,9 +1,9 @@
 import { Effect, Layer, Result, Schema } from 'effect'
 import { FetchHttpClient, HttpBody, HttpClient, HttpClientRequest } from 'effect/http'
+import { Stripe } from 'stripe'
 
 import { billingLifecycleStatuses } from '@b2b-saas-starter/db/enums'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
-import { hmacSha256Hex } from './crypto.ts'
 import { billableSeatQuantity } from './plan-catalog.ts'
 
 /**
@@ -186,9 +186,9 @@ function stripeRequest(
     ...idempotencyHeader(idempotencyKey),
     'stripe-version': STRIPE_API_VERSION
   }
-  // stripe-node v18 matches Basil and supports fetch, but its timeout ends at
-  // response headers and does not accept the caller's cancellation signal.
-  // Keep one scoped request through body consumption, without transport retries.
+  // stripe 23.1.0 bounds JSON body reads, but RequestOptions still has no caller
+  // AbortSignal. Keep scoped cancellation and manual redirects in this transport.
+  // Exact SDK operations and source evidence: docs/research/effect-4-adoption.md.
   return Effect.gen(function* () {
     const client = yield* HttpClient.HttpClient
     let request = HttpClientRequest.make(method)(url, { headers: requestHeaders })
@@ -796,6 +796,8 @@ export function subscriptionLinkForStripeEvent(
 // Webhook signature verification (shared with the background worker)
 // ---------------------------------------------------------------------------
 
+const stripeWebhookCrypto = Stripe.createSubtleCryptoProvider()
+
 /**
  * Verifies Stripe's `stripe-signature` header scheme: `t=<ts>,v1=<hex>` where
  * `v1` is HMAC-SHA256 over `<ts>.<payload>` keyed with the webhook secret.
@@ -803,7 +805,7 @@ export function subscriptionLinkForStripeEvent(
  * the injectable `now` wall clock so tests can pin the boundary. Exported
  * for the background worker and its tests.
  */
-// oxlint-disable-next-line effect/noAsyncFunction -- Web Crypto's HMAC API is promise-based, and this helper is shared with the background worker's plain fetch handler
+// oxlint-disable-next-line effect/noAsyncFunction -- Stripe's Web Crypto verifier is promise-based; the background fetch handler shares it
 export async function verifyStripeSignature(
   input: {
     readonly secret: string
@@ -817,43 +819,60 @@ export async function verifyStripeSignature(
   if (input.header === null) {
     return false
   }
+  // Preserve whitespace normalization. Stripe's parser expects bare key=value.
+  const header = input.header
+    .split(',')
+    .map((pair) =>
+      pair
+        .split('=')
+        .map((part) => part.trim())
+        .join('=')
+    )
+    .join(',')
   let timestamp: string | undefined
-  const signatures: Array<string> = []
-  for (const pair of input.header.split(',')) {
+  for (const pair of header.split(',')) {
     const [key, value] = pair.split('=', 2)
-    const trimmedKey = key?.trim()
-    const trimmedValue = value?.trim()
-    if (trimmedKey === 't' && trimmedValue !== undefined) {
-      timestamp = trimmedValue
-    } else if (trimmedKey === 'v1' && trimmedValue !== undefined) {
-      signatures.push(trimmedValue)
+    if (key === 't') {
+      timestamp = value
     }
   }
-  if (timestamp === undefined || signatures.length === 0) {
+  // The SDK uses parseInt and only checks past age. Keep the application policy
+  // symmetric, including tolerance=0, and reject noncanonical timestamps.
+  if (
+    timestamp === undefined ||
+    String(Number(timestamp)) !== timestamp ||
+    !Number.isSafeInteger(Number(timestamp))
+  ) {
     return false
   }
-  const age = Math.abs(Math.floor(now() / 1000) - Number(timestamp))
+  const receivedAt = now()
+  const age = Math.abs(Math.floor(receivedAt / 1000) - Number(timestamp))
   if (!Number.isFinite(age)) {
     return false
   }
   if (age > (input.toleranceSeconds ?? 300)) {
     return false
   }
-  // oxlint-disable-next-line effect/noAsyncFunction -- Web Crypto awaits; see the note on the function
-  const expected = await hmacSha256Hex(input.secret, `${timestamp}.${input.payload}`)
-  for (const signature of signatures) {
-    if (expected.length !== signature.length) {
-      continue
+  // oxlint-disable-next-line effect/noTryCatch -- plain Promise boundary shared by the background fetch handler
+  try {
+    return (
+      // oxlint-disable-next-line effect/noAsyncFunction -- await the SDK so signature failures map to false
+      (await Stripe.webhooks.signature?.verifyHeaderAsync(
+        input.payload,
+        header,
+        input.secret,
+        0,
+        stripeWebhookCrypto,
+        receivedAt
+      )) ?? false
+    )
+  } catch (error) {
+    if (error instanceof Stripe.errors.StripeSignatureVerificationError) {
+      return false
     }
-    let diff = 0
-    for (let i = 0; i < expected.length; i++) {
-      diff |= expected.charCodeAt(i) ^ signature.charCodeAt(i)
-    }
-    if (diff === 0) {
-      return true
-    }
+    // oxlint-disable-next-line effect/noThrowStatement -- preserve platform crypto rejection for the Promise caller
+    throw error
   }
-  return false
 }
 
 /** Shared decoded GET boundary for pricing and payment evidence. */

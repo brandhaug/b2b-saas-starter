@@ -21,6 +21,10 @@ export default defineConfig({
     }
   },
   test: {
+    // Billing is measured in this shared coverage report. Include its provider
+    // tests alongside the Live integration tests rather than reporting those
+    // provider paths as untested merely because their tests live in the owner.
+    include: ['src/**/*.test.ts', '../billing/src/**/*.test.ts'],
     // Each live suite starts a D1 proxy. Bound concurrent proxies so local
     // validation does not exhaust ephemeral localhost ports.
     maxWorkers: 2,

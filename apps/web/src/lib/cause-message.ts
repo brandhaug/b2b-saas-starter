@@ -91,6 +91,9 @@ export function causeMessage(thrown: unknown, fallback: string): string {
       : {}
   const reason = 'reason' in details ? details.reason : undefined
   switch (thrown.code) {
+    case 'invalid_calendar_day': {
+      return m.shell_invalid_calendar_day()
+    }
     case 'invalid_locale': {
       return m.shell_invalid_locale()
     }

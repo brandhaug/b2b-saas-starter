@@ -1,4 +1,6 @@
-import { screen } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { UiError, uiErrorAdapter } from '@/lib/ui-error'
+import { CalendarFilterError } from './calendar-filter-error'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
 import { ForbiddenError } from '@/lib/capability-error'
@@ -29,6 +31,51 @@ function renderError(error: Error) {
 }
 
 describe('workspaceRouteError', () => {
+  // Failure modes: serialized refusals show raw diagnostics or only retry;
+  // recovery retains the bad filter/cursor or navigates out of the current page.
+  it.each([
+    [
+      '/workspaces/$workspaceSlug/audit',
+      '/workspaces/starter-lab/audit?since=2011-12-30&until=2011-12-30&view=bad&cursor=old&actor=usr_ops'
+    ],
+    ['/admin', '/admin?failureView=bad&failureCursor=old&view=users']
+  ])('clears rejected calendar filters on %s', async (path, initialEntry) => {
+    const error = uiErrorAdapter.fromSerializable(
+      uiErrorAdapter.toSerializable(
+        new UiError('invalid_calendar_day', {}, 'private diagnostic')
+      )
+    )
+    const { router } = await renderWithRouter(<CalendarFilterError error={error} />, {
+      path,
+      initialEntry
+    })
+    expect(screen.getByRole('heading', { name: 'Choose another date' })).toBeTruthy()
+    expect(screen.queryByText('private diagnostic')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+    await waitFor(() => {
+      const search = router.state.location.search
+      expect(search).not.toHaveProperty('since')
+      expect(search).not.toHaveProperty('until')
+      expect(search).not.toHaveProperty('cursor')
+      expect(search).not.toHaveProperty('failureView')
+      expect(search).not.toHaveProperty('failureCursor')
+      if (path === '/admin') {
+        expect(search).toMatchObject({ view: 'users' })
+      } else {
+        expect(search).toMatchObject({ actor: 'usr_ops' })
+      }
+    })
+    expect(router.state.location.pathname).toBe(
+      new URL(initialEntry, 'https://example.com').pathname
+    )
+  })
+
+  it('routes calendar refusals to recovery instead of a retry loop', async () => {
+    await renderError(new UiError('invalid_calendar_day', {}, 'private diagnostic'))
+    expect(screen.getByRole('button', { name: 'Clear filters' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
+  })
+
   it('renders a denial as a page of the app, with the shell around it', async () => {
     await renderError(new ForbiddenError('denied'))
     expect(
