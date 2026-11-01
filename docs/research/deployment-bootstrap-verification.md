@@ -27,12 +27,13 @@ sender account validation before provisioning, and dependent resource replacemen
 The real Alchemy planner regression reproduces sender replacement and confirms that
 privacy and event subscriptions replace with it rather than retaining the old domain.
 
-The recovery regression also passed within the final validation. It uses the native
-sender provider and both local providers with actual Alchemy drift, planning, and
-apply operations. A simulated remote sender deletion recreates the sender but fails
-privacy repair against its old ID. The recovery sequence resolves the new ID,
-disables previews only on that sender, replaces the subscription, and converges
-without further writes on the next normal drift/apply.
+The recovery regression uses the native sender provider and both local providers
+with actual Alchemy drift, planning, and apply operations. With native
+`previewEnabled: false`, simulated remote sender deletion now recreates and
+configures the sender in the same drift pass. The read-only privacy gate skips
+independent drift repair, avoiding the previous stale-ID race. Dependency-aware
+deployment resolves the new ID, verifies enabled status and disabled previews,
+replaces the subscription, and converges without writes on the next drift/apply.
 
 ## Live bootstrap verification
 

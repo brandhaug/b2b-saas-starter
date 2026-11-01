@@ -8,8 +8,7 @@ import { validateEmailSender } from '../infra/email-sending/api.ts'
 import {
   makeEmailSendingLifecycle,
   discoverEmailEventsQueue,
-  ensureSenderPrivacy,
-  readSenderPrivacy
+  ensureSenderPrivacy
 } from '../infra/email-sending.ts'
 
 // Failure modes, written before the provider:
@@ -25,7 +24,7 @@ import {
 //   uses another account, or trusts a list result contradicted by an account-scoped GET.
 // - Discovery loops on malformed pagination or swallows permissions/malformed data.
 // - Privacy updates the wrong sender or accepts an absent preview flag as disabled.
-// - Privacy PATCH broadens settings, fails silently, repeats after success, or runs in previews.
+// - Verification mutates native-owned settings, accepts preview drift, or runs in previews.
 
 const accountId = 'a'.repeat(32)
 const zoneId = 'b'.repeat(32)
@@ -313,27 +312,14 @@ describe('operator email discovery and sender privacy', () => {
     }
   )
 
-  it('reads preview drift and disables only preview_enabled, then makes no repeated PATCH', async () => {
+  it('verifies native-disabled previews repeatedly without writing', async () => {
     const disabled = { ...sender, preview_enabled: false }
     const test = scenario([
       senderZone(),
-      senderGet(),
-      senderZone(),
-      senderGet(),
-      {
-        method: 'PATCH',
-        url: senderUrl,
-        body: { preview_enabled: false },
-        response: ok(disabled),
-        authenticated: true
-      },
+      senderGet(ok(disabled)),
       senderZone(),
       senderGet(ok(disabled))
     ])
-    expect(await test.runEffect(readSenderPrivacy(senderProps))).toEqual({
-      ...senderProps,
-      previewEnabled: true
-    })
     expect(await test.runEffect(ensureSenderPrivacy(senderProps))).toEqual({
       ...senderProps,
       previewEnabled: false
@@ -351,7 +337,7 @@ describe('operator email discovery and sender privacy', () => {
     { tag: sender.tag, name: sender.name, enabled: true },
     { ...sender, enabled: false }
   ])(
-    'refuses mismatched, malformed, or disabled senders before PATCH',
+    'refuses mismatched, malformed, or disabled senders without writing',
     async (response) => {
       const test = scenario([senderZone(), senderGet(ok(response))])
       await expect(test.runEffect(ensureSenderPrivacy(senderProps))).rejects.toThrow(
@@ -362,11 +348,7 @@ describe('operator email discovery and sender privacy', () => {
   )
 
   it('fails when Cloudflare does not disable previews', async () => {
-    const test = scenario([
-      senderZone(),
-      senderGet(),
-      { method: 'PATCH', url: senderUrl, response: ok(sender) }
-    ])
+    const test = scenario([senderZone(), senderGet()])
     await expect(test.runEffect(ensureSenderPrivacy(senderProps))).rejects.toThrow(
       'disable'
     )
@@ -374,25 +356,15 @@ describe('operator email discovery and sender privacy', () => {
   })
 
   it('fails when preview permissions are denied', async () => {
-    const test = scenario([
-      senderZone(),
-      senderGet(),
-      { method: 'PATCH', url: senderUrl, status: 403, response: { success: false } }
-    ])
+    const test = scenario([senderZone(), senderGet({ success: false }, 403)])
     await expect(test.runEffect(ensureSenderPrivacy(senderProps))).rejects.toThrow(
       '403'
     )
     test.done()
   })
 
-  it('returns missing on privacy read but refuses to manufacture a missing sender', async () => {
-    const test = scenario([
-      senderZone(),
-      senderGet({ success: false }, 404),
-      senderZone(),
-      senderGet({ success: false }, 404)
-    ])
-    expect(await test.runEffect(readSenderPrivacy(senderProps))).toBeUndefined()
+  it('refuses to manufacture a missing sender', async () => {
+    const test = scenario([senderZone(), senderGet({ success: false }, 404)])
     await expect(test.runEffect(ensureSenderPrivacy(senderProps))).rejects.toThrow(
       '404'
     )

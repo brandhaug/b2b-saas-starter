@@ -22,8 +22,15 @@ const accountId = 'a'.repeat(32)
 const zoneId = 'b'.repeat(32)
 const queueId = 'c'.repeat(32)
 const subdomainId = 'f'.repeat(32)
-const oldSender = { zoneId, name: 'mail.example.com' }
-const oldPrivacy = { accountId, zoneId, subdomainId, domain: oldSender.name }
+const oldSender = { zoneId, name: 'mail.example.com', previewEnabled: false }
+const senderState = { enabled: true, previewEnabled: false }
+const oldPrivacy = {
+  accountId,
+  zoneId,
+  subdomainId,
+  domain: oldSender.name,
+  senderState
+}
 const oldSubscription = {
   accountId,
   zoneId,
@@ -83,19 +90,24 @@ function row(
   }
 }
 
-async function planFor(name: string) {
+async function planFor(name: string, previewEnabled = false) {
   const sender = resource('sender', 'Cloudflare.Email.SendingSubdomain', {
     zoneId,
-    name
+    name,
+    previewEnabled
   })
-  const senderOutput = new ResourceExpr<typeof oldSender & { subdomainId: string }>(
-    sender
-  )
+  const senderOutput = new ResourceExpr<
+    typeof oldSender & { subdomainId: string; enabled: boolean }
+  >(sender)
   const privacy = resource('privacy', 'Starter.EmailSendingPrivacy', {
     accountId,
     zoneId: new PropExpr(senderOutput, 'zoneId'),
     subdomainId: new PropExpr(senderOutput, 'subdomainId'),
-    domain: new PropExpr(senderOutput, 'name')
+    domain: new PropExpr(senderOutput, 'name'),
+    senderState: {
+      enabled: new PropExpr(senderOutput, 'enabled'),
+      previewEnabled: new PropExpr(senderOutput, 'previewEnabled')
+    }
   })
   const privacyOutput = new ResourceExpr<typeof oldPrivacy>(privacy)
   const subscription = resource('subscription', 'Starter.EmailSendingSubscription', {
@@ -188,4 +200,13 @@ test('unchanged sender identity does not cause perpetual replacement', async () 
       subscription: 'noop'
     }
   )
+})
+
+// Failure mode: mutable native status outputs must rerun verification, not replace
+// the owned subscription or let its verifier skip an upstream update.
+test('native sender setting updates rerun verification without replacing identities', async () => {
+  const plan = await planFor(oldSender.name, true)
+  assert.equal(plan.resources.sender?.action, 'update')
+  assert.equal(plan.resources.privacy?.action, 'update')
+  assert.equal(plan.resources.subscription?.action, 'noop')
 })

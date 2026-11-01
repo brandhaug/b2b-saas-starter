@@ -57,13 +57,18 @@ export default Alchemy.Stack(
     }).pipe(Effect.mapError(configurationError))
     const sending = yield* Cloudflare.Email.SendingSubdomain('sender', {
       zoneId: sender.zoneId,
-      name: sender.domain
+      name: sender.domain,
+      previewEnabled: false
     })
     const privacy = yield* EmailSendingPrivacy('sender-privacy', {
       accountId,
       zoneId: sending.zoneId,
       subdomainId: sending.subdomainId,
-      domain: sending.name
+      domain: sending.name,
+      senderState: {
+        enabled: sending.enabled,
+        previewEnabled: sending.previewEnabled
+      }
     })
     const subscription = yield* EmailSendingSubscription('email-lifecycle-events', {
       accountId,

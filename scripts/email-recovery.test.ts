@@ -1,6 +1,6 @@
 // Failure modes recorded before implementing the recovery command:
-// - Failed concurrent drift loses the native sender's replacement ID.
-// - A second drift pass still tries to repair privacy using the deleted sender ID.
+// - Native drift loses the sender's replacement ID or leaves previews enabled.
+// - Verification races native drift using the deleted sender ID.
 // - The no-drift force planner reuses stale outputs instead of replacing privacy.
 // - Recovery enables previews, patches the old sender, or leaves delivery broken.
 // - A subsequent normal drift/apply repeats writes instead of converging.
@@ -18,7 +18,7 @@ import { Stage } from 'alchemy/Stage'
 import { isActionState, State } from 'alchemy/State'
 import { inMemoryState } from 'alchemy/State/InMemoryState'
 import { type CreatedResourceState } from 'alchemy/State/ResourceState'
-import { Cause, Effect, Exit, Layer, Redacted } from 'effect'
+import { Effect, Layer, Redacted } from 'effect'
 import { HttpClient, HttpClientResponse } from 'effect/http'
 import { test } from 'vite-plus/test'
 import {
@@ -33,8 +33,14 @@ const subscriptionId = 'd'.repeat(32)
 const oldId = 'e'.repeat(32)
 const newId = 'f'.repeat(32)
 const domain = 'mail.example.com'
-const senderProps = { zoneId, name: domain }
-const privacyProps = { accountId, zoneId, subdomainId: oldId, domain }
+const senderProps = { zoneId, name: domain, previewEnabled: false }
+const privacyProps = {
+  accountId,
+  zoneId,
+  subdomainId: oldId,
+  domain,
+  senderState: { enabled: true, previewEnabled: false }
+}
 const subscriptionProps = { accountId, zoneId, queueId, domain, name: 'email-events' }
 const events = [
   'message.delivered',
@@ -113,14 +119,18 @@ function row(
 
 function stackFixture() {
   const sender = resource('sender', 'Cloudflare.Email.SendingSubdomain', senderProps)
-  const senderOutput = new ResourceExpr<typeof senderProps & { subdomainId: string }>(
-    sender
-  )
+  const senderOutput = new ResourceExpr<
+    typeof senderProps & { subdomainId: string; enabled: boolean }
+  >(sender)
   const privacy = resource('privacy', 'Starter.EmailSendingPrivacy', {
     accountId,
     zoneId: new PropExpr(senderOutput, 'zoneId'),
     subdomainId: new PropExpr(senderOutput, 'subdomainId'),
-    domain: new PropExpr(senderOutput, 'name')
+    domain: new PropExpr(senderOutput, 'name'),
+    senderState: {
+      enabled: new PropExpr(senderOutput, 'enabled'),
+      previewEnabled: new PropExpr(senderOutput, 'previewEnabled')
+    }
   })
   const privacyOutput = new ResourceExpr<typeof privacyProps>(privacy)
   const delivery = resource('subscription', 'Starter.EmailSendingSubscription', {
@@ -299,7 +309,7 @@ function cloudflareFixture() {
   }
 }
 
-test('failed native sender drift recovers through a no-drift force plan and then converges', async () => {
+test('native sender drift disables previews before dependency-aware recovery and converges', async () => {
   const { stack, state } = stackFixture()
   const cloud = cloudflareFixture()
   const dependencies = Layer.mergeAll(
@@ -343,27 +353,21 @@ test('failed native sender drift recovers through a no-drift force plan and then
           })
         )
       }
-      const failed = yield* Effect.exit(Drift.repair(stack))
-      assert.ok(
-        Exit.isFailure(failed),
-        'ordinary drift must expose the stale privacy ID'
-      )
-      const failures = Cause.squash(failed.cause)
-      assert.ok(failures instanceof Drift.DriftResourceError)
-      assert.equal(failures.fqn, 'privacy')
-      assert.equal(failures.operation, 'create')
-      assert.match(String(failures.cause), /404/u)
+      const repaired = yield* Drift.repair(stack)
+      assert.equal(repaired.resources.sender?.action, 'recreated')
+      assert.equal(repaired.resources.privacy?.action, 'skipped')
       assert.equal((yield* saved('sender')).attr?.subdomainId, newId)
       assert.equal((yield* saved('privacy')).props?.subdomainId, oldId)
-      assert.equal(cloud.snapshot().sender?.preview_enabled, true)
+      assert.equal(cloud.snapshot().sender?.preview_enabled, false)
 
-      const repeated = yield* Effect.exit(Drift.repair(stack))
-      assert.ok(
-        Exit.isFailure(repeated),
-        'retrying drift alone cannot resolve dependency outputs'
-      )
+      const repeated = yield* Drift.repair(stack)
+      assert.equal(repeated.resources.sender?.action, 'unchanged')
       assert.equal((yield* saved('sender')).attr?.subdomainId, newId)
-      assert.equal(cloud.writes.length, 1, 'only the first drift creates the sender')
+      assert.equal(
+        cloud.writes.length,
+        2,
+        'only the first drift creates and configures the sender'
+      )
 
       cloud.breakDelivery()
       const requestCount = cloud.requests.length
@@ -394,14 +398,14 @@ test('failed native sender drift recovers through a no-drift force plan and then
       assert.deepEqual(cloud.writes, [
         { method: 'POST', path: sendersPath, body: { name: domain } },
         {
-          method: 'DELETE',
-          path: `${subscriptionsPath}/${subscriptionId}`,
-          body: undefined
-        },
-        {
           method: 'PATCH',
           path: `${sendersPath}/${newId}`,
           body: { preview_enabled: false }
+        },
+        {
+          method: 'DELETE',
+          path: `${subscriptionsPath}/${subscriptionId}`,
+          body: undefined
         },
         {
           method: 'POST',
@@ -421,16 +425,14 @@ test('failed native sender drift recovers through a no-drift force plan and then
 
       const settledWrites = structuredClone(cloud.writes)
       const drift = yield* Drift.repair(stack)
-      // The native provider now observes previewEnabled. Refresh its cached
-      // attributes after the privacy resource disabled previews during recovery.
       assert.deepEqual(
         Object.values(drift.resources).map(({ action }) => action),
-        ['repaired', 'unchanged', 'unchanged']
+        ['unchanged', 'skipped', 'unchanged']
       )
       const repeatedDrift = yield* Drift.repair(stack)
       assert.deepEqual(
         Object.values(repeatedDrift.resources).map(({ action }) => action),
-        ['unchanged', 'unchanged', 'unchanged']
+        ['unchanged', 'skipped', 'unchanged']
       )
       yield* Apply.apply(yield* Plan.make(stack, { force: true }))
       assert.deepEqual(
