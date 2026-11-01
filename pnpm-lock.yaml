@@ -12,6 +12,9 @@ catalogs:
     '@alchemy.run/github':
       specifier: 2.0.0-beta.84
       version: 2.0.0-beta.84
+    '@alchemy.run/sql':
+      specifier: 2.0.0-beta.84
+      version: 2.0.0-beta.84
     '@babel/core':
       specifier: 8.0.9
       version: 8.0.9
@@ -1017,6 +1020,9 @@ importers:
         specifier: 'catalog:'
         version: 4.1.0
     devDependencies:
+      '@alchemy.run/sql':
+        specifier: 'catalog:'
+        version: 2.0.0-beta.84(alchemy@2.0.0-beta.84(patch_hash=a73960c1c83bc900f144626d1c7a61d87f27224fbeef5a5e35e85b46e5a6d4e5)(@effect/platform-node@4.1.0(effect@4.1.0)(redis@6.3.0))(@effect/vitest@4.1.0(effect@4.1.0)(vitest@5.0.3))(@types/react@19.3.0)(@voidzero-dev/vite-plus-core@1.1.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(effect@4.1.0)(ws@8.21.0))(effect@4.1.0)
       '@cloudflare/workers-types':
         specifier: 'catalog:'
         version: 5.20261028.1

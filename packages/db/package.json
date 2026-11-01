@@ -23,6 +23,7 @@
     "effect": "catalog:"
   },
   "devDependencies": {
+    "@alchemy.run/sql": "catalog:",
     "@cloudflare/workers-types": "catalog:",
     "@effect/vitest": "catalog:",
     "drizzle-kit": "catalog:",
