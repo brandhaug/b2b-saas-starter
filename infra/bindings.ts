@@ -1,9 +1,5 @@
-// Single source of truth for the binding shapes that must agree between
-// `alchemy.run.ts` (production deploys) and `apps/*/wrangler.jsonc` (local
-// `wrangler dev`). Alchemy imports these constants directly and
-// `write-wrangler.ts` generates the wrangler configs from them, so there is
-// one source rather than two under a drift test. Change a limit or consumer
-// setting HERE, then run `pnpm run infra:wrangler`.
+// Binding settings shared by application handlers, isolated tests, and
+// `alchemy.run.ts`, which owns both local development and deployment.
 
 export type RateLimitBindingSpec = {
   readonly name: string
@@ -26,8 +22,8 @@ export type WebRateLimitBucket = 'auth_read' | 'auth_write' | 'auth_sign_in'
 /**
  * Bucket → binding name: the ONE place each rate-limit binding name is
  * spelled — the union types below are derived from these records, not written
- * out again. The specs below bind these names into the generated wrangler
- * configs and Alchemy's worker envs, and the app shims resolve their env
+ * out again. The specs below bind these names into Alchemy's worker envs,
+ * and the app shims resolve their env
  * through them, so renaming a binding is one row here and the whole chain
  * moves together.
  */
@@ -68,7 +64,7 @@ const webRateLimitTuning = {
 } satisfies Record<WebRateLimitBucket, Omit<RateLimitBindingSpec, 'name'>>
 
 /**
- * Joins the name and tuning tables into the specs the two emitters bind, and
+ * Joins the name and tuning tables into the specs Alchemy binds, and
  * the per-bucket budgets the app shims install as their in-memory fallback
  * limits. One cast, contained: `Object.fromEntries` widens the key, while the
  * `Record<Bucket, _>` return type owns exhaustiveness.
@@ -108,7 +104,7 @@ function rateLimitSpecs<Bucket extends string>(
 const apiRateLimitTable = rateLimitSpecs(apiRateLimitBindingNames, apiRateLimitTuning)
 const webRateLimitTable = rateLimitSpecs(webRateLimitBindingNames, webRateLimitTuning)
 
-/** The specs `alchemy.run.ts` and `infra/write-wrangler.ts` both emit. */
+/** Rate-limit specs bound by Alchemy in development and production. */
 export const apiRateLimits: ReadonlyArray<RateLimitBindingSpec> =
   apiRateLimitTable.specs
 
@@ -175,7 +171,7 @@ export const notificationDigestRetryCron = '*/15 8-14 * * *'
 /**
  * The daily digest schedule (ADR 0061): 08:00 UTC, one `scheduled` invocation
  * on the background worker that groups the previous 24 hours of unread
- * Notifications per recipient. Alchemy and wrangler both read this constant.
+ * Notifications per recipient. Alchemy reads this constant.
  */
 export const notificationDigestCron = '0 8 * * *'
 
@@ -203,9 +199,8 @@ export function retentionTargetKey(
 /**
  * Binding key names: the env-facing half of a queue binding. The physical
  * queue names above are single-sourced already; these keys are the other
- * half a rename could desynchronize between Alchemy's worker `env` objects
- * and the generated wrangler configs, so both emitters read them from this
- * record instead of inlining the strings. `as const` keeps each value a
+ * half a rename could desynchronize between Alchemy and application handlers,
+ * so both read them from this record. `as const` keeps each value a
  * literal type so the per-worker binding-name unions below can derive from
  * them instead of re-spelling the strings.
  */
@@ -227,8 +222,7 @@ export type QueueBindingKey =
  * The binding names that are neither queues nor rate limits: the D1 database
  * every worker shares, the Workers AI binding the assistant surfaces read,
  * the Cloudflare Email send binding, and the workspace-export R2 bucket
- * (ADR 0055). `alchemy.run.ts` and `infra/write-wrangler.ts` still spell
- * these values inline — the one duplication left in the chain — while the
+ * (ADR 0055). `alchemy.run.ts` spells these values inline while the
  * per-worker records below read them from here, so the exported unions have
  * a single home per name.
  */
@@ -242,9 +236,7 @@ const resourceBindingNames = {
 
 /**
  * Per-worker binding-name records: the env-type-facing mirror of the `env`
- * blocks `alchemy.run.ts` binds (`infra/write-wrangler.ts` generates the
- * same sets minus EMAIL — miniflare cannot simulate SendEmail, so local
- * dev never binds it). Values come only from the records above and
+ * blocks `alchemy.run.ts` binds. Values come only from the records above and
  * `queueBindingKeys` — never re-spelled — so a rename there moves the
  * exported `…BindingName` unions, and the worker env types keyed by them
  * (`apps/api/src/env.ts`, `apps/background/src/queue-consumer.ts`,
@@ -311,7 +303,7 @@ export type WebBindingName =
 
 /**
  * One compatibility date and flag set for every worker — production
- * (alchemy.run.ts) and local dev (each generated wrangler.jsonc) must run the
+ * and local dev (both through alchemy.run.ts) must run the
  * same runtime behavior, so changing the date cannot leave one worker behind.
  * Public fetch routing lets API JWKS and OAuth client metadata resolve Workers URLs.
  * `nodejs_compat` is required: `The Effect runtime` needs AsyncLocalStorage
@@ -331,9 +323,7 @@ export const workerCompatibility = {
   ]
 } satisfies WorkerCompatibility
 
-// Shape matches Alchemy's `QueueConsumer` settings input. Wrangler spells the
-// same knobs differently (`max_batch_size`, `max_batch_timeout` in seconds,
-// ...) — the drift test owns that translation.
+// Shape matches Alchemy's queue consumer settings input.
 export type QueueConsumerSettings = {
   readonly batchSize: number
   readonly maxConcurrency: number
@@ -380,8 +370,7 @@ export const billingDlqConsumerSettings: QueueConsumerSettings = {
  * production stack's D1, queues, and Workers are untouched; every other stage
  * (a `pr-<number>` preview, a developer's `dev_<user>`) gets its own copies
  * under `b2b-saas-starter-<stage>-…`, so two stages never share a database or
- * a queue. `write-wrangler.ts` renders the `prod` names, which is why
- * `pnpm run infra:wrangler` output does not move when a preview deploys.
+ * a queue.
  */
 export const productionStage = 'prod'
 
@@ -395,10 +384,8 @@ export function isPreviewStage(stage: string): boolean {
 export type WorkerApp = 'web' | 'api' | 'background'
 
 /**
- * Each worker's entry point, relative to its own app directory — the shape
- * the generated wrangler configs want under `main`. `workerMainPath` composes
- * the repo-root-relative spelling Alchemy runs under, so both emitters
- * resolve from this one record rather than spelling the path twice.
+ * Worker entry points relative to their app directories. `workerMainPath`
+ * composes the repo-root-relative path Alchemy uses.
  */
 export const workerEntryPoints = {
   web: 'src/worker.ts',
@@ -477,8 +464,7 @@ export function workersDevUrl(workerName: string, subdomain: string): string {
 // requesting worker to the background worker, and one R2 bucket holds the
 // finished ZIP artifacts. Both are provisioned only when
 // `WORKSPACE_EXPORTS_ENABLED` is `true` at deploy time, and both are named per
-// stage by `stageResourceNames`; the generated wrangler configs always carry
-// them because miniflare simulates both locally.
+// stage by `stageResourceNames`. Alchemy emulates both locally when enabled.
 export const workspaceExportQueueName = 'b2b-saas-starter-workspace-exports'
 export const workspaceExportBucketName = 'b2b-saas-starter-workspace-exports'
 

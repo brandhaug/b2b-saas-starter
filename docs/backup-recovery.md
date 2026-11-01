@@ -266,7 +266,7 @@ export to `recovery.sql`, run:
 
 ```sh
 pnpm exec wrangler d1 execute DB --local \
-  --config=apps/api/wrangler.jsonc \
+  --config=packages/db/wrangler.jsonc \
   --persist-to=/private/tmp/b2b-saas-starter-recovery-drill \
   --file=recovery.sql
 ```

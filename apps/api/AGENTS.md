@@ -25,7 +25,7 @@ Cloudflare Worker for external REST clients and MCP. Serves the `StarterApi` con
 
 ## Dependencies
 
-- [`capabilities`](../../packages/capabilities/AGENTS.md) (behavior), assistant (ADR 0008), [`authz`](../../packages/authz/AGENTS.md), [`logger`](../../packages/logger/AGENTS.md) (ADR 0007, 0050). Bucket names and fallback limits come from `@b2b-saas-starter/infra`, read alike by the generated `wrangler.jsonc` and Alchemy.
+- [`capabilities`](../../packages/capabilities/AGENTS.md) (behavior), assistant (ADR 0008), [`authz`](../../packages/authz/AGENTS.md), [`logger`](../../packages/logger/AGENTS.md) (ADR 0007, 0050). Bucket names and fallback limits come from `@b2b-saas-starter/infra`; Alchemy owns both local and deployed bindings.
 - The OAuth issuer is `apps/web`'s `@better-auth/mcp` server; `WEBHOOK_QUEUE` is consumed by [`apps/background`](../background/AGENTS.md).
 
 ## Pitfalls

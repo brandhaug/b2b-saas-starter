@@ -2,8 +2,7 @@ import { failureMessage } from '@b2b-saas-starter/failure'
 import { Clock, Effect, Result, type Scope } from 'effect'
 
 // Cloudflare Rate Limiting binding shape (subset). The actual bindings are
-// provisioned via each worker's wrangler.jsonc (`unsafe.bindings`) and
-// alchemy.run.ts; declared here so consumers can type their env without
+// provisioned via alchemy.run.ts; declared here so consumers can type their env without
 // depending on @cloudflare/workers-types directly.
 export type CloudflareRateLimit = {
   readonly limit: (input: { readonly key: string }) => Promise<{

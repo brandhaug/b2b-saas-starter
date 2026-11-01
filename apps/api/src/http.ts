@@ -39,8 +39,7 @@ import {
 /**
  * The rate-limit mechanism behind the contract's `RateLimiter` service: the
  * binding names and fallback limits come from `@b2b-saas-starter/infra` — the
- * same records the generated wrangler config and Alchemy's bindings are
- * emitted from — so this wiring owns only the binding dispatch; the mechanism
+ * same records Alchemy uses for bindings, so this wiring owns only dispatch; the mechanism
  * itself (dispatch, in-memory fallback, degraded-mode telemetry, clientKey)
  * lives in the shared package.
  */

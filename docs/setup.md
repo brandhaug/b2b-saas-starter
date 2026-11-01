@@ -19,6 +19,14 @@ pnpm run dev
 
 Open <http://localhost:3071>. The `.env` defaults support provider-light local development. Optional providers stay inactive until configured. The [optional providers guide](../apps/web/content/docs/getting-started/optional-providers.mdx) covers each provider: exact variables, where the values come from, and how to verify activation.
 
+`pnpm run dev` prepares translations and the initial demo SQL, then runs
+`alchemy dev --stage local`. Alchemy starts the web, API and background Workers
+on ports 3071, 8787 and 8788, with one shared local D1 and local queues and
+Durable Objects. No Cloudflare credentials are required. Set `DEV_WEB_PORT`,
+`DEV_API_PORT` and `DEV_BACKGROUND_PORT` to use other ports. State and emulator
+data live in this checkout's `.alchemy` directory. Production still uses the
+Cloudflare state backend and the `prod` stage.
+
 Open `/demo` to browse the Reference Application without signing in. The preview
 uses synthetic data and the same page components as the authenticated app.
 Forms and dialogs let visitors inspect the flows; submitting explains that the
@@ -77,19 +85,25 @@ pnpm -C apps/web exec playwright install chromium
 pnpm run validate
 ```
 
-Validation runs `check`, build, generated Wrangler drift detection, and E2E. It
+Validation runs `check`, build, and E2E. It
 migrates and seeds the local demo database and needs process/port access for
 Workers D1. E2E builds the web app into `apps/web/dist-e2e` and starts a fresh
 preview server on port 3097 against the seeded local database. Set `E2E_PORT`
 to an unused port when validating several worktrees concurrently.
 
-For browser debugging against the dev server, use
-`E2E_SERVER=dev pnpm run test:e2e`. The default compiled preview avoids Vite
+For browser debugging against Alchemy, use
+`E2E_SERVER=dev pnpm run test:e2e`. Tests that inspect compiled assets still
+require the compiled preview. The default compiled preview avoids Vite
 transforms during tests. CI runs two file-level shards, each with its own local
 D1 and two browser workers. Each shard uploads a JSON timing report at
 `playwright-report/results.json` alongside failure traces. Login, passkey, and
 session-revocation tests authenticate afresh; ordinary owner UI tests reuse a
 qualified session per worker in fresh browser contexts.
+
+`pnpm run test:e2e:alchemy` runs the focused sign-in, workspace and persistent
+conversation smoke tests against Alchemy. Validation and a dedicated CI job
+run this too. Validation uses ports 3097, 8797 and 8798 for the Alchemy run;
+override `E2E_PORT`, `DEV_API_PORT` and `DEV_BACKGROUND_PORT` when needed.
 
 CI runs web, capabilities, and the remaining workspace tests in separate jobs.
 Script tests run with the remaining packages. Test jobs cache their own task
@@ -102,11 +116,17 @@ cache miss locally, run `vp run --last-details` immediately after the test task.
 
 ## Database
 
-Local D1 runs through Wrangler's Miniflare, no Cloudflare account needed:
+Alchemy applies migrations and imports the demo seed automatically on the first
+`pnpm run dev`. It keeps `.alchemy/local-seed.sql` unchanged on later starts,
+so restarting does not overwrite edited demo data. To reseed, stop development,
+remove that seed file, and start again. Alchemy imports the regenerated SQL
+when its content changes.
+
+The compiled E2E preview and database CLI tests use a separate Miniflare database:
 
 ```bash
-pnpm run db:migrate:local  # apply migrations to the local D1
-pnpm run db:seed           # deterministic seed workspace (starter-lab)
+pnpm run db:migrate:local  # apply migrations to the compiled-preview/test D1
+pnpm run db:seed           # seed that database, not Alchemy development
 ```
 
 Seeding also creates two credential accounts so the authenticated area is reachable:
@@ -121,12 +141,20 @@ to manage workspace settings.
 
 The demo owner must complete [privileged authentication](strong-authentication.md) before opening System Admin or Workspace pages. Confirm the password at `/verify-authentication`, enroll a factor in Account security, then verify it. Browser tests enroll a disposable virtual passkey through the real auth flow.
 
-Sign in at `/sign-in` with these credentials once the database is migrated and seeded. The dev server detects the persisted local D1 on startup and attaches it as the `DB` binding (see `apps/web/src/lib/cloudflare-workers-shim-dev.ts`), so credential sign-in and the Live capability layers work locally. Without a migrated database the shim leaves `DB` unset and the app runs provider-light on the in-memory seed layer. Restart `pnpm run dev` after the first migrate + seed so the binding attaches. The same native local Worker supplies `ASSISTANT_CONVERSATIONS`: D1 and SQLite Durable Object storage persist under `packages/db/.wrangler/state/v3`. The ordinary dev server and built E2E preview use this host, including current session checks; no model credentials are needed to create, list, read or delete conversations. Generation needs a configured provider. Restart dev after changing the native host or its provider configuration; conversation data survives the restart.
+Sign in at `/sign-in` with these credentials. Alchemy supplies the real `DB`
+and `ASSISTANT_CONVERSATIONS` bindings to the web Worker, including current
+session checks. No model credentials are needed to create, list, read or delete
+conversations; generation needs a configured provider. D1 and conversation data
+survive restarts under `.alchemy/local`. The compiled E2E preview keeps its
+separate native host and storage under `packages/db/.wrangler/state/v3`.
 
 Schema changes: edit `packages/db/src/schema.ts`, then `pnpm run db:generate` to emit a migration.
 
-To discard disposable local data after a schema reset or migration squash, stop
-the dev server and rebuild local D1:
+To discard disposable Alchemy development data after a schema reset or migration
+squash, stop development, remove `.alchemy/local` and `.alchemy/state/b2b-saas-starter/local`,
+then run `pnpm run dev`. Keep other stages' state intact.
+
+To reset the separate compiled-preview/test database:
 
 ```bash
 rm -rf packages/db/.wrangler/state/v3/d1
@@ -134,7 +162,7 @@ pnpm run db:migrate:local
 pnpm run db:seed
 ```
 
-Restart `pnpm run dev` afterwards so the dev shim re-attaches the binding.
+Restart any compiled E2E preview afterwards so its host re-attaches the binding.
 
 `db:migrate:local` / `db:migrate:remote` run `packages/db/scripts/migrate.ts`, which applies drizzle-kit's folder-style migrations (`packages/db/migrations/<timestamp_name>/migration.sql`) through `wrangler d1 execute` and records folder names in `d1_migrations` so re-runs skip already-applied migrations. This script originally addressed Wrangler's flat-only discovery. Current Wrangler supports nested migration patterns, but records relative SQL paths instead of the repo's folder names. Keep using the repository scripts to preserve bookkeeping identity.
 

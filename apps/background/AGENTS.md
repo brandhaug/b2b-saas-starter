@@ -24,12 +24,12 @@ Read [delivery guidance](../../docs/agents/background-delivery.md) before changi
 - Do not mint a trace id or set `traceparent`/`b3`: `currentTraceId` is the only source, and `HttpClient` injects the headers on the delivery POST.
 - Do not emit terminal delivery audit events here: the capability batches that row with the attempt so both commit together.
 - Do not infer queue disposition from delivery evidence or repeat failure notifications after completion.
-- Do not edit the generated `wrangler.jsonc`, and build no OTLP exporter at isolate level (ADR 0050): `runInvocation` provides it per invocation, so exporters flush before the handler settles.
+- Build no OTLP exporter at isolate level (ADR 0050): `runInvocation` provides it per invocation, so exporters flush before the handler settles.
 
 ## Dependencies & Edges
 
 - `apps/api` and `apps/web` produce onto the queues this worker consumes; it also produces onto `NOTIFICATION_EMAIL_QUEUE`. Absent optional bindings degrade to a no-op. Observability: [`logger`](../../packages/logger/AGENTS.md).
-- Queue names, consumer settings and the digest cron are single-sourced in `infra/bindings.ts`, imported as `@b2b-saas-starter/infra` and never by relative path (change it, then `pnpm run infra:wrangler`); alchemy reads the same records.
+- Queue names, consumer settings and the digest cron are single-sourced in `infra/bindings.ts`, imported as `@b2b-saas-starter/infra` and never by relative path. Alchemy reads the same records for local development and deployment.
 
 ## Patterns & Pitfalls
 
