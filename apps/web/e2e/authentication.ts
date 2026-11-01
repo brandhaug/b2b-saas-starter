@@ -27,26 +27,45 @@ export function fixturePasskeyName(worker: number): string {
 }
 export const demoPassword = 'demo-starter-password'
 
-export async function addVirtualAuthenticator(context: BrowserContext) {
-  // Playwright's context authenticator supplies discoverable platform keys and
-  // user-present/user-verified assertions in Chromium, Firefox and WebKit.
-  await context.credentials.install()
+function initializeVirtualWebAuthn() {
+  // Playwright supplies credentials and signatures, but does not expose this
+  // constructor on platforms without native WebAuthn. SDK detection needs it.
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Match the WebAuthn SDK's optional browser-constructor capability check.
+  if (typeof globalThis.PublicKeyCredential !== 'function') {
+    Object.defineProperty(globalThis, 'PublicKeyCredential', {
+      configurable: true,
+      writable: true,
+      // oxlint-disable-next-line typescript/no-extraneous-class -- The SDK requires a constructor, not a plain capability object.
+      value: class PublicKeyCredential {
+        static isUserVerifyingPlatformAuthenticatorAvailable() {
+          // oxlint-disable-next-line effect/noNewPromise -- Match the native browser capability interface.
+          return Promise.resolve(true)
+        }
+      }
+    })
+  }
   // The virtual API resolves conditional requests immediately instead of
   // waiting for a user to choose an autofill suggestion. Keep these ceremonies
   // explicit, including after reloads, independent of init-script ordering.
-  await context.addInitScript(() => {
-    // oxlint-disable-next-line typescript/no-unnecessary-condition -- WebAuthn is optional in browser runtimes despite the DOM declarations.
-    if (globalThis.PublicKeyCredential) {
-      Object.defineProperty(PublicKeyCredential, 'isConditionalMediationAvailable', {
-        configurable: true,
-        // oxlint-disable-next-line effect/noNewPromise -- The browser capability stub implements the native WebAuthn Promise interface.
-        get: () => () => Promise.resolve(false),
-        set() {
-          // Keep the explicit-ceremony policy when Playwright installs later.
-        }
-      })
+  Object.defineProperty(PublicKeyCredential, 'isConditionalMediationAvailable', {
+    configurable: true,
+    // oxlint-disable-next-line effect/noNewPromise -- The browser capability stub implements the native WebAuthn Promise interface.
+    get: () => () => Promise.resolve(false),
+    set() {
+      // Keep the explicit-ceremony policy when Playwright installs later.
     }
   })
+}
+
+export async function addVirtualAuthenticator(context: BrowserContext) {
+  await context.addInitScript(initializeVirtualWebAuthn)
+  // oxlint-disable-next-line effect/noNewPromise -- Initialize independent Playwright pages before installing the authenticator.
+  await Promise.all(
+    context.pages().map((page) => page.evaluate(initializeVirtualWebAuthn))
+  )
+  // Playwright's context authenticator supplies discoverable platform keys and
+  // user-present/user-verified assertions in Chromium, Firefox and WebKit.
+  await context.credentials.install()
   return context.credentials
 }
 

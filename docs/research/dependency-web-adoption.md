@@ -2,7 +2,35 @@
 
 Implemented against installed packages on 2026-11-01. This is the web/email slice of [the adoption plan](dependency-adoption-plan.md).
 
-Final browser confirmation after the hydration and routing corrections: **84 passed, 11 skipped**, with two workers across Chromium, Firefox and WebKit. The previously failing WebKit strong-authentication case passed with its browser-error assertion enabled.
+Latest browser confirmation after the missing-constructor correction: **88 passed, 11 skipped**, with two workers across Chromium, Firefox and WebKit on macOS. Linux WebKit remains unverified locally and requires CI confirmation.
+
+### Missing native WebAuthn constructor
+
+Linux CI run `41306520145`, web head `806961b`, failed before sending a verification POST. The downloaded WebKit retry trace contains successful passkey-list and authentication-options GETs, followed by the cancelled-action UI. This is consistent with a client capability rejection, but the trace alone does not prove the constructor was absent.
+
+Full validation after the constructor repair exposed WebKit navigation races in the expanded lifecycle and strong-authentication tests. An SSR heading could appear before a pending authentication redirect finished, allowing the next navigation to interrupt it. The tests now await the destination URL and hydrated controls before proceeding. Passkey names include the test/retry identity so a failed cleanup cannot make the next attempt's selectors ambiguous. Retry attempts also get separate simulated client IPs rather than consuming the previous attempt's rate-limit budget. These changes preserve server verification and all authorization assertions. The corrected web layer passed full `pnpm run validate`: 88 compiled-preview tests, 11 skips, and 15 Alchemy smoke tests. Logs: `adoption-webkit-web-validate.log` in the session temporary directory.
+
+Installed first-party source establishes the gap:
+
+- `@simplewebauthn/browser@13.3.0/esm/helpers/browserSupportsWebAuthn.js` requires `typeof globalThis.PublicKeyCredential === 'function'`. `esm/methods/startAuthentication.js` throws before calling the credentials API when that check fails.
+- `playwright-core@1.64.1/lib/coreBundle.js`, in its injected `webAuthn` module, creates missing `navigator.credentials` but captures the existing `PublicKeyCredential` constructor without creating one. Credential objects use the captured prototype or `Object.prototype`; Playwright supplies their response fields and signatures independently.
+
+The new `virtual passkeys work without a native PublicKeyCredential constructor` E2E removes the constructor in the loaded account document before authenticator installation. Before the adapter change, the missing-constructor reproduction failed immediately after installation: expected `function`, received `undefined`. After the change it passes real session verification, registration, rename, explicit passkey sign-in and removal. Independent review caught an ordering risk in the original simulation's separate removal init script. The final test removes the constructor synchronously in the current document, then installs the adapter. Later documents use the platform's actual capabilities and the fixture init script. Linux coverage must establish the naturally missing-constructor path across navigation.
+
+`addVirtualAuthenticator` now initializes existing pages and future documents. It supplies a minimal constructor with platform-availability support only when missing. Its conditional-mediation getter stays false even if Playwright assigns that static later. Playwright still owns credential creation and signing; the server still verifies signatures. The redundant per-test conditional-mediation assignment was removed.
+
+Reproduce the focused red/green case and the relevant three-browser suite:
+
+```sh
+E2E_PORT=3157 pnpm -C apps/web exec playwright test e2e/passkeys.spec.ts \
+  --project=chromium --grep 'without a native' --workers=1
+E2E_PORT=3157 pnpm -C apps/web exec playwright test \
+  e2e/account-sessions.spec.ts e2e/passkeys.spec.ts \
+  e2e/strong-authentication.spec.ts e2e/auth-request-ownership.spec.ts \
+  e2e/toast-accessibility.spec.ts --workers=2 --trace=on
+```
+
+The focused run passed after the fix; the suite passed 88 tests with 11 optional-provider skips in 1.1 minutes. Focused formatting/lint and the web typecheck passed. Logs are `web-credentials-constructor-red.log`, `web-credentials-constructor-green.log` and `web-credentials-constructor-suite.log` under `/private/var/folders/vw/bbmd8nsx5bq2_4l17l8qrjsc0000gn/T/opencode`. The red run preceded the adapter implementation. All browser results here are from macOS, including the simulated constructor-less case.
 
 ## Required adoptions
 
