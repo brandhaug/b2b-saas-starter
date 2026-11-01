@@ -44,6 +44,27 @@ function Table() {
 }
 
 describe('FilterableDataTable', () => {
+  it('combines an any-match group with search before sorting and pagination', async () => {
+    const views = encodeURIComponent(
+      JSON.stringify({
+        deliveries: JSON.stringify({
+          match: 'any',
+          filters: [
+            { field: 'name', operator: 'is', value: 'Bravo' },
+            { field: 'status', operator: 'is', value: 'failed' }
+          ],
+          sorts: [{ field: 'name', direction: 'desc' }],
+          query: 'failed'
+        })
+      })
+    )
+    await renderWithRouter(<Table />, { initialEntry: `/?tableViews=${views}` })
+    expect(screen.getAllByRole('row')[1]?.textContent).toContain('Echo')
+    expect(screen.getAllByRole('row')[2]?.textContent).toContain('Charlie')
+    expect(within(screen.getByRole('table')).queryByText('Bravo')).toBeNull()
+    expect(screen.getByText(/Page 1 of 2/)).not.toBeNull()
+  })
+
   it('restores namespaced search and pagination from a direct link and history', async () => {
     const views = encodeURIComponent(
       JSON.stringify({

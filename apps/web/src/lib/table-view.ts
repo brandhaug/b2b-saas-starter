@@ -1,3 +1,18 @@
+import {
+  columnFilteringFeature,
+  constructTable,
+  createFilteredRowModel,
+  createSortedRowModel,
+  filterFn_includesString,
+  globalFilteringFeature,
+  rowSortingFeature,
+  sortFn_basic,
+  tableFeatures,
+  type Row,
+  type TableFeatures,
+  type RowData
+} from '@tanstack/table-core'
+import { storeReactivityBindings } from '@tanstack/table-core/store-reactivity-bindings'
 import { presentationSettings } from './i18n'
 
 export const tableFilterOperators = [
@@ -229,13 +244,8 @@ function validValueForField(field: TableViewField | undefined, value: string): b
 }
 
 /* oxlint-disable unicorn/no-instanceof-builtins -- Date is a supported public value type and cross-realm dates are outside this local table model. */
-function valueAsText(
-  value: string | number | boolean | Date | null | undefined
-): string {
-  if (value === null || value === undefined) {
-    return ''
-  }
-  return value instanceof Date ? value.toISOString() : String(value)
+function valueAsText(value: TableValue): string {
+  return value instanceof Date ? value.toISOString() : String(value ?? '')
 }
 
 const calendarFormatters = new Map<string, Intl.DateTimeFormat>()
@@ -262,117 +272,71 @@ function calendarDay(value: Date | string): string | undefined {
   return formatter.format(instant)
 }
 
-function compareValues(
-  left: string | number | boolean | Date | null | undefined,
-  right: string,
-  field: TableViewField | undefined
-): number | undefined {
-  if (left === null || left === undefined || right.length === 0) {
-    return undefined
-  }
-  if (field?.kind === 'number' || typeof left === 'number') {
-    const leftNumber = typeof left === 'number' ? left : Number(left)
-    const rightNumber = Number(right)
-    return Number.isFinite(leftNumber) && Number.isFinite(rightNumber)
-      ? leftNumber - rightNumber
-      : undefined
+type TableValue = string | number | boolean | Date | null | undefined
+
+// SAFETY: TanStack 9.3.1's includesString.filter reads only its two string operands;
+// its declaration additionally requires an unused, invariant Row<any, any>.
+// oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- Narrow the verified value-only library signature.
+const includesText = filterFn_includesString.filter as (a: string, b: string) => boolean
+// SAFETY: TanStack 9.3.1's basic.sort calls compareBasic(a, b) without reading rows.
+// oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- Narrow the verified value-only library signature.
+const compareValue = sortFn_basic.sort as (
+  a: string | number,
+  b: string | number | undefined
+) => number
+
+function comparisonKind(
+  left: TableValue,
+  right: TableValue,
+  kind?: TableViewField['kind']
+) {
+  if (kind === 'number' || typeof left === 'number') {
+    return 'number'
   }
   if (
-    field?.kind === 'date' ||
+    kind === 'date' ||
     left instanceof Date ||
-    (typeof left === 'string' &&
-      /^\d{4}-\d{2}-\d{2}/.test(left) &&
-      /^\d{4}-\d{2}-\d{2}/.test(right))
+    (/^\d{4}-\d{2}-\d{2}/.test(valueAsText(left)) &&
+      /^\d{4}-\d{2}-\d{2}/.test(valueAsText(right)))
   ) {
-    if (/^\d{4}-\d{2}-\d{2}$/.test(right)) {
-      const leftDay = calendarDay(left instanceof Date ? left : String(left))
-      if (leftDay === undefined) {
-        return undefined
-      }
-      if (leftDay < right) {
-        return -1
-      }
-      if (leftDay > right) {
-        return 1
-      }
-      return 0
-    }
-    const leftTime = left instanceof Date ? left.getTime() : Date.parse(String(left))
-    const rightTime = Date.parse(right)
-    return Number.isFinite(leftTime) && Number.isFinite(rightTime)
-      ? leftTime - rightTime
-      : undefined
+    return 'date'
   }
-  const leftText = valueAsText(left).toLocaleLowerCase()
-  const rightText = right.toLocaleLowerCase()
-  if (leftText < rightText) {
-    return -1
+  return 'text'
+}
+
+function comparable(value: TableValue, kind: TableViewField['kind'], day = false) {
+  if (value === null || value === undefined) {
+    return
   }
-  if (leftText > rightText) {
-    return 1
+  if (kind === 'number') {
+    const number = Number(value)
+    return Number.isFinite(number) ? number : Number.NaN
   }
-  return 0
+  if (kind === 'date') {
+    return day
+      ? calendarDay(value instanceof Date ? value : String(value))
+      : new Date(valueAsText(value)).getTime()
+  }
+  return valueAsText(value).toLocaleLowerCase()
 }
 /* oxlint-enable unicorn/no-instanceof-builtins */
 
-function matches(
-  actual: string | number | boolean | Date | null | undefined,
-  filter: TableView['filters'][number],
-  field: TableViewField | undefined
-): boolean {
-  const text = valueAsText(actual)
-  if (filter.operator === 'isEmpty') {
-    return text.trim().length === 0
-  }
-  if (filter.operator === 'isNotEmpty') {
-    return text.trim().length > 0
-  }
-  if (filter.value.trim().length === 0) {
-    return true
-  }
-  if (actual === null || actual === undefined) {
-    return filter.operator === 'isNot'
-  }
-  const comparison = compareValues(actual, filter.value, field)
-  if (comparison === undefined) {
-    return false
-  }
-  switch (filter.operator) {
-    case 'contains': {
-      return text.toLocaleLowerCase().includes(filter.value.toLocaleLowerCase())
-    }
-    case 'notContains': {
-      return !text.toLocaleLowerCase().includes(filter.value.toLocaleLowerCase())
-    }
-    case 'is': {
-      return comparison === 0
-    }
-    case 'isNot': {
-      return comparison !== 0
-    }
-    case 'before': {
-      return comparison < 0
-    }
-    case 'after': {
-      return comparison > 0
-    }
-    case 'gt': {
-      return comparison > 0
-    }
-    case 'lt': {
-      return comparison < 0
-    }
-  }
-}
+export const tableViewFeatures = tableFeatures({
+  columnFilteringFeature,
+  filteredRowModel: createFilteredRowModel(),
+  globalFilteringFeature,
+  rowSortingFeature,
+  sortedRowModel: createSortedRowModel()
+})
 
-export function applyTableView<T>(
-  rows: ReadonlyArray<T>,
+/** Shared by the rendered table and headless lists; only application policies
+ * wrap TanStack's value predicates and comparison functions. */
+export function tableViewOptions<T extends RowData>(
   view: TableView,
-  getValue: (
-    row: T,
-    field: string
-  ) => string | number | boolean | Date | null | undefined
-): Array<T> {
+  getValue: (row: T, field: string) => TableValue,
+  fields: ReadonlyArray<TableViewField> = []
+) {
+  const kinds = new Map(fields.map((field) => [field.id, field.kind]))
   const activeFilters = view.filters.filter(
     (filter) =>
       filter.field.length > 0 &&
@@ -380,44 +344,102 @@ export function applyTableView<T>(
         filter.operator === 'isNotEmpty' ||
         filter.value.trim().length > 0)
   )
-  const filtered = rows.filter((row) => {
-    if (activeFilters.length === 0) {
-      return true
-    }
-    const results = activeFilters.map((filter) =>
-      matches(getValue(row, filter.field), filter, undefined)
-    )
-    return view.match === 'any' ? results.some(Boolean) : results.every(Boolean)
-  })
-  return filtered
-    .map((row, index) => ({ row, index }))
-    .toSorted((left, right) => {
-      for (const sort of view.sorts) {
-        const leftValue = getValue(left.row, sort.field)
-        const rightValue = getValue(right.row, sort.field)
-        const comparison = compareSortValues(leftValue, rightValue, undefined)
-        if (comparison !== 0) {
-          return sort.direction === 'asc' ? comparison : -comparison
-        }
+  function globalFilterFn<F extends TableFeatures>(row: Row<F, T>, id: string) {
+    function test({ field, operator, value }: TableView['filters'][number]) {
+      const actual = getValue(row.original, field)
+      const text = valueAsText(actual).toLocaleLowerCase()
+      if (operator === 'isEmpty' || operator === 'isNotEmpty') {
+        return (text.trim().length === 0) === (operator === 'isEmpty')
       }
-      return left.index - right.index
-    })
-    .map(({ row }) => row)
+      if (actual === null || actual === undefined) {
+        return operator === 'isNot'
+      }
+      if (operator === 'contains' || operator === 'notContains') {
+        return (
+          includesText(text, value.toLocaleLowerCase()) === (operator === 'contains')
+        )
+      }
+      const kind = comparisonKind(actual, value, kinds.get(field))
+      const day = /^\d{4}-\d{2}-\d{2}$/.test(value)
+      const left = comparable(actual, kind, day)
+      const expected = comparable(value, kind, day)
+      if (left === undefined || Number.isNaN(left) || Number.isNaN(expected)) {
+        return false
+      }
+      const comparison = compareValue(left, expected)
+      if (operator === 'is' || operator === 'isNot') {
+        return (comparison === 0) === (operator === 'is')
+      }
+      return operator === 'before' || operator === 'lt'
+        ? comparison < 0
+        : comparison > 0
+    }
+    const matchesGroup =
+      activeFilters.length === 0 ||
+      (view.match === 'any' ? activeFilters.some(test) : activeFilters.every(test))
+    const searchValue = row.getValue<TableValue>(id)
+    return (
+      matchesGroup &&
+      (!view.query ||
+        ((typeof searchValue === 'string' || typeof searchValue === 'number') &&
+          includesText(
+            String(searchValue).toLocaleLowerCase(),
+            view.query.toLocaleLowerCase()
+          )))
+    )
+  }
+  function sortFn<F extends TableFeatures>(a: Row<F, T>, b: Row<F, T>, id: string) {
+    const aValue = getValue(a.original, id)
+    const bValue = getValue(b.original, id)
+    const kind = comparisonKind(aValue, bValue, kinds.get(id))
+    const left = comparable(aValue, kind)
+    const right = comparable(bValue, kind)
+    if (left === undefined || right === undefined) {
+      return Number(left === undefined) - Number(right === undefined)
+    }
+    return Number.isNaN(left) || Number.isNaN(right) ? 0 : compareValue(left, right)
+  }
+  return {
+    globalFilterFn,
+    getColumnCanGlobalFilter: () => true,
+    defaultColumn: { sortFn, sortUndefined: false as const },
+    state: {
+      globalFilter: view,
+      sorting: view.sorts.map((sort) => ({
+        id: sort.field,
+        desc: sort.direction === 'desc'
+      }))
+    }
+  }
 }
 
-function compareSortValues(
-  left: string | number | boolean | Date | null | undefined,
-  right: string | number | boolean | Date | null | undefined,
-  field: TableViewField | undefined
-): number {
-  const leftEmpty = left === null || left === undefined
-  const rightEmpty = right === null || right === undefined
-  if (leftEmpty || rightEmpty) {
-    if (leftEmpty && rightEmpty) {
-      return 0
-    }
-    return leftEmpty ? 1 : -1
-  }
-  return compareValues(left, valueAsText(right), field) ?? 0
+export function applyTableView<T extends RowData>(
+  rows: ReadonlyArray<T>,
+  view: TableView,
+  getValue: (row: T, field: string) => TableValue,
+  fields: ReadonlyArray<TableViewField> = [],
+  searchText?: (row: T) => string
+): Array<T> {
+  const table = constructTable({
+    features: {
+      ...tableViewFeatures,
+      coreReactivityFeature: storeReactivityBindings()
+    },
+    data: rows,
+    ...tableViewOptions(
+      { ...view, query: searchText ? (view.query?.trim() ?? '') : '' },
+      getValue,
+      fields
+    ),
+    columns: [
+      { id: '__search', accessorFn: (row: T) => searchText?.(row) ?? '' },
+      ...view.sorts.map(({ field }) => ({
+        id: field,
+        accessorFn: (row: T) => getValue(row, field),
+        enableGlobalFilter: false
+      }))
+    ]
+  })
+  return table.getSortedRowModel().rows.map((row) => row.original)
 }
 /* oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof */

@@ -3,16 +3,11 @@ import { formatNumber } from '@b2b-saas-starter/i18n/format'
 import { getLocale } from '@b2b-saas-starter/i18n/runtime'
 import { useState, type ReactNode } from 'react'
 import {
-  columnFilteringFeature,
   columnVisibilityFeature,
-  createFilteredRowModel,
   createPaginatedRowModel,
-  createSortedRowModel,
   flexRender,
   functionalUpdate,
-  globalFilteringFeature,
   rowPaginationFeature,
-  rowSortingFeature,
   sortFn_alphanumeric,
   sortFn_datetime,
   sortFn_text,
@@ -42,6 +37,7 @@ import {
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 import { formatDateTime } from '@/lib/format-date'
+import { tableViewFeatures, type tableViewOptions } from '@/lib/table-view'
 import { DataTableContext, useDataTableContext } from './data-table-context'
 
 const STICKY_CLASSES = 'sticky left-0 z-10 bg-card group-hover:bg-muted/50'
@@ -55,11 +51,7 @@ function formatDateCell(value: Date) {
 }
 
 const dataTableFeatures = tableFeatures({
-  columnFilteringFeature,
-  filteredRowModel: createFilteredRowModel(),
-  globalFilteringFeature,
-  rowSortingFeature,
-  sortedRowModel: createSortedRowModel(),
+  ...tableViewFeatures,
   sortFns: {
     alphanumeric: sortFn_alphanumeric,
     datetime: sortFn_datetime,
@@ -102,6 +94,7 @@ type DataTableProps<TData extends RowData> = {
   readonly emptyMessage?: string
   readonly tableLabel?: string
   readonly manualSorting?: boolean
+  readonly viewOptions?: ReturnType<typeof tableViewOptions<TData>>
   readonly sort?: {
     readonly value: SortingState
     readonly onChange: (value: Updater<SortingState>) => void
@@ -351,6 +344,7 @@ export function DataTable<TData extends RowData>({
   emptyMessage = m.shell_table_empty(),
   tableLabel,
   manualSorting = false,
+  viewOptions,
   sort,
   search,
   pagination,
@@ -361,13 +355,18 @@ export function DataTable<TData extends RowData>({
   const globalFilter = search?.value ?? localFilter
   const setGlobalFilter = search?.onChange ?? setLocalFilter
   const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>({})
-  const state = { sorting: sort?.value ?? sorting, globalFilter, columnVisibility }
+  const state = {
+    sorting: sort?.value ?? viewOptions?.state.sorting ?? sorting,
+    globalFilter: viewOptions?.state.globalFilter ?? globalFilter,
+    columnVisibility
+  }
   const paginationOptions: ControlledPaginationOptions = {}
   if (pagination) {
     paginationOptions.onPaginationChange = pagination.onChange
     paginationOptions.autoResetPageIndex = false
   }
   const table = useTable({
+    ...viewOptions,
     features: dataTableFeatures,
     data,
     columns,

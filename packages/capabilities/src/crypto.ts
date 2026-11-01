@@ -38,18 +38,3 @@ export function randomWebhookSecret(): string {
     )
   )
 }
-
-export function hmacSha256Base64(secret: string, payload: string): Promise<string> {
-  return Effect.runPromise(
-    Effect.gen(function* () {
-      // Keep Web Crypto's existing base64 acceptance, including whitespace.
-      const bytes = yield* Effect.try(() =>
-        // oxlint-disable-next-line effect/noGlobals -- preserve the platform base64 decoding contract at this adapter.
-        Uint8Array.from(atob(secret.slice('whsec_'.length)), (char) =>
-          char.charCodeAt(0)
-        )
-      )
-      return Base64.encode(yield* sign(bytes, payload))
-    }).pipe(Effect.provide(macLayer))
-  )
-}

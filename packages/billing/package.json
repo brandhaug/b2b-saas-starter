@@ -34,7 +34,8 @@
     "@b2b-saas-starter/failure": "workspace:*",
     "@b2b-saas-starter/logger": "workspace:*",
     "drizzle-orm": "catalog:",
-    "effect": "catalog:"
+    "effect": "catalog:",
+    "stripe": "catalog:"
   },
   "devDependencies": {
     "@effect/vitest": "catalog:",
