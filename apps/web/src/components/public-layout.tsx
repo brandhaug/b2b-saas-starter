@@ -1,6 +1,7 @@
 import { type ReactNode, useState } from 'react'
 import { Link, useMatch } from '@tanstack/react-router'
 import { MenuIcon } from 'lucide-react'
+import geistSerifWoff2 from '@/assets/fonts/geist-serif/GeistSerif-Regular.woff2?url'
 import { SearchButton, CommandPaletteProvider } from '@/components/command-palette'
 import { GITHUB_URL } from '@/lib/github-url'
 import { Button } from '@/components/ui/button'
@@ -38,6 +39,7 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
     // prettier-ignore
     <CommandPaletteProvider>
       <div className="marketing flex min-h-dvh flex-col bg-background">
+        <link rel="preload" href={geistSerifWoff2} as="font" type="font/woff2" crossOrigin="anonymous" />
       <a
         // oxlint-disable-next-line react-doctor/anchor-target-exists -- the target is owned by this layout's children: every public route renders its own <main id="main-content"> (routes/index.tsx, sign-in.tsx, pricing.tsx, …). The rule scans only the file declaring the link.
         href="#main-content"

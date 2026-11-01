@@ -291,7 +291,7 @@
   scroll-margin-top: 5.5rem;
 }
 
-/* Geist Serif ships in Regular only. Opt in for landing display headings;
+/* Geist Serif ships in Regular only. Opt in for large public page titles;
    keep card, workspace, and small-text headings in Geist Sans. */
 @utility font-display {
   font-family: var(--font-display);

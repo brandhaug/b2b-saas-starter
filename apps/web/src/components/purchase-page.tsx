@@ -27,7 +27,7 @@ export function PurchasePage({
         tabIndex={-1}
         className="mx-auto grid w-full max-w-2xl gap-6 px-4 py-12 outline-none"
       >
-        <h1 className="text-3xl font-semibold">
+        <h1 className="font-display text-3xl font-normal">
           {intent
             ? m.purchase_plan({ name: purchase?.plan?.name ?? 'Team' })
             : m.purchase_title()}

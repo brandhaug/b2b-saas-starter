@@ -29,7 +29,9 @@ function PricingPage() {
         className="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 outline-none"
       >
         {/* Distinct from the plan list's own "Plans" heading below. */}
-        <h1 className="text-3xl font-semibold">{m.public_pricing_title()}</h1>
+        <h1 className="font-display text-3xl font-normal">
+          {m.public_pricing_title()}
+        </h1>
         <p className="mt-2 text-muted-foreground">{m.public_pricing_description()}</p>
         <div className="mt-8">
           <PublicBillingPlans

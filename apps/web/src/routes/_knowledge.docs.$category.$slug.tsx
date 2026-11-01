@@ -108,7 +108,9 @@ function DocArticlePage() {
           </nav>
 
           <header className="mb-8">
-            <h1 className="mb-2 text-3xl font-semibold">{frontmatter.title}</h1>
+            <h1 className="mb-2 font-display text-3xl font-normal">
+              {frontmatter.title}
+            </h1>
             <p className="text-sm text-muted-foreground">{frontmatter.description}</p>
             {frontmatter.tags && frontmatter.tags.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-2">
