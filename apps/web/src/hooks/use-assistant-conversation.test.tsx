@@ -10,8 +10,12 @@ import {
 } from '@/lib/server/assistant-conversations'
 class ObserverSocket extends EventTarget {
   static instances: Array<ObserverSocket> = []
-  readonly close = vi.fn()
-  constructor() {
+  readyState = 0
+  readonly send = vi.fn()
+  readonly close = vi.fn(() => {
+    this.readyState = 3
+  })
+  constructor(readonly url: string) {
     super()
     ObserverSocket.instances.push(this)
   }
@@ -44,10 +48,117 @@ function ports(): ConversationPorts {
   }
 }
 afterEach(() => {
+  vi.useRealTimers()
   vi.unstubAllGlobals()
   ObserverSocket.instances = []
 })
 describe('conversation observation lifetime', () => {
+  it('removes the previous actor cache and ignores its late frames', async () => {
+    vi.stubGlobal('WebSocket', ObserverSocket)
+    const operations = ports()
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const view = renderHook(
+      ({ actor }) =>
+        useAssistantConversation('starter-lab', 'c1', operations, undefined, actor),
+      {
+        initialProps: { actor: 'actor-1' },
+        wrapper: ({ children }: { readonly children: ReactNode }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        )
+      }
+    )
+    await waitFor(() => expect(view.result.current.history).toEqual(empty))
+    await waitFor(() => expect(ObserverSocket.instances).toHaveLength(1))
+    const previous = ObserverSocket.instances[0]!
+    view.rerender({ actor: 'actor-2' })
+    await waitFor(() => expect(view.result.current.history).toEqual(empty))
+    await act(() =>
+      previous.dispatchEvent(
+        new MessageEvent('message', {
+          data: JSON.stringify({
+            type: 'conversation_snapshot',
+            history: { ...empty, nextCursor: 'private' }
+          })
+        })
+      )
+    )
+    expect(
+      client.getQueryData(['assistant-conversation', 'actor-1', 'starter-lab', 'c1'])
+    ).toBeUndefined()
+    expect(view.result.current.history).toEqual(empty)
+    view.unmount()
+    expect(
+      client.getQueryData(['assistant-conversation', 'actor-2', 'starter-lab', 'c1'])
+    ).toBeUndefined()
+  })
+
+  it.each([1008, 4401, 4403, 4404])(
+    'never automatically retries terminal code %s',
+    async (code) => {
+      vi.stubGlobal('WebSocket', ObserverSocket)
+      const operations = ports()
+      const onAccessLost = vi.fn()
+      const view = renderHook(
+        () => useAssistantConversation('starter-lab', 'c1', operations, onAccessLost),
+        { wrapper: queryWrapper() }
+      )
+      await waitFor(() => expect(ObserverSocket.instances).toHaveLength(1))
+      vi.useFakeTimers()
+      await act(() =>
+        ObserverSocket.instances[0]?.dispatchEvent(new CloseEvent('close', { code }))
+      )
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000)
+      })
+      expect(view.result.current.connection).toBe('denied')
+      expect(view.result.current.history).toBeNull()
+      expect(onAccessLost).toHaveBeenCalledOnce()
+      expect(ObserverSocket.instances).toHaveLength(1)
+      expect(operations.send).not.toHaveBeenCalled()
+      view.unmount()
+    }
+  )
+
+  it('reconnects transient failures and times out stalled handshakes without sending commands', async () => {
+    vi.stubGlobal('WebSocket', ObserverSocket)
+    const operations = ports()
+    const view = renderHook(
+      () => useAssistantConversation('starter-lab', 'c1', operations),
+      { wrapper: queryWrapper() }
+    )
+    await waitFor(() => expect(ObserverSocket.instances).toHaveLength(1))
+    vi.useFakeTimers()
+    await act(() =>
+      ObserverSocket.instances[0]?.dispatchEvent(
+        new CloseEvent('close', { code: 1006 })
+      )
+    )
+    expect(view.result.current.connection).toBe('reconnecting')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000)
+    })
+    expect(ObserverSocket.instances).toHaveLength(2)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(12_000)
+    })
+    expect(ObserverSocket.instances.length).toBeGreaterThan(2)
+    const current = ObserverSocket.instances.at(-1)!
+    await act(() => current.dispatchEvent(new Event('open')))
+    expect(view.result.current.connection).toBe('connected')
+    expect(operations.send).not.toHaveBeenCalled()
+    expect(operations.retry).not.toHaveBeenCalled()
+    expect(operations.stop).not.toHaveBeenCalled()
+    expect(
+      ObserverSocket.instances.every((socket) => socket.send.mock.calls.length === 0)
+    ).toBe(true)
+    const count = ObserverSocket.instances.length
+    view.unmount()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000)
+    })
+    expect(ObserverSocket.instances).toHaveLength(count)
+  })
+
   it('unmount closes observation without stopping or restarting generation', async () => {
     vi.stubGlobal('WebSocket', ObserverSocket)
     const operations = ports()
@@ -161,17 +272,25 @@ describe('conversation observation lifetime', () => {
   it('closes the socket when an HTTP read revokes access', async () => {
     vi.stubGlobal('WebSocket', ObserverSocket)
     const operations = ports()
-    vi.mocked(operations.history).mockResolvedValue({
+    let resolve!: (value: ConversationResult<ConversationHistory>) => void
+    vi.mocked(operations.history).mockReturnValue(
+      new Promise((_resolve) => {
+        resolve = _resolve
+      })
+    )
+    const refusal: ConversationResult<ConversationHistory> = {
       ok: false,
       reason: 'access',
       message: 'Access lost',
       retryAfterSeconds: null
-    })
+    }
     const onAccessLost = vi.fn()
     const view = renderHook(
       () => useAssistantConversation('starter-lab', 'c1', operations, onAccessLost),
       { wrapper: queryWrapper() }
     )
+    await waitFor(() => expect(ObserverSocket.instances).toHaveLength(1))
+    await act(async () => resolve(refusal))
     await waitFor(() => expect(view.result.current.connection).toBe('denied'))
     expect(ObserverSocket.instances[0]?.close).toHaveBeenCalledOnce()
     expect(view.result.current.loading).toBe(false)
@@ -192,6 +311,7 @@ describe('conversation observation lifetime', () => {
       () => useAssistantConversation('starter-lab', 'c1', operations),
       { wrapper: queryWrapper() }
     )
+    await waitFor(() => expect(ObserverSocket.instances).toHaveLength(1))
     await act(() =>
       ObserverSocket.instances[0]?.dispatchEvent(
         new CloseEvent('close', { code: 4403 })
@@ -219,6 +339,7 @@ describe('conversation observation lifetime', () => {
       ({ id }) => useAssistantConversation('starter-lab', id, operations),
       { initialProps: { id: 'c1' }, wrapper: queryWrapper() }
     )
+    await waitFor(() => expect(ObserverSocket.instances).toHaveLength(1))
     view.rerender({ id: 'c2' })
     await waitFor(() => expect(view.result.current.history).toEqual(empty))
     const stale = { ...empty, nextCursor: 'old-conversation' }
