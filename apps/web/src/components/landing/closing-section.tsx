@@ -28,7 +28,7 @@ function ClosingSection() {
       <LightRays origin="top" />
       <div className="relative mx-auto grid max-w-7xl items-center gap-x-16 gap-y-10 px-5 py-16 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:py-24">
         <div>
-          <h2 className="font-display text-balance text-4xl font-medium leading-display sm:text-5xl">
+          <h2 className="font-display text-balance text-4xl font-normal leading-display sm:text-5xl">
             {m.landing_fork_headline()}
           </h2>
           <p className="mt-4 text-pretty text-sm leading-relaxed text-muted-foreground">

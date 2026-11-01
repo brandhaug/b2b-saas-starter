@@ -6,11 +6,10 @@ import { LocaleBootstrap } from '@/components/locale-preferences'
 import { presentationSettings } from '@/lib/i18n'
 import '@fontsource-variable/geist/index.css'
 import '@fontsource-variable/geist-mono/index.css'
-import '@fontsource-variable/newsreader/opsz.css'
 // Latin variable woff2 for the text faces that render above the fold,
 // resolved by Vite so the preload href always matches the emitted asset.
 // Without these, the fonts start loading two round-trips deep (CSS → font
-// file) after first paint. Newsreader is not preloaded here: most routes
+// file) after first paint. Geist Serif is not preloaded here: most routes
 // (sign-in, the workspace app) render no display glyphs, so its 132 kB
 // preload belongs to the routes that actually use the face.
 import geistLatinWoff2 from '@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url'

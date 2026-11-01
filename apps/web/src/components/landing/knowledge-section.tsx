@@ -12,7 +12,7 @@ function KnowledgeSection({
   return (
     <section className="mx-auto grid max-w-7xl gap-8 px-5 py-16 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:gap-16">
       <div>
-        <h2 className="font-display text-balance text-3xl font-medium leading-display sm:text-4xl">
+        <h2 className="font-display text-balance text-3xl font-normal leading-display sm:text-4xl">
           {m.public_knowledge_heading()}
         </h2>
         <p className="mt-4 max-w-2xl text-pretty text-sm leading-relaxed text-muted-foreground">

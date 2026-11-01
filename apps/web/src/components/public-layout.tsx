@@ -1,11 +1,6 @@
 import { type ReactNode, useState } from 'react'
 import { Link, useMatch } from '@tanstack/react-router'
 import { MenuIcon } from 'lucide-react'
-// The public layout is the one scope that still renders Newsreader (the
-// landing hero and section headings), so its latin variable woff2 preloads
-// here instead of in __root.tsx: auth screens and the workspace app never
-// enter this layout and never pay for the font.
-import newsreaderLatinWoff2 from '@fontsource-variable/newsreader/files/newsreader-latin-opsz-normal.woff2?url'
 import { SearchButton, CommandPaletteProvider } from '@/components/command-palette'
 import { GITHUB_URL } from '@/lib/github-url'
 import { Button } from '@/components/ui/button'
@@ -43,15 +38,6 @@ export function PublicLayout({ children }: { readonly children: ReactNode }) {
     // prettier-ignore
     <CommandPaletteProvider>
       <div className="marketing flex min-h-dvh flex-col bg-background">
-        {/* Rendered in the tree, hoisted to <head> by React 19 — see the import
-          comment above. Deduped by href if the root ever preloads it again. */}
-        <link
-          rel="preload"
-          href={newsreaderLatinWoff2}
-          as="font"
-          type="font/woff2"
-          crossOrigin="anonymous"
-        />
       <a
         // oxlint-disable-next-line react-doctor/anchor-target-exists -- the target is owned by this layout's children: every public route renders its own <main id="main-content"> (routes/index.tsx, sign-in.tsx, pricing.tsx, …). The rule scans only the file declaring the link.
         href="#main-content"
