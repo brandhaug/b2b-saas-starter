@@ -62,9 +62,12 @@ test('password-only owners must verify this session with a passkey', async ({
   await expect(
     page.getByRole('heading', { name: 'System admin', exact: true })
   ).toBeVisible()
-  await authenticator.cdp.send('WebAuthn.removeVirtualAuthenticator', {
-    authenticatorId: authenticator.authenticatorId
-  })
+  // Await hydration before leaving: an SSR heading alone can hide a date-format
+  // mismatch when the next navigation unloads the document immediately.
+  await page
+    .locator('header [data-slot="select-trigger"]:enabled')
+    .waitFor({ state: 'attached' })
+  await authenticator.remove()
   await page.context().clearCookies()
   await signInWithPassword(page, 'demo@starter.local', '/account')
   await page.goto('/admin')

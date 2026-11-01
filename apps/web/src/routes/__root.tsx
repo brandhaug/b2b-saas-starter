@@ -143,7 +143,10 @@ function RootDocument({ children }: { readonly children: ReactNode }) {
         {children}
         {/* No `richColors`: success/warning paint from the same status tokens
               as badges and alerts (see ui/sonner.tsx), not Sonner's own hex. */}
-        <Toaster />
+        <Toaster
+          containerAriaLabel={m.shell_toast_notifications()}
+          toastOptions={{ closeButtonAriaLabel: m.shell_toast_close() }}
+        />
         {import.meta.env.DEV && (
           <Suspense>
             <TanStackRouterDevtools position="bottom-right" />

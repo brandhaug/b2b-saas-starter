@@ -5,7 +5,7 @@ import {
   expect,
   test as base,
   type BrowserContext,
-  type CDPSession,
+  type Route,
   type Page
 } from '@playwright/test'
 import { hasLocalD1State } from '../src/lib/local-d1-state'
@@ -27,40 +27,58 @@ export function fixturePasskeyName(worker: number): string {
 }
 export const demoPassword = 'demo-starter-password'
 
-export async function addVirtualAuthenticator(cdp: CDPSession): Promise<string> {
-  await cdp.send('WebAuthn.enable')
-  const { authenticatorId } = await cdp.send('WebAuthn.addVirtualAuthenticator', {
-    options: {
-      protocol: 'ctap2',
-      transport: 'internal',
-      hasResidentKey: true,
-      hasUserVerification: true,
-      isUserVerified: true,
-      automaticPresenceSimulation: true,
-      defaultBackupEligibility: true,
-      defaultBackupState: true
+export async function addVirtualAuthenticator(context: BrowserContext) {
+  // Playwright's context authenticator supplies discoverable platform keys and
+  // user-present/user-verified assertions in Chromium, Firefox and WebKit.
+  await context.credentials.install()
+  // The virtual API resolves conditional requests immediately instead of
+  // waiting for a user to choose an autofill suggestion. Keep these ceremonies
+  // explicit, including after reloads, independent of init-script ordering.
+  await context.addInitScript(() => {
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- WebAuthn is optional in browser runtimes despite the DOM declarations.
+    if (globalThis.PublicKeyCredential) {
+      Object.defineProperty(PublicKeyCredential, 'isConditionalMediationAvailable', {
+        configurable: true,
+        // oxlint-disable-next-line effect/noNewPromise -- The browser capability stub implements the native WebAuthn Promise interface.
+        get: () => () => Promise.resolve(false),
+        set() {
+          // Keep the explicit-ceremony policy when Playwright installs later.
+        }
+      })
     }
   })
-  return authenticatorId
+  return context.credentials
 }
 
 export async function installDemoPasskey(
   page: Page,
   worker = base.info().parallelIndex
 ) {
-  const cdp = await page.context().newCDPSession(page)
-  const authenticatorId = await addVirtualAuthenticator(cdp)
+  const context = page.context()
+  const credentials = await addVirtualAuthenticator(context)
   const path = credentialPath(worker)
   const credential = JSON.parse(readFileSync(path, 'utf8'))
-  await cdp.send('WebAuthn.addCredential', { authenticatorId, credential })
+  await credentials.create(credential.rpId, credential)
   // Each worker uses its own key. Keep its counter even when a later page
   // assertion fails, so the next browser can make a fresh signed assertion.
-  cdp.on('WebAuthn.credentialAsserted', (event) => {
-    if (event.authenticatorId === authenticatorId) {
-      writeFileSync(path, JSON.stringify(event.credential), { mode: 0o600 })
+  async function persistAssertion(route: Route) {
+    const [current] = await credentials.get({ id: credential.id })
+    if (current) {
+      writeFileSync(path, JSON.stringify(current), { mode: 0o600 })
     }
-  })
-  return { cdp, authenticatorId }
+    // Earlier routes may attach the simulated device's rate-limit identity.
+    await route.fallback()
+  }
+  // Persist before the assertion reaches Better Auth, even if navigation or a
+  // later assertion fails. Credentials has no assertion event API.
+  const verification = '**/api/auth/passkey/verify-authentication'
+  await context.route(verification, persistAssertion)
+  return {
+    async remove() {
+      await context.unroute(verification, persistAssertion)
+      await credentials.delete(credential.id)
+    }
+  }
 }
 
 export async function signInWithPassword(
@@ -148,9 +166,7 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
         testInfo.parallelIndex
       )
       const state = await context.storageState()
-      await authenticator.cdp.send('WebAuthn.removeVirtualAuthenticator', {
-        authenticatorId: authenticator.authenticatorId
-      })
+      await authenticator.remove()
       await context.close()
       await provide(state)
     },

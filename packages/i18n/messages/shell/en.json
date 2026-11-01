@@ -1,4 +1,6 @@
 {
+  "shell_toast_notifications": "Notifications",
+  "shell_toast_close": "Close notification",
   "shell_demo_read_only": "This preview is read-only. No changes were made. Sign in to use this action.",
   "shell_description": "Cloudflare-first B2B SaaS starter with TanStack Start, Effect v4, Drizzle D1, Better Auth, REST, MCP, email, and tests.",
   "shell_not_found": "Page not found",

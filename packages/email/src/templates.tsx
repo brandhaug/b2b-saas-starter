@@ -49,29 +49,21 @@ export function EmailLayout({
   return (
     <Html lang={intlLocale(locale)}>
       <Tailwind
-        config={{
-          presets: [pixelBasedPreset],
-          theme: {
-            extend: {
-              colors: {
-                // Email clients need literal sRGB values, not the app's CSS variables.
-                // Keep these aligned with apps/web/src/index.css (Catppuccin Mocha).
-                background: '#1e1e2e',
-                card: '#181825',
-                foreground: '#cdd6f4',
-                primary: '#cba6f7',
-                'primary-foreground': '#11111b',
-                muted: '#313244',
-                'muted-foreground': '#a6adc8',
-                border: '#313244'
-              },
-              fontFamily: {
-                sans: ['Geist Variable', 'Arial', 'Helvetica', 'sans-serif'],
-                mono: ['Geist Mono Variable', 'Consolas', 'Courier New', 'monospace']
-              }
-            }
-          }
-        }}
+        config={{ presets: [pixelBasedPreset] }}
+        // Literal sRGB tokens match index.css. React Email resolves these to
+        // inline colors; recipients never depend on CSS variable support.
+        theme={`@theme {
+          --color-background: #1e1e2e;
+          --color-card: #181825;
+          --color-foreground: #cdd6f4;
+          --color-primary: #cba6f7;
+          --color-primary-foreground: #11111b;
+          --color-muted: #313244;
+          --color-muted-foreground: #a6adc8;
+          --color-border: #313244;
+          --font-sans: 'Geist Variable', Arial, Helvetica, sans-serif;
+          --font-mono: 'Geist Mono Variable', Consolas, 'Courier New', monospace;
+        }`}
       >
         <Head>
           <meta name="color-scheme" content="dark" />

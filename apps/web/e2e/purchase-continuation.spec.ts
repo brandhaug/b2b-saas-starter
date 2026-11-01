@@ -73,9 +73,7 @@ test('owner selects a workspace and retains the plan through privileged authenti
   ).toBeDisabled()
   await page.getByRole('link', { name: 'Cancel purchase' }).click()
   await expect(page).toHaveURL(/\/pricing$/)
-  await authenticator.cdp.send('WebAuthn.removeVirtualAuthenticator', {
-    authenticatorId: authenticator.authenticatorId
-  })
+  await authenticator.remove()
 })
 
 test('member cannot select a workspace for purchase or act through a crafted billing URL', async ({

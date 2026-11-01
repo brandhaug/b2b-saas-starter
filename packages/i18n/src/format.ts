@@ -27,6 +27,14 @@ function isCalendarDate(value: DateInput): value is string {
   return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/u.test(value)
 }
 
+function dateLabel(
+  date: Date,
+  locale: Locale,
+  options: Intl.DateTimeFormatOptions
+): string {
+  return new Intl.DateTimeFormat(intlLocale(locale), options).format(date)
+}
+
 /** Format a date with an explicit locale and time zone (UTC by default). */
 export function formatDate(
   value: DateInput,
@@ -40,10 +48,28 @@ export function formatDate(
     // caller's zone would move the date for western offsets.
     effectiveTimeZone = 'UTC'
   }
-  return new Intl.DateTimeFormat(intlLocale(locale), {
+  const date = dateValue(value)
+  const { dateStyle, timeStyle, ...fields } = options
+  const zonedFields = { ...fields, timeZone: effectiveTimeZone }
+  if (dateStyle !== undefined && timeStyle !== undefined) {
+    // ICU versions disagree on combined-style connectors (", " versus " at "
+    // in English). Both supported locales use a comma here. Format the two
+    // localized parts independently so SSR and browser hydration agree while
+    // retaining the requested styles, timezone and hour cycle.
+    const day = dateLabel(date, locale, {
+      ...zonedFields,
+      dateStyle
+    })
+    const time = dateLabel(date, locale, {
+      ...zonedFields,
+      timeStyle
+    })
+    return `${day}, ${time}`
+  }
+  return dateLabel(date, locale, {
     ...options,
     timeZone: effectiveTimeZone
-  }).format(dateValue(value))
+  })
 }
 
 /** Format a date and time with a stable, explicit locale and time zone. */

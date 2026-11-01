@@ -21,10 +21,8 @@ test('registers, renames, signs in with, and removes a passkey', async ({
   const bootstrap = await signInAsOwner(page, '/account')
   // Remove the fixture authenticator from this browser. Subsequent ceremonies
   // must use the new key, while its qualified session authorizes enrollment.
-  await bootstrap.cdp.send('WebAuthn.removeVirtualAuthenticator', {
-    authenticatorId: bootstrap.authenticatorId
-  })
-  await addVirtualAuthenticator(bootstrap.cdp)
+  await bootstrap.remove()
+  await addVirtualAuthenticator(context)
   await page
     .locator('header [data-slot="select-trigger"]:enabled')
     .waitFor({ state: 'attached' })
@@ -42,7 +40,7 @@ test('registers, renames, signs in with, and removes a passkey', async ({
   await expect(page.getByText('Renamed key', { exact: true })).toBeVisible()
 
   // Exercise the explicit sign-in button in a browser without conditional UI.
-  // The registration and assertion still use Chromium's real WebAuthn APIs.
+  // The server still verifies real signatures from Playwright's authenticator.
   await page.addInitScript(() => {
     // oxlint-disable-next-line effect/noNewPromise -- This browser capability stub implements the native WebAuthn Promise interface.
     PublicKeyCredential.isConditionalMediationAvailable = () => Promise.resolve(false)
