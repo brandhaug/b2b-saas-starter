@@ -60,6 +60,22 @@ export default defineConfig({
       name: 'chromium',
       dependencies: ['authentication'],
       use: { ...devices['Desktop Chrome'] }
+    },
+    {
+      name: 'firefox',
+      // Browser projects share the disposable demo account and passkey names.
+      // Finish each browser before the next reuses its credentials/counters.
+      dependencies: ['authentication', 'chromium'],
+      testMatch:
+        /(?:passkeys|strong-authentication|auth-request-ownership|toast-accessibility)\.spec\.ts/,
+      use: { ...devices['Desktop Firefox'] }
+    },
+    {
+      name: 'webkit',
+      dependencies: ['authentication', 'firefox'],
+      testMatch:
+        /(?:passkeys|strong-authentication|auth-request-ownership|toast-accessibility)\.spec\.ts/,
+      use: { ...devices['Desktop Safari'] }
     }
   ]
 })

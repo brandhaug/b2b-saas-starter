@@ -49,7 +49,7 @@ const TOAST_OPTIONS = {
   }
 }
 
-function Toaster({ ...props }: ToasterProps) {
+function Toaster({ toastOptions, ...props }: ToasterProps) {
   return (
     <Sonner
       // Fixed rather than read from a theme provider: the app is Catppuccin
@@ -58,7 +58,11 @@ function Toaster({ ...props }: ToasterProps) {
       className="toaster group"
       icons={TOASTER_ICONS}
       style={TOASTER_STYLE}
-      toastOptions={TOAST_OPTIONS}
+      toastOptions={{
+        ...TOAST_OPTIONS,
+        ...toastOptions,
+        classNames: { ...TOAST_OPTIONS.classNames, ...toastOptions?.classNames }
+      }}
       {...props}
     />
   )

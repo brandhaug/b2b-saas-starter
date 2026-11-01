@@ -80,10 +80,10 @@ diagnostics are not part of type checking. The Effect oxlint rules still run in
 
 ## Validation
 
-Install Chromium once, then run the final validation command:
+Install the three browser engines once, then run the final validation command:
 
 ```bash
-pnpm -C apps/web exec playwright install chromium
+pnpm -C apps/web exec playwright install chromium firefox webkit
 pnpm run validate
 ```
 

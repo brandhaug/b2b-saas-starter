@@ -64,7 +64,14 @@ test('revoking the other session signs that device out', async ({ browser }) => 
   // a second session with the same timestamp and device label, making the
   // newest matching row ambiguous. The acting device still verifies below.
   await signInWithPassword(there, 'demo@starter.local', '/account')
+  // Credential persistence must preserve this device's earlier routing policy.
+  const verified = here.waitForResponse((response) =>
+    response.url().includes('/api/auth/passkey/verify-authentication')
+  )
   await signIn(here, 'demo@starter.local', '/account')
+  const verification = await verified
+  const verificationHeaders = await verification.request().allHeaders()
+  expect(verificationHeaders['cf-connecting-ip']).toBe('10.0.0.1')
 
   // The panel's query may have fetched before the second sign-in landed; the
   // reload re-runs it against the store that now holds both sessions.

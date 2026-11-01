@@ -6,8 +6,31 @@ import {
   AccountDeletedEmail,
   OneTimeCodeEmail,
   PasskeyChangedEmail,
-  TwoFactorChangedEmail
+  TwoFactorChangedEmail,
+  WorkspaceInvitationEmail
 } from './templates.tsx'
+
+// CSS-first theme failure cases: unresolved variables, lost brand colors,
+// rem spacing in email clients, and translated long names losing content.
+it.effect('inlines the email palette and pixel spacing for translated long names', () =>
+  Effect.gen(function* () {
+    const html = yield* Effect.promise(() =>
+      render(
+        WorkspaceInvitationEmail({
+          workspaceName: 'Økonomi og internasjonalt samarbeid '.repeat(4),
+          inviteUrl: 'https://example.com/invitations/accept?invitation=preview',
+          locale: 'nb'
+        })
+      )
+    )
+    expect(html).toContain('lang="nb-NO"')
+    expect(html).toContain('background-color:rgb(30,30,46)')
+    expect(html).toContain('background-color:rgb(203,166,247)')
+    expect(html).toContain('padding:16px')
+    expect(html).not.toContain('var(--color-')
+    expect(html).toContain('Økonomi og internasjonalt samarbeid')
+  })
+)
 
 // Both counts can be singular independently in an account deletion receipt.
 describe.each([

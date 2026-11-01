@@ -1,7 +1,43 @@
 import { describe, expect, it } from 'vite-plus/test'
-import { formatCurrency, formatDate, formatNumber } from './format.ts'
+import { formatCurrency, formatDate, formatDateTime, formatNumber } from './format.ts'
 
 describe('format helpers', () => {
+  // Failure cases: combined style connectors differ across ICU versions,
+  // splitting a date/time loses its timezone or hour cycle, and calendar dates
+  // accidentally shift to the previous day in western timezones.
+  it('keeps combined styles stable with locale, zone and hour-cycle options', () => {
+    const timestamp = '2026-11-01T11:48:00.000Z'
+    expect(formatDateTime(timestamp, 'en', undefined, 'Europe/Oslo')).toBe(
+      'Nov 1, 2026, 12:48 PM'
+    )
+    expect(formatDateTime(timestamp, 'nb', undefined, 'Europe/Oslo')).toBe(
+      '1. nov. 2026, 12:48'
+    )
+    expect(
+      formatDate(
+        timestamp,
+        'en',
+        {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+          hour12: false
+        },
+        'America/New_York'
+      )
+    ).toBe('Nov 1, 2026, 06:48')
+    expect(
+      formatDate(
+        '2026-05-16',
+        'en',
+        {
+          dateStyle: 'medium',
+          timeStyle: 'short'
+        },
+        'America/New_York'
+      )
+    ).toBe('May 16, 2026, 12:00 AM')
+  })
+
   it('formats dates with the supplied locale and timezone', () => {
     const timestamp = '2026-05-16T23:00:00.000Z'
     expect(formatDate(timestamp, 'en', { dateStyle: 'short' }, 'UTC')).toBe('5/16/26')

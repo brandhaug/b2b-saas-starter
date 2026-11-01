@@ -1,4 +1,6 @@
 {
+  "shell_toast_notifications": "Varsler",
+  "shell_toast_close": "Lukk varsel",
   "shell_invalid_calendar_day": "Et datofilter er ugyldig, eller datoen finnes ikke i tidssonen din. Fjern filtrene og velg en annen dato.",
   "shell_calendar_filter_title": "Velg en annen dato",
   "shell_clear_calendar_filters": "Fjern filtre",
