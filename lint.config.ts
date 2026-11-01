@@ -176,7 +176,7 @@ const JSX_A11Y = `
 const EFFECT = `
   noAsyncFunction noDynamicImports noEffectBind noEffectDo noGlobals noNewError
   noNewPromise noNodeBuiltinImport noTernary noTestLifecycleHooks noThrowStatement
-  noTryCatch preferEffectFn
+  noTryCatch preferEffectFn noPointFreeLog
 `
 
 // The three remaining JS plugins, each listed in full — every rule the plugin
@@ -445,6 +445,10 @@ const { lint = {} } = defineConfig({
       'eslint-plugin-better-tailwindcss',
       'oxlint-plugin-effect/plugin',
       {
+        name: 'paraglide',
+        specifier: '@inlang/paraglide-js/eslint'
+      },
+      {
         name: 'anti-slop',
         specifier: './vendor/anti-slop/plugin.mjs'
       },
@@ -514,6 +518,12 @@ const { lint = {} } = defineConfig({
       ...enable('anti-slop/', ANTI_SLOP),
       ...enable('starter/', STARTER),
       ...enable('vite-plus/', VITE_PLUS),
+      'paraglide/no-dynamic-message-access': [
+        'error',
+        {
+          messageModules: ['@b2b-saas-starter/i18n/messages', './generated/messages.js']
+        }
+      ],
       ...reactDoctorRules(),
 
       // --- Deviations ------------------------------------------------------

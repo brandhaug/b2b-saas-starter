@@ -40,7 +40,7 @@ type OxlintReport = {
 
 function decodeReport(stdout: string): OxlintReport {
   // The harness deliberately owns no codec: the plugin's only runtime
-  // dependency is `@oxlint/plugins`, so the boundary is the documented
+  // dependency is `vite-plus`, so the boundary is the documented
   // `--format=json` payload itself — malformed output fails on the first
   // property read, exactly as a decode would.
   // oxlint-disable-next-line effect/noGlobals -- plain JSON boundary; a Schema here would reintroduce the `effect` dependency the cleanup removed

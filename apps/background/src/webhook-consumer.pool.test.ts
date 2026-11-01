@@ -189,6 +189,7 @@ describe('webhook consumer (workers pool)', () => {
   })
   // oxlint-disable-next-line effect/noTestLifecycleHooks -- restores the isolate's fetch
   afterAll(() => {
+    // oxlint-disable-next-line effect/noGlobals -- restores the Workers pool's platform fetch adapter after the stubbed dispatches
     globalThis.fetch = realFetch
   })
 

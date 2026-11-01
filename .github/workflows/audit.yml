@@ -48,9 +48,9 @@ jobs:
         run: vp test run .github/scripts/secret-scan.test.ts
         env:
           GITLEAKS_BINARY: gitleaks
-      - uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.74.0
+      - uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
         with:
-          version: v0.74.0
+          version: v0.76.1
           cache: false
       - name: Verify native Trivy exceptions
         run: vp test run .github/scripts/trivy.test.ts

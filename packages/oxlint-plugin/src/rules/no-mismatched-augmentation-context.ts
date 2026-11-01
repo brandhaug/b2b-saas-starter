@@ -1,4 +1,4 @@
-import { defineRule } from '@oxlint/plugins'
+import { defineRule } from 'vite-plus/lint/plugins'
 
 /**
  * Reports a `.d.ts` file whose augmentation kind does not match the file's
