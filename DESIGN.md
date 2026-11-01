@@ -19,19 +19,19 @@ The `.marketing` wrapper owns public typography, prose, and focus treatment. It 
 
 ## Typography
 
-Self-hosted family names must match Fontsource: `Geist Variable`, `Geist Mono Variable`, and `Newsreader Variable`.
+Self-hosted family names must match their font-face declarations: `Geist Variable`, `Geist Mono Variable`, and `Geist Serif`. The sans and mono families come from Fontsource; the official Geist Serif Regular asset and license live in `apps/web/src/assets/fonts/geist-serif`.
 
-Geist handles body text and headings. Geist Mono handles code, identifiers, and tabular numeric data. Newsreader is limited to the landing hero and section headings through `font-display`, with optical size 72; never use it for workspace, card, or small-text headings.
+Geist handles body text and headings. Geist Mono handles code, identifiers, and tabular numeric data. Geist Serif is limited to the landing hero and section headings through `font-display`, at its native Regular weight with synthesis disabled; never use it for workspace, card, or small-text headings. Only the landing route preloads the serif asset.
 
-| Content                         | Treatment                                                                      |
-| ------------------------------- | ------------------------------------------------------------------------------ |
-| Landing hero / section headings | Newsreader, `text-4xl` to `text-7xl` / `text-3xl` to `text-5xl`, medium weight |
-| Other page titles               | Geist `text-3xl`; workspace shell title `text-2xl`                             |
-| Article section headings        | `text-xl` h2, `text-base` h3                                                   |
-| Card titles                     | Geist `text-lg font-semibold`                                                  |
-| Body                            | `text-sm` at every width; long-form prose `text-lg`                            |
-| Form controls and their labels  | `text-base` below `md`, `text-sm` above                                        |
-| Micro text                      | Mono hints, table headers, and schematic labels only                           |
+| Content                         | Treatment                                                                        |
+| ------------------------------- | -------------------------------------------------------------------------------- |
+| Landing hero / section headings | Geist Serif, `text-4xl` to `text-7xl` / `text-3xl` to `text-5xl`, regular weight |
+| Other page titles               | Geist `text-3xl`; workspace shell title `text-2xl`                               |
+| Article section headings        | `text-xl` h2, `text-base` h3                                                     |
+| Card titles                     | Geist `text-lg font-semibold`                                                    |
+| Body                            | `text-sm` at every width; long-form prose `text-lg`                              |
+| Form controls and their labels  | `text-base` below `md`, `text-sm` above                                          |
+| Micro text                      | Mono hints, table headers, and schematic labels only                             |
 
 Use sentence case. Keep input text at 16px on mobile to avoid focus zoom. Micro sizes are unsuitable for prose or interactive labels.
 

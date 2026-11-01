@@ -19,7 +19,7 @@ export function DemoStrip({ demo }: { readonly demo: DemoShowcase }) {
       <div className="mb-8 grid items-end gap-5 lg:grid-cols-2 lg:gap-16">
         <h2
           id="workspace-preview-heading"
-          className="font-display text-3xl font-medium leading-display sm:text-4xl"
+          className="font-display text-3xl font-normal leading-display sm:text-4xl"
         >
           {m.showcase_workspace_heading()}
         </h2>

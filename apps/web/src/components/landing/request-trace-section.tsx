@@ -130,7 +130,7 @@ function RequestTraceSection({
         <div className="max-w-3xl">
           <h2
             id="request-trace-heading"
-            className="font-display text-4xl font-medium leading-display sm:text-5xl"
+            className="font-display text-4xl font-normal leading-display sm:text-5xl"
           >
             {m.public_request_heading()}
           </h2>

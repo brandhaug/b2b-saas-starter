@@ -12,7 +12,7 @@ function HeroSection() {
       <LightRays />
       <div className="relative mx-auto max-w-7xl px-5 pt-12 pb-14 sm:px-6 sm:pt-20 sm:pb-20 lg:pt-24 lg:pb-24">
         <div className="max-w-6xl">
-          <h1 className="rise font-display text-4xl leading-display font-medium text-balance break-words sm:text-6xl xl:text-7xl">
+          <h1 className="rise font-display text-4xl leading-display font-normal text-balance break-words sm:text-6xl xl:text-7xl">
             {m.landing_headline()}
           </h1>
           <p className="rise rise-2 mt-6 max-w-2xl text-pretty text-lg leading-relaxed text-muted-foreground sm:mt-8 sm:text-xl">

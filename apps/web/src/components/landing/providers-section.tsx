@@ -7,7 +7,7 @@ function ProvidersSection() {
     <section className="border-t border-border">
       <div className="mx-auto grid max-w-7xl items-start gap-8 px-5 py-16 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:gap-16">
         <div className="max-w-2xl">
-          <h2 className="font-display text-balance text-3xl font-medium leading-display sm:text-4xl">
+          <h2 className="font-display text-balance text-3xl font-normal leading-display sm:text-4xl">
             {m.landing_optional_providers()}
           </h2>
           <p className="mt-4 text-pretty text-sm leading-relaxed text-muted-foreground">
