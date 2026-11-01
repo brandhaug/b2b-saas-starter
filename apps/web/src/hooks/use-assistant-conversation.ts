@@ -1,5 +1,6 @@
 import { useEffect, useReducer, useRef, useState } from 'react'
 import { skipToken, useQuery, useQueryClient } from '@tanstack/react-query'
+import ReconnectingWebSocket from 'partysocket/ws'
 import {
   type ConversationPorts,
   type ConversationHistory
@@ -78,9 +79,6 @@ export function useAssistantConversation(
     const observerId = ++epoch.current
     const key = ['assistant-conversation', actorId, workspaceSlug, conversationId]
     let disposed = false
-    let socket: WebSocket | undefined
-    let timer: ReturnType<typeof setTimeout> | undefined
-    let reconnectDelay = 1000
     dispatch({ type: 'start', observer: observerId, reconnecting: generation > 0 })
 
     function dispose() {
@@ -88,10 +86,10 @@ export function useAssistantConversation(
         return
       }
       disposed = true
-      if (timer !== undefined) {
-        clearTimeout(timer)
-      }
-      socket?.close()
+      socket.removeEventListener('open', onOpen)
+      socket.removeEventListener('message', onMessage)
+      socket.removeEventListener('close', onClose)
+      socket.close()
       void client.cancelQueries({ queryKey: key, exact: true })
     }
 
@@ -149,52 +147,50 @@ export function useAssistantConversation(
 
     observer.current = { actorId, workspaceSlug, conversationId, load }
     void load()
-    function connect() {
+    const url = new URL(
+      `/api/assistant/${encodeURIComponent(conversationId)}/connect`,
+      window.location.origin
+    )
+    url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+    const socket = new ReconnectingWebSocket(url.href, [], {
+      maxEnqueuedMessages: 0,
+      minReconnectionDelay: 1000,
+      maxReconnectionDelay: 15_000,
+      reconnectionDelayGrowFactor: 2,
+      connectionTimeout: 10_000,
+      shouldReconnectOnClose: (event) => ![1008, 4401, 4403, 4404].includes(event.code)
+    })
+    function onOpen() {
       if (disposed) {
         return
       }
-      const url = new URL(
-        `/api/assistant/${encodeURIComponent(conversationId)}/connect`,
-        window.location.origin
-      )
-      url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
-      const currentSocket = new WebSocket(url)
-      socket = currentSocket
-      let closed = false
-      currentSocket.addEventListener('open', () => {
-        if (disposed || closed) {
-          return
-        }
-        reconnectDelay = 1000
-        dispatch({ type: 'open', observer: observerId })
-      })
-      currentSocket.addEventListener('message', (event: MessageEvent<string>) => {
-        if (disposed || closed) {
-          return
-        }
-        const snapshot = readConversationSnapshot(event.data)
-        if (snapshot) {
-          client.setQueryData<ConversationHistory | null>(key, (current) =>
-            mergeConversationHistory(current ?? null, snapshot, 'snapshot')
-          )
-        }
-      })
-      currentSocket.addEventListener('close', (event) => {
-        if (disposed || closed) {
-          return
-        }
-        closed = true
-        if (event.code === 1008 || [4401, 4403, 4404].includes(event.code)) {
-          deny(m.assistant_conversations_access_lost())
-          return
-        }
-        dispatch({ type: 'close', observer: observerId })
-        void load()
-        timer = setTimeout(connect, reconnectDelay)
-        reconnectDelay = Math.min(reconnectDelay * 2, 15_000)
-      })
+      dispatch({ type: 'open', observer: observerId })
     }
-    connect()
+    function onMessage(event: MessageEvent<string>) {
+      if (disposed) {
+        return
+      }
+      const snapshot = readConversationSnapshot(event.data)
+      if (snapshot) {
+        client.setQueryData<ConversationHistory | null>(key, (current) =>
+          mergeConversationHistory(current ?? null, snapshot, 'snapshot')
+        )
+      }
+    }
+    function onClose(event: CloseEvent) {
+      if (disposed) {
+        return
+      }
+      if (event.code === 1008 || [4401, 4403, 4404].includes(event.code)) {
+        deny(m.assistant_conversations_access_lost())
+        return
+      }
+      dispatch({ type: 'close', observer: observerId })
+      void load()
+    }
+    socket.addEventListener('open', onOpen)
+    socket.addEventListener('message', onMessage)
+    socket.addEventListener('close', onClose)
     return () => {
       dispose()
       observer.current = null

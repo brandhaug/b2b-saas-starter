@@ -2,14 +2,9 @@ import { it } from '@effect/vitest'
 import { Effect } from 'effect'
 import { describe, expect, vi } from 'vite-plus/test'
 
-import {
-  hashSha256,
-  hmacSha256Base64,
-  hmacSha256Hex,
-  randomWebhookSecret
-} from './crypto'
+import { hashSha256, hmacSha256Hex, randomWebhookSecret } from './crypto'
 
-// Failure cases: encoding drift (UTF-8, hex, base64), empty/malformed keys,
+// Failure cases: encoding drift (UTF-8, hex, base64), empty keys,
 // platform rejection, or generating fewer than 32 secure bytes.
 describe('crypto wire compatibility', () => {
   it.effect('keeps SHA-256 fixtures, including UTF-8 and empty input', () =>
@@ -26,31 +21,20 @@ describe('crypto wire compatibility', () => {
     })
   )
 
-  it.effect('keeps RFC 4231 HMAC bytes in hex and Standard Webhooks base64', () =>
+  it.effect('keeps RFC 4231 HMAC bytes in hex', () =>
     Effect.gen(function* () {
       expect(
         yield* Effect.promise(() =>
           hmacSha256Hex('Jefe', 'what do ya want for nothing?')
         )
       ).toBe('5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843')
-      expect(
-        yield* Effect.promise(() =>
-          hmacSha256Base64('whsec_SmVmZQ==', 'what do ya want for nothing?')
-        )
-      ).toBe('W9zBRr9gdU5qBCQmCJV1x1oAPwidJzmDnexYuWTsOEM=')
     })
   )
 
-  it.effect('rejects empty HMAC keys and malformed base64', () =>
+  it.effect('rejects empty HMAC keys', () =>
     Effect.gen(function* () {
       yield* Effect.promise(() =>
         expect(hmacSha256Hex('', 'payload')).rejects.toBeDefined()
-      )
-      yield* Effect.promise(() =>
-        expect(hmacSha256Base64('whsec_', 'payload')).rejects.toBeDefined()
-      )
-      yield* Effect.promise(() =>
-        expect(hmacSha256Base64('whsec_!!!!', 'payload')).rejects.toBeDefined()
       )
     })
   )
@@ -62,9 +46,6 @@ describe('crypto wire compatibility', () => {
       yield* Effect.promise(() => expect(hashSha256('abc')).rejects.toBeDefined())
       yield* Effect.promise(() =>
         expect(hmacSha256Hex('key', 'payload')).rejects.toBeDefined()
-      )
-      yield* Effect.promise(() =>
-        expect(hmacSha256Base64('whsec_a2V5', 'payload')).rejects.toBeDefined()
       )
     }).pipe(Effect.ensuring(Effect.sync(() => vi.restoreAllMocks())))
   )

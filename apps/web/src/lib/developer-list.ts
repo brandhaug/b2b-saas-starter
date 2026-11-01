@@ -1,10 +1,11 @@
 import { useNavigate } from '@tanstack/react-router'
+import { type RowData } from '@tanstack/react-table'
 
 import { useWorkspaceView } from '@/lib/workspace-view'
 import { updateTableViews, useTableView } from '@/lib/use-table-view'
 import { applyTableView, defaultTableView, type TableViewField } from '@/lib/table-view'
 
-export function useDeveloperListView<T>({
+export function useDeveloperListView<T extends RowData>({
   key,
   fields,
   data,
@@ -26,12 +27,13 @@ export function useDeveloperListView<T>({
   const navigate = useNavigate()
   const table = useTableView(key, fields)
   const query = view.query ?? ''
-  const needle = query.trim().toLocaleLowerCase()
-  const searched =
-    needle === ''
-      ? data
-      : data.filter((row) => searchText(row).toLocaleLowerCase().includes(needle))
-  const filtered = applyTableView(searched, table.view, getValue)
+  const filtered = applyTableView(
+    data,
+    { ...table.view, query },
+    getValue,
+    fields,
+    searchText
+  )
   const requestedPage = Number(view.page)
   const validPage =
     Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1

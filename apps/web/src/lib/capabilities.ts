@@ -1,4 +1,5 @@
 import { UiError } from './ui-error'
+import { InvalidCalendarDay } from './server/zoned-day-boundary'
 import { StrongAuthenticationRequired } from '@b2b-saas-starter/capabilities/governance/strong-authentication'
 import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import {
@@ -89,6 +90,10 @@ function rethrowCapabilityFailure(cause: Cause.Cause<unknown>): never {
   const failure = Cause.findErrorOption(cause)
   if (Option.isSome(failure)) {
     const error = failure.value
+    if (error instanceof InvalidCalendarDay) {
+      // oxlint-disable-next-line effect/noThrowStatement -- allowlisted refusal at the Effect-to-TanStack serialization boundary
+      throw new UiError('invalid_calendar_day', {}, 'Invalid calendar filter')
+    }
     if (error instanceof StrongAuthenticationRequired) {
       // oxlint-disable-next-line effect/noThrowStatement -- transport serialization of an expected authorization failure
       throw new UiError(
