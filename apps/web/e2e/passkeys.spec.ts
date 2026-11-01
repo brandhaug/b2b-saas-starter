@@ -17,7 +17,7 @@ test.skip(
 
 test.beforeEach(async ({ context }, testInfo) => {
   await context.setExtraHTTPHeaders({
-    'cf-connecting-ip': isolatedClientIp(testInfo.testId)
+    'cf-connecting-ip': isolatedClientIp(`${testInfo.testId}:${testInfo.retry}`)
   })
 })
 
@@ -60,22 +60,27 @@ test('virtual passkeys work without a native PublicKeyCredential constructor', a
 })
 
 async function exercisePasskeyLifecycle(page: Page, context: BrowserContext) {
+  const identity = `${test.info().testId}-${test.info().retry}`
+  const initialName = `E2E key ${identity}`
+  const renamedName = `Renamed key ${identity}`
   await addVirtualAuthenticator(context)
   await page
     .locator('header [data-slot="select-trigger"]:enabled')
     .waitFor({ state: 'attached' })
   await expect(page.getByRole('heading', { name: 'Passkeys', level: 2 })).toBeVisible()
   await expect(page.getByText(/E2E shared authentication/).first()).toBeVisible()
-  await page.getByLabel('Name a new passkey').fill('E2E key')
+  await page.getByLabel('Name a new passkey').fill(initialName)
   await page.getByRole('button', { name: 'Add passkey', exact: true }).click()
-  await expect(page.getByText('E2E key', { exact: true })).toBeVisible({
+  await expect(page.getByText(initialName, { exact: true })).toBeVisible({
     timeout: 15_000
   })
 
-  await page.getByRole('button', { name: 'Rename E2E key passkey' }).click()
-  await page.getByLabel('New name').fill('Renamed key')
+  await page
+    .getByRole('button', { name: `Rename ${initialName} passkey`, exact: true })
+    .click()
+  await page.getByLabel('New name').fill(renamedName)
   await page.getByRole('button', { name: 'Save', exact: true }).click()
-  await expect(page.getByText('Renamed key', { exact: true })).toBeVisible()
+  await expect(page.getByText(renamedName, { exact: true })).toBeVisible()
 
   // Exercise the explicit sign-in button in a browser without conditional UI.
   // The server still verifies real signatures from Playwright's authenticator.
@@ -86,14 +91,22 @@ async function exercisePasskeyLifecycle(page: Page, context: BrowserContext) {
   await expect(page.getByRole('heading', { name: 'Workspace settings' })).toBeVisible({
     timeout: 15_000
   })
+  // SSR can expose the heading before the sign-in navigation has finished.
+  // Wait for that destination before starting an unrelated full-page visit.
+  await page.waitForURL('**/workspaces/starter-lab/settings')
+  await page
+    .locator('header [data-slot="select-trigger"]:enabled')
+    .waitFor({ state: 'attached' })
 
   await page.goto('/account')
   await page
     .locator('header [data-slot="select-trigger"]:enabled')
     .waitFor({ state: 'attached' })
-  await page.getByRole('button', { name: 'Remove Renamed key passkey' }).click()
+  await page
+    .getByRole('button', { name: `Remove ${renamedName} passkey`, exact: true })
+    .click()
   await page.getByRole('button', { name: 'Remove passkey', exact: true }).click()
-  await expect(page.getByText('Renamed key', { exact: true })).toHaveCount(0)
+  await expect(page.getByText(renamedName, { exact: true })).toHaveCount(0)
 }
 
 test('the sign-in page offers passkey autofill where the browser supports it', async ({

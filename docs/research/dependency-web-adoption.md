@@ -8,6 +8,8 @@ Latest browser confirmation after the missing-constructor correction: **88 passe
 
 Linux CI run `41306520145`, web head `806961b`, failed before sending a verification POST. The downloaded WebKit retry trace contains successful passkey-list and authentication-options GETs, followed by the cancelled-action UI. This is consistent with a client capability rejection, but the trace alone does not prove the constructor was absent.
 
+Full validation after the constructor repair exposed WebKit navigation races in the expanded lifecycle and strong-authentication tests. An SSR heading could appear before a pending authentication redirect finished, allowing the next navigation to interrupt it. The tests now await the destination URL and hydrated controls before proceeding. Passkey names include the test/retry identity so a failed cleanup cannot make the next attempt's selectors ambiguous. Retry attempts also get separate simulated client IPs rather than consuming the previous attempt's rate-limit budget. These changes preserve server verification and all authorization assertions. The corrected web layer passed full `pnpm run validate`: 88 compiled-preview tests, 11 skips, and 15 Alchemy smoke tests. Logs: `adoption-webkit-web-validate.log` in the session temporary directory.
+
 Installed first-party source establishes the gap:
 
 - `@simplewebauthn/browser@13.3.0/esm/helpers/browserSupportsWebAuthn.js` requires `typeof globalThis.PublicKeyCredential === 'function'`. `esm/methods/startAuthentication.js` throws before calling the credentials API when that check fails.
