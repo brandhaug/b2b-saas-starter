@@ -1,13 +1,12 @@
 import { isResolved } from 'alchemy/Diff'
 import * as Provider from 'alchemy/Provider'
 import { Resource } from 'alchemy/Resource'
-import { Effect } from 'effect'
+import { Effect, Schema } from 'effect'
 import { authenticatedEmailClient } from './email-sending/api.ts'
 import {
   ensureSenderPrivacy,
-  readSenderPrivacy,
   type SenderPrivacyAttributes,
-  type SenderPrivacyProps
+  SenderPrivacyProps
 } from './email-sending/sender-privacy.ts'
 import { makeEmailSendingLifecycle } from './email-sending/subscription.ts'
 import {
@@ -18,7 +17,6 @@ import {
 export { discoverEmailEventsQueue } from './email-sending/queue-discovery.ts'
 export {
   ensureSenderPrivacy,
-  readSenderPrivacy,
   type SenderPrivacyAttributes,
   type SenderPrivacyProps
 } from './email-sending/sender-privacy.ts'
@@ -73,21 +71,28 @@ export const EmailSendingSubscriptionProvider = Provider.effect(
   })
 )
 
-/** Owns the preview preference only. The native SendingSubdomain resource owns the sender. */
+/** Read-only gate after native sender reconciliation, before event subscriptions. */
 export type EmailSendingPrivacy = Resource<
   'Starter.EmailSendingPrivacy',
-  SenderPrivacyProps,
+  SenderPrivacyProps & {
+    readonly senderState: {
+      readonly enabled: boolean
+      readonly previewEnabled: boolean | undefined
+    }
+  },
   SenderPrivacyAttributes
 >
 export const EmailSendingPrivacy = Resource<EmailSendingPrivacy>(
   'Starter.EmailSendingPrivacy'
 )
+const isSenderPrivacyScope = Schema.is(SenderPrivacyProps)
 export const EmailSendingPrivacyProvider = Provider.succeed(EmailSendingPrivacy, {
   stables: ['accountId', 'zoneId', 'subdomainId', 'domain'],
-  diff: ({ olds, news, output }) =>
+  diff: ({ olds, news }) =>
     Effect.sync(() => {
+      // Mutable native status outputs trigger an update, not identity replacement.
       if (
-        !isResolved(news) ||
+        !isSenderPrivacyScope(news) ||
         olds.accountId !== news.accountId ||
         olds.zoneId !== news.zoneId ||
         olds.subdomainId !== news.subdomainId ||
@@ -95,13 +100,9 @@ export const EmailSendingPrivacyProvider = Provider.succeed(EmailSendingPrivacy,
       ) {
         return { action: 'replace', deleteFirst: true }
       }
-      if (output?.previewEnabled) {
-        return { action: 'update' }
-      }
     }),
-  read: Effect.fn('EmailSending.privacyRead')(function* ({ olds, output }) {
-    return yield* readSenderPrivacy(output ?? olds)
-  }),
+  // No read hook: drift repair belongs to SendingSubdomain. A second drift reader
+  // would race that resource's repair; its non-stable outputs rerun this gate.
   reconcile: Effect.fn('EmailSending.privacyReconcile')(function* ({ news }) {
     return yield* ensureSenderPrivacy(news)
   }),

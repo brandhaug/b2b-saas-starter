@@ -1,7 +1,6 @@
 import { Effect, Schema } from 'effect'
 import {
   getSubdomain,
-  editSubdomain,
   type GetSubdomainResponse
 } from '@distilled.cloud/cloudflare/email-sending'
 import {
@@ -11,7 +10,6 @@ import {
   checkEnvironment,
   emailOperations,
   failure,
-  missing,
   validateSenderZone
 } from './api.ts'
 
@@ -68,48 +66,20 @@ const senderApi = Effect.fn('EmailSending.senderApi')(function* (
       getSubdomain({ zoneId: props.zoneId, subdomainId: props.subdomainId })
     )
   }
-  function disable() {
-    return run(
-      'PATCH',
-      editSubdomain({
-        zoneId: props.zoneId,
-        subdomainId: props.subdomainId,
-        previewEnabled: false
-      })
-    )
-  }
-  return { get, disable, validate }
+  return { get, validate }
 })
 
-/** Observe the setting so Alchemy detects remote drift. A missing sender is not recreated here. */
-export const readSenderPrivacy = Effect.fn('EmailSending.readSenderPrivacy')(function* (
-  props: SenderPrivacyProps
-) {
-  const { get, validate } = yield* senderApi(props)
-  const response = yield* missing(get())
-  if (!response) {
-    return
-  }
-  return yield* validate(response)
-})
-
-/** https://developers.cloudflare.com/api/resources/email_sending/subresources/subdomains/methods/edit/
- * Read first; PATCH only preview_enabled; validate the returned identity and setting.
- */
+/** Verify native reconciliation without changing sender settings. */
 export const ensureSenderPrivacy = Effect.fn('EmailSending.ensureSenderPrivacy')(
   function* (props: SenderPrivacyProps) {
-    const { get, disable, validate } = yield* senderApi(props)
+    const { get, validate } = yield* senderApi(props)
     const observed = yield* validate(yield* get())
-    if (!observed.previewEnabled) {
-      return observed
-    }
-    const final = yield* validate(yield* disable())
-    if (final.previewEnabled) {
+    if (observed.previewEnabled) {
       return yield* failure(
         'privacy',
         'Cloudflare did not disable sender message previews'
       )
     }
-    return final
+    return observed
   }
 )

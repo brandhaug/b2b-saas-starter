@@ -32,8 +32,10 @@ flow. Delivery history calls this `logged`.
 
    [alchemy.email.ts](../alchemy.email.ts) uses separate local state. It discovers
    the existing production queue by exact name, provisions the sender through
-   `Cloudflare.Email.SendingSubdomain`, disables stored message-content previews,
-   and creates the domain-scoped lifecycle subscription. Alchemy/Cloudflare manage
+   `Cloudflare.Email.SendingSubdomain` with `previewEnabled: false`, then verifies
+   that the sender is enabled and previews are disabled before creating the
+   domain-scoped lifecycle subscription. The verification resource is read-only;
+   native Alchemy owns preview updates and drift repair. Alchemy/Cloudflare manage
    the sender's DKIM/SPF/return-path records and wait for sender activation; domain
    ownership, account entitlement, and any organization-specific DMARC policy
    remain operator inputs.
@@ -44,8 +46,8 @@ flow. Delivery history calls this `logged`.
    reference omits permission metadata; the Email Sending Write group is taken
    from the pinned provider catalogue and still needs live authorization verification.
 
-   The local provider covers the Email Sending source variant missing from pinned
-   Alchemy's generic subscription resource. It subscribes to `message.delivered`,
+   The local subscription provider preserves stricter ownership and replacement
+   checks than the native generic resource. It subscribes to `message.delivered`,
    `message.deferred`, `message.bounced`, `message.failed`, `message.rejected`, and
    `message.complained`. It rejects preview stages, mismatched accounts, foreign
    queues/zones, and conflicting sender subscriptions. Queue access is the
@@ -58,7 +60,7 @@ flow. Delivery history calls this `logged`.
    detected repairs before applying. Preserve its `.alchemy/state/b2b-saas-starter-email/prod/` directory.
    If a manual subscription already owns this sender, inspect and migrate that
    subscription before applying; the provider refuses to overwrite another name
-   or queue. Removing the privacy resource never re-enables message previews.
+   or queue. Removing the read-only privacy gate never changes message previews.
    The native sender provider also requires explicit adoption for a sender created
    outside this state, including a create that succeeded before state was saved.
    Inspect the configured zone, sender name and existing DNS records, then use:
@@ -73,10 +75,11 @@ flow. Delivery history calls this `logged`.
    A conflicting subscription name or queue is still rejected; `--adopt` does not
    bypass those ownership checks. Subsequent runs can omit `--adopt`.
 
-   If the sender was deleted remotely, Alchemy's drift repair can recreate it but
-   fail when privacy repair still uses the previous sender ID. Repeating drift
-   repair cannot fix that stale dependency. After confirming that the drift run
-   recreated the configured sender, run the dependency-aware deployment directly:
+   If the sender was deleted remotely, native drift repair recreates it with
+   previews disabled. The following deployment updates the dependent verification
+   and subscription identities. The verification gate has no drift reader, so it
+   cannot race the sender repair using an obsolete ID. If an interrupted deployment
+   needs dependency-aware recovery without another drift pass, use:
 
    ```bash
    pnpm run bootstrap:email:recover --dry-run
@@ -85,8 +88,9 @@ flow. Delivery history calls this `logged`.
    ```
 
    The recovery command skips drift repair and uses the recreated sender ID from
-   state to replace its dependent privacy and subscription resources. It disables
-   message previews on the new sender. The final normal apply verifies convergence.
+   state to replace its dependent verification and subscription resources. The
+   native sender disables previews; the gate verifies the final setting and
+   enabled status. The final normal apply verifies convergence.
    Keep the same state directory throughout recovery; do not delete state to reset it.
 
 6. Monitor the `email-events` queue backlog and the `queue_exhausted` signal.
