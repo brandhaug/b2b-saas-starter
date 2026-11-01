@@ -1,6 +1,13 @@
-import { expect, test } from '@playwright/test'
+/* oxlint-disable anti-slop/no-runtime-typeof -- This regression tests the SDK's browser-constructor capability check. */
+import { expect, test, type BrowserContext, type Page } from '@playwright/test'
 import { hasLocalD1State } from '../src/lib/local-d1-state'
-import { addVirtualAuthenticator, signInAsOwner } from './authentication'
+import {
+  addVirtualAuthenticator,
+  installDemoPasskey,
+  signInAsOwner,
+  signInWithPassword,
+  verifyWithPasskey
+} from './authentication'
 import { isolatedClientIp } from './test-isolation'
 
 test.skip(
@@ -22,6 +29,37 @@ test('registers, renames, signs in with, and removes a passkey', async ({
   // Remove the fixture authenticator from this browser. Subsequent ceremonies
   // must use the new key, while its qualified session authorizes enrollment.
   await bootstrap.remove()
+  await exercisePasskeyLifecycle(page, context)
+})
+
+// Failure cases: native WebAuthn constructors are absent, installation only
+// repairs future documents, or the adapter enables conditional autofill.
+test('virtual passkeys work without a native PublicKeyCredential constructor', async ({
+  page,
+  context
+}) => {
+  await signInWithPassword(page, 'demo@starter.local', '/account')
+  // Model the missing constructor in this document before installation. A
+  // separate removal init script would race the adapter on later navigation.
+  await page.evaluate(() => {
+    Reflect.deleteProperty(globalThis, 'PublicKeyCredential')
+  })
+  expect(await page.evaluate(() => typeof globalThis.PublicKeyCredential)).toBe(
+    'undefined'
+  )
+  const bootstrap = await installDemoPasskey(page)
+  expect(await page.evaluate(() => typeof globalThis.PublicKeyCredential)).toBe(
+    'function'
+  )
+  expect(
+    await page.evaluate(() => PublicKeyCredential.isConditionalMediationAvailable())
+  ).toBe(false)
+  await verifyWithPasskey(page, '/account')
+  await bootstrap.remove()
+  await exercisePasskeyLifecycle(page, context)
+})
+
+async function exercisePasskeyLifecycle(page: Page, context: BrowserContext) {
   await addVirtualAuthenticator(context)
   await page
     .locator('header [data-slot="select-trigger"]:enabled')
@@ -41,10 +79,6 @@ test('registers, renames, signs in with, and removes a passkey', async ({
 
   // Exercise the explicit sign-in button in a browser without conditional UI.
   // The server still verifies real signatures from Playwright's authenticator.
-  await page.addInitScript(() => {
-    // oxlint-disable-next-line effect/noNewPromise -- This browser capability stub implements the native WebAuthn Promise interface.
-    PublicKeyCredential.isConditionalMediationAvailable = () => Promise.resolve(false)
-  })
   await context.clearCookies()
   await page.goto('/sign-in?redirect=%2Fworkspaces%2Fstarter-lab%2Fsettings')
   await page.locator('form[data-hydrated="true"]').waitFor()
@@ -60,7 +94,7 @@ test('registers, renames, signs in with, and removes a passkey', async ({
   await page.getByRole('button', { name: 'Remove Renamed key passkey' }).click()
   await page.getByRole('button', { name: 'Remove passkey', exact: true }).click()
   await expect(page.getByText('Renamed key', { exact: true })).toHaveCount(0)
-})
+}
 
 test('the sign-in page offers passkey autofill where the browser supports it', async ({
   page
