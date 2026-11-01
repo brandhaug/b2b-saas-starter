@@ -470,6 +470,9 @@ importers:
       effect:
         specifier: 'catalog:'
         version: 4.1.0
+      standardwebhooks:
+        specifier: 'catalog:'
+        version: 1.1.1
     devDependencies:
       '@cloudflare/vitest-plugin':
         specifier: 'catalog:'
@@ -486,9 +489,6 @@ importers:
       react-email:
         specifier: 'catalog:'
         version: 6.11.5(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)
-      standardwebhooks:
-        specifier: 'catalog:'
-        version: 1.1.1
       typescript:
         specifier: 'catalog:'
         version: 7.0.2

@@ -18,7 +18,8 @@
     "@b2b-saas-starter/i18n": "workspace:*",
     "@b2b-saas-starter/infra": "workspace:*",
     "@b2b-saas-starter/logger": "workspace:*",
-    "effect": "catalog:"
+    "effect": "catalog:",
+    "standardwebhooks": "catalog:"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "catalog:",
@@ -26,7 +27,6 @@
     "@effect/vitest": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "react-email": "catalog:",
-    "standardwebhooks": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plus": "catalog:",
