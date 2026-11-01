@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react'
 import { m } from '@b2b-saas-starter/i18n/messages'
+import geistSerifWoff2 from '@/assets/fonts/geist-serif/GeistSerif-Regular.woff2?url'
 
 /**
  * The top of every page: an optional breadcrumb slot, the `h1`, its
@@ -22,6 +23,13 @@ export function PageHeader({
 }) {
   return (
     <header className="grid gap-3">
+      <link
+        rel="preload"
+        href={geistSerifWoff2}
+        as="font"
+        type="font/woff2"
+        crossOrigin="anonymous"
+      />
       {breadcrumb === undefined ? null : (
         <nav
           aria-label={m.public_knowledge_breadcrumb()}
@@ -34,10 +42,7 @@ export function PageHeader({
         {/* `title` on the truncated text so the full page name survives
             hover/AT even when the column is too narrow to show it. */}
         <div className="grid min-w-0 gap-2">
-          <h1
-            className="text-2xl font-semibold tracking-tight text-balance"
-            title={title}
-          >
+          <h1 className="font-display text-2xl font-normal text-balance" title={title}>
             {title}
           </h1>
           {description === undefined ? null : (

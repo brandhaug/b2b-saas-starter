@@ -5,4 +5,4 @@ Unmodified Regular WOFF2 from [vercel/geist-font](https://github.com/vercel/geis
 Licensed under the SIL Open Font License 1.1 in `LICENSE.txt`.
 This release has one weight, Regular, and supports Latin-script languages,
 including English and Norwegian Bokmål. The stylesheet declares weight 400;
-the landing route preloads the same Vite-managed asset.
+public/auth layouts and app page headers preload the same Vite-managed asset.
