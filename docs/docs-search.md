@@ -27,9 +27,12 @@ the build. Paths must use a known category and a lowercase kebab-case slug.
 The build fails above a 512 KB serialized index budget. The virtual module is
 generated during each build, so there is no checked-in index to refresh.
 
-Search matches all whitespace-separated terms, ignoring case. Title matches rank
-above body matches, with stable IDs breaking ties. Results show a bounded excerpt
-near the first matching term, an article link, and a source link. Article links
+MiniSearch 7.2.0 indexes title, category, description and body text. Search requires
+all tokenized query terms, ignoring case, with prefix matching and fuzzy matching
+at a 0.2 edit-distance ratio. Titles have a 10x boost; stable IDs break score ties.
+Blank queries return no results. The index is cached by article-array identity.
+Results show a plain-text excerpt of at most 240 characters plus ellipses
+near a matched term, an article link, and a source link. Article links
 preserve the public locale and do not preload compiled MDX on result focus.
 
 The index has no internal docs or workspace data inputs. MDX/YAML parsers and
