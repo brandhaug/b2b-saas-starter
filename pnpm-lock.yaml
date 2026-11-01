@@ -73,8 +73,8 @@ catalogs:
       specifier: 1.64.1
       version: 1.64.1
     '@react-email/ui':
-      specifier: 6.11.5
-      version: 6.11.5
+      specifier: 6.11.6
+      version: 6.11.6
     '@rolldown/plugin-babel':
       specifier: 0.3.0
       version: 0.3.0
@@ -229,8 +229,8 @@ catalogs:
       specifier: 19.3.1
       version: 19.3.1
     react-email:
-      specifier: 6.11.5
-      version: 6.11.5
+      specifier: 6.11.6
+      version: 6.11.6
     rehype-pretty-code:
       specifier: 0.14.5
       version: 0.14.5
@@ -247,8 +247,8 @@ catalogs:
       specifier: 6.0.0
       version: 6.0.0
     seroval:
-      specifier: 1.7.3
-      version: 1.7.3
+      specifier: 1.7.4
+      version: 1.7.4
     sonner:
       specifier: 2.0.8
       version: 2.0.8
@@ -494,7 +494,7 @@ importers:
         version: 5.0.5(@vitest/browser@5.0.5)(vitest@5.0.5)
       react-email:
         specifier: 'catalog:'
-        version: 6.11.5(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)
+        version: 6.11.6(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -750,7 +750,7 @@ importers:
         version: 6.0.0
       seroval:
         specifier: 'catalog:'
-        version: 1.7.3
+        version: 1.7.4
       tailwindcss:
         specifier: 'catalog:'
         version: 4.3.3
@@ -1084,14 +1084,14 @@ importers:
         version: 19.3.1
       react-email:
         specifier: 'catalog:'
-        version: 6.11.5(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)
+        version: 6.11.6(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)
     devDependencies:
       '@effect/vitest':
         specifier: 4.1.0
         version: 4.1.0(effect@4.1.0)(vitest@5.0.5)
       '@react-email/ui':
         specifier: 'catalog:'
-        version: 6.11.5(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        version: 6.11.6(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@types/react':
         specifier: 'catalog:'
         version: 19.3.0
@@ -3724,8 +3724,8 @@ packages:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
       react-dom: ^18.0 || ^19.0 || ^19.0.0-rc
 
-  '@react-email/ui@6.11.5':
-    resolution: {integrity: sha512-coGi7Wvf71stVmH9LkBI6PolWM/5r/pVBSd7srND1QwPLWn9G6yrQHEme/CGB95/QBicicGnNLvLrqkj/Iwc+g==}
+  '@react-email/ui@6.11.6':
+    resolution: {integrity: sha512-Eumv10uOW0l9sWoSpSKYF8J2eNsBUF/l4GlNermcCSUR50uke7d0230YBj52bsxNPIhYQH9bHsNQbFlUFFCdGA==}
 
   '@redis/bloom@6.3.1':
     resolution: {integrity: sha512-dpF9j2yJDoPzSCaZn0MSB3xzmnXQVJeTSAWJcQVcgbmluwhpFeemmII0cF1t+WYfoVS+shEFq79+MmUItgzJLg==}
@@ -6788,8 +6788,8 @@ packages:
     peerDependencies:
       react: ^19.3.1
 
-  react-email@6.11.5:
-    resolution: {integrity: sha512-KkpsBCMbTwQCs6OlsBEPaqaXiGlnm4/wil2YI2+zo9SwN15Hz7QeoDE4arqqBskpG8WWyCc3Xu2zzhWoTgmKWA==}
+  react-email@6.11.6:
+    resolution: {integrity: sha512-CW9kP/+HRr3+LRyXa2t3vddXpvg21s5ccnmBSkwKrR6mNXKO+RQvJf60f2vw/xyxfUeqSFlJurlhqu16lraNRw==}
     engines: {node: '>=20.19.0'}
     hasBin: true
     peerDependencies:
@@ -6954,8 +6954,8 @@ packages:
     peerDependencies:
       seroval: ^1.0
 
-  seroval@1.7.3:
-    resolution: {integrity: sha512-fYkZS/GrMJhj1CW+IDoPlILRmYl5/S9L/OYju/sA2K/HQ3G5JBWDZHxaUWVZV/0hfAC2n1+9ysBRDtqMbMXvzA==}
+  seroval@1.7.4:
+    resolution: {integrity: sha512-ssHqh9AYMnKytqsfxpC3Z8Mrn7kodvybd7kgtvnXr6qy6Nr2xA48/Y8xc367PYJpH87itPTpGTi2fY9JO1tQTw==}
     engines: {node: '>=20'}
 
   seroval@1.7.6:
@@ -7971,7 +7971,7 @@ snapshots:
       '@babel/code-frame': 7.29.7
       '@babel/generator': 7.29.12
       '@babel/helper-globals': 7.29.7
-      '@babel/parser': 7.29.2
+      '@babel/parser': 7.29.12
       '@babel/template': 7.29.7
       '@babel/types': 7.29.11
       debug: 4.4.3(supports-color@10.2.2)
@@ -9588,7 +9588,7 @@ snapshots:
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
 
-  '@react-email/ui@6.11.5(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+  '@react-email/ui@6.11.6(@babel/core@8.0.9)(@playwright/test@1.64.1)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
       esbuild: 0.28.2
       jiti: 2.6.1
@@ -12606,7 +12606,7 @@ snapshots:
       react: 19.3.1
       scheduler: 0.28.0
 
-  react-email@6.11.5(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2):
+  react-email@6.11.6(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2):
     dependencies:
       '@babel/parser': 7.29.2
       '@babel/traverse': 7.29.0(supports-color@10.2.2)
@@ -12901,7 +12901,7 @@ snapshots:
     dependencies:
       seroval: 1.7.6
 
-  seroval@1.7.3: {}
+  seroval@1.7.4: {}
 
   seroval@1.7.6: {}
 
