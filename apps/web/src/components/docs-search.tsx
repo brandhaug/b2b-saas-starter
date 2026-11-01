@@ -28,7 +28,7 @@ export function DocsSearch({
   return (
     <section className="mx-auto flex max-w-3xl flex-col gap-6">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold">{m.docs_search_title()}</h1>
+        <h1 className="font-display text-3xl font-normal">{m.docs_search_title()}</h1>
         <p className="text-sm text-muted-foreground">{m.docs_search_language()}</p>
       </div>
       <search>

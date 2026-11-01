@@ -89,7 +89,9 @@ export function AuthCardForm({
         <CardHeader className={appearance === 'entry' ? 'px-0' : undefined}>
           <CardTitle
             as="h1"
-            className={appearance === 'entry' ? 'text-3xl tracking-tight' : undefined}
+            className={
+              appearance === 'entry' ? 'font-display text-3xl font-normal' : undefined
+            }
           >
             {title}
           </CardTitle>

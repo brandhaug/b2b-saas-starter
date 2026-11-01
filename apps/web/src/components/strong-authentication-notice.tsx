@@ -25,7 +25,7 @@ export function StrongAuthenticationNotice() {
         tabIndex={-1}
         className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-4 px-4 py-16 outline-none sm:px-6"
       >
-        <h1 className="text-3xl font-semibold tracking-tight">
+        <h1 className="font-display text-3xl font-normal">
           {m.security_verify_title()}
         </h1>
         <p className="text-muted-foreground">{m.security_authentication_required()}</p>

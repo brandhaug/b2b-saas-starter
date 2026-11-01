@@ -21,12 +21,13 @@ The `.marketing` wrapper owns public typography, prose, and focus treatment. It 
 
 Self-hosted family names must match their font-face declarations: `Geist Variable`, `Geist Mono Variable`, and `Geist Serif`. The sans and mono families come from Fontsource; the official Geist Serif Regular asset and license live in `apps/web/src/assets/fonts/geist-serif`.
 
-Geist handles body text and headings. Geist Mono handles code, identifiers, and tabular numeric data. Geist Serif is limited to the landing hero and section headings through `font-display`, at its native Regular weight with synthesis disabled; never use it for workspace, card, or small-text headings. Only the landing route preloads the serif asset.
+Geist handles body text and smaller headings. Geist Mono handles code, identifiers, and tabular numeric data. Geist Serif handles landing display headings and large public page titles, including docs articles, pricing, legal, support, purchase, sign-in, and sign-up. Use `font-display` at its native Regular weight with synthesis disabled. Workspace, card, and compact authentication headings stay in Geist Sans. Public and entry-auth layouts preload the serif asset.
 
 | Content                         | Treatment                                                                        |
 | ------------------------------- | -------------------------------------------------------------------------------- |
 | Landing hero / section headings | Geist Serif, `text-4xl` to `text-7xl` / `text-3xl` to `text-5xl`, regular weight |
-| Other page titles               | Geist `text-3xl`; workspace shell title `text-2xl`                               |
+| Public / entry-auth page titles | Geist Serif `text-3xl font-normal`                                               |
+| Workspace page titles           | Geist Sans `text-2xl font-semibold`                                              |
 | Article section headings        | `text-xl` h2, `text-base` h3                                                     |
 | Card titles                     | Geist `text-lg font-semibold`                                                    |
 | Body                            | `text-sm` at every width; long-form prose `text-lg`                              |

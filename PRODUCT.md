@@ -59,7 +59,7 @@ Calm, inspectable, opinionated. The voice of a senior engineer walking you throu
 - Generic AI-generated SaaS landing pages: gradient heroes, glassmorphism, glowing accents, identical icon-card grids, fake metrics, testimonial walls.
 - Fictional-product marketing — the showcase describes the Starter itself, never an invented company.
 - Consumer-product warmth (illustration-heavy, playful mascots). This is a tool for serious operators.
-- Editorial-magazine affectation such as drop caps and serif body text. Geist Serif is limited to the landing hero and section headings; other surfaces use Geist Sans.
+- Editorial-magazine affectation such as drop caps and serif body text. Geist Serif is reserved for landing display headings and large public/auth page titles; body text, controls, cards, and workspace pages use Geist Sans.
 
 ## Design Principles
 

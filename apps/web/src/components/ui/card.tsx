@@ -41,9 +41,8 @@ function CardTitle({
   return (
     <Comp
       data-slot="card-title"
-      // Panel titles are real headings: 18px Geist 600. The serif never lands
-      // here (`.font-display` is opt-in), so a 14px card title cannot read as
-      // a caption above 15px body copy.
+      // Panel titles default to 18px Geist Sans 600. Entry-auth page titles
+      // explicitly override this with large display type.
       className={cn(
         'text-lg font-semibold group-data-[size=sm]/card:text-base',
         className

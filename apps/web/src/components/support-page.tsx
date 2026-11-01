@@ -17,7 +17,7 @@ export function SupportPage({ config }: { readonly config: SupportConfig }) {
       className="mx-auto grid w-full max-w-3xl flex-1 gap-10 px-4 py-12 sm:px-6 outline-none"
     >
       <section className="max-w-2xl">
-        <h1 className="text-3xl font-semibold tracking-tight">{m.support_title()}</h1>
+        <h1 className="font-display text-3xl font-normal">{m.support_title()}</h1>
         <p className="mt-4 text-lg text-muted-foreground">
           {contactAvailable ? m.support_description() : m.support_unavailable()}
         </p>

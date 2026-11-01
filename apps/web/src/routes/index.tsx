@@ -10,7 +10,6 @@ import { PublicLayout } from '@/components/public-layout'
 import { getAllDocMeta } from '@/lib/docs'
 import { loadDemoShowcaseServerFn } from '@/lib/server/demo-showcase'
 import { m } from '@b2b-saas-starter/i18n/messages'
-import geistSerifWoff2 from '@/assets/fonts/geist-serif/GeistSerif-Regular.woff2?url'
 
 export const Route = createFileRoute('/')({
   // The knowledge section lists recent content: metadata resolves here, so
@@ -44,17 +43,6 @@ export const Route = createFileRoute('/')({
       {
         property: 'og:description',
         content: m.landing_description()
-      }
-    ],
-    links: [
-      // Geist Serif is the landing page's display face. Keeping this hint on
-      // the route means auth, docs, and workspace visits do not fetch it.
-      {
-        rel: 'preload',
-        href: geistSerifWoff2,
-        as: 'font',
-        type: 'font/woff2',
-        crossOrigin: 'anonymous'
       }
     ]
   })
