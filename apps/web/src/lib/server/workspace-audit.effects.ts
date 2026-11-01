@@ -42,38 +42,44 @@ export async function loadWorkspaceAuditEventsHandler(
       effectiveView = { ...view, sorts: defaultAuditView.sorts }
     }
   }
-  const viewWithDateBounds: AuditView = {
-    ...effectiveView,
-    filters: effectiveView.filters.flatMap((filter) => {
-      if (filter.field !== 'createdAt' || !/^\d{4}-\d{2}-\d{2}$/.test(filter.value)) {
-        return [filter]
-      }
-      const start = zonedDayBoundary(filter.value, 'start', timeZone)
-      const end = zonedDayBoundary(filter.value, 'end', timeZone)
-      if (filter.operator === 'is' || filter.operator === 'isNot') {
-        return [{ ...filter, value: `${start}|${end}` } satisfies AuditViewFilter]
-      }
-      if (filter.operator === 'before') {
-        return [{ ...filter, value: start }]
-      }
-      if (filter.operator === 'after') {
-        return [{ ...filter, value: end }]
-      }
-      return [filter]
-    })
-  }
-  const listInput: ListAuditEventsInput = {
-    ...(actorUserId !== undefined && { actorUserId }),
-    ...(eventType !== undefined && { eventType }),
-    ...(since !== undefined && { since: zonedDayBoundary(since, 'start', timeZone) }),
-    ...(until !== undefined && { until: zonedDayBoundary(until, 'end', timeZone) }),
-    ...(cursor !== undefined && { cursor }),
-    view: viewWithDateBounds
-  }
   return runWorkspaceCapabilities(
     input.workspaceSlug,
     workspacePage({ auditLog: ['read'] }, () =>
       Effect.gen(function* () {
+        const dateFilters = yield* Effect.forEach(effectiveView.filters, (filter) =>
+          Effect.gen(function* () {
+            if (
+              filter.field !== 'createdAt' ||
+              !/^\d{4}-\d{2}-\d{2}$/.test(filter.value)
+            ) {
+              return filter
+            }
+            const start = yield* zonedDayBoundary(filter.value, 'start', timeZone)
+            const end = yield* zonedDayBoundary(filter.value, 'end', timeZone)
+            if (filter.operator === 'is' || filter.operator === 'isNot') {
+              return { ...filter, value: `${start}|${end}` } satisfies AuditViewFilter
+            }
+            if (filter.operator === 'before') {
+              return { ...filter, value: start }
+            }
+            if (filter.operator === 'after') {
+              return { ...filter, value: end }
+            }
+            return filter
+          })
+        )
+        const listInput: ListAuditEventsInput = {
+          ...(actorUserId !== undefined && { actorUserId }),
+          ...(eventType !== undefined && { eventType }),
+          ...(since !== undefined && {
+            since: yield* zonedDayBoundary(since, 'start', timeZone)
+          }),
+          ...(until !== undefined && {
+            until: yield* zonedDayBoundary(until, 'end', timeZone)
+          }),
+          ...(cursor !== undefined && { cursor }),
+          view: { ...effectiveView, filters: dateFilters }
+        }
         const log = yield* AuditEventLog
         const membership = yield* WorkspaceMembership
         // No second gate here: the hard `auditLog` read above already decided

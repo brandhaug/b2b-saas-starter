@@ -1,4 +1,5 @@
-import { isStrongAuthenticationError } from '@/lib/ui-error'
+import { isInvalidCalendarDayError, isStrongAuthenticationError } from '@/lib/ui-error'
+import { CalendarFilterError } from '@/components/calendar-filter-error'
 import { FallbackPage } from '@/components/fallback-page'
 import { SupportDetails } from '@/components/support-details'
 import * as m from '@b2b-saas-starter/i18n/messages'
@@ -38,6 +39,9 @@ function NotFound() {
 // keeps only `name`/`message` — so `name` is the discriminant (never
 // `instanceof`), single-sourced from `capability-error.ts`.
 function RouteError({ error }: { readonly error: unknown }) {
+  if (isInvalidCalendarDayError(error)) {
+    return <CalendarFilterError error={error} />
+  }
   if (isStrongAuthenticationError(error)) {
     return <StrongAuthenticationNotice />
   }

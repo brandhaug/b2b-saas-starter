@@ -7,12 +7,22 @@ import {
   UnverifiedEmailError
 } from './capability-error'
 import { LocalizedError } from './localized-error'
-import { uiErrorAdapter } from './ui-error'
+import { UiError, uiErrorAdapter } from './ui-error'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 const FALLBACK = 'Failed to send the invitation'
 
 describe('causeMessage', () => {
+  it('translates a calendar refusal without transporting its diagnostics', () => {
+    const wire = uiErrorAdapter.toSerializable(
+      new UiError('invalid_calendar_day', {}, 'private input')
+    )
+    expect(wire).not.toHaveProperty('message')
+    expect(causeMessage(uiErrorAdapter.fromSerializable(wire), FALLBACK)).toBe(
+      'A date filter is invalid or does not exist in your time zone. Clear the filters and choose another date.'
+    )
+  })
+
   it('keeps internal errors out of the UI', () => {
     expect(causeMessage(new Error('D1 connection secret'), FALLBACK)).toBe(FALLBACK)
     expect(causeMessage(new TypeError('fetch failed'), FALLBACK)).toBe(FALLBACK)

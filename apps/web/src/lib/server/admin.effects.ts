@@ -136,30 +136,31 @@ export async function loadFailedDeliveriesHandler(
 ): Promise<FailedDeliveriesPayload> {
   await requireAdminSession()
   const { timeZone } = requestPresentation()
-  const view =
-    input.view === undefined
-      ? undefined
-      : {
-          ...input.view,
-          filters: input.view.filters.map((filter) => {
+  return runCapabilities(
+    Effect.gen(function* () {
+      let view = input.view
+      if (view !== undefined) {
+        const filters = yield* Effect.forEach(view.filters, (filter) =>
+          Effect.gen(function* () {
             if (
               filter.field !== 'lastAttemptAt' ||
               !/^\d{4}-\d{2}-\d{2}$/.test(filter.value)
             ) {
               return filter
             }
-            const start = zonedDayBoundary(filter.value, 'start', timeZone)
-            const end = zonedDayBoundary(filter.value, 'end', timeZone)
+            const start = yield* zonedDayBoundary(filter.value, 'start', timeZone)
+            const end = yield* zonedDayBoundary(filter.value, 'end', timeZone)
             if (filter.operator === 'is' || filter.operator === 'isNot') {
               return { ...filter, value: start, endValue: end }
             }
             return { ...filter, value: filter.operator === 'after' ? end : start }
           })
-        }
-  return runCapabilities(
-    Effect.flatMap(WebhookEndpoints, (webhooks) =>
-      webhooks.listGlobalDeliveries({ ...input, view, limit: 20 })
-    )
+        )
+        view = { ...view, filters }
+      }
+      const webhooks = yield* WebhookEndpoints
+      return yield* webhooks.listGlobalDeliveries({ ...input, view, limit: 20 })
+    })
   )
 }
 

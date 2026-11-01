@@ -13,6 +13,37 @@ function auditRequest(url: URL) {
 
 const auditPath = '/workspaces/starter-lab/audit'
 
+// Failure modes: SSR drops the allowlisted refusal, recovery keeps the invalid
+// date/cursor, or hydration replaces translated guidance with a generic crash.
+test('invalid calendar filters offer safe recovery after a full-page load', async ({
+  ownerPage: page
+}, testInfo) => {
+  await page.goto(`${auditPath}?since=2026-02-30&cursor=invalid&actor=usr_ops`)
+  await expect(page.getByRole('heading', { name: 'Choose another date' })).toBeVisible()
+  await expect(
+    page.getByText(
+      'A date filter is invalid or does not exist in your time zone. Clear the filters and choose another date.'
+    )
+  ).toBeVisible()
+  await page.screenshot({
+    path: testInfo.outputPath('calendar-filter-refusal.png'),
+    fullPage: true
+  })
+  await page.getByRole('button', { name: 'Clear filters', exact: true }).click()
+  await expect(page).toHaveURL(`${auditPath}?actor=usr_ops`)
+  await expect(
+    page.getByRole('link', { name: /^Inspect API token created/ }).first()
+  ).toBeVisible()
+  await page.reload()
+  await expect(
+    page.getByRole('link', { name: /^Inspect API token created/ }).first()
+  ).toBeVisible()
+  await testInfo.attach('calendar-filter-reproduction', {
+    body: 'Run: pnpm -C apps/web exec playwright test e2e/audit-inspection.spec.ts -g "invalid calendar filters"\nObserved: SSR renders safe date refusal; Clear filters removes invalid date and cursor, preserves actor, and restores audit records after reload.',
+    contentType: 'text/plain'
+  })
+})
+
 async function signIn(page: Page, email: string) {
   await signInWithPassword(page, email, auditPath)
   await expect(page.getByRole('heading', { name: 'Audit access denied' })).toBeVisible()

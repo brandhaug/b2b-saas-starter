@@ -35,7 +35,8 @@
     "@b2b-saas-starter/i18n": "workspace:*",
     "@b2b-saas-starter/logger": "workspace:*",
     "drizzle-orm": "catalog:",
-    "effect": "catalog:"
+    "effect": "catalog:",
+    "ipaddr.js": "catalog:"
   },
   "devDependencies": {
     "@effect/vitest": "catalog:",
