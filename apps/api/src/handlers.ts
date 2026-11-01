@@ -16,7 +16,7 @@ import {
   provideWorkspace,
   webRequest
 } from './request-guards.ts'
-import { mcpDiscoveryDocument } from './mcp.ts'
+import { scopedMcpDiscovery } from './mcp.ts'
 import {
   type MutationRequestOptions,
   MUTATION_OPERATIONS,
@@ -261,7 +261,8 @@ export function mcpGroup(env: ApiEnv) {
         {},
         Effect.gen(function* () {
           yield* enforcePermission({ mcp: ['read'] })
-          return mcpDiscoveryDocument()
+          const token = yield* ApiPrincipal
+          return yield* scopedMcpDiscovery(env, { kind: 'token', token })
         })
       )
     )

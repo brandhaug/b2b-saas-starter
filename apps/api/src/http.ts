@@ -6,9 +6,20 @@ import { RateLimiter, StarterApi } from '@b2b-saas-starter/api'
 import { selectAssistantLayer } from '@b2b-saas-starter/ai'
 import { apiFallbackLimits, apiRateLimitBindingNames } from '@b2b-saas-starter/infra'
 import { makeRateLimiter } from '@b2b-saas-starter/rate-limit'
-import { FileSystem, Layer, Path, Effect } from 'effect'
-import { Etag, HttpPlatform, HttpRouter, HttpServerResponse } from 'effect/http'
-import { HttpApiBuilder, HttpApiScalar } from 'effect/http-api'
+import { Cause, ErrorReporter, FileSystem, Layer, Path, Effect } from 'effect'
+import {
+  Etag,
+  HttpPlatform,
+  HttpRouter,
+  HttpServerResponse,
+  HttpServerRespondable
+} from 'effect/http'
+import {
+  HttpApiBuilder,
+  HttpApiScalar,
+  HttpApiMiddleware,
+  HttpApiError
+} from 'effect/http-api'
 import { starterEnv, type ApiEnv } from './env.ts'
 import {
   apiTokenGroup,
@@ -62,6 +73,21 @@ const PlatformLive = Layer.mergeAll(
   FileSystem.layerNoop({}),
   HttpPlatform.layer.pipe(Layer.provide(FileSystem.layerNoop({})))
 )
+
+const restDefects = HttpRouter.middleware((effect) =>
+  effect.pipe(
+    Effect.catchDefect((defect) =>
+      // oxlint-disable-next-line eslint/no-restricted-properties -- report an existing defect; no typed failure is converted here
+      ErrorReporter.report(Cause.die(defect)).pipe(
+        Effect.andThen(
+          HttpServerRespondable.toResponse(
+            new HttpApiError.InternalServerErrorProblem()
+          )
+        )
+      )
+    )
+  )
+).layer
 
 // The root index — a tiny machine-readable directory for clients and humans
 // who curl the origin. It rides beside the contract like the MCP protocol
@@ -143,7 +169,9 @@ function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRou
     // The contract's bearer gate: declared in `packages/api`, implemented in
     // `request-guards.ts`, attached to every group but `health`.
     Layer.provide(bearerAuth(env)),
-    Layer.provide(assistantBearerAuth(env))
+    Layer.provide(assistantBearerAuth(env)),
+    Layer.provide(HttpApiMiddleware.layerProblemDetails()),
+    Layer.provide(restDefects)
   )
 
   return Layer.mergeAll(

@@ -63,6 +63,11 @@ Every list endpoint pages the same way (ADR 0057): an optional `limit` (default 
 
 The derived client's error channel carries the contract's tagged errors the worker serves: a missing or revoked token fails with `Unauthorized` (HTTP 401), a token lacking the route's permission with `AuthorizationDenied` (403), an unknown workspace slug with `WorkspaceNotFound` (404), and a saturated rate-limit bucket with `RateLimited` (429). `Effect.catchTag` matches on them by tag.
 
+On the wire, errors are RFC 9457 `application/problem+json`. The contract decodes
+their `type` URI and safe extensions back into the original tagged error classes.
+Validation and unexpected server failures use generic problems without internal
+diagnostics. See [REST API](/docs/capability-interfaces/rest-api) for example bodies.
+
 ## Related
 
 - [REST API](/docs/capability-interfaces/rest-api): the wire contract, authentication, and rate-limit buckets.

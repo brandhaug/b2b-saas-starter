@@ -4,6 +4,10 @@ import { signWorkspaceExportDownload } from '@b2b-saas-starter/capabilities/gove
 import { seedWorkspaceExportFixture } from '@b2b-saas-starter/capabilities/seed-fixture'
 import { describe, expect, it, vi } from '@effect/vitest'
 import { DateTime, Effect, Schema } from 'effect'
+import { StarterApi } from '@b2b-saas-starter/api'
+import { Unauthorized } from '@b2b-saas-starter/api/errors'
+import { FetchHttpClient } from 'effect/http'
+import { HttpApiClient } from 'effect/http-api'
 import { type ApiEnv } from './env.ts'
 import { buildWebHandler } from './http.ts'
 import { jsonBody } from './test-utils.ts'
@@ -109,6 +113,64 @@ function send(request: Request, env: ApiEnv = {}): Effect.Effect<Response> {
 }
 
 describe('contract-served routes', () => {
+  it.effect('the derived client decodes a problem into the declared domain error', () =>
+    Effect.gen(function* () {
+      const client = yield* HttpApiClient.make(StarterApi, {
+        baseUrl: 'https://api.test'
+      })
+      const outcome = yield* client.workspace
+        .overview({ params: { slug: 'starter-lab' } })
+        .pipe(Effect.result)
+      expect(outcome._tag).toBe('Failure')
+      if (outcome._tag === 'Failure') {
+        expect(outcome.failure).toBeInstanceOf(Unauthorized)
+      }
+    }).pipe(
+      Effect.provide(FetchHttpClient.layer),
+      Effect.provideService(FetchHttpClient.Fetch, (input, init) =>
+        sharedHandler(new Request(input, init))
+      )
+    )
+  )
+
+  it.effect('validation problems do not disclose the submitted payload or schema', () =>
+    Effect.gen(function* () {
+      const response = yield* send(
+        post(
+          '/workspaces/starter-lab/webhooks',
+          { url: { secret: 'must-not-echo' } },
+          bearer
+        )
+      )
+      expect(response.status).toBe(400)
+      expect(response.headers.get('content-type')).toContain('application/problem+json')
+      expect(yield* jsonBody(response, Schema.Json)).toEqual({
+        type: 'about:blank',
+        title: 'Bad Request',
+        status: 400,
+        detail: 'Request validation failed'
+      })
+    })
+  )
+
+  it.effect('unexpected REST defects return a generic problem', () =>
+    Effect.gen(function* () {
+      const response = yield* send(get('/workspaces/starter-lab/overview', bearer), {
+        get RATE_LIMITER_REST(): never {
+          // Inject a synchronous host-binding defect at the HTTP boundary.
+          throw new Error('private binding diagnostics')
+        }
+      })
+      expect(response.status).toBe(500)
+      expect(response.headers.get('content-type')).toContain('application/problem+json')
+      expect(yield* jsonBody(response, Schema.Json)).toEqual({
+        type: 'about:blank',
+        title: 'Internal Server Error',
+        status: 500
+      })
+    })
+  )
+
   it.effect('GET /health is public and returns ok', () =>
     Effect.gen(function* () {
       const res = yield* send(get('/health'))
@@ -156,6 +218,16 @@ describe('contract-served routes', () => {
     Effect.gen(function* () {
       const res = yield* send(get('/workspaces/starter-lab/overview'))
       expect(res.status).toBe(401)
+      expect(res.headers.get('content-type')).toContain('application/problem+json')
+      const problem = yield* jsonBody(
+        res.clone(),
+        Schema.Struct({
+          type: Schema.String,
+          title: Schema.String,
+          status: Schema.Literal(401)
+        })
+      )
+      expect(problem.type).toBe('urn:b2b-saas-starter:problem:Unauthorized')
       expect((yield* jsonBody(res, ErrorBody))._tag).toBe('Unauthorized')
     })
   )

@@ -200,7 +200,10 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               expect(denied.status).toBe(403)
               expect(yield* jsonBody(denied, Schema.Json)).toEqual({
                 _tag: 'AuthorizationDenied',
-                reason: 'token_workspace_mismatch'
+                reason: 'token_workspace_mismatch',
+                type: 'urn:b2b-saas-starter:problem:AuthorizationDenied',
+                status: 403,
+                title: 'Authorization Denied'
               })
             }
           }
@@ -227,11 +230,17 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             expect(foreignResult.status).toBe(404)
             expect(yield* jsonBody(foreignResult, Schema.Json)).toEqual({
               _tag: 'WebhookEndpointNotFound',
-              endpointId: endpoint.id
+              endpointId: endpoint.id,
+              type: 'urn:b2b-saas-starter:problem:WebhookEndpointNotFound',
+              status: 404,
+              title: 'Webhook Endpoint Not Found'
             })
             expect(yield* jsonBody(absentResult, Schema.Json)).toEqual({
               _tag: 'WebhookEndpointNotFound',
-              endpointId: 'missing'
+              endpointId: 'missing',
+              type: 'urn:b2b-saas-starter:problem:WebhookEndpointNotFound',
+              status: 404,
+              title: 'Webhook Endpoint Not Found'
             })
           }
           for (const path of [

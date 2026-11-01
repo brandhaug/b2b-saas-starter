@@ -25,6 +25,7 @@ import {
   HttpApiSecurity
 } from 'effect/http-api'
 import { RateLimited, Unauthorized } from './errors.ts'
+import { publicProblem } from './problems.ts'
 
 export class AssistantApiPrincipal extends Context.Service<
   AssistantApiPrincipal,
@@ -40,11 +41,11 @@ export class AssistantBearerAuth extends HttpApiMiddleware.Service<
 >()('@b2b-saas-starter/api/AssistantBearerAuth', {
   security: { assistantBearer: HttpApiSecurity.bearer },
   error: [
-    Unauthorized,
-    AuthorizationDenied,
-    ConversationNotFound,
-    RateLimited,
-    CapabilityUnavailable
+    publicProblem(Unauthorized),
+    publicProblem(AuthorizationDenied),
+    publicProblem(ConversationNotFound),
+    publicProblem(RateLimited),
+    publicProblem(CapabilityUnavailable)
   ]
 }) {}
 
@@ -69,17 +70,17 @@ const ObservationHeaders = Schema.Struct({
 const DeletionAccepted = Schema.Struct({ status: Schema.Literal('deleting') })
 
 const READ_ERRORS = [
-  ConversationNotFound,
-  ConversationUnavailable,
-  CapabilityUnavailable,
-  Unauthorized,
-  AuthorizationDenied
+  publicProblem(ConversationNotFound),
+  publicProblem(ConversationUnavailable),
+  publicProblem(CapabilityUnavailable),
+  publicProblem(Unauthorized),
+  publicProblem(AuthorizationDenied)
 ] as const
 const GENERATION_ERRORS = [
   ...READ_ERRORS,
-  ConversationConflict,
-  ConversationInputRejected.pipe(HttpApiSchema.status(400)),
-  AssistantAdmissionRefused
+  publicProblem(ConversationConflict),
+  publicProblem(ConversationInputRejected, 400),
+  publicProblem(AssistantAdmissionRefused)
 ] as const
 
 export const AssistantConversationsApi = HttpApiGroup.make('assistant-conversations')

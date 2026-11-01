@@ -57,6 +57,22 @@ function call(
   )
 }
 
+function visibleTools(client: ReturnType<typeof mcpClient>) {
+  return Effect.promise(() => client.rpc('tools/list')).pipe(
+    Effect.flatMap((response) =>
+      jsonBody(
+        response,
+        Schema.Struct({
+          result: Schema.Struct({
+            tools: Schema.Array(Schema.Struct({ name: Schema.String }))
+          })
+        })
+      )
+    ),
+    Effect.map((body) => body.result.tools.map((tool) => tool.name))
+  )
+}
+
 /** Real protocol and authorization, with an issuer and mutable consent fixture. */
 const encodeTelemetry = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown))
 
@@ -199,6 +215,7 @@ it.effect('OAuth privileged calls fail without current session-bound assurance',
     const oauth = mcpClient(harness.handler, 'Bearer signed.oauth.jwt')
     yield* Effect.promise(() => oauth.initialize())
     harness.clearSession()
+    expect(yield* visibleTools(oauth)).toEqual([])
     expect(
       (yield* call(oauth, 'create_api_token', {
         name: 'missing session',
@@ -223,6 +240,8 @@ it.effect(
       const oauth = mcpClient(harness.handler, 'Bearer signed.oauth.jwt')
       yield* Effect.promise(() => oauth.initialize())
       harness.expireRecent()
+      expect(yield* visibleTools(oauth)).not.toContain('create_api_token')
+      expect(yield* visibleTools(oauth)).toContain('list_api_tokens')
       const denied = yield* call(oauth, 'create_api_token', {
         name: 'must not exist',
         scopes: ['read']
@@ -321,6 +340,8 @@ it.effect(
       const oauth = mcpClient(harness.handler, 'Bearer signed.oauth.jwt')
       yield* Effect.promise(() => oauth.initialize())
       harness.setScopes(['mcp:read'])
+      expect(yield* visibleTools(oauth)).toContain('get_workspace_overview')
+      expect(yield* visibleTools(oauth)).not.toContain('create_webhook')
       const before = yield* call(oauth, 'list_audit_events')
       expect(
         (yield* call(oauth, 'create_api_token', { name: 'denied', scopes: ['read'] }))
@@ -364,16 +385,19 @@ it.effect(
         })).isError
       ).not.toBe(true)
       harness.setUser('usr_dev')
+      expect(yield* visibleTools(oauth)).not.toContain('delete_webhook')
       expect(
         (yield* call(oauth, 'delete_webhook', { endpointId: 'wh_release' })).isError
       ).toBe(true)
       harness.setUser('removed-user')
+      expect(yield* visibleTools(oauth)).toEqual([])
       expect(
         (yield* call(oauth, 'delete_webhook', { endpointId: 'wh_release' })).content[0]
           ?.text
       ).toBe('workspace not found')
       harness.setUser('usr_demo')
       harness.setWorkspace('foreign-workspace')
+      expect(yield* visibleTools(oauth)).toEqual([])
       expect(
         (yield* call(oauth, 'delete_webhook', { endpointId: 'wh_release' })).isError
       ).toBe(true)
@@ -398,6 +422,20 @@ for (const revoke of ['revoke', 'reduceGrant', 'oldCredential'] satisfies Readon
         yield* Effect.promise(() => observer.initialize())
         const before = yield* call(observer, 'list_audit_events')
         harness[revoke]()
+        expect(yield* visibleTools(client)).toEqual([])
+        const resources = yield* Effect.promise(() =>
+          client.rpc('resources/list')
+        ).pipe(
+          Effect.flatMap((response) =>
+            jsonBody(
+              response,
+              Schema.Struct({
+                result: Schema.Struct({ resources: Schema.Array(Schema.Unknown) })
+              })
+            )
+          )
+        )
+        expect(resources.result.resources).toEqual([])
         expect(
           (yield* call(client, 'delete_webhook', { endpointId: 'wh_release' })).isError
         ).toBe(true)

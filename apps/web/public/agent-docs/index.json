@@ -53,7 +53,7 @@
       "canonicalUrl": "/en/docs/capability-interfaces/mcp-server",
       "markdownUrl": "/agent-docs/capability-interfaces/mcp-server.md",
       "sourcePath": "apps/web/content/docs/capability-interfaces/mcp-server.mdx",
-      "digest": "sha256:f9752e7b086bccd3ccbea92f833ed51850182b6daef6753031dda84c7a91f6db"
+      "digest": "sha256:197659885e17f06b3e314c86f35b657d005d87449cce5a50d0b538361bada141"
     },
     {
       "id": "docs/capability-interfaces/rest-api",
@@ -62,7 +62,7 @@
       "canonicalUrl": "/en/docs/capability-interfaces/rest-api",
       "markdownUrl": "/agent-docs/capability-interfaces/rest-api.md",
       "sourcePath": "apps/web/content/docs/capability-interfaces/rest-api.mdx",
-      "digest": "sha256:b4660437609667bf05e17ca9a06d4747e990a3e8df3f2847aaae752e29298d07"
+      "digest": "sha256:f196ed76fa43692886fd16b66a1b873e5df55a88db207867eb49e11cfc6f5572"
     },
     {
       "id": "docs/capability-interfaces/sdk",
@@ -71,7 +71,7 @@
       "canonicalUrl": "/en/docs/capability-interfaces/sdk",
       "markdownUrl": "/agent-docs/capability-interfaces/sdk.md",
       "sourcePath": "apps/web/content/docs/capability-interfaces/sdk.mdx",
-      "digest": "sha256:c4d8cfddc99a203ed686e7a8155572a7ed0edf6f918636930ca48250ff5b87f8"
+      "digest": "sha256:56b2e42859732f50d0ff173b190a1443896662cf774d48f8a9226d1756529758"
     },
     {
       "id": "docs/getting-started/cloudflare-deployment",

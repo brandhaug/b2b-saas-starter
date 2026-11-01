@@ -412,6 +412,14 @@ HTTP and protocol `2025-11-25`. Initialize a session and send its
 `mcp-session-id` with later requests. `GET /mcp` returns 405; discovery is at
 `GET /mcp/discovery` and through the protocol's `tools/list`.
 
+Discovery lists only operations the current request may authorize. OAuth lists
+recheck workspace identity, membership, consent scopes, suspension and required
+authentication assurance. API-token lists use the token's permissions. The REST
+discovery endpoint accepts API tokens; OAuth clients use MCP protocol discovery.
+Each direct call still repeats its execution checks, even if the client learned
+the name from an earlier list. Discovery does not execute mutations or consume
+their write-rate allowance.
+
 Read tools include `get_workspace_overview`, `list_members`,
 `list_notifications`, `list_api_tokens`, `list_webhooks`,
 `list_webhook_deliveries`, `list_webhook_delivery_attempts`, and `list_audit_events`, with the
@@ -549,7 +557,33 @@ Each route declares a Cloudflare RateLimit bucket (`rest_read`, `rest_write`, `a
 
 ## Error model
 
-Tagged errors like `WorkspaceNotFound`, `Unauthorized`, and `RateLimited` carry an `httpApiStatus` annotation so they map to HTTP status codes through one mapping. MCP uses the same guard status mapping at its transport gate and returns expected operation refusals as tool errors. Declare each operation's errors in its contract and handle them at the transport boundary.
+Declared REST failures use RFC 9457 Problem Details with
+`Content-Type: application/problem+json`. Each domain error has a stable `type`
+URI, its HTTP `status`, a `title`, and its documented extension fields:
+
+```json
+{
+  "type": "urn:b2b-saas-starter:problem:RateLimited",
+  "status": 429,
+  "title": "Rate Limited",
+  "_tag": "RateLimited",
+  "bucket": "rest_read"
+}
+```
+
+Use `type` to distinguish failures that share a status. The Effect typed client
+decodes the response back into the original tagged error, so `catchTag` continues
+to work. The contract derives status codes from each error's `httpApiStatus`
+annotation. Storage and provider failures expose a generic reason, never their
+internal diagnostic text.
+
+Request validation failures use `about:blank`, status 400, and the generic detail
+`Request validation failed`. Schema paths and submitted values are omitted.
+Response encoding failures and unexpected REST defects use a generic 500 problem. OpenAPI describes these
+responses alongside each endpoint's declared domain failures.
+
+MCP uses the same problem encoding at its HTTP credential gate. JSON-RPC tool
+and resource failures keep their protocol-specific formats.
 
 ## OpenAPI and Scalar
 
@@ -629,6 +663,11 @@ Every list endpoint pages the same way (ADR 0057): an optional `limit` (default 
 ## Errors
 
 The derived client's error channel carries the contract's tagged errors the worker serves: a missing or revoked token fails with `Unauthorized` (HTTP 401), a token lacking the route's permission with `AuthorizationDenied` (403), an unknown workspace slug with `WorkspaceNotFound` (404), and a saturated rate-limit bucket with `RateLimited` (429). `Effect.catchTag` matches on them by tag.
+
+On the wire, errors are RFC 9457 `application/problem+json`. The contract decodes
+their `type` URI and safe extensions back into the original tagged error classes.
+Validation and unexpected server failures use generic problems without internal
+diagnostics. See [REST API](/agent-docs/capability-interfaces/rest-api.md) for example bodies.
 
 ## Related
 

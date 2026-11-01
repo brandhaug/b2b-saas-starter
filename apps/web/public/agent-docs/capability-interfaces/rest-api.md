@@ -62,7 +62,33 @@ Each route declares a Cloudflare RateLimit bucket (`rest_read`, `rest_write`, `a
 
 ## Error model
 
-Tagged errors like `WorkspaceNotFound`, `Unauthorized`, and `RateLimited` carry an `httpApiStatus` annotation so they map to HTTP status codes through one mapping. MCP uses the same guard status mapping at its transport gate and returns expected operation refusals as tool errors. Declare each operation's errors in its contract and handle them at the transport boundary.
+Declared REST failures use RFC 9457 Problem Details with
+`Content-Type: application/problem+json`. Each domain error has a stable `type`
+URI, its HTTP `status`, a `title`, and its documented extension fields:
+
+```json
+{
+  "type": "urn:b2b-saas-starter:problem:RateLimited",
+  "status": 429,
+  "title": "Rate Limited",
+  "_tag": "RateLimited",
+  "bucket": "rest_read"
+}
+```
+
+Use `type` to distinguish failures that share a status. The Effect typed client
+decodes the response back into the original tagged error, so `catchTag` continues
+to work. The contract derives status codes from each error's `httpApiStatus`
+annotation. Storage and provider failures expose a generic reason, never their
+internal diagnostic text.
+
+Request validation failures use `about:blank`, status 400, and the generic detail
+`Request validation failed`. Schema paths and submitted values are omitted.
+Response encoding failures and unexpected REST defects use a generic 500 problem. OpenAPI describes these
+responses alongside each endpoint's declared domain failures.
+
+MCP uses the same problem encoding at its HTTP credential gate. JSON-RPC tool
+and resource failures keep their protocol-specific formats.
 
 ## OpenAPI and Scalar
 

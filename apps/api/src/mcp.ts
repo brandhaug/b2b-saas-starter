@@ -53,7 +53,7 @@ import {
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from 'effect/http'
 import {
   McpServer,
-  middleware as mcpMiddleware,
+  visibility,
   layerHttp as mcpLayerHttp,
   registerResource
 } from 'effect/ai/McpServer'
@@ -116,7 +116,7 @@ import {
  * closures gave.
  *
  * `GET /mcp/discovery` remains the REST discovery document served by the
- * contract group; it advertises exactly what this module registers. (`GET
+ * contract group; it filters this module's registrations for the caller. (`GET
  * /mcp` itself is `layerHttp`'s: 405, no SSE stream to open.) The registered
  * tools project all supported workspace reads and mutations. ADR 0072 records
  * their authorization, typed input adapters, and side-effect annotations.
@@ -142,13 +142,6 @@ export class CurrentMcpRequest extends Context.Service<
     readonly bearer: string | null
   }
 >()('@b2b-saas-starter/api/mcp/current-request') {}
-
-// Raw addTool handlers only admit McpRequestContext in Effect 4.1. This
-// middleware declares their authority requirement to the transport; the
-// raw-handler bridge below fails closed if invoked outside that transport.
-const requestAuthority = mcpMiddleware((effect) =>
-  Effect.flatMap(CurrentMcpRequest, () => effect)
-)
 
 /**
  * Every tool reads like its REST mirror: paged list tools take the same
@@ -252,7 +245,7 @@ function toolProjection(operation: WorkspaceReadOperation) {
   }
 }
 
-/** What `GET /mcp/discovery` advertises — the same rows tools are registered from. */
+/** Catalog projection, filtered per request by scopedMcpDiscovery before serving. */
 export function mcpDiscoveryDocument(): McpDiscovery {
   return {
     name: MCP_SERVER_NAME,
@@ -266,6 +259,84 @@ export function mcpDiscoveryDocument(): McpDiscovery {
       }))
     ]
   }
+}
+
+/** Discovery reuses execution authorization without invoking the operation. */
+function operationVisible(env: ApiEnv, caller: McpCaller, target: string) {
+  const read = readOperations().find((operation) => operation.toolName === target)
+  const mutation = mcpMutationOperations().find(
+    (operation) => operation.toolName === target
+  )
+  let operation = read ?? mutation
+  if (target === OVERVIEW_RESOURCE_URI) {
+    operation = READ_OPERATIONS.overview
+  }
+  if (operation === undefined) {
+    return Effect.succeed(false)
+  }
+  let requiredScope: typeof MCP_READ_SCOPE | typeof MCP_WRITE_SCOPE = MCP_READ_SCOPE
+  if (mutation !== undefined) {
+    requiredScope = MCP_WRITE_SCOPE
+  }
+  return provideWorkspace(
+    env,
+    caller.token.workspaceSlug,
+    authorizeMcpOperation(caller, operation.permission, requiredScope).pipe(
+      Effect.scoped
+    ),
+    mcpCallerActor(caller),
+    mcpCallerActorType(caller)
+  ).pipe(Effect.match({ onFailure: () => false, onSuccess: () => true }))
+}
+
+export const scopedMcpDiscovery = Effect.fn('Mcp.discovery')(function* (
+  env: ApiEnv,
+  caller: McpCaller
+) {
+  const document = mcpDiscoveryDocument()
+  const tools = yield* Effect.filter(document.tools, (tool) =>
+    operationVisible(env, caller, tool.name)
+  )
+  const resources = yield* Effect.filter(document.resources, (uri) =>
+    operationVisible(env, caller, uri)
+  )
+  return { ...document, tools, resources }
+})
+
+function discoveryVisibility(env: ApiEnv) {
+  return visibility(
+    Effect.gen(function* () {
+      const services = (yield* Effect.context<
+        | WorkspaceMembership
+        | PlatformUserAdmin
+        | McpClientConnections
+        | StrongAuthentication
+        | WorkspaceSuspensionService
+      >()).pipe(
+        Context.pick(
+          WorkspaceMembership,
+          PlatformUserAdmin,
+          McpClientConnections,
+          StrongAuthentication,
+          WorkspaceSuspensionService
+        )
+      )
+      return ({ method, target }) => {
+        // Calls retain their existing typed permission failures and write admission.
+        if (
+          method === 'tools/call' ||
+          method === 'resources/read' ||
+          method === 'prompts/get' ||
+          method === 'completion/complete'
+        ) {
+          return Effect.as(CurrentMcpRequest, true)
+        }
+        return Effect.flatMap(CurrentMcpRequest, ({ caller }) =>
+          operationVisible(env, caller, target)
+        ).pipe(Effect.provideContext(services))
+      }
+    })
+  )
 }
 
 /**
@@ -728,10 +799,14 @@ function failureResponse(
     const origin = new URL(webRequest(request).url).origin
     return HttpServerResponse.jsonUnsafe(body, {
       status,
+      contentType: 'application/problem+json',
       headers: { 'www-authenticate': oauthChallengeHeader(origin) }
     })
   }
-  return HttpServerResponse.jsonUnsafe(body, { status })
+  return HttpServerResponse.jsonUnsafe(body, {
+    status,
+    contentType: 'application/problem+json'
+  })
 }
 
 const isGuardFailure = Schema.is(GuardFailure)
@@ -827,7 +902,7 @@ export function mcpRegistrations(env: ApiEnv) {
       yield* registerMutationTools(env)
       yield* registerOverviewResource(env)
     })
-  ).pipe(Layer.provide(requestAuthority.layer))
+  ).pipe(Layer.provide(discoveryVisibility(env).layer))
 }
 
 /** Streamable HTTP transport with request-scoped credential and rate-limit gates. */
