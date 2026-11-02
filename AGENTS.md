@@ -55,6 +55,7 @@ Run `pnpm run check` before committing and after `check:fix`; the pre-commit hoo
 - NEVER write unit tests after you write code.
 - Highly prefer E2E tests as the sole testing mechanism. Use them to verify complex features work. At the end of E2E tests, produce a verifiable and repeatable artifact with the reproduction command and observed results.
 - If you must test a system in isolation, FIRST write all the ways it could fail, THEN write the code.
+- Prefer tests that verify observable behavior across real boundaries. Avoid tests that merely repeat implementation details or assert mocked delegation. Before removing a test, map its meaningful assertions to retained or replacement coverage. Keep focused security, concurrency, failure-injection, and Seed/Live contract tests when E2E cannot cover them reliably.
 
 ## Agent execution
 

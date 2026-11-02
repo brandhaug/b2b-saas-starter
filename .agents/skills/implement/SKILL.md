@@ -102,6 +102,9 @@ for the current task; optional design guidance may fall back as documented there
    evidence; gather screenshots or console/network diagnostics as needed.
    Prefer existing Playwright coverage for regression checks. If browser tooling
    is unavailable, report the unverified acceptance criteria.
+   Do not run browser suites concurrently when they share database state,
+   authentication fixtures, build output, or report directories; overlapping runs
+   can invalidate each other's results.
 7. Run `pnpm run check` before committing and `pnpm run validate` on the integrated
    result before PR handoff. Save repeatable E2E evidence per the root testing policy.
    Reuse current results when unchanged; fixes from validation return through affected
