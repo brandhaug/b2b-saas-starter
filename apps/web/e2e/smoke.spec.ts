@@ -17,6 +17,12 @@ test('public homepage exposes every request stage and optional caller evidence',
     page.getByRole('heading', { name: /from idea to production-ready saas/i })
   ).toBeVisible()
   await expect(
+    page.getByRole('banner').getByRole('button', { name: 'Sign in', exact: true })
+  ).toHaveAttribute('href', '/sign-in')
+  await expect(
+    page.getByRole('banner').getByRole('button', { name: 'Workspaces', exact: true })
+  ).toHaveCount(0)
+  await expect(
     page.getByRole('link', { name: 'Explore demo', exact: true }).first()
   ).toHaveAttribute('href', '/demo')
   const contract = page.getByRole('heading', {
@@ -152,6 +158,32 @@ test('an anonymous verification visit stays neutral without proof', async ({
   await page.goto('/verify-email')
   await expect(page.getByRole('heading', { name: 'Check your inbox' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Email verified' })).toBeHidden()
+  await expect(page.getByLabel('Email', { exact: true })).toHaveCount(0)
+})
+
+test('failed email verification offers code recovery without claiming verification', async ({
+  page
+}) => {
+  await page.goto('/verify-email?error=INVALID_TOKEN')
+  await expect(
+    page.getByRole('heading', { name: 'Email verification failed' })
+  ).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Email verified' })).toBeHidden()
+  await expect(page.getByRole('heading', { name: 'Verify with code' })).toBeVisible()
+  await expect(page.getByLabel('Email', { exact: true })).toBeEnabled()
+})
+
+test('an unusable magic link leads back to credential entry', async ({ page }) => {
+  await page.goto('/magic-link/verify?error=INVALID_TOKEN')
+  await expect(
+    page.getByRole('heading', { name: 'This sign-in link cannot be used' })
+  ).toBeVisible()
+  await expect(page.getByText(/expires ten minutes/)).toBeVisible()
+  await page
+    .getByRole('link', { name: 'Request a new link or use your password' })
+    .click()
+  await expect(page).toHaveURL(/\/sign-in$/)
+  await expect(page.getByLabel('Password', { exact: true })).toBeEnabled()
 })
 
 test('seeded demo user signs in and reaches the workspace dashboard', async ({
@@ -166,6 +198,15 @@ test('seeded demo user signs in and reaches the workspace dashboard', async ({
   await expect(page.getByRole('heading', { name: /starter lab/i })).toBeVisible()
   await page.goto('/verify-email')
   await expect(page.getByRole('heading', { name: 'Email verified' })).toBeVisible()
+  await page.goto('/docs')
+  const header = page.getByRole('banner')
+  await expect(
+    header.getByRole('button', { name: 'Sign in', exact: true })
+  ).toHaveCount(0)
+  await header.getByRole('button', { name: 'Workspaces', exact: true }).click()
+  await expect(page).toHaveURL(/\/workspaces$/)
+  await page.getByRole('link', { name: /Starter Lab/ }).click()
+  await expect(page.getByRole('heading', { name: /starter lab/i })).toBeVisible()
 })
 
 test('seeded demo user can request a magic link', async ({ page }) => {

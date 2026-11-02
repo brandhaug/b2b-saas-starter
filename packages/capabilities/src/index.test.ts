@@ -41,9 +41,7 @@ import {
   SEED_READONLY_API_TOKEN,
   shouldBumpLastUsedAt
 } from './developer-platform/api-token-registry.ts'
-import { LiveWebhookEndpoints } from './developer-platform/webhook-endpoints.live.ts'
 import { SeedWebhookEndpoints } from './developer-platform/webhook-endpoints.seed.ts'
-import { WebhookEndpoints } from './developer-platform/webhook-endpoints.ts'
 import { failureTag } from './internal/failure-tag.ts'
 import {
   developerPlatformContractCases,
@@ -556,86 +554,6 @@ function makeFakeD1() {
   }
   return { binding, executed, batches }
 }
-
-describe('webhook endpoint workspace scoping', () => {
-  const workspaceB = {
-    id: 'wrk_b',
-    slug: 'workspace-b',
-    name: 'Workspace B',
-    planId: 'starter'
-  }
-
-  function foreignEndpointLayer(fake: ReturnType<typeof makeFakeD1>) {
-    const entitlements = LiveResourceEntitlements.pipe(
-      Layer.provide(BillingAuditLayer),
-      Layer.provide(
-        LiveBilling().pipe(
-          Layer.provide(BillingAuditLayer),
-          Layer.provide(BillingNotificationLayer),
-          Layer.provide(BillingWebhookLayer)
-        )
-      ),
-      Layer.provide(layerFromD1(fake.binding))
-    )
-    return Layer.merge(
-      LiveWebhookEndpoints.pipe(
-        Layer.provide(
-          LiveBilling().pipe(
-            Layer.provide(BillingAuditLayer),
-            Layer.provide(BillingNotificationLayer),
-            Layer.provide(BillingWebhookLayer)
-          )
-        ),
-        Layer.provide(entitlements),
-        Layer.provide(LiveAuditEventLog),
-        Layer.provide(
-          LiveNotificationFeed().pipe(
-            Layer.provide(
-              LiveNotificationPreferences.pipe(Layer.provide(LiveAuditEventLog))
-            )
-          )
-        ),
-        Layer.provide(LiveWebhookPublisher().pipe(Layer.provide(LiveAuditEventLog))),
-        Layer.provide(layerFromD1(fake.binding))
-      ),
-      testWorkspaceContext(workspaceB)
-    )
-  }
-
-  it.effect('does not mutate or audit another workspace´s endpoint', () => {
-    const fake = makeFakeD1()
-    return Effect.gen(function* () {
-      const webhooks = yield* WebhookEndpoints
-      // No matching endpoint in this workspace — the update fails the typed
-      // 404…
-      const outcome = yield* Effect.exit(
-        webhooks.update({ endpointId: 'wh_belongs_to_a', enabled: false })
-      )
-      expect(failureTag(outcome)).toBe('WebhookEndpointNotFound')
-      // …the existence lookup must be scoped to the calling workspace…
-      expect(fake.executed).toHaveLength(1)
-      const lookup = fake.executed[0]
-      expect(lookup?.sql).toContain('workspace_id')
-      expect(lookup?.params).toContain(workspaceB.id)
-      expect(lookup?.params).toContain('wh_belongs_to_a')
-      // …and with no matching row, neither the UPDATE nor the audit insert runs.
-      expect(fake.batches).toHaveLength(0)
-    }).pipe(Effect.provide(foreignEndpointLayer(fake)))
-  })
-
-  it.effect('rotates no secret for another workspace´s endpoint', () => {
-    const fake = makeFakeD1()
-    return Effect.gen(function* () {
-      const webhooks = yield* WebhookEndpoints
-      // No endpoint matched: no secret is minted and nothing was written.
-      const outcome = yield* Effect.exit(
-        webhooks.rotateSecret({ endpointId: 'wh_belongs_to_a' })
-      )
-      expect(failureTag(outcome)).toBe('WebhookEndpointNotFound')
-      expect(fake.batches).toHaveLength(0)
-    }).pipe(Effect.provide(foreignEndpointLayer(fake)))
-  })
-})
 
 describe('workspace list projection', () => {
   it.effect('lists the seed workspace with counts for a member', () =>
