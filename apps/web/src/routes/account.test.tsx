@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { AccountPage } from '@/components/account-page'
 import { loadAccountPageHandler } from '@/lib/server/account.effects'
@@ -27,14 +27,8 @@ vi.mock('@/lib/auth-client', async () => {
  * shape change cannot pass here while failing in the app. The seed fixture
  * has `usr_demo` as one of two owners of `starter-lab`, so their plan is a
  * `leave` — the deletable state.
- *
- * The sessions list itself is this route test's focus: the panel calls the
- * Better Auth client directly, so `@/lib/auth-client` is doubled with
- * `fakeAuthClient()` and the endpoints are driven through `vi.mocked` — the
- * same seam `sessions-panel.test.tsx` drives for the panel alone.
  */
 const listSessions = vi.mocked(authClient.listSessions)
-const revokeSession = vi.mocked(authClient.revokeSession)
 
 function routeSession(
   overrides: Partial<Pick<RouteSession, 'impersonatedBy'>> = {}
@@ -53,17 +47,13 @@ function routeSession(
   }
 }
 
-function browserSession(overrides: {
-  token: string
-  userAgent?: string
-  ipAddress?: string
-}) {
+function browserSession(overrides: { token: string }) {
   return {
     token: overrides.token,
     createdAt: new Date('2026-08-01T10:00:00Z'),
     expiresAt: new Date('2026-08-08T10:00:00Z'),
-    ipAddress: overrides.ipAddress ?? null,
-    userAgent: overrides.userAgent ?? null
+    ipAddress: null,
+    userAgent: null
   }
 }
 
@@ -74,43 +64,6 @@ describe('/account', () => {
     expect(deletionPlan.steps).toHaveLength(1)
     expect(deletionPlan.steps[0]?.workspace.slug).toBe('starter-lab')
     expect(deletionPlan.steps[0]?.action).toBe('leave')
-  })
-
-  it('lists sessions with the current one marked and the others revocable', async () => {
-    listSessions.mockReset()
-    listSessions.mockResolvedValue({
-      data: [
-        browserSession({ token: 'tok_current', userAgent: 'Mozilla/5.0 (Macintosh)' }),
-        browserSession({
-          token: 'tok_other',
-          userAgent: 'Mozilla/5.0 (iPhone)',
-          ipAddress: '203.0.113.7'
-        })
-      ]
-    })
-    const payload = await loadAccountPageHandler()
-    await renderWithRouter(
-      <AccountPage
-        session={routeSession()}
-        deletionPlan={payload.deletionPlan}
-        currentSessionToken="tok_current"
-      />,
-      { path: '/account' }
-    )
-    // The sessions list, from the ports: two devices, one marked current.
-    await screen.findByText('Mac')
-    screen.getByText('· This device')
-    screen.getByText('Mobile browser')
-    screen.getByText('Sign out everywhere else')
-    // The other session is the only revocable one.
-    const revoke = screen.getByRole('button', {
-      name: 'Revoke session on Mobile browser'
-    })
-    fireEvent.click(revoke)
-    fireEvent.click(screen.getByRole('button', { name: 'Revoke session' }))
-    await waitFor(() =>
-      expect(revokeSession).toHaveBeenCalledWith({ token: 'tok_other' })
-    )
   })
 
   it('shows the deletion consequences for an ordinary session', async () => {

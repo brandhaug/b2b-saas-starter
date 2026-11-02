@@ -107,13 +107,21 @@ test.describe('owner controls on a narrow screen', () => {
       .getByRole('button', { name: 'More actions for Product Engineer', exact: true })
       .click()
     await page.getByRole('menuitem', { name: 'Remove', exact: true }).click()
+    await expect(page.getByRole('alertdialog')).toHaveAccessibleName(
+      'Remove Product Engineer?'
+    )
     const confirm = page
       .getByRole('alertdialog')
       .getByRole('button', { name: /confirm remove/iu })
     await confirm.scrollIntoViewIfNeeded()
     await expect(confirm).toBeInViewport({ ratio: 1 })
     await expectPageFits(page)
-    await page.keyboard.press('Escape')
+    await page
+      .getByRole('alertdialog')
+      .getByRole('button', { name: 'Cancel', exact: true })
+      .click()
+    await expect(page.getByRole('alertdialog')).toBeHidden()
+    await expect(member).toBeVisible()
   })
 
   test('enlarged confirmation text remains scrollable and cancellable', async ({

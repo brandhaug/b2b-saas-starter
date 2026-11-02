@@ -103,16 +103,6 @@ describe('MembersPanel', () => {
     ).toBeNull()
   })
 
-  it('opens an explicit removal confirmation from the row menu', async () => {
-    await renderPanel('owner')
-    fireEvent.click(screen.getByRole('button', { name: 'More actions for Dev Member' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove' }))
-    expect(screen.getByRole('alertdialog')).not.toBeNull()
-    expect(screen.getByText('Remove Dev Member?')).not.toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
-  })
-
   it('filters a large roster by name and email', async () => {
     const manyMembers: ReadonlyArray<Member> = Array.from(
       { length: 50 },

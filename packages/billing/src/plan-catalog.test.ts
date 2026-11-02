@@ -32,7 +32,6 @@ describe('webhook entitlement counting', () => {
     expect(summary.used).toBe(3)
     expect(summary.limit).toBe(1)
     expect(summary.paused).toBe(true)
-    expect(summary.paused).toBe(true)
     expect(summary.activeIds).toEqual([])
   })
 

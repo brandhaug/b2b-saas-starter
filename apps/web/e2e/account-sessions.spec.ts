@@ -55,7 +55,7 @@ test('revoking the other session signs that device out', async ({ browser }) => 
   // account has other sessions (parallel specs sign it in too, so resetting
   // the account's sessions here would yank their sign-ins mid-test).
   const otherDevice = await deviceContext(browser, '10.0.0.2', {
-    userAgent: 'AccountSecurityE2E/1.0 (other device)'
+    userAgent: 'AccountSecurityE2E/1.0 (iPhone; other device)'
   })
   const here = await thisDevice.newPage()
   const there = await otherDevice.newPage()
@@ -82,10 +82,16 @@ test('revoking the other session signs that device out', async ({ browser }) => 
     .locator('header [data-slot="select-trigger"]:enabled')
     .waitFor({ state: 'attached' })
   await here.getByText('· This device').waitFor()
+  await expect(
+    here.getByRole('button', { name: 'Sign out everywhere else' })
+  ).toBeVisible()
 
   // The other device is the newest session with its distinctive label, and
   // the list sorts newest first — so the first match is this test's session.
-  await here.getByRole('button', { name: 'Revoke session on Browser' }).first().click()
+  await here
+    .getByRole('button', { name: 'Revoke session on Mobile browser' })
+    .first()
+    .click()
   // Base UI's AlertDialog exposes `alertdialog`, per the ARIA pattern.
   const revokeDone = here.waitForResponse(
     (response) =>

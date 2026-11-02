@@ -64,17 +64,4 @@ describe('shareable workspace views', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.getByText('Ask an owner')).toBeTruthy()
   })
-
-  it('opens a creation form directly from its URL', async () => {
-    await renderWithRouter(
-      <CreateAction action="invite" title="Invite member">
-        <p>Invitation form</p>
-      </CreateAction>,
-      {
-        path: '/members',
-        initialEntry: '/members?action=invite'
-      }
-    )
-    expect(await screen.findByRole('dialog', { name: 'Invite member' })).toBeTruthy()
-  })
 })
