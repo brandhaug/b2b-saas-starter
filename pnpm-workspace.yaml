@@ -31,7 +31,7 @@ catalog:
   '@better-auth/utils': 0.5.1
   '@cloudflare/ai-chat': 0.12.2
   agents: 0.32.0
-  ai: 7.0.157
+  ai: 7.0.158
   '@cloudflare/workers-types': 5.20261030.1
   '@cloudflare/vitest-plugin': 1.4.11
   '@effect/platform-node': 4.1.0
