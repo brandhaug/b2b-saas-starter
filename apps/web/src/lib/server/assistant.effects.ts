@@ -38,24 +38,33 @@ const assistantPagePayload = workspacePage({ assistant: ['read'] }, () =>
       Effect.gen(function* () {
         const tasks = yield* WebhookInvestigationTasks
         const webhooks = yield* WebhookEndpoints
-        const endpoints = yield* webhooks.list
-        const deliveries = yield* Effect.forEach(
-          endpoints,
-          (endpoint) =>
-            webhooks.listDeliveries({ endpointId: endpoint.id }).pipe(
-              Effect.map((items) =>
-                items.map((delivery) => ({
-                  id: delivery.id,
-                  endpointId: endpoint.id,
-                  endpointUrl: endpoint.url,
-                  eventType: delivery.eventType,
-                  status: delivery.status
-                }))
+        const { tasks: recentTasks, deliveries } = yield* Effect.all(
+          {
+            tasks: tasks.list(),
+            deliveries: webhooks.list.pipe(
+              Effect.flatMap((endpoints) =>
+                Effect.forEach(
+                  endpoints,
+                  (endpoint) =>
+                    webhooks.listDeliveries({ endpointId: endpoint.id }).pipe(
+                      Effect.map((items) =>
+                        items.map((delivery) => ({
+                          id: delivery.id,
+                          endpointId: endpoint.id,
+                          endpointUrl: endpoint.url,
+                          eventType: delivery.eventType,
+                          status: delivery.status
+                        }))
+                      )
+                    ),
+                  { concurrency: 4 }
+                )
               )
-            ),
-          { concurrency: 4 }
+            )
+          },
+          { concurrency: 'unbounded' }
         )
-        return { tasks: yield* tasks.list(), deliveries: deliveries.flat() }
+        return { tasks: recentTasks, deliveries: deliveries.flat() }
       })
     )
     return { configured: isAssistantConfigured(cloudflareEnv), investigations }

@@ -222,11 +222,14 @@ export function AssistantConversationsLayer(
             cursor: input.cursor,
             limit: input.limit
           })
-          const rows = yield* Effect.forEach(page.items, (row) =>
-            read({ credential: input.credential, conversationId: row.id }).pipe(
-              Effect.catchTag('AssistantAuthorityDenied', () => Effect.succeed(null)),
-              Effect.catchTag('ConversationNotFound', () => Effect.succeed(null))
-            )
+          const rows = yield* Effect.forEach(
+            page.items,
+            (row) =>
+              read({ credential: input.credential, conversationId: row.id }).pipe(
+                Effect.catchTag('AssistantAuthorityDenied', () => Effect.succeed(null)),
+                Effect.catchTag('ConversationNotFound', () => Effect.succeed(null))
+              ),
+            { concurrency: 4 }
           )
           return {
             items: rows.filter(Predicate.isNotNull),

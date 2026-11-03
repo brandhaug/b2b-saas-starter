@@ -111,17 +111,20 @@ export const workspaceRecoveryPayload = Effect.gen(function* () {
   const canListTokens = may(actor.role, { apiToken: ['list'] })
   const canRepairSso =
     may(actor.role, { organization: ['delete'] }) && may(actor.role, { sso: ['list'] })
-  const recovery = yield* Effect.all({
-    billingConfigured: canManageBilling
-      ? Effect.flatMap(Billing, (billing) => billing.configured)
-      : Effect.succeed(false),
-    apiTokens: canListTokens
-      ? Effect.flatMap(ApiTokenRegistry, (tokens) => tokens.list)
-      : Effect.succeed(null),
-    ssoConnections: canRepairSso
-      ? Effect.flatMap(SsoConnections, (sso) => sso.list)
-      : Effect.succeed(null)
-  })
+  const recovery = yield* Effect.all(
+    {
+      billingConfigured: canManageBilling
+        ? Effect.flatMap(Billing, (billing) => billing.configured)
+        : Effect.succeed(false),
+      apiTokens: canListTokens
+        ? Effect.flatMap(ApiTokenRegistry, (tokens) => tokens.list)
+        : Effect.succeed(null),
+      ssoConnections: canRepairSso
+        ? Effect.flatMap(SsoConnections, (sso) => sso.list)
+        : Effect.succeed(null)
+    },
+    { concurrency: 'unbounded' }
+  )
   return {
     workspaceId: state.workspaceId,
     workspaceName: context.workspace.name,

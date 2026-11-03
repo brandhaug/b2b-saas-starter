@@ -261,16 +261,23 @@ export function LiveBilling(
               })
             )
           }
-          yield* validatedStripePrice(
-            secretKey,
-            priceId,
-            'purchase',
-            input.interval ?? 'month'
+          const [, quantity] = yield* Effect.all(
+            [
+              validatedStripePrice(
+                secretKey,
+                priceId,
+                'purchase',
+                input.interval ?? 'month'
+              ),
+              Effect.gen(function* () {
+                if (plan.pricing === 'per_seat') {
+                  return billableSeatQuantity(yield* countMembers(ctx.workspace.id))
+                }
+                return 1
+              })
+            ],
+            { concurrency: 2 }
           )
-          let quantity = 1
-          if (plan.pricing === 'per_seat') {
-            quantity = billableSeatQuantity(yield* countMembers(ctx.workspace.id))
-          }
           return yield* checkout({
             secretKey,
             priceId,

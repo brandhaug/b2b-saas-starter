@@ -1,6 +1,6 @@
 import { billingNotices, workspaceMembers } from '@b2b-saas-starter/db/schema'
 import { Database, type BatchStatement } from '@b2b-saas-starter/db/service'
-import { DateTime, Effect } from 'effect'
+import { DateTime, Effect, Result } from 'effect'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { AuditEventLog, NotificationFeed } from './ports.ts'
 import { billingStoreUnavailable, type SubscriptionState } from './billing.ts'
@@ -55,38 +55,55 @@ export const makeBillingNotices = Effect.fn('Billing.makeNotices')(function* () 
     return statements
   })
   const deliver = Effect.fn('Billing.deliverNotices')(function* (workspaceId: string) {
-    const pending = yield* billingStoreUnavailable(
-      db
-        .select()
-        .from(billingNotices)
-        .where(
-          and(
-            eq(billingNotices.workspaceId, workspaceId),
-            isNull(billingNotices.deliveredAt)
-          )
+    const [pending, recipients] = yield* Effect.all(
+      [
+        billingStoreUnavailable(
+          db
+            .select()
+            .from(billingNotices)
+            .where(
+              and(
+                eq(billingNotices.workspaceId, workspaceId),
+                isNull(billingNotices.deliveredAt)
+              )
+            )
+        ),
+        billingStoreUnavailable(
+          db
+            .select({ userId: workspaceMembers.userId })
+            .from(workspaceMembers)
+            .where(
+              and(
+                eq(workspaceMembers.workspaceId, workspaceId),
+                inArray(workspaceMembers.role, ['owner', 'admin'])
+              )
+            )
         )
+      ],
+      { concurrency: 2 }
     )
-    const recipients = yield* billingStoreUnavailable(
-      db
-        .select({ userId: workspaceMembers.userId })
-        .from(workspaceMembers)
-        .where(
-          and(
-            eq(workspaceMembers.workspaceId, workspaceId),
-            inArray(workspaceMembers.role, ['owner', 'admin'])
-          )
-        )
-    )
+    const recipientIds = [...new Set(recipients.map((recipient) => recipient.userId))]
     for (const notice of pending) {
-      for (const recipient of recipients) {
-        yield* feed.create({
-          workspaceId,
-          userId: recipient.userId,
-          deduplicationKey: notice.id,
-          kind: 'billing.plan_changed',
-          title: notice.title,
-          message: notice.message
-        })
+      // Let every recipient finish persistence and enqueue before reporting a failure.
+      const outcomes = yield* Effect.forEach(
+        recipientIds,
+        (userId) =>
+          feed
+            .create({
+              workspaceId,
+              userId,
+              deduplicationKey: notice.id,
+              kind: 'billing.plan_changed',
+              title: notice.title,
+              message: notice.message
+            })
+            .pipe(Effect.result),
+        { concurrency: 4 }
+      )
+      for (const outcome of outcomes) {
+        if (Result.isFailure(outcome)) {
+          return yield* Effect.fail(outcome.failure)
+        }
       }
       yield* billingStoreUnavailable(
         db

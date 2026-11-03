@@ -63,7 +63,7 @@ export const retrievePaymentEvidence = Effect.fn('Stripe.retrievePaymentEvidence
     if (previous?.subscriptionId === subscription.id) {
       prior = previous
     }
-    const paid = yield* Stream.paginate(
+    const paidInvoices = Stream.paginate(
       { cursor: '', page: 0 },
       Effect.fn('Stripe.paidInvoicePage')(function* ({ cursor, page }) {
         let after = ''
@@ -92,6 +92,22 @@ export const retrievePaymentEvidence = Effect.fn('Stripe.retrievePaymentEvidence
         ]
       })
     ).pipe(Stream.runCollect)
+    const [paid, current] = yield* Effect.all(
+      [
+        paidInvoices,
+        Effect.gen(function* () {
+          if (subscription.latest_invoice === null) {
+            return null
+          }
+          return yield* readStripeObject(
+            secretKey,
+            `invoices/${encodeURIComponent(subscription.latest_invoice)}`,
+            Invoice
+          )
+        })
+      ],
+      { concurrency: 2 }
+    )
     // Invoice creation order is unrelated to settlement order. Establish positive
     // history first, then include later credit-covered settlements by paid_at.
     let establishedAt = prior?.lastPaymentAt ?? null
@@ -118,14 +134,6 @@ export const retrievePaymentEvidence = Effect.fn('Stripe.retrievePaymentEvidence
           }
         }
       }
-    }
-    let current: typeof Invoice.Type | null = null
-    if (subscription.latest_invoice !== null) {
-      current = yield* readStripeObject(
-        secretKey,
-        `invoices/${encodeURIComponent(subscription.latest_invoice)}`,
-        Invoice
-      )
     }
     if (current !== null && !owns(current)) {
       return yield* Effect.fail(unavailable('invoice_ownership_mismatch'))

@@ -142,37 +142,43 @@ export function runNotificationDigest(
     }
     const digests = buildDigests(selection.candidates)
 
+    const outcomes = yield* Effect.forEach(
+      digests,
+      (digest) => {
+        const { userId } = digest.recipient
+        return Effect.result(
+          dispatchTrackedEmail(
+            {
+              id: `digest:${until}:${userId}`,
+              purpose: 'digest',
+              recipient: digest.recipient.email,
+              userId,
+              workspaceId: null,
+              referenceId: until,
+              queuedAt: until
+            },
+            {
+              to: digest.recipient.email,
+              subject: m.backend_email_subject_digest(
+                { count: digest.items.length },
+                { locale: digest.recipient.locale ?? DEFAULT_LOCALE }
+              ),
+              element: NotificationDigestEmail({
+                recipientName: digest.recipient.name,
+                items: digest.items,
+                openUrl: `${appUrl}/workspaces`,
+                preferencesUrl: preferencesUrl(appUrl),
+                locale: digest.recipient.locale ?? DEFAULT_LOCALE
+              })
+            }
+          )
+        )
+      },
+      { concurrency: 4 }
+    )
     let sent = 0
     let failed = 0
-    for (const digest of digests) {
-      const { userId } = digest.recipient
-      const outcome = yield* Effect.result(
-        dispatchTrackedEmail(
-          {
-            id: `digest:${until}:${userId}`,
-            purpose: 'digest',
-            recipient: digest.recipient.email,
-            userId,
-            workspaceId: null,
-            referenceId: until,
-            queuedAt: until
-          },
-          {
-            to: digest.recipient.email,
-            subject: m.backend_email_subject_digest(
-              { count: digest.items.length },
-              { locale: digest.recipient.locale ?? DEFAULT_LOCALE }
-            ),
-            element: NotificationDigestEmail({
-              recipientName: digest.recipient.name,
-              items: digest.items,
-              openUrl: `${appUrl}/workspaces`,
-              preferencesUrl: preferencesUrl(appUrl),
-              locale: digest.recipient.locale ?? DEFAULT_LOCALE
-            })
-          }
-        )
-      )
+    for (const outcome of outcomes) {
       if (Result.isSuccess(outcome) && outcome.success.status !== 'skipped') {
         sent += 1
       } else if (Result.isFailure(outcome)) {

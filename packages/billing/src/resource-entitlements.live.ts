@@ -68,25 +68,28 @@ export const LiveResourceEntitlements: Layer.Layer<
       workspaceId: string
     ) {
       const now = DateTime.formatIso(yield* DateTime.now)
-      const [tokens, endpoints] = yield* Effect.all([
-        unavailable(
-          db
-            .select({ id: apiTokens.id })
-            .from(apiTokens)
-            .where(eligibleTokenWhere(workspaceId, now))
-        ),
-        unavailable(
-          db
-            .select({ id: webhookEndpoints.id })
-            .from(webhookEndpoints)
-            .where(
-              and(
-                eq(webhookEndpoints.workspaceId, workspaceId),
-                eq(webhookEndpoints.enabled, true)
+      const [tokens, endpoints] = yield* Effect.all(
+        [
+          unavailable(
+            db
+              .select({ id: apiTokens.id })
+              .from(apiTokens)
+              .where(eligibleTokenWhere(workspaceId, now))
+          ),
+          unavailable(
+            db
+              .select({ id: webhookEndpoints.id })
+              .from(webhookEndpoints)
+              .where(
+                and(
+                  eq(webhookEndpoints.workspaceId, workspaceId),
+                  eq(webhookEndpoints.enabled, true)
+                )
               )
-            )
-        )
-      ])
+          )
+        ],
+        { concurrency: 2 }
+      )
       return {
         apiTokenIds: tokens.map((row) => row.id),
         webhookEndpointIds: endpoints.map((row) => row.id)
@@ -108,10 +111,14 @@ export const LiveResourceEntitlements: Layer.Layer<
     const getSelectionForWorkspace = Effect.fn(
       'ResourceEntitlements.getSelectionForWorkspace'
     )(function* (workspaceId: string) {
-      return normalizeSelection(
-        yield* readSelection(workspaceId).pipe(Effect.provideService(Database, db)),
-        yield* available(workspaceId)
+      const [selection, inventory] = yield* Effect.all(
+        [
+          readSelection(workspaceId).pipe(Effect.provideService(Database, db)),
+          available(workspaceId)
+        ],
+        { concurrency: 2 }
       )
+      return normalizeSelection(selection, inventory)
     })
     const getSelection = Effect.fn('ResourceEntitlements.getSelection')(function* () {
       return yield* getSelectionForWorkspace((yield* WorkspaceContext).workspace.id)
@@ -119,21 +126,26 @@ export const LiveResourceEntitlements: Layer.Layer<
     const summarizeForWorkspace = Effect.fn(
       'ResourceEntitlements.summarizeForWorkspace'
     )(function* (workspaceId: string, resource: 'api_token' | 'webhook_endpoint') {
-      const inventory = yield* available(workspaceId)
-      const selected = yield* readSelection(workspaceId).pipe(
-        Effect.provideService(Database, db)
+      const [inventory, selected, plan, storedWebhooks] = yield* Effect.all(
+        [
+          available(workspaceId),
+          readSelection(workspaceId).pipe(Effect.provideService(Database, db)),
+          billing.currentPlanForWorkspace(workspaceId),
+          Effect.gen(function* () {
+            if (resource === 'webhook_endpoint') {
+              return yield* storedWebhookIds(workspaceId)
+            }
+          })
+        ],
+        { concurrency: 4 }
       )
       const eligibleIds = resourceIds(inventory, resource)
-      let storedIds = eligibleIds
-      if (resource === 'webhook_endpoint') {
-        storedIds = yield* storedWebhookIds(workspaceId)
-      }
       return resourceEntitlement(
-        yield* billing.currentPlanForWorkspace(workspaceId),
+        plan,
         resource,
         eligibleIds,
         normalizeSelection(selected, inventory),
-        storedIds
+        storedWebhooks ?? eligibleIds
       )
     })
     const summarize = Effect.fn('ResourceEntitlements.summarize')(function* (input: {
@@ -150,20 +162,23 @@ export const LiveResourceEntitlements: Layer.Layer<
       summarize,
       select: Effect.fn('ResourceEntitlements.select')(function* (input) {
         const ctx = yield* WorkspaceContext
-        const [knownTokens, knownEndpoints] = yield* Effect.all([
-          unavailable(
-            db
-              .select({ id: apiTokens.id })
-              .from(apiTokens)
-              .where(eq(apiTokens.workspaceId, ctx.workspace.id))
-          ),
-          unavailable(
-            db
-              .select({ id: webhookEndpoints.id })
-              .from(webhookEndpoints)
-              .where(eq(webhookEndpoints.workspaceId, ctx.workspace.id))
-          )
-        ])
+        const [knownTokens, knownEndpoints] = yield* Effect.all(
+          [
+            unavailable(
+              db
+                .select({ id: apiTokens.id })
+                .from(apiTokens)
+                .where(eq(apiTokens.workspaceId, ctx.workspace.id))
+            ),
+            unavailable(
+              db
+                .select({ id: webhookEndpoints.id })
+                .from(webhookEndpoints)
+                .where(eq(webhookEndpoints.workspaceId, ctx.workspace.id))
+            )
+          ],
+          { concurrency: 2 }
+        )
         yield* validateSelection(input, {
           apiTokenIds: knownTokens.map((row) => row.id),
           webhookEndpointIds: knownEndpoints.map((row) => row.id)
