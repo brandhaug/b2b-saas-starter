@@ -1,4 +1,5 @@
 import { Effect, Schema } from 'effect'
+import { annotateWideEvent } from '@b2b-saas-starter/logger'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 
 import {
@@ -76,6 +77,40 @@ function nestedEntries(record: Captured): ReadonlyArray<Record<string, unknown>>
 }
 
 describe('runWebRequestScope', () => {
+  it('keeps accumulated facts with their own nested operation', async () => {
+    const request = new Request('http://localhost/private')
+    ambient.request = request
+    await runWebRequestScope({ request, handlerType: 'router' }, async () => {
+      for (const [workspaceId, plan] of [
+        ['ws_1', 'team'],
+        ['ws_2', 'enterprise']
+      ]) {
+        await webRuntime.runPromise(
+          withWebRequestScope(
+            { event: 'capability.workspace' },
+            annotateWideEvent({ workspaceId, plan })
+          )
+        )
+      }
+      return new Response(null)
+    })
+    expect(nestedEntries(only())).toEqual([
+      {
+        event: 'capability.workspace',
+        workspaceId: 'ws_1',
+        plan: 'team',
+        status: 'ok'
+      },
+      {
+        event: 'capability.workspace',
+        workspaceId: 'ws_2',
+        plan: 'enterprise',
+        status: 'ok'
+      }
+    ])
+    expect(only().annotations).not.toHaveProperty('workspaceId')
+  })
+
   it('correlates independent failure evidence without exporting exception text', async () => {
     const request = new Request('http://localhost/private')
     ambient.request = request

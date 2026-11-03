@@ -1,7 +1,7 @@
 import { databaseIsReady } from '@b2b-saas-starter/db/service'
 import { isMaintenanceMode } from '@b2b-saas-starter/env/server'
 import {
-  annotateWideEvent,
+  annotateWideEventCause,
   WideEventLoggerLive,
   withHttpInvocation
 } from '@b2b-saas-starter/logger'
@@ -10,7 +10,7 @@ import { RateLimiter, StarterApi } from '@b2b-saas-starter/api'
 import { selectAssistantLayer } from '@b2b-saas-starter/ai'
 import { apiFallbackLimits, apiRateLimitBindingNames } from '@b2b-saas-starter/infra'
 import { makeRateLimiter } from '@b2b-saas-starter/rate-limit'
-import { ErrorReporter, FileSystem, Layer, Path, Effect, Scope } from 'effect'
+import { Cause, ErrorReporter, FileSystem, Layer, Path, Effect, Scope } from 'effect'
 import {
   Etag,
   HttpPlatform,
@@ -105,8 +105,9 @@ function requestObservation(env: ApiEnv) {
                 Effect.andThen(HttpServerRespondable.toResponse(error))
               )
             ),
-            Effect.catchDefect(() =>
-              annotateWideEvent({ errorKind: 'defect' }).pipe(
+            Effect.catchDefect((defect) =>
+              // oxlint-disable-next-line eslint/no-restricted-properties -- preserve an existing defect for sanitized diagnostics; no typed failure is converted
+              annotateWideEventCause(Cause.die(defect)).pipe(
                 Effect.andThen(
                   HttpServerRespondable.toResponse(
                     new HttpApiError.InternalServerErrorProblem()

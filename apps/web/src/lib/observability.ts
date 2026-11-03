@@ -2,6 +2,7 @@ import {
   makeOtlpLayer,
   WideEventLoggerLive,
   withHttpInvocation,
+  withWideEventFacts,
   withTriggerScope
 } from '@b2b-saas-starter/logger'
 import { env as cloudflareEnv } from 'cloudflare:workers'
@@ -283,7 +284,9 @@ function nested<A, E, R>(
     // Same `onExit` reasoning as the logger's own scope: a finalizer would run
     // after the scoped annotations were restored, losing everything the nested
     // code added with `Effect.annotateLogsScoped`.
-    return yield* Effect.onExit(effect, (exit) => record(telemetry, options, exit))
+    return yield* withWideEventFacts(effect, (facts, exit) =>
+      record(telemetry, options, exit, facts)
+    )
   })
   return Effect.scoped(body).pipe(
     Effect.withSpan(options.event, { attributes: options.metadata }),
@@ -299,7 +302,8 @@ function nested<A, E, R>(
 function record(
   telemetry: RequestTelemetry,
   options: NestedScopeOptions,
-  exit: Exit.Exit<unknown, unknown>
+  exit: Exit.Exit<unknown, unknown>,
+  facts: Readonly<Record<string, unknown>>
 ): Effect.Effect<void> {
   return Effect.gen(function* () {
     const annotations = yield* References.CurrentLogAnnotations
@@ -309,6 +313,7 @@ function record(
     telemetry.nested.push({
       event: options.event,
       ...Object.fromEntries(own),
+      ...facts,
       status: Exit.isSuccess(exit) ? 'ok' : 'error'
     })
   })

@@ -1,7 +1,21 @@
-import { describe, expect, it, vi } from '@effect/vitest'
+import { describe, expect, it } from '@effect/vitest'
+import { vi } from 'vite-plus/test'
 import { Effect, Schema } from 'effect'
+import { HttpServerResponse } from 'effect/http'
+import type * as Http from 'effect/http'
 import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { buildWebHandler } from './http.ts'
+
+// ESM exports are immutable; retain the real HTTP module behind a replaceable serializer for fault injection.
+vi.mock('effect/http', (importOriginal) =>
+  importOriginal<typeof Http>().then((actual) => ({
+    ...actual,
+    HttpServerResponse: {
+      ...actual.HttpServerResponse,
+      jsonUnsafe: vi.fn(actual.HttpServerResponse.jsonUnsafe)
+    }
+  }))
+)
 
 const decodeEvent = Schema.decodeUnknownSync(
   Schema.fromJsonString(
@@ -15,6 +29,40 @@ const decodeEvent = Schema.decodeUnknownSync(
 // Failure modes: handler scopes miss encoded status and gates; nested scopes
 // duplicate completions; returned 503 looks successful; paths or credentials leak.
 describe('API canonical HTTP logging', () => {
+  it.live('keeps a defect findable after translating it to an opaque HTTP 500', () =>
+    Effect.gen(function* () {
+      const info = vi.spyOn(console, 'log').mockImplementation(() => {})
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const runtime = buildWebHandler({ ENVIRONMENT: 'test' })
+      const responseFactory = vi
+        .spyOn(HttpServerResponse, 'jsonUnsafe')
+        .mockImplementationOnce(() => {
+          throw new TypeError('private-provider-payload')
+        })
+      try {
+        const response = yield* Effect.promise(() =>
+          runtime.handler(new Request('https://api.test/'))
+        )
+        expect(response.status).toBe(500)
+        expect(info).not.toHaveBeenCalled()
+        expect(error).toHaveBeenCalledTimes(1)
+        const line = error.mock.calls[0]?.[0]
+        expect(decodeEvent(line).annotations).toMatchObject({
+          statusCode: 500,
+          status: 'error',
+          errorKind: 'defect',
+          errorSummary: expect.stringContaining('TypeError')
+        })
+        expect(line).not.toContain('private-provider-payload')
+      } finally {
+        yield* Effect.promise(() => runtime.dispose())
+        responseFactory.mockRestore()
+        info.mockRestore()
+        error.mockRestore()
+      }
+    })
+  )
+
   for (const { path, status, operation, authenticated } of [
     { path: '/health', status: 200, operation: 'request.health', authenticated: false },
     {

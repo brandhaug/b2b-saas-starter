@@ -46,6 +46,23 @@ export const annotateWideEvent = Effect.fn('Logger.annotateWideEvent')(function*
   }
 })
 
+/** Isolates facts for an operation and consumes them before its context is restored. */
+export function withWideEventFacts<A, E, R, R2>(
+  body: Effect.Effect<A, E, R>,
+  consume: (
+    facts: Readonly<Record<string, unknown>>,
+    exit: Exit.Exit<A, E>
+  ) => Effect.Effect<void, never, R2>
+): Effect.Effect<A, E, R | R2> {
+  return Effect.suspend(() => {
+    const facts: Record<string, unknown> = {}
+    return body.pipe(
+      Effect.onExit((exit) => consume(facts, exit)),
+      Effect.provideService(WideEventFacts, facts)
+    )
+  })
+}
+
 /**
  * The failure half of a wide event's outcome, classified from the `Cause`.
  * Fields the cause cannot supply stay absent rather than `undefined`, so a
@@ -88,6 +105,13 @@ function causeMetadata(cause: Cause.Cause<unknown>): WideEventFailure {
   return { errorKind: 'defect', errorSummary: summary }
 }
 
+/** Preserve safe failure identity before an HTTP adapter translates the cause to a response. */
+export function annotateWideEventCause(
+  cause: Cause.Cause<unknown>
+): Effect.Effect<void> {
+  return annotateWideEvent(causeMetadata(cause))
+}
+
 export type WideEventScopeOptions = TraceContinuation & {
   readonly service: string
   readonly event: string
@@ -104,12 +128,17 @@ type WideEventOutcome =
 
 function outcomeMetadata(
   exit: Exit.Exit<unknown, unknown>,
-  statusCode: unknown
+  annotations: Readonly<Record<string, unknown>>
 ): WideEventOutcome {
   if (Exit.isFailure(exit)) {
     return { status: 'error', ...causeMetadata(exit.cause) }
   }
+  const statusCode = annotations['statusCode']
   if (Predicate.isNumber(statusCode) && statusCode >= 500) {
+    const errorKind = annotations['errorKind']
+    if (errorKind === 'fail' || errorKind === 'defect' || errorKind === 'interrupt') {
+      return { status: 'error', errorKind }
+    }
     return { status: 'error', errorKind: 'http' }
   }
   return { status: 'ok' }
@@ -179,16 +208,11 @@ export function withRequestScope<A, E, R>(
           // from the event. onExit still fires on success, failure, and interrupt.
           // `withParentSpan` wraps the finalizer too, so the canonical line is
           // also recorded as an event on this span by `Logger.tracerLogger`.
-          const facts: Record<string, unknown> = {}
-          return yield* body.pipe(
-            Effect.onExit((exit) =>
-              emitWideEvent(options, span, startedAt, exit).pipe(
-                Effect.annotateLogs(facts)
-              )
-            ),
-            Effect.provideService(WideEventFacts, facts),
-            Effect.withParentSpan(span, { captureStackTrace: false })
-          )
+          return yield* withWideEventFacts(body, (facts, exit) =>
+            emitWideEvent(options, span, startedAt, exit).pipe(
+              Effect.annotateLogs(facts)
+            )
+          ).pipe(Effect.withParentSpan(span, { captureStackTrace: false }))
         })
       )
   )
@@ -211,7 +235,7 @@ function emitWideEvent(
     const finishedAt = yield* Clock.currentTimeMillis
     const durationMs = finishedAt - startedAt
     const annotations = yield* References.CurrentLogAnnotations
-    const outcome = outcomeMetadata(exit, annotations['statusCode'])
+    const outcome = outcomeMetadata(exit, annotations)
     span.attribute('outcome.status', outcome.status)
     span.attribute('duration.ms', durationMs)
     yield* recordRedMetrics(
