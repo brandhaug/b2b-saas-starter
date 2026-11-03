@@ -78,6 +78,13 @@ describe('API canonical HTTP logging', () => {
       authenticated: false
     },
     { path: '/ready', status: 503, operation: undefined, authenticated: false },
+    { path: '/', status: 200, operation: undefined, authenticated: false },
+    {
+      path: '/.well-known/oauth-protected-resource',
+      status: 404,
+      operation: undefined,
+      authenticated: false
+    },
     {
       path: '/workspaces/starter-lab/overview',
       status: 200,
@@ -118,6 +125,13 @@ describe('API canonical HTTP logging', () => {
           })
           if (operation !== undefined) {
             expect(event.operation).toBe(operation)
+          }
+          if (
+            path === '/ready' ||
+            path === '/' ||
+            path === '/.well-known/oauth-protected-resource'
+          ) {
+            expect(event.routeTemplate).toBe(path)
           }
           if (status === 401) {
             expect(event.outcome).toBe('missing_bearer_token')

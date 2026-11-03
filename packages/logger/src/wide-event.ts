@@ -133,6 +133,10 @@ function outcomeMetadata(
   if (Exit.isFailure(exit)) {
     return { status: 'error', ...causeMetadata(exit.cause) }
   }
+  // Protocols such as MCP encode a caught defect inside an HTTP 200 response.
+  if (annotations['errorKind'] === 'defect') {
+    return { status: 'error', errorKind: 'defect' }
+  }
   const statusCode = annotations['statusCode']
   if (Predicate.isNumber(statusCode) && statusCode >= 500) {
     const errorKind = annotations['errorKind']

@@ -70,6 +70,7 @@ const allowedFields = new Set([
   'serviceVersion',
   'commitHash',
   'method',
+  'routeTemplate',
   'handlerType',
   'scope',
   'traceId',
@@ -189,6 +190,13 @@ export function diagnosticFields(fields: object) {
   const result: Record<string, string | number | boolean> = {}
   for (const key of Object.keys(fields)) {
     const value: unknown = Object.getOwnPropertyDescriptor(fields, key)?.value
+    // Only router-owned templates use this field. Raw request paths are never assigned here.
+    if (key === 'routeTemplate') {
+      if (typeof value === 'string' && /^\/[a-zA-Z0-9_./:*{}$-]{0,180}$/.test(value)) {
+        result[key] = value
+      }
+      continue
+    }
     if (key === 'emailTransport' && value !== 'cloudflare-email') {
       continue
     }

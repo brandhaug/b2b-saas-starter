@@ -2,6 +2,7 @@ import { databaseIsReady } from '@b2b-saas-starter/db/service'
 import { isMaintenanceMode } from '@b2b-saas-starter/env/server'
 import {
   annotateWideEventCause,
+  annotateWideEvent,
   WideEventLoggerLive,
   withHttpInvocation
 } from '@b2b-saas-starter/logger'
@@ -121,6 +122,14 @@ function requestObservation(env: ApiEnv) {
     { global: true }
   )
 }
+
+const routeIdentity = HttpRouter.middleware((effect) =>
+  Effect.gen(function* () {
+    const context = yield* HttpRouter.RouteContext
+    yield* annotateWideEvent({ routeTemplate: context.route.path })
+    return yield* effect
+  })
+).layer
 
 // The root index — a tiny machine-readable directory for clients and humans
 // who curl the origin. It rides beside the contract like the MCP protocol
@@ -251,6 +260,7 @@ function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRou
     HttpApiScalar.layer(StarterApi, { path: '/reference' })
   ).pipe(
     HttpRouter.provideRequest(capabilities),
+    Layer.provide(routeIdentity),
     // `BearerAuth` resolves its services (token registry, rate limiter) from
     // the group layers' build context rather than per request, so the same
     // `capabilities` layer value is provided here too. One value, one build:
