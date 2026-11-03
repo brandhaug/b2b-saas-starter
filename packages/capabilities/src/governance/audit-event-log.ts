@@ -2,7 +2,8 @@ import { type JsonObject } from '@b2b-saas-starter/db/schema'
 import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { type SQL } from 'drizzle-orm'
 import { type BatchStatement } from '@b2b-saas-starter/db/service'
-import { Context, DateTime, Effect, Layer, Schema } from 'effect'
+import { Context, DateTime, Effect, Layer, References, Schema } from 'effect'
+import { currentTraceId } from '@b2b-saas-starter/logger'
 
 import {
   decodeAuditEventMetadata,
@@ -230,28 +231,23 @@ export function recordCompletedAudit(
   return audit.record(input).pipe(
     Effect.catch((error) =>
       Effect.gen(function* () {
-        yield* Effect.logError('audit write failed after completed mutation').pipe(
-          Effect.annotateLogs({
-            auditOperation: operation,
-            auditCapability: error.capability,
-            auditFailureReason: error.reason,
-            eventType: input.eventType,
-            targetId: input.targetId ?? undefined,
-            subjectId: input.actorUserId ?? undefined,
-            workspaceId: input.workspaceId ?? undefined
-          })
-        )
+        const annotations = yield* References.CurrentLogAnnotations
+        const traceId = yield* currentTraceId
         yield* Effect.tryPromise({
           try: () =>
-            captureMonitoringSignal('audit_write_gap', {
-              operation,
-              capability: error.capability,
-              reason: error.reason,
-              eventType: input.eventType,
-              targetId: input.targetId ?? undefined,
-              subjectId: input.actorUserId ?? undefined,
-              workspaceId: input.workspaceId ?? undefined
-            }),
+            captureMonitoringSignal(
+              'audit_write_gap',
+              {
+                operation,
+                capability: error.capability,
+                reason: error.reason,
+                eventType: input.eventType,
+                targetId: input.targetId ?? undefined,
+                subjectId: input.actorUserId ?? undefined,
+                workspaceId: input.workspaceId ?? undefined
+              },
+              { ...annotations, traceId }
+            ),
           catch: () => 'audit_gap_monitoring_unavailable'
         }).pipe(Effect.ignore)
       })

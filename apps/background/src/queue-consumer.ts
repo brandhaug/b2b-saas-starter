@@ -13,6 +13,8 @@ import {
   makeOtlpLayer,
   parentSpanFromHeaders,
   WideEventLoggerLive,
+  withHttpInvocation,
+  type HttpInvocationOptions,
   withTriggerScope
 } from '@b2b-saas-starter/logger'
 import { monitorQueueOutcome } from './monitoring.ts'
@@ -176,6 +178,14 @@ export function runInvocation<A, E>(
   )
 }
 
+/** HTTP observation owns its exporter; use only the isolate's static services. */
+export function runHttpInvocation<A extends { readonly status: number }, E>(
+  options: HttpInvocationOptions,
+  effect: Effect.Effect<A, E, HttpClient.HttpClient | Scope.Scope>
+) {
+  return staticRuntime.runPromise(withHttpInvocation(options, effect))
+}
+
 /**
  * The one consumer-entry skeleton, shared by every queue handler: the decoded
  * delivery's trace continuation as the scope's parent, a `consumer`-kind wide
@@ -214,7 +224,7 @@ export function consumerInvocation<R>(
       parent: queueParentSpan(options.delivery),
       spanKind: 'consumer',
       env,
-      metadata: { attempts: options.delivery.attempts }
+      metadata: { attempts: options.delivery.attempts, messageId: options.delivery.id }
     },
     options.program
   ).pipe(
@@ -265,7 +275,9 @@ export function consumeBatch(
       batch.messages,
       (message) =>
         perMessage(message).pipe(
-          Effect.tap((outcome) => monitorQueueOutcome(batch.queue, message, outcome)),
+          Effect.tap((outcome) =>
+            monitorQueueOutcome(env, batch.queue, message, outcome)
+          ),
           Effect.flatMap((outcome) =>
             Effect.sync(() => {
               if (outcome === 'ack') {

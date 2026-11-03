@@ -5,7 +5,8 @@ import {
 } from '@b2b-saas-starter/capabilities/governance/operational-health'
 import {
   captureMonitoringSignal,
-  captureOperationalSnapshot
+  captureOperationalSnapshot,
+  readWideEventEnvironment
 } from '@b2b-saas-starter/logger/providers'
 import { Clock, Effect, Layer } from 'effect'
 import {
@@ -57,24 +58,28 @@ export function exhaustedQueueDelivery(
 }
 
 export function monitorQueueOutcome(
+  env: Env,
   queue: string,
   message: Message<unknown>,
   outcome: DeliveryOutcome
 ): Effect.Effect<void> {
   return Effect.gen(function* () {
     const evidence = { queue, messageId: message.id, attempts: message.attempts }
+    const identity = { service: 'background', ...readWideEventEnvironment(env) }
     if (exhaustedQueueDelivery(queue, message.attempts, outcome !== 'ack')) {
-      yield* Effect.promise(() => captureMonitoringSignal('queue_exhausted', evidence))
+      yield* Effect.promise(() =>
+        captureMonitoringSignal('queue_exhausted', evidence, identity)
+      )
     }
     if (queue.endsWith('-email-events') && outcome !== 'ack') {
       yield* Effect.promise(() =>
-        captureMonitoringSignal('email_event_processing_failed', evidence)
+        captureMonitoringSignal('email_event_processing_failed', evidence, identity)
       )
     }
     const ageMs = (yield* Clock.currentTimeMillis) - message.timestamp.getTime()
     if (ageMs >= 900_000) {
       yield* Effect.promise(() =>
-        captureMonitoringSignal('queue_backlog_age', { ...evidence, ageMs })
+        captureMonitoringSignal('queue_backlog_age', { ...evidence, ageMs }, identity)
       )
     }
   })
@@ -89,11 +94,14 @@ export function monitorOperationalHealth(env: Env, scheduledTime: number) {
     const health = yield* OperationalHealth
     const snapshot = yield* health.read(scheduledTime)
     yield* Effect.promise(() =>
-      captureOperationalSnapshot({
-        'billing.overdue_workspaces': snapshot.overdueBilling,
-        'email.recent_transport_failures': snapshot.recentEmailFailures,
-        'email.overdue_pending': snapshot.pendingEmail
-      })
+      captureOperationalSnapshot(
+        {
+          'billing.overdue_workspaces': snapshot.overdueBilling,
+          'email.recent_transport_failures': snapshot.recentEmailFailures,
+          'email.overdue_pending': snapshot.pendingEmail
+        },
+        { service: 'background', ...readWideEventEnvironment(env) }
+      )
     )
   }).pipe(
     Effect.provide(LiveOperationalHealth.pipe(Layer.provide(layerFromD1(env.DB))))

@@ -6,8 +6,7 @@ import {
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { Effect } from 'effect'
 import { runCapabilities } from '@/lib/capabilities'
-import { webRuntime } from '@/lib/observability'
-import { errorMessage } from '@b2b-saas-starter/failure'
+import { reportWebFailure } from '@/lib/observability'
 
 /**
  * The account-linking audit adapter: what `packages/auth` hands to Better
@@ -115,9 +114,8 @@ function reportDroppedAudit(
   account: AuthAccountChange,
   cause: unknown
 ): void {
-  void webRuntime.runPromise(
-    Effect.logError(
-      `social account audit dropped (${change}, provider ${account.providerId}, user ${account.userId}): ${errorMessage(cause) ?? 'no reason given'}`
-    )
-  )
+  void reportWebFailure('auth.social_account.audit_failed', cause, undefined, {
+    auditOperation: change,
+    actorUserId: account.userId
+  })
 }

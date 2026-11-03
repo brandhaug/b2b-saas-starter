@@ -12,7 +12,8 @@ import {
 import { env } from 'cloudflare:workers'
 import { drizzle } from 'drizzle-orm/d1'
 import { Effect, Layer, ManagedRuntime } from 'effect'
-import { errorMessage } from '@b2b-saas-starter/failure'
+import { reportWebFailure } from './observability'
+import { currentRequest } from './request-context'
 import { MissingD1Binding } from './server/auth-local-d1'
 import { defaultUserDeleteHooks } from './server/account-delete-hooks'
 import { makeAuthEmailSender } from './server/auth-emails'
@@ -83,15 +84,10 @@ const AuthConfigLive = Layer.sync(AuthConfig)(() => {
     // entry reaches the execution context should replace this with
     // `(promise) => ctx.waitUntil(promise)`.
     runBackground: (promise: Promise<unknown>) => {
-      Effect.runFork(
-        Effect.tryPromise({
-          try: () => promise,
-          catch: (thrown) => errorMessage(thrown) ?? 'no reason given'
-        }).pipe(
-          Effect.catch((error: string) =>
-            Effect.logError(`auth background task failed: ${error}`)
-          )
-        )
+      const request = currentRequest()
+      // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Promise rejection boundary; the shared logger sanitizes the unknown cause
+      void promise.catch((error: unknown) =>
+        reportWebFailure('auth.background_failed', error, request)
       )
     },
     // The account-deletion hooks: without them the `/delete-user` endpoint

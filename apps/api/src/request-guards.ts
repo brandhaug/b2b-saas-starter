@@ -3,7 +3,7 @@ import {
   WorkspaceSuspensionService,
   workspaceSuspensionOperationForPermission
 } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
-import { withHttpInvocation } from '@b2b-saas-starter/logger'
+import { annotateWideEvent } from '@b2b-saas-starter/logger'
 import { requirePermission } from '@b2b-saas-starter/authz/guard'
 import {
   memberPrincipal,
@@ -35,7 +35,7 @@ import {
   AUTHORIZATION_DENIED_REASONS,
   AuthorizationDenied
 } from '@b2b-saas-starter/authz/errors'
-import { Effect, Layer, Redacted, Result, type Scope } from 'effect'
+import { Effect, Layer, Redacted, Result, Schema, type Scope } from 'effect'
 import { HttpServerRequest } from 'effect/http'
 
 import {
@@ -84,7 +84,7 @@ export function enforceRateLimitKey(
     const limiter = yield* RateLimiter
     const allowed = yield* limiter.take({ bucket, key })
     if (!allowed) {
-      yield* Effect.annotateLogsScoped({
+      yield* annotateWideEvent({
         outcome: 'rate_limited',
         rateLimitBucket: bucket
       })
@@ -108,7 +108,7 @@ function verifyToken(
 > {
   return Effect.gen(function* () {
     if (!token) {
-      yield* Effect.annotateLogsScoped({ outcome: 'missing_bearer_token' })
+      yield* annotateWideEvent({ outcome: 'missing_bearer_token' })
       return yield* Effect.fail(new Unauthorized({ message: 'missing_bearer_token' }))
     }
 
@@ -117,7 +117,7 @@ function verifyToken(
     if (Result.isFailure(verified)) {
       const failure = verified.failure
       if (failure._tag === 'CapabilityUnavailable') {
-        yield* Effect.annotateLogsScoped({
+        yield* annotateWideEvent({
           outcome: 'capability_unavailable',
           capability: failure.capability,
           capabilityReason: failure.reason
@@ -126,17 +126,16 @@ function verifyToken(
       }
       // Verification only ever fails for an unknown or revoked token, which is
       // an authentication failure: 401, not 403.
-      yield* Effect.annotateLogsScoped({
+      yield* annotateWideEvent({
         outcome: 'unauthorized',
         authReason: failure.reason
       })
       return yield* Effect.fail(new Unauthorized({ message: failure.reason }))
     }
 
-    yield* Effect.annotateLogsScoped({
+    yield* annotateWideEvent({
       tokenId: verified.success.id,
       workspaceId: verified.success.workspaceId,
-      tokenWorkspaceSlug: verified.success.workspaceSlug,
       tokenScopes: verified.success.scopes
     })
 
@@ -195,23 +194,22 @@ export function verifyMcpCredential(
       const verifier = yield* OAuthTokenVerifier
       const verified = yield* verifier.verify(bearer).pipe(
         Effect.tapError((failure) =>
-          Effect.annotateLogsScoped({
+          annotateWideEvent({
             outcome: 'unauthorized',
             authReason: failure.message,
             credential: 'oauth'
           })
         )
       )
-      yield* Effect.annotateLogsScoped({
+      yield* annotateWideEvent({
         credential: 'oauth',
         actorUserId: verified.userId,
-        workspaceId: verified.workspaceId,
-        tokenWorkspaceSlug: verified.workspaceSlug
+        workspaceId: verified.workspaceId
       })
       return { kind: 'oauth', token: verified }
     }
     const token = yield* verifyToken(bearer)
-    yield* Effect.annotateLogsScoped({ credential: 'api_token' })
+    yield* annotateWideEvent({ credential: 'api_token' })
     return { kind: 'token', token }
   })
 }
@@ -242,10 +240,9 @@ export function enforcePermission(
       expectedWorkspaceSlug !== undefined &&
       verified.workspaceSlug !== expectedWorkspaceSlug
     ) {
-      yield* Effect.annotateLogsScoped({
+      yield* annotateWideEvent({
         outcome: 'forbidden',
-        authReason: 'token_workspace_mismatch',
-        tokenWorkspaceSlug: verified.workspaceSlug
+        authReason: 'token_workspace_mismatch'
       })
       return yield* Effect.fail(
         new AuthorizationDenied({
@@ -263,31 +260,30 @@ export function enforcePermission(
   })
 }
 
-/**
- * Extra wide-event fields a handler contributes on top of the envelope's
- * `pathname`/`method`. Workspace routes name the slug they resolved; the
- * account-wide routes have nothing to add.
- */
-type RequestMetadata = {
-  readonly workspaceSlug?: string
-}
+const decodeFailureTag = Schema.decodeUnknownResult(
+  Schema.Struct({ _tag: Schema.String })
+)
+
+/** Preserve the tag before the HTTP contract translates a typed failure. */
+export const annotateRequestFailure = Effect.fn('Api.annotateRequestFailure')(
+  function* (
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- generic Effect error boundary; only the schema-decoded tag enters the sanitized logger
+    error: unknown
+  ) {
+    const decoded = decodeFailureTag(error)
+    if (Result.isSuccess(decoded)) {
+      yield* annotateWideEvent({ errorTag: decoded.success._tag, errorKind: 'fail' })
+    }
+  }
+)
 
 export function observed<A, E, R>(
-  env: ApiEnv,
-  request: HttpServerRequest.HttpServerRequest,
   event: string,
-  metadata: RequestMetadata,
   body: Effect.Effect<A, E, R>
-): Effect.Effect<A, E, Exclude<R, Scope.Scope>> {
-  return withHttpInvocation(
-    {
-      service: 'api',
-      event: `request.${event}`,
-      request: webRequest(request),
-      env,
-      metadata
-    },
-    body.pipe(Effect.tap(() => Effect.annotateLogsScoped({ outcome: 'ok' })))
+): Effect.Effect<A, E, R> {
+  return Effect.andThen(
+    annotateWideEvent({ operation: `request.${event}` }),
+    body.pipe(Effect.tapError(annotateRequestFailure))
   )
 }
 
@@ -341,16 +337,17 @@ export function provideWorkspace<A, E, R>(
  * rate-limit bucket is drawn, the token is verified, and the handler runs with
  * an `ApiPrincipal` in context. Handlers add only `enforcePermission`.
  *
- * The gate runs before the handler body, so a rejected request never reaches
- * the handler's `observed(...)` envelope. It emits its own wide event here
- * instead, carrying the annotations the guards set on the request scope.
+ * Gate facts accumulate in the outer HTTP invocation, including rejections.
  */
-export function bearerAuth(env: ApiEnv): Layer.Layer<BearerAuth> {
+export function bearerAuth(): Layer.Layer<BearerAuth> {
   return Layer.succeed(BearerAuth)(
     BearerAuth.of({
       bearer: (httpEffect, { credential, endpoint, group }) =>
         Effect.gen(function* () {
           const request = yield* HttpServerRequest.HttpServerRequest
+          yield* annotateWideEvent({
+            operation: `request.${group.identifier}.${endpoint.identifier}`
+          })
           const bucket = rateLimitBucketFor(group.identifier)
           if (bucket === undefined) {
             // A gated group with no bucket row is a wiring mistake, and the
@@ -370,17 +367,7 @@ export function bearerAuth(env: ApiEnv): Layer.Layer<BearerAuth> {
           const gate = Effect.gen(function* () {
             yield* enforceRateLimit(request, bucket)
             return yield* verifyToken(Redacted.value(credential) || null)
-          }).pipe(
-            Effect.catch((error) =>
-              observed(
-                env,
-                request,
-                `${group.identifier}.${endpoint.identifier}`,
-                {},
-                Effect.fail(error)
-              )
-            )
-          )
+          }).pipe(Effect.tapError(annotateRequestFailure))
 
           const principal = yield* gate
           return yield* Effect.provideService(httpEffect, ApiPrincipal, principal)

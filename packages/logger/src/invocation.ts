@@ -1,7 +1,7 @@
 import { Effect, type Scope } from 'effect'
 
 import { makeOtlpLayer, type ObservabilityEnv } from './otlp.ts'
-import { withHttpRequestScope } from './wide-event.ts'
+import { annotateWideEvent, withHttpRequestScope } from './wide-event.ts'
 
 /**
  * One HTTP-triggered worker invocation: the wide-event scope *and* the
@@ -37,11 +37,16 @@ export type HttpInvocationOptions = {
   readonly metadata?: Record<string, unknown> | undefined
 }
 
-export function withHttpInvocation<A, E, R>(
+export function withHttpInvocation<A extends { readonly status: number }, E, R>(
   options: HttpInvocationOptions,
   body: Effect.Effect<A, E, R>
 ): Effect.Effect<A, E, Exclude<R, Scope.Scope>> {
-  return withHttpRequestScope(options, body).pipe(
+  return withHttpRequestScope(
+    options,
+    body.pipe(
+      Effect.tap((response) => annotateWideEvent({ statusCode: response.status }))
+    )
+  ).pipe(
     // `local: true` forces a fresh build per invocation: a shared memo map
     // would hand every later request the first request's exporters, which are
     // no longer allowed to perform I/O (see `makeOtlpLayer`).

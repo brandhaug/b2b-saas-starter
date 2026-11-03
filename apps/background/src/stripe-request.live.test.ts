@@ -217,6 +217,74 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('Stripe webhook ingress', (
     })
   )
 
+  it.effect(
+    'emits one sanitized HTTP event for configuration and signature failures',
+    () =>
+      Effect.gen(function* () {
+        const d1 = yield* TestD1
+        const queue = queueBinding()
+        const traceId = '0af7651916cd43dd8448eb211c80319c'
+        const secret = 'PRIVATE_INGRESS_SENTINEL'
+        const cases = [
+          { env: {}, status: 503, error: 'billing_not_configured', level: 'ERROR' },
+          {
+            env: configuredEnv(d1, queue),
+            status: 400,
+            error: 'invalid_signature',
+            level: 'INFO'
+          }
+        ]
+        for (const entry of cases) {
+          const lines: Array<string> = []
+          const logs = vi
+            .spyOn(console, 'log')
+            .mockImplementation((line: string) => lines.push(line))
+          const errors = vi
+            .spyOn(console, 'error')
+            .mockImplementation((line: string) => lines.push(line))
+          try {
+            const incoming = new Request(
+              `https://worker.test/webhooks/stripe?secret=${secret}`,
+              {
+                method: 'POST',
+                body: secret,
+                headers: {
+                  'stripe-signature': secret,
+                  authorization: `Bearer ${secret}`,
+                  traceparent: `00-${traceId}-b7ad6b7169203331-01`
+                }
+              }
+            )
+            Object.defineProperty(incoming, 'cf', { value: { colo: 'ARN' } })
+            const response = yield* Effect.promise(() =>
+              handleStripeRequest(incoming, entry.env)
+            )
+            expect(response.status).toBe(entry.status)
+            expect(yield* Effect.promise(() => response.json())).toEqual({
+              error: entry.error
+            })
+            expect(lines).toHaveLength(1)
+            // oxlint-disable-next-line effect/noGlobals -- inspect the actual console JSON output
+            expect(JSON.parse(lines[0] ?? '')).toMatchObject({
+              level: entry.level,
+              annotations: {
+                event: 'stripe_webhook_ingest',
+                statusCode: entry.status,
+                traceId,
+                region: 'ARN',
+                method: 'POST'
+              }
+            })
+            expect(lines.join('')).not.toContain(secret)
+            expect(queue.send).not.toHaveBeenCalled()
+          } finally {
+            logs.mockRestore()
+            errors.mockRestore()
+          }
+        }
+      })
+  )
+
   it.effect('returns 503 when any required ingress configuration is absent', () =>
     Effect.gen(function* () {
       yield* clearEvents

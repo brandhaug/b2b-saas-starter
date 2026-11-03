@@ -11,11 +11,11 @@ import {
   billingConfigured,
   billingOptionsFromEnv
 } from '@b2b-saas-starter/billing/billing-config'
-import { withTriggerScope } from '@b2b-saas-starter/logger'
+import { annotateWideEvent } from '@b2b-saas-starter/logger'
 import { Effect, Result, Schema } from 'effect'
 import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { billingCapabilitiesEnv } from './billing-runtime.ts'
-import { runInvocation, type Env } from './queue-consumer.ts'
+import { runHttpInvocation, type Env } from './queue-consumer.ts'
 
 /**
  * The subset of a Stripe event body this worker understands. Everything else
@@ -141,11 +141,19 @@ export function providerInputFromPayload(
  * billing configuration or bindings return 503. Persistence and enqueue
  * failures return 500 so Stripe schedules a redelivery.
  */
-// oxlint-disable-next-line effect/noAsyncFunction -- the Workers fetch contract is a plain async function; reading the raw body and verifying the HMAC are this adapter's two awaits, both total here
-export async function handleStripeRequest(
+export function handleStripeRequest(request: Request, env: Env): Promise<Response> {
+  return runHttpInvocation(
+    { service: 'background', event: 'stripe_webhook_ingest', request, env },
+    processStripeRequest(request, env).pipe(
+      Effect.tapCause(() => annotateWideEvent({ statusCode: 500 }))
+    )
+  ).catch(() => Response.json({ error: 'processing_failed' }, { status: 500 }))
+}
+
+const processStripeRequest = Effect.fn('Stripe.ingest')(function* (
   request: Request,
   env: Env
-): Promise<Response> {
+) {
   const { pathname } = new URL(request.url)
   if (pathname !== '/webhooks/stripe') {
     return new Response('Not found', { status: 404 })
@@ -166,14 +174,14 @@ export async function handleStripeRequest(
     return Response.json({ error: 'billing_not_ready' }, { status: 503 })
   }
   const billingQueue = env.BILLING_QUEUE
-  // oxlint-disable-next-line effect/noAsyncFunction -- reading the raw body is the adapter's first await, total here
-  const payload = await request.text()
-  // oxlint-disable-next-line effect/noAsyncFunction -- verifying the HMAC is the second; both complete before the response
-  const valid = await verifyStripeSignature({
-    secret,
-    payload,
-    header: request.headers.get('stripe-signature')
-  })
+  const payload = yield* Effect.promise(() => request.text())
+  const valid = yield* Effect.promise(() =>
+    verifyStripeSignature({
+      secret,
+      payload,
+      header: request.headers.get('stripe-signature')
+    })
+  )
   if (!valid) {
     return Response.json({ error: 'invalid_signature' }, { status: 400 })
   }
@@ -186,19 +194,6 @@ export async function handleStripeRequest(
     yield* billingService.recordProviderEvent(input)
     yield* publishProviderEvent(billingQueue, input)
   }).pipe(Effect.provide(selectCapabilitiesLayer(billingCapabilitiesEnv(env, billing))))
-  return runInvocation(
-    env,
-    withTriggerScope(
-      {
-        service: 'background',
-        event: 'stripe_webhook_ingest',
-        env,
-        spanKind: 'consumer'
-      },
-      program
-    )
-  ).then(
-    () => new Response(null, { status: 200 }),
-    () => Response.json({ error: 'processing_failed' }, { status: 500 })
-  )
-}
+  yield* program
+  return new Response(null, { status: 200 })
+})

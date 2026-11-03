@@ -154,7 +154,7 @@ export function makeOAuthTokenVerifier(
           aud: config.audience
         })
         if (!outcome.ok) {
-          yield* Effect.annotateLogsScoped({ authReason: outcome.reason })
+          yield* annotateWideEvent({ authReason: outcome.reason })
           return yield* Effect.fail(new Unauthorized({ message: outcome.reason }))
         }
         if (
@@ -211,3 +211,4 @@ export function makeOAuthTokenVerifierLayer(
   })
   return Layer.succeed(OAuthTokenVerifier)(makeOAuthTokenVerifier(config, keySet))
 }
+import { annotateWideEvent } from '@b2b-saas-starter/logger'

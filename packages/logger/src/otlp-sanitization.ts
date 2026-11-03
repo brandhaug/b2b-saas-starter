@@ -1,9 +1,43 @@
-// OTLP is a vendor wire format; this serializer handles only its structural fields and scalar attributes.
+// OTLP is a vendor wire format; only scalar attributes and the known nested-run list survive.
 // oxlint-disable anti-slop/no-runtime-typeof, effect/noGlobals
-import { Layer } from 'effect'
+import { Layer, Option, Schema } from 'effect'
 import { HttpBody } from 'effect/http'
-import { OtlpSerialization, type OtlpResource } from 'effect/observability'
+import { OtlpSerialization, OtlpResource } from 'effect/observability'
 import { diagnosticFields, diagnosticLabel } from './sanitization.ts'
+
+const decodeNestedArray = Schema.decodeUnknownOption(
+  Schema.Struct({ arrayValue: Schema.Struct({ values: Schema.Array(Schema.Unknown) }) })
+)
+// Effect 4.1 formats plain object array children as JSON-shaped stringValue entries.
+// Reject non-JSON formatter output rather than trying to interpret arbitrary diagnostics.
+const decodeNestedRecord = Schema.decodeUnknownOption(
+  Schema.Struct({
+    stringValue: Schema.fromJsonString(Schema.Record(Schema.String, Schema.Unknown))
+  })
+)
+
+function sanitizeNested(value: object): Array<OtlpResource.KeyValue> {
+  const array = decodeNestedArray(value)
+  if (Option.isNone(array)) {
+    return []
+  }
+  const values = array.value.arrayValue.values.flatMap((entry) => {
+    const record = decodeNestedRecord(entry)
+    if (Option.isNone(record)) {
+      return []
+    }
+    return [
+      {
+        kvlistValue: {
+          values: OtlpResource.entriesToAttributes(
+            Object.entries(diagnosticFields(record.value.stringValue))
+          )
+        }
+      }
+    ]
+  })
+  return [{ key: 'nested', value: { arrayValue: { values } } }]
+}
 
 function sanitizeAttribute(value: unknown) {
   if (
@@ -16,6 +50,9 @@ function sanitizeAttribute(value: unknown) {
     value.value === null
   ) {
     return []
+  }
+  if (value.key === 'nested') {
+    return sanitizeNested(value.value)
   }
   const scalar = value.value
   let candidate: unknown

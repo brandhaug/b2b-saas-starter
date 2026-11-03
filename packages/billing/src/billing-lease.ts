@@ -7,6 +7,7 @@ import {
 } from '@b2b-saas-starter/db/service'
 import { and, eq, isNull, lte, or, sql } from 'drizzle-orm'
 import { DateTime, Effect, Schedule } from 'effect'
+import { annotateWideEvent } from '@b2b-saas-starter/logger'
 
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { newCapabilityId } from './internal/ids.ts'
@@ -141,11 +142,7 @@ export const makeBillingLease = Effect.fn('Billing.makeLease')(function* () {
       (lease) =>
         release(lease).pipe(
           Effect.catchTag('CapabilityUnavailable', () =>
-            Effect.logError(
-              'Billing lease release failed; expiry permits recovery'
-            ).pipe(
-              Effect.annotateLogs({ workspaceId, outcome: 'lease_release_failed' })
-            )
+            annotateWideEvent({ workspaceId, billingLeaseReleaseFailed: true })
           )
         )
     )

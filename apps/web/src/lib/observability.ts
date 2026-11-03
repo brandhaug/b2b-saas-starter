@@ -218,12 +218,9 @@ function registerAndRun(
     if (ambient && ambient !== request) {
       registry.set(ambient, telemetry)
     }
-    const response = yield* runNext(next)
-    yield* Effect.annotateLogsScoped({ statusCode: response.status })
-    if (telemetry.nested.length > 0) {
-      yield* Effect.annotateLogsScoped({ nested: telemetry.nested })
-    }
-    return response
+    return yield* runNext(next).pipe(
+      Effect.onExit(() => Effect.annotateLogsScoped({ nested: telemetry.nested }))
+    )
   })
 }
 
@@ -347,4 +344,28 @@ function standalone<A, E, R>(
     },
     effect
   ).pipe(withInvocationExporters, Effect.provide(WideEventLoggerLive))
+}
+
+/** Independent failure evidence uses the request's trace but its own invocation lifetime. */
+export function reportWebFailure(
+  event: string,
+  error: unknown,
+  request: Request | undefined = currentRequest(),
+  metadata?: Readonly<Record<string, unknown>>
+): Promise<void> {
+  const telemetry = request === undefined ? undefined : registry.get(request)
+  return webRuntime
+    .runPromiseExit(
+      withTriggerScope(
+        {
+          service: 'web',
+          event,
+          env: cloudflareEnv,
+          parent: telemetry?.span,
+          metadata
+        },
+        Effect.fail(error)
+      ).pipe(withInvocationExporters)
+    )
+    .then(() => undefined)
 }

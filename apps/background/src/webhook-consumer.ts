@@ -160,7 +160,6 @@ export function processWebhookMessage(
         return yield* Effect.fail(allowed.failure)
       }
     }
-    yield* Effect.annotateLogsScoped({ endpointUrl: target.url })
     // Re-check the destination at dispatch time — an endpoint created before
     // the guard existed (or edited in the DB) must not let the worker reach
     // internal targets. DNS-rebinding protection is out of scope for the

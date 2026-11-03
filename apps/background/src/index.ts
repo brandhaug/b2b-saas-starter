@@ -1,5 +1,8 @@
 import { withTriggerScope } from '@b2b-saas-starter/logger'
-import { withCronMonitor } from '@b2b-saas-starter/logger/providers'
+import {
+  readWideEventEnvironment,
+  withCronMonitor
+} from '@b2b-saas-starter/logger/providers'
 import { Effect, Result } from 'effect'
 import { isMaintenanceMode } from '@b2b-saas-starter/env/server'
 import {
@@ -88,19 +91,22 @@ export default {
     if (run === undefined) {
       return skipUnknownCron(env, controller)
     }
-    return withCronMonitor(run.monitorSlug, () =>
-      runInvocation(
-        env,
-        Effect.all(run.effects, { concurrency: 'unbounded', mode: 'result' }).pipe(
-          Effect.flatMap((results) => {
-            const failed = results.find(Result.isFailure)
-            if (failed) {
-              return Effect.fail(failed.failure)
-            }
-            return Effect.void
-          })
-        )
-      )
+    return withCronMonitor(
+      run.monitorSlug,
+      () =>
+        runInvocation(
+          env,
+          Effect.all(run.effects, { concurrency: 'unbounded', mode: 'result' }).pipe(
+            Effect.flatMap((results) => {
+              const failed = results.find(Result.isFailure)
+              if (failed) {
+                return Effect.fail(failed.failure)
+              }
+              return Effect.void
+            })
+          )
+        ),
+      { service: 'background', ...readWideEventEnvironment(env) }
     )
   }
 }

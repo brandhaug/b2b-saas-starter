@@ -289,7 +289,9 @@ describe('withHttpInvocation', () => {
           request,
           env: { ENVIRONMENT: 'ci' }
         },
-        Effect.annotateLogsScoped({ workspaceId: 'ws_1' })
+        Effect.annotateLogsScoped({ workspaceId: 'ws_1' }).pipe(
+          Effect.as(new Response(null))
+        )
       )
       expect(only(records).annotations).toMatchObject({
         service: 'api',

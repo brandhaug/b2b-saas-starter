@@ -123,7 +123,7 @@ export function recordSecurityEvidence(
     if (Result.isSuccess(appended)) {
       return 'recorded'
     }
-    yield* Effect.tryPromise({
+    const alerted = yield* Effect.tryPromise({
       try: () =>
         sink.reportGap({
           evidenceId: record.id,
@@ -132,15 +132,18 @@ export function recordSecurityEvidence(
           workspaceId: record.workspaceId
         }),
       catch: () => 'security_evidence_gap_alert_failed'
-    }).pipe(Effect.ignore)
-    yield* Effect.logError('security recovery evidence was not persisted').pipe(
-      Effect.annotateLogs({
-        evidenceId: record.id,
-        evidenceKind: record.kind,
-        subjectId: record.subjectId,
-        workspaceId: record.workspaceId
-      })
-    )
+    }).pipe(Effect.result)
+    if (Result.isFailure(alerted)) {
+      yield* Effect.logError('security.recovery.gap_alert_failed').pipe(
+        Effect.annotateLogs({
+          event: 'security.recovery.gap_alert_failed',
+          evidenceId: record.id,
+          evidenceKind: record.kind,
+          subjectId: record.subjectId,
+          workspaceId: record.workspaceId
+        })
+      )
+    }
     return 'gap'
   })
 }

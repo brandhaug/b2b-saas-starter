@@ -1,4 +1,5 @@
-import { Effect } from 'effect'
+import { Effect, Schema } from 'effect'
+import { WideEventLoggerLive, withRequestScope } from '@b2b-saas-starter/logger'
 import { render } from 'react-email'
 import { describe, expect, it, vi } from '@effect/vitest'
 import {
@@ -19,7 +20,49 @@ import {
   WorkspaceInvitationEmail
 } from './templates.tsx'
 
+const decodeLogJson = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Unknown))
+
 describe('EmailDispatcher', () => {
+  // oxlint-disable-next-line effect/noAsyncFunction -- exercise production console output outside the test runtime's log suppression
+  it('emits one canonical provider event without email contents', async () => {
+    const output = vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      // oxlint-disable-next-line starter/no-run-promise-in-tests, effect/noAsyncFunction -- real runtime console serialization is the boundary under test
+      const result = await Effect.runPromise(
+        withRequestScope(
+          { service: 'background', event: 'email.send' },
+          Effect.gen(function* () {
+            const dispatcher = yield* EmailDispatcher
+            return yield* dispatcher.send({
+              from: 'sender-private@example.com',
+              to: 'recipient-private@example.com',
+              subject: 'private-subject',
+              element: MagicLinkEmail({
+                url: 'https://example.com/?token=private-token'
+              })
+            })
+          })
+        ).pipe(
+          Effect.provide(
+            makeCloudflareEmailDispatcherLayer({
+              send: () => Promise.resolve({ messageId: 'private-provider-id' })
+            })
+          ),
+          Effect.provide(WideEventLoggerLive)
+        )
+      )
+      expect(result.providerMessageId).toBe('private-provider-id')
+      expect(output).toHaveBeenCalledTimes(1)
+      const serialized = String(output.mock.calls[0]?.[0])
+      expect(decodeLogJson(serialized)).toMatchObject({
+        annotations: { emailTransport: 'cloudflare-email', status: 'ok' }
+      })
+      expect(serialized).not.toContain('private')
+    } finally {
+      output.mockRestore()
+    }
+  })
+
   it.effect('logs delivery when no binding is configured', () =>
     Effect.gen(function* () {
       const dispatcher = yield* EmailDispatcher

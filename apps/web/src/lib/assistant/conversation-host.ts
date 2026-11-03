@@ -775,9 +775,6 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
                 }
                 return failureResponse(tagged.success)
               })
-            ),
-            Effect.tap((response) =>
-              Effect.annotateLogsScoped({ status: response.status })
             )
           )
         )

@@ -9,6 +9,7 @@ import {
   Metric,
   Option,
   Predicate,
+  References,
   type Layer,
   type Scope,
   type Tracer
@@ -99,10 +100,17 @@ export type WideEventScopeOptions = TraceContinuation & {
 type WideEventOutcome =
   | { readonly status: 'ok' }
   | ({ readonly status: 'error' } & WideEventFailure)
+  | { readonly status: 'error'; readonly errorKind: 'http' }
 
-function outcomeMetadata(exit: Exit.Exit<unknown, unknown>): WideEventOutcome {
+function outcomeMetadata(
+  exit: Exit.Exit<unknown, unknown>,
+  statusCode: unknown
+): WideEventOutcome {
   if (Exit.isFailure(exit)) {
     return { status: 'error', ...causeMetadata(exit.cause) }
+  }
+  if (Predicate.isNumber(statusCode) && statusCode >= 500) {
+    return { status: 'error', errorKind: 'http' }
   }
   return { status: 'ok' }
 }
@@ -189,9 +197,9 @@ export function withRequestScope<A, E, R>(
 /**
  * The one canonical line per scope: message is the event name, every field is
  * an annotation, and the level is `error` exactly when the scope failed — the
- * two-level rule from the wide-event playbook. The failure `Cause` is passed to
- * the logger rather than stringified so the JSON record and the exported OTLP
- * log record both carry the full trace of the failure.
+ * two-level rule from the wide-event playbook. The failure `Cause` reaches the
+ * logger before sanitization; console and OTLP retain only approved failure
+ * metadata. A returned HTTP 5xx also records an error without changing the response.
  */
 function emitWideEvent(
   options: WideEventScopeOptions,
@@ -202,7 +210,8 @@ function emitWideEvent(
   return Effect.gen(function* () {
     const finishedAt = yield* Clock.currentTimeMillis
     const durationMs = finishedAt - startedAt
-    const outcome = outcomeMetadata(exit)
+    const annotations = yield* References.CurrentLogAnnotations
+    const outcome = outcomeMetadata(exit, annotations['statusCode'])
     span.attribute('outcome.status', outcome.status)
     span.attribute('duration.ms', durationMs)
     yield* recordRedMetrics(
@@ -218,6 +227,8 @@ function emitWideEvent(
     })
     if (Exit.isFailure(exit)) {
       yield* Effect.logError(options.event, exit.cause).pipe(annotated)
+    } else if (outcome.status === 'error') {
+      yield* Effect.logError(options.event).pipe(annotated)
     } else {
       yield* Effect.log(options.event).pipe(annotated)
     }

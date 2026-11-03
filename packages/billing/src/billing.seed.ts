@@ -7,6 +7,7 @@ import {
 } from './ports.ts'
 import { lifecycleNotices } from './billing-notices.ts'
 import { DateTime, Effect, Layer, Ref, Semaphore } from 'effect'
+import { annotateWideEvent } from '@b2b-saas-starter/logger'
 
 import {
   isCurrentSubscriptionStatus,
@@ -466,7 +467,11 @@ export function SeedBilling(options?: {
       )
       const currentPlanForWorkspace = Effect.fn('Billing.currentPlanForWorkspace')(
         function* (workspaceId: string) {
-          return planById((yield* lifecycleForWorkspace(workspaceId)).access.planId)
+          const plan = planById(
+            (yield* lifecycleForWorkspace(workspaceId)).access.planId
+          )
+          yield* annotateWideEvent({ workspaceId, plan: plan.id })
+          return plan
         }
       )
       const processProviderEvent = Effect.fn('Billing.processProviderEvent')(function* (

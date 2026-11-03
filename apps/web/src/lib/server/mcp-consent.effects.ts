@@ -6,10 +6,9 @@ import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/gover
 import { listWorkspacesForUser } from '@b2b-saas-starter/capabilities/workspace-projections'
 import { Effect, Schema } from 'effect'
 
-import { errorMessage } from '@b2b-saas-starter/failure'
 import { runCapabilities } from '../capabilities'
 import { signedOAuthQuery } from '../oauth-query'
-import { webRuntime } from '../observability'
+import { reportWebFailure } from '../observability'
 import { currentRequest } from '../request-context'
 import { requireRequestSession } from './auth'
 import {
@@ -195,9 +194,7 @@ async function recordGrantBestEffort(
     // The authorization request always names its client; recording a grant
     // for an unknown one would write a fake id into the audit trail, so this
     // is a defect, not a fallback.
-    reportDroppedGrantAudit(
-      `mcp consent grant audit dropped (no client_id on the consent hop, user ${input.userId}, workspace ${input.workspaceId})`
-    )
+    reportDroppedGrantAudit(input, 'McpConsentClientMissing')
     return
   }
   await runCapabilities(
@@ -212,16 +209,22 @@ async function recordGrantBestEffort(
   ).catch(
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the rejected value is a cause to log, not input to parse; `: unknown` is the safe annotation the audit-drop path demands
     (error: unknown) => {
-      reportDroppedGrantAudit(
-        `mcp consent grant audit dropped (client ${clientId}, user ${input.userId}, workspace ${input.workspaceId}): ${errorMessage(error) ?? 'no reason given'}`
-      )
+      reportDroppedGrantAudit(input, error)
     }
   )
 }
 
 /** The same visibility `reportDroppedAudit` gives the account hooks: a dropped audit write is never silent. */
-function reportDroppedGrantAudit(message: string): void {
-  void webRuntime.runPromise(Effect.logError(message))
+function reportDroppedGrantAudit(
+  input: { readonly userId: string; readonly workspaceId: string },
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- rejected causes go through the shared telemetry sanitizer, not an application input decoder
+  error: unknown
+): void {
+  void reportWebFailure('mcp.consent.audit_failed', error, undefined, {
+    auditOperation: 'mcp.consent_granted',
+    actorUserId: input.userId,
+    workspaceId: input.workspaceId
+  })
 }
 
 export async function denyOAuthConsentHandler(

@@ -62,10 +62,7 @@ function guardResponse(
 export function exportDownloadLayer(env: ApiEnv) {
   return HttpRouter.add('GET', '/exports/:exportId/download', (request) =>
     observed(
-      env,
-      request,
       'workspace-exports.download',
-      {},
       Effect.gen(function* () {
         const params = yield* HttpRouter.params
         const exportId = params.exportId ?? ''
@@ -77,12 +74,12 @@ export function exportDownloadLayer(env: ApiEnv) {
           session: url.searchParams.get('session'),
           workspace: url.searchParams.get('workspace')
         })
-        yield* Effect.annotateLogsScoped({ exportId })
+        yield* annotateWideEvent({ exportId })
         // The public route draws from the read bucket, keyed by client IP,
         // so a signature can't be brute-forced at line rate.
         yield* enforceRateLimit(request, 'rest_read')
         if (Result.isFailure(query)) {
-          yield* Effect.annotateLogsScoped({
+          yield* annotateWideEvent({
             outcome: 'not_found',
             skipReason: 'bad_query'
           })
@@ -121,10 +118,10 @@ export function exportDownloadLayer(env: ApiEnv) {
           human
         })
         if (Option.isNone(download)) {
-          yield* Effect.annotateLogsScoped({ outcome: 'not_found' })
+          yield* annotateWideEvent({ outcome: 'not_found' })
           return notFound
         }
-        yield* Effect.annotateLogsScoped({ sizeBytes: download.value.sizeBytes })
+        yield* annotateWideEvent({ sizeBytes: download.value.sizeBytes })
         return HttpServerResponse.uint8Array(download.value.body, {
           contentType: 'application/gzip',
           headers: {
@@ -138,7 +135,7 @@ export function exportDownloadLayer(env: ApiEnv) {
           () => Effect.succeed(notFound)
         ),
         Effect.catchTag('WorkspaceSuspended', () =>
-          Effect.annotateLogsScoped({
+          annotateWideEvent({
             outcome: 'not_found',
             skipReason: 'workspace_suspended'
           }).pipe(Effect.as(notFound))
@@ -153,3 +150,4 @@ export function exportDownloadLayer(env: ApiEnv) {
     )
   )
 }
+import { annotateWideEvent } from '@b2b-saas-starter/logger'

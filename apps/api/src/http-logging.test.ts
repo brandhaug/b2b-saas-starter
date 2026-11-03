@@ -1,0 +1,96 @@
+import { describe, expect, it, vi } from '@effect/vitest'
+import { Effect, Schema } from 'effect'
+import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+import { buildWebHandler } from './http.ts'
+
+const decodeEvent = Schema.decodeUnknownSync(
+  Schema.fromJsonString(
+    Schema.Struct({
+      message: Schema.String,
+      annotations: Schema.JsonObject
+    })
+  )
+)
+
+// Failure modes: handler scopes miss encoded status and gates; nested scopes
+// duplicate completions; returned 503 looks successful; paths or credentials leak.
+describe('API canonical HTTP logging', () => {
+  for (const { path, status, operation, authenticated } of [
+    { path: '/health', status: 200, operation: 'request.health', authenticated: false },
+    {
+      path: '/workspaces/customer-private/overview',
+      status: 401,
+      operation: 'request.workspace.overview',
+      authenticated: false
+    },
+    {
+      path: '/unknown-customer-private?secret=customer-secret',
+      status: 404,
+      operation: undefined,
+      authenticated: false
+    },
+    { path: '/ready', status: 503, operation: undefined, authenticated: false },
+    {
+      path: '/workspaces/starter-lab/overview',
+      status: 200,
+      operation: 'request.workspace.overview',
+      authenticated: true
+    }
+  ]) {
+    it.live(`records one sanitized completion for ${path}`, () =>
+      Effect.gen(function* () {
+        const info = vi.spyOn(console, 'log').mockImplementation(() => {})
+        const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+        const runtime = buildWebHandler({ ENVIRONMENT: 'test' })
+        try {
+          const headers = new Headers()
+          if (authenticated) {
+            headers.set('authorization', `Bearer ${SEED_API_TOKEN}`)
+          }
+          const response = yield* Effect.promise(() =>
+            runtime.handler(new Request(`https://api.test${path}`, { headers }))
+          )
+          expect(response.status).toBe(status)
+          const calls = [...info.mock.calls, ...error.mock.calls]
+          expect(calls).toHaveLength(1)
+          const line = calls[0]?.[0]
+          const decoded = decodeEvent(line)
+          expect(decoded.message).toBe('api.request')
+          const event = decoded.annotations
+          let canonicalStatus = 'ok'
+          let errorCount = 0
+          if (status >= 500) {
+            canonicalStatus = 'error'
+            errorCount = 1
+          }
+          expect(event).toMatchObject({
+            service: 'api',
+            statusCode: status,
+            status: canonicalStatus
+          })
+          if (operation !== undefined) {
+            expect(event.operation).toBe(operation)
+          }
+          if (status === 401) {
+            expect(event.outcome).toBe('missing_bearer_token')
+          }
+          if (authenticated) {
+            expect(event.workspaceId).toBeDefined()
+            expect(event.tokenId).toBeDefined()
+          }
+          expect(error.mock.calls).toHaveLength(errorCount)
+          expect(line).not.toContain('customer-private')
+          expect(line).not.toContain('customer-secret')
+          expect(line).not.toContain(SEED_API_TOKEN)
+          expect(event).not.toHaveProperty('pathname')
+          expect(event).not.toHaveProperty('workspaceSlug')
+          expect(event).not.toHaveProperty('tokenWorkspaceSlug')
+        } finally {
+          yield* Effect.promise(() => runtime.dispose())
+          info.mockRestore()
+          error.mockRestore()
+        }
+      })
+    )
+  }
+})

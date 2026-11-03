@@ -6,7 +6,11 @@ import { HttpClient, FetchHttpClient } from 'effect/http'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { withHttpInvocation } from './invocation.ts'
 import { makeOtlpLayer } from './otlp.ts'
-import { WideEventLoggerLive, withRequestScope } from './wide-event.ts'
+import {
+  WideEventLoggerLive,
+  annotateWideEvent,
+  withRequestScope
+} from './wide-event.ts'
 import { diagnosticErrorSummary, diagnosticFields } from './sanitization.ts'
 
 async function requestBody(init: RequestInit | undefined): Promise<string> {
@@ -40,6 +44,116 @@ function nestedFailure() {
 }
 
 describe('telemetry output policy', () => {
+  it('preserves approved business facts in console and OTLP while classifying returned HTTP failures', async () => {
+    const lines: Array<string> = []
+    const payloads: Array<string> = []
+    const output = vi
+      .spyOn(console, 'log')
+      .mockImplementation((line: string) => lines.push(line))
+    const errors = vi
+      .spyOn(console, 'error')
+      .mockImplementation((line: string) => lines.push(line))
+    const fetch = vi.fn<typeof globalThis.fetch>(async (_input, init) => {
+      payloads.push(await requestBody(init))
+      return new Response('{}')
+    })
+    const facts = {
+      actorUserId: 'usr_1',
+      workspaceId: 'ws_1',
+      tokenId: 'tok_1',
+      plan: 'pro',
+      stripeEventId: 'evt_1',
+      billingOutcome: 'delayed',
+      billingFailureReason: 'provider_unavailable',
+      billingUnresolvedMs: 900_001,
+      billingTerminalFailure: true,
+      billingDriftCount: 2,
+      candidates: 4,
+      digests: 3,
+      sent: 2,
+      failed: 1,
+      notificationId: 'ntf_1',
+      recipientUserId: 'usr_2',
+      operation: 'billing.reconcile'
+    }
+    try {
+      const response = new Response('unchanged', { status: 503 })
+      const actual = await Effect.runPromise(
+        withHttpInvocation(
+          {
+            service: 'api',
+            event: 'api.request',
+            request: new Request('https://app.example/private'),
+            env: {
+              OTEL_EXPORTER_OTLP_ENDPOINT: 'https://collector.example',
+              GIT_COMMIT_SHA: 'abc123'
+            }
+          },
+          annotateWideEvent({ ...facts, ...sensitive }).pipe(Effect.as(response))
+        ).pipe(
+          Effect.provide(WideEventLoggerLive),
+          Effect.provideService(FetchHttpClient.Fetch, fetch)
+        )
+      )
+      expect(actual).toBe(response)
+      expect(lines).toHaveLength(1)
+      expect(errors).toHaveBeenCalledTimes(1)
+      expect(JSON.parse(lines[0] ?? '')).toMatchObject({
+        level: 'ERROR',
+        annotations: {
+          ...facts,
+          status: 'error',
+          statusCode: 503,
+          errorKind: 'http',
+          commitHash: 'abc123'
+        }
+      })
+      const emitted = payloads.join(',')
+      for (const [key, value] of Object.entries(facts)) {
+        expect(emitted).toContain(`"key":"${key}"`)
+        expect(emitted).toContain(String(value))
+      }
+      expect(lines.join(',') + emitted).not.toContain(secret)
+      expect(emitted).toContain('starter.requests')
+    } finally {
+      output.mockRestore()
+      errors.mockRestore()
+    }
+  })
+
+  it.each([200, 404])(
+    'keeps returned HTTP %s responses at info severity',
+    async (status) => {
+      const lines: Array<string> = []
+      const output = vi
+        .spyOn(console, 'log')
+        .mockImplementation((line: string) => lines.push(line))
+      const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+      try {
+        await Effect.runPromise(
+          withHttpInvocation(
+            {
+              service: 'api',
+              event: 'api.request',
+              request: new Request('https://app.example'),
+              env: {}
+            },
+            Effect.succeed(new Response(null, { status }))
+          ).pipe(Effect.provide(WideEventLoggerLive))
+        )
+        expect(lines).toHaveLength(1)
+        expect(JSON.parse(lines[0] ?? '')).toMatchObject({
+          level: 'INFO',
+          annotations: { status: 'ok', statusCode: status }
+        })
+        expect(errors).not.toHaveBeenCalled()
+      } finally {
+        output.mockRestore()
+        errors.mockRestore()
+      }
+    }
+  )
+
   it('retains only known configuration keys and audit reasons', () => {
     expect(
       diagnosticFields({
@@ -226,6 +340,7 @@ describe('telemetry output policy', () => {
                 Effect.provide(FetchHttpClient.layer),
                 Effect.withSpan('capability.export')
               )
+              return new Response(null)
             })
           )
         ).pipe(

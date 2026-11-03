@@ -173,8 +173,8 @@ const fixture = Effect.fn('AssistantRestTest.fixture')(function* () {
     Effect.sync(() =>
       HttpRouter.toWebHandler(
         HttpApiBuilder.layer(api).pipe(
-          Layer.provide(assistantConversationsGroup({})),
-          Layer.provide(assistantBearerAuth({})),
+          Layer.provide(assistantConversationsGroup()),
+          Layer.provide(assistantBearerAuth()),
           Layer.provide(HttpApiMiddleware.layerProblemDetails()),
           HttpRouter.provideRequest(dependencies),
           Layer.provide(dependencies),

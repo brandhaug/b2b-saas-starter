@@ -1,5 +1,5 @@
 import { newCapabilityId } from '../internal/ids.ts'
-import { currentTraceparent } from '@b2b-saas-starter/logger'
+import { annotateWideEvent, currentTraceparent } from '@b2b-saas-starter/logger'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { webhookDeliveries, webhookEndpoints } from '@b2b-saas-starter/db/schema'
 import { Context, Effect, Layer, Result, Schema } from 'effect'
@@ -349,12 +349,14 @@ export function LiveWebhookPublisher(
             )
           )
           if (Result.isFailure(enqueued)) {
-            yield* Effect.annotateLogs({ webhookEnqueue: 'confirmation_failed' })(
-              recordEnqueueFailure(messages).pipe(
-                Effect.catchTag('CapabilityUnavailable', (failure) =>
-                  Effect.logError('webhook_enqueue_evidence_failed', failure).pipe(
-                    Effect.annotateLogs({ webhookEnqueueEvidence: 'failed' })
-                  )
+            yield* annotateWideEvent({ reason: 'webhook_enqueue_confirmation_failed' })
+            yield* recordEnqueueFailure(messages).pipe(
+              Effect.catchTag('CapabilityUnavailable', () =>
+                Effect.logError('webhook.enqueue.evidence_failed').pipe(
+                  Effect.annotateLogs({
+                    event: 'webhook.enqueue.evidence_failed',
+                    errorTag: 'CapabilityUnavailable'
+                  })
                 )
               )
             )

@@ -20,10 +20,12 @@ import {
   type StarterEnv
 } from '@b2b-saas-starter/capabilities/runtime'
 import {
+  WorkspaceContext,
   type ActorRef,
   type WorkspaceServices
 } from '@b2b-saas-starter/capabilities/workspace-context'
 import { type CapabilityServices } from '@b2b-saas-starter/capabilities/layers'
+import { annotateWideEvent } from '@b2b-saas-starter/logger'
 import { env as cloudflareEnv } from 'cloudflare:workers'
 import { notFound } from '@tanstack/react-router'
 import { Cause, Effect, Exit, Option, type Scope } from 'effect'
@@ -189,10 +191,14 @@ export async function runWorkspaceCapabilities<A, E>(
     withWebRequestScope(
       {
         event: 'capability.workspace',
-        metadata: { workspaceSlug, actorUserId: actor?.userId }
+        metadata: { actorUserId: actor?.userId }
       },
       Effect.provide(
-        effect,
+        Effect.gen(function* () {
+          const context = yield* WorkspaceContext
+          yield* annotateWideEvent({ workspaceId: context.workspace.id })
+          return yield* effect
+        }),
         selectWorkspaceLayer(
           { ...starterEnv, ...bindings },
           workspaceSlug,

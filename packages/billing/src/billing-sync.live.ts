@@ -19,6 +19,7 @@ import {
 } from '@b2b-saas-starter/db/schema'
 import { Database } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Schema } from 'effect'
+import { annotateWideEvent } from '@b2b-saas-starter/logger'
 import { and, asc, count, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm'
 
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -107,6 +108,7 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
       { readonly result: ReconcileResult; readonly duplicate: boolean },
       CapabilityUnavailable
     > {
+      yield* annotateWideEvent({ workspaceId, stripeEventId: input?.providerEventId })
       const secretKey = yield* providerKey()
       return yield* store.leases.withLease(workspaceId, (lease) =>
         Effect.gen(function* () {
@@ -328,6 +330,10 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
               checkout.uncertain
             )
             if (checkout.uncertain) {
+              yield* annotateWideEvent({
+                plan: decision.planId,
+                billingDriftCount: drift.length
+              })
               yield* store.fail(lease, 'checkout_pending', false)
               return {
                 result: { workspaceId, outcome: 'delayed', drift },
@@ -341,15 +347,14 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
             if (drift.length > 0) {
               outcome = 'repaired'
             }
-            yield* Effect.logInfo('Billing synchronization completed').pipe(
-              Effect.annotateLogs({
-                workspaceId,
-                stripeEventId: input?.providerEventId,
-                billingOutcome: outcome,
-                billingDrift: drift,
-                billingLifecycleStatus: decision.lifecycleStatus
-              })
-            )
+            yield* annotateWideEvent({
+              workspaceId,
+              plan: decision.planId,
+              stripeEventId: input?.providerEventId,
+              billingOutcome: outcome,
+              billingDriftCount: drift.length,
+              billingLifecycleStatus: decision.lifecycleStatus
+            })
             return { result: { workspaceId, outcome, drift }, duplicate: false }
           })
           return yield* synchronize.pipe(
@@ -447,7 +452,9 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
       input: ProcessProviderEventInput
     ): Effect.fn.Return<ProcessProviderEventResult, CapabilityUnavailable> {
       yield* providerKey()
+      yield* annotateWideEvent({ stripeEventId: input.providerEventId })
       if ((yield* store.event(input.providerEventId))?.status === 'completed') {
+        yield* annotateWideEvent({ billingOutcome: 'duplicate' })
         return { outcome: 'duplicate', providerEventId: input.providerEventId }
       }
       // Unknown routing also gets durable evidence, without a foreign-key fiction.
@@ -473,14 +480,13 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
               unresolvedMs =
                 DateTime.toEpochMillis(now) - Date.parse(evidence.receivedAt)
             }
-            yield* Effect.logError('Billing event routing failed').pipe(
-              Effect.annotateLogs({
-                stripeEventId: input.providerEventId,
-                billingFailureReason: error.reason,
-                billingUnresolvedMs: unresolvedMs,
-                billingTerminalFailure: unresolvedMs >= 900_000
-              })
-            )
+            yield* annotateWideEvent({
+              stripeEventId: input.providerEventId,
+              billingOutcome: 'routing_failed',
+              billingFailureReason: error.reason,
+              billingUnresolvedMs: unresolvedMs,
+              ...(unresolvedMs >= 900_000 && { billingTerminalFailure: true })
+            })
           })
         )
       )
@@ -497,12 +503,12 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
             })
             .where(eq(billingProviderEvents.providerEventId, input.providerEventId))
         )
-        yield* Effect.logError('Billing event has no verified workspace').pipe(
-          Effect.annotateLogs({
-            stripeEventId: input.providerEventId,
-            billingTerminalFailure: true
-          })
-        )
+        yield* annotateWideEvent({
+          stripeEventId: input.providerEventId,
+          billingOutcome: 'conflict',
+          billingFailureReason: 'unknown_workspace',
+          billingTerminalFailure: true
+        })
         return {
           outcome: 'conflict',
           providerEventId: input.providerEventId,
