@@ -115,25 +115,28 @@ export function LiveAccountLifecycle(
               )
             )
         )
-        return yield* Effect.forEach(rows, (row) =>
-          Effect.gen(function* () {
-            const memberCount = crowds.filter(
-              (crowd) => crowd.workspaceId === row.id
-            ).length
-            const billingBlocked =
-              memberCount <= 1 && !(yield* billing.workspaceDeletionAllowed(row.id))
-            return {
-              workspace: toWorkspace(row),
-              memberId: row.memberId,
-              role: row.role,
-              ownerCount: crowds.filter(
-                (crowd) => crowd.workspaceId === row.id && crowd.role === 'owner'
-              ).length,
-              memberCount,
-              billingBlocked,
-              suspended: row.suspended === 'suspended'
-            } satisfies MembershipForDeletion
-          })
+        return yield* Effect.forEach(
+          rows,
+          (row) =>
+            Effect.gen(function* () {
+              const memberCount = crowds.filter(
+                (crowd) => crowd.workspaceId === row.id
+              ).length
+              const billingBlocked =
+                memberCount <= 1 && !(yield* billing.workspaceDeletionAllowed(row.id))
+              return {
+                workspace: toWorkspace(row),
+                memberId: row.memberId,
+                role: row.role,
+                ownerCount: crowds.filter(
+                  (crowd) => crowd.workspaceId === row.id && crowd.role === 'owner'
+                ).length,
+                memberCount,
+                billingBlocked,
+                suspended: row.suspended === 'suspended'
+              } satisfies MembershipForDeletion
+            }),
+          { concurrency: 4 }
         )
       })
 

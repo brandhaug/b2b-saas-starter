@@ -146,33 +146,42 @@ export const LiveStrongAuthentication: Layer.Layer<
     const status = Effect.fn('StrongAuthentication.status')(function* (
       input: StrongAuthenticationInput
     ) {
-      const [row] = yield* unavailable(
-        db
-          .select({
-            expiresAt: session.expiresAt,
-            impersonatedBy: session.impersonatedBy,
-            passwordVerifiedAt: session.passwordVerifiedAt,
-            strongAuthAt: session.strongAuthAt,
-            strongAuthMethod: session.strongAuthMethod,
-            strongAuthCredentialId: session.strongAuthCredentialId,
-            recoveryUntil: session.recoveryUntil
-          })
-          .from(session)
-          .where(and(eq(session.id, input.sessionId), eq(session.userId, input.userId)))
-          .limit(1)
-      )
-      const [totp] = yield* unavailable(
-        db
-          .select({ id: twoFactor.id })
-          .from(twoFactor)
-          .where(and(eq(twoFactor.userId, input.userId), eq(twoFactor.verified, true)))
-          .limit(1)
-      )
-      const keys = yield* unavailable(
-        db
-          .select({ id: passkey.id })
-          .from(passkey)
-          .where(eq(passkey.userId, input.userId))
+      const [[row], [totp], keys] = yield* Effect.all(
+        [
+          unavailable(
+            db
+              .select({
+                expiresAt: session.expiresAt,
+                impersonatedBy: session.impersonatedBy,
+                passwordVerifiedAt: session.passwordVerifiedAt,
+                strongAuthAt: session.strongAuthAt,
+                strongAuthMethod: session.strongAuthMethod,
+                strongAuthCredentialId: session.strongAuthCredentialId,
+                recoveryUntil: session.recoveryUntil
+              })
+              .from(session)
+              .where(
+                and(eq(session.id, input.sessionId), eq(session.userId, input.userId))
+              )
+              .limit(1)
+          ),
+          unavailable(
+            db
+              .select({ id: twoFactor.id })
+              .from(twoFactor)
+              .where(
+                and(eq(twoFactor.userId, input.userId), eq(twoFactor.verified, true))
+              )
+              .limit(1)
+          ),
+          unavailable(
+            db
+              .select({ id: passkey.id })
+              .from(passkey)
+              .where(eq(passkey.userId, input.userId))
+          )
+        ],
+        { concurrency: 'unbounded' }
       )
       const now = yield* DateTime.now
       let evidence: SessionEvidence | null = null

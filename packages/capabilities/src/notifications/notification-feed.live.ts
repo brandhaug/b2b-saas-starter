@@ -230,14 +230,17 @@ export function LiveNotificationFeed(
             // recipient) pair, so each owner's email resolves against their
             // own channel preference.
             const traceparent = yield* currentTraceparent
-            for (const { row, owner } of created) {
-              yield* enqueueInstantEmails(options.emailQueue, preferences, {
-                notificationId: row.id,
-                kind: input.kind,
-                recipients: [owner],
-                traceparent
-              })
-            }
+            yield* Effect.forEach(
+              created,
+              ({ row, owner }) =>
+                enqueueInstantEmails(options.emailQueue, preferences, {
+                  notificationId: row.id,
+                  kind: input.kind,
+                  recipients: [owner],
+                  traceparent
+                }),
+              { concurrency: 4, discard: true }
+            )
           })
         }
       })

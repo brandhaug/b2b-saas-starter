@@ -37,20 +37,25 @@ const webhooksPayload: WorkspacePageFrame<WorkspaceWebhooksPayload> = workspaceP
   () =>
     Effect.gen(function* () {
       const webhooks = yield* WebhookEndpoints
-      const segment = yield* Effect.all(
-        { unreadCount, endpoints: webhooks.list },
+      return yield* Effect.all(
+        {
+          unreadCount,
+          endpoints: webhooks.list.pipe(
+            Effect.flatMap((endpoints) =>
+              Effect.forEach(
+                endpoints,
+                (endpoint) =>
+                  Effect.map(
+                    webhooks.listDeliveries({ endpointId: endpoint.id }),
+                    (deliveries) => ({ ...endpoint, deliveries })
+                  ),
+                { concurrency: 4 }
+              )
+            )
+          )
+        },
         { concurrency: 'unbounded' }
       )
-      const endpoints = yield* Effect.forEach(
-        segment.endpoints,
-        (endpoint) =>
-          Effect.map(
-            webhooks.listDeliveries({ endpointId: endpoint.id }),
-            (deliveries) => ({ ...endpoint, deliveries })
-          ),
-        { concurrency: 'unbounded' }
-      )
-      return { unreadCount: segment.unreadCount, endpoints }
     })
 )
 

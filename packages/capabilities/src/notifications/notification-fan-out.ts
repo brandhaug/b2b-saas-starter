@@ -47,22 +47,33 @@ export function enqueueInstantEmails(
     if (queue === undefined || input.recipients.length === 0) {
       return
     }
-    const messages: Array<{ readonly body: NotificationEmailQueueMessage }> = []
-    for (const recipient of input.recipients) {
-      const channel = yield* Effect.result(
-        preferences.resolve(recipient.userId, input.kind)
-      )
-      // An unreadable preference store means no instant email for this
-      // recipient — the digest job re-reads preferences on its own schedule.
-      if (Result.isSuccess(channel) && channel.success === 'instant') {
-        messages.push({
-          body: withTraceparent(
-            { notificationId: input.notificationId, recipientUserId: recipient.userId },
-            input.traceparent
+    const recipientMessages = yield* Effect.forEach(
+      input.recipients,
+      (recipient) =>
+        Effect.gen(function* () {
+          const channel = yield* Effect.result(
+            preferences.resolve(recipient.userId, input.kind)
           )
-        })
-      }
-    }
+          // An unreadable preference store means no instant email for this
+          // recipient — the digest job re-reads preferences on its own schedule.
+          if (Result.isSuccess(channel) && channel.success === 'instant') {
+            return [
+              {
+                body: withTraceparent(
+                  {
+                    notificationId: input.notificationId,
+                    recipientUserId: recipient.userId
+                  },
+                  input.traceparent
+                )
+              } satisfies { readonly body: NotificationEmailQueueMessage }
+            ]
+          }
+          return []
+        }),
+      { concurrency: 4 }
+    )
+    const messages = recipientMessages.flat()
     if (messages.length === 0) {
       return
     }

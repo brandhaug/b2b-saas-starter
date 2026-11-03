@@ -80,8 +80,8 @@ export function ConversationDetail({
           await onDeleted()
           return
         }
-        await onChanged()
-        await state.refresh()
+        // oxlint-disable-next-line effect/noNewPromise -- parallel client-side refreshes; keep the Effect runtime out of the browser bundle
+        await Promise.all([onChanged(), state.refresh()])
       }
     }
   )

@@ -144,43 +144,50 @@ export const make: Effect.Effect<
     window: DigestWindow
   ): Effect.fn.Return<DigestNotificationEmailSelection, CapabilityUnavailable> {
     const candidates = yield* feed.listDigestCandidates(window)
+    const classifications = yield* Effect.forEach(
+      candidates,
+      (candidate) =>
+        Effect.gen(function* () {
+          if (isAllowedDuringWorkspaceSuspension(candidate.notification)) {
+            return { candidate, status: 'eligible' as const }
+          }
+
+          const suppressionId = digestSuppressionId(
+            window.until,
+            candidate.notification.id,
+            candidate.recipient.userId
+          )
+          const consumed = yield* delivery.get(suppressionId)
+          if (consumed?.reason === 'workspace_suspended') {
+            return { candidate, status: 'consumed' as const }
+          }
+          if (candidate.workspace === null) {
+            return { candidate, status: 'eligible' as const }
+          }
+
+          const allowed = yield* Effect.result(
+            suspension.requireAllowed(candidate.workspace.id, 'product')
+          )
+          if (Result.isSuccess(allowed)) {
+            return { candidate, status: 'eligible' as const }
+          }
+          if (allowed.failure._tag === 'WorkspaceSuspended') {
+            return { candidate, status: 'suspended' as const }
+          }
+          return yield* Effect.fail(allowed.failure)
+        }),
+      { concurrency: 4 }
+    )
     const eligibleCandidates: Array<NotificationEmailContext> = []
     const suspendedCandidates: Array<NotificationEmailContext> = []
-    let suspendedCount = 0
-
-    for (const candidate of candidates) {
-      if (isAllowedDuringWorkspaceSuspension(candidate.notification)) {
-        eligibleCandidates.push(candidate)
-        continue
-      }
-
-      const suppressionId = digestSuppressionId(
-        window.until,
-        candidate.notification.id,
-        candidate.recipient.userId
-      )
-      const consumed = yield* delivery.get(suppressionId)
-      if (consumed?.reason === 'workspace_suspended') {
-        suspendedCount += 1
-        continue
-      }
-      if (candidate.workspace === null) {
-        eligibleCandidates.push(candidate)
-        continue
-      }
-
-      const allowed = yield* Effect.result(
-        suspension.requireAllowed(candidate.workspace.id, 'product')
-      )
-      if (Result.isSuccess(allowed)) {
-        eligibleCandidates.push(candidate)
-      } else if (allowed.failure._tag === 'WorkspaceSuspended') {
-        suspendedCount += 1
-        suspendedCandidates.push(candidate)
-      } else {
-        return yield* Effect.fail(allowed.failure)
+    for (const entry of classifications) {
+      if (entry.status === 'eligible') {
+        eligibleCandidates.push(entry.candidate)
+      } else if (entry.status === 'suspended') {
+        suspendedCandidates.push(entry.candidate)
       }
     }
+    const suspendedCount = classifications.length - eligibleCandidates.length
 
     // Resolve each recipient once, then use those current choices for both
     // suppression and digest selection.
@@ -190,14 +197,20 @@ export const make: Effect.Effect<
     const channels = new Map<
       string,
       ReadonlyMap<NotificationKind, NotificationChannel>
-    >()
-    for (const userId of recipientIds) {
-      const resolved = yield* preferences.list(userId)
-      channels.set(
-        userId,
-        new Map(resolved.map((entry) => [entry.kind, entry.channel]))
+    >(
+      yield* Effect.forEach(
+        recipientIds,
+        (userId) =>
+          Effect.gen(function* () {
+            const resolved = yield* preferences.list(userId)
+            return [
+              userId,
+              new Map(resolved.map((entry) => [entry.kind, entry.channel]))
+            ] as const
+          }),
+        { concurrency: 4 }
       )
-    }
+    )
 
     // Consume suspended digest items durably. Otherwise unread rows would
     // reappear after reactivation and be sent retroactively.

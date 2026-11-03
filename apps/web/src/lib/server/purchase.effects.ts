@@ -16,8 +16,13 @@ export async function loadPurchaseHandler(
     Effect.gen(function* () {
       const billing = yield* Billing
       const membership = yield* WorkspaceMembership
-      const workspaces = yield* membership.listWorkspacesForUser(session.user.id)
-      const plans = yield* billing.displayedPlans.pipe(Effect.orElseSucceed(() => []))
+      const [workspaces, plans] = yield* Effect.all(
+        [
+          membership.listWorkspacesForUser(session.user.id),
+          billing.displayedPlans.pipe(Effect.orElseSucceed(() => []))
+        ],
+        { concurrency: 'unbounded' }
+      )
       return {
         plan:
           plans.find(

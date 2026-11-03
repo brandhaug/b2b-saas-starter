@@ -104,10 +104,12 @@ const dispatchInvitation = Effect.fn('Invitation.dispatch')(function* (
 ) {
   const inviteUrl = `${requestOrigin()}/invitations/accept?invitation=${invitation.id}`
   const preferences = yield* AccountPreferencesService
-  const recipientPreferences = yield* preferences.getByEmail(invitation.email)
-  const locale = recipientPreferences?.locale ?? DEFAULT_LOCALE
   const history = yield* EmailDelivery
-  const userId = yield* history.resolveUserId(invitation.email)
+  const [recipientPreferences, userId] = yield* Effect.all(
+    [preferences.getByEmail(invitation.email), history.resolveUserId(invitation.email)],
+    { concurrency: 'unbounded' }
+  )
+  const locale = recipientPreferences?.locale ?? DEFAULT_LOCALE
   const result = yield* Effect.result(
     dispatchTrackedEmail(
       {

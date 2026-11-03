@@ -81,40 +81,45 @@ export const displayedBillingPlans = Effect.fn('Billing.displayedPlans')(functio
     }))
   }
   const secretKey = options.secretKey
-  return yield* Effect.forEach(PLANS, (plan) =>
-    Effect.gen(function* () {
-      if (plan.purchase !== 'self_serve') {
-        return { ...plan, providerPrice: plan.price }
-      }
-      const priceId = options.priceIds?.[plan.id]
-      if (priceId === undefined) {
-        return yield* Effect.fail(
-          new CapabilityUnavailable({
-            capability: 'billing',
-            reason: 'price_not_configured'
-          })
+  return yield* Effect.forEach(
+    PLANS,
+    (plan) =>
+      Effect.gen(function* () {
+        if (plan.purchase !== 'self_serve') {
+          return { ...plan, providerPrice: plan.price }
+        }
+        const priceId = options.priceIds?.[plan.id]
+        if (priceId === undefined) {
+          return yield* Effect.fail(
+            new CapabilityUnavailable({
+              capability: 'billing',
+              reason: 'price_not_configured'
+            })
+          )
+        }
+        const annualId = options.annualPriceIds?.[plan.id]
+        const [providerPrice, annualProviderPrice] = yield* Effect.all(
+          [
+            validatedStripePrice(secretKey, priceId, 'purchase', 'month'),
+            Effect.gen(function* () {
+              if (annualId !== undefined) {
+                return yield* validatedStripePrice(
+                  secretKey,
+                  annualId,
+                  'purchase',
+                  'year'
+                )
+              }
+            })
+          ],
+          { concurrency: 2 }
         )
-      }
-      const annualId = options.annualPriceIds?.[plan.id]
-      let annualProviderPrice: BillingPrice | undefined
-      if (annualId !== undefined) {
-        annualProviderPrice = yield* validatedStripePrice(
-          secretKey,
-          annualId,
-          'purchase',
-          'year'
-        )
-      }
-      return {
-        ...plan,
-        providerPrice: yield* validatedStripePrice(
-          secretKey,
-          priceId,
-          'purchase',
-          'month'
-        ),
-        annualProviderPrice
-      }
-    })
+        return {
+          ...plan,
+          providerPrice,
+          annualProviderPrice
+        }
+      }),
+    { concurrency: 4 }
   )
 })

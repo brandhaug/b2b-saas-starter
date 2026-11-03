@@ -177,30 +177,39 @@ function recoveryCandidates(d1: D1Binding, now: number) {
   return Effect.gen(function* () {
     const exportCutoff = DateTime.formatIso(DateTime.makeUnsafe(now - 3_600_000))
     const webhookCutoff = DateTime.formatIso(DateTime.makeUnsafe(now - 86_400_000))
-    const exports = yield* query(() =>
-      d1
-        .prepare(
-          `SELECT id FROM workspace_exports INDEXED BY workspace_exports_recovery_idx
+    const [exports, webhookPages] = yield* Effect.all(
+      [
+        query(() =>
+          d1
+            .prepare(
+              `SELECT id FROM workspace_exports INDEXED BY workspace_exports_recovery_idx
        WHERE status = 'pending' AND created_at <= ? ORDER BY created_at, id LIMIT 101`
-        )
-        .bind(exportCutoff)
-        .all<{ id: string }>()
-    )
-    let webhooks = 0
-    let webhookCapped = false
-    for (const status of ['pending', 'failed']) {
-      const rows = yield* query(() =>
-        d1
-          .prepare(
-            `SELECT id FROM webhook_deliveries INDEXED BY webhook_deliveries_recovery_idx
+            )
+            .bind(exportCutoff)
+            .all<{ id: string }>()
+        ),
+        Effect.forEach(
+          ['pending', 'failed'],
+          (status) =>
+            query(() =>
+              d1
+                .prepare(
+                  `SELECT id FROM webhook_deliveries INDEXED BY webhook_deliveries_recovery_idx
          WHERE status = ? AND last_attempt_at <= ? ORDER BY last_attempt_at, id LIMIT 51`
-          )
-          .bind(status, webhookCutoff)
-          .all<{ id: string }>()
-      )
-      webhooks += rows.results.length
-      webhookCapped ||= rows.results.length === 51
-    }
+                )
+                .bind(status, webhookCutoff)
+                .all<{ id: string }>()
+            ),
+          { concurrency: 2 }
+        )
+      ],
+      { concurrency: 2 }
+    )
+    const webhooks = webhookPages.reduce(
+      (total, rows) => total + rows.results.length,
+      0
+    )
+    const webhookCapped = webhookPages.some((rows) => rows.results.length === 51)
     return {
       exports: exports.results.length,
       webhooks,
