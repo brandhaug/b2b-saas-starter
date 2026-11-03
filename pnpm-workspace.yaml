@@ -32,7 +32,7 @@ catalog:
   '@cloudflare/ai-chat': 0.12.2
   agents: 0.32.0
   ai: 7.0.158
-  '@cloudflare/workers-types': 5.20261030.1
+  '@cloudflare/workers-types': 5.20261031.1
   '@cloudflare/vitest-plugin': 1.4.11
   '@effect/platform-node': 4.1.0
   '@effect/sql-d1': 4.1.0
