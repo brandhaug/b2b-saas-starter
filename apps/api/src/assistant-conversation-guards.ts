@@ -15,10 +15,10 @@ import {
 import { ConversationNotFound } from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversation'
 import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
+import { annotateWideEvent } from '@b2b-saas-starter/logger'
 import { Effect, Layer, Redacted } from 'effect'
 import { HttpServerRequest, HttpServerResponse } from 'effect/http'
 import { AssistantOAuthTokenVerifier } from './assistant-oauth-access-token.ts'
-import { type ApiEnv } from './env.ts'
 import { enforceRateLimit, observed } from './request-guards.ts'
 
 /** Preserve opaque resource denial while keeping credential expiry distinguishable. */
@@ -39,7 +39,7 @@ export function assistantAuthorityFailure(error: AssistantAuthorityDenied) {
   }
 }
 
-export function assistantBearerAuth(env: ApiEnv) {
+export function assistantBearerAuth() {
   return Layer.effect(
     AssistantBearerAuth,
     Effect.gen(function* () {
@@ -62,6 +62,11 @@ export function assistantBearerAuth(env: ApiEnv) {
                 Effect.provideService(RateLimiter, limiter)
               )
               const principal = yield* verifier.verify(Redacted.value(credential))
+              yield* annotateWideEvent({
+                credential: 'oauth',
+                actorUserId: principal.userId,
+                workspaceId: principal.workspaceId
+              })
               let operation: 'read' | 'write' = 'write'
               if (endpoint.method === 'GET') {
                 operation = 'read'
@@ -86,10 +91,7 @@ export function assistantBearerAuth(env: ApiEnv) {
             }).pipe(
               Effect.catch((error) =>
                 observed(
-                  env,
-                  request,
                   `assistant-conversations.${endpoint.identifier}`,
-                  {},
                   Effect.fail(error)
                 )
               )

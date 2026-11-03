@@ -1,5 +1,6 @@
 import { hasValue, type ProviderEnvOf } from '@b2b-saas-starter/env/server'
 import { failureMessage } from '@b2b-saas-starter/failure'
+import { annotateWideEvent } from '@b2b-saas-starter/logger'
 import { render, toPlainText } from 'react-email'
 import { Context, Effect, Layer, Option, Schema } from 'effect'
 import { type ReactElement } from 'react'
@@ -219,12 +220,7 @@ export function makeCloudflareEmailDispatcherLayer(
             }),
           catch: (cause) => sendFailure(cause, message.to, message.subject)
         })
-        yield* Effect.log('email.dispatched', {
-          mode: 'cloudflare-email',
-          to: message.to,
-          subject: message.subject,
-          providerMessageId: result.messageId
-        })
+        yield* annotateWideEvent({ emailTransport: 'cloudflare-email' })
         return EmailDeliveryResult.make({
           mode: 'cloudflare-email',
           to: message.to,

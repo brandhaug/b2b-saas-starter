@@ -1,4 +1,5 @@
 import { tokenPrincipal, type PermissionRequest } from '@b2b-saas-starter/authz/client'
+import { annotateWideEvent } from '@b2b-saas-starter/logger'
 import { type ListPageInput } from '@b2b-saas-starter/capabilities/internal/keyset-cursor'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
@@ -55,10 +56,7 @@ function workspaceOperation<A, E, R>(
   body: Effect.Effect<A, E, R>
 ) {
   return observed(
-    env,
-    request,
     event,
-    { workspaceSlug: slug },
     Effect.gen(function* () {
       yield* enforcePermission(permission, slug)
       const principal = yield* ApiPrincipal
@@ -71,11 +69,9 @@ function workspaceOperation<A, E, R>(
   )
 }
 
-export function healthGroup(env: ApiEnv) {
+export function healthGroup() {
   return HttpApiBuilder.group(StarterApi, 'health', (handlers) =>
-    handlers.handle('check', ({ request }) =>
-      observed(env, request, 'health', {}, Effect.succeed(HEALTH_OK))
-    )
+    handlers.handle('check', () => observed('health', Effect.succeed(HEALTH_OK)))
   )
 }
 
@@ -113,7 +109,7 @@ export function workspaceGroup(env: ApiEnv) {
       request,
       Effect.gen(function* () {
         if (params.endpointId !== undefined) {
-          yield* Effect.annotateLogsScoped({ endpointId: params.endpointId })
+          yield* annotateWideEvent({ endpointId: params.endpointId })
         }
         return yield* op.read(query, params)
       })
@@ -228,12 +224,9 @@ export function webhookGroup(env: ApiEnv) {
 
 export function assistantGroup(env: ApiEnv) {
   return HttpApiBuilder.group(StarterApi, 'assistant', (handlers) =>
-    handlers.handle('answer', ({ payload, request }) =>
+    handlers.handle('answer', ({ payload }) =>
       observed(
-        env,
-        request,
         'assistant.answer',
-        {},
         Effect.gen(function* () {
           yield* enforcePermission({ assistant: ['read'] })
           const service = yield* AssistantService
@@ -253,12 +246,9 @@ export function assistantGroup(env: ApiEnv) {
 
 export function mcpGroup(env: ApiEnv) {
   return HttpApiBuilder.group(StarterApi, 'mcp', (handlers) =>
-    handlers.handle('discover', ({ request }) =>
+    handlers.handle('discover', () =>
       observed(
-        env,
-        request,
         'mcp.discover',
-        {},
         Effect.gen(function* () {
           yield* enforcePermission({ mcp: ['read'] })
           const token = yield* ApiPrincipal

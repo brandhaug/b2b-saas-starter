@@ -18,14 +18,24 @@ const countFields = new Set([
   'expiredReservations',
   'assistantAffectedConversations',
   'notificationEmailRecipients',
-  'notificationEmailEnqueued'
+  'notificationEmailEnqueued',
+  'billingFailureCount',
+  'billingUnresolvedMs',
+  'billingDriftCount',
+  'consecutiveFailures',
+  'candidates',
+  'digests',
+  'sent',
+  'failed'
 ])
 
 const publicationFailureFields = new Set([
   'webhookPublish',
   'webhookDeadLetterNotification',
   'seatSyncPublish',
-  'notificationEmailEnqueue'
+  'notificationEmailEnqueue',
+  'webhookPermanentFailureNotification',
+  'webhookFailureLadderNotification'
 ])
 
 const configurationFields = new Set([
@@ -47,6 +57,7 @@ const allowedFields = new Set([
   ...publicationFailureFields,
   ...configurationFields,
   'assistantAuthorityNotification',
+  'emailTransport',
   'service',
   'event',
   'status',
@@ -59,6 +70,7 @@ const allowedFields = new Set([
   'serviceVersion',
   'commitHash',
   'method',
+  'routeTemplate',
   'handlerType',
   'scope',
   'traceId',
@@ -66,6 +78,16 @@ const allowedFields = new Set([
   'otelSpanId',
   'spanId',
   'workspaceId',
+  'actorUserId',
+  'tokenId',
+  'recipientUserId',
+  'notificationId',
+  'stripeEventId',
+  'billingOutcome',
+  'billingFailureReason',
+  'billingLifecycleStatus',
+  'billingTerminalFailure',
+  'billingLeaseReleaseFailed',
   'subjectId',
   'targetId',
   'eventType',
@@ -92,6 +114,7 @@ const allowedFields = new Set([
   'rateLimitBucket',
   'durationMs',
   'statusCode',
+  'responseStatus',
   'sizeBytes',
   'count',
   'attempt',
@@ -167,6 +190,22 @@ export function diagnosticFields(fields: object) {
   const result: Record<string, string | number | boolean> = {}
   for (const key of Object.keys(fields)) {
     const value: unknown = Object.getOwnPropertyDescriptor(fields, key)?.value
+    // Only router-owned templates use this field. Raw request paths are never assigned here.
+    if (key === 'routeTemplate') {
+      if (typeof value === 'string' && /^\/[a-zA-Z0-9_./:*{}$-]{0,180}$/.test(value)) {
+        result[key] = value
+      }
+      continue
+    }
+    if (key === 'emailTransport' && value !== 'cloudflare-email') {
+      continue
+    }
+    if (
+      (key === 'billingTerminalFailure' || key === 'billingLeaseReleaseFailed') &&
+      typeof value !== 'boolean'
+    ) {
+      continue
+    }
     if (key === 'handlerType' && value !== 'router' && value !== 'serverFn') {
       continue
     }

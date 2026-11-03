@@ -25,6 +25,8 @@ Read [delivery guidance](../../docs/agents/background-delivery.md) before changi
 - Do not emit terminal delivery audit events here: the capability batches that row with the attempt so both commit together.
 - Do not infer queue disposition from delivery evidence or repeat failure notifications after completion.
 - Build no OTLP exporter at isolate level (ADR 0050): `runInvocation` provides it per invocation, so exporters flush before the handler settles.
+- HTTP ingress uses `runHttpInvocation`, which runs `withHttpInvocation` on the static runtime. Do not wrap it in `runInvocation`: HTTP observation already owns the exporter. Configuration and signature responses belong inside the HTTP scope.
+- Queue canonical events carry `messageId`, attempts, and safe response status. Never annotate receiver URLs. Digest sends accumulate `candidates`, `digests`, `sent`, `failed`, and an explicit failure outcome on the scheduled event rather than logging each recipient failure.
 
 ## Dependencies & Edges
 

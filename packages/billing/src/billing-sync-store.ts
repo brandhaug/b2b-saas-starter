@@ -8,6 +8,7 @@ import {
 } from '@b2b-saas-starter/db/schema'
 import { Database, type BatchStatement } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect } from 'effect'
+import { annotateWideEvent } from '@b2b-saas-starter/logger'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 
 import { AuditEventLog, BillingWebhookPublisher } from './ports.ts'
@@ -191,23 +192,15 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
     if (state?.unresolvedSince !== null && state?.unresolvedSince !== undefined) {
       unresolvedMs = Date.parse(now) - Date.parse(state.unresolvedSince)
     }
-    const fields = {
+    yield* annotateWideEvent({
       workspaceId: lease.workspaceId,
       stripeEventId: input?.providerEventId,
       billingOutcome: status,
       billingFailureReason: reason,
+      billingFailureCount: failureCount,
       billingUnresolvedMs: unresolvedMs,
-      billingTerminalFailure: conflict || unresolvedMs >= 900_000
-    }
-    if (fields.billingTerminalFailure) {
-      yield* Effect.logError('Billing synchronization requires recovery').pipe(
-        Effect.annotateLogs(fields)
-      )
-    } else {
-      yield* Effect.logWarning('Billing synchronization will retry').pipe(
-        Effect.annotateLogs(fields)
-      )
-    }
+      ...((conflict || unresolvedMs >= 900_000) && { billingTerminalFailure: true })
+    })
   })
 
   const commit = Effect.fn('Billing.commitSynchronization')(function* (

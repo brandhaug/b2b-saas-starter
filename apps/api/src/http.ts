@@ -1,16 +1,23 @@
 import { databaseIsReady } from '@b2b-saas-starter/db/service'
 import { isMaintenanceMode } from '@b2b-saas-starter/env/server'
-import { WideEventLoggerLive } from '@b2b-saas-starter/logger'
+import {
+  annotateWideEventCause,
+  annotateWideEvent,
+  WideEventLoggerLive,
+  withHttpInvocation
+} from '@b2b-saas-starter/logger'
 import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { RateLimiter, StarterApi } from '@b2b-saas-starter/api'
 import { selectAssistantLayer } from '@b2b-saas-starter/ai'
 import { apiFallbackLimits, apiRateLimitBindingNames } from '@b2b-saas-starter/infra'
 import { makeRateLimiter } from '@b2b-saas-starter/rate-limit'
-import { Cause, ErrorReporter, FileSystem, Layer, Path, Effect } from 'effect'
+import { Cause, ErrorReporter, FileSystem, Layer, Path, Effect, Scope } from 'effect'
 import {
   Etag,
   HttpPlatform,
   HttpRouter,
+  type HttpServerError,
+  HttpServerRequest,
   HttpServerResponse,
   HttpServerRespondable
 } from 'effect/http'
@@ -31,7 +38,7 @@ import {
   workspaceGroup
 } from './handlers.ts'
 import { exportDownloadLayer } from './export-download.ts'
-import { bearerAuth } from './request-guards.ts'
+import { annotateRequestFailure, bearerAuth, webRequest } from './request-guards.ts'
 import { mcpProtocolLayer } from './mcp.ts'
 import {
   makeOAuthTokenVerifierLayer,
@@ -74,19 +81,54 @@ const PlatformLive = Layer.mergeAll(
   HttpPlatform.layer.pipe(Layer.provide(FileSystem.layerNoop({})))
 )
 
-const restDefects = HttpRouter.middleware((effect) =>
-  effect.pipe(
-    Effect.catchDefect((defect) =>
-      // oxlint-disable-next-line eslint/no-restricted-properties -- report an existing defect; no typed failure is converted here
-      ErrorReporter.report(Cause.die(defect)).pipe(
-        Effect.andThen(
-          HttpServerRespondable.toResponse(
-            new HttpApiError.InternalServerErrorProblem()
+function requestObservation(env: ApiEnv) {
+  return HttpRouter.middleware<{
+    provides: Scope.Scope
+    handles: HttpServerError.HttpServerError
+  }>()(
+    (effect) =>
+      Effect.gen(function* () {
+        const request = yield* HttpServerRequest.HttpServerRequest
+        const requestScope = yield* Scope.Scope
+        return yield* withHttpInvocation(
+          {
+            service: 'api',
+            event: 'api.request',
+            request: webRequest(request),
+            env
+          },
+          effect.pipe(
+            // Streaming responses retain the HTTP scope after the canonical
+            // completion and its exporters close. MCP transfers this scope.
+            Effect.provideService(Scope.Scope, requestScope),
+            Effect.catchTag('HttpServerError', (error) =>
+              annotateRequestFailure(error).pipe(
+                Effect.andThen(HttpServerRespondable.toResponse(error))
+              )
+            ),
+            Effect.catchDefect((defect) =>
+              // oxlint-disable-next-line eslint/no-restricted-properties -- preserve an existing defect for sanitized diagnostics; no typed failure is converted
+              annotateWideEventCause(Cause.die(defect)).pipe(
+                Effect.andThen(
+                  HttpServerRespondable.toResponse(
+                    new HttpApiError.InternalServerErrorProblem()
+                  )
+                )
+              )
+            )
           )
         )
-      )
-    )
+      }).pipe(Effect.provide(WideEventLoggerLive)),
+    { global: true }
   )
+}
+
+const routeIdentity = HttpRouter.middleware((effect) =>
+  Effect.gen(function* () {
+    const context = yield* HttpRouter.RouteContext
+    yield* annotateWideEvent({ routeTemplate: context.route.path })
+    return yield* effect
+  })
 ).layer
 
 // The root index — a tiny machine-readable directory for clients and humans
@@ -154,13 +196,13 @@ function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRou
   )
 
   const groups = Layer.mergeAll(
-    healthGroup(env),
+    healthGroup(),
     workspaceGroup(env),
     apiTokenGroup(env),
     webhookGroup(env),
     workspaceExportGroup(env),
     assistantGroup(env),
-    assistantConversationsGroup(env),
+    assistantConversationsGroup(),
     mcpGroup(env)
   )
 
@@ -168,13 +210,13 @@ function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRou
     Layer.provide(groups),
     // The contract's bearer gate: declared in `packages/api`, implemented in
     // `request-guards.ts`, attached to every group but `health`.
-    Layer.provide(bearerAuth(env)),
-    Layer.provide(assistantBearerAuth(env)),
-    Layer.provide(HttpApiMiddleware.layerProblemDetails()),
-    Layer.provide(restDefects)
+    Layer.provide(bearerAuth()),
+    Layer.provide(assistantBearerAuth()),
+    Layer.provide(HttpApiMiddleware.layerProblemDetails())
   )
 
   return Layer.mergeAll(
+    requestObservation(env),
     api,
     // The MCP protocol route rides beside the contract: same router, same
     // capability layer, but a JSON-RPC wire shape the OpenAPI document must
@@ -218,6 +260,7 @@ function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRou
     HttpApiScalar.layer(StarterApi, { path: '/reference' })
   ).pipe(
     HttpRouter.provideRequest(capabilities),
+    Layer.provide(routeIdentity),
     // `BearerAuth` resolves its services (token registry, rate limiter) from
     // the group layers' build context rather than per request, so the same
     // `capabilities` layer value is provided here too. One value, one build:
@@ -226,11 +269,9 @@ function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRou
     // every capability service.
     Layer.provide(capabilities),
     Layer.provide(PlatformLive),
-    // Only the always-on loggers belong to the per-isolate router layer. OTLP
-    // export is attached per request in `observed` (handlers.ts) — a Worker may
-    // not perform I/O for a request that already ended, so an exporter built
-    // here would stop flushing after the first request. See `makeOtlpLayer`.
-    Layer.provide(WideEventLoggerLive)
+    // Exporters live inside requestObservation; console loggers are isolate-level.
+    Layer.provide(WideEventLoggerLive),
+    Layer.provide(ErrorReporter.layer([]))
   )
 }
 

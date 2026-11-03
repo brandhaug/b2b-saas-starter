@@ -11,7 +11,7 @@ Cloudflare Worker for external REST clients and MCP. Serves the `StarterApi` con
 - Change the contract in `packages/api` first, then the handler. An endpoint's error channel stays a subset of its contract errors, and the contract declares no error the handlers cannot construct.
 - Protocol-driving tests share `src/test-utils.ts` (`jsonBody`, `mcpClient`); do not re-declare those helpers per file.
 - Yield stable capability services once in the handler layer. Resolve `WorkspaceContext`, actor, request origin, and log scope per request. Translate expected domain errors at the route boundary; let contract schemas encode declared failures.
-- Workspace handlers wrap `enforcePermission` and one capability call in `observed`. Private conversation handlers use the current member context from `AssistantBearerAuth` and `AssistantConversations`. Each gate owns authentication and its abuse bucket; handlers never read `Authorization`.
+- Workspace handlers wrap `enforcePermission` and one capability call in `observed`, which annotates the current invocation with a code-owned operation identifier and failure tag. The global HTTP middleware owns the single `api.request` event, encoded status, and request-scoped exporters. Private conversation handlers use the current member context from `AssistantBearerAuth` and `AssistantConversations`. Each gate owns authentication and its abuse bucket; handlers never read `Authorization`.
 - Endpoints name permissions, never scopes. [`authz`](../../packages/authz/AGENTS.md) owns the scope-to-permission map, so a token and a web session resolve through one `authorize()`.
 - `provideWorkspace` builds the only request-scoped service, `WorkspaceContext`; the rest are isolate-level, reached through `HttpRouter.provideRequest`.
 - MCP JWTs use OAuth verification; other credentials use API Token verification (ADR 0068). Tokens authorize by scopes; OAuth tools and resources require current matching consent, the immutable Workspace ID, and Member re-resolved per call; writes additionally require `mcp:write`. Both use the `mcp` bucket; each write also consumes `rest_write` and `guardFailureResponse`. Router middleware supplies required `CurrentMcpRequest` authority per HTTP request. Raw `addTool` registrations must capture registration services so MCP middleware runs; their callback bridge fails closed without authority. Preserve `api_token` versus OAuth `user` audit provenance.
@@ -22,6 +22,7 @@ Cloudflare Worker for external REST clients and MCP. Serves the `StarterApi` con
 - Supported workspace mutations have REST/MCP parity. Keep the typed projection in `mcp-mutations.ts` exhaustive, use canonical JSON payload schemas, and call the existing catalog operation. Every write checks its permission and declares all four MCP hints (ADR 0072). Hints never guarantee approval.
 - Do not add a membership or invitation endpoint: Better Auth `organization` writes are `requireHeaders: true` and a bearer token is no session (ARCHITECTURE.md). That surface stays in `apps/web`, so this worker wires no `EmailDispatcher` and no `EMAIL` binding.
 - No OTLP exporter at isolate level (ADR 0050): a Worker may not do I/O for a request that already ended. `withHttpInvocation` builds it per request; only `WideEventLoggerLive` is isolate-level.
+- Request facts use `annotateWideEvent` so auth and operation annotations survive inner scope closure before the outer HTTP event emits. Global router middleware explicitly provides `WideEventLoggerLive`; it does not inherit route logger context.
 
 ## Dependencies
 
@@ -30,7 +31,7 @@ Cloudflare Worker for external REST clients and MCP. Serves the `StarterApi` con
 
 ## Pitfalls
 
-- Provide the same capability layer through both `HttpRouter.provideRequest` and `Layer.provide`: `BearerAuth` and handler construction need the build context. Gate rejections emit their own wide event before the handler runs.
+- Provide the same capability layer through both `HttpRouter.provideRequest` and `Layer.provide`: `BearerAuth` and handler construction need the build context. Gate rejections annotate the outer invocation before contract error encoding. Raw paths and workspace slugs never become log fields. The canonical boundary translates defects to 500 responses; default error reporters stay disabled to avoid duplicate unstructured logs.
 - A gated group with no bucket row fails closed with 503; `permission-matrix.test.ts` asserts none is missing.
 - `POST /mcp` has no route permission: every credential clears `mcp:read`; enforce per tool. Keep sessions in isolate memory, initialization's `mcp-session-id`, `GET /mcp` 405, and discovery at `GET /mcp/discovery`.
 - Export-download refusals are all one 404 (ADR 0055), rate-limited by client IP so signatures cannot be brute-forced.

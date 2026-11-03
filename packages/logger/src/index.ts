@@ -22,6 +22,8 @@ export {
 export {
   WideEventLoggerLive,
   annotateWideEvent,
+  annotateWideEventCause,
+  withWideEventFacts,
   withRequestScope,
   withTriggerScope,
   type TriggerScopeOptions,

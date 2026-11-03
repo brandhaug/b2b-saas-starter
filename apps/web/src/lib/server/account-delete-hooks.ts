@@ -7,7 +7,7 @@ import {
 } from '@b2b-saas-starter/capabilities/governance/account-lifecycle'
 import { Effect } from 'effect'
 
-import { errorMessage } from '@b2b-saas-starter/failure'
+import { reportWebFailure } from '../observability'
 import { runCapabilities } from '../capabilities'
 
 /**
@@ -80,17 +80,11 @@ export function makeUserDeleteHooks(deps: {
           ),
           request
         )
-        // oxlint-disable-next-line anti-slop/no-unknown-parameters -- a rejected promise's value is `unknown` by construction; errorMessage is the diagnostic parser
+        // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Promise rejection boundary; the shared logger sanitizes the unknown cause
         .catch((error: unknown) => {
-          // The account row is already gone — the record cannot block it, but
-          // a governance event silently lost is worth a line in the log. The
-          // default runtime is the precedent here, like `auth-runtime.ts`'s
-          // background runner.
-          Effect.runFork(
-            Effect.logWarning(
-              `account.deleted audit event not recorded: ${errorMessage(error) ?? 'no reason given'}`
-            )
-          )
+          return reportWebFailure('account.deleted.audit_failed', error, request, {
+            actorUserId: user.id
+          })
         })
       const emailInput: AccountDeletedEmailInput = {
         email: user.email,

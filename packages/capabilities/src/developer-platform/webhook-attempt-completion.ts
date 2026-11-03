@@ -1,4 +1,5 @@
 import { type DateTime, Effect } from 'effect'
+import { annotateWideEvent } from '@b2b-saas-starter/logger'
 
 import { NotificationFeed } from '../notifications/notification-feed.ts'
 import { WebhookEndpoints, type RecordedWebhookAttempt } from './webhook-endpoints.ts'
@@ -33,10 +34,8 @@ const notifyPermanentFailure = Effect.fn(
       }
     })
   },
-  Effect.catchCause((cause) =>
-    Effect.logError('notification_create_failed', cause).pipe(
-      Effect.annotateLogs({ notificationCreate: 'failed' })
-    )
+  Effect.catchCause(() =>
+    annotateWideEvent({ webhookPermanentFailureNotification: 'failed' })
   )
 )
 
@@ -47,7 +46,7 @@ const notifyFailureLadder = Effect.fn('WebhookAttemptCompletion.notifyFailureLad
     readonly url: string | null
     readonly consecutiveFailures: number
   }) {
-    yield* Effect.annotateLogsScoped({ consecutiveFailures: input.consecutiveFailures })
+    yield* annotateWideEvent({ consecutiveFailures: input.consecutiveFailures })
     if (input.failureAction === 'silent') {
       return
     }
@@ -61,10 +60,8 @@ const notifyFailureLadder = Effect.fn('WebhookAttemptCompletion.notifyFailureLad
       })
     })
   },
-  Effect.catchCause((cause) =>
-    Effect.logError('failure_ladder_notification_failed', cause).pipe(
-      Effect.annotateLogs({ notificationCreate: 'failed' })
-    )
+  Effect.catchCause(() =>
+    annotateWideEvent({ webhookFailureLadderNotification: 'failed' })
   )
 )
 

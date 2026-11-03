@@ -18,8 +18,9 @@ import {
   type EmailMessage
 } from '@b2b-saas-starter/email'
 import { render } from 'react-email'
-import { describe, expect, it } from '@effect/vitest'
-import { Duration, Effect, Layer } from 'effect'
+import { describe, expect, it, vi } from '@effect/vitest'
+import { WideEventLoggerLive, withTriggerScope } from '@b2b-saas-starter/logger'
+import { Console, Duration, Effect, Layer, References } from 'effect'
 import { TestClock } from 'effect/testing'
 
 import { buildDigests, runNotificationDigest } from './notification-digest.ts'
@@ -337,4 +338,73 @@ describe('runNotificationDigest', () => {
       })
     ).pipe(Effect.provide(layers))
   })
+
+  it.effect(
+    'emits one canonical summary for partial send failures without recipient content',
+    () => {
+      const rows = [
+        candidate(owner, 'n1', 'announcement', '2026-09-03T07:00:00.000Z'),
+        candidate(member, 'n2', 'announcement', '2026-09-03T07:00:00.000Z')
+      ]
+      const dispatcher = Layer.succeed(EmailDispatcher)({
+        send: (message) => {
+          if (message.to === owner.email) {
+            return Effect.fail(
+              new EmailSendError({
+                message: 'PRIVATE_DIGEST_SENTINEL',
+                to: message.to,
+                subject: message.subject,
+                failureKind: 'transient'
+              })
+            )
+          }
+          return Effect.succeed({
+            mode: 'log',
+            to: message.to,
+            subject: message.subject
+          })
+        }
+      })
+      return Effect.gen(function* () {
+        yield* TestClock.setTime(FROZEN_NOW)
+        const lines: Array<string> = []
+        const logs = vi
+          .spyOn(console, 'log')
+          .mockImplementation((line: string) => lines.push(line))
+        const errors = vi
+          .spyOn(console, 'error')
+          .mockImplementation((line: string) => lines.push(line))
+        try {
+          const summary = yield* withTriggerScope(
+            { service: 'background', event: 'notification_digest' },
+            runNotificationDigest('https://app.test', WINDOW_END).pipe(
+              Effect.provide(layersFor(stubFeed([], rows), dispatcher))
+            )
+          ).pipe(
+            Effect.provide(WideEventLoggerLive),
+            Effect.provideService(References.MinimumLogLevel, 'Info'),
+            Effect.provideService(Console.Console, console)
+          )
+          expect(summary).toMatchObject({ sent: 1, failed: 1 })
+          expect(lines).toHaveLength(1)
+          // oxlint-disable-next-line effect/noGlobals -- inspect the actual console JSON output
+          expect(JSON.parse(lines[0] ?? '')).toMatchObject({
+            annotations: {
+              candidates: 2,
+              digests: 2,
+              sent: 1,
+              failed: 1,
+              outcome: 'partial_failure'
+            }
+          })
+          expect(lines.join('')).not.toContain('PRIVATE_DIGEST_SENTINEL')
+          expect(lines.join('')).not.toContain(owner.email)
+          expect(lines.join('')).not.toContain(member.email)
+        } finally {
+          logs.mockRestore()
+          errors.mockRestore()
+        }
+      })
+    }
+  )
 })

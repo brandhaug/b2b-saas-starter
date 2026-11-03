@@ -13,12 +13,13 @@ import {
 } from '@b2b-saas-starter/capabilities/seed-fixture'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
-import { WideEventLoggerLive } from '@b2b-saas-starter/logger'
+import { WideEventLoggerLive, withHttpInvocation } from '@b2b-saas-starter/logger'
+import { vi } from 'vite-plus/test'
 import { expect, it } from '@effect/vitest'
 import { Effect, Layer, Logger, Schema } from 'effect'
-import { HttpRouter } from 'effect/http'
+import { HttpRouter, HttpServerRequest } from 'effect/http'
 import { mcpProtocolLayer } from './mcp.ts'
-import { authorizeMcpOperation, type McpCaller } from './request-guards.ts'
+import { authorizeMcpOperation, webRequest, type McpCaller } from './request-guards.ts'
 import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { OAuthTokenVerifier } from './oauth-access-token.ts'
@@ -30,6 +31,86 @@ const result = Schema.Struct({
     content: Schema.Array(Schema.Struct({ text: Schema.String }))
   })
 })
+const decodeTelemetry = Schema.decodeUnknownSync(
+  Schema.fromJsonString(Schema.JsonObject)
+)
+
+it.live(
+  'reports a mutation defect once while preserving the MCP tool-error response',
+  () =>
+    Effect.gen(function* () {
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const info = vi.spyOn(console, 'log').mockImplementation(() => {})
+      const publisher = Layer.succeed(WebhookPublisher)({
+        publish: () => Effect.void,
+        publishForWorkspace: () => Effect.void,
+        enqueue: () => Effect.die(new TypeError('private-provider-payload'))
+      })
+      const webhooks = SeedWebhookEndpoints(seedWebhookEndpoints, seedDeliveries).pipe(
+        Layer.provide(publisher),
+        Layer.provide(SeedLayer)
+      )
+      const observation = HttpRouter.middleware(
+        (effect) =>
+          Effect.gen(function* () {
+            const request = yield* HttpServerRequest.HttpServerRequest
+            return yield* withHttpInvocation(
+              {
+                service: 'api',
+                event: 'api.request',
+                request: webRequest(request),
+                env: {}
+              },
+              effect
+            )
+          }).pipe(Effect.provide(WideEventLoggerLive)),
+        { global: true }
+      )
+      const server = HttpRouter.toWebHandler(
+        Layer.mergeAll(
+          mcpProtocolLayer({}).pipe(
+            Layer.provide(
+              Layer.mergeAll(
+                SeedLayer,
+                webhooks,
+                Layer.succeed(RateLimiter)({ take: () => Effect.succeed(true) }),
+                Layer.succeed(OAuthTokenVerifier)({
+                  verify: () => Effect.die('unexpected OAuth')
+                })
+              )
+            )
+          ),
+          observation
+        ),
+        { disableLogger: true }
+      )
+      try {
+        const client = mcpClient(server.handler, `Bearer ${SEED_API_TOKEN}`)
+        yield* Effect.promise(() => client.initialize())
+        info.mockClear()
+        const response = yield* call(client, 'send_webhook_test_event', {
+          endpointId: 'wh_release'
+        })
+        expect(response.isError).toBe(true)
+        expect(info).not.toHaveBeenCalled()
+        expect(error).toHaveBeenCalledTimes(1)
+        const serialized = String(error.mock.calls[0]?.[0])
+        expect(decodeTelemetry(serialized)).toMatchObject({
+          annotations: {
+            statusCode: 200,
+            status: 'error',
+            errorKind: 'defect',
+            errorSummary: expect.stringContaining('TypeError')
+          }
+        })
+        expect(serialized).not.toContain('private-provider-payload')
+      } finally {
+        yield* Effect.promise(() => server.dispose())
+        info.mockRestore()
+        error.mockRestore()
+      }
+    })
+)
 const decodeAudit = Schema.decodeUnknownEffect(
   Schema.fromJsonString(
     Schema.Struct({

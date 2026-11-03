@@ -1,7 +1,11 @@
 // Promise-native vendor boundary: test the SDK protocol and preserve rejected operations.
 // oxlint-disable effect/noAsyncFunction, effect/noTestLifecycleHooks, effect/noGlobals
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
-import { captureOperationalSnapshot, withCronMonitor } from './providers.ts'
+import {
+  captureMonitoringSignal,
+  captureOperationalSnapshot,
+  withCronMonitor
+} from './providers.ts'
 
 // Failure modes: thrown failures must propagate,
 // successful cron completion and zero snapshots must remain visible without credentials.
@@ -12,6 +16,22 @@ beforeEach(() => {
 })
 
 describe('operator telemetry boundary', () => {
+  it('adds sanitized deployment identity without changing operational payloads', async () => {
+    const identity = {
+      service: 'background',
+      environment: 'production',
+      commitHash: 'abc123',
+      serviceVersion: 'build-1',
+      traceId: 'trace-1'
+    }
+    await withCronMonitor('drill', () => Promise.resolve(), identity)
+    await captureOperationalSnapshot({ failures: 0 }, identity)
+    await captureMonitoringSignal('queue_exhausted', { attempts: 3 }, identity)
+    for (const [line] of [...output.mock.calls, ...errors.mock.calls]) {
+      expect(JSON.parse(String(line))).toMatchObject(identity)
+    }
+  })
+
   it('sends failed and recovered completion check-ins while preserving the job failure', async () => {
     await expect(
       withCronMonitor('drill', () => Promise.reject(new Error('fault')))

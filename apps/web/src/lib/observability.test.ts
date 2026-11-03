@@ -1,8 +1,10 @@
 import { Effect, Schema } from 'effect'
+import { annotateWideEvent } from '@b2b-saas-starter/logger'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 
 import {
   memoizePerRequest,
+  reportWebFailure,
   runWebRequestScope,
   webRuntime,
   withWebRequestScope
@@ -50,6 +52,9 @@ beforeEach(() => {
   vi.spyOn(console, 'log').mockImplementation((...args: ReadonlyArray<unknown>) => {
     lines.push(decodeLine(args[0]))
   })
+  vi.spyOn(console, 'error').mockImplementation((...args: ReadonlyArray<unknown>) => {
+    lines.push(decodeLine(args[0]))
+  })
 })
 
 afterEach(() => {
@@ -72,6 +77,100 @@ function nestedEntries(record: Captured): ReadonlyArray<Record<string, unknown>>
 }
 
 describe('runWebRequestScope', () => {
+  it('keeps accumulated facts with their own nested operation', async () => {
+    const request = new Request('http://localhost/private')
+    ambient.request = request
+    await runWebRequestScope({ request, handlerType: 'router' }, async () => {
+      for (const [workspaceId, plan] of [
+        ['ws_1', 'team'],
+        ['ws_2', 'enterprise']
+      ]) {
+        await webRuntime.runPromise(
+          withWebRequestScope(
+            { event: 'capability.workspace' },
+            annotateWideEvent({ workspaceId, plan })
+          )
+        )
+      }
+      return new Response(null)
+    })
+    expect(nestedEntries(only())).toEqual([
+      {
+        event: 'capability.workspace',
+        workspaceId: 'ws_1',
+        plan: 'team',
+        status: 'ok'
+      },
+      {
+        event: 'capability.workspace',
+        workspaceId: 'ws_2',
+        plan: 'enterprise',
+        status: 'ok'
+      }
+    ])
+    expect(only().annotations).not.toHaveProperty('workspaceId')
+  })
+
+  it('correlates independent failure evidence without exporting exception text', async () => {
+    const request = new Request('http://localhost/private')
+    ambient.request = request
+    await runWebRequestScope({ request, handlerType: 'router' }, async () => {
+      await reportWebFailure(
+        'auth.background_failed',
+        new Error('PRIVATE_SECRET'),
+        request
+      )
+      return new Response(null, { status: 200 })
+    })
+    expect(lines).toHaveLength(2)
+    const failure = lines.find((line) => line.message === 'auth.background_failed')
+    const completed = lines.find((line) => line.message === 'web.request')
+    expect(failure?.level).toBe('ERROR')
+    expect(failure?.annotations['otelTraceId']).toBe(
+      completed?.annotations['otelTraceId']
+    )
+    expect(JSON.stringify(lines)).not.toContain('PRIVATE_SECRET')
+  })
+
+  it('retains nested facts when the handler rejects', async () => {
+    const request = new Request('http://localhost/private')
+    ambient.request = request
+    await expect(
+      runWebRequestScope({ request, handlerType: 'router' }, async () => {
+        await webRuntime.runPromise(
+          withWebRequestScope(
+            { event: 'capability.workspace' },
+            Effect.annotateLogsScoped({ actorUserId: 'usr_1', workspaceId: 'ws_1' })
+          )
+        )
+        throw new Error('private failure')
+      })
+    ).rejects.toThrow('private failure')
+    expect(only().level).toBe('ERROR')
+    expect(nestedEntries(only())).toEqual([
+      {
+        event: 'capability.workspace',
+        actorUserId: 'usr_1',
+        workspaceId: 'ws_1',
+        status: 'ok'
+      }
+    ])
+  })
+
+  it('records a handled HTTP failure with its actual status', async () => {
+    const request = new Request('http://localhost/private')
+    ambient.request = request
+    const response = await runWebRequestScope(
+      { request, handlerType: 'router' },
+      async () => new Response(null, { status: 503 })
+    )
+    expect(response.status).toBe(503)
+    expect(only()).toMatchObject({
+      level: 'ERROR',
+      annotations: { status: 'error', statusCode: 503 }
+    })
+  })
+
   it('emits exactly one canonical line, with every nested run folded into it', async () => {
     const request = new Request('http://localhost/workspaces/customer-sensitive-canary')
     ambient.request = request

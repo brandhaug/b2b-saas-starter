@@ -2,6 +2,7 @@ import {
   makeOtlpLayer,
   WideEventLoggerLive,
   withHttpInvocation,
+  withWideEventFacts,
   withTriggerScope
 } from '@b2b-saas-starter/logger'
 import { env as cloudflareEnv } from 'cloudflare:workers'
@@ -218,12 +219,9 @@ function registerAndRun(
     if (ambient && ambient !== request) {
       registry.set(ambient, telemetry)
     }
-    const response = yield* runNext(next)
-    yield* Effect.annotateLogsScoped({ statusCode: response.status })
-    if (telemetry.nested.length > 0) {
-      yield* Effect.annotateLogsScoped({ nested: telemetry.nested })
-    }
-    return response
+    return yield* runNext(next).pipe(
+      Effect.onExit(() => Effect.annotateLogsScoped({ nested: telemetry.nested }))
+    )
   })
 }
 
@@ -286,7 +284,9 @@ function nested<A, E, R>(
     // Same `onExit` reasoning as the logger's own scope: a finalizer would run
     // after the scoped annotations were restored, losing everything the nested
     // code added with `Effect.annotateLogsScoped`.
-    return yield* Effect.onExit(effect, (exit) => record(telemetry, options, exit))
+    return yield* withWideEventFacts(effect, (facts, exit) =>
+      record(telemetry, options, exit, facts)
+    )
   })
   return Effect.scoped(body).pipe(
     Effect.withSpan(options.event, { attributes: options.metadata }),
@@ -302,7 +302,8 @@ function nested<A, E, R>(
 function record(
   telemetry: RequestTelemetry,
   options: NestedScopeOptions,
-  exit: Exit.Exit<unknown, unknown>
+  exit: Exit.Exit<unknown, unknown>,
+  facts: Readonly<Record<string, unknown>>
 ): Effect.Effect<void> {
   return Effect.gen(function* () {
     const annotations = yield* References.CurrentLogAnnotations
@@ -312,6 +313,7 @@ function record(
     telemetry.nested.push({
       event: options.event,
       ...Object.fromEntries(own),
+      ...facts,
       status: Exit.isSuccess(exit) ? 'ok' : 'error'
     })
   })
@@ -347,4 +349,28 @@ function standalone<A, E, R>(
     },
     effect
   ).pipe(withInvocationExporters, Effect.provide(WideEventLoggerLive))
+}
+
+/** Independent failure evidence uses the request's trace but its own invocation lifetime. */
+export function reportWebFailure(
+  event: string,
+  error: unknown,
+  request: Request | undefined = currentRequest(),
+  metadata?: Readonly<Record<string, unknown>>
+): Promise<void> {
+  const telemetry = request === undefined ? undefined : registry.get(request)
+  return webRuntime
+    .runPromiseExit(
+      withTriggerScope(
+        {
+          service: 'web',
+          event,
+          env: cloudflareEnv,
+          parent: telemetry?.span,
+          metadata
+        },
+        Effect.fail(error)
+      ).pipe(withInvocationExporters)
+    )
+    .then(() => undefined)
 }

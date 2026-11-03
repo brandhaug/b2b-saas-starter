@@ -10,10 +10,9 @@ import {
 } from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversation'
 import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { Effect } from 'effect'
-import { HttpServerResponse, type HttpServerRequest } from 'effect/http'
+import { HttpServerResponse } from 'effect/http'
 import { HttpApiBuilder } from 'effect/http-api'
 import { assistantAuthorityFailure } from './assistant-conversation-guards.ts'
-import { type ApiEnv } from './env.ts'
 import { observed } from './request-guards.ts'
 
 function routeError(error: ConversationError) {
@@ -43,33 +42,22 @@ function readError(error: ConversationError) {
   }
 }
 
-export function assistantConversationsGroup(env: ApiEnv) {
-  function read<A, R>(
-    request: HttpServerRequest.HttpServerRequest,
-    event: string,
-    operation: Effect.Effect<A, ConversationError, R>
-  ) {
-    return observed(
-      env,
-      request,
-      `assistant-conversations.${event}`,
-      {},
-      operation.pipe(Effect.mapError(readError))
-    )
-  }
-  function generate<A, R>(
-    request: HttpServerRequest.HttpServerRequest,
-    event: string,
-    operation: Effect.Effect<A, ConversationError, R>
-  ) {
-    return observed(
-      env,
-      request,
-      `assistant-conversations.${event}`,
-      {},
-      operation.pipe(Effect.mapError(routeError))
-    )
-  }
+function read<A, R>(event: string, operation: Effect.Effect<A, ConversationError, R>) {
+  return observed(
+    `assistant-conversations.${event}`,
+    operation.pipe(Effect.mapError(readError))
+  )
+}
+function generate<A, R>(
+  event: string,
+  operation: Effect.Effect<A, ConversationError, R>
+) {
+  return observed(
+    `assistant-conversations.${event}`,
+    operation.pipe(Effect.mapError(routeError))
+  )
+}
+export function assistantConversationsGroup() {
   return HttpApiBuilder.group(StarterApi, 'assistant-conversations', (handlers) =>
     Effect.gen(function* () {
       const conversations = yield* AssistantConversations
@@ -82,9 +70,8 @@ export function assistantConversationsGroup(env: ApiEnv) {
         }
       })
       return handlers
-        .handle('create', ({ payload, request }) =>
+        .handle('create', ({ payload }) =>
           read(
-            request,
             'create',
             Effect.gen(function* () {
               yield* selectWorkspace(payload.workspaceSlug)
@@ -94,9 +81,8 @@ export function assistantConversationsGroup(env: ApiEnv) {
             })
           )
         )
-        .handle('list', ({ query, request }) =>
+        .handle('list', ({ query }) =>
           read(
-            request,
             'list',
             Effect.gen(function* () {
               yield* selectWorkspace(query.workspaceSlug)
@@ -108,9 +94,8 @@ export function assistantConversationsGroup(env: ApiEnv) {
             })
           )
         )
-        .handle('read', ({ params, request }) =>
+        .handle('read', ({ params }) =>
           read(
-            request,
             'read',
             Effect.gen(function* () {
               return yield* conversations.read({
@@ -120,9 +105,8 @@ export function assistantConversationsGroup(env: ApiEnv) {
             })
           )
         )
-        .handle('history', ({ params, query, request }) =>
+        .handle('history', ({ params, query }) =>
           read(
-            request,
             'history',
             Effect.gen(function* () {
               return yield* conversations.history({
@@ -133,9 +117,8 @@ export function assistantConversationsGroup(env: ApiEnv) {
             })
           )
         )
-        .handle('send', ({ params, payload, request }) =>
+        .handle('send', ({ params, payload }) =>
           generate(
-            request,
             'send',
             Effect.gen(function* () {
               return yield* conversations.send({
@@ -146,9 +129,8 @@ export function assistantConversationsGroup(env: ApiEnv) {
             })
           )
         )
-        .handle('retry', ({ params, payload, request }) =>
+        .handle('retry', ({ params, payload }) =>
           generate(
-            request,
             'retry',
             Effect.gen(function* () {
               return yield* conversations.retry({
@@ -159,9 +141,8 @@ export function assistantConversationsGroup(env: ApiEnv) {
             })
           )
         )
-        .handle('stop', ({ params, request }) =>
+        .handle('stop', ({ params }) =>
           read(
-            request,
             'stop',
             Effect.gen(function* () {
               return yield* conversations.stop({
@@ -171,9 +152,8 @@ export function assistantConversationsGroup(env: ApiEnv) {
             })
           )
         )
-        .handle('observe', ({ params, headers, request }) =>
+        .handle('observe', ({ params, headers }) =>
           read(
-            request,
             'observe',
             Effect.gen(function* () {
               const response = yield* conversations.observe({
@@ -185,9 +165,8 @@ export function assistantConversationsGroup(env: ApiEnv) {
             })
           )
         )
-        .handle('delete', ({ params, request }) =>
+        .handle('delete', ({ params }) =>
           read(
-            request,
             'delete',
             Effect.gen(function* () {
               yield* conversations.remove({

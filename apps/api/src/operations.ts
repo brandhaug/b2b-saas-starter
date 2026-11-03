@@ -1,4 +1,5 @@
 import { requireTokenScopes } from '@b2b-saas-starter/authz/guard'
+import { annotateWideEvent } from '@b2b-saas-starter/logger'
 import {
   ApiTokenApi,
   WebhookApi,
@@ -356,7 +357,7 @@ export const MUTATION_OPERATIONS = {
         yield* requireTokenScopes(yield* OperationPrincipal, options.payload.scopes)
         const tokens = yield* ApiTokenRegistry
         const created = yield* tokens.create(options.payload)
-        yield* Effect.annotateLogsScoped({
+        yield* annotateWideEvent({
           tokenId: created.id,
           tokenScopes: created.scopes
         })
@@ -376,7 +377,7 @@ export const MUTATION_OPERATIONS = {
           tokenId: options.params.tokenId,
           ...options.payload
         })
-        yield* Effect.annotateLogsScoped({
+        yield* annotateWideEvent({
           tokenId: replaced.id,
           previousTokenId: replaced.previousTokenId,
           tokenScopes: replaced.scopes
@@ -416,7 +417,7 @@ export const MUTATION_OPERATIONS = {
           events: options.payload.events,
           description: options.payload.description
         })
-        yield* Effect.annotateLogsScoped({ webhookEndpointId: created.endpoint.id })
+        yield* annotateWideEvent({ webhookEndpointId: created.endpoint.id })
         return created.endpoint
       })
   },
@@ -441,7 +442,7 @@ export const MUTATION_OPERATIONS = {
           patch.enabled = options.payload.enabled
         }
         const updated = yield* webhooks.update(patch)
-        yield* Effect.annotateLogsScoped({ webhookEndpointId: updated.id })
+        yield* annotateWideEvent({ webhookEndpointId: updated.id })
         return updated
       })
   },
@@ -470,7 +471,7 @@ export const MUTATION_OPERATIONS = {
         const rotated = yield* webhooks.rotateSecret({
           endpointId: options.params.endpointId
         })
-        yield* Effect.annotateLogsScoped({
+        yield* annotateWideEvent({
           webhookEndpointId: options.params.endpointId
         })
         return { signingSecret: rotated.signingSecret }
@@ -486,7 +487,7 @@ export const MUTATION_OPERATIONS = {
         const sent = yield* webhooks.sendTestEvent({
           endpointId: options.params.endpointId
         })
-        yield* Effect.annotateLogsScoped({ deliveryId: sent.deliveryId })
+        yield* annotateWideEvent({ deliveryId: sent.deliveryId })
         return {
           status: 'queued',
           deliveryId: sent.deliveryId
@@ -503,7 +504,7 @@ export const MUTATION_OPERATIONS = {
         const replayed = yield* webhooks.replayDelivery({
           deliveryId: options.params.deliveryId
         })
-        yield* Effect.annotateLogsScoped({ deliveryId: replayed.deliveryId })
+        yield* annotateWideEvent({ deliveryId: replayed.deliveryId })
         return {
           status: 'queued',
           deliveryId: replayed.deliveryId
@@ -517,7 +518,7 @@ export const MUTATION_OPERATIONS = {
       Effect.gen(function* () {
         const exports = yield* WorkspaceExports
         const created = yield* exports.request
-        yield* Effect.annotateLogsScoped({ exportId: created.id })
+        yield* annotateWideEvent({ exportId: created.id })
         return created
       })
   },
@@ -543,7 +544,7 @@ export const MUTATION_OPERATIONS = {
           })
         }
         const origin = yield* OperationOrigin
-        yield* Effect.annotateLogsScoped({ exportId: options.params.exportId })
+        yield* annotateWideEvent({ exportId: options.params.exportId })
         return {
           url: `${origin}${link.value.path}`,
           expiresAt: link.value.expiresAt

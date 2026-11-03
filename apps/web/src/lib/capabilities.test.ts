@@ -35,6 +35,26 @@ function createToken(userId: string) {
 }
 
 describe('runWorkspaceCapabilities authorization', () => {
+  it('emits immutable workspace and actor identity without the workspace slug', async () => {
+    const output = vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      await runWorkspaceCapabilities('starter-lab', Effect.void, {
+        userId: 'usr_martin'
+      })
+      expect(output).toHaveBeenCalledTimes(1)
+      const serialized = String(output.mock.calls[0]?.[0])
+      expect(JSON.parse(serialized)).toMatchObject({
+        annotations: {
+          workspaceId: expect.any(String),
+          actorUserId: 'usr_martin'
+        }
+      })
+      expect(serialized).not.toContain('starter-lab')
+    } finally {
+      output.mockRestore()
+    }
+  })
+
   it('serializes a billing deletion refusal without exposing diagnostics', async () => {
     const refusal = await runWorkspaceCapabilities(
       'starter-lab',

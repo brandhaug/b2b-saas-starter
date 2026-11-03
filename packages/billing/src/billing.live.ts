@@ -14,6 +14,7 @@ import {
 } from '@b2b-saas-starter/db/schema'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer } from 'effect'
+import { annotateWideEvent } from '@b2b-saas-starter/logger'
 import { and, count, eq, inArray, ne, isNull, isNotNull, or } from 'drizzle-orm'
 
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -125,7 +126,11 @@ export function LiveBilling(
       )
       const currentPlanForWorkspace = Effect.fn('Billing.currentPlanForWorkspace')(
         function* (workspaceId: string) {
-          return planById((yield* lifecycleForWorkspace(workspaceId)).access.planId)
+          const plan = planById(
+            (yield* lifecycleForWorkspace(workspaceId)).access.planId
+          )
+          yield* annotateWideEvent({ workspaceId, plan: plan.id })
+          return plan
         }
       )
       const service: BillingInterface = {

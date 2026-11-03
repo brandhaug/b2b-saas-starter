@@ -737,7 +737,7 @@ describe('request observability', () => {
       const res = yield* send(request)
       expect(res.status).toBe(200)
 
-      const events = lines.filter((line) => line.message === 'request.health')
+      const events = lines.filter((line) => line.message === 'api.request')
       // Exactly one event per request, and it names the colo as its region.
       expect(events).toHaveLength(1)
       expect(encodeWideEventLines(events)).not.toContain('customer-sensitive-canary')
@@ -745,6 +745,8 @@ describe('request observability', () => {
       expect(events[0]?.annotations).toMatchObject({
         service: 'api',
         status: 'ok',
+        operation: 'request.health',
+        statusCode: 200,
         method: 'GET',
         region: 'ARN'
       })

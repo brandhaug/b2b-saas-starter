@@ -1076,6 +1076,9 @@ importers:
       '@b2b-saas-starter/i18n':
         specifier: workspace:*
         version: link:../i18n
+      '@b2b-saas-starter/logger':
+        specifier: workspace:*
+        version: link:../logger
       effect:
         specifier: 'catalog:'
         version: 4.1.0

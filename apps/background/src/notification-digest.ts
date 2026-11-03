@@ -23,7 +23,7 @@ import {
   NotificationDigestEmail,
   type DigestItem
 } from '@b2b-saas-starter/email/notification-emails'
-import { withTriggerScope } from '@b2b-saas-starter/logger'
+import { annotateWideEvent, withTriggerScope } from '@b2b-saas-starter/logger'
 import { DateTime, Duration, Effect, Layer, Result, Schedule, type Scope } from 'effect'
 
 import { appUrlFrom, preferencesUrl } from './notification-links.ts'
@@ -135,7 +135,7 @@ export function runNotificationDigest(
     const eligibility = yield* NotificationEmailEligibility
     const selection = yield* eligibility.digest({ since, until })
     if (selection.suspendedCount > 0) {
-      yield* Effect.annotateLogsScoped({
+      yield* annotateWideEvent({
         notificationDigestSkipped: selection.suspendedCount,
         skipReason: 'workspace_suspended'
       })
@@ -177,10 +177,6 @@ export function runNotificationDigest(
         sent += 1
       } else if (Result.isFailure(outcome)) {
         failed += 1
-        yield* Effect.logError('notification_digest.send_failed', {
-          userId,
-          reason: outcome.failure._tag
-        })
       }
     }
 
@@ -192,7 +188,14 @@ export function runNotificationDigest(
       sent,
       failed
     }
-    yield* Effect.annotateLogsScoped({ ...summary })
+    let outcome = 'sent'
+    if (failed > 0) {
+      outcome = 'failed'
+      if (sent > 0) {
+        outcome = 'partial_failure'
+      }
+    }
+    yield* annotateWideEvent({ ...summary, outcome })
     return summary
   })
 }

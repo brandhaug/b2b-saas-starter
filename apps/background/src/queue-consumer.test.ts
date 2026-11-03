@@ -4,9 +4,48 @@ import { describe, expect, it, vi } from '@effect/vitest'
 import { DateTime, Effect, Result } from 'effect'
 import { HttpClient } from 'effect/http'
 
-import { consumeBatch, runInvocation } from './queue-consumer.ts'
+import { consumeBatch, consumerInvocation, runInvocation } from './queue-consumer.ts'
 
 describe('consumeBatch', () => {
+  it.effect(
+    'retains message identity and receiver status in the serialized canonical event',
+    () =>
+      Effect.gen(function* () {
+        const lines: Array<string> = []
+        const output = vi
+          .spyOn(console, 'log')
+          .mockImplementation((line: string) => lines.push(line))
+        try {
+          yield* Effect.promise(() =>
+            runInvocation(
+              {},
+              consumerInvocation(
+                {},
+                {
+                  event: 'webhook_delivery',
+                  delivery: { id: 'message-identity', attempts: 2, kind: 'malformed' },
+                  onFailure: 'retry',
+                  program: Effect.annotateLogsScoped({ responseStatus: 202 }).pipe(
+                    Effect.as('ack' as const)
+                  )
+                }
+              )
+            )
+          )
+          expect(lines).toHaveLength(1)
+          // oxlint-disable-next-line effect/noGlobals -- inspect the actual console JSON output
+          expect(JSON.parse(lines[0] ?? '')).toMatchObject({
+            annotations: {
+              messageId: 'message-identity',
+              attempts: 2,
+              responseStatus: 202
+            }
+          })
+        } finally {
+          output.mockRestore()
+        }
+      })
+  )
   it.effect('honors a consumer-provided retry delay', () => {
     const retry = vi.fn()
     const message = {

@@ -2,13 +2,26 @@
 // Promise-native Worker entry adapters preserve the original operation result.
 // oxlint-disable effect/noAsyncFunction, effect/noTryCatch, effect/noNewPromise, effect/noGlobals, eslint/no-console
 import { diagnosticFields, diagnosticLabel } from './sanitization.ts'
+import { type WideEventEnvironment } from './environment.ts'
+
+export { readWideEventEnvironment } from './environment.ts'
+
+type OperationalIdentity = WideEventEnvironment & {
+  readonly service?: string | undefined
+  readonly traceId?: string | undefined
+}
 
 /** Completion events support freshness queries; failure still rejects the invocation. */
 export async function withCronMonitor<A>(
   monitorSlug: string,
-  operation: () => Promise<A>
+  operation: () => Promise<A>,
+  identity: OperationalIdentity = {}
 ): Promise<A> {
-  const event = { event: 'cron.check_in', monitorSlug: diagnosticLabel(monitorSlug) }
+  const event = {
+    ...diagnosticFields(identity),
+    event: 'cron.check_in',
+    monitorSlug: diagnosticLabel(monitorSlug)
+  }
   console.log(JSON.stringify({ ...event, status: 'in_progress' }))
   try {
     const result = await operation()
@@ -23,10 +36,16 @@ export async function withCronMonitor<A>(
 
 /** Include zero values so alert queries can observe recovery. */
 export function captureOperationalSnapshot(
-  values: Readonly<Record<string, number>>
+  values: Readonly<Record<string, number>>,
+  identity: OperationalIdentity = {}
 ): Promise<void> {
   console.log(
-    JSON.stringify({ event: 'operations.snapshot', service: 'background', values })
+    JSON.stringify({
+      event: 'operations.snapshot',
+      service: 'background',
+      ...diagnosticFields(identity),
+      values
+    })
   )
   return Promise.resolve()
 }
@@ -34,10 +53,12 @@ export function captureOperationalSnapshot(
 /** Error severity feeds Workers Issues; customer content stays out of evidence. */
 export function captureMonitoringSignal(
   signal: string,
-  evidence: Readonly<Record<string, string | number | undefined>>
+  evidence: Readonly<Record<string, string | number | undefined>>,
+  identity: OperationalIdentity = {}
 ): Promise<void> {
   console.error(
     JSON.stringify({
+      ...diagnosticFields(identity),
       event: 'operations.failure',
       signal: diagnosticLabel(signal),
       evidence: diagnosticFields(evidence)

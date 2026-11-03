@@ -2,6 +2,7 @@ import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/n
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+import { annotateWideEventCause } from '@b2b-saas-starter/logger'
 import {
   WorkspaceExports,
   type WorkspaceExportRecipient
@@ -41,6 +42,7 @@ import {
 import { RateLimiter, type McpDiscovery } from '@b2b-saas-starter/api'
 import {
   Context,
+  Cause,
   Effect,
   Layer,
   Option,
@@ -698,8 +700,9 @@ function registerMutationTools(env: ApiEnv) {
             )
             return outcomeToToolResult(outcome)
           }).pipe(
-            Effect.catchDefect(() =>
-              Effect.logError('MCP mutation defect', { tool: operation.toolName }).pipe(
+            Effect.catchDefect((defect) =>
+              // oxlint-disable-next-line eslint/no-restricted-properties -- preserve an existing defect before translating it to a protocol response
+              annotateWideEventCause(Cause.die(defect)).pipe(
                 Effect.andThen(
                   Effect.succeed(
                     new CallToolResult({
@@ -862,10 +865,7 @@ function makeGate(
         const requestScope = yield* Scope.Scope
         return yield* Effect.catchIf(
           observed(
-            env,
-            request,
             'mcp.protocol',
-            {},
             Effect.gen(function* () {
               yield* enforceRateLimit(request, 'mcp')
               const bearer = bearerToken(request)

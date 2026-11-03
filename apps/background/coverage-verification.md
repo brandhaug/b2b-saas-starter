@@ -6,6 +6,27 @@ separate projects and Vite servers.
 
 ## Reproduce
 
+### Logging regression checks
+
+Verified 2026-11-03. From the repository root:
+
+```sh
+pnpm -C apps/background exec vp test run --project background src/stripe-request.live.test.ts src/notification-digest.test.ts src/queue-consumer.test.ts src/stripe-endpoint.test.ts
+pnpm -C apps/background typecheck
+pnpm exec vp lint --type-aware apps/background
+```
+
+Observed: 4 test files and 35 tests passed; typecheck and lint passed.
+The tests inspect serialized console events for Stripe 503 and invalid-signature
+400 responses, incoming trace and colo, queue message identity and receiver status,
+and a digest with one successful send and one failure. They assert one canonical
+event and exclude request secrets and recipient addresses. Existing live D1 tests
+also verify persistence, enqueue failure, deduplication, and signature rejection.
+The new tests were added before implementation; the first run reported three
+failures and sixteen passes.
+
+### Coverage reports
+
 From the repository root:
 
 ```sh

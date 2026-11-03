@@ -14,7 +14,8 @@ import {
 import { withTriggerScope } from '@b2b-saas-starter/logger'
 import {
   captureMonitoringSignal,
-  captureOperationalSnapshot
+  captureOperationalSnapshot,
+  readWideEventEnvironment
 } from '@b2b-saas-starter/logger/providers'
 import { DateTime, Effect, Metric, Result } from 'effect'
 import { type Env } from './queue-consumer.ts'
@@ -31,28 +32,43 @@ const retentionLastSuccess = Metric.gauge('starter.retention.last_success_unix_m
 })
 
 function captureRetentionFailure(
+  env: Env,
   target: string | undefined,
   error: RetentionPolicyError | CapabilityUnavailable
 ) {
   return Effect.promise(() =>
-    captureMonitoringSignal('retention_run_failed', {
-      target: target ?? 'missing',
-      reason: error.reason
-    })
+    captureMonitoringSignal(
+      'retention_run_failed',
+      {
+        target: target ?? 'missing',
+        reason: error.reason
+      },
+      { service: 'background', ...readWideEventEnvironment(env) }
+    )
   )
 }
 
-function captureRetentionSnapshot(backlog: number, lastSuccess: number | undefined) {
+function captureRetentionSnapshot(
+  env: Env,
+  backlog: number,
+  lastSuccess: number | undefined
+) {
   if (lastSuccess !== undefined) {
     return Effect.promise(() =>
-      captureOperationalSnapshot({
-        'retention.backlog': backlog,
-        'retention.last_success_unix_ms': lastSuccess
-      })
+      captureOperationalSnapshot(
+        {
+          'retention.backlog': backlog,
+          'retention.last_success_unix_ms': lastSuccess
+        },
+        { service: 'background', ...readWideEventEnvironment(env) }
+      )
     )
   }
   return Effect.promise(() =>
-    captureOperationalSnapshot({ 'retention.backlog': backlog })
+    captureOperationalSnapshot(
+      { 'retention.backlog': backlog },
+      { service: 'background', ...readWideEventEnvironment(env) }
+    )
   )
 }
 
@@ -90,7 +106,7 @@ export function cleanRetention(env: Env, scheduledTime: number) {
         })
       )
       if (Result.isFailure(attempt)) {
-        yield* captureRetentionFailure(databaseTarget, attempt.failure)
+        yield* captureRetentionFailure(env, databaseTarget, attempt.failure)
         yield* Metric.update(
           Metric.withAttributes(retentionRunCount, { status: 'failed' }),
           1
@@ -100,7 +116,7 @@ export function cleanRetention(env: Env, scheduledTime: number) {
       const result = attempt.success
       yield* Effect.annotateLogsScoped({
         mode: result.mode,
-        status: result.status,
+        outcome: result.status,
         target: databaseTarget,
         candidates: result.candidates,
         deleted: result.deleted,
@@ -116,7 +132,7 @@ export function cleanRetention(env: Env, scheduledTime: number) {
       if (result.status === 'success') {
         lastSuccess = scheduledTime
       }
-      yield* captureRetentionSnapshot(result.backlog, lastSuccess)
+      yield* captureRetentionSnapshot(env, result.backlog, lastSuccess)
       if (result.status === 'success') {
         yield* Metric.update(retentionLastSuccess, scheduledTime)
       }
@@ -125,7 +141,7 @@ export function cleanRetention(env: Env, scheduledTime: number) {
           capability: 'retention',
           reason: 'retention_rule_query_failed'
         })
-        yield* captureRetentionFailure(databaseTarget, failure)
+        yield* captureRetentionFailure(env, databaseTarget, failure)
         return yield* Effect.fail(failure)
       }
     }).pipe(Effect.provide(selectCapabilitiesLayer(starterEnv(env))))
