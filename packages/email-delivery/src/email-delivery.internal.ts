@@ -40,46 +40,6 @@ export type DeliveryStore = {
 const hour = 3_600_000
 const lease = 5 * 60_000
 const outcomes = Metric.counter('starter.email.send.outcomes')
-function iso(time: number) {
-  return DateTime.formatIso(DateTime.makeUnsafe(time))
-}
-function terminal(row: StoredDelivery) {
-  return (
-    row.acceptedAt !== null ||
-    ['delivered', 'failed', 'suppressed', 'logged'].includes(row.status)
-  )
-}
-function evidence({
-  token: _token,
-  revision: _revision,
-  ...row
-}: StoredDelivery): EmailDeliveryRecord {
-  return row
-}
-function retryDuration(purpose: ClaimEmail['purpose']) {
-  if (purpose === 'notification') {
-    return 24 * hour
-  }
-  if (purpose === 'digest') {
-    return 6 * hour
-  }
-  return 0
-}
-function reasonRank(reason: string | null): number {
-  if (reason === 'complaint') {
-    return 4
-  }
-  if (reason === 'hard_bounce') {
-    return 3
-  }
-  if (reason === 'provider_suppressed') {
-    return 2
-  }
-  if (reason === 'provider_rejected') {
-    return 1
-  }
-  return 0
-}
 
 /**
  * A lost compare-and-swap. Private to `casRetry`: a mutation that sees it
@@ -478,4 +438,49 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
     listSystem,
     resolveUserId: store.resolveUserId
   })
+}
+
+function iso(time: number) {
+  return DateTime.formatIso(DateTime.makeUnsafe(time))
+}
+
+function terminal(row: StoredDelivery) {
+  return (
+    row.acceptedAt !== null ||
+    ['delivered', 'failed', 'suppressed', 'logged'].includes(row.status)
+  )
+}
+
+function evidence({
+  token: _token,
+  revision: _revision,
+  ...row
+}: StoredDelivery): EmailDeliveryRecord {
+  return row
+}
+
+function retryDuration(purpose: ClaimEmail['purpose']) {
+  if (purpose === 'notification') {
+    return 24 * hour
+  }
+  if (purpose === 'digest') {
+    return 6 * hour
+  }
+  return 0
+}
+
+function reasonRank(reason: string | null): number {
+  if (reason === 'complaint') {
+    return 4
+  }
+  if (reason === 'hard_bounce') {
+    return 3
+  }
+  if (reason === 'provider_suppressed') {
+    return 2
+  }
+  if (reason === 'provider_rejected') {
+    return 1
+  }
+  return 0
 }

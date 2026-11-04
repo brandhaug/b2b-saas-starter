@@ -52,7 +52,8 @@ describe('dispatchTrackedEmail', () => {
     return Effect.gen(function* () {
       const first = yield* dispatchTrackedEmail(input, message)
       const second = yield* dispatchTrackedEmail(input, message)
-      const record = yield* (yield* EmailDelivery).get(input.id)
+      const delivery = yield* EmailDelivery
+      const record = yield* delivery.get(input.id)
 
       expect(first).toEqual({ status: 'accepted' })
       expect(second).toEqual({ status: 'skipped' })
@@ -81,7 +82,8 @@ describe('dispatchTrackedEmail', () => {
 
     return Effect.gen(function* () {
       const result = yield* Effect.result(dispatchTrackedEmail(input, message))
-      const record = yield* (yield* EmailDelivery).get(input.id)
+      const delivery = yield* EmailDelivery
+      const record = yield* delivery.get(input.id)
 
       expect(result._tag).toBe('Failure')
       expect(record).toMatchObject({
@@ -121,7 +123,8 @@ describe('dispatchTrackedEmail', () => {
         return Effect.gen(function* () {
           const currentInput = { ...input, id: current.id }
           yield* Effect.result(dispatchTrackedEmail(currentInput, message))
-          const record = yield* (yield* EmailDelivery).get(currentInput.id)
+          const delivery = yield* EmailDelivery
+          const record = yield* delivery.get(currentInput.id)
           expect(record).toMatchObject({
             status: current.status,
             reason: current.reason

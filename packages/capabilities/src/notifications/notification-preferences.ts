@@ -98,27 +98,6 @@ export function resolvePreferences(
   })
 }
 
-/**
- * The audit event a preference change records. One builder for both adapters,
- * so the Seed layer and the batched Live write cannot drift.
- */
-function preferenceChangeEvent(
-  input: SetNotificationPreferenceInput
-): RecordAuditEventInput {
-  return {
-    actorUserId: input.userId,
-    actorType: 'user',
-    eventType: 'notification_preference.changed',
-    targetType: 'user',
-    targetId: input.userId,
-    metadata: {
-      kind: input.kind,
-      channel: input.channel,
-      defaultChannel: defaultChannelFor(input.kind)
-    }
-  }
-}
-
 export function SeedNotificationPreferences(
   seed: ReadonlyArray<SeedNotificationPreference>
 ): Layer.Layer<NotificationPreferences, never, AuditEventLog> {
@@ -156,24 +135,6 @@ export function SeedNotificationPreferences(
   )
 }
 
-/**
- * The two reads, derived from whatever the adapter has stored. Neither
- * adapter decides anything here — the defaults live in `resolveChannel` and
- * `resolvePreferences` — so both take the same projection off the same map
- * and only the lookup behind it differs (a `Ref` or a D1 select).
- */
-function storedPreferenceReads<E>(
-  storedFor: (
-    userId: string
-  ) => Effect.Effect<ReadonlyMap<NotificationKind, NotificationChannel>, E>
-) {
-  return {
-    list: (userId: string) => Effect.map(storedFor(userId), resolvePreferences),
-    resolve: (userId: string, kind: NotificationKind) =>
-      Effect.map(storedFor(userId), (stored) => resolveChannel(kind, stored.get(kind)))
-  }
-}
-
 const unavailable = orUnavailable('notification-preferences')
 
 export const LiveNotificationPreferences: Layer.Layer<
@@ -184,8 +145,6 @@ export const LiveNotificationPreferences: Layer.Layer<
   Effect.gen(function* () {
     const db = yield* Database
     const audit = yield* AuditEventLog
-    // The shared mutate+audit combinator: the upsert and its audit row commit
-    // or roll back together, as every D1-writing audit-emitting capability does.
     const auditedMutation = yield* auditedMutations({
       prepareAuditRecord: audit.prepareRecord,
       unavailable
@@ -243,3 +202,33 @@ export const LiveNotificationPreferences: Layer.Layer<
     }
   })
 )
+
+function preferenceChangeEvent(
+  input: SetNotificationPreferenceInput
+): RecordAuditEventInput {
+  return {
+    actorUserId: input.userId,
+    actorType: 'user',
+    eventType: 'notification_preference.changed',
+    targetType: 'user',
+    targetId: input.userId,
+    metadata: {
+      kind: input.kind,
+      channel: input.channel,
+      defaultChannel: defaultChannelFor(input.kind)
+    }
+  }
+}
+
+// Seed and Live share default resolution; only the storage lookup differs.
+function storedPreferenceReads<E>(
+  storedFor: (
+    userId: string
+  ) => Effect.Effect<ReadonlyMap<NotificationKind, NotificationChannel>, E>
+) {
+  return {
+    list: (userId: string) => Effect.map(storedFor(userId), resolvePreferences),
+    resolve: (userId: string, kind: NotificationKind) =>
+      Effect.map(storedFor(userId), (stored) => resolveChannel(kind, stored.get(kind)))
+  }
+}

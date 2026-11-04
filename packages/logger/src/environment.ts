@@ -17,33 +17,6 @@ export type WideEventEnvironment = {
   readonly environment?: string | undefined
 }
 
-/**
- * Read one own property of an untyped env bag as a non-empty string. The
- * descriptor lookup keeps the own-property semantics without asserting a
- * dictionary type onto the caller's `object`.
- */
-function ownStringValue(source: object, key: string): string | undefined {
-  const value: unknown = Object.getOwnPropertyDescriptor(source, key)?.value
-  // oxlint-disable-next-line anti-slop/no-runtime-typeof, effect/noTernary -- one env-bag string read with no domain contract behind it; the Schema codec this replaced was the over-engineering
-  return typeof value === 'string' && value.length > 0 ? value : undefined
-}
-
-function pickString(
-  source: object | undefined,
-  ...keys: ReadonlyArray<string>
-): string | undefined {
-  if (!source) {
-    return undefined
-  }
-  for (const key of keys) {
-    const value = ownStringValue(source, key)
-    if (value !== undefined) {
-      return value
-    }
-  }
-  return undefined
-}
-
 export function readWideEventEnvironment(
   source: object | undefined,
   hints?: {
@@ -51,7 +24,6 @@ export function readWideEventEnvironment(
     readonly region?: string | undefined
   }
 ): WideEventEnvironment {
-  // Per-field precedence chains are documented on `WideEventEnvironment`.
   const commit = pickString(source, 'GIT_COMMIT_SHA', 'CF_VERSION_METADATA_ID')
   const version = pickString(source, 'SERVICE_VERSION', 'WORKERS_CI_BUILD_UUID')
   const region = hints?.colo ?? hints?.region ?? pickString(source, 'CF_REGION')
@@ -77,4 +49,27 @@ export function readCfColo(request: Request): string | undefined {
   const colo: unknown = (request.cf as { readonly colo?: unknown }).colo
   // oxlint-disable-next-line anti-slop/no-runtime-typeof, effect/noTernary -- same single-string read as `ownStringValue`
   return typeof colo === 'string' && colo.length > 0 ? colo : undefined
+}
+
+// Read only own data properties, without invoking getters on the platform bag.
+function ownStringValue(source: object, key: string): string | undefined {
+  const value: unknown = Object.getOwnPropertyDescriptor(source, key)?.value
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof, effect/noTernary -- one string field from an untyped platform bag
+  return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+function pickString(
+  source: object | undefined,
+  ...keys: ReadonlyArray<string>
+): string | undefined {
+  if (!source) {
+    return undefined
+  }
+  for (const key of keys) {
+    const value = ownStringValue(source, key)
+    if (value !== undefined) {
+      return value
+    }
+  }
+  return undefined
 }

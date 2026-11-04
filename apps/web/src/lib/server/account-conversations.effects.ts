@@ -7,19 +7,6 @@ import { runCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { type ConversationResult } from './assistant-conversations'
 
-function outcome<A, R>(effect: Effect.Effect<A, CapabilityUnavailable, R>) {
-  return effect.pipe(
-    Effect.match({
-      onSuccess: (value): ConversationResult<A> => ({ ok: true, value }),
-      onFailure: (): ConversationResult<A> => ({
-        ok: false,
-        reason: 'unavailable',
-        message: m.assistant_conversations_unavailable(),
-        retryAfterSeconds: null
-      })
-    })
-  )
-}
 export async function loadOwnedConversationsHandler() {
   const session = await requireRequestSession()
   return runCapabilities(
@@ -42,5 +29,19 @@ export async function deleteOwnedConversationHandler(input: {
         lifecycle.deleteOwned(session.user.id, input.conversationId)
       )
     )
+  )
+}
+
+function outcome<A, R>(effect: Effect.Effect<A, CapabilityUnavailable, R>) {
+  return effect.pipe(
+    Effect.match({
+      onSuccess: (value): ConversationResult<A> => ({ ok: true, value }),
+      onFailure: (): ConversationResult<A> => ({
+        ok: false,
+        reason: 'unavailable',
+        message: m.assistant_conversations_unavailable(),
+        retryAfterSeconds: null
+      })
+    })
   )
 }

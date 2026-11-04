@@ -37,15 +37,6 @@ import {
   type UpdateSsoConnectionInput
 } from './workspace-sso'
 
-/**
- * The workspace SSO effects and their server-only wiring, reached only
- * through dynamic `import()` inside the handlers of `workspace-sso.ts` (see
- * apps/web/AGENTS.md for the split): each handler reads the session once,
- * then proves the actor may act inside the effect it hands to
- * `runWorkspaceCapabilities` — the permission gates, the create-time IdP
- * validation, and the notify-on-failure rule included.
- */
-
 function samlIssuer(
   input: Extract<CreateSsoConnectionInput, { readonly protocol: 'saml' }>,
   metadata: string

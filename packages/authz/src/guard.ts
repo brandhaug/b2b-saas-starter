@@ -4,28 +4,6 @@ import { AUTHORIZATION_DENIED_REASONS, AuthorizationDenied } from './errors.ts'
 import { authorize, type PermissionRequest, type Principal } from './principal.ts'
 
 /**
- * The enforcement point. Handlers compose it beside `enforceRateLimit` and
- * `enforceScope`, which is why it takes its inputs as arguments and requires
- * only a `Scope` — it stays usable from a web server function, a route loader,
- * and an API worker handler without any of them sharing a context service.
- *
- * The principal is passed in rather than read from a context service on
- * purpose: this package sits below `capabilities`, so it cannot see
- * `WorkspaceContext`. Callers resolve the actor once per request and hand it
- * over — a session actor via `memberPrincipal`, a verified bearer token via
- * `tokenPrincipal`.
- */
-
-/** `apiToken:list+create webhook:create` — one field on the wide event. */
-function describe(request: PermissionRequest): string {
-  const parts: Array<string> = []
-  for (const [resource, requested] of Object.entries(request)) {
-    parts.push(`${resource}:${requested.join('+')}`)
-  }
-  return parts.join(' ')
-}
-
-/**
  * Fails with `AuthorizationDenied` unless the principal may perform the
  * request. A missing principal is a denial, not a pass: an unresolved actor
  * means the caller has not proved anything, and trusted server-side reads do
@@ -82,4 +60,11 @@ export function requireTokenScopes(
       }
     }
   })
+}
+
+/** `apiToken:list+create webhook:create` in one wide-event field. */
+function describe(request: PermissionRequest): string {
+  return Object.entries(request)
+    .map(([resource, requested]) => `${resource}:${requested.join('+')}`)
+    .join(' ')
 }

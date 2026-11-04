@@ -9,13 +9,22 @@ type CommandRunner = (
   input?: string
 ) => string | Promise<string>
 
-function runGh(args: ReadonlyArray<string>, input?: string): string {
-  // `gh api --input -` reads the request body from stdin.
-  return execFileSync('gh', [...args], { encoding: 'utf8', input })
-}
-
-function deploymentBase(env: NodeJS.ProcessEnv): string {
-  return `repos/${requiredEnv('GITHUB_REPOSITORY', env)}/deployments`
+export async function main(
+  args: ReadonlyArray<string> = process.argv.slice(2),
+  env: NodeJS.ProcessEnv = process.env,
+  run: CommandRunner = runGh
+): Promise<void> {
+  const mode = args[0]
+  if (args.length !== 1 || (mode !== 'deployed' && mode !== 'destroyed')) {
+    console.error('usage: preview-status.ts <deployed|destroyed>')
+    process.exitCode = 64
+    return
+  }
+  if (mode === 'deployed') {
+    await reportDeployed(env, run)
+    return
+  }
+  await reportDestroyed(env, run)
 }
 
 export function previewSummary(env: NodeJS.ProcessEnv): string {
@@ -120,22 +129,13 @@ async function reportDestroyed(
   }
 }
 
-export async function main(
-  args: ReadonlyArray<string> = process.argv.slice(2),
-  env: NodeJS.ProcessEnv = process.env,
-  run: CommandRunner = runGh
-): Promise<void> {
-  const mode = args[0]
-  if (args.length !== 1 || (mode !== 'deployed' && mode !== 'destroyed')) {
-    console.error('usage: preview-status.ts <deployed|destroyed>')
-    process.exitCode = 64
-    return
-  }
-  if (mode === 'deployed') {
-    await reportDeployed(env, run)
-  } else {
-    await reportDestroyed(env, run)
-  }
+function runGh(args: ReadonlyArray<string>, input?: string): string {
+  // `gh api --input -` reads the request body from stdin.
+  return execFileSync('gh', [...args], { encoding: 'utf8', input })
+}
+
+function deploymentBase(env: NodeJS.ProcessEnv): string {
+  return `repos/${requiredEnv('GITHUB_REPOSITORY', env)}/deployments`
 }
 
 if (import.meta.main) {

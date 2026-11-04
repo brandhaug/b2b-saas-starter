@@ -14,9 +14,7 @@ import {
 import { presentNotifications } from './notification-presentation'
 
 /**
- * The notification-feed reads and their server-only wiring, reached only
- * through dynamic `import()` inside the handlers of `notifications.ts` (see
- * apps/web/AGENTS.md for the split). The whole-collection `list` read serves
+ * The whole-collection `list` read serves
  * the workspace bell panel; the paged REST and MCP surfaces read `listPage`.
  */
 

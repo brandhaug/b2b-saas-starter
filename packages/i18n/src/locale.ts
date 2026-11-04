@@ -30,6 +30,28 @@ type LanguagePreference = {
   order: number
 }
 
+/**
+ * Resolve a browser or HTTP language value to a supported locale.
+ *
+ * `nb` and the Norwegian aliases (`no`, `nb-NO`) map to Bokmål. Unsupported,
+ * empty, and wildcard-only values deliberately fall back to English.
+ */
+export function localeFromLanguage(input: LanguageInput): Locale {
+  const preferences = languagePreferences(input)
+    .filter((preference) => preference.quality > 0)
+    .toSorted((left, right) => right.quality - left.quality || left.order - right.order)
+  for (const { tag } of preferences) {
+    const language = tag.split('-', 1)[0]
+    if (language === 'nb' || language === 'no') {
+      return 'nb'
+    }
+    if (language === 'en') {
+      return 'en'
+    }
+  }
+  return DEFAULT_LOCALE
+}
+
 function languagePreferences(
   input: LanguageInput,
   startOrder = 0
@@ -68,26 +90,4 @@ function languagePreferences(
     }
     return [{ tag, quality, order: startOrder + index }]
   })
-}
-
-/**
- * Resolve a browser or HTTP language value to a supported locale.
- *
- * `nb` and the Norwegian aliases (`no`, `nb-NO`) map to Bokmål. Unsupported,
- * empty, and wildcard-only values deliberately fall back to English.
- */
-export function localeFromLanguage(input: LanguageInput): Locale {
-  const preferences = languagePreferences(input)
-    .filter((preference) => preference.quality > 0)
-    .toSorted((left, right) => right.quality - left.quality || left.order - right.order)
-  for (const { tag } of preferences) {
-    const language = tag.split('-', 1)[0]
-    if (language === 'nb' || language === 'no') {
-      return 'nb'
-    }
-    if (language === 'en') {
-      return 'en'
-    }
-  }
-  return DEFAULT_LOCALE
 }

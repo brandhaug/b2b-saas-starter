@@ -197,10 +197,12 @@ export function LiveBilling(
         configured: Effect.succeed(billingConfigured(options)),
         currentPlanForWorkspace,
         currentPlan: Effect.fn('Billing.currentPlan')(function* () {
-          return yield* currentPlanForWorkspace((yield* WorkspaceContext).workspace.id)
+          const ctx = yield* WorkspaceContext
+          return yield* currentPlanForWorkspace(ctx.workspace.id)
         })(),
         lifecycleStatus: Effect.fn('Billing.lifecycleStatus')(function* () {
-          return yield* lifecycleForWorkspace((yield* WorkspaceContext).workspace.id)
+          const ctx = yield* WorkspaceContext
+          return yield* lifecycleForWorkspace(ctx.workspace.id)
         })(),
         displayedPlans: displayedBillingPlans(options),
         synchronizationStatus: Effect.fn('Billing.synchronizationStatus')(function* () {

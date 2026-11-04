@@ -9,6 +9,33 @@ import {
 import { Panel } from './page/panel'
 import { formatDateTime } from '@/lib/format-date'
 
+export function EmailDeliveryPanel({
+  records
+}: {
+  readonly records: ReadonlyArray<EmailDeliveryRow>
+}) {
+  return (
+    <Panel
+      title={m.email_delivery_title()}
+      description={m.email_delivery_description()}
+    >
+      <FilterableDataTable
+        viewKey="email-deliveries"
+        fields={deliveryFields()}
+        columns={deliveryColumns()}
+        data={records}
+        pageSize={10}
+        tableLabel={m.email_delivery_title()}
+        emptyMessage={m.email_delivery_empty()}
+      >
+        <DataTableContent />
+        <DataTablePagination />
+      </FilterableDataTable>
+      <p className="text-sm text-muted-foreground">{m.email_delivery_warning()}</p>
+    </Panel>
+  )
+}
+
 function deliveryStatus(row: EmailDeliveryRow) {
   if (row.unconfirmed) {
     return m.email_delivery_unconfirmed()
@@ -201,31 +228,4 @@ function deliveryFields(): ReadonlyArray<DataTableField<EmailDeliveryRow>> {
       value: (row) => row.updatedAt
     }
   ]
-}
-
-export function EmailDeliveryPanel({
-  records
-}: {
-  readonly records: ReadonlyArray<EmailDeliveryRow>
-}) {
-  return (
-    <Panel
-      title={m.email_delivery_title()}
-      description={m.email_delivery_description()}
-    >
-      <FilterableDataTable
-        viewKey="email-deliveries"
-        fields={deliveryFields()}
-        columns={deliveryColumns()}
-        data={records}
-        pageSize={10}
-        tableLabel={m.email_delivery_title()}
-        emptyMessage={m.email_delivery_empty()}
-      >
-        <DataTableContent />
-        <DataTablePagination />
-      </FilterableDataTable>
-      <p className="text-sm text-muted-foreground">{m.email_delivery_warning()}</p>
-    </Panel>
-  )
 }

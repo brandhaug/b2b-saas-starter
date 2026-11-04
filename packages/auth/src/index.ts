@@ -226,17 +226,10 @@ export function makeAuthOptions(options: AuthConfigInterface) {
     secret: options.secret,
     baseURL: options.baseURL,
     trustedOrigins: [...options.trustedOrigins],
-    // Passed through as resolved — the same identity-not-equivalence stance as
-    // the email port. An empty object means zero providers inside Better Auth:
-    // no provider exists at all (nothing exists-but-disabled), and the Local
-    // Auth Path's runtime shape is unchanged either way.
+    // An empty object registers no providers, preserving provider-light local auth.
     socialProviders: options.socialProviders,
-    // Stated, not defaulted, and on before the first provider exists: once a
-    // social or SSO account row lands in D1, its provider access/refresh
-    // tokens are live takeover credentials against that provider. With this
-    // on, they are AES-256-GCM ciphertext keyed off the secret — a read of
-    // the `account` table is not a token grant. Zero providers are configured
-    // today, which is exactly when flipping this is free.
+    // Encrypt provider access/refresh tokens so a read of `account` cannot
+    // grant access to the linked provider account.
     account: {
       encryptOAuthTokens: true
     },
@@ -253,12 +246,8 @@ export function makeAuthOptions(options: AuthConfigInterface) {
       // literal, and Better Auth's option type is a closed union.
       storeIdentifier: 'hashed' as const
     },
-    // Better Auth's own limiter is memory-backed — on Workers that is
-    // per-isolate, so `max` is really `max × isolates`. The rate-limit
-    // boundary is the Cloudflare `RateLimit` bindings in front of the auth
-    // route (ADR 0030). Stating `enabled: false` here keeps the options
-    // object honest about where limiting actually happens instead of letting
-    // a no-op second layer imply coverage it cannot provide.
+    // Better Auth's limiter is per-isolate on Workers. Cloudflare bindings
+    // enforce the shared limit before the auth route instead.
     rateLimit: {
       enabled: false
     },
@@ -338,10 +327,6 @@ export function makeAuthOptions(options: AuthConfigInterface) {
       // succeeds, the sessions that preceded it are exactly what the reset
       // exists to distrust.
       revokeSessionsOnPasswordReset: true,
-      // Better Auth owns the token flow (single-use, one hour, stored in the
-      // `verification` table); the port carries Better Auth's own callback
-      // signature, so the adapter the app supplies is the callback — there is
-      // nothing to adapt here.
       sendResetPassword: options.emails.sendResetPassword,
       // The after-the-fact twin of `sendResetPassword`: once a reset via the
       // emailed link succeeds, the account holder is told so — the same
@@ -421,8 +406,6 @@ export function makeAuthOptions(options: AuthConfigInterface) {
         // link is proof of mailbox control — the same proof the verification
         // email asks for, so `requireEmailVerification` has nothing left to
         // gate for a magic-link account.
-        // Same pass-through as the lifecycle callbacks above: the port carries
-        // the plugin's own signature, so the app's adapter is the callback.
         sendMagicLink: options.emails.sendMagicLink
       }),
       // TOTP only: the twoFactor plugin's `otp` method (email codes as a
@@ -556,11 +539,8 @@ export function makeAuthOptions(options: AuthConfigInterface) {
                 type: 'date',
                 required: false,
                 input: false,
-                // Better Auth calls these outside any Effect, so `Clock` cannot
-                // reach them — this file is the platform adapter the rule's own
-                // message exempts. Without `onUpdate` the column keeps its
-                // insert value forever, which is worse than an untestable
-                // clock: a field named `updatedAt` that never updates.
+                // Better Auth calls these outside Effect. onUpdate prevents
+                // updatedAt from retaining its insertion timestamp forever.
                 // oxlint-disable-next-line effect/noGlobals -- plugin callback runs outside Effect; no Clock available
                 defaultValue: () => new Date(),
                 // oxlint-disable-next-line effect/noGlobals -- plugin callback runs outside Effect; no Clock available

@@ -4,19 +4,8 @@ import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
 
 /**
- * Server functions for the workspace lifecycle, in a **client-safe** module —
- * the `invitations.ts` pattern: create (from the signed-in user's "my
- * workspaces" page — no workspace context exists yet), rename and delete
- * (settings route). The two authz statements that were declared but never
- * enforced — `organization:update` and `organization:delete` — are enforced
- * in the effects file, exactly where every other workspace mutation's gate
- * lives.
- *
- * The client-safe half of the `workspace-lifecycle.effects.ts` split; see
- * apps/web/AGENTS.md for the rule and `scripts/assert-client-boundary.mjs`
- * for the enforcement. Each input is written once, as its Effect Schema: the
- * validator is the single strict decode, and the derived types below type
- * both the client stub and the effects handlers.
+ * Creation starts from the signed-in user's directory, before a workspace
+ * context exists. Rename and delete require the target workspace's permissions.
  */
 
 // The slug rule is lowercase letters, digits, and inner hyphens; the plugin

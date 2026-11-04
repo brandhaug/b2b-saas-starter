@@ -35,6 +35,76 @@ const COMPARISON_DIRECTIONS = new Map<string, NullishDirection>([
   ['==', 'absence']
 ])
 
+export default defineRule({
+  meta: {
+    type: 'problem',
+    docs: {
+      description: 'Prefer effect Predicate helpers over hand-written null checks.'
+    }
+  },
+  create(context) {
+    let hasEffectImport = false
+
+    return {
+      ImportDeclaration(node) {
+        if (node.source.value === 'effect') {
+          hasEffectImport = true
+        }
+      },
+      VariableDeclarator(node) {
+        if (!hasEffectImport) {
+          return
+        }
+
+        const init = unwrapExpression(node.init)
+        if (init?.type !== 'ArrowFunctionExpression') {
+          return
+        }
+        const direction = nullishPredicateDirection(init)
+        if (direction === undefined) {
+          return
+        }
+
+        context.report({ node: init, message: MESSAGES[direction] })
+      },
+      FunctionDeclaration(node) {
+        if (!hasEffectImport) {
+          return
+        }
+        const direction = nullishPredicateDirection(node)
+        if (direction === undefined) {
+          return
+        }
+
+        context.report({ node, message: MESSAGES[direction] })
+      },
+      CallExpression(node) {
+        if (!hasEffectImport || !isFilterCall(node)) {
+          return
+        }
+
+        const [firstArgument] = node.arguments
+        const predicate = unwrapExpression(firstArgument)
+        if (predicate === undefined) {
+          return
+        }
+        if (
+          predicate.type !== 'ArrowFunctionExpression' &&
+          predicate.type !== 'FunctionExpression'
+        ) {
+          return
+        }
+        const direction = nullishPredicateDirection(predicate)
+        if (direction === undefined) {
+          return
+        }
+
+        context.report({ node: predicate, message: MESSAGES[direction] })
+      }
+    }
+  }
+})
+
 function isNullishLiteral(node: ESTree.Node | undefined): boolean {
   if (node === undefined) {
     return false
@@ -128,73 +198,3 @@ function isFilterCall(node: ESTree.CallExpression): boolean {
   }
   return getPropertyName(callee.property) === 'filter'
 }
-
-export default defineRule({
-  meta: {
-    type: 'problem',
-    docs: {
-      description: 'Prefer effect Predicate helpers over hand-written null checks.'
-    }
-  },
-  create(context) {
-    let hasEffectImport = false
-
-    return {
-      ImportDeclaration(node) {
-        if (node.source.value === 'effect') {
-          hasEffectImport = true
-        }
-      },
-      VariableDeclarator(node) {
-        if (!hasEffectImport) {
-          return
-        }
-
-        const init = unwrapExpression(node.init)
-        if (init?.type !== 'ArrowFunctionExpression') {
-          return
-        }
-        const direction = nullishPredicateDirection(init)
-        if (direction === undefined) {
-          return
-        }
-
-        context.report({ node: init, message: MESSAGES[direction] })
-      },
-      FunctionDeclaration(node) {
-        if (!hasEffectImport) {
-          return
-        }
-        const direction = nullishPredicateDirection(node)
-        if (direction === undefined) {
-          return
-        }
-
-        context.report({ node, message: MESSAGES[direction] })
-      },
-      CallExpression(node) {
-        if (!hasEffectImport || !isFilterCall(node)) {
-          return
-        }
-
-        const [firstArgument] = node.arguments
-        const predicate = unwrapExpression(firstArgument)
-        if (predicate === undefined) {
-          return
-        }
-        if (
-          predicate.type !== 'ArrowFunctionExpression' &&
-          predicate.type !== 'FunctionExpression'
-        ) {
-          return
-        }
-        const direction = nullishPredicateDirection(predicate)
-        if (direction === undefined) {
-          return
-        }
-
-        context.report({ node: predicate, message: MESSAGES[direction] })
-      }
-    }
-  }
-})

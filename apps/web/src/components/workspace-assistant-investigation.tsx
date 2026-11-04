@@ -47,61 +47,6 @@ export type AssistantInvestigationPorts = {
   }) => Promise<WebhookInvestigationTask>
 }
 
-async function updateTask(
-  ports: AssistantInvestigationPorts,
-  operation: 'approve' | 'cancel',
-  data: { workspaceSlug: string; taskId: string },
-  current: () => boolean,
-  remember: (task: WebhookInvestigationTask) => void
-) {
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Raw server rejection is rethrown unchanged to the shared safe UI error boundary.
-  return ports[operation]({ data }).catch(async (error: unknown) => {
-    // Approval can commit before queue delivery fails. Recover its saved replay
-    // while the mutation stays busy, so retry cannot overtake the recovery read.
-    const get = ports.get
-    if (get && current()) {
-      const actual = await callServerFn(
-        () => get({ data }),
-        m.assistant_task_refresh_failed()
-      )
-      if (actual.ok && current()) {
-        remember(actual.value)
-      }
-    }
-    // oxlint-disable-next-line effect/noThrowStatement -- Preserve the server rejection for useServerAction's safe UI error boundary.
-    throw error
-  })
-}
-
-function statusLabel(status: WebhookInvestigationTask['status']) {
-  return {
-    proposed: m.task_status_proposed(),
-    approved: m.task_status_approved(),
-    cancelled: m.task_status_cancelled(),
-    completed: m.task_completed()
-  }[status]
-}
-
-function diagnosisLabel(diagnosis: WebhookInvestigationTask['diagnosis']) {
-  return {
-    retrying: m.diagnosis_retrying(),
-    delivered: m.diagnosis_delivered(),
-    receiver_unavailable: m.diagnosis_receiver_unavailable(),
-    receiver_rejected: m.diagnosis_receiver_rejected(),
-    endpoint_disabled: m.diagnosis_endpoint_disabled(),
-    unknown: m.diagnosis_unknown()
-  }[diagnosis]
-}
-
-function outcomeLabel(outcome: NonNullable<WebhookInvestigationTask['outcome']>) {
-  return {
-    pending: m.assistant_replay_pending(),
-    delivered: m.assistant_replay_delivered(),
-    failed: m.assistant_replay_failed(),
-    unavailable: m.assistant_replay_unavailable()
-  }[outcome]
-}
-
 type InvestigationProps = {
   readonly workspaceSlug: string
   readonly investigation: AssistantInvestigationPorts
@@ -525,4 +470,59 @@ function TaskDetail({
       ) : null}
     </section>
   )
+}
+
+async function updateTask(
+  ports: AssistantInvestigationPorts,
+  operation: 'approve' | 'cancel',
+  data: { workspaceSlug: string; taskId: string },
+  current: () => boolean,
+  remember: (task: WebhookInvestigationTask) => void
+) {
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Raw server rejection is rethrown unchanged to the shared safe UI error boundary.
+  return ports[operation]({ data }).catch(async (error: unknown) => {
+    // Approval can commit before queue delivery fails. Recover its saved replay
+    // while the mutation stays busy, so retry cannot overtake the recovery read.
+    const get = ports.get
+    if (get && current()) {
+      const actual = await callServerFn(
+        () => get({ data }),
+        m.assistant_task_refresh_failed()
+      )
+      if (actual.ok && current()) {
+        remember(actual.value)
+      }
+    }
+    // oxlint-disable-next-line effect/noThrowStatement -- Preserve the server rejection for useServerAction's safe UI error boundary.
+    throw error
+  })
+}
+
+function statusLabel(status: WebhookInvestigationTask['status']) {
+  return {
+    proposed: m.task_status_proposed(),
+    approved: m.task_status_approved(),
+    cancelled: m.task_status_cancelled(),
+    completed: m.task_completed()
+  }[status]
+}
+
+function diagnosisLabel(diagnosis: WebhookInvestigationTask['diagnosis']) {
+  return {
+    retrying: m.diagnosis_retrying(),
+    delivered: m.diagnosis_delivered(),
+    receiver_unavailable: m.diagnosis_receiver_unavailable(),
+    receiver_rejected: m.diagnosis_receiver_rejected(),
+    endpoint_disabled: m.diagnosis_endpoint_disabled(),
+    unknown: m.diagnosis_unknown()
+  }[diagnosis]
+}
+
+function outcomeLabel(outcome: NonNullable<WebhookInvestigationTask['outcome']>) {
+  return {
+    pending: m.assistant_replay_pending(),
+    delivered: m.assistant_replay_delivered(),
+    failed: m.assistant_replay_failed(),
+    unavailable: m.assistant_replay_unavailable()
+  }[outcome]
 }

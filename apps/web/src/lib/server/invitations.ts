@@ -9,20 +9,6 @@ import { workspaceRoles } from '@/lib/permissions'
 
 import { EMAIL_PATTERN } from '../email-pattern'
 
-/**
- * The workspace-invitation server functions, in a **client-safe** module —
- * the client-safe half of the `invitations.effects.ts` split; see
- * apps/web/AGENTS.md for the rule and `scripts/assert-client-boundary.mjs`
- * for the enforcement. Each input is written once, as its Effect Schema: the
- * validator is the single strict decode, and the derived type types both the
- * client stub and the effects handler.
- *
- * The behaviour itself is tested as the effects (`invitations.test.ts`
- * imports `invitations.effects.ts` directly) — see that file for why the
- * effects take the actor's address, the request origin and the email
- * dispatcher as arguments rather than reading them.
- */
-
 const SendInvitationInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
   email: Schema.String.check(

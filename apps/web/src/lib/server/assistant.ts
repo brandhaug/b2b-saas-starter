@@ -5,18 +5,6 @@ import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
 
 /**
- * The assistant server functions and the assistant loader, in a
- * **client-safe** module: the client-safe half of the `assistant.effects.ts`
- * split (see apps/web/AGENTS.md for the rule and `assert-client-boundary.mjs`
- * for the enforcement). Each input is written once, as its Effect Schema —
- * the validator is the single strict decode, and the derived types below
- * type both the client stub and the effects handlers.
- *
- * The behaviour itself is tested as the plain effects in the effects file
- * (`assistant.test.ts` imports `assistant.effects.ts` directly).
- */
-
-/**
  * The assistant page payload: who is viewing and whether a real provider is
  * configured. `assistant: ['read']` is the page's own read permission and a
  * hard gate — every role holds it today, so all members get the page; the gate

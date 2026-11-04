@@ -58,7 +58,8 @@ describe('account preferences', () => {
           initializeTimeZone: true
         })
       ).toEqual({ locale: 'en', timeZone: 'Europe/Oslo' })
-      const events = yield* (yield* AuditEventLog).listGlobal
+      const log = yield* AuditEventLog
+      const events = yield* log.listGlobal
       expect(
         events.filter((event) => event.eventType === 'auth.user_updated')
       ).toHaveLength(2)

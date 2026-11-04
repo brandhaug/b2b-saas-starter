@@ -57,65 +57,6 @@ import { WorkspaceContext } from '../workspace-context.ts'
 
 const unavailable = orUnavailable('webhook-endpoints')
 
-/**
- * One aggregate row → the wire projection. The success rate is derived
- * here so no read site re-derives (or drifts from) it.
- */
-function projectionFromAggregate(
-  row: Pick<
-    typeof webhookEndpoints.$inferSelect,
-    'id' | 'url' | 'enabled' | 'events'
-  > & { total: number; delivered: number }
-): WebhookEndpoint {
-  return {
-    id: row.id,
-    url: row.url,
-    enabled: row.enabled,
-    events: row.events,
-    // `sql<number>` is an unchecked claim about what the driver hands
-    // back, not a guarantee, so the coercion stays as runtime defence
-    // for the SUM column.
-    // oxlint-disable-next-line typescript/no-unnecessary-type-conversion -- see above
-    successRate: deliverySuccessRate(row.total, Number(row.delivered))
-  }
-}
-
-/**
- * The workspace-scoped row filter every endpoint read/write shares. The
- * double-check discipline lives here: an endpoint id is only ever acted on
- * together with its owning workspace.
- */
-function scopedEndpointWhere(endpointId: string, workspaceId: string) {
-  return and(
-    eq(webhookEndpoints.id, endpointId),
-    eq(webhookEndpoints.workspaceId, workspaceId)
-  )
-}
-
-/**
- * The audit metadata for an update: the fields the caller provided, and only
- * those — an unchanged field never reads as changed in the governance log.
- * Built as statements, not a conditional spread, so a missing field is
- * *absent* rather than laundered through `{}`.
- */
-function updateMetadata(input: {
-  readonly url?: string | undefined
-  readonly events?: ReadonlyArray<string> | undefined
-  readonly enabled?: boolean | undefined
-}): JsonObject {
-  const metadata: Record<string, JsonValue> = {}
-  if (input.url !== undefined) {
-    metadata.url = input.url
-  }
-  if (input.events !== undefined) {
-    metadata.events = [...input.events]
-  }
-  if (input.enabled !== undefined) {
-    metadata.enabled = input.enabled
-  }
-  return metadata
-}
-
 export const LiveWebhookEndpoints: Layer.Layer<
   WebhookEndpoints,
   never,
@@ -150,7 +91,6 @@ export const LiveWebhookEndpoints: Layer.Layer<
       ).pipe(Effect.map((rows) => rows.length > 0))
     }
 
-    /** One endpoint row scoped to a workspace, or `null` on no match. */
     function endpointRow(endpointId: string, workspaceId: string) {
       return unavailable(
         db
@@ -161,13 +101,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
       ).pipe(Effect.map((rows) => rows[0] ?? null))
     }
 
-    /**
-     * The endpoint+deliveries aggregate every endpoint read projects: one
-     * grouped query (endpoints left-joined to their deliveries with count +
-     * conditional-sum aggregates) instead of one delivery scan per endpoint.
-     * `endpointProjection`, `list`, and `listPage` differ only in the where
-     * clause and the paging around this builder.
-     */
+    // Aggregate once per read rather than scanning deliveries for each endpoint.
     function aggregateQuery() {
       return db
         .select({
@@ -185,10 +119,6 @@ export const LiveWebhookEndpoints: Layer.Layer<
         )
     }
 
-    /**
-     * The wire projection for one endpoint, success rate included — the same
-     * aggregate shape `list` computes for every endpoint, over this one.
-     */
     function endpointProjection(
       endpointId: string,
       workspaceId: string
@@ -276,9 +206,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
           const conditions: Array<SQL> = [
             eq(webhookEndpoints.workspaceId, ctx.workspace.id)
           ]
-          // Forward on `id ASC` — no timestamp on the wire shape, so the
-          // stable order a page can resume is the id itself. The SQL resume
-          // comes from `keyset-query.ts`, like every paged read.
+          // No timestamp on this projection; resume in stable id order.
           const resume = keysetResume(
             'asc',
             { key: webhookEndpoints.id, id: webhookEndpoints.id },
@@ -290,8 +218,6 @@ export const LiveWebhookEndpoints: Layer.Layer<
           if (resume.kind === 'resume') {
             conditions.push(resume.condition)
           }
-          // One row past the page cap, so `cutKeysetPage` can see whether the
-          // cap actually cut rows off before offering a cursor.
           const rows = yield* unavailable(
             aggregateQuery()
               .where(and(...conditions))
@@ -372,8 +298,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
           if (!created) {
             return yield* Effect.fail(admission.rejected)
           }
-          // Fan-out sits beside the audit write, below the interface: the
-          // projection only — never the signing secret.
+          // Publish only the projection, never the signing secret.
           yield* publishWebhookEventWith(publisher, {
             eventType: 'webhook_endpoint.created',
             payload: toEndpointProjection(endpoint)
@@ -474,8 +399,6 @@ export const LiveWebhookEndpoints: Layer.Layer<
           const view = deliveryView(input)
           const query = deliveryViewQuery(view, input?.cursor)
           conditions.push(...query.conditions)
-          // One row past the page cap, so `cutKeysetPage` can see whether the
-          // cap actually cut rows off before offering a cursor.
           const rows = yield* unavailable(
             db
               .select({
@@ -860,7 +783,50 @@ export const LiveWebhookEndpoints: Layer.Layer<
   })
 )
 
-/** The wire projection assembled once for both the fan-out payload and the return value. */
+function projectionFromAggregate(
+  row: Pick<
+    typeof webhookEndpoints.$inferSelect,
+    'id' | 'url' | 'enabled' | 'events'
+  > & { total: number; delivered: number }
+): WebhookEndpoint {
+  return {
+    id: row.id,
+    url: row.url,
+    enabled: row.enabled,
+    events: row.events,
+    // `sql<number>` does not guarantee the driver's runtime type for SUM.
+    // oxlint-disable-next-line typescript/no-unnecessary-type-conversion -- see above
+    successRate: deliverySuccessRate(row.total, Number(row.delivered))
+  }
+}
+
+// Always pair endpoint identity with its owning workspace.
+function scopedEndpointWhere(endpointId: string, workspaceId: string) {
+  return and(
+    eq(webhookEndpoints.id, endpointId),
+    eq(webhookEndpoints.workspaceId, workspaceId)
+  )
+}
+
+// Audit only fields supplied by the caller; omit absent fields.
+function updateMetadata(input: {
+  readonly url?: string | undefined
+  readonly events?: ReadonlyArray<string> | undefined
+  readonly enabled?: boolean | undefined
+}): JsonObject {
+  const metadata: Record<string, JsonValue> = {}
+  if (input.url !== undefined) {
+    metadata.url = input.url
+  }
+  if (input.events !== undefined) {
+    metadata.events = [...input.events]
+  }
+  if (input.enabled !== undefined) {
+    metadata.enabled = input.enabled
+  }
+  return metadata
+}
+
 function toEndpointProjection(endpoint: {
   readonly id: string
   readonly url: string

@@ -104,10 +104,11 @@ export function workspaceExportContractCases(
             reason: 'contract_foreign'
           })
         ).toBe(false)
+        const ctx = yield* WorkspaceContext
         expect(
           yield* exports.fail({
             exportId: 'exp_never_requested',
-            workspaceId: (yield* WorkspaceContext).workspace.id,
+            workspaceId: ctx.workspace.id,
             reason: 'contract_missing'
           })
         ).toBe(false)

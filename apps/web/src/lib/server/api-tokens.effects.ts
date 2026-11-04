@@ -22,13 +22,6 @@ import {
 import { makeSecurityEvidenceSink } from './security-evidence-sink'
 
 /**
- * The API-tokens payload composition, the revoke effect and their
- * server-only wiring, reached only through dynamic `import()` inside the
- * handlers of `api-tokens.ts` (see apps/web/AGENTS.md). `api-tokens.ts`
- * holds the client-safe half and the reason for the split.
- */
-
-/**
  * `apiToken:list` is the page's own read permission and a hard gate.
  */
 const apiTokensPayload: WorkspacePageFrame<WorkspaceApiTokensPayload> = workspacePage(

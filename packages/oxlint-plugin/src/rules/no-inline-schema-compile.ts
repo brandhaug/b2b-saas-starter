@@ -12,9 +12,6 @@ import {
  * codec allocates a new function, so a compiler on a request path or a queue
  * consumer rebuilds it on every call.
  *
- * The starter is a reference implementation, so the hot-path shape it shows has
- * to be the correct one: compile once at module scope, call the result.
- *
  * Ported from oxlint-plugin-t3code/rules/no-inline-schema-compile.ts (MIT).
  */
 
@@ -47,6 +44,74 @@ const COMPILER_METHODS = new Set([
   'encodeUnknownResult',
   'encodeUnknownSync'
 ])
+
+export default defineRule({
+  meta: {
+    type: 'problem',
+    docs: {
+      description:
+        'Disallow Schema decoder and encoder compiler calls inside function bodies; hoist them to module scope.'
+    }
+  },
+  createOnce(context) {
+    let functionDepth = 0
+
+    return {
+      before: resetFunctionDepth,
+      FunctionDeclaration: enterFunction,
+      'FunctionDeclaration:exit': exitFunction,
+      FunctionExpression: enterFunction,
+      'FunctionExpression:exit': exitFunction,
+      ArrowFunctionExpression: enterFunction,
+      'ArrowFunctionExpression:exit': exitFunction,
+      CallExpression(node) {
+        if (functionDepth === 0) {
+          return
+        }
+
+        const method = getSchemaCompilerMethod(node.callee)
+        if (method === undefined) {
+          return
+        }
+        // A factory may compile once and return the decoder for reuse. Only
+        // compile(...)(input) rebuilds it on every invocation.
+        if (!isCalleeOfEnclosingCall(node)) {
+          return
+        }
+
+        const [firstArgument] = node.arguments
+        const inlineSchema = isNestedStaticSchemaCall(firstArgument)
+        if (!inlineSchema && !isStaticSchemaReference(firstArgument)) {
+          return
+        }
+
+        if (inlineSchema) {
+          context.report({
+            node: node.callee,
+            message: `Hoist Schema.${method}(...) to module scope. Both the inline schema and the compiled function are rebuilt on every call, so move the compiled function to a module-level const.`
+          })
+          return
+        }
+        context.report({
+          node: node.callee,
+          message: `Hoist Schema.${method}(...) to module scope. The compiled function is rebuilt on every call, so bind it to a module-level const and call that.`
+        })
+      }
+    }
+
+    function resetFunctionDepth() {
+      functionDepth = 0
+    }
+
+    function enterFunction() {
+      functionDepth += 1
+    }
+
+    function exitFunction() {
+      functionDepth -= 1
+    }
+  }
+})
 
 function getSchemaCompilerMethod(
   callee: ESTree.Node | null | undefined
@@ -106,74 +171,3 @@ function isNestedStaticSchemaCall(node: ESTree.Node | null | undefined): boolean
     isStaticSchemaReference(firstArgument) || isNestedStaticSchemaCall(firstArgument)
   )
 }
-
-function inlineSchemaMessage(method: string) {
-  return `Hoist Schema.${method}(...) to module scope. Both the inline schema and the compiled function are rebuilt on every call, so move the compiled function to a module-level const.`
-}
-
-function compilerMessage(method: string) {
-  return `Hoist Schema.${method}(...) to module scope. The compiled function is rebuilt on every call, so bind it to a module-level const and call that.`
-}
-
-export default defineRule({
-  meta: {
-    type: 'problem',
-    docs: {
-      description:
-        'Disallow Schema decoder and encoder compiler calls inside function bodies; hoist them to module scope.'
-    }
-  },
-  createOnce(context) {
-    let functionDepth = 0
-
-    function resetFunctionDepth() {
-      functionDepth = 0
-    }
-
-    function enterFunction() {
-      functionDepth += 1
-    }
-
-    function exitFunction() {
-      functionDepth -= 1
-    }
-
-    return {
-      before: resetFunctionDepth,
-      FunctionDeclaration: enterFunction,
-      'FunctionDeclaration:exit': exitFunction,
-      FunctionExpression: enterFunction,
-      'FunctionExpression:exit': exitFunction,
-      ArrowFunctionExpression: enterFunction,
-      'ArrowFunctionExpression:exit': exitFunction,
-      CallExpression(node) {
-        if (functionDepth === 0) {
-          return
-        }
-
-        const method = getSchemaCompilerMethod(node.callee)
-        if (method === undefined) {
-          return
-        }
-        // Only the `compile(...)(input)` shape rebuilds per call. A bare
-        // `const decode = Schema.decodeSync(X)` inside a factory compiles once
-        // and is reused by the returned function — the shape this rule steers to.
-        if (!isCalleeOfEnclosingCall(node)) {
-          return
-        }
-
-        const [firstArgument] = node.arguments
-        const inlineSchema = isNestedStaticSchemaCall(firstArgument)
-        if (!inlineSchema && !isStaticSchemaReference(firstArgument)) {
-          return
-        }
-
-        if (inlineSchema) {
-          context.report({ node: node.callee, message: inlineSchemaMessage(method) })
-          return
-        }
-        context.report({ node: node.callee, message: compilerMessage(method) })
-      }
-    }
-  }
-})

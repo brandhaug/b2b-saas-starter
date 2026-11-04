@@ -52,6 +52,57 @@ const TAG_OWNERS = new Map<string, TagOwner>([
 
 const EQUALITY_OPERATORS = new Set(['===', '!==', '==', '!='])
 
+export default defineRule({
+  meta: {
+    type: 'problem',
+    docs: { description: 'Disallow direct _tag checks on Effect-owned data types.' }
+  },
+  create(context) {
+    const imported = new Set<string>()
+
+    return {
+      ImportDeclaration(node) {
+        for (const moduleName of importedEffectModules(node)) {
+          imported.add(moduleName)
+        }
+      },
+      BinaryExpression(node) {
+        if (imported.size === 0 || !EQUALITY_OPERATORS.has(node.operator)) {
+          return
+        }
+
+        reportTagComparison(node.left, node.right)
+        reportTagComparison(node.right, node.left)
+      }
+    }
+
+    function reportTagComparison(
+      accessCandidate: ESTree.Node,
+      tagCandidate: ESTree.Node
+    ) {
+      const access = getTagAccess(accessCandidate)
+      if (access === undefined) {
+        return
+      }
+
+      const tag = getStringValue(tagCandidate)
+      if (tag === undefined) {
+        return
+      }
+
+      const owner = ownerForImportedModules(tag, imported)
+      if (owner === undefined) {
+        return
+      }
+
+      context.report({
+        node: access,
+        message: `Comparing _tag to "${tag}" reads an Effect internal. Use ${owner.guard} instead.`
+      })
+    }
+  }
+})
+
 function importedEffectModules(node: ESTree.ImportDeclaration): ReadonlyArray<string> {
   const source = node.source.value
 
@@ -112,57 +163,3 @@ function ownerForImportedModules(
   }
   return owner
 }
-
-export default defineRule({
-  meta: {
-    type: 'problem',
-    docs: { description: 'Disallow direct _tag checks on Effect-owned data types.' }
-  },
-  create(context) {
-    const imported = new Set<string>()
-
-    function reportTagComparison(
-      accessCandidate: ESTree.Node,
-      tagCandidate: ESTree.Node
-    ) {
-      const access = getTagAccess(accessCandidate)
-      if (access === undefined) {
-        return
-      }
-
-      const tag = getStringValue(tagCandidate)
-      if (tag === undefined) {
-        return
-      }
-
-      const owner = ownerForImportedModules(tag, imported)
-      if (owner === undefined) {
-        return
-      }
-
-      context.report({
-        node: access,
-        message: `Comparing _tag to "${tag}" reads an Effect internal. Use ${owner.guard} instead.`
-      })
-    }
-
-    return {
-      ImportDeclaration(node) {
-        for (const moduleName of importedEffectModules(node)) {
-          imported.add(moduleName)
-        }
-      },
-      BinaryExpression(node) {
-        if (imported.size === 0) {
-          return
-        }
-        if (!EQUALITY_OPERATORS.has(node.operator)) {
-          return
-        }
-
-        reportTagComparison(node.left, node.right)
-        reportTagComparison(node.right, node.left)
-      }
-    }
-  }
-})

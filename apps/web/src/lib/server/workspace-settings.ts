@@ -6,18 +6,6 @@ import { Schema } from 'effect'
 import { type WorkspaceExportsSegment } from './workspace-exports'
 
 /**
- * The workspace settings loader, in a **client-safe** module — the
- * client-safe half of the `workspace-settings.effects.ts` split; see
- * apps/web/AGENTS.md for the rule and `scripts/assert-client-boundary.mjs`
- * for the enforcement. Each input is written once, as its Effect Schema: the
- * validator is the single strict decode, and the derived type types both
- * the client stub and the effects handler.
- *
- * The behaviour is tested as the plain loader function in the effects file
- * (`workspace-settings.test.ts`), driven directly with fixture actors.
- */
-
-/**
  * The workspace settings payload, assembled per actor.
  *
  * Settings is the workspace's own identity surface: rename and delete. The

@@ -15,48 +15,6 @@ import { HttpApiBuilder } from 'effect/http-api'
 import { assistantAuthorityFailure } from './assistant-conversation-guards.ts'
 import { observed } from './request-guards.ts'
 
-function routeError(error: ConversationError) {
-  if (error._tag === 'AssistantAuthorityDenied') {
-    return assistantAuthorityFailure(error)
-  }
-  return error
-}
-
-// Admission errors on an observation indicate a host contract failure. They
-// must not turn reads into generation operations or advertise read quotas.
-function readError(error: ConversationError) {
-  switch (error._tag) {
-    case 'ConversationConflict':
-    case 'ConversationInputRejected':
-    case 'AssistantAdmissionRefused': {
-      return new ConversationUnavailable({ reason: 'storage' })
-    }
-    case 'AssistantAuthorityDenied': {
-      return assistantAuthorityFailure(error)
-    }
-    case 'CapabilityUnavailable':
-    case 'ConversationNotFound':
-    case 'ConversationUnavailable': {
-      return error
-    }
-  }
-}
-
-function read<A, R>(event: string, operation: Effect.Effect<A, ConversationError, R>) {
-  return observed(
-    `assistant-conversations.${event}`,
-    operation.pipe(Effect.mapError(readError))
-  )
-}
-function generate<A, R>(
-  event: string,
-  operation: Effect.Effect<A, ConversationError, R>
-) {
-  return observed(
-    `assistant-conversations.${event}`,
-    operation.pipe(Effect.mapError(routeError))
-  )
-}
 export function assistantConversationsGroup() {
   return HttpApiBuilder.group(StarterApi, 'assistant-conversations', (handlers) =>
     Effect.gen(function* () {
@@ -179,4 +137,48 @@ export function assistantConversationsGroup() {
         )
     })
   )
+}
+
+function read<A, R>(event: string, operation: Effect.Effect<A, ConversationError, R>) {
+  return observed(
+    `assistant-conversations.${event}`,
+    operation.pipe(Effect.mapError(readError))
+  )
+}
+
+function generate<A, R>(
+  event: string,
+  operation: Effect.Effect<A, ConversationError, R>
+) {
+  return observed(
+    `assistant-conversations.${event}`,
+    operation.pipe(Effect.mapError(routeError))
+  )
+}
+
+function routeError(error: ConversationError) {
+  if (error._tag === 'AssistantAuthorityDenied') {
+    return assistantAuthorityFailure(error)
+  }
+  return error
+}
+
+// Admission errors on an observation indicate a host contract failure. They
+// must not turn reads into generation operations or advertise read quotas.
+function readError(error: ConversationError) {
+  switch (error._tag) {
+    case 'ConversationConflict':
+    case 'ConversationInputRejected':
+    case 'AssistantAdmissionRefused': {
+      return new ConversationUnavailable({ reason: 'storage' })
+    }
+    case 'AssistantAuthorityDenied': {
+      return assistantAuthorityFailure(error)
+    }
+    case 'CapabilityUnavailable':
+    case 'ConversationNotFound':
+    case 'ConversationUnavailable': {
+      return error
+    }
+  }
 }

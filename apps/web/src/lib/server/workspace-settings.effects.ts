@@ -11,15 +11,6 @@ import {
 } from './workspace-settings'
 import { workspaceExportsSegment } from './workspace-exports.effects'
 
-/**
- * The settings payload assembly and its server-only wiring, reached only
- * through dynamic `import()` inside the handler of
- * `loadWorkspaceSettingsServerFn` (`workspace-settings.ts`): handler bodies
- * are stripped from the client build, so this graph ships to the server
- * alone. `workspace-settings.ts` holds the client-safe half and the reason
- * for the split.
- */
-
 const settingsPayload: WorkspacePageFrame<WorkspaceSettingsPayload> = workspacePage(
   { notification: ['read'] },
   (ctx) =>

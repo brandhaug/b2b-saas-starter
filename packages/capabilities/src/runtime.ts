@@ -188,7 +188,8 @@ export function selectWorkspaceContextLayer(
     // writes, rather than the initial fixture copied into seedMembers.
     return Layer.unwrap(
       Effect.gen(function* () {
-        const accounts = yield* (yield* PlatformUserAdmin).listUsers
+        const admin = yield* PlatformUserAdmin
+        const accounts = yield* admin.listUsers
         const account = accounts.find((candidate) => candidate.id === actor.userId)
         const member = seedMembers.find((candidate) => candidate.id === actor.userId)
         if (!account || !member) {

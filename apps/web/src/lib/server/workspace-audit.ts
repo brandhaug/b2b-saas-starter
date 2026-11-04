@@ -8,19 +8,6 @@ import { createServerFn } from '@tanstack/react-start'
 import { Schema, type Types } from 'effect'
 
 /**
- * The audit-trail loader, in a **client-safe** module — the client-safe half
- * of the `workspace-audit.effects.ts` split (see apps/web/AGENTS.md for the
- * rule and `assert-client-boundary.mjs` for the enforcement). Each input is
- * written once, as its Effect Schema: the validator is the single strict
- * decode, and the derived types below type both the client stub and the
- * effects handler.
- *
- * The behaviour is tested as the handler in the effects file
- * (`workspace-audit.test.ts`), driven with a mocked session against the
- * Seed layer.
- */
-
-/**
  * Server-side filters for the audit page, straight from the route's search
  * params. Dates arrive as `YYYY-MM-DD` and are widened to inclusive
  * instant bounds in the request's presentation zone by the effects handler — the only place that knows the

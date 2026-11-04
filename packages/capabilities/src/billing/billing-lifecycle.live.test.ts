@@ -259,12 +259,16 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('Live lifecycle', (it) => {
               ),
             plan: scoped(
               Effect.gen(function* () {
-                return (yield* (yield* Billing).currentPlan).id
+                const billing = yield* Billing
+                const plan = yield* billing.currentPlan
+                return plan.id
               })
             ),
             grace: scoped(
               Effect.gen(function* () {
-                return (yield* (yield* Billing).lifecycleStatus).graceEndsAt
+                const billing = yield* Billing
+                const status = yield* billing.lifecycleStatus
+                return status.graceEndsAt
               })
             )
           })
@@ -333,7 +337,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('Live lifecycle', (it) => {
         const sync = inWorkspace(
           'live-lab',
           Effect.gen(function* () {
-            return yield* (yield* Billing).reconcileWorkspace({ workspaceId })
+            const billing = yield* Billing
+            return yield* billing.reconcileWorkspace({ workspaceId })
           }),
           undefined,
           bindings
@@ -404,7 +409,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('Live lifecycle', (it) => {
                 const webhook = inWorkspace(
                   'live-lab',
                   Effect.gen(function* () {
-                    return yield* (yield* Billing).processProviderEvent({
+                    const billing = yield* Billing
+                    return yield* billing.processProviderEvent({
                       workspaceId,
                       providerEventId: 'notice_outage_recovery',
                       eventType: 'invoice.paid',

@@ -8,33 +8,6 @@ const DEFAULT_DATE_TIME_OPTIONS: Intl.DateTimeFormatOptions = {
   timeStyle: 'short'
 }
 
-function dateValue(value: DateInput): Date {
-  // oxlint-disable-next-line unicorn/no-instanceof-builtins -- DateInput accepts Date values from any application realm
-  if (value instanceof Date) {
-    // oxlint-disable-next-line effect/noGlobals -- formatting is an explicitly requested pure presentation operation
-    return new Date(value)
-  }
-  if (isCalendarDate(value)) {
-    // oxlint-disable-next-line effect/noGlobals -- formatting is an explicitly requested pure presentation operation
-    return new Date(`${value}T00:00:00.000Z`)
-  }
-  // oxlint-disable-next-line effect/noGlobals -- formatting is an explicitly requested pure presentation operation
-  return new Date(value)
-}
-
-function isCalendarDate(value: DateInput): value is string {
-  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- DateInput is the public formatting boundary
-  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/u.test(value)
-}
-
-function dateLabel(
-  date: Date,
-  locale: Locale,
-  options: Intl.DateTimeFormatOptions
-): string {
-  return new Intl.DateTimeFormat(intlLocale(locale), options).format(date)
-}
-
 /** Format a date with an explicit locale and time zone (UTC by default). */
 export function formatDate(
   value: DateInput,
@@ -103,4 +76,31 @@ export function formatCurrency(
     style: 'currency',
     currency
   }).format(value)
+}
+
+function dateValue(value: DateInput): Date {
+  // oxlint-disable-next-line unicorn/no-instanceof-builtins -- DateInput accepts Date values from any application realm
+  if (value instanceof Date) {
+    // oxlint-disable-next-line effect/noGlobals -- formatting is an explicitly requested pure presentation operation
+    return new Date(value)
+  }
+  if (isCalendarDate(value)) {
+    // oxlint-disable-next-line effect/noGlobals -- formatting is an explicitly requested pure presentation operation
+    return new Date(`${value}T00:00:00.000Z`)
+  }
+  // oxlint-disable-next-line effect/noGlobals -- formatting is an explicitly requested pure presentation operation
+  return new Date(value)
+}
+
+function isCalendarDate(value: DateInput): value is string {
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- DateInput is the public formatting boundary
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/u.test(value)
+}
+
+function dateLabel(
+  date: Date,
+  locale: Locale,
+  options: Intl.DateTimeFormatOptions
+): string {
+  return new Intl.DateTimeFormat(intlLocale(locale), options).format(date)
 }

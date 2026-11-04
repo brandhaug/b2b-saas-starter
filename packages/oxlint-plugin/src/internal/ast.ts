@@ -15,16 +15,6 @@ type ExpressionWrapper =
   | ESTree.TSAsExpression
   | ESTree.TSTypeAssertion
 
-function isExpressionWrapper(node: ESTree.Node): node is ExpressionWrapper {
-  return (
-    node.type === 'ChainExpression' ||
-    node.type === 'ParenthesizedExpression' ||
-    node.type === 'TSNonNullExpression' ||
-    node.type === 'TSAsExpression' ||
-    node.type === 'TSTypeAssertion'
-  )
-}
-
 /**
  * Strips the wrappers that add no runtime meaning, so a rule can match on the
  * expression a reader sees: `(x)`, `x!`, `x as T`, `<T>x`, `x?.y`.
@@ -144,4 +134,14 @@ export function schemaMemberAccess(
     return undefined
   }
   return expression
+}
+
+function isExpressionWrapper(node: ESTree.Node): node is ExpressionWrapper {
+  return (
+    node.type === 'ChainExpression' ||
+    node.type === 'ParenthesizedExpression' ||
+    node.type === 'TSNonNullExpression' ||
+    node.type === 'TSAsExpression' ||
+    node.type === 'TSTypeAssertion'
+  )
 }

@@ -19,16 +19,6 @@ import {
 } from './workspace-exports'
 
 /**
- * The export segment assembly, the request effect and their server-only
- * wiring, reached only through dynamic `import()` inside the handler of
- * `requestWorkspaceExportServerFn` (`workspace-exports.ts`) — and by the
- * settings payload, which composes the segment
- * (`workspace-settings.effects.ts`); see apps/web/AGENTS.md.
- * `workspace-exports.ts` holds the client-safe half and the reason for the
- * split.
- */
-
-/**
  * Where signed download links point: the API worker serves them. `API_PUBLIC_URL`
  * names the deployed worker; unset means local development, where the API dev
  * server listens on 8787 (`apps/api/package.json`).

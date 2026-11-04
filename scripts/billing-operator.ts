@@ -53,6 +53,27 @@ type OperatorRetryMessage = {
   }
 }
 
+export function runOperator(
+  rawArgs: ReadonlyArray<string>,
+  environment: Environment,
+  fetchImpl: FetchImplementation,
+  write: (text: string) => void
+): Promise<void> {
+  return Effect.runPromise(
+    Effect.gen(function* () {
+      const options = parseCli(rawArgs)
+      const operatorConfig = config(options, environment)
+      if (options.command === 'inspect') {
+        const result = yield* inspect(options, operatorConfig, fetchImpl)
+        write(`${JSON.stringify(result, null, 2)}\n`)
+        return
+      }
+      const result = yield* retry(options, operatorConfig, fetchImpl)
+      write(`${JSON.stringify(result, null, 2)}\n`)
+    })
+  )
+}
+
 function envValue(name: string, environment: Environment): string | undefined {
   const value = environment[name]
   if (value === undefined || value.trim().length === 0) {
@@ -63,10 +84,6 @@ function envValue(name: string, environment: Environment): string | undefined {
 
 function optionString(value: string | boolean | undefined): string | undefined {
   return Option.getOrUndefined(decodeStringOption(value))
-}
-
-function optionBoolean(value: string | boolean | undefined): boolean {
-  return value === true
 }
 
 function optionNumber(value: string | boolean | undefined): number {
@@ -110,7 +127,7 @@ function parseCli(rawArgs: ReadonlyArray<string>): CliOptions {
     command,
     workspaceId: required(optionString(parsed.values.workspace), '--workspace <id>'),
     operatorId,
-    execute: optionBoolean(parsed.values.execute),
+    execute: parsed.values.execute === true,
     databaseId: optionString(parsed.values.database),
     billingQueueId: optionString(parsed.values.queue),
     limit: optionNumber(parsed.values.limit),
@@ -262,34 +279,6 @@ function retry(
     required(operatorConfig.apiToken, 'CLOUDFLARE_API_TOKEN'),
     fetchImpl
   ).pipe(Effect.as({ dryRun: false, queue: queueId, message }))
-}
-
-function main(
-  rawArgs: ReadonlyArray<string>,
-  environment: Environment,
-  fetchImpl: FetchImplementation,
-  write: (text: string) => void
-) {
-  return Effect.gen(function* () {
-    const options = parseCli(rawArgs)
-    const operatorConfig = config(options, environment)
-    if (options.command === 'inspect') {
-      const result = yield* inspect(options, operatorConfig, fetchImpl)
-      write(`${JSON.stringify(result, null, 2)}\n`)
-      return
-    }
-    const result = yield* retry(options, operatorConfig, fetchImpl)
-    write(`${JSON.stringify(result, null, 2)}\n`)
-  })
-}
-
-export function runOperator(
-  rawArgs: ReadonlyArray<string>,
-  environment: Environment,
-  fetchImpl: FetchImplementation,
-  write: (text: string) => void
-): Promise<void> {
-  return Effect.runPromise(main(rawArgs, environment, fetchImpl, write))
 }
 
 if (import.meta.main) {

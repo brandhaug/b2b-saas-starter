@@ -270,7 +270,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           const audit = yield* inWorkspace(
             'live-lab',
             Effect.gen(function* () {
-              const events = yield* (yield* AuditEventLog).list({
+              const log = yield* AuditEventLog
+              const events = yield* log.list({
                 eventType: 'workspace_sso.connection_created'
               })
               return events.items
@@ -328,7 +329,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           const audit = yield* inWorkspace(
             'live-lab',
             Effect.gen(function* () {
-              const events = yield* (yield* AuditEventLog).list({
+              const log = yield* AuditEventLog
+              const events = yield* log.list({
                 eventType: 'workspace_sso.connection_updated'
               })
               return events.items

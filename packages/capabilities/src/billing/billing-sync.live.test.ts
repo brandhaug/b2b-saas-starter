@@ -333,7 +333,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               yield* billing.processProviderEvent(event('evt_webhook_plan_change'))
               yield* billing.reconcileWorkspace({ workspaceId })
               yield* billing.reconcileWorkspace({ workspaceId })
-              return yield* (yield* WebhookEndpoints).listDeliveries({
+              const webhooks = yield* WebhookEndpoints
+              return yield* webhooks.listDeliveries({
                 endpointId: 'wh_live'
               })
             }),

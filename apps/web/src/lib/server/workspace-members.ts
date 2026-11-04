@@ -7,19 +7,6 @@ import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
 
 /**
- * The workspace-members server functions, in a **client-safe** module: the
- * client-safe half of the `workspace-members.effects.ts` split (see
- * apps/web/AGENTS.md for the rule and `assert-client-boundary.mjs` for the
- * enforcement). Each input is written once, as its Effect Schema — the
- * validator is the single strict decode, and the derived types below type
- * both the client stub and the effects handlers.
- *
- * The behaviour itself is tested as the handlers in the effects file
- * (`workspace-members.test.ts`), driven with mocked sessions against the
- * Seed layer.
- */
-
-/**
  * The workspace members payload: the roster plus, for the roles that manage
  * membership, the pending invitations — both are membership concerns, so both
  * live on the members page (the settings page stopped carrying the invitation

@@ -73,6 +73,7 @@ export const assistantTaskEvidence = Effect.fn('AssistantConversation.taskEviden
     if (taskId === null) {
       return null
     }
-    return yield* (yield* AssistantTaskEvidence).read(taskId)
+    const evidence = yield* AssistantTaskEvidence
+    return yield* evidence.read(taskId)
   }
 )

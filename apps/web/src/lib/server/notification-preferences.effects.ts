@@ -21,14 +21,6 @@ import {
 } from './notification-preferences'
 
 /**
- * The notification-preference effects and their server-only wiring, reached
- * only through dynamic `import()` inside the handlers of
- * `notification-preferences.ts` (see apps/web/AGENTS.md).
- * `notification-preferences.ts` holds the client-safe half and the reason
- * for the split.
- */
-
-/**
  * One row of the `/account` preferences section: the resolved preference plus
  * the copy the page shows for it. Assembled here so the component renders
  * words and never imports the kind table.
