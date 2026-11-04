@@ -92,7 +92,7 @@ export function OtpCodeInput({
             ref={(node) => {
               cells.current[index] = node
             }}
-            className="h-9 w-10 px-0 text-center font-mono text-lg"
+            density="code"
             type="text"
             inputMode="numeric"
             autoComplete={index === 0 ? 'one-time-code' : 'off'}

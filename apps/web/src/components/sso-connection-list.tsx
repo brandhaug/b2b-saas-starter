@@ -207,10 +207,7 @@ function ConnectionRow({
               })
             }
           />
-          <Label
-            htmlFor={`require-sso-${connection.id}`}
-            className="text-xs font-normal text-muted-foreground"
-          >
+          <Label htmlFor={`require-sso-${connection.id}`} variant="hint">
             {m.sso_connection_require()}
           </Label>
         </ItemActions>

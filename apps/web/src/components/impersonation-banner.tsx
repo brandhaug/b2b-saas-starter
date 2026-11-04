@@ -44,7 +44,7 @@ export function ImpersonationBanner({
       // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- the persistent banner must not interrupt on each page load
       role="status"
       variant="destructive"
-      className="rounded-none border-x-0"
+      inset="edge"
       icon={<UserRoundSearchIcon />}
     >
       <AlertDescription className="flex flex-wrap items-center gap-3">

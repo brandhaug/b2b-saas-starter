@@ -71,7 +71,8 @@ export function LanguageSwitcher() {
       >
         <SelectTrigger
           aria-label={m.shell_language()}
-          className="min-w-32 max-w-40 pr-3 text-base sm:text-xs"
+          variant="compact"
+          className="min-w-32 max-w-40"
         >
           <SelectValue>
             <LocaleFlag locale={getLocale()} />

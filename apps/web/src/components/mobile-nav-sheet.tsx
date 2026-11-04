@@ -46,7 +46,8 @@ export function MobileNavSheet({
       />
       <SheetContent
         side="left"
-        className="flex min-h-0 flex-col gap-0 overflow-hidden bg-sidebar text-sidebar-foreground border-sidebar-border"
+        appearance="sidebar"
+        className="flex min-h-0 flex-col gap-0 overflow-hidden"
       >
         <SheetHeader>
           <SheetTitle className="sr-only">{m.common_workspace_navigation()}</SheetTitle>

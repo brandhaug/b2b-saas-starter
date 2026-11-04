@@ -153,7 +153,7 @@ function TwoFactorChallengeContent({
         setSubmitError(null)
         setMethod(method === 'totp' ? 'backup' : 'totp')
       }}
-      className="justify-start p-0 text-sm"
+      size="link-row"
     >
       {method === 'totp' ? m.use_backup_code() : m.use_authenticator_code()}
     </Button>

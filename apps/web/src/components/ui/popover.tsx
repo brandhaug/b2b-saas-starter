@@ -12,14 +12,16 @@ function PopoverTrigger(props: PopoverPrimitive.Trigger.Props) {
 function PopoverContent({
   className,
   children,
+  padding = 'default',
   ...props
-}: PopoverPrimitive.Popup.Props) {
+}: PopoverPrimitive.Popup.Props & { padding?: 'default' | 'none' }) {
   return (
     <PopoverPrimitive.Portal>
       <PopoverPrimitive.Positioner sideOffset={8} className="z-50">
         <PopoverPrimitive.Popup
           className={cn(
             'max-h-(--available-height) w-112 max-w-(--available-width) overflow-y-auto rounded-md border border-border bg-popover p-3 text-popover-foreground shadow-md outline-none',
+            padding === 'none' && 'p-0',
             className
           )}
           {...props}

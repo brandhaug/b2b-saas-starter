@@ -620,6 +620,7 @@ const { lint = {} } = defineConfig({
       {
         files: ['apps/web/**/*.{ts,tsx}'],
         rules: {
+          'starter/no-ui-appearance-override': 'error',
           'better-tailwindcss/no-concatenated-classes': 'error',
           'better-tailwindcss/no-conflicting-classes': 'error',
           'better-tailwindcss/no-deprecated-classes': 'error',
@@ -900,6 +901,8 @@ const { lint = {} } = defineConfig({
       {
         files: ['apps/web/src/components/ui/**'],
         rules: {
+          // Shared components own their internals, including composed primitives.
+          'starter/no-ui-appearance-override': 'off',
           'react/forbid-elements': 'off',
           'jsx-a11y/label-has-associated-control': 'off'
         },

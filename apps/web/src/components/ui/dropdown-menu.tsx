@@ -40,12 +40,17 @@ function DropdownMenuContent({
   )
 }
 
-function DropdownMenuItem({ className, ...props }: MenuPrimitive.Item.Props) {
+function DropdownMenuItem({
+  className,
+  variant = 'default',
+  ...props
+}: MenuPrimitive.Item.Props & { variant?: 'default' | 'destructive' }) {
   return (
     <MenuPrimitive.Item
       data-slot="dropdown-menu-item"
       className={cn(
         'focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 relative grid cursor-default grid-cols-[auto_1fr] items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none select-none [&_svg:not([class*=size-])]:size-4 [&_svg]:shrink-0 max-md:min-h-11',
+        variant === 'destructive' && 'text-destructive focus-visible:text-destructive',
         className
       )}
       {...props}

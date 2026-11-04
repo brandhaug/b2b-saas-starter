@@ -63,7 +63,8 @@ export function PreviewShell({
             {unreadCount === undefined ? null : (
               <Badge
                 variant="neutral"
-                className="gap-1 font-mono tabular-nums max-md:min-h-11 max-md:min-w-11"
+                typography="numeric"
+                size="touch"
                 render={
                   <Link
                     to="/demo/$section"

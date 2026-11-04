@@ -407,7 +407,7 @@ function SignInPageContent({
               setSubmitError(null)
               setStage('password')
             }}
-            className="justify-start p-0 text-sm"
+            size="link-row"
           >
             {m.public_auth_sign_in_with_password_instead()}
           </Button>

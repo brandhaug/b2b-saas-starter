@@ -118,7 +118,7 @@ export function WorkspaceAssistantConversations({
             <Button
               key={conversation.id}
               variant={conversation.id === conversationId ? 'secondary' : 'ghost'}
-              className="h-auto min-h-11 justify-start py-2 text-left whitespace-normal"
+              size="row"
               aria-current={conversation.id === conversationId ? 'page' : undefined}
               onClick={() => onSelectConversation(conversation.id)}
             >

@@ -106,7 +106,7 @@ function UnusableInvitation() {
           <CardHeader>
             <CardTitle as="h1">{m.invitation_link_unusable()}</CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-4 text-sm text-muted-foreground">
+          <CardContent tone="muted" className="grid gap-4">
             {/* Naming which failure it was would tell a link-guesser whether a
                 given workspace exists. */}
             <p>{m.invitation_unusable_description()}</p>

@@ -87,7 +87,7 @@ export function ImpersonateUserAction({
               {m.common_cancel()}
             </AlertDialogCancel>
             <Button
-              className="h-auto min-h-9 py-2 max-md:h-auto max-md:min-h-11"
+              size="flexible"
               disabled={confirm.pending}
               onClick={() => confirm.run()}
             >

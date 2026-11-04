@@ -327,7 +327,8 @@ function RenamePasskeyForm({
             onBlur={field.handleBlur}
             onChange={(event) => field.handleChange(event.target.value)}
             required
-            className="h-8 max-md:h-11 w-full sm:w-36"
+            density="compact"
+            className="w-full sm:w-36"
           />
         )}
       </form.Field>
