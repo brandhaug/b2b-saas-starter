@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useRef, useState } from 'react'
 import { skipToken, useQuery, useQueryClient } from '@tanstack/react-query'
 import ReconnectingWebSocket from 'partysocket/ws'
+import { Effect, Exit, Fiber, Scope } from 'effect'
 import {
   type ConversationPorts,
   type ConversationHistory
@@ -75,22 +76,17 @@ export function useAssistantConversation(
     readonly load: (cursor?: string) => Promise<void>
   } | null>(null)
 
+  // oxlint-disable-next-line react-doctor/effect-needs-cleanup -- the returned cleanup closes the Effect scope, whose finalizer removes every socket listener
   useEffect(() => {
     const observerId = ++epoch.current
     const key = ['assistant-conversation', actorId, workspaceSlug, conversationId]
-    let disposed = false
+    // One scope per identity/selection. Closing fences callbacks immediately and
+    // interrupts reads even when the server-function Promise ignores cancellation.
+    const lifetime = Scope.makeUnsafe()
     dispatch({ type: 'start', observer: observerId, reconnecting: generation > 0 })
 
     function dispose() {
-      if (disposed) {
-        return
-      }
-      disposed = true
-      socket.removeEventListener('open', onOpen)
-      socket.removeEventListener('message', onMessage)
-      socket.removeEventListener('close', onClose)
-      socket.close()
-      void client.cancelQueries({ queryKey: key, exact: true })
+      Effect.runFork(Scope.close(lifetime, Exit.void))
     }
 
     function deny(message: string) {
@@ -101,7 +97,7 @@ export function useAssistantConversation(
     }
 
     async function load(cursor?: string): Promise<void> {
-      if (disposed) {
+      if (lifetime.state._tag === 'Closed') {
         return
       }
       return client
@@ -115,9 +111,19 @@ export function useAssistantConversation(
             if (cursor !== undefined) {
               Object.assign(data, { cursor })
             }
-            const result = await callConversation(() => ports.history({ data }))
+            const result = await Effect.runPromise(
+              Effect.promise(() =>
+                callConversation(() => ports.history({ data }))
+              ).pipe(
+                Effect.forkIn(lifetime),
+                Effect.flatMap((fiber) =>
+                  Fiber.join(fiber).pipe(Effect.ensuring(Fiber.interrupt(fiber)))
+                )
+              ),
+              { signal }
+            )
             // Cancellation also protects the cache when the server transport cannot abort.
-            if (disposed || signal.aborted) {
+            if (lifetime.state._tag === 'Closed' || signal.aborted) {
               return null
             }
             if (!result.ok) {
@@ -146,7 +152,6 @@ export function useAssistantConversation(
     }
 
     observer.current = { actorId, workspaceSlug, conversationId, load }
-    void load()
     const url = new URL(
       `/api/assistant/${encodeURIComponent(conversationId)}/connect`,
       window.location.origin
@@ -161,13 +166,13 @@ export function useAssistantConversation(
       shouldReconnectOnClose: (event) => ![1008, 4401, 4403, 4404].includes(event.code)
     })
     function onOpen() {
-      if (disposed) {
+      if (lifetime.state._tag === 'Closed') {
         return
       }
       dispatch({ type: 'open', observer: observerId })
     }
     function onMessage(event: MessageEvent<string>) {
-      if (disposed) {
+      if (lifetime.state._tag === 'Closed') {
         return
       }
       const snapshot = readConversationSnapshot(event.data)
@@ -178,7 +183,7 @@ export function useAssistantConversation(
       }
     }
     function onClose(event: CloseEvent) {
-      if (disposed) {
+      if (lifetime.state._tag === 'Closed') {
         return
       }
       if (event.code === 1008 || [4401, 4403, 4404].includes(event.code)) {
@@ -188,9 +193,22 @@ export function useAssistantConversation(
       dispatch({ type: 'close', observer: observerId })
       void load()
     }
+    Effect.runSync(
+      Scope.addFinalizer(
+        lifetime,
+        Effect.sync(() => {
+          socket.removeEventListener('open', onOpen)
+          socket.removeEventListener('message', onMessage)
+          socket.removeEventListener('close', onClose)
+          socket.close()
+          void client.cancelQueries({ queryKey: key, exact: true })
+        })
+      )
+    )
     socket.addEventListener('open', onOpen)
     socket.addEventListener('message', onMessage)
     socket.addEventListener('close', onClose)
+    void load()
     return () => {
       dispose()
       observer.current = null
