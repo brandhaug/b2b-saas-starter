@@ -5,6 +5,7 @@ import { randomHex } from '@b2b-saas-starter/failure/crypto'
  * Mints a capability row id (`<prefix>_<millis>_<8-byte hex>`). The timestamp
  * comes from `Clock`, so `TestClock` controls generated ids in tests.
  */
+// oxlint-disable-next-line starter/named-effect-operation -- per-row clock/id generation stays inside the owning mutation span; an extra span per id adds no I/O evidence
 export const newCapabilityId = Effect.fnUntraced(function* (prefix: string) {
   const millis = yield* Clock.currentTimeMillis
   return `${prefix}_${millis}_${randomHex(8)}`

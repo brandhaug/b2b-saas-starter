@@ -82,72 +82,72 @@ export function makeOpenAIModel(config: OpenAIConfig) {
     Effect.provideService(FetchHttpClient.RequestInit, { redirect: 'manual' })
   )
 
-  function generateText(options: LanguageModel.ProviderOptions) {
-    return Effect.gen(function* () {
-      const plain = plainChat(options)
-      if ('reason' in plain) {
-        return yield* openAiError(plain.reason)
-      }
-      const response = yield* request({
-        model: modelId,
-        messages: plain.messages,
-        max_tokens: config.maxOutputTokens ?? 4096
-      }).pipe(
-        Effect.mapError(() =>
-          openAiError(
-            new AiError.NetworkError({
-              reason: 'TransportError',
-              method: 'POST',
-              url: '',
-              description: 'Provider connection failed.'
-            })
-          )
+  const generateText = Effect.fn('OpenAI.generateText')(function* (
+    options: LanguageModel.ProviderOptions
+  ) {
+    const plain = plainChat(options)
+    if ('reason' in plain) {
+      return yield* openAiError(plain.reason)
+    }
+    const response = yield* request({
+      model: modelId,
+      messages: plain.messages,
+      max_tokens: config.maxOutputTokens ?? 4096
+    }).pipe(
+      Effect.mapError(() =>
+        openAiError(
+          new AiError.NetworkError({
+            reason: 'TransportError',
+            method: 'POST',
+            url: '',
+            description: 'Provider connection failed.'
+          })
         )
       )
-      if (response.status < 200 || response.status >= 300) {
-        return yield* openAiError(
-          AiError.reasonFromHttpStatus({
-            status: response.status,
-            description: `status ${response.status}`
+    )
+    if (response.status < 200 || response.status >= 300) {
+      return yield* openAiError(
+        AiError.reasonFromHttpStatus({
+          status: response.status,
+          description: `status ${response.status}`
+        })
+      )
+    }
+    const raw: unknown = yield* response.json.pipe(
+      Effect.mapError(() =>
+        openAiError(
+          new AiError.InvalidOutputError({
+            description: 'Provider response is invalid.'
           })
-        )
-      }
-      const raw: unknown = yield* response.json.pipe(
-        Effect.mapError(() =>
-          openAiError(
-            new AiError.InvalidOutputError({
-              description: 'Provider response is invalid.'
-            })
-          )
         )
       )
-      const body = decodeOpenAIChatResponse(raw)
-      if (Option.isNone(body)) {
-        return yield* openAiError(
-          new AiError.InvalidOutputError({
-            description: 'response body does not match the chat shape'
-          })
-        )
+    )
+    const body = decodeOpenAIChatResponse(raw)
+    if (Option.isNone(body)) {
+      return yield* openAiError(
+        new AiError.InvalidOutputError({
+          description: 'response body does not match the chat shape'
+        })
+      )
+    }
+    const first = body.value.choices[0]
+    if (first === undefined) {
+      return yield* openAiError(
+        new AiError.InvalidOutputError({
+          description: 'response body carries no choice'
+        })
+      )
+    }
+    const parts: Array<Response.PartEncoded> = [
+      { type: 'text', text: first.message.content },
+      {
+        type: 'finish',
+        reason: finishReason(first.finish_reason),
+        usage: { inputTokens: {}, outputTokens: {} }
       }
-      const first = body.value.choices[0]
-      if (first === undefined) {
-        return yield* openAiError(
-          new AiError.InvalidOutputError({
-            description: 'response body carries no choice'
-          })
-        )
-      }
-      const parts: Array<Response.PartEncoded> = [
-        { type: 'text', text: first.message.content },
-        {
-          type: 'finish',
-          reason: finishReason(first.finish_reason),
-          usage: { inputTokens: {}, outputTokens: {} }
-        }
-      ]
-      return parts
-    }).pipe(Effect.scoped)
-  }
+    ]
+    return parts
+  }, Effect.scoped)
 
   function streamText(options: LanguageModel.ProviderOptions) {
     return Stream.unwrap(

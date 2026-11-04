@@ -178,7 +178,7 @@ export function LiveSsoConnections(
        * to the workspace in context — never the plugin's response, which is
        * exactly the shape this package refuses to name.
        */
-      const readInWorkspace = Effect.fnUntraced(function* (
+      const readInWorkspace = Effect.fn('SsoConnections.readInWorkspace')(function* (
         workspaceId: string,
         providerId: string
       ) {

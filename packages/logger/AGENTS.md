@@ -1,10 +1,14 @@
 # @b2b-saas-starter/logger
 
-The one observability seam for all three workers: wide events, OTel traces, RED metrics, OTLP export (ADR 0007, ADR 0050). Nothing else constructs a logger, tracer, or span. Native operational signals: `./providers`.
+The one observability seam for all three workers: wide events, OTel traces, RED metrics, OTLP export (ADR 0007, ADR 0050). Nothing else constructs a logger, tracer or exporter. Application operations use named `Effect.fn` spans through this tracer; follow [operation tracing](../../docs/agents/code-conventions.md#operation-tracing). Native operational signals: `./providers`.
 
 ## Changes
 
 `withRequestScope` (one span, one `Scope`, one canonical line on exit) is always wrapped. Use `annotateWideEvent` for facts that must survive nested scopes. `Effect.annotateLogsScoped` works only when its scope remains open through emission.
+
+Scope and trace-context helpers keep their existing span ownership. Do not wrap
+them in named `Effect.fn`: an extra span can change the parent read by propagation
+helpers or duplicate an invocation span. Operation spans do not emit canonical events.
 
 - HTTP entry points call `withHttpInvocation`, not `withHttpRequestScope`: scope and OTLP layer are one recipe (invariant 3). Its body returns a response with numeric `status`; the wrapper records `statusCode` after transport encoding.
 - Queue and cron triggers call `withTriggerScope`; in `apps/background` one invocation carries a batch, so `runInvocation` provides exporters once around N scopes.

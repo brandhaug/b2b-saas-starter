@@ -1,6 +1,6 @@
 import { expect, it } from '@effect/vitest'
 import { SeedSeatSyncPublisher } from '@b2b-saas-starter/billing/seat-sync'
-import { Effect, Layer, Ref, Result } from 'effect'
+import { Deferred, Effect, Fiber, Layer, Queue, Ref, Result } from 'effect'
 import { AssistantDirectory } from '../assistant/directory.ts'
 import { SeedAssistantDirectory } from '../assistant/directory.seed.ts'
 import { SeedWebhookPublisher } from '../developer-platform/webhook-publisher.ts'
@@ -19,6 +19,8 @@ for (const operation of ['demote', 'remove', 'leave']) {
       const b = { ...a, id: 'other-owner' }
       const roster = yield* makeSeedRoster([a, b])
       const directory = yield* AssistantDirectory
+      const invalidating = yield* Queue.unbounded<undefined>()
+      const release = yield* Deferred.make<undefined>()
       yield* Effect.gen(function* () {
         const membership = yield* WorkspaceMembership
         function change(actor: typeof a, target: typeof a) {
@@ -43,10 +45,18 @@ for (const operation of ['demote', 'remove', 'leave']) {
             })
           )
         }
-        const results = yield* Effect.all(
+        const changes = yield* Effect.all(
           [change(a, b).pipe(Effect.result), change(b, a).pipe(Effect.result)],
           { concurrency: 'unbounded' }
-        )
+        ).pipe(Effect.forkScoped)
+        // Both operations must pass the initial owner check before either commits.
+        yield* Queue.take(invalidating)
+        yield* Queue.take(invalidating)
+        expect(
+          (yield* Ref.get(roster)).filter((member) => member.role === 'owner')
+        ).toHaveLength(2)
+        yield* Deferred.succeed(release, undefined)
+        const results = yield* Fiber.join(changes)
         expect(
           (yield* Ref.get(roster)).filter((member) => member.role === 'owner')
         ).toHaveLength(1)
@@ -57,7 +67,10 @@ for (const operation of ['demote', 'remove', 'leave']) {
             Layer.provide([
               Layer.succeed(AssistantDirectory, {
                 ...directory,
-                invalidateAccess: () => Effect.yieldNow
+                invalidateAccess: () =>
+                  Queue.offer(invalidating, undefined).pipe(
+                    Effect.andThen(Deferred.await(release))
+                  )
               }),
               SeedSeatSyncPublisher,
               SeedWebhookPublisher
@@ -65,6 +78,6 @@ for (const operation of ['demote', 'remove', 'leave']) {
           )
         )
       )
-    }).pipe(Effect.provide(SeedAssistantDirectory))
+    }).pipe(Effect.provide(SeedAssistantDirectory), Effect.scoped)
   )
 }

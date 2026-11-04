@@ -12,7 +12,7 @@ assignees: ''
 
 ## Acceptance criteria
 
-<!-- Assign criterion IDs in the GitHub issue and keep them stable as it evolves. Map them to implementation evidence in the PR using .agents/skills/implement/SKILL.md. -->
+<!-- Assign criterion IDs in the GitHub issue and keep them stable as it evolves. Apply CONTRIBUTING.md#feature-acceptance: name applicable entry points, adapters, denied states and supported recovery paths with expected outcomes; explain exclusions. Map criteria to implementation evidence in the PR using .agents/skills/implement/SKILL.md. -->
 
 - [ ] `<criterion ID>`:
 - [ ] `<criterion ID>`:

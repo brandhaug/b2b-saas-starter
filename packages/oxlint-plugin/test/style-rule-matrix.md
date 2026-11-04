@@ -134,3 +134,14 @@ This syntax-only check recognizes appearance utility families, not every possibl
 Tailwind or custom CSS class. Indirect variables, spread props, variant helper
 calls, external CSS, and render-prop styles remain review responsibilities.
 Native elements and feature-component imports are outside this rule.
+
+# Operation tracing coverage
+
+`named-effect-operation.test.ts` covers dynamic/empty labels, direct import aliases,
+computed members, unrelated APIs, shadowing and justified untraced helpers. It
+accepts existing literal labels. `effect/requireNamedEffectFn` is not enabled:
+the installed rule misses computed unnamed calls and reports unrelated imports
+named Effect. It also ignores dynamic labels and `fnUntraced`. The custom rule
+resolves import identity and covers these cases; `effect/preferEffectFn`
+continues to own generator-plus-span conversions without duplicate reports. Indirect namespace/function
+aliases and operation ownership need review, not syntax inference.

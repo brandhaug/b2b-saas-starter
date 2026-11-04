@@ -502,7 +502,7 @@ export function SeedWebhookEndpoints(
               input
             )
           }),
-        create: Effect.fnUntraced(function* (input) {
+        create: Effect.fn('WebhookEndpoints.create')(function* (input) {
           yield* ensureValidWebhookUrl(input.url)
           const ctx = yield* WorkspaceContext
           // Same entitlement gate as Live — and because the store mutates, the

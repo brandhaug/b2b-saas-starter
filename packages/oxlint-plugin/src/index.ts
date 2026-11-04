@@ -1,4 +1,5 @@
 import { definePlugin } from 'vite-plus/lint/plugins'
+import namedEffectOperation from './rules/named-effect-operation.ts'
 import noDarkPrefix from './rules/no-dark-prefix.ts'
 import noEffectInternalTags from './rules/no-effect-internal-tags.ts'
 import noHexColor from './rules/no-hex-color.ts'
@@ -16,6 +17,7 @@ import preferEffectPredicate from './rules/prefer-effect-predicate.ts'
 export default definePlugin({
   meta: { name: 'starter' },
   rules: {
+    'named-effect-operation': namedEffectOperation,
     'no-dark-prefix': noDarkPrefix,
     'no-effect-internal-tags': noEffectInternalTags,
     'no-hex-color': noHexColor,

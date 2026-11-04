@@ -53,7 +53,9 @@ export function SeedAccountLifecycle(options: {
       // them, so `planDeletion` for a later user answers from what is left.
       const deletedWorkspaces = yield* Ref.make<ReadonlyArray<string>>([])
 
-      const membershipsOf = Effect.fnUntraced(function* (userId: string) {
+      const membershipsOf = Effect.fn('AccountLifecycle.membershipsOf')(function* (
+        userId: string
+      ) {
         const roster = yield* Ref.get(options.roster)
         const gone = yield* Ref.get(deletedWorkspaces)
         const member = roster.find((candidate) => candidate.id === userId)
@@ -86,7 +88,9 @@ export function SeedAccountLifecycle(options: {
         return Effect.map(membershipsOf(userId), planAccountDeletion)
       }
 
-      const prepareDeletion = Effect.fnUntraced(function* (userId: string) {
+      const prepareDeletion = Effect.fn('AccountLifecycle.prepareDeletion')(function* (
+        userId: string
+      ) {
         const plan = yield* planDeletion(userId)
         if (!plan.canDelete) {
           return yield* Effect.fail(

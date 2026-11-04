@@ -152,7 +152,9 @@ export function makeDurableCheckout(deps: CheckoutServices) {
         })
         customerId = recovery.customerId
         attemptId = recovery.claim?.id
-        const persistCustomer = Effect.fnUntraced(function* (confirmedId: string) {
+        const persistCustomer = Effect.fn('Billing.persistCustomer')(function* (
+          confirmedId: string
+        ) {
           if (stored !== undefined) {
             return
           }
