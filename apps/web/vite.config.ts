@@ -1,6 +1,7 @@
 import { localAssistantSockets } from './scripts/local-socket-plugin'
 import { docsSearchIndex } from './scripts/docs-search-index'
 import { remarkSourceExamples } from './scripts/source-examples'
+import { clientImportProtection } from './scripts/client-import-protection'
 import mdx from '@mdx-js/rollup'
 import tailwindcss from '@tailwindcss/vite'
 import { devtools } from '@tanstack/devtools-vite'
@@ -212,10 +213,10 @@ export default defineConfig(({ command, mode }) => {
         tanstackStart({
           server: { entry: workersShim === null ? './worker.ts' : './server.ts' },
           importProtection: {
+            ...clientImportProtection,
             // Vitest imports server handlers directly in its client environment.
             // Dev, production, and the compiled E2E build enforce the boundary.
-            enabled: mode !== 'test',
-            client: { files: ['**/*.server.*', '**/*.effects.ts'] }
+            enabled: mode !== 'test'
           },
           router: {
             routeFileIgnorePattern: String.raw`\.test\.`
