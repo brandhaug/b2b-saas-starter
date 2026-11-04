@@ -1,7 +1,7 @@
 // oxlint-disable effect/noAsyncFunction, effect/noNewPromise, effect/noThrowStatement, effect/noNewError -- this capability port is the Promise-shaped boundary into Better Auth's privileged endpoint; D1 binding absence is a deployment defect.
 
 import { type D1Binding } from '@b2b-saas-starter/db/service'
-import { schema } from '@b2b-saas-starter/db/schema'
+import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { and, eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 
@@ -23,19 +23,17 @@ export function makeAdminAccountLifecycleBinding(
     leaveWorkspace: async (input) => {
       const db = deletionDatabase(database)
       await db
-        .delete(schema.workspaceMembers)
+        .delete(workspaceMembers)
         .where(
           and(
-            eq(schema.workspaceMembers.id, input.memberId),
-            eq(schema.workspaceMembers.workspaceId, input.workspaceId)
+            eq(workspaceMembers.id, input.memberId),
+            eq(workspaceMembers.workspaceId, input.workspaceId)
           )
         )
     },
     deleteWorkspace: async (input) => {
       const db = deletionDatabase(database)
-      await db
-        .delete(schema.workspaces)
-        .where(eq(schema.workspaces.id, input.workspaceId))
+      await db.delete(workspaces).where(eq(workspaces.id, input.workspaceId))
     },
     deleteUser: () => {
       // The admin endpoint owns the user-row delete. This binding only supplies
