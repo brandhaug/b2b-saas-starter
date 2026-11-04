@@ -1,3 +1,4 @@
+import { WebhookDeliveryId } from '@b2b-saas-starter/db/ids'
 // oxlint-disable-next-line import/no-unassigned-import -- Authenticated session fixture for server-function boundaries.
 import '@/test/qualified-session'
 import { describe, expect, it, vi } from 'vite-plus/test'
@@ -15,7 +16,7 @@ describe('assistant task authorization', () => {
     actor.userId = 'usr_demo'
     const task = await createAssistantTaskHandler({
       workspaceSlug: 'starter-lab',
-      deliveryId: 'whd_seed_dead_lettered',
+      deliveryId: WebhookDeliveryId.make('whd_seed_dead_lettered'),
       question: 'Investigate this failure'
     })
     expect(task.requestedBy).toBe('usr_demo')
@@ -27,7 +28,7 @@ describe('assistant task authorization', () => {
     await expect(
       createAssistantTaskHandler({
         workspaceSlug: 'starter-lab',
-        deliveryId: 'whd_seed_dead_lettered',
+        deliveryId: WebhookDeliveryId.make('whd_seed_dead_lettered'),
         question: 'Show evidence'
       })
     ).rejects.toMatchObject({ code: 'forbidden' })

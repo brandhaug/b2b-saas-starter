@@ -1,3 +1,4 @@
+import { WebhookDeliveryId } from '@b2b-saas-starter/db/ids'
 import { bestEffort } from '../internal/best-effort.ts'
 // oxlint-disable effect/noGlobals -- D1 SQL parameters require serialized typed JSON at this adapter boundary.
 import { Database, RawD1, type BatchStatement } from '@b2b-saas-starter/db/service'
@@ -61,7 +62,7 @@ export const makeLiveAttemptHistory = Effect.gen(function* () {
     observation: WebhookAttemptObservation
   ) {
     let input = observation.input
-    let deliveryId: string
+    let deliveryId: WebhookDeliveryId
     if (observation.kind === 'queued_terminal') {
       deliveryId = observation.input.id
       const rows = yield* unavailable(
@@ -92,11 +93,15 @@ export const makeLiveAttemptHistory = Effect.gen(function* () {
           failureAction: 'silent',
           status: 'failed_permanent',
           consecutiveFailures: 0
-        } satisfies RecordedWebhookAttempt & { readonly deliveryId: string }
+        } satisfies RecordedWebhookAttempt & { readonly deliveryId: WebhookDeliveryId }
       }
       input = { ...input, eventType: stored.eventType, payload: stored.payload }
     } else {
-      deliveryId = input.id ?? (yield* newCapabilityId('whd'))
+      deliveryId =
+        input.id ??
+        (yield* newCapabilityId('whd').pipe(
+          Effect.map((id) => WebhookDeliveryId.make(id))
+        ))
     }
     const attemptId = yield* newCapabilityId('wha')
     const attemptedAt = DateTime.formatIso(yield* DateTime.now)
@@ -314,7 +319,7 @@ export const makeLiveAttemptHistory = Effect.gen(function* () {
     }
   })
   const listDeliveryAttempts = Effect.fn('WebhookEndpoints.listDeliveryAttempts')(
-    function* (input: { readonly deliveryId: string }) {
+    function* (input: { readonly deliveryId: WebhookDeliveryId }) {
       const ctx = yield* WorkspaceContext
       const rows = yield* unavailable(
         db

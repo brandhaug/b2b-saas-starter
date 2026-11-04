@@ -1,3 +1,4 @@
+import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { type ListGlobalDeliveriesInput } from './webhook-delivery-view.ts'
 import { Context, Effect, Schema } from 'effect'
 
@@ -28,7 +29,7 @@ import { type WorkspaceContext } from '../workspace-context.ts'
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
 export class WebhookEndpointNotFound extends Schema.TaggedError<WebhookEndpointNotFound>()(
   'WebhookEndpointNotFound',
-  { endpointId: Schema.String },
+  { endpointId: WebhookEndpointId },
   { httpApiStatus: 404 }
 ) {}
 
@@ -40,7 +41,7 @@ export class WebhookEndpointNotFound extends Schema.TaggedError<WebhookEndpointN
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
 export class WebhookDeliveryNotFound extends Schema.TaggedError<WebhookDeliveryNotFound>()(
   'WebhookDeliveryNotFound',
-  { deliveryId: Schema.String },
+  { deliveryId: WebhookDeliveryId },
   { httpApiStatus: 404 }
 ) {}
 
@@ -57,7 +58,7 @@ export class WebhookDispatchRejected extends Schema.TaggedError<WebhookDispatchR
 ) {}
 
 export const WebhookEndpoint = Schema.Struct({
-  id: Schema.String,
+  id: WebhookEndpointId,
   url: Schema.String,
   enabled: Schema.Boolean,
   events: Schema.Array(Schema.String),
@@ -107,7 +108,7 @@ export const CreateWebhookEndpointPayload = Schema.Struct({
 export type CreateWebhookEndpointPayload = typeof CreateWebhookEndpointPayload.Type
 
 export type UpdateWebhookEndpointInput = {
-  readonly endpointId: string
+  readonly endpointId: WebhookEndpointId
   /**
    * Each field is optional and mutable-on-purpose: callers build the patch
    * with statements (`if (x !== undefined) patch.url = x`), which the lint
@@ -132,7 +133,7 @@ export const UpdateWebhookEndpointPayload = Schema.Struct({
 export type UpdateWebhookEndpointPayload = typeof UpdateWebhookEndpointPayload.Type
 
 type DeleteWebhookEndpointInput = {
-  readonly endpointId: string
+  readonly endpointId: WebhookEndpointId
 }
 
 /**
@@ -149,8 +150,8 @@ export const TERMINAL_DELIVERY_STATUSES = [
  * No payload or signing secrets are exposed. Replay re-reads the source.
  */
 export const GlobalWebhookDelivery = Schema.Struct({
-  id: Schema.String,
-  endpointId: Schema.String,
+  id: WebhookDeliveryId,
+  endpointId: WebhookEndpointId,
   endpointUrl: Schema.String,
   endpointEnabled: Schema.Boolean,
   endpointConsecutiveFailures: Schema.Number,
@@ -165,8 +166,8 @@ export const GlobalWebhookDelivery = Schema.Struct({
 export type GlobalWebhookDelivery = typeof GlobalWebhookDelivery.Type
 
 export type AdminReplaySource = {
-  readonly id: string
-  readonly endpointId: string
+  readonly id: WebhookDeliveryId
+  readonly endpointId: WebhookEndpointId
   readonly workspaceId: string
   readonly eventType: string
   readonly status: WebhookDeliveryStatus
@@ -208,7 +209,9 @@ export const planAdminReplay = Effect.fn('WebhookEndpoints.planAdminReplay')(fun
       })
     )
   }
-  const deliveryId = yield* newCapabilityId('whd')
+  const deliveryId = yield* newCapabilityId('whd').pipe(
+    Effect.map((id) => WebhookDeliveryId.make(id))
+  )
   return {
     deliveryId,
     workspaceId: source.workspaceId,
@@ -231,15 +234,15 @@ export const planAdminReplay = Effect.fn('WebhookEndpoints.planAdminReplay')(fun
 })
 
 type ReplayWebhookDeliveryInput = {
-  readonly deliveryId: string
+  readonly deliveryId: WebhookDeliveryId
   /** Stable identity for a caller that must reconcile an uncertain enqueue. */
-  readonly replayDeliveryId?: string | undefined
+  readonly replayDeliveryId?: WebhookDeliveryId | undefined
   readonly expectedEndpointUrl?: string | undefined
   readonly expectedStatus?: WebhookDeliveryStatus | undefined
 }
 
 type SendTestEventInput = {
-  readonly endpointId: string
+  readonly endpointId: WebhookEndpointId
 }
 
 /**
@@ -256,11 +259,11 @@ type DispatchedDelivery = {
    * consumer records its attempts against this id, so the row a replay or test
    * created is the row that resolves.
    */
-  readonly deliveryId: string
+  readonly deliveryId: WebhookDeliveryId
 }
 
 type RotateWebhookSecretInput = {
-  readonly endpointId: string
+  readonly endpointId: WebhookEndpointId
 }
 
 /** Accepted-summary result. The worker follows the persisted status for queue
@@ -303,7 +306,7 @@ type WebhookEndpointsInterface = {
    * from another workspace yields an empty list, never its deliveries.
    */
   readonly listDeliveryAttempts: (input: {
-    readonly deliveryId: string
+    readonly deliveryId: WebhookDeliveryId
   }) => Effect.Effect<
     ReadonlyArray<WebhookDeliveryAttempt>,
     CapabilityUnavailable,
@@ -319,7 +322,9 @@ type WebhookEndpointsInterface = {
     WorkspaceContext
   >
 
-  readonly inspectDelivery: (input: { readonly deliveryId: string }) => Effect.Effect<
+  readonly inspectDelivery: (input: {
+    readonly deliveryId: WebhookDeliveryId
+  }) => Effect.Effect<
     {
       readonly endpoint: WebhookEndpoint
       readonly delivery: WebhookDelivery
@@ -386,7 +391,7 @@ type WebhookEndpointsInterface = {
    * This grants no workspace membership and never provides WorkspaceContext.
    */
   readonly replayDeliveryAsAdmin: (input: {
-    readonly deliveryId: string
+    readonly deliveryId: WebhookDeliveryId
     readonly actorUserId: string
   }) => Effect.Effect<
     DispatchedDelivery,
@@ -425,8 +430,8 @@ type WebhookEndpointsInterface = {
 
   /** Persisted outcomes that must not dispatch again on queue redelivery. */
   readonly isDeliverySettled: (input: {
-    readonly deliveryId: string
-    readonly endpointId: string
+    readonly deliveryId: WebhookDeliveryId
+    readonly endpointId: WebhookEndpointId
     readonly workspaceId: string
   }) => Effect.Effect<boolean, CapabilityUnavailable>
 
@@ -441,13 +446,13 @@ type WebhookEndpointsInterface = {
    * the rotated-out one while its grace window is open.
    */
   readonly getDispatchTarget: (
-    endpointId: string,
+    endpointId: WebhookEndpointId,
     workspaceId: string,
     /** Queue execution supplies the producer-stamped delivery identity. */
-    deliveryId: string
+    deliveryId: WebhookDeliveryId
   ) => Effect.Effect<
     {
-      readonly id: string
+      readonly id: WebhookEndpointId
       readonly url: string
       readonly signingSecrets: ReadonlyArray<string>
       /** Authoritative queued delivery contents, present for queue execution. */
@@ -467,8 +472,8 @@ type WebhookEndpointsInterface = {
    * DLQ retries cannot create extra observations or increment the HTTP count.
    * Existing HTTP evidence and replay provenance remain on the summary. */
   readonly recordTerminalDeliveryAttempt: (input: {
-    readonly deliveryId: string
-    readonly endpointId: string
+    readonly deliveryId: WebhookDeliveryId
+    readonly endpointId: WebhookEndpointId
     readonly workspaceId: string
     readonly eventType: string
     readonly attempts: number
@@ -476,7 +481,7 @@ type WebhookEndpointsInterface = {
     readonly failureReason?: string | null
     readonly payload: Json
   }) => Effect.Effect<
-    { readonly deliveryId: string } & RecordedWebhookAttempt,
+    { readonly deliveryId: WebhookDeliveryId } & RecordedWebhookAttempt,
     CapabilityUnavailable
   >
 }

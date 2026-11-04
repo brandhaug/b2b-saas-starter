@@ -828,6 +828,8 @@ const { lint = {} } = defineConfig({
                   group: [
                     '@b2b-saas-starter/db',
                     '@b2b-saas-starter/db/*',
+                    // Identity schemas are Drizzle-free boundary vocabulary.
+                    '!@b2b-saas-starter/db/ids',
                     'drizzle-orm',
                     'drizzle-orm/*'
                   ],

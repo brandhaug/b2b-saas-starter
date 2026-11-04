@@ -1,3 +1,8 @@
+import {
+  ApiTokenId,
+  WebhookDeliveryId,
+  WebhookEndpointId
+} from '@b2b-saas-starter/db/ids'
 import { WebhookDeliveryAttempt } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { signWorkspaceExportDownload } from '@b2b-saas-starter/capabilities/governance/workspace-export'
@@ -44,12 +49,12 @@ const DeletedBody = Schema.Struct({ status: Schema.Literal('deleted') })
 const RotatedSecretBody = Schema.Struct({ signingSecret: Schema.String })
 const QueuedDeliveryBody = Schema.Struct({
   status: Schema.Literal('queued'),
-  deliveryId: Schema.String
+  deliveryId: WebhookDeliveryId
 })
 const DeliveriesBody = Schema.Array(
   Schema.Struct({
     id: Schema.String,
-    endpointId: Schema.String,
+    endpointId: WebhookEndpointId,
     eventType: Schema.String,
     status: Schema.String,
     attempts: Schema.Number,
@@ -57,7 +62,7 @@ const DeliveriesBody = Schema.Array(
     payload: Schema.NullOr(Schema.Unknown),
     requestHeaders: Schema.NullOr(Schema.Record(Schema.String, Schema.String)),
     responseBody: Schema.NullOr(Schema.String),
-    replayedFrom: Schema.NullOr(Schema.String)
+    replayedFrom: Schema.NullOr(WebhookDeliveryId)
   })
 )
 const AssistantAnswerBody = Schema.Struct({
@@ -421,7 +426,7 @@ describe('contract-served routes', () => {
 
   it.effect('PATCH webhook endpoint re-validates the URL and 404s unknown ids', () =>
     Effect.gen(function* () {
-      function patch(endpointId: string, payload: typeof Schema.Json.Type) {
+      function patch(endpointId: WebhookEndpointId, payload: typeof Schema.Json.Type) {
         return send(
           new Request(
             `https://api.test/workspaces/starter-lab/webhooks/${endpointId}`,
@@ -433,10 +438,14 @@ describe('contract-served routes', () => {
           )
         )
       }
-      const invalid = yield* patch('wh_release', { url: 'http://localhost/hook' })
+      const invalid = yield* patch(WebhookEndpointId.make('wh_release'), {
+        url: 'http://localhost/hook'
+      })
       expect(invalid.status).toBe(400)
       expect((yield* jsonBody(invalid, ErrorBody))._tag).toBe('InvalidWebhookUrl')
-      const missing = yield* patch('wh_missing', { enabled: true })
+      const missing = yield* patch(WebhookEndpointId.make('wh_missing'), {
+        enabled: true
+      })
       expect(missing.status).toBe(404)
       expect((yield* jsonBody(missing, ErrorBody))._tag).toBe('WebhookEndpointNotFound')
     })
@@ -529,7 +538,7 @@ describe('contract-served routes', () => {
         )
         expect(res.status).toBe(201)
         const body = yield* jsonBody(res, QueuedDeliveryBody)
-        expect(body.deliveryId).not.toBe('whd_seed_failed')
+        expect(body.deliveryId).not.toBe(WebhookDeliveryId.make('whd_seed_failed'))
 
         const deliveries = yield* send(
           get('/workspaces/starter-lab/webhooks/wh_release/deliveries', bearer)
@@ -539,10 +548,13 @@ describe('contract-served routes', () => {
         expect(copy).toMatchObject({
           status: 'pending',
           attempts: 0,
-          replayedFrom: 'whd_seed_failed'
+          replayedFrom: WebhookDeliveryId.make('whd_seed_failed')
         })
         // The recorded payload rides on the copy verbatim.
-        expect(copy?.payload).toEqual({ tokenId: 'tok_docs', name: 'Docs automation' })
+        expect(copy?.payload).toEqual({
+          tokenId: ApiTokenId.make('tok_docs'),
+          name: 'Docs automation'
+        })
 
         // A delivered row refuses the replay; an unknown id reads as not found.
         const delivered = yield* send(
@@ -574,13 +586,17 @@ describe('contract-served routes', () => {
       )
       expect(res.status).toBe(200)
       const rows = yield* jsonBody(res, DeliveriesBody)
-      const failed = rows.find((row) => row.id === 'whd_seed_failed')
+      const failed = rows.find(
+        (row) => row.id === WebhookDeliveryId.make('whd_seed_failed')
+      )
       expect(failed).toMatchObject({
         status: 'failed',
         responseStatus: 500,
         replayedFrom: null
       })
-      expect(failed?.requestHeaders?.['webhook-id']).toBe('whd_seed_failed')
+      expect(failed?.requestHeaders?.['webhook-id']).toBe(
+        WebhookDeliveryId.make('whd_seed_failed')
+      )
       expect(failed?.responseBody).toContain('upstream')
     })
   )
@@ -599,7 +615,10 @@ describe('contract-served routes', () => {
         const attempts = yield* jsonBody(response, Schema.Array(WebhookDeliveryAttempt))
         expect(attempts.length).toBeGreaterThan(0)
         expect(
-          attempts.every((attempt) => attempt.deliveryId === 'whd_seed_failed')
+          attempts.every(
+            (attempt) =>
+              attempt.deliveryId === WebhookDeliveryId.make('whd_seed_failed')
+          )
         ).toBe(true)
         const missing = yield* send(
           get(

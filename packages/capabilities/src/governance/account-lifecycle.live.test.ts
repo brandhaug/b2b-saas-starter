@@ -1,3 +1,4 @@
+import { ApiTokenId } from '@b2b-saas-starter/db/ids'
 import { apiTokens } from '@b2b-saas-starter/db/schema/developer-platform'
 import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
 import { emailDeliveries } from '@b2b-saas-starter/db/schema/email-delivery'
@@ -339,7 +340,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
           }
         ])
         yield* db.insert(apiTokens).values({
-          id: 'tok_mixed_created',
+          id: ApiTokenId.make('tok_mixed_created'),
           workspaceId: 'wrk_mixed_shared',
           name: 'Mixed Token',
           tokenPrefix: 'bsk_live_mixed',
@@ -523,7 +524,10 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
         )
         expect(detachedAudit[0]?.actorUserId).toBeNull()
         const detachedToken = yield* Effect.flatMap(Database, (database) =>
-          database.select().from(apiTokens).where(eq(apiTokens.id, 'tok_mixed_created'))
+          database
+            .select()
+            .from(apiTokens)
+            .where(eq(apiTokens.id, ApiTokenId.make('tok_mixed_created')))
         )
         expect(detachedToken[0]?.createdByUserId).toBeNull()
 

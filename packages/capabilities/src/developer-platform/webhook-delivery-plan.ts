@@ -1,3 +1,4 @@
+import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { deliveryAttemptPhases } from '@b2b-saas-starter/db/enums'
 import { DateTime, Duration, Option, Schema } from 'effect'
 
@@ -12,8 +13,8 @@ export type Json = typeof Schema.Json.Type
 
 /** A recorded delivery attempt, newest first in `listDeliveries`. */
 export const WebhookDelivery = Schema.Struct({
-  id: Schema.String,
-  endpointId: Schema.String,
+  id: WebhookDeliveryId,
+  endpointId: WebhookEndpointId,
   eventType: Schema.String,
   status: Schema.String,
   attempts: Schema.Number,
@@ -30,14 +31,14 @@ export const WebhookDelivery = Schema.Struct({
   payload: Schema.Json,
   requestHeaders: Schema.NullOr(Schema.Record(Schema.String, Schema.String)),
   responseBody: Schema.NullOr(Schema.String),
-  replayedFrom: Schema.NullOr(Schema.String)
+  replayedFrom: Schema.NullOr(WebhookDeliveryId)
 })
 export type WebhookDelivery = typeof WebhookDelivery.Type
 
 /** Immutable evidence for one queue dispatch or its terminal disposition. */
 export const WebhookDeliveryAttempt = Schema.Struct({
   id: Schema.String,
-  deliveryId: Schema.String,
+  deliveryId: WebhookDeliveryId,
   attempts: Schema.Number,
   phase: Schema.Literals(deliveryAttemptPhases),
   status: Schema.String,
@@ -54,7 +55,7 @@ export const DELIVERY_HISTORY_RETENTION_DAYS = 30
 export const DELIVERY_HISTORY_CLEANUP_LIMIT = 100
 
 export type ListWebhookDeliveriesInput = {
-  readonly endpointId: string
+  readonly endpointId: WebhookEndpointId
 }
 
 /**
@@ -85,8 +86,8 @@ export type WebhookDeliveryStatus =
  * can import it without a cycle through the adapters.
  */
 export type SeedWebhookDeliveryFixture = {
-  readonly id: string
-  readonly endpointId: string
+  readonly id: WebhookDeliveryId
+  readonly endpointId: WebhookEndpointId
   readonly eventType: string
   readonly status: WebhookDeliveryStatus
   readonly attempts: number
@@ -96,7 +97,7 @@ export type SeedWebhookDeliveryFixture = {
   readonly payload: Json
   readonly requestHeaders?: Record<string, string> | null
   readonly responseBody?: string | null
-  readonly replayedFrom?: string | null
+  readonly replayedFrom?: WebhookDeliveryId | null
   readonly workspaceId?: string
 }
 
@@ -351,8 +352,8 @@ export type WebhookDeliveryAttemptInput = {
    * Delivery row id. Queue dispatch supplies the producer's reserved ID.
    * Trusted bookkeeping can originate history and generates an ID if omitted.
    */
-  readonly id?: string
-  readonly endpointId: string
+  readonly id?: WebhookDeliveryId
+  readonly endpointId: WebhookEndpointId
   /**
    * Owning workspace of the endpoint, carried in the queue message. Terminal
    * statuses use it to scope their audit event.
@@ -370,13 +371,13 @@ export type WebhookDeliveryAttemptInput = {
   readonly payload: Json
   readonly requestHeaders?: Record<string, string> | null
   readonly responseBody?: string | null
-  readonly replayedFrom?: string | null
+  readonly replayedFrom?: WebhookDeliveryId | null
 }
 
 /** Everything a replay needs to know about the row it replays. */
 type ReplayableWebhookDelivery = {
-  readonly id: string
-  readonly endpointId: string
+  readonly id: WebhookDeliveryId
+  readonly endpointId: WebhookEndpointId
   readonly eventType: string
   readonly payload: Json
 }
@@ -390,21 +391,21 @@ type ReplayableWebhookDelivery = {
  * resolved.
  */
 export type PendingDispatchPlan = {
-  readonly endpointId: string
+  readonly endpointId: WebhookEndpointId
   readonly eventType: string
   readonly status: 'pending'
   readonly attempts: 0
   readonly nextAttemptAt: null
   readonly responseStatus: null
   readonly payload: Json
-  readonly replayedFrom: string | null
+  readonly replayedFrom: WebhookDeliveryId | null
 }
 
 export function planPendingDispatch(input: {
-  readonly endpointId: string
+  readonly endpointId: WebhookEndpointId
   readonly eventType: string
   readonly payload: Json
-  readonly replayedFrom?: string | undefined
+  readonly replayedFrom?: WebhookDeliveryId | undefined
 }): PendingDispatchPlan {
   return {
     endpointId: input.endpointId,
@@ -420,7 +421,7 @@ export function planPendingDispatch(input: {
 
 /** A replay plan is a pending dispatch with provenance. */
 type ReplayedDeliveryPlan = PendingDispatchPlan & {
-  readonly replayedFrom: string
+  readonly replayedFrom: WebhookDeliveryId
 }
 
 export function planReplayedDelivery(

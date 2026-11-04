@@ -1,3 +1,4 @@
+import { WebhookDeliveryId } from '@b2b-saas-starter/db/ids'
 import {
   selectCapabilitiesLayer,
   starterEnv
@@ -33,7 +34,7 @@ import { readWebhookResponse } from './webhook-response.ts'
 
 // Sign exactly the bytes this codec sends to the receiver.
 const WebhookDeliveryBody = Schema.Struct({
-  deliveryId: Schema.String,
+  deliveryId: WebhookDeliveryId,
   eventType: WebhookQueueMessage.fields.eventType,
   payload: WebhookQueueMessage.fields.payload
 })

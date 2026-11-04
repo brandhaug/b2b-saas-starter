@@ -1,3 +1,4 @@
+import { ApiTokenId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 // @vitest-environment node
 import {
   afterAll,
@@ -55,7 +56,7 @@ beforeAll(async () => {
       `INSERT INTO session (id,token,userId,expiresAt,createdAt,updatedAt,strongAuthAt,strongAuthMethod,strongAuthCredentialId)
       VALUES (?,?,?,strftime('%s','now')+3600,strftime('%s','now'),strftime('%s','now'),strftime('%s','now'),'passkey',?)`,
       `ses_${userId}`,
-      `tok_${userId}`,
+      ApiTokenId.make(`tok_${userId}`),
       userId,
       `pk_isolation_${userId}`
     )
@@ -182,7 +183,7 @@ describe('browser server handler Workspace isolation', () => {
         enabled: false
       })
     ).rejects.toEqual({ isNotFound: true })
-    for (const endpointId of [foreignId, 'missing-endpoint']) {
+    for (const endpointId of [foreignId, WebhookEndpointId.make('missing-endpoint')]) {
       await expect(
         webhooks.updateWebhookEndpointHandler({
           workspaceSlug: 'dev-contract-lab',

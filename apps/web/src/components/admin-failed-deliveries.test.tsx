@@ -1,3 +1,4 @@
+import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
@@ -25,8 +26,8 @@ function deferred<A>() {
 const initialPage: FailedDeliveriesPayload = {
   items: [
     {
-      id: 'whd_terminal',
-      endpointId: 'wh_failed',
+      id: WebhookDeliveryId.make('whd_terminal'),
+      endpointId: WebhookEndpointId.make('wh_failed'),
       endpointUrl: 'https://receiver.example.com/hook',
       endpointEnabled: false,
       endpointConsecutiveFailures: 20,
@@ -71,7 +72,7 @@ describe('AdminFailedDeliveries', () => {
   it('acknowledges a queued copy without hiding the source or offering an immediate duplicate', async () => {
     vi.mocked(replayFailedDeliveryServerFn).mockResolvedValue({
       status: 'queued',
-      deliveryId: 'whd_copy'
+      deliveryId: WebhookDeliveryId.make('whd_copy')
     })
     await renderWithRouter(<AdminFailedDeliveries initialPage={initialPage} />, {
       path: '/admin'

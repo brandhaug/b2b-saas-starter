@@ -1,3 +1,4 @@
+import { ApiTokenId } from '@b2b-saas-starter/db/ids'
 // oxlint-disable-next-line import/no-unassigned-import -- Installs the explicit authenticated-session test fixture.
 import '@/test/qualified-session'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
@@ -35,13 +36,19 @@ describe('revokeApiTokenHandler', () => {
   it('denies a plain member — apiToken:revoke is withheld from member', async () => {
     actor.userId = 'usr_dev'
     await expect(
-      revokeApiTokenHandler({ workspaceSlug: 'starter-lab', tokenId: 'tok_docs' })
+      revokeApiTokenHandler({
+        workspaceSlug: 'starter-lab',
+        tokenId: ApiTokenId.make('tok_docs')
+      })
     ).rejects.toMatchObject({ name: 'ForbiddenError' })
   })
 
   it('revokes for an actor with apiToken:revoke', async () => {
     await expect(
-      revokeApiTokenHandler({ workspaceSlug: 'starter-lab', tokenId: 'tok_docs' })
+      revokeApiTokenHandler({
+        workspaceSlug: 'starter-lab',
+        tokenId: ApiTokenId.make('tok_docs')
+      })
     ).resolves.toBe(true)
   })
 })
@@ -90,7 +97,7 @@ describe('token lifecycle handlers', () => {
     await expect(
       replaceApiTokenHandler({
         workspaceSlug: 'starter-lab',
-        tokenId: 'tok_docs',
+        tokenId: ApiTokenId.make('tok_docs'),
         scopes: ['read'],
         overlapSeconds: 0
       })
@@ -100,11 +107,11 @@ describe('token lifecycle handlers', () => {
   it('replaces a token for an owner in the authorized workspace', async () => {
     const replacement = await replaceApiTokenHandler({
       workspaceSlug: 'starter-lab',
-      tokenId: 'tok_docs',
+      tokenId: ApiTokenId.make('tok_docs'),
       scopes: ['read'],
       overlapSeconds: 0
     })
-    expect(replacement.previousTokenId).toBe('tok_docs')
+    expect(replacement.previousTokenId).toBe(ApiTokenId.make('tok_docs'))
     expect(replacement.token).toMatch(/^bsk_/)
   })
 })

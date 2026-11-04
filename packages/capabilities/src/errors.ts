@@ -1,3 +1,4 @@
+import { ApiTokenId } from '@b2b-saas-starter/db/ids'
 import { Schema } from 'effect'
 
 /**
@@ -166,7 +167,7 @@ export class InvalidApiTokenInput extends Schema.TaggedError<InvalidApiTokenInpu
 // oxlint-disable-next-line unicorn/throw-new-error -- pinned Effect v4 calls this factory TaggedError
 export class ApiTokenNotRotatable extends Schema.TaggedError<ApiTokenNotRotatable>()(
   'ApiTokenNotRotatable',
-  { tokenId: Schema.String },
+  { tokenId: ApiTokenId },
   { httpApiStatus: 409 }
 ) {
   override get message() {

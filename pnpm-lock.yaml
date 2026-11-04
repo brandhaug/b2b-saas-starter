@@ -821,6 +821,9 @@ importers:
       '@b2b-saas-starter/capabilities':
         specifier: workspace:*
         version: link:../capabilities
+      '@b2b-saas-starter/db':
+        specifier: workspace:*
+        version: link:../db
       '@b2b-saas-starter/failure':
         specifier: workspace:*
         version: link:../failure

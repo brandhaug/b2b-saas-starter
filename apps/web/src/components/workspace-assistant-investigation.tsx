@@ -1,3 +1,4 @@
+import { type WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { useEffect, useRef, useState } from 'react'
 import { useForm, useSelector } from '@tanstack/react-form'
 import { useServerAction } from '@/hooks/use-server-action'
@@ -24,7 +25,7 @@ export type AssistantInvestigationPorts = {
   ) => Promise<ReadonlyArray<WebhookInvestigationTask>>
   readonly deliveries?: ReadonlyArray<{
     readonly id: string
-    readonly endpointId: string
+    readonly endpointId: WebhookEndpointId
     readonly endpointUrl: string
     readonly eventType: string
     readonly status: string

@@ -1,3 +1,4 @@
+import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { type WebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { type WebhookEndpoint } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
@@ -22,8 +23,8 @@ function deferred<A>() {
 }
 
 const delivery: WebhookDelivery = {
-  id: 'dlv_1',
-  endpointId: 'whe_1',
+  id: WebhookDeliveryId.make('dlv_1'),
+  endpointId: WebhookEndpointId.make('whe_1'),
   eventType: 'api_token.created',
   status: 'delivered',
   attempts: 1,
@@ -38,7 +39,7 @@ const delivery: WebhookDelivery = {
 
 const failedDelivery: WebhookDelivery = {
   ...delivery,
-  id: 'dlv_2',
+  id: WebhookDeliveryId.make('dlv_2'),
   status: 'failed',
   attempts: 3,
   responseStatus: 500,
@@ -48,7 +49,7 @@ const failedDelivery: WebhookDelivery = {
 const endpoint: WebhookEndpoint & {
   readonly deliveries: ReadonlyArray<WebhookDelivery>
 } = {
-  id: 'whe_1',
+  id: WebhookEndpointId.make('whe_1'),
   url: 'https://example.com/hooks/b2b-starter',
   enabled: true,
   events: ['api_token.created'],
@@ -127,7 +128,7 @@ describe('WebhooksPanel', () => {
         endpoint,
         {
           ...endpoint,
-          id: 'whe_disabled',
+          id: WebhookEndpointId.make('whe_disabled'),
           url: 'https://disabled.example/hooks',
           enabled: false
         }
@@ -164,7 +165,7 @@ describe('WebhooksPanel', () => {
   it('sorts before pagination and resets the page when searching', async () => {
     const endpoints = Array.from({ length: 21 }, (_, index) => ({
       ...endpoint,
-      id: `row_${index}`,
+      id: WebhookEndpointId.make(`row_${index}`),
       url: `https://example.com/${String(index).padStart(2, '0')}`
     }))
     const tableViews = encodeURIComponent(
@@ -195,7 +196,7 @@ describe('WebhooksPanel', () => {
   it('resets the page when changing a status filter', async () => {
     const endpoints = Array.from({ length: 21 }, (_, index) => ({
       ...endpoint,
-      id: `row_${index}`,
+      id: WebhookEndpointId.make(`row_${index}`),
       url: `https://example.com/${String(index).padStart(2, '0')}`
     }))
     const { router } = await renderPanel({
@@ -257,7 +258,11 @@ describe('WebhooksPanel', () => {
   it('disables all endpoint actions while a rotation owns the secret slot', async () => {
     const pending = deferred<string>()
     rotateSecret.mockReturnValue(pending.promise)
-    const other = { ...endpoint, id: 'whe_other', url: 'https://other.test/hook' }
+    const other = {
+      ...endpoint,
+      id: WebhookEndpointId.make('whe_other'),
+      url: 'https://other.test/hook'
+    }
     await renderPanel({ role: 'owner', endpoints: [endpoint, other] })
     fireEvent.click(
       screen.getByRole('button', { name: `More actions for ${endpoint.url}` })
@@ -299,14 +304,17 @@ describe('WebhookDeliveriesDrawer', () => {
   }
 
   it('serializes replays across delivery rows', async () => {
-    const pending = deferred<{ readonly deliveryId: string }>()
+    const pending = deferred<{ readonly deliveryId: WebhookDeliveryId }>()
     replayDelivery.mockReturnValue(pending.promise)
     await renderPanel({
       role: 'owner',
       endpoints: [
         {
           ...endpoint,
-          deliveries: [failedDelivery, { ...failedDelivery, id: 'dlv_other' }]
+          deliveries: [
+            failedDelivery,
+            { ...failedDelivery, id: WebhookDeliveryId.make('dlv_other') }
+          ]
         }
       ]
     })
@@ -314,7 +322,7 @@ describe('WebhookDeliveriesDrawer', () => {
     const buttons = await screen.findAllByRole('button', { name: 'Replay' })
     fireEvent.click(buttons[0]!)
     await waitFor(() => expect(buttons[1]!.hasAttribute('disabled')).toBe(true))
-    pending.resolve({ deliveryId: 'new_delivery' })
+    pending.resolve({ deliveryId: WebhookDeliveryId.make('new_delivery') })
   })
 
   it('opens per endpoint and shows the attempt timeline with evidence', async () => {
@@ -347,7 +355,9 @@ describe('WebhookDeliveriesDrawer', () => {
   })
 
   it('offers Replay on failed rows and queues it through the port', async () => {
-    replayDelivery.mockResolvedValue({ deliveryId: 'dlv_replayed' })
+    replayDelivery.mockResolvedValue({
+      deliveryId: WebhookDeliveryId.make('dlv_replayed')
+    })
     await renderPanel({ role: 'owner', endpoints: [endpointWithFailure] })
     fireEvent.click(screen.getByRole('button', { name: /Deliveries \(2\)/ }))
     const replayButton = await screen.findByRole('button', { name: 'Replay' })
@@ -362,7 +372,7 @@ describe('WebhookDeliveriesDrawer', () => {
   })
 
   it('queues a test event from the drawer', async () => {
-    sendTestEvent.mockResolvedValue({ deliveryId: 'dlv_test' })
+    sendTestEvent.mockResolvedValue({ deliveryId: WebhookDeliveryId.make('dlv_test') })
     await renderPanel({ role: 'owner', endpoints: [endpointWithFailure] })
     fireEvent.click(screen.getByRole('button', { name: /Deliveries \(2\)/ }))
     const testButton = await screen.findByRole('button', { name: 'Send test event' })

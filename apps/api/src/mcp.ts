@@ -1,3 +1,4 @@
+import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
@@ -171,7 +172,7 @@ export const PAGED_TOOL_INPUT = Schema.Struct({
   limit: Schema.optionalKey(Schema.Finite)
 })
 const ENDPOINT_ID_TOOL_INPUT = Schema.Struct({
-  endpointId: Schema.String.pipe(
+  endpointId: WebhookEndpointId.pipe(
     Schema.annotate({
       description: 'The webhook endpoint id whose deliveries to list.'
     })
@@ -197,7 +198,7 @@ const NO_TOOL_INPUT_SCHEMA: ToolJson = decodeToolJson({
   properties: {}
 })
 const PAGED_INPUT_SCHEMA = advertisedInputSchema(PAGED_TOOL_INPUT)
-const DELIVERY_ID_TOOL_INPUT = Schema.Struct({ deliveryId: Schema.NonEmptyString })
+const DELIVERY_ID_TOOL_INPUT = Schema.Struct({ deliveryId: WebhookDeliveryId })
 const DELIVERY_ID_INPUT_SCHEMA = advertisedInputSchema(DELIVERY_ID_TOOL_INPUT)
 const ENDPOINT_ID_INPUT_SCHEMA = advertisedInputSchema(ENDPOINT_ID_TOOL_INPUT)
 

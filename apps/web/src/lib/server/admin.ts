@@ -1,3 +1,4 @@
+import { WebhookDeliveryId } from '@b2b-saas-starter/db/ids'
 import { type AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { DeliveryView } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-view'
 import { type SystemRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
@@ -50,7 +51,7 @@ const FailedDeliveriesInput = Schema.Struct({
 })
 
 const ReplayFailedDeliveryInput = Schema.Struct({
-  deliveryId: Schema.NonEmptyString
+  deliveryId: WebhookDeliveryId
 })
 
 export type SystemUserInput = typeof SystemUserInput.Type
@@ -59,7 +60,7 @@ export type FailedDeliveriesInput = typeof FailedDeliveriesInput.Type
 export type ReplayFailedDeliveryInput = typeof ReplayFailedDeliveryInput.Type
 
 export type ReplayFailedDeliveryResult =
-  | { readonly status: 'queued'; readonly deliveryId: string }
+  | { readonly status: 'queued'; readonly deliveryId: WebhookDeliveryId }
   | { readonly status: 'refused'; readonly reason: string }
 
 /** One page of terminal failures for the admin table. */

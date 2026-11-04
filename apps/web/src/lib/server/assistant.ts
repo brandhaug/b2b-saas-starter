@@ -1,3 +1,4 @@
+import { type WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { type WebhookInvestigationTask } from '@b2b-saas-starter/capabilities/developer-platform/webhook-investigation-tasks'
 import { type AssistantProvider } from '@b2b-saas-starter/ai'
 import { type WorkspaceViewer } from '@/lib/permissions'
@@ -22,7 +23,7 @@ export type AssistantPagePayload = {
     readonly tasks: ReadonlyArray<WebhookInvestigationTask>
     readonly deliveries: ReadonlyArray<{
       readonly id: string
-      readonly endpointId: string
+      readonly endpointId: WebhookEndpointId
       readonly endpointUrl: string
       readonly eventType: string
       readonly status: string

@@ -1,3 +1,4 @@
+import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import {
   nextConsecutiveFailures,
   failureLadderAction,
@@ -25,15 +26,15 @@ import { readDelivery } from './queue-consumer.ts'
 // this file owns is the worker's orchestration around them.
 
 const message: WebhookQueueMessage = {
-  deliveryId: 'whd_qmsg_1',
-  endpointId: 'wh_1',
+  deliveryId: WebhookDeliveryId.make('whd_qmsg_1'),
+  endpointId: WebhookEndpointId.make('wh_1'),
   workspaceId: 'ws_1',
   eventType: 'api_token.created',
   payload: { hello: 'world' }
 }
 
 const target = {
-  id: 'wh_1',
+  id: WebhookEndpointId.make('wh_1'),
   url: 'https://example.com/hook',
   signingSecrets: ['whsec_dGVzdF9zZWNyZXQ='],
   eventType: message.eventType,
@@ -42,7 +43,7 @@ const target = {
 
 /** Same endpoint mid-rotation: the replaced secret still signs for 24h. */
 const rotatingTarget = {
-  id: 'wh_1',
+  id: WebhookEndpointId.make('wh_1'),
   url: 'https://example.com/hook',
   signingSecrets: ['whsec_bmV3X3NlY3JldA==', 'whsec_b2xkX3NlY3JldA=='],
   eventType: message.eventType,
@@ -53,7 +54,7 @@ const rotatingTarget = {
 // message's workspaceId matches the endpoint's owning workspace (ws_1).
 function resolveTarget(
   dispatchTarget: typeof target | null,
-  endpointId: string,
+  endpointId: WebhookEndpointId,
   workspaceId: string
 ): typeof target | null {
   if (endpointId === dispatchTarget?.id && workspaceId === 'ws_1') {
@@ -251,7 +252,7 @@ describe('processWebhookMessage', () => {
       expect(outcome).toBe('ack')
       expect(recorded).toHaveLength(1)
       expect(recorded[0]).toMatchObject({
-        endpointId: 'wh_1',
+        endpointId: WebhookEndpointId.make('wh_1'),
         eventType: 'api_token.created',
         status: 'delivered',
         responseStatus: 200,
@@ -259,12 +260,12 @@ describe('processWebhookMessage', () => {
         // Operator evidence: what was sent...
         payload: { hello: 'world' },
         requestHeaders: {
-          'webhook-id': 'whd_qmsg_1'
+          'webhook-id': WebhookDeliveryId.make('whd_qmsg_1')
         }
       })
       const headers: Record<string, string | undefined> =
         captured.request?.headers ?? {}
-      expect(headers['webhook-id']).toBe('whd_qmsg_1')
+      expect(headers['webhook-id']).toBe(WebhookDeliveryId.make('whd_qmsg_1'))
       expect(headers['webhook-signature']).toMatch(/^v1,[A-Za-z0-9+/]{43}=$/)
       expect(headers['x-trace-id']).toBe('trace-test')
       // The exact header block the consumer recorded is the one it posted.
@@ -289,7 +290,7 @@ describe('processWebhookMessage', () => {
       // secret. Both entries are fixed vectors — an independent HMAC-SHA256 of
       // that string with `new_secret` / `old_secret`, base64 — the way
       // `webhook-signing.test.ts` pins its own material. Current secret first.
-      expect(headers['webhook-id']).toBe('whd_qmsg_1')
+      expect(headers['webhook-id']).toBe(WebhookDeliveryId.make('whd_qmsg_1'))
       expect(headers['webhook-timestamp']).toBe('0')
       const requestBody = captured.request?.body
       expect(requestBody?._tag).toBe('Uint8Array')
@@ -333,8 +334,8 @@ describe('processWebhookMessage', () => {
         // same deliveryId even though each run is a fresh invocation.
         const firstAttempt = yield* run(target, 500, 1, message, 'qmsg_1')
         const redelivery = yield* run(target, 200, 2, message, 'qmsg_changed')
-        expect(firstAttempt.recorded[0]?.id).toBe('whd_qmsg_1')
-        expect(redelivery.recorded[0]?.id).toBe('whd_qmsg_1')
+        expect(firstAttempt.recorded[0]?.id).toBe(WebhookDeliveryId.make('whd_qmsg_1'))
+        expect(redelivery.recorded[0]?.id).toBe(WebhookDeliveryId.make('whd_qmsg_1'))
         // The signed body carries the same id it persists (same variable in
         // processWebhookMessage), so receiver dedup on the body's deliveryId
         // collapses both attempts.
@@ -345,9 +346,12 @@ describe('processWebhookMessage', () => {
     Effect.gen(function* () {
       // A replay's pending row exists before the message is enqueued; the
       // consumer must resolve that row, not mint a queue-derived one.
-      const replayedMessage = { ...message, deliveryId: 'whd_replayed_row' }
+      const replayedMessage = {
+        ...message,
+        deliveryId: WebhookDeliveryId.make('whd_replayed_row')
+      }
       const { recorded } = yield* run(target, 200, 1, replayedMessage, 'qmsg_9')
-      expect(recorded[0]?.id).toBe('whd_replayed_row')
+      expect(recorded[0]?.id).toBe(WebhookDeliveryId.make('whd_replayed_row'))
       expect(recorded[0]?.status).toBe('delivered')
     })
   )
@@ -494,7 +498,7 @@ describe('processWebhookMessage', () => {
     () =>
       Effect.gen(function* () {
         const { outcome, recorded, captured } = yield* run(target, 200, 1, {
-          endpointId: 'wh_1',
+          endpointId: WebhookEndpointId.make('wh_1'),
           eventType: 'api_token.created',
           payload: {}
         })
@@ -562,7 +566,7 @@ describe('processDeadLetterMessage', () => {
       const { recorded } = yield* runDeadLetter(message)
       expect(recorded).toHaveLength(1)
       expect(recorded[0]).toMatchObject({
-        endpointId: 'wh_1',
+        endpointId: WebhookEndpointId.make('wh_1'),
         workspaceId: 'ws_1',
         eventType: 'api_token.created',
         status: 'dead_lettered',

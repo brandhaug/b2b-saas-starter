@@ -1,4 +1,9 @@
 import {
+  ApiTokenId,
+  WebhookDeliveryId,
+  WebhookEndpointId
+} from '@b2b-saas-starter/db/ids'
+import {
   CreateApiTokenPayload,
   ReplaceApiTokenPayload
 } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
@@ -60,7 +65,7 @@ function projection<S extends Schema.Constraint, Options>(
   }
 }
 
-const endpointInput = Schema.Struct({ endpointId: Schema.String })
+const endpointInput = Schema.Struct({ endpointId: WebhookEndpointId })
 
 /** Exhaustive over the catalog: removing a projection leaves a type error. */
 const projections = {
@@ -82,7 +87,7 @@ const projections = {
   ),
   'api-tokens.replace': projection(
     MUTATION_OPERATIONS['api-tokens.replace'],
-    Schema.Struct({ tokenId: Schema.String, ...ReplaceApiTokenPayload.fields }),
+    Schema.Struct({ tokenId: ApiTokenId, ...ReplaceApiTokenPayload.fields }),
     ({ tokenId, ...payload }) => ({ params: { tokenId }, payload }),
     {
       toolName: 'replace_api_token',
@@ -98,7 +103,7 @@ const projections = {
   ),
   'api-tokens.delete': projection(
     MUTATION_OPERATIONS['api-tokens.delete'],
-    Schema.Struct({ tokenId: Schema.String }),
+    Schema.Struct({ tokenId: ApiTokenId }),
     (args) => ({ params: args }),
     {
       toolName: 'delete_api_token',
@@ -131,7 +136,7 @@ const projections = {
   'webhooks.update': projection(
     MUTATION_OPERATIONS['webhooks.update'],
     Schema.Struct({
-      endpointId: Schema.String,
+      endpointId: WebhookEndpointId,
       ...UpdateWebhookEndpointPayload.fields
     }),
     ({ endpointId, ...payload }) => ({ params: { endpointId }, payload }),
@@ -197,7 +202,7 @@ const projections = {
   ),
   'webhooks.replay-delivery': projection(
     MUTATION_OPERATIONS['webhooks.replay-delivery'],
-    Schema.Struct({ deliveryId: Schema.String }),
+    Schema.Struct({ deliveryId: WebhookDeliveryId }),
     (args) => ({ params: args }),
     {
       toolName: 'replay_webhook_delivery',

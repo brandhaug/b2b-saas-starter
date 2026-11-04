@@ -1,3 +1,4 @@
+import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import {
   CreateWebhookEndpointPayload,
   UpdateWebhookEndpointPayload,
@@ -25,18 +26,18 @@ const WorkspaceWebhooksInput = Schema.Struct({
 /** Rotate-secret and test-event share this shape: one endpoint, by id. */
 const EndpointMutationInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
-  endpointId: Schema.NonEmptyString
+  endpointId: WebhookEndpointId
 })
 
 const UpdateEndpointInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
-  endpointId: Schema.NonEmptyString,
+  endpointId: WebhookEndpointId,
   ...UpdateWebhookEndpointPayload.fields
 })
 
 const ReplayDeliveryInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
-  deliveryId: Schema.NonEmptyString
+  deliveryId: WebhookDeliveryId
 })
 
 export type CreateWebhookInput = typeof CreateWebhookInput.Type
@@ -97,14 +98,14 @@ export const rotateWebhookSecretServerFn = createServerFn({ method: 'POST' })
 
 export const replayWebhookDeliveryServerFn = createServerFn({ method: 'POST' })
   .validator(Schema.decodeUnknownSync(ReplayDeliveryInput))
-  .handler(async ({ data }): Promise<{ readonly deliveryId: string }> => {
+  .handler(async ({ data }): Promise<{ readonly deliveryId: WebhookDeliveryId }> => {
     const { replayWebhookDeliveryHandler } = await import('./webhooks.effects')
     return replayWebhookDeliveryHandler(data)
   })
 
 export const sendTestEventServerFn = createServerFn({ method: 'POST' })
   .validator(Schema.decodeUnknownSync(EndpointMutationInput))
-  .handler(async ({ data }): Promise<{ readonly deliveryId: string }> => {
+  .handler(async ({ data }): Promise<{ readonly deliveryId: WebhookDeliveryId }> => {
     const { sendTestEventHandler } = await import('./webhooks.effects')
     return sendTestEventHandler(data)
   })

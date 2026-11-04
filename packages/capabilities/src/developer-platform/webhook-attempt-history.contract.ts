@@ -1,3 +1,4 @@
+import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { type WebhookDeliveryAttemptInput } from './webhook-delivery-plan.ts'
 import { Clock, Effect } from 'effect'
 import { TestClock } from 'effect/testing'
@@ -21,7 +22,7 @@ export function webhookAttemptHistoryCases(
           events: ['demo.event']
         })
         const identity = {
-          deliveryId: 'whd_settled',
+          deliveryId: WebhookDeliveryId.make('whd_settled'),
           endpointId: endpoint.id,
           workspaceId: ctx.workspace.id
         }
@@ -50,7 +51,10 @@ export function webhookAttemptHistoryCases(
           yield* service.isDeliverySettled({ ...identity, workspaceId: 'wrk_other' })
         ).toBe(false)
         expect(
-          yield* service.isDeliverySettled({ ...identity, endpointId: 'wh_other' })
+          yield* service.isDeliverySettled({
+            ...identity,
+            endpointId: WebhookEndpointId.make('wh_other')
+          })
         ).toBe(false)
       })
     },
@@ -75,7 +79,10 @@ export function webhookAttemptHistoryCases(
         }
         const results = yield* Effect.all(
           Array.from({ length: 20 }, (_, index) =>
-            service.recordDeliveryAttempt({ ...base, id: `whd_atomic_${index}` })
+            service.recordDeliveryAttempt({
+              ...base,
+              id: WebhookDeliveryId.make(`whd_atomic_${index}`)
+            })
           ),
           { concurrency: 'unbounded' }
         )
@@ -86,7 +93,7 @@ export function webhookAttemptHistoryCases(
           yield* service.getDispatchTarget(
             endpoint.id,
             ctx.workspace.id,
-            'whd_atomic_19'
+            WebhookDeliveryId.make('whd_atomic_19')
           )
         ).toBe(null)
         expect(
@@ -97,19 +104,19 @@ export function webhookAttemptHistoryCases(
         yield* service.update({ endpointId: endpoint.id, enabled: true })
         const duplicate = yield* service.recordDeliveryAttempt({
           ...base,
-          id: 'whd_atomic_19'
+          id: WebhookDeliveryId.make('whd_atomic_19')
         })
         expect(duplicate.recorded).toBe(false)
         expect(
           (yield* service.getDispatchTarget(
             endpoint.id,
             ctx.workspace.id,
-            'whd_atomic_19'
+            WebhookDeliveryId.make('whd_atomic_19')
           )) !== null
         ).toBe(true)
         const terminal = yield* service.recordTerminalDeliveryAttempt({
           ...base,
-          deliveryId: 'whd_atomic_19',
+          deliveryId: WebhookDeliveryId.make('whd_atomic_19'),
           status: 'dead_lettered'
         })
         expect(terminal.recorded).toBe(true)
@@ -119,7 +126,7 @@ export function webhookAttemptHistoryCases(
           (yield* service.getDispatchTarget(
             endpoint.id,
             ctx.workspace.id,
-            'whd_atomic_19'
+            WebhookDeliveryId.make('whd_atomic_19')
           )) !== null
         ).toBe(true)
         expect(
@@ -129,13 +136,13 @@ export function webhookAttemptHistoryCases(
         ).toHaveLength(1)
         yield* service.recordDeliveryAttempt({
           ...base,
-          id: 'whd_atomic_after_reenable'
+          id: WebhookDeliveryId.make('whd_atomic_after_reenable')
         })
         expect(
           yield* service.getDispatchTarget(
             endpoint.id,
             ctx.workspace.id,
-            'whd_atomic_after_reenable'
+            WebhookDeliveryId.make('whd_atomic_after_reenable')
           )
         ).toBe(null)
         expect(
@@ -162,15 +169,21 @@ export function webhookAttemptHistoryCases(
           attempts: 1,
           payload: {}
         }
-        yield* service.recordDeliveryAttempt({ ...base, id: 'whd_mixed_prime' })
+        yield* service.recordDeliveryAttempt({
+          ...base,
+          id: WebhookDeliveryId.make('whd_mixed_prime')
+        })
         const [success, failure] = yield* Effect.all(
           [
             service.recordDeliveryAttempt({
               ...base,
-              id: 'whd_mixed_ok',
+              id: WebhookDeliveryId.make('whd_mixed_ok'),
               status: 'delivered'
             }),
-            service.recordDeliveryAttempt({ ...base, id: 'whd_mixed_fail' })
+            service.recordDeliveryAttempt({
+              ...base,
+              id: WebhookDeliveryId.make('whd_mixed_fail')
+            })
           ],
           { concurrency: 'unbounded' }
         )
@@ -178,7 +191,7 @@ export function webhookAttemptHistoryCases(
         expect([1, 2].includes(failure.consecutiveFailures)).toBe(true)
         const unchanged = yield* service.recordDeliveryAttempt({
           ...base,
-          id: 'whd_mixed_fail'
+          id: WebhookDeliveryId.make('whd_mixed_fail')
         })
         expect(unchanged.recorded).toBe(false)
         // A failure returning one committed after the reset. Returning two
@@ -196,7 +209,7 @@ export function webhookAttemptHistoryCases(
           events: ['demo.event']
         })
         const base = {
-          id: 'whd_null_payload',
+          id: WebhookDeliveryId.make('whd_null_payload'),
           endpointId: endpoint.id,
           workspaceId: ctx.workspace.id,
           eventType: 'demo.event'
@@ -212,7 +225,7 @@ export function webhookAttemptHistoryCases(
           status: 'delivered',
           attempts: 2,
           payload: { changed: true },
-          replayedFrom: 'unrelated'
+          replayedFrom: WebhookDeliveryId.make('unrelated')
         })
         const rows = yield* service.listDeliveries({ endpointId: endpoint.id })
         expect(rows[0]?.payload).toBe(null)
@@ -234,7 +247,7 @@ export function webhookAttemptHistoryCases(
           yield* Effect.all(
             Array.from({ length: 101 }, (_, index) =>
               service.recordDeliveryAttempt({
-                id: `whd_retention_${index}`,
+                id: WebhookDeliveryId.make(`whd_retention_${index}`),
                 endpointId: endpoint.id,
                 workspaceId: ctx.workspace.id,
                 eventType: 'demo.event',
@@ -253,7 +266,9 @@ export function webhookAttemptHistoryCases(
           ).toHaveLength(1)
           expect(yield* service.cleanupDeliveryHistory()).toBe(1)
           expect(
-            yield* service.listDeliveryAttempts({ deliveryId: 'whd_retention_100' })
+            yield* service.listDeliveryAttempts({
+              deliveryId: WebhookDeliveryId.make('whd_retention_100')
+            })
           ).toHaveLength(0)
           expect(yield* service.cleanupDeliveryHistory()).toBe(0)
         }).pipe(Effect.ensuring(TestClock.setTime(now)))
@@ -269,7 +284,7 @@ export function webhookAttemptHistoryCases(
           events: ['demo.event']
         })
         const base = {
-          id: 'whd_history_success',
+          id: WebhookDeliveryId.make('whd_history_success'),
           endpointId: endpoint.id,
           workspaceId: ctx.workspace.id,
           eventType: 'demo.event',
@@ -354,7 +369,7 @@ export function webhookAttemptHistoryCases(
           Array.from({ length: 4 }, (_, index) =>
             service.recordDeliveryAttempt({
               ...base,
-              id: `whd_history_prime_${index}`,
+              id: WebhookDeliveryId.make(`whd_history_prime_${index}`),
               status: 'failed',
               attempts: 1
             })
@@ -363,7 +378,7 @@ export function webhookAttemptHistoryCases(
         )
         yield* service.recordDeliveryAttempt({
           ...base,
-          id: 'whd_history_dlq',
+          id: WebhookDeliveryId.make('whd_history_dlq'),
           status: 'failed',
           attempts: 7,
           responseStatus: 503,
@@ -372,7 +387,7 @@ export function webhookAttemptHistoryCases(
         })
         const terminal: Parameters<typeof service.recordTerminalDeliveryAttempt>[0] = {
           ...base,
-          deliveryId: 'whd_history_dlq',
+          deliveryId: WebhookDeliveryId.make('whd_history_dlq'),
           status: 'dead_lettered',
           attempts: 1,
           failureReason: 'retries_exhausted'
@@ -464,12 +479,14 @@ export function webhookAttemptHistoryCases(
         })
         const foreign = yield* service.recordTerminalDeliveryAttempt({
           ...input,
-          deliveryId: 'whd_history_foreign',
+          deliveryId: WebhookDeliveryId.make('whd_history_foreign'),
           workspaceId: 'wrk_foreign'
         })
         expect(foreign.recorded).toBe(false)
         expect(
-          yield* service.listDeliveryAttempts({ deliveryId: 'whd_history_foreign' })
+          yield* service.listDeliveryAttempts({
+            deliveryId: WebhookDeliveryId.make('whd_history_foreign')
+          })
         ).toHaveLength(0)
         const visible = yield* service
           .listDeliveryAttempts({ deliveryId: input.deliveryId })

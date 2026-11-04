@@ -1,10 +1,11 @@
+import { WebhookDeliveryId } from '@b2b-saas-starter/db/ids'
 import { type WebhookInvestigationTask } from '@b2b-saas-starter/capabilities/developer-platform/webhook-investigation-tasks'
 import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
 
 const CreateTaskInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
-  deliveryId: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(200)),
+  deliveryId: WebhookDeliveryId.check(Schema.isMinLength(1), Schema.isMaxLength(200)),
   question: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(2000))
 })
 const TaskInput = Schema.Struct({

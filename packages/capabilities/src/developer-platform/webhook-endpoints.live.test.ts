@@ -1,3 +1,4 @@
+import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
 import {
   webhookDeliveries,
@@ -74,7 +75,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               events: []
             })
             yield* webhooks.recordDeliveryAttempt({
-              id: 'whd_stable_outage',
+              id: WebhookDeliveryId.make('whd_stable_outage'),
               endpointId: endpoint.id,
               workspaceId: ctx.workspace.id,
               eventType: 'demo.event',
@@ -83,8 +84,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               payload: { retry: true }
             })
             const input: Parameters<typeof webhooks.replayDelivery>[0] = {
-              deliveryId: 'whd_stable_outage',
-              replayDeliveryId: 'whd_stable_retry',
+              deliveryId: WebhookDeliveryId.make('whd_stable_outage'),
+              replayDeliveryId: WebhookDeliveryId.make('whd_stable_retry'),
               expectedEndpointUrl: endpoint.url,
               expectedStatus: 'dead_lettered'
             }
@@ -101,8 +102,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               { concurrency: 'unbounded' }
             )
             expect(retried.map((row) => row.deliveryId)).toEqual([
-              'whd_stable_retry',
-              'whd_stable_retry'
+              WebhookDeliveryId.make('whd_stable_retry'),
+              WebhookDeliveryId.make('whd_stable_retry')
             ])
             expect(enqueued).toBe(2)
             const db = yield* Database
@@ -170,7 +171,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         return rows[0]?.total ?? 0
       })
 
-      function deliveryRow(deliveryId: string) {
+      function deliveryRow(deliveryId: WebhookDeliveryId) {
         return Effect.gen(function* () {
           const db = yield* Database
           return yield* db
@@ -185,8 +186,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         () =>
           Effect.gen(function* () {
             yield* recordAttempt({
-              id: 'whd_live_perm',
-              endpointId: 'wh_live',
+              id: WebhookDeliveryId.make('whd_live_perm'),
+              endpointId: WebhookEndpointId.make('wh_live'),
               workspaceId: 'wrk_live',
               eventType: 'demo.event',
               status: 'failed_permanent',
@@ -196,7 +197,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               payload: { event: 'demo' }
             })
 
-            const deliveries = yield* deliveryRow('whd_live_perm')
+            const deliveries = yield* deliveryRow(
+              WebhookDeliveryId.make('whd_live_perm')
+            )
             expect(deliveries).toHaveLength(1)
             expect(deliveries[0]?.status).toBe('failed_permanent')
 
@@ -206,11 +209,11 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               workspaceId: 'wrk_live',
               actorUserId: null,
               targetType: 'webhook_endpoint',
-              targetId: 'wh_live'
+              targetId: WebhookEndpointId.make('wh_live')
             })
             // The audit metadata points back at the delivery row it committed with.
             expect(rows[0]?.metadata).toMatchObject({
-              deliveryId: 'whd_live_perm',
+              deliveryId: WebhookDeliveryId.make('whd_live_perm'),
               eventType: 'demo.event',
               responseStatus: 410
             })
@@ -222,7 +225,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         () =>
           Effect.gen(function* () {
             yield* recordAttempt({
-              endpointId: 'wh_live',
+              endpointId: WebhookEndpointId.make('wh_live'),
               workspaceId: 'wrk_live',
               eventType: 'demo.event',
               status: 'dead_lettered',
@@ -238,7 +241,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               workspaceId: 'wrk_live',
               actorUserId: null,
               targetType: 'webhook_endpoint',
-              targetId: 'wh_live'
+              targetId: WebhookEndpointId.make('wh_live')
             })
             expect(rows[0]?.metadata).toMatchObject({ queueAttempts: 5 })
           })
@@ -248,8 +251,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         Effect.gen(function* () {
           const before = yield* auditEventCount
           yield* recordAttempt({
-            id: 'whd_live_ok',
-            endpointId: 'wh_live',
+            id: WebhookDeliveryId.make('whd_live_ok'),
+            endpointId: WebhookEndpointId.make('wh_live'),
             workspaceId: 'wrk_live',
             eventType: 'demo.event',
             status: 'delivered',
@@ -261,7 +264,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           const after = yield* auditEventCount
           expect(after).toBe(before)
 
-          const deliveries = yield* deliveryRow('whd_live_ok')
+          const deliveries = yield* deliveryRow(WebhookDeliveryId.make('whd_live_ok'))
           expect(deliveries[0]?.status).toBe('delivered')
         })
       )
@@ -274,10 +277,12 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             Effect.gen(function* () {
               const webhooks = yield* WebhookEndpoints
               const feed = yield* NotificationFeed
-              const sent = yield* webhooks.sendTestEvent({ endpointId: 'wh_live' })
+              const sent = yield* webhooks.sendTestEvent({
+                endpointId: WebhookEndpointId.make('wh_live')
+              })
               yield* webhooks.recordTerminalDeliveryAttempt({
                 deliveryId: sent.deliveryId,
-                endpointId: 'wh_live',
+                endpointId: WebhookEndpointId.make('wh_live'),
                 workspaceId: 'wrk_live',
                 eventType: 'demo.dead_letter',
                 attempts: 5,
@@ -313,8 +318,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             const webhooks = yield* WebhookEndpoints
             // First attempt of the message: retryable failure...
             yield* webhooks.recordDeliveryAttempt({
-              id: 'whd_live_same_id',
-              endpointId: 'wh_live',
+              id: WebhookDeliveryId.make('whd_live_same_id'),
+              endpointId: WebhookEndpointId.make('wh_live'),
               workspaceId: 'wrk_live',
               eventType: 'demo.redelivery',
               status: 'failed',
@@ -325,8 +330,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             // ...the platform redelivers the same message id: the row must
             // resolve, not fork (and not die on the primary key).
             yield* webhooks.recordDeliveryAttempt({
-              id: 'whd_live_same_id',
-              endpointId: 'wh_live',
+              id: WebhookDeliveryId.make('whd_live_same_id'),
+              endpointId: WebhookEndpointId.make('wh_live'),
               workspaceId: 'wrk_live',
               eventType: 'demo.redelivery',
               status: 'delivered',
@@ -336,7 +341,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             })
           })
         )
-          .pipe(Effect.andThen(deliveryRow('whd_live_same_id')))
+          .pipe(Effect.andThen(deliveryRow(WebhookDeliveryId.make('whd_live_same_id'))))
           .pipe(
             Effect.tap((rows) =>
               Effect.sync(() => {
@@ -359,8 +364,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             // Reset first so the case is independent of the attempts the
             // sibling cases already recorded against this shared endpoint.
             yield* recordAttempt({
-              id: 'whd_live_ladder_reset',
-              endpointId: 'wh_live',
+              id: WebhookDeliveryId.make('whd_live_ladder_reset'),
+              endpointId: WebhookEndpointId.make('wh_live'),
               workspaceId: 'wrk_live',
               eventType: 'demo.ladder',
               status: 'delivered',
@@ -370,8 +375,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               payload: { event: 'demo.ladder' }
             })
             const climb = yield* recordAttempt({
-              id: 'whd_live_ladder_climb',
-              endpointId: 'wh_live',
+              id: WebhookDeliveryId.make('whd_live_ladder_climb'),
+              endpointId: WebhookEndpointId.make('wh_live'),
               workspaceId: 'wrk_live',
               eventType: 'demo.ladder',
               status: 'failed',
@@ -384,12 +389,12 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             const endpointRows = yield* db
               .select()
               .from(webhookEndpoints)
-              .where(eq(webhookEndpoints.id, 'wh_live'))
+              .where(eq(webhookEndpoints.id, WebhookEndpointId.make('wh_live')))
             // The counter column moved in the same batch as the delivery row.
             expect(endpointRows[0]?.consecutiveFailures).toBe(1)
             const reset = yield* recordAttempt({
-              id: 'whd_live_ladder_delivered',
-              endpointId: 'wh_live',
+              id: WebhookDeliveryId.make('whd_live_ladder_delivered'),
+              endpointId: WebhookEndpointId.make('wh_live'),
               workspaceId: 'wrk_live',
               eventType: 'demo.ladder',
               status: 'delivered',
@@ -402,7 +407,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             const afterReset = yield* db
               .select()
               .from(webhookEndpoints)
-              .where(eq(webhookEndpoints.id, 'wh_live'))
+              .where(eq(webhookEndpoints.id, WebhookEndpointId.make('wh_live')))
             expect(afterReset[0]?.consecutiveFailures).toBe(0)
           })
       )
@@ -414,14 +419,18 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             'live-lab',
             Effect.gen(function* () {
               const webhooks = yield* WebhookEndpoints
-              const first = yield* webhooks.rotateSecret({ endpointId: 'wh_live' })
+              const first = yield* webhooks.rotateSecret({
+                endpointId: WebhookEndpointId.make('wh_live')
+              })
               const firstSecret = first.signingSecret
-              const sent = yield* webhooks.sendTestEvent({ endpointId: 'wh_live' })
+              const sent = yield* webhooks.sendTestEvent({
+                endpointId: WebhookEndpointId.make('wh_live')
+              })
 
               // While the grace window is open, a dispatch signs with the new
               // secret AND the one it replaced.
               const during = yield* webhooks.getDispatchTarget(
-                'wh_live',
+                WebhookEndpointId.make('wh_live'),
                 'wrk_live',
                 sent.deliveryId
               )
@@ -430,10 +439,12 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
 
               // A second rotation shifts the window: the middle secret becomes
               // the replaced one, and the original is dropped entirely.
-              const second = yield* webhooks.rotateSecret({ endpointId: 'wh_live' })
+              const second = yield* webhooks.rotateSecret({
+                endpointId: WebhookEndpointId.make('wh_live')
+              })
               const secondSecret = second.signingSecret
               const afterSecond = yield* webhooks.getDispatchTarget(
-                'wh_live',
+                WebhookEndpointId.make('wh_live'),
                 'wrk_live',
                 sent.deliveryId
               )

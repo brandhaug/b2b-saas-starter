@@ -1,3 +1,4 @@
+import { type WebhookDeliveryId } from '@b2b-saas-starter/db/ids'
 import { CheckIcon, CircleIcon, XIcon } from 'lucide-react'
 import { EvidenceCode } from '@/components/evidence-code'
 import { statusLabel } from '@/lib/value-labels'
@@ -16,7 +17,10 @@ import { listWebhookDeliveryAttemptsServerFn } from '@/lib/server/webhooks'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 export type ListDeliveryAttempts = (input: {
-  readonly data: { readonly workspaceSlug: string; readonly deliveryId: string }
+  readonly data: {
+    readonly workspaceSlug: string
+    readonly deliveryId: WebhookDeliveryId
+  }
 }) => Promise<ReadonlyArray<WebhookDeliveryAttempt>>
 
 export function WebhookDeliveryTimeline({

@@ -1,3 +1,8 @@
+import {
+  ApiTokenId,
+  WebhookDeliveryId,
+  WebhookEndpointId
+} from '@b2b-saas-starter/db/ids'
 import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { HealthResponse } from './health.ts'
 import {
@@ -183,11 +188,11 @@ const PROTECTED_ERRORS = [
 export const SlugParams = Schema.Struct({ slug: Schema.String })
 const EndpointParams = Schema.Struct({
   slug: Schema.String,
-  endpointId: Schema.String
+  endpointId: WebhookEndpointId
 })
 const DeliveryParams = Schema.Struct({
   slug: Schema.String,
-  deliveryId: Schema.String
+  deliveryId: WebhookDeliveryId
 })
 
 /**
@@ -302,7 +307,7 @@ export const WorkspaceApi = HttpApiGroup.make('workspace')
   // Applied last: endpoints added after `.middleware(...)` do not carry it.
   .middleware(BearerAuth)
 
-const TokenIdParams = Schema.Struct({ slug: Schema.String, tokenId: Schema.String })
+const TokenIdParams = Schema.Struct({ slug: Schema.String, tokenId: ApiTokenId })
 const RevokedResponse = Schema.Struct({ status: Schema.Literal('revoked') })
 
 /** Contract response literals for the webhook operator surface. */
@@ -314,7 +319,7 @@ const RotatedWebhookSecret = Schema.Struct({
 export type RotatedWebhookSecret = typeof RotatedWebhookSecret.Type
 export const QueuedDeliveryResponse = Schema.Struct({
   status: Schema.Literal('queued'),
-  deliveryId: Schema.String
+  deliveryId: WebhookDeliveryId
 })
 export type QueuedDeliveryResponse = typeof QueuedDeliveryResponse.Type
 

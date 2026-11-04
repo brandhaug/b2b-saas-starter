@@ -1,3 +1,8 @@
+import {
+  ApiTokenId,
+  WebhookDeliveryId,
+  WebhookEndpointId
+} from '@b2b-saas-starter/db/ids'
 // oxlint-disable effect/noAsyncFunction -- the gzip round-trip is promise-based by construction; the suite drives bytes, not Effects
 import { describe, expect, it } from 'vite-plus/test'
 
@@ -35,7 +40,7 @@ const snapshot: WorkspaceExportSnapshot = {
   ],
   apiTokens: [
     {
-      id: 'tok_1',
+      id: ApiTokenId.make('tok_1'),
       name: 'CI',
       prefix: 'bsk_live_abc',
       scopes: ['read'],
@@ -47,15 +52,15 @@ const snapshot: WorkspaceExportSnapshot = {
   ],
   webhookEndpoints: [
     {
-      id: 'wh_1',
+      id: WebhookEndpointId.make('wh_1'),
       url: 'https://example.com/hook',
       enabled: true,
       events: ['api_token.created'],
       successRate: 100,
       deliveries: [
         {
-          id: 'whd_1',
-          endpointId: 'wh_1',
+          id: WebhookDeliveryId.make('whd_1'),
+          endpointId: WebhookEndpointId.make('wh_1'),
           eventType: 'api_token.created',
           status: 'delivered',
           attempts: 1,

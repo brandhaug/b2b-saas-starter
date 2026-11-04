@@ -1,3 +1,4 @@
+import { ApiTokenId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import {
   effectivePlanDecision,
   emptySubscription
@@ -42,8 +43,8 @@ const portal: StartPortalSession = vi.fn(async () => ({
   url: 'https://billing.stripe.com/p/session/test'
 }))
 const selectResources: SelectBillingResources = vi.fn(async () => ({
-  apiTokenIds: ['tok_1', 'tok_2'],
-  webhookEndpointIds: ['wh_1']
+  apiTokenIds: [ApiTokenId.make('tok_1'), ApiTokenId.make('tok_2')],
+  webhookEndpointIds: [WebhookEndpointId.make('wh_1')]
 }))
 
 function withProviderPrice(plan: BillingPlan): BillingPlan {
@@ -168,13 +169,20 @@ function PollingBillingPlans({
 }) {
   const [refreshes, setRefreshes] = useState(0)
   const apiTokens = [
-    { id: 'tok_1', name: 'First token' },
-    { id: 'tok_2', name: 'Second token' },
-    { id: 'tok_3', name: 'Third token' },
-    { id: 'tok_4', name: 'Fourth token' }
-  ].filter((token) => !removeDraft || refreshes === 0 || token.id !== 'tok_2')
-  const webhookEndpoints = [{ id: 'wh_1', url: 'https://example.test/hook-one' }]
-  const resourceSelection = { apiTokenIds: ['tok_1'], webhookEndpointIds: [] }
+    { id: ApiTokenId.make('tok_1'), name: 'First token' },
+    { id: ApiTokenId.make('tok_2'), name: 'Second token' },
+    { id: ApiTokenId.make('tok_3'), name: 'Third token' },
+    { id: ApiTokenId.make('tok_4'), name: 'Fourth token' }
+  ].filter(
+    (token) => !removeDraft || refreshes === 0 || token.id !== ApiTokenId.make('tok_2')
+  )
+  const webhookEndpoints = [
+    { id: WebhookEndpointId.make('wh_1'), url: 'https://example.test/hook-one' }
+  ]
+  const resourceSelection = {
+    apiTokenIds: [ApiTokenId.make('tok_1')],
+    webhookEndpointIds: []
+  }
   return (
     <div>
       <Button onClick={() => setRefreshes(refreshes + 1)}>refresh loader</Button>
@@ -334,13 +342,13 @@ describe('BillingPlans', () => {
       currentPlanId: 'starter',
       lifecycleStatus: 'incomplete',
       apiTokens: [
-        { id: 'tok_1', name: 'First token' },
-        { id: 'tok_2', name: 'Second token' },
-        { id: 'tok_3', name: 'Third token' }
+        { id: ApiTokenId.make('tok_1'), name: 'First token' },
+        { id: ApiTokenId.make('tok_2'), name: 'Second token' },
+        { id: ApiTokenId.make('tok_3'), name: 'Third token' }
       ],
       webhookEndpoints: [
-        { id: 'wh_1', url: 'https://example.test/hook-one' },
-        { id: 'wh_2', url: 'https://example.test/hook-two' }
+        { id: WebhookEndpointId.make('wh_1'), url: 'https://example.test/hook-one' },
+        { id: WebhookEndpointId.make('wh_2'), url: 'https://example.test/hook-two' }
       ]
     })
     expect(screen.getByText(/Choose resources to keep active/)).not.toBeNull()
@@ -355,8 +363,8 @@ describe('BillingPlans', () => {
     expect(selectResources).toHaveBeenLastCalledWith({
       data: {
         workspaceSlug: 'starter-lab',
-        apiTokenIds: ['tok_1', 'tok_2'],
-        webhookEndpointIds: ['wh_1']
+        apiTokenIds: [ApiTokenId.make('tok_1'), ApiTokenId.make('tok_2')],
+        webhookEndpointIds: [WebhookEndpointId.make('wh_1')]
       }
     })
   })
@@ -368,13 +376,13 @@ describe('BillingPlans', () => {
       lifecycleStatus: 'incomplete',
       subscribedPlanId: 'team',
       apiTokens: [
-        { id: 'tok_1', name: 'First token' },
-        { id: 'tok_2', name: 'Second token' },
-        { id: 'tok_3', name: 'Third token' }
+        { id: ApiTokenId.make('tok_1'), name: 'First token' },
+        { id: ApiTokenId.make('tok_2'), name: 'Second token' },
+        { id: ApiTokenId.make('tok_3'), name: 'Third token' }
       ],
       webhookEndpoints: [
-        { id: 'wh_1', url: 'https://example.test/hook-one' },
-        { id: 'wh_2', url: 'https://example.test/hook-two' }
+        { id: WebhookEndpointId.make('wh_1'), url: 'https://example.test/hook-one' },
+        { id: WebhookEndpointId.make('wh_2'), url: 'https://example.test/hook-two' }
       ]
     })
     expect(screen.queryByText(/Choose resources to keep active/)).toBeNull()
@@ -415,20 +423,22 @@ describe('BillingPlans', () => {
       currentPlanId: 'starter',
       lifecycleStatus: 'incomplete',
       resourceSelection: {
-        apiTokenIds: ['tok_revoked', 'tok_1'],
-        webhookEndpointIds: ['wh_revoked']
+        apiTokenIds: [ApiTokenId.make('tok_revoked'), ApiTokenId.make('tok_1')],
+        webhookEndpointIds: [WebhookEndpointId.make('wh_revoked')]
       },
       apiTokens: [
-        { id: 'tok_1', name: 'First token' },
-        { id: 'tok_2', name: 'Second token' },
-        { id: 'tok_3', name: 'Third token' }
+        { id: ApiTokenId.make('tok_1'), name: 'First token' },
+        { id: ApiTokenId.make('tok_2'), name: 'Second token' },
+        { id: ApiTokenId.make('tok_3'), name: 'Third token' }
       ],
       webhookEndpoints: [
-        { id: 'wh_1', url: 'https://example.test/hook-one' },
-        { id: 'wh_2', url: 'https://example.test/hook-two' }
+        { id: WebhookEndpointId.make('wh_1'), url: 'https://example.test/hook-one' },
+        { id: WebhookEndpointId.make('wh_2'), url: 'https://example.test/hook-two' }
       ]
     })
-    expect(screen.queryByRole('checkbox', { name: 'tok_revoked' })).toBeNull()
+    expect(
+      screen.queryByRole('checkbox', { name: ApiTokenId.make('tok_revoked') })
+    ).toBeNull()
     expect(
       screen.getByRole('checkbox', { name: 'First token' }).getAttribute('aria-checked')
     ).toBe('true')
@@ -475,7 +485,7 @@ describe('BillingPlans', () => {
       expect(selectResources).toHaveBeenLastCalledWith({
         data: {
           workspaceSlug: 'starter-lab',
-          apiTokenIds: ['tok_3'],
+          apiTokenIds: [ApiTokenId.make('tok_3')],
           webhookEndpointIds: []
         }
       })
@@ -554,9 +564,13 @@ describe('BillingPlans', () => {
           resource: 'api_token',
           limit: 2,
           used: 3,
-          eligibleIds: ['tok_1', 'tok_2', 'tok_3'],
-          selectedIds: ['tok_1', 'tok_2'],
-          activeIds: ['tok_1', 'tok_2'],
+          eligibleIds: [
+            ApiTokenId.make('tok_1'),
+            ApiTokenId.make('tok_2'),
+            ApiTokenId.make('tok_3')
+          ],
+          selectedIds: [ApiTokenId.make('tok_1'), ApiTokenId.make('tok_2')],
+          activeIds: [ApiTokenId.make('tok_1'), ApiTokenId.make('tok_2')],
           paused: false
         },
         webhookEndpoints: {

@@ -1,3 +1,4 @@
+import { WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import {
   Billing,
   type ProcessProviderEventInput,
@@ -132,7 +133,11 @@ describe('readDelivery', () => {
     expect(
       readDelivery(SeatSyncQueueMessage, {
         id: 'qmsg_3',
-        body: { endpointId: 'wh_1', workspaceId: 'wrk_starter', payload: {} },
+        body: {
+          endpointId: WebhookEndpointId.make('wh_1'),
+          workspaceId: 'wrk_starter',
+          payload: {}
+        },
         attempts: 1
       }).kind
     ).toBe('malformed')

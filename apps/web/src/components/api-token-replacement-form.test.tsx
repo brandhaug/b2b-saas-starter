@@ -1,3 +1,4 @@
+import { ApiTokenId } from '@b2b-saas-starter/db/ids'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { renderWithRouter } from '@/test/router-harness'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
@@ -8,7 +9,7 @@ import {
 } from './api-token-replacement-form'
 
 const token: ApiToken = {
-  id: 'tok_old',
+  id: ApiTokenId.make('tok_old'),
   name: 'CI',
   prefix: 'bsk_old',
   scopes: ['read'],
@@ -38,7 +39,7 @@ describe('ApiTokenReplacementForm', () => {
     onReplaced.mockResolvedValue()
     replaceToken.mockResolvedValue({
       ...token,
-      id: 'tok_new',
+      id: ApiTokenId.make('tok_new'),
       token: 'bsk_replacement_secret',
       previousTokenId: token.id,
       previousTokenExpiresAt: '2026-09-06T12:00:00.000Z'
@@ -64,7 +65,7 @@ describe('ApiTokenReplacementForm', () => {
     expect(replaceToken).toHaveBeenCalledWith({
       data: {
         workspaceSlug: 'starter-lab',
-        tokenId: 'tok_old',
+        tokenId: ApiTokenId.make('tok_old'),
         scopes: ['read'],
         overlapSeconds: 3600
       }
@@ -90,7 +91,7 @@ describe('ApiTokenReplacementForm', () => {
       expect(replaceToken).toHaveBeenCalledWith({
         data: {
           workspaceSlug: 'starter-lab',
-          tokenId: 'tok_old',
+          tokenId: ApiTokenId.make('tok_old'),
           scopes: ['read'],
           overlapSeconds: 0
         }

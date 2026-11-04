@@ -1,3 +1,4 @@
+import { WebhookDeliveryId } from '@b2b-saas-starter/db/ids'
 // oxlint-disable-next-line import/no-unassigned-import -- Installs the explicit authenticated-session test fixture.
 import '@/test/qualified-session'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
@@ -77,13 +78,15 @@ describe('admin failed deliveries boundary', () => {
       'failed_permanent'
     ])
     expect(
-      await replayFailedDeliveryHandler({ deliveryId: 'whd_seed_dead_lettered' })
+      await replayFailedDeliveryHandler({
+        deliveryId: WebhookDeliveryId.make('whd_seed_dead_lettered')
+      })
     ).toMatchObject({ status: 'queued' })
     // The same identity still has no workspace membership.
     await expect(
       replayWebhookDeliveryHandler({
         workspaceSlug: 'starter-lab',
-        deliveryId: 'whd_seed_dead_lettered'
+        deliveryId: WebhookDeliveryId.make('whd_seed_dead_lettered')
       })
     ).rejects.toMatchObject({ isNotFound: true })
   })
@@ -100,7 +103,9 @@ describe('admin failed deliveries boundary', () => {
         name: 'UnauthorizedError'
       })
       await expect(
-        replayFailedDeliveryHandler({ deliveryId: 'whd_seed_dead_lettered' })
+        replayFailedDeliveryHandler({
+          deliveryId: WebhookDeliveryId.make('whd_seed_dead_lettered')
+        })
       ).rejects.toMatchObject({ name: 'UnauthorizedError' })
       expect(reads).not.toHaveBeenCalled()
       expect(effects).not.toHaveBeenCalled()
@@ -115,30 +120,42 @@ describe('admin failed deliveries boundary', () => {
       name: 'UnauthorizedError'
     })
     await expect(
-      replayFailedDeliveryHandler({ deliveryId: 'whd_seed_dead_lettered' })
+      replayFailedDeliveryHandler({
+        deliveryId: WebhookDeliveryId.make('whd_seed_dead_lettered')
+      })
     ).rejects.toMatchObject({ name: 'UnauthorizedError' })
   })
 
   it('refuses replay while impersonating even if the effective account is admin', async () => {
     actor.impersonatedBy = 'usr_other_admin'
     await expect(
-      replayFailedDeliveryHandler({ deliveryId: 'whd_seed_dead_lettered' })
+      replayFailedDeliveryHandler({
+        deliveryId: WebhookDeliveryId.make('whd_seed_dead_lettered')
+      })
     ).rejects.toMatchObject({ name: 'ImpersonationStateError' })
   })
 
   it('returns safe inline guidance for disabled, missing and nonterminal sources', async () => {
     expect(
-      await replayFailedDeliveryHandler({ deliveryId: 'whd_seed_perm_failed' })
+      await replayFailedDeliveryHandler({
+        deliveryId: WebhookDeliveryId.make('whd_seed_perm_failed')
+      })
     ).toMatchObject({
       status: 'refused',
       reason: expect.stringContaining('could not be replayed')
     })
-    expect(await replayFailedDeliveryHandler({ deliveryId: 'missing' })).toMatchObject({
+    expect(
+      await replayFailedDeliveryHandler({
+        deliveryId: WebhookDeliveryId.make('missing')
+      })
+    ).toMatchObject({
       status: 'refused',
       reason: expect.stringContaining('could not be replayed')
     })
     expect(
-      await replayFailedDeliveryHandler({ deliveryId: 'whd_seed_failed' })
+      await replayFailedDeliveryHandler({
+        deliveryId: WebhookDeliveryId.make('whd_seed_failed')
+      })
     ).toMatchObject({
       status: 'refused',
       reason: expect.stringContaining('could not be replayed')

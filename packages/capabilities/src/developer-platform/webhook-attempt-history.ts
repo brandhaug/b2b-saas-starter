@@ -4,7 +4,7 @@ import {
 } from './webhook-delivery-plan.ts'
 
 export type QueuedTerminalAttempt = WebhookDeliveryAttemptInput & {
-  readonly id: string
+  readonly id: WebhookDeliveryId
   readonly phase: 'terminal'
 }
 
@@ -36,3 +36,4 @@ export function attemptEvidence(input: WebhookDeliveryAttemptInput) {
     responseBody
   }
 }
+import { type WebhookDeliveryId } from '@b2b-saas-starter/db/ids'

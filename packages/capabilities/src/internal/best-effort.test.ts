@@ -1,3 +1,4 @@
+import { ApiTokenId } from '@b2b-saas-starter/db/ids'
 import { describe, expect, it } from '@effect/vitest'
 import { Effect, Logger } from 'effect'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -50,7 +51,10 @@ describe('best-effort publication evidence', () => {
               enqueue: () => Effect.void
             },
             'wrk_test',
-            { eventType: 'api_token.revoked', payload: { tokenId: 'tok_test' } }
+            {
+              eventType: 'api_token.revoked',
+              payload: { tokenId: ApiTokenId.make('tok_test') }
+            }
           )
         )
         expect(records).toHaveLength(1)

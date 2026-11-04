@@ -1,3 +1,4 @@
+import { ApiTokenId } from '@b2b-saas-starter/db/ids'
 import { Effect } from 'effect'
 import { TestClock } from 'effect/testing'
 import { type ContractExpect } from '../governance/contract-expect.ts'
@@ -332,7 +333,12 @@ export function apiTokenRegistryContractCases(expect: ContractExpect) {
           overlapSeconds: 60
         })
         yield* TestClock.adjust(60_000)
-        for (const tokenId of [revoked.id, expired.id, replaced.id, 'tok_unknown']) {
+        for (const tokenId of [
+          revoked.id,
+          expired.id,
+          replaced.id,
+          ApiTokenId.make('tok_unknown')
+        ]) {
           expect(
             failureTag(
               yield* Effect.exit(

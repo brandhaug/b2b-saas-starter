@@ -1,3 +1,4 @@
+import { ApiTokenId } from '@b2b-saas-starter/db/ids'
 import { expect, it } from '@effect/vitest'
 import { Effect, Layer } from 'effect'
 import { SeedLayer } from '../layers.ts'
@@ -31,11 +32,11 @@ it.effect(
     Effect.gen(function* () {
       const registry = yield* ApiTokenRegistry
       expect(yield* registry.verifyBearerToken(SEED_API_TOKEN)).toMatchObject({
-        id: 'tok_docs',
+        id: ApiTokenId.make('tok_docs'),
         scopes: ['read', 'write', 'admin']
       })
       expect(yield* registry.verifyBearerToken(SEED_READONLY_API_TOKEN)).toMatchObject({
-        id: 'tok_mcp',
+        id: ApiTokenId.make('tok_mcp'),
         scopes: ['read']
       })
     }).pipe(
@@ -49,9 +50,12 @@ it.effect('transfers a selected token slot through rotation', () =>
   Effect.gen(function* () {
     const registry = yield* ApiTokenRegistry
     const entitlements = yield* ResourceEntitlements
-    yield* entitlements.select({ apiTokenIds: ['tok_docs'], webhookEndpointIds: [] })
+    yield* entitlements.select({
+      apiTokenIds: [ApiTokenId.make('tok_docs')],
+      webhookEndpointIds: []
+    })
     const replacement = yield* registry.replace({
-      tokenId: 'tok_docs',
+      tokenId: ApiTokenId.make('tok_docs'),
       scopes: ['read'],
       overlapSeconds: 60
     })
