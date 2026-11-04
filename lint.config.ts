@@ -763,6 +763,7 @@ const { lint = {} } = defineConfig({
           '.github/scripts/**',
           'packages/*/scripts/**',
           'apps/web/scripts/{agent-markdown,generate-agent-exports,agent-exports.verify}.mjs',
+          'apps/web/scripts/client-boundary.verify.mjs',
           'apps/web/scripts/source-examples.ts',
           'apps/web/scripts/source-examples.test.ts',
           'infra/**',
@@ -792,7 +793,8 @@ const { lint = {} } = defineConfig({
         files: [
           'scripts/setup-agent-skills.test.ts',
           '.github/scripts/*.test.ts',
-          'apps/web/scripts/agent-exports.verify.mjs'
+          'apps/web/scripts/agent-exports.verify.mjs',
+          'apps/web/scripts/client-boundary.verify.mjs'
         ],
         rules: {
           // These CLIs and their tests run directly on Node 26, before app tooling.
