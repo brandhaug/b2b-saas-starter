@@ -41,6 +41,8 @@ Run `pnpm run check` before committing and after `check:fix`; the pre-commit hoo
 
 ## Rules
 
+Read [code conventions](docs/agents/code-conventions.md) when writing or reviewing source.
+
 1. Effect v4 typed errors, services, schemas, and HTTP API contracts for application behavior.
 2. Business use cases live in `packages/capabilities`, with billing and transactional email evidence owned by `packages/billing` and `packages/email-delivery`. Capabilities composes their application dependencies. Route handlers and UI components do not duplicate behavior.
 3. Provider-light local development: an optional provider whose env vars are unset stays inactive instead of failing the app.

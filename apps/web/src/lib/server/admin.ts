@@ -12,15 +12,6 @@ import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
 
 /**
- * The `/admin` server functions, in a **client-safe** module — the
- * client-safe half of the `admin.effects.ts` split; see apps/web/AGENTS.md
- * for the rule and `scripts/assert-client-boundary.mjs` for the enforcement.
- * Each input is written once, as its Effect Schema: the validator is the
- * single strict decode, and the derived type types both the client stub and
- * the effects handler.
- */
-
-/**
  * Typed failure for the impersonation server functions when the request's
  * session is not what the action needs: starting one from a session that is
  * already an impersonation (no nesting — the admin cookie holds one token),

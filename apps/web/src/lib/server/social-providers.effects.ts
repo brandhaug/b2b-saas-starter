@@ -6,13 +6,6 @@ import {
 import { env } from 'cloudflare:workers'
 
 /**
- * Social sign-in's server-only read, reached only through dynamic `import()`
- * inside the handler of `social-providers.ts` (see apps/web/AGENTS.md): the
- * env/server vocabulary pins the Effect graph, which must never ship to the
- * browser.
- */
-
-/**
  * The handler `getSocialProviderIds` delegates to. The client secret must
  * never cross the server-function boundary, so what crosses is the ordered
  * list of active provider ids — nothing else. `activeSocialProviders` is the

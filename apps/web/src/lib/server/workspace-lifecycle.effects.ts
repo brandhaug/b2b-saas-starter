@@ -20,14 +20,6 @@ import {
 } from './workspace-lifecycle'
 
 /**
- * The workspace lifecycle effects and their server-only wiring, reached only
- * through dynamic `import()` inside the handlers of the server functions in
- * `workspace-lifecycle.ts`: handler bodies are stripped from the client
- * build, so this graph ships to the server alone. `workspace-lifecycle.ts`
- * holds the client-safe half and the reason for the split.
- */
-
-/**
  * The creation gate's refusal decision, in one place so the branch the tests
  * drive is the branch a request takes (the same rule `enforceRequiredEnvAudit`
  * follows). It states exactly what the plugin's

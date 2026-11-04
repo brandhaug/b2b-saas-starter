@@ -15,14 +15,6 @@ import { workspacePage } from './page-frame'
 import { type WorkspaceAuditInput, type WorkspaceAuditPayload } from './workspace-audit'
 import { zonedDayBoundary } from './zoned-day-boundary'
 
-/**
- * The audit payload assembly and its server-only wiring, reached only
- * through dynamic `import()` inside the handler of
- * `loadWorkspaceAuditEventsServerFn` (`workspace-audit.ts`); see
- * apps/web/AGENTS.md. `workspace-audit.ts` holds the client-safe half and
- * the reason for the split.
- */
-
 export async function loadWorkspaceAuditEventsHandler(
   input: WorkspaceAuditInput
 ): Promise<WorkspaceAuditPayload> {

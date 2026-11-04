@@ -19,17 +19,6 @@ import {
 } from './webhooks'
 
 /**
- * The webhook effects, the payload assembly and their server-only wiring,
- * reached only through dynamic `import()` inside the handlers of
- * `webhooks.ts` (see apps/web/AGENTS.md for the split).
- *
- * Each handler reads the session once, then proves the actor may act inside
- * the effect it hands to `runWorkspaceCapabilities` — the permission gates
- * and the hand-off to the capability (typed 404 included) are the behaviour,
- * driven by `webhooks.test.ts` against the Seed layer.
- */
-
-/**
  * `webhook:list` is the page's own read permission and a hard gate.
  */
 const webhooksPayload: WorkspacePageFrame<WorkspaceWebhooksPayload> = workspacePage(

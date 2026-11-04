@@ -4,35 +4,8 @@ import {
   REACT_DOCTOR_RULE_REGISTRY
 } from 'oxlint-plugin-react-doctor/core'
 
-// The repo's lint configuration. It lives beside `vite.config.ts` rather than
-// inside it because `vp lint` is the single biggest block of policy in the
-// repo, and 900 lines of `'error'` hid the ~30 places where a deliberate
-// decision was made. `vp` discovers only `vite.config.ts`; that file
-// imports `lintConfig` from here, so `vp lint` still runs with no extra flags.
-//
-// The shape to read for: each plugin is switched on wholesale at `error` from a
-// name list, and every deviation — a rule that is off, or a rule that carries
-// options — sits in one block at the end of `rules` with the reason it
-// deviates. Per-path exemptions live in `overrides`, one comment per block.
-
-/**
- * Rule names as whitespace-separated text rather than an array: the formatter
- * fills these lines, so a plugin's enabled set stays a paragraph instead of one
- * line per rule.
- */
-function ruleNames(list: string): Array<string> {
-  return list.split(/\s+/u).filter((name) => name.length > 0)
-}
-
-/**
- * Switch every named rule of one plugin on at `error`. `prefix` carries its own
- * separator so the core ESLint rules can pass an empty one.
- */
-function enable(prefix: string, list: string): Record<string, 'error'> {
-  return Object.fromEntries(
-    ruleNames(list).map((name) => [`${prefix}${name}`, 'error'])
-  )
-}
+// Vite+ discovers only vite.config.ts, which imports this policy. Keep disabled
+// rules and options in the deviations block; path exemptions belong in overrides.
 
 // --- Bulk enablement -------------------------------------------------------
 // oxlint's Rust plugins expose no importable rule registry, so their enabled
@@ -192,10 +165,12 @@ const ANTI_SLOP = `
   no-widen-then-assert require-safety-comment-for-type-assertion
 `
 
+// no-nested-service-yield checks imported Effect generator bindings, so it also
+// applies safely to mixed-runtime files and tests without path exemptions.
 const STARTER = `
   no-effect-internal-tags no-inline-schema-compile
   no-interface-merge-outside-dts no-mismatched-augmentation-context
-  no-unknown-error-message prefer-effect-predicate
+  no-nested-service-yield no-unknown-error-message prefer-effect-predicate
 `
 
 const VITE_PLUS = `
@@ -396,32 +371,6 @@ const RD_DECLINED = `
   no-reset-all-state-on-prop-change no-server-side-image-map no-unescaped-entities
   prefer-tag-over-role
 `
-
-/**
- * Every react-doctor rule the stack satisfies, minus the groups above. Scan
- * rules are excluded wholesale: they read files from disk outside the lint
- * pass.
- */
-function reactDoctorRules() {
-  const excluded = new Set([
-    ...ruleNames(RD_DUPLICATED_BY_OXLINT),
-    ...ruleNames(RD_UNUSED_LIBRARIES),
-    ...ruleNames(RD_CLASS_COMPONENTS),
-    ...ruleNames(RD_JSX_STYLE),
-    ...ruleNames(RD_DECLINED)
-  ])
-  const enabled: Record<string, 'error'> = {}
-  for (const [name, meta] of Object.entries(REACT_DOCTOR_RULE_REGISTRY)) {
-    if (meta.isScanRule || excluded.has(name)) {
-      continue
-    }
-    if (!(meta.requires ?? []).every((capability) => STACK.has(capability))) {
-      continue
-    }
-    enabled[`react-doctor/${name}`] = 'error'
-  }
-  return enabled
-}
 
 // `defineConfig` is used only to contextually type the literal below — oxlint's
 // own `OxlintConfig` type is not reachable from here, and without it every
@@ -1016,3 +965,36 @@ const { lint = {} } = defineConfig({
 })
 
 export const lintConfig = lint
+
+function ruleNames(list: string) {
+  return list.split(/\s+/u).filter((name) => name.length > 0)
+}
+
+function enable(prefix: string, list: string): Record<string, 'error'> {
+  return Object.fromEntries(
+    ruleNames(list).map((name) => [`${prefix}${name}`, 'error'])
+  )
+}
+
+// Scan rules read files outside the lint pass, so exclude them even when their
+// library requirements match the stack.
+function reactDoctorRules() {
+  const excluded = new Set([
+    ...ruleNames(RD_DUPLICATED_BY_OXLINT),
+    ...ruleNames(RD_UNUSED_LIBRARIES),
+    ...ruleNames(RD_CLASS_COMPONENTS),
+    ...ruleNames(RD_JSX_STYLE),
+    ...ruleNames(RD_DECLINED)
+  ])
+  const enabled: Record<string, 'error'> = {}
+  for (const [name, meta] of Object.entries(REACT_DOCTOR_RULE_REGISTRY)) {
+    if (meta.isScanRule || excluded.has(name)) {
+      continue
+    }
+    if (!(meta.requires ?? []).every((capability) => STACK.has(capability))) {
+      continue
+    }
+    enabled[`react-doctor/${name}`] = 'error'
+  }
+  return enabled
+}

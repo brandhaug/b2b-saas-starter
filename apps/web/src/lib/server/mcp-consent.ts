@@ -3,19 +3,6 @@ import { type WorkspaceListItemProjection } from '@b2b-saas-starter/capabilities
 import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
 
-/**
- * Server functions for the OAuth consent page (ADR 0068), in a
- * **client-safe** module — the client-safe half of the
- * `mcp-consent.effects.ts` split; see apps/web/AGENTS.md for the rule and
- * `scripts/assert-client-boundary.mjs` for the enforcement. Each input is
- * written once, as its Effect Schema: the validator is the single strict
- * decode, and the derived type types both the client stub and the effects
- * handler. The Better Auth endpoint calls that turn a workspace pick into a
- * consent and an authorization code live in `mcp-consent.effects.ts`, reached
- * through dynamic `import()`, so the route tree never carries the auth server
- * into the browser bundle.
- */
-
 export type OAuthConsentPayload = {
   /** `null` when the `client_id` names no registered client. */
   readonly client: McpClientSummary | null

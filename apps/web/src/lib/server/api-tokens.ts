@@ -10,18 +10,6 @@ import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
 
 /**
- * The API-token server functions, in a **client-safe** module — the
- * client-safe half of the `api-tokens.effects.ts` split (see
- * apps/web/AGENTS.md for the rule and `assert-client-boundary.mjs` for the
- * enforcement). Each input is written once, as its Effect Schema: the
- * validator is the single strict decode, and the derived types below type
- * both the client stub and the effects handlers.
- *
- * The behaviour itself is tested as the loader and revoke effect in the
- * effects file (`api-tokens.test.ts`), driven directly with fixture actors.
- */
-
-/**
  * The API tokens payload.
  *
  * Unlike the members roster, reading tokens is itself a permission:

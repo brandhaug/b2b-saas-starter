@@ -46,7 +46,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('mutation contention', (it)
             })
           )
           const result = yield* Effect.gen(function* () {
-            return yield* (yield* ApiTokenRegistry).revoke({ tokenId: token.id })
+            const registry = yield* ApiTokenRegistry
+            return yield* registry.revoke({ tokenId: token.id })
           }).pipe(
             Effect.provide(
               Layer.fresh(LiveApiTokenRegistry()).pipe(Layer.provide(racingAudit))
@@ -146,12 +147,14 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('mutation contention', (it)
           }
           const create = Effect.gen(function* () {
             if (resource === 'api_token') {
-              return yield* (yield* ApiTokenRegistry).create({
+              const registry = yield* ApiTokenRegistry
+              return yield* registry.create({
                 name: 'last-slot',
                 scopes: ['read']
               })
             }
-            return yield* (yield* WebhookEndpoints).create({
+            const webhooks = yield* WebhookEndpoints
+            return yield* webhooks.create({
               url: 'https://example.com/race',
               events: ['api_token.created']
             })

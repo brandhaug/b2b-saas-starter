@@ -12,17 +12,6 @@ import { getStringValue } from '../internal/ast.ts'
  * The replacement is the semantic token the variant would have swapped.
  */
 
-function classStringText(node: ESTree.Node): string | undefined {
-  const literal = getStringValue(node)
-  if (literal !== undefined) {
-    return literal
-  }
-  if (node.type === 'TemplateElement') {
-    return node.value.cooked ?? undefined
-  }
-  return undefined
-}
-
 export default defineRule({
   meta: {
     type: 'problem',
@@ -45,3 +34,14 @@ export default defineRule({
     }
   }
 })
+
+function classStringText(node: ESTree.Node): string | undefined {
+  const literal = getStringValue(node)
+  if (literal !== undefined) {
+    return literal
+  }
+  if (node.type === 'TemplateElement') {
+    return node.value.cooked ?? undefined
+  }
+  return undefined
+}

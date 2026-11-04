@@ -4,15 +4,6 @@ import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { Schema } from 'effect'
 import { publicProblem } from './problems.ts'
 
-/**
- * The contract's error half: the tagged error schemas the API worker serves,
- * the `GuardFailure` union a non-contract surface can raise before it reaches
- * its own wire format, and the HTTP encoding of those failures. The groups,
- * the `StarterApi` contract itself, and the gate machinery (`BearerAuth`,
- * `ApiPrincipal`, the rate-limit tables) stay in `index.ts`, which re-exports
- * everything here.
- */
-
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
 export class Unauthorized extends Schema.TaggedError<Unauthorized>()(
   'Unauthorized',
@@ -27,13 +18,7 @@ export class RateLimited extends Schema.TaggedError<RateLimited>()(
   { httpApiStatus: 429 }
 ) {}
 
-/**
- * The failures a *non-contract* surface can raise before it reaches its own
- * wire format — today only the MCP protocol route at `POST /mcp`, which speaks
- * JSON-RPC and therefore encodes its own responses. It composes the same
- * guards the contract's `BearerAuth` middleware does, so it can fail in exactly
- * these four ways.
- */
+// Non-contract routes encode these guard failures in their own wire format.
 const GUARD_FAILURE_SCHEMAS = [
   Unauthorized,
   AuthorizationDenied,

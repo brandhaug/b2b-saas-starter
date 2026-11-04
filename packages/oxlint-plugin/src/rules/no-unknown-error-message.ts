@@ -12,11 +12,9 @@ import {
  * sentence at the point it is caught, so the typed failure is gone and every call
  * site re-derives the same `instanceof Error` probe.
  *
- * `apps/web/src/lib/cause-message.ts` is the sanctioned reader in the web app, and
- * the package-private normalizers named in the root `lint.config.ts`
- * overrides are each their own
- * package's typed boundary. Everywhere else, keep the failure in the Effect error
- * channel and match on its tag.
+ * `packages/failure` owns the unknown-value normalizer. Root lint overrides
+ * exempt it and the router's last-resort error handler. Everywhere else, keep
+ * the failure in the Effect error channel and match on its tag.
  *
  * Handler parameters of `Effect.catchTag` and `Effect.catchTags` are exempt: those
  * are already narrowed to one tagged error, so reading `.message` there is a typed
@@ -34,6 +32,61 @@ const MEMBER_MESSAGE =
   'Do not read `.message` off an unknown failure. Match on the tagged error instead, or call `causeMessage(thrown, fallback)` if this is a UI boundary that needs one sentence.'
 const DESTRUCTURE_MESSAGE =
   'Do not destructure `message` out of an unknown failure. Match on the tagged error instead, or call `causeMessage(thrown, fallback)` if this is a UI boundary that needs one sentence.'
+
+export default defineRule({
+  meta: {
+    type: 'problem',
+    docs: {
+      description:
+        'Disallow stringifying an unknown failure or reading its message outside the sanctioned normalizers.'
+    }
+  },
+  create(context) {
+    return {
+      CallExpression(node) {
+        if (!isIdentifier(unwrapExpression(node.callee), 'String')) {
+          return
+        }
+        if (!node.arguments.some((argument) => isFailureNamed(argument))) {
+          return
+        }
+        context.report({ node, message: STRING_MESSAGE })
+      },
+      MemberExpression(node) {
+        if (getPropertyName(node.property) !== 'message') {
+          return
+        }
+        if (!isFailureNamed(node.object)) {
+          return
+        }
+        if (isTagHandlerParameter(node.object)) {
+          return
+        }
+        context.report({ node, message: MEMBER_MESSAGE })
+      },
+      VariableDeclarator(node) {
+        if (node.id.type !== 'ObjectPattern') {
+          return
+        }
+        if (!isFailureNamed(node.init)) {
+          return
+        }
+        if (isTagHandlerParameter(node.init)) {
+          return
+        }
+        for (const property of node.id.properties) {
+          if (property.type !== 'Property') {
+            continue
+          }
+          if (getPropertyName(property.key) !== 'message') {
+            continue
+          }
+          context.report({ node: property, message: DESTRUCTURE_MESSAGE })
+        }
+      }
+    }
+  }
+})
 
 function identifierName(node: ESTree.Node | null | undefined): string | undefined {
   const expression = unwrapExpression(node)
@@ -128,58 +181,3 @@ function isTagHandlerParameter(node: ESTree.Node | null | undefined): boolean {
   }
   return false
 }
-
-export default defineRule({
-  meta: {
-    type: 'problem',
-    docs: {
-      description:
-        'Disallow stringifying an unknown failure or reading its message outside the sanctioned normalizers.'
-    }
-  },
-  create(context) {
-    return {
-      CallExpression(node) {
-        if (!isIdentifier(unwrapExpression(node.callee), 'String')) {
-          return
-        }
-        if (!node.arguments.some((argument) => isFailureNamed(argument))) {
-          return
-        }
-        context.report({ node, message: STRING_MESSAGE })
-      },
-      MemberExpression(node) {
-        if (getPropertyName(node.property) !== 'message') {
-          return
-        }
-        if (!isFailureNamed(node.object)) {
-          return
-        }
-        if (isTagHandlerParameter(node.object)) {
-          return
-        }
-        context.report({ node, message: MEMBER_MESSAGE })
-      },
-      VariableDeclarator(node) {
-        if (node.id.type !== 'ObjectPattern') {
-          return
-        }
-        if (!isFailureNamed(node.init)) {
-          return
-        }
-        if (isTagHandlerParameter(node.init)) {
-          return
-        }
-        for (const property of node.id.properties) {
-          if (property.type !== 'Property') {
-            continue
-          }
-          if (getPropertyName(property.key) !== 'message') {
-            continue
-          }
-          context.report({ node: property, message: DESTRUCTURE_MESSAGE })
-        }
-      }
-    }
-  }
-})

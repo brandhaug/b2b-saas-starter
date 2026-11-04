@@ -31,24 +31,13 @@ import {
 import { computeWebhookSignature, signatureHeaderValue } from './webhook-signing.ts'
 import { readWebhookResponse } from './webhook-response.ts'
 
-/** Body of a delivery POST, encoded through a JSON codec rather than a
- * hand-rolled `JSON.stringify`: the signature is computed over exactly the
- * bytes this codec produces. */
+// Sign exactly the bytes this codec sends to the receiver.
 const WebhookDeliveryBody = Schema.Struct({
   deliveryId: Schema.String,
   eventType: WebhookQueueMessage.fields.eventType,
   payload: WebhookQueueMessage.fields.payload
 })
 const encodeDeliveryBody = Schema.encodeSync(Schema.fromJsonString(WebhookDeliveryBody))
-
-/** Fields every consumer stamps onto its wide event once decoded. */
-function annotateMessageFields(message: WebhookQueueMessage) {
-  return Effect.annotateLogsScoped({
-    endpointId: message.endpointId,
-    workspaceId: message.workspaceId,
-    eventType: message.eventType
-  })
-}
 
 /**
  * Delivers one webhook message: resolve the dispatch target, re-check the
@@ -366,6 +355,14 @@ function recordDeadLetter(
     delivery,
     onFailure: 'ack',
     program
+  })
+}
+
+function annotateMessageFields(message: WebhookQueueMessage) {
+  return Effect.annotateLogsScoped({
+    endpointId: message.endpointId,
+    workspaceId: message.workspaceId,
+    eventType: message.eventType
   })
 }
 

@@ -31,16 +31,14 @@ import { formatCurrency, formatDate, formatNumber } from '@b2b-saas-starter/i18n
 import { getLocale } from '@b2b-saas-starter/i18n/runtime'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
-/** The server function the Upgrade button calls; a test supplies its own. */ export type StartCheckout =
-  (input: {
-    readonly data: {
-      readonly workspaceSlug: string
-      readonly planId: string
-      readonly interval?: BillingInterval
-    }
-  }) => Promise<{ url: string }>
+export type StartCheckout = (input: {
+  readonly data: {
+    readonly workspaceSlug: string
+    readonly planId: string
+    readonly interval?: BillingInterval
+  }
+}) => Promise<{ url: string }>
 
-/** The server function the Manage-billing button calls; a test supplies its own. */
 export type StartPortalSession = (input: {
   readonly data: { readonly workspaceSlug: string }
 }) => Promise<{ url: string }>
@@ -54,8 +52,8 @@ export type SelectBillingResources = (input: {
 }) => Promise<ResourceSelection>
 
 /**
- * The three billing server functions as one bundle. A preview or a test hands
- * over all of them together, so no surface can quietly keep one live port.
+ * WorkspaceBillingPage accepts all three overrides together so a preview cannot
+ * accidentally retain a live mutation. BillingPlans receives the spread bundle.
  */
 export type BillingPorts = {
   readonly startCheckout: StartCheckout
@@ -125,31 +123,6 @@ export function PublicBillingPlans({
 }
 
 /**
- * One sentence out of a rejected portal call. The capability-unavailable case
- * (an unbilled workspace, or a deployment whose Stripe settings just went
- * away) gets its own guidance; everything else passes through `causeMessage`.
- */
-// oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof -- `unknown` is the input: a rejected promise's value has no boundary schema, and probing it realm-safe needs one typeof
-function portalErrorText(thrown: unknown): string {
-  if (
-    typeof thrown === 'object' &&
-    thrown !== null &&
-    'name' in thrown &&
-    thrown.name === CAPABILITY_UNAVAILABLE_ERROR_NAME
-  ) {
-    return m.portal_unavailable()
-  }
-  return causeMessage(thrown, m.portal_failed())
-}
-// oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof
-
-/** Checkout conflicts and provider outages share the translated availability response. */
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- rejected promises are untrusted input at the UI boundary
-function checkoutErrorText(thrown: unknown): string {
-  return causeMessage(thrown, m.checkout_failed())
-}
-
-/**
  * The current plan and the catalog of plans beside it, with whatever action
  * each plan's `purchase` mode allows. Props-only so tests render it without
  * the router. Degradation is honest: when Stripe is not configured the upgrade
@@ -207,9 +180,7 @@ export function BillingPlans({
       ? 'year'
       : 'month'
   )
-  // The server function rejects when the capability fails; the hook folds that
-  // rejection into a displayable message via `checkoutErrorText`. Checkout
-  // leaves the app, so there is no loader to re-run.
+  // Checkout leaves the app, so there is no loader to refresh.
   const upgrade = useServerAction(
     (planId: string) => startCheckout({ data: { workspaceSlug, planId, interval } }),
     {
@@ -220,9 +191,6 @@ export function BillingPlans({
     }
   )
 
-  // The portal is the same handoff shape: the server fn returns the hosted
-  // URL, the browser leaves. The button renders only when Stripe is
-  // configured — one definition, read off the capability's own `configured`.
   const portal = useServerAction<undefined, { url: string }>(
     () => startPortalSession({ data: { workspaceSlug } }),
     {
@@ -811,4 +779,26 @@ function BillingIntervalPicker({
       </Button>
     </fieldset>
   )
+}
+
+// An unbilled workspace or removed Stripe configuration needs portal-specific
+// guidance; other failures use the shared safe error messages.
+// oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof -- `unknown` is the input: a rejected promise's value has no boundary schema, and probing it realm-safe needs one typeof
+function portalErrorText(thrown: unknown): string {
+  if (
+    typeof thrown === 'object' &&
+    thrown !== null &&
+    'name' in thrown &&
+    thrown.name === CAPABILITY_UNAVAILABLE_ERROR_NAME
+  ) {
+    return m.portal_unavailable()
+  }
+  return causeMessage(thrown, m.portal_failed())
+}
+// oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof
+
+/** Checkout conflicts and provider outages share the translated availability response. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- rejected promises are untrusted input at the UI boundary
+function checkoutErrorText(thrown: unknown): string {
+  return causeMessage(thrown, m.checkout_failed())
 }

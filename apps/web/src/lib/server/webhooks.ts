@@ -12,19 +12,6 @@ import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
 
-/**
- * The webhook server functions, in a **client-safe** module — the client-safe
- * half of the `webhooks.effects.ts` split; see apps/web/AGENTS.md for the
- * rule and `scripts/assert-client-boundary.mjs` for the enforcement. Each
- * input is written once, as its Effect Schema: the validator is the single
- * strict decode, and the derived type types both the client stub and the
- * effects handler.
- *
- * The behaviour itself is tested as the handlers in the effects file
- * (`webhooks.test.ts` imports `webhooks.effects.ts` directly), driven with
- * mocked sessions against the Seed layer.
- */
-
 const CreateWebhookInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
   url: CreateWebhookEndpointPayload.fields.url,

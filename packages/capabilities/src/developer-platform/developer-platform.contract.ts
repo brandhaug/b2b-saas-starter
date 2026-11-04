@@ -220,10 +220,11 @@ export function developerPlatformContractCases(
           event.eventType.startsWith('webhook.delivery')
         ).length
 
+        const ctx = yield* WorkspaceContext
         yield* webhooks.recordDeliveryAttempt({
           id: 'whd_contract_first',
           endpointId: endpoint.id,
-          workspaceId: (yield* WorkspaceContext).workspace.id,
+          workspaceId: ctx.workspace.id,
           eventType: 'demo.event',
           status: 'delivered',
           attempts: 1,
@@ -234,7 +235,7 @@ export function developerPlatformContractCases(
         yield* webhooks.recordDeliveryAttempt({
           id: 'whd_contract_second',
           endpointId: endpoint.id,
-          workspaceId: (yield* WorkspaceContext).workspace.id,
+          workspaceId: ctx.workspace.id,
           eventType: 'demo.event',
           status: 'failed',
           attempts: 2,

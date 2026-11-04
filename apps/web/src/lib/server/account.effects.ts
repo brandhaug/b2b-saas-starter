@@ -14,12 +14,6 @@ import { type DownloadPersonalDataInput } from './account'
 import { requireRecentAuthentication } from './strong-authentication.effects'
 
 /**
- * The `/account` page's server reads, testable against the Seed layer like
- * `loadWorkspaceDashboardHandler`. The route reaches them through
- * `loadAccountPageServerFn` (in the client-safe `account.ts`), whose handler
- * imports this module dynamically; the delete is a server fn whose handler
- * lives in `account-delete.ts`, reached the same way.
- *
  * This surface is user-level, not workspace-level: no `WorkspaceContext`, no
  * workspace permission gate — the ownership rule lives in the capability, and
  * the only authorization question ("is this the account owner?") is the

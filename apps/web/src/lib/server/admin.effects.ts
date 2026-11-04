@@ -48,14 +48,6 @@ import {
 } from './strong-authentication.effects'
 import { webUserAdminBinding } from './user-admin-binding'
 
-/**
- * The `/admin` capability effects and their server-only wiring, reached only
- * through dynamic `import()` inside the handlers in `admin.ts` (see
- * apps/web/AGENTS.md for the split) — the platform user-admin service, the
- * global audit log, the Better Auth session gate, and the plugin binding all
- * ship to the server alone.
- */
-
 /** System-level user list. Direct server calls verify the admin role and
  * this session's strong authentication before reading platform data. */
 export async function listSystemUsersHandler(): Promise<ReadonlyArray<SystemUser>> {

@@ -450,7 +450,8 @@ it.live(
       })
       const identity = { credential, conversationId: 'transport-failure' }
       const unavailable = yield* Effect.gen(function* () {
-        return yield* (yield* AssistantConversations).read(identity).pipe(Effect.flip)
+        const conversations = yield* AssistantConversations
+        return yield* conversations.read(identity).pipe(Effect.flip)
       }).pipe(Effect.provide(AssistantConversationsLayer()))
       expect(unavailable).toMatchObject({
         _tag: 'ConversationUnavailable',
@@ -475,7 +476,8 @@ it.live(
       ]
       for (const request of responses) {
         const failure = yield* Effect.gen(function* () {
-          return yield* (yield* AssistantConversations).read(identity).pipe(Effect.flip)
+          const conversations = yield* AssistantConversations
+          return yield* conversations.read(identity).pipe(Effect.flip)
         }).pipe(Effect.provide(AssistantConversationsLayer({ request })))
         expect(['ConversationUnavailable', 'ConversationInputRejected']).toContain(
           failure._tag

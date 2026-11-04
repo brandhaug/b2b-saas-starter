@@ -24,27 +24,6 @@ import { getPropertyName, isIdentifier, unwrapExpression } from '../internal/ast
 
 const RUNNERS = new Set(['runPromise', 'runPromiseExit'])
 
-/** Local names bound to the Effect namespace by an `import … from 'effect'`. */
-function effectNamespaceNames(node: ESTree.ImportDeclaration): Array<string> {
-  if (node.source.value !== 'effect') {
-    return []
-  }
-  const names: Array<string> = []
-  for (const specifier of node.specifiers) {
-    if (specifier.type === 'ImportDefaultSpecifier') {
-      continue
-    }
-    if (specifier.type === 'ImportNamespaceSpecifier') {
-      names.push(specifier.local.name)
-      continue
-    }
-    if (getPropertyName(specifier.imported) === 'Effect') {
-      names.push(specifier.local.name)
-    }
-  }
-  return names
-}
-
 export default defineRule({
   meta: {
     type: 'problem',
@@ -83,3 +62,24 @@ export default defineRule({
     }
   }
 })
+
+/** Local names bound to the Effect namespace by an `import … from 'effect'`. */
+function effectNamespaceNames(node: ESTree.ImportDeclaration): Array<string> {
+  if (node.source.value !== 'effect') {
+    return []
+  }
+  const names: Array<string> = []
+  for (const specifier of node.specifiers) {
+    if (specifier.type === 'ImportDefaultSpecifier') {
+      continue
+    }
+    if (specifier.type === 'ImportNamespaceSpecifier') {
+      names.push(specifier.local.name)
+      continue
+    }
+    if (getPropertyName(specifier.imported) === 'Effect') {
+      names.push(specifier.local.name)
+    }
+  }
+  return names
+}

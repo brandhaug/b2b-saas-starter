@@ -37,10 +37,6 @@ import {
 } from './invitations'
 
 /**
- * The invitation effects and their server-only wiring, reached only through
- * dynamic `import()` inside the handlers of `invitations.ts` (see
- * apps/web/AGENTS.md for the split).
- *
  * Each handler reads the session once (the actor's address for the preview
  * and accept matching) and the request origin for the emailed link, then
  * runs the permission gate and the hand-off to the invitation capability
@@ -149,9 +145,8 @@ export async function resendInvitationHandler(
       yield* requireWorkspacePermission({ invitation: ['create'] })
       yield* limitInvitationSend(session.user.id)
       const invitations = yield* WorkspaceInvitations
-      const invitation = (yield* invitations.list).find(
-        (candidate) => candidate.id === input.invitationId
-      )
+      const rows = yield* invitations.list
+      const invitation = rows.find((candidate) => candidate.id === input.invitationId)
       if (invitation === undefined) {
         return yield* Effect.fail(
           new MembershipChangeRejected({ reason: 'invitation_not_found' })

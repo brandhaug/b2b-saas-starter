@@ -83,8 +83,6 @@ export type SeedDeliveryFixture = Omit<SeedWebhookDeliveryFixture, 'lastAttemptA
 type SeedEndpointRow = {
   readonly id: string
   readonly workspaceId: string
-  // `url` and `events` are mutable — `update` writes them in place, which is
-  // the whole point of the Seed store mirroring Live's post-conditions.
   url: string
   enabled: boolean
   events: ReadonlyArray<string>
@@ -112,46 +110,6 @@ type SeedDeliveryRow = {
   readonly replayedFrom: string | null
 }
 
-function toDeliveryRow(
-  fixture: SeedDeliveryFixture,
-  fallbackWorkspaceId: string
-): SeedDeliveryRow {
-  return {
-    id: fixture.id,
-    endpointId: fixture.endpointId,
-    workspaceId: fixture.workspaceId ?? fallbackWorkspaceId,
-    eventType: fixture.eventType,
-    status: fixture.status,
-    attempts: fixture.attempts,
-    lastAttemptAt: fixture.lastAttemptAt,
-    nextAttemptAt: fixture.nextAttemptAt ?? null,
-    responseStatus: fixture.responseStatus ?? null,
-    payload: fixture.payload,
-    requestHeaders: fixture.requestHeaders ?? null,
-    responseBody: fixture.responseBody ?? null,
-    replayedFrom: fixture.replayedFrom ?? null
-  }
-}
-
-/** The wire projection of a stored endpoint — never the signing secret. */
-function toProjection(
-  endpoint: SeedEndpointRow,
-  deliveries: ReadonlyArray<SeedDeliveryRow>
-): WebhookEndpoint {
-  const mine = deliveries.filter((row) => row.endpointId === endpoint.id)
-  return {
-    id: endpoint.id,
-    url: endpoint.url,
-    enabled: endpoint.enabled,
-    events: [...endpoint.events],
-    successRate: deliverySuccessRate(
-      mine.length,
-      mine.filter((row) => row.status === 'delivered').length
-    )
-  }
-}
-
-/** The terminal statuses as a lookup set — the global read's filter. */
 const TERMINAL_STATUSES: ReadonlySet<WebhookDeliveryStatus> = new Set(
   TERMINAL_DELIVERY_STATUSES
 )
@@ -171,13 +129,9 @@ export function SeedWebhookEndpoints(
       const audit = yield* AuditEventLog
       const billing = yield* Billing
       const publisher = yield* WebhookPublisher
-      const notificationFeed = yield* NotificationFeed
+      const feed = yield* NotificationFeed
       const entitlements = yield* ResourceEntitlements
       const inventory = yield* SeedResourceInventory
-      // Mutable stores, so Seed mirrors Live's post-conditions — a created
-      // endpoint becomes dispatchable, a recorded attempt becomes listable,
-      // the plan gate can actually trip. The membership seed roster sets the
-      // same precedent; contract cases run unmodified against both adapters.
       const endpoints: Array<SeedEndpointRow> = seedFixtures.map((fixture) => ({
         id: fixture.id,
         workspaceId: fixture.workspaceId ?? seedWorkspaceRecord.id,
@@ -422,7 +376,7 @@ export function SeedWebhookEndpoints(
         }
         if (input.status === 'dead_lettered') {
           yield* bestEffort(
-            notificationFeed.create({
+            feed.create({
               workspaceId: input.workspaceId,
               userId: null,
               kind: 'webhook.delivery_failed',
@@ -940,4 +894,43 @@ export function SeedWebhookEndpoints(
       }
     })
   ).pipe(Layer.provide(SeedResourceInventoryLayer))
+}
+
+function toDeliveryRow(
+  fixture: SeedDeliveryFixture,
+  fallbackWorkspaceId: string
+): SeedDeliveryRow {
+  return {
+    id: fixture.id,
+    endpointId: fixture.endpointId,
+    workspaceId: fixture.workspaceId ?? fallbackWorkspaceId,
+    eventType: fixture.eventType,
+    status: fixture.status,
+    attempts: fixture.attempts,
+    lastAttemptAt: fixture.lastAttemptAt,
+    nextAttemptAt: fixture.nextAttemptAt ?? null,
+    responseStatus: fixture.responseStatus ?? null,
+    payload: fixture.payload,
+    requestHeaders: fixture.requestHeaders ?? null,
+    responseBody: fixture.responseBody ?? null,
+    replayedFrom: fixture.replayedFrom ?? null
+  }
+}
+
+// Never expose the stored signing secret in endpoint reads.
+function toProjection(
+  endpoint: SeedEndpointRow,
+  deliveries: ReadonlyArray<SeedDeliveryRow>
+): WebhookEndpoint {
+  const mine = deliveries.filter((row) => row.endpointId === endpoint.id)
+  return {
+    id: endpoint.id,
+    url: endpoint.url,
+    enabled: endpoint.enabled,
+    events: [...endpoint.events],
+    successRate: deliverySuccessRate(
+      mine.length,
+      mine.filter((row) => row.status === 'delivered').length
+    )
+  }
 }

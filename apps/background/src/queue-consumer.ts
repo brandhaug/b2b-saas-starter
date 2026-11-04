@@ -22,17 +22,6 @@ import { Effect, Layer, ManagedRuntime, Result, Schema, type Scope } from 'effec
 import { FetchHttpClient, type HttpClient } from 'effect/http'
 
 /**
- * The vocabulary and the infrastructure every queue consumer in this worker
- * shares — everything that is not queue-specific, so consumers cannot drift
- * apart: the worker-wide `Env`, the per-invocation runtime, the batch loop
- * every queue rides on, and the consumer-entry combinator that folds one
- * decoded delivery into a wide event plus an ack/retry outcome. Each queue
- * keeps its own message schema and its own `process…` orchestration (exported
- * with requirements open for tests); those live beside their consumer, riding
- * the shared `readDelivery` boundary decode.
- */
-
-/**
  * Binding name → binding type, one row per name `BackgroundBindingName`
  * admits. `Env` below maps the infra-derived key union through this record,
  * so a binding added in `infra/bindings.ts` fails this file's typecheck
@@ -98,12 +87,6 @@ export type QueueDelivery<M> = {
   readonly attempts: number
 } & ({ readonly kind: 'message'; readonly message: M } | { readonly kind: 'malformed' })
 
-/**
- * The boundary decode every consumer runs exactly once per delivery: decodes
- * `envelope.body` against the queue's message schema and folds the result with
- * the platform fields into the one `QueueDelivery` the consumer and the trace
- * continuation read.
- */
 export function readDelivery<S extends Schema.ConstraintDecoder<unknown>>(
   schema: S,
   envelope: QueueEnvelope
@@ -267,10 +250,6 @@ export function consumeBatch(
   }
   return runInvocation(
     env,
-    // The batch loop adds no requirements of its own, so the loop's context is
-    // `perMessage`'s: `HttpClient`, which the isolate runtime's
-    // FetchHttpClient provides. Consumers needing nothing still fit — an
-    // `Effect<_, _, never>` is an `Effect<_, _, HttpClient>`.
     Effect.forEach(
       batch.messages,
       (message) =>

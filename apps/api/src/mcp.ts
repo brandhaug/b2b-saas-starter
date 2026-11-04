@@ -93,43 +93,8 @@ import {
   oauthResourceConfig
 } from './oauth-access-token.ts'
 
-/**
- * The MCP Capability Interface: a Model Context Protocol server served at
- * `/mcp` by Effect's own `McpServer` — `layerHttp` owns the streamable-HTTP
- * wire protocol end to end: content negotiation, the initialize handshake and
- * the session it mints (`mcp-session-id`), version headers, JSON-RPC parsing.
- * No hand-rolled transport, no third-party SDK.
- *
- * The protocol routes sit outside the `StarterApi` contract on purpose —
- * JSON-RPC over streamable HTTP is its own wire shape, not a REST operation —
- * so they never appear in the OpenAPI document or the permission matrix. They
- * share everything that matters with the REST groups: the same bearer-token
- * verification path (wrapped around the routes as router middleware, since
- * `layerHttp` owns the handlers), the same `requirePermission` guard per
- * tool, the same `mcp` rate-limit bucket, and the same capability services
- * underneath.
- *
- * The server, its tools, and the overview resource are built once per isolate
- * as layers; what varies per caller travels with the request. The gate
- * middleware verifies the credential and publishes it as `CurrentMcpRequest`,
- * and Effect's RPC plumbing merges the request fiber's context into every
- * tool invocation — so a tool call resolves its caller's workspace and
- * nothing else, the same per-request scoping the old per-request server
- * closures gave.
- *
- * `GET /mcp/discovery` remains the REST discovery document served by the
- * contract group; it filters this module's registrations for the caller. (`GET
- * /mcp` itself is `layerHttp`'s: 405, no SSE stream to open.) The registered
- * tools project all supported workspace reads and mutations. ADR 0072 records
- * their authorization, typed input adapters, and side-effect annotations.
- *
- * Two credentials open the route (ADR 0068): a workspace API Token, or an
- * OAuth access token the web worker minted for a signed-in Member after the
- * consent page bound it to one workspace. `verifyMcpCredential` tells them
- * apart; from there the only difference is who a tool authorizes as — the
- * token's scopes, or the Member's role in the workspace, re-resolved from the
- * membership table on every call.
- */
+// Registrations live for the isolate; CurrentMcpRequest supplies each caller's
+// authority through the RPC context. Never capture a caller during registration.
 
 const MCP_SERVER_NAME = 'b2b-saas-starter-mcp'
 const OVERVIEW_RESOURCE_URI = 'workspace://overview'
@@ -144,6 +109,43 @@ export class CurrentMcpRequest extends Context.Service<
     readonly bearer: string | null
   }
 >()('@b2b-saas-starter/api/mcp/current-request') {}
+
+/** Streamable HTTP transport with request-scoped credential and rate-limit gates. */
+export function mcpProtocolLayer(
+  env: ApiEnv
+): Layer.Layer<
+  never,
+  never,
+  | HttpRouter.HttpRouter
+  | CapabilityReadServices
+  | CapabilityMutationServices
+  | McpClientConnections
+  | PlatformUserAdmin
+  | GateServices
+> {
+  const gate = HttpRouter.middleware<{ provides: CurrentMcpRequest }>()(
+    makeGate(env)
+  ).layer
+  return mcpLayerHttp({
+    name: MCP_SERVER_NAME,
+    version: '0.1.0',
+    protocols: [v2025_11_25],
+    path: '/mcp',
+    registrations: mcpRegistrations(env)
+    // oxlint-disable-next-line eslint/no-restricted-properties -- the protocol layer's only build failure is an empty protocol list, and the list here is a non-empty literal; there is no runtime condition this layer could truthfully report
+  }).pipe(Layer.orDie, Layer.provide(gate))
+}
+
+/** Catalog registrations shared by HTTP transport and protocol-level tests. */
+export function mcpRegistrations(env: ApiEnv) {
+  return Layer.effectDiscard(
+    Effect.gen(function* () {
+      yield* registerTools(env)
+      yield* registerMutationTools(env)
+      yield* registerOverviewResource(env)
+    })
+  ).pipe(Layer.provide(discoveryVisibility(env).layer))
+}
 
 /**
  * Every tool reads like its REST mirror: paged list tools take the same
@@ -892,41 +894,4 @@ function makeGate(
         Effect.provideService(OAuthTokenVerifier, verifier)
       )
   })
-}
-
-/** Catalog registrations shared by HTTP transport and protocol-level tests. */
-export function mcpRegistrations(env: ApiEnv) {
-  return Layer.effectDiscard(
-    Effect.gen(function* () {
-      yield* registerTools(env)
-      yield* registerMutationTools(env)
-      yield* registerOverviewResource(env)
-    })
-  ).pipe(Layer.provide(discoveryVisibility(env).layer))
-}
-
-/** Streamable HTTP transport with request-scoped credential and rate-limit gates. */
-export function mcpProtocolLayer(
-  env: ApiEnv
-): Layer.Layer<
-  never,
-  never,
-  | HttpRouter.HttpRouter
-  | CapabilityReadServices
-  | CapabilityMutationServices
-  | McpClientConnections
-  | PlatformUserAdmin
-  | GateServices
-> {
-  const gate = HttpRouter.middleware<{ provides: CurrentMcpRequest }>()(
-    makeGate(env)
-  ).layer
-  return mcpLayerHttp({
-    name: MCP_SERVER_NAME,
-    version: '0.1.0',
-    protocols: [v2025_11_25],
-    path: '/mcp',
-    registrations: mcpRegistrations(env)
-    // oxlint-disable-next-line eslint/no-restricted-properties -- the protocol layer's only build failure is an empty protocol list, and the list here is a non-empty literal; there is no runtime condition this layer could truthfully report
-  }).pipe(Layer.orDie, Layer.provide(gate))
 }

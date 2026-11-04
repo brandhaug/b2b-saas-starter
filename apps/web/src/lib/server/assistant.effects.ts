@@ -24,13 +24,6 @@ import {
   type AssistantRefused
 } from './assistant'
 
-/**
- * The assistant effects and their server-only wiring, reached only through
- * dynamic `import()` inside the handlers of `assistant.ts` (see
- * apps/web/AGENTS.md). `assistant.ts` holds the client-safe half and the
- * reason for the split.
- */
-
 const assistantPagePayload = workspacePage({ assistant: ['read'] }, () =>
   Effect.gen(function* () {
     const investigations = yield* whenPermitted(

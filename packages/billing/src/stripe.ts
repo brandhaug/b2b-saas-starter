@@ -6,15 +6,6 @@ import { billingLifecycleStatuses } from '@b2b-saas-starter/db/enums'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { billableSeatQuantity } from './plan-catalog.ts'
 
-/**
- * The Stripe provider adapter: the Effect HTTP client, the inbound event
- * policy, and the webhook signature verifier. `billing.ts` composes this into
- * the capability; the background worker imports the event policy and the
- * verifier directly for its raw `fetch` handler. Nothing here reaches for the
- * `Billing` service, so the entitlement gate in `plan-catalog.ts` stays
- * provider-free.
- */
-
 /** Unix seconds through year 9999, leaving safe arithmetic space for lifecycle deadlines. */
 export const StripeTimestamp = Schema.Int.check(
   Schema.isBetween({ minimum: 0, maximum: 253_402_300_799 })
@@ -35,7 +26,6 @@ const StripeSessionResponse = Schema.Struct({
 
 type StripeSessionResponse = Schema.Schema.Type<typeof StripeSessionResponse>
 
-// One compiled boundary decode: rebuilt once at module load, not per request.
 const decodeStripeSessionResponse = Schema.decodeUnknownResult(StripeSessionResponse)
 
 const StripePortalSessionResponse = Schema.Struct({
@@ -117,38 +107,7 @@ const decodeStripeJson = Schema.decodeUnknownResult(
   Schema.fromJsonString(Schema.Unknown)
 )
 
-/** The form-encoded body Stripe's checkout-session endpoint expects. */
-function stripeCheckoutBody(input: {
-  readonly priceId: string
-  readonly quantity: number
-  readonly workspaceId: string
-  readonly planId: string
-  readonly customerId?: string | undefined
-  readonly successUrl: string
-  readonly cancelUrl: string
-  readonly claimId?: string | undefined
-}): string {
-  const params = new URLSearchParams()
-  params.set('mode', 'subscription')
-  params.set('client_reference_id', input.workspaceId)
-  params.set('success_url', input.successUrl)
-  params.set('cancel_url', input.cancelUrl)
-  params.set('line_items[0][price]', input.priceId)
-  params.set('line_items[0][quantity]', String(input.quantity))
-  if (input.customerId !== undefined) {
-    params.set('customer', input.customerId)
-  }
-  params.set('metadata[workspaceId]', input.workspaceId)
-  params.set('metadata[planId]', input.planId)
-  if (input.claimId !== undefined) {
-    params.set('metadata[claimId]', input.claimId)
-  }
-  params.set('subscription_data[metadata][workspaceId]', input.workspaceId)
-  params.set('subscription_data[metadata][planId]', input.planId)
-  return params.toString()
-}
-
-/** Deadline for one outbound provider call (Stripe or siteverify). */
+/** Deadline for one outbound Stripe call. */
 const PROVIDER_TIMEOUT = '10 seconds'
 const STRIPE_API_VERSION = '2025-03-31.basil'
 
@@ -230,11 +189,6 @@ function stripeJson(response: StripeHttpResponse) {
   return Effect.succeed(decoded.success)
 }
 
-/**
- * A URL-bearing session reply (checkout and Billing Portal share the shape),
- * decoded by the caller through the one boundary codec. Fails
- * `CapabilityUnavailable` with the provider's own message when it carried one.
- */
 function stripeSessionUrl<T extends { readonly url?: string | undefined }>(
   decoded: Result.Result<T, unknown>,
   response: StripeHttpResponse
@@ -339,19 +293,15 @@ export const createStripeCheckoutSession = Effect.fn('Stripe.createCheckoutSessi
       input.idempotencyKey
     )
     const json = yield* stripeJson(response)
-    return yield* requireCheckoutUrl(
-      yield* stripeCheckoutSession(decodeStripeSessionResponse(json), response),
+    const session = yield* stripeCheckoutSession(
+      decodeStripeSessionResponse(json),
       response
     )
+    return yield* requireCheckoutUrl(session, response)
   }
 )
 
-/**
- * Creates a Stripe Billing Portal session for one customer: the hosted
- * surface where invoices, payment method, and cancellation are managed — the
- * starter deliberately owns none of those screens. Same transport, decode,
- * and failure contract as checkout; the reply shape is identical (`{ url }`).
- */
+/** Stripe hosts invoice, payment-method and cancellation management. */
 export const createStripeBillingPortalSession = Effect.fn(
   'Stripe.createBillingPortalSession'
 )(function* (input: {
@@ -377,12 +327,7 @@ export const createStripeBillingPortalSession = Effect.fn(
   return yield* stripeSessionUrl(decodeStripePortalSessionResponse(json), response)
 })
 
-/**
- * Sets one subscription item's quantity — the provider half of seat sync.
- * The reply is the updated SubscriptionItem object whose fields nothing here
- * reads, so only the status decides: non-2xx fails with the same typed
- * `CapabilityUnavailable` every Stripe call in this module fails with.
- */
+/** Seat sync needs only the response status, not the returned SubscriptionItem. */
 export const updateStripeSubscriptionItemQuantity = Effect.fn(
   'Stripe.updateSubscriptionItemQuantity'
 )(function* (input: {
@@ -893,3 +838,33 @@ export const readStripeObject = Effect.fn('Stripe.readObject')(function* <A>(
     path.split('?')[0] ?? path
   )
 })
+
+function stripeCheckoutBody(input: {
+  readonly priceId: string
+  readonly quantity: number
+  readonly workspaceId: string
+  readonly planId: string
+  readonly customerId?: string | undefined
+  readonly successUrl: string
+  readonly cancelUrl: string
+  readonly claimId?: string | undefined
+}): string {
+  const params = new URLSearchParams()
+  params.set('mode', 'subscription')
+  params.set('client_reference_id', input.workspaceId)
+  params.set('success_url', input.successUrl)
+  params.set('cancel_url', input.cancelUrl)
+  params.set('line_items[0][price]', input.priceId)
+  params.set('line_items[0][quantity]', String(input.quantity))
+  if (input.customerId !== undefined) {
+    params.set('customer', input.customerId)
+  }
+  params.set('metadata[workspaceId]', input.workspaceId)
+  params.set('metadata[planId]', input.planId)
+  if (input.claimId !== undefined) {
+    params.set('metadata[claimId]', input.claimId)
+  }
+  params.set('subscription_data[metadata][workspaceId]', input.workspaceId)
+  params.set('subscription_data[metadata][planId]', input.planId)
+  return params.toString()
+}

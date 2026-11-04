@@ -21,11 +21,6 @@ import {
 import { sessionCall } from './plugin-call'
 
 /**
- * The consent page's behaviour (ADR 0068): the capability reads below, and
- * the `…Handler` functions that add the session gate and the request-read
- * query — reached only through dynamic `import()` inside the handlers of
- * `mcp-consent.ts` (see apps/web/AGENTS.md for the split).
- *
  * Granting is three calls to the app's own OAuth provider, in an order the
  * plugin fixes: (1) `setActiveOrganization` writes the pick onto the session —
  * the plugin refuses a workspace the user is not a member of; (2)

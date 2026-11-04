@@ -67,7 +67,8 @@ export function SeedResourceEntitlements() {
       const service: ResourceEntitlementsInterface = {
         getSelectionForWorkspace,
         getSelection: Effect.fn('ResourceEntitlements.getSelection')(function* () {
-          return yield* getSelectionForWorkspace((yield* WorkspaceContext).workspace.id)
+          const ctx = yield* WorkspaceContext
+          return yield* getSelectionForWorkspace(ctx.workspace.id)
         }),
         select: Effect.fn('ResourceEntitlements.select')(function* (input) {
           const ctx = yield* WorkspaceContext
@@ -104,9 +105,11 @@ export function SeedResourceEntitlements() {
           return yield* getSelectionForWorkspace(ctx.workspace.id)
         }, lock.withPermits(1)),
         summarize: Effect.fn('ResourceEntitlements.summarize')(function* (input) {
+          const plan = yield* billing.currentPlan
+          const ctx = yield* WorkspaceContext
           return yield* summarizeWith(
-            yield* billing.currentPlan,
-            (yield* WorkspaceContext).workspace.id,
+            plan,
+            ctx.workspace.id,
             input.resource,
             yield* service.getSelection()
           )

@@ -25,14 +25,6 @@ import {
 } from './billing'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 
-/**
- * The billing payload assembly and the checkout wiring, reached only
- * through dynamic `import()` inside the handlers of `billing.ts`: handler
- * bodies are stripped from the client build, so this graph ships to the
- * server alone. `billing.ts` holds the client-safe half and the reason for
- * the split.
- */
-
 /** The billing route's loader effect. Hard-gated like the other pages. */
 const billingPayload: WorkspacePageFrame<WorkspaceBillingPayload> = workspacePage(
   { notification: ['read'] },
@@ -89,23 +81,19 @@ const billingPayload: WorkspacePageFrame<WorkspaceBillingPayload> = workspacePag
             lifecycle: segments.lifecycle,
             resourceSelection: segments.resourceSelection,
             apiTokens:
-              segments.apiTokens?.reduce<
-                Array<{ readonly id: string; readonly name: string }>
-              >((eligible, { id, name }) => {
-                if (apiTokenIds.has(id)) {
-                  eligible.push({ id, name })
+              segments.apiTokens?.flatMap(({ id, name }) => {
+                if (!apiTokenIds.has(id)) {
+                  return []
                 }
-                return eligible
-              }, []) ?? [],
+                return [{ id, name }]
+              }) ?? [],
             webhookEndpoints:
-              segments.webhookEndpoints?.reduce<
-                Array<{ readonly id: string; readonly url: string }>
-              >((eligible, { id, url }) => {
-                if (webhookEndpointIds.has(id)) {
-                  eligible.push({ id, url })
+              segments.webhookEndpoints?.flatMap(({ id, url }) => {
+                if (!webhookEndpointIds.has(id)) {
+                  return []
                 }
-                return eligible
-              }, []) ?? [],
+                return [{ id, url }]
+              }) ?? [],
             resourceEntitlements: {
               apiTokens: segments.apiTokenEntitlements,
               webhookEndpoints: segments.webhookEntitlements

@@ -44,10 +44,11 @@ export function seedOperatorDispatch(deliveries: Array<SeedDeliveryFixture>) {
         replayedFrom: input.plan.replayedFrom
       })
       if (input.auditEventType !== undefined) {
+        const ctx = yield* WorkspaceContext
         yield* audit.record({
           workspaceId: input.workspaceId,
-          actorUserId: (yield* WorkspaceContext).actor?.userId ?? null,
-          actorType: (yield* WorkspaceContext).actorType,
+          actorUserId: ctx.actor?.userId ?? null,
+          actorType: ctx.actorType,
           eventType: input.auditEventType,
           targetType: 'webhook_endpoint',
           targetId: input.plan.endpointId,

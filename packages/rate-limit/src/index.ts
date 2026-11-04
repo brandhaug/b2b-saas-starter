@@ -42,45 +42,6 @@ type BucketState = { count: number; resetAt: number }
 
 const fallbackStore = new Map<string, BucketState>()
 
-function takeFromFallback(
-  bucket: string,
-  key: string,
-  limit: number,
-  now: number
-): boolean {
-  // Sweep expired entries on the way in. The store lives for the isolate's
-  // lifetime, and under a sustained binding error every distinct key (per-IP
-  // cardinality) inserts one row — without a sweep the map grows with that
-  // cardinality until the isolate dies. One synchronous pass per take keeps
-  // it bounded; no timers.
-  for (const [id, state] of fallbackStore) {
-    if (state.resetAt < now) {
-      fallbackStore.delete(id)
-    }
-  }
-  const id = `${bucket}:${key}`
-  const existing = fallbackStore.get(id)
-  if (!existing || existing.resetAt < now) {
-    fallbackStore.set(id, { count: 1, resetAt: now + FALLBACK_WINDOW_MS })
-    return true
-  }
-  if (existing.count >= limit) {
-    return false
-  }
-  existing.count += 1
-  return true
-}
-
-/** Why the limiter degraded: the binding was never provisioned, or its call failed. */
-function fallbackReason(
-  binding: CloudflareRateLimit | undefined
-): 'binding_error' | 'missing_binding' {
-  if (binding === undefined) {
-    return 'missing_binding'
-  }
-  return 'binding_error'
-}
-
 export function makeRateLimiter<Bucket extends string>(
   config: RateLimiterConfig<Bucket>
 ): RateLimiterInterface<Bucket> {
@@ -99,8 +60,7 @@ export function makeRateLimiter<Bucket extends string>(
             })
           )
           if (Result.isSuccess(attempt)) {
-            const outcome = attempt.success
-            return outcome.success
+            return attempt.success.success
           }
           // Carry the binding's own failure reason onto the wide event before
           // degrading — the fallback must never hide why the binding failed.
@@ -148,4 +108,40 @@ export function clientKey(request: Request): string {
   // is the safe direction (no bypass) and it only happens where
   // `cf-connecting-ip` is missing, which in production is nowhere.
   return `unkeyed:${new URL(request.url).pathname}`
+}
+
+function takeFromFallback(
+  bucket: string,
+  key: string,
+  limit: number,
+  now: number
+): boolean {
+  // Without expiry, a sustained binding failure retains every distinct IP
+  // until the isolate dies. Sweep synchronously on each take; no timer survives
+  // independently of the request.
+  for (const [id, state] of fallbackStore) {
+    if (state.resetAt < now) {
+      fallbackStore.delete(id)
+    }
+  }
+  const id = `${bucket}:${key}`
+  const existing = fallbackStore.get(id)
+  if (!existing || existing.resetAt < now) {
+    fallbackStore.set(id, { count: 1, resetAt: now + FALLBACK_WINDOW_MS })
+    return true
+  }
+  if (existing.count >= limit) {
+    return false
+  }
+  existing.count += 1
+  return true
+}
+
+function fallbackReason(
+  binding: CloudflareRateLimit | undefined
+): 'binding_error' | 'missing_binding' {
+  if (binding === undefined) {
+    return 'missing_binding'
+  }
+  return 'binding_error'
 }

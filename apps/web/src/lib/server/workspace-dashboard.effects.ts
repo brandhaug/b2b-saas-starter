@@ -19,14 +19,6 @@ import {
 import { presentNotifications } from './notification-presentation'
 
 /**
- * The dashboard payload assembly and its server-only wiring, reached only
- * through dynamic `import()` inside the handler of
- * `loadWorkspaceDashboardServerFn` (`workspace-dashboard.ts`); see
- * apps/web/AGENTS.md. `workspace-dashboard.ts` holds the client-safe half
- * and the reason for the split.
- */
-
-/**
  * The checklist's developer-platform steps read the token and endpoint lists,
  * which the matrix withholds from a `member`. The projection cannot decide
  * that, so the loader does — the same decision `whenPermitted` makes for the

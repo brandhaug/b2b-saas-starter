@@ -6,15 +6,6 @@ import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
 import { type DismissInput } from './workspace-onboarding'
 
-/**
- * The onboarding dismissal effect and its server-only wiring, reached only
- * through dynamic `import()` inside the handler of
- * `dismissOnboardingChecklistServerFn` (`workspace-onboarding.ts`): handler
- * bodies are stripped from the client build, so this graph ships to the
- * server alone. `workspace-onboarding.ts` holds the client-safe half and the
- * reason for the split.
- */
-
 export async function dismissOnboardingChecklistHandler(
   input: DismissInput
 ): Promise<boolean> {

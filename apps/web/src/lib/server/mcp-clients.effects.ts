@@ -10,12 +10,6 @@ import { type RevokeInput } from './mcp-clients'
 import { makeSecurityEvidenceSink } from './security-evidence-sink'
 
 /**
- * The MCP-client connection effects and their server-only wiring, reached
- * only through dynamic `import()` inside the handlers of `mcp-clients.ts`
- * (see apps/web/AGENTS.md for the split).
- */
-
-/**
  * The account page's "Connected MCP clients" segment (ADR 0068). The handler
  * the loader server fn delegates to; the session keys the read. An
  * account-level read — no workspace layer — the consent names its

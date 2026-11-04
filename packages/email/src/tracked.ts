@@ -6,23 +6,6 @@ import {
 import { Effect } from 'effect'
 import { EmailDispatcher, type EmailMessage, type EmailSendError } from './index.ts'
 
-function failedOutcome(error: EmailSendError): SendOutcome {
-  switch (error.failureKind) {
-    case 'permanent': {
-      return { status: 'failed', reason: 'provider_rejected' }
-    }
-    case 'suppressed': {
-      return { status: 'suppressed', reason: 'provider_suppressed' }
-    }
-    case 'transient': {
-      return { status: 'temporary_failure', reason: 'transport_unavailable' }
-    }
-    case 'ambiguous': {
-      return { status: 'ambiguous', reason: 'timeout' }
-    }
-  }
-}
-
 /** Rendered content stays in this invocation; only the sanitized outcome persists. */
 export const dispatchTrackedEmail = Effect.fn('Email.dispatchTracked')(function* (
   input: ClaimEmail,
@@ -51,3 +34,20 @@ export const dispatchTrackedEmail = Effect.fn('Email.dispatchTracked')(function*
     }
   )
 })
+
+function failedOutcome(error: EmailSendError): SendOutcome {
+  switch (error.failureKind) {
+    case 'permanent': {
+      return { status: 'failed', reason: 'provider_rejected' }
+    }
+    case 'suppressed': {
+      return { status: 'suppressed', reason: 'provider_suppressed' }
+    }
+    case 'transient': {
+      return { status: 'temporary_failure', reason: 'transport_unavailable' }
+    }
+    case 'ambiguous': {
+      return { status: 'ambiguous', reason: 'timeout' }
+    }
+  }
+}

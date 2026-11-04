@@ -1,17 +1,4 @@
-/**
- * One reader for an unknown thrown value.
- *
- * Every `Effect.tryPromise`, `Effect.try` and `.catch` boundary in the repo
- * catches `unknown` and needs one sentence out of it. That probe was written
- * seven times — in the logger, the db batch, the email dispatcher, the rate
- * limiter, the assistant, two capability boundaries and the web app — each
- * copy carrying its own pair of lint suppressions. This package is the leaf
- * every one of them can depend on, so the suppressions live here alone (see
- * the single-file override in `lint.config.ts`).
- *
- * This entry point is a dependency-free string function. Typed Effect errors
- * live in the separate `./capability` entry point.
- */
+// Keep this entry point dependency-free; typed Effect errors live in ./capability.
 
 /**
  * The message an `Error` carries, or `undefined` for anything else —

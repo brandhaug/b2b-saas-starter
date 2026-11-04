@@ -274,7 +274,8 @@ const SeedGovernance = Layer.unwrap(
         if (!member || !workspace) {
           return null
         }
-        const state = yield* (yield* WorkspaceSuspensionService).get(workspace.id)
+        const suspensions = yield* WorkspaceSuspensionService
+        const state = yield* suspensions.get(workspace.id)
         const proof = {
           expiresAt: DateTime.toDate(DateTime.makeUnsafe(initializedAt + 43_200_000)),
           impersonatedBy: null,

@@ -95,7 +95,8 @@ describe('processEmailEventMessage', () => {
         const outcome = yield* processEmailEventMessage(delivery(event()), {
           CLOUDFLARE_EMAIL_FROM: from
         })
-        const record = yield* (yield* EmailDelivery).get('email_1')
+        const emails = yield* EmailDelivery
+        const record = yield* emails.get('email_1')
         expect(outcome).toBe('ack')
         expect(record?.status).toBe('delivered')
         expect(record?.lastEventId).toBe('evt_1')
@@ -162,7 +163,8 @@ describe('processEmailEventMessage', () => {
             options = { ...options, rejectionReason }
           }
           const body = event(options)
-          const claimed = yield* (yield* EmailDelivery).claim({
+          const emails = yield* EmailDelivery
+          const claimed = yield* emails.claim({
             id: `email_${type}`,
             purpose: 'notification',
             recipient,
@@ -173,7 +175,7 @@ describe('processEmailEventMessage', () => {
           if (claimed === null) {
             continue
           }
-          yield* (yield* EmailDelivery).recordOutcome(`email_${type}`, claimed.token, {
+          yield* emails.recordOutcome(`email_${type}`, claimed.token, {
             status: 'accepted',
             providerMessageId: `msg_${type}`
           })
@@ -181,9 +183,8 @@ describe('processEmailEventMessage', () => {
             CLOUDFLARE_EMAIL_FROM: from
           })
           expect(outcome).toBe('ack')
-          expect((yield* (yield* EmailDelivery).get(`email_${type}`))?.status).toBe(
-            status
-          )
+          const record = yield* emails.get(`email_${type}`)
+          expect(record?.status).toBe(status)
         }
       })
     )
@@ -216,7 +217,8 @@ describe('processEmailEventMessage', () => {
         const duplicate = yield* processEmailEventMessage(delivery(event(), 1), {
           CLOUDFLARE_EMAIL_FROM: from
         })
-        const record = yield* (yield* EmailDelivery).get('email_1')
+        const emails = yield* EmailDelivery
+        const record = yield* emails.get('email_1')
         expect(first).toBe('ack')
         expect(duplicate).toBe('ack')
         expect(record?.status).toBe('delivered')

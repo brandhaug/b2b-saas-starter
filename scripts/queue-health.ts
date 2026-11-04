@@ -27,22 +27,6 @@ type QueueObservation = {
   readonly healthy: boolean
 }
 
-/** Unknown age on a nonempty queue is not evidence that the queue is healthy. */
-export function queueIsHealthy(
-  count: number,
-  oldest: number,
-  deadLetter: boolean,
-  now: number
-): boolean {
-  if (!Number.isSafeInteger(count) || count < 0) {
-    return false
-  }
-  if (count === 0) {
-    return true
-  }
-  return !deadLetter && oldest > 0 && oldest <= now && now - oldest < 900_000
-}
-
 /** Read-only Cloudflare checks keep working when the application's consumers stop. */
 export async function inspectQueues(
   environment: Environment,
@@ -71,10 +55,7 @@ export async function inspectQueues(
       )
       const count = metrics.backlogCount
       const oldest = metrics.oldestMessageTimestampMs
-      let oldestAgeMs: number | null = null
-      if (oldest > 0 && oldest <= now) {
-        oldestAgeMs = now - oldest
-      }
+      const oldestAgeMs = oldest > 0 && oldest <= now ? now - oldest : null
       return {
         queue: target.name,
         queueId: target.id,
@@ -84,6 +65,22 @@ export async function inspectQueues(
       }
     })
   )
+}
+
+/** Unknown age on a nonempty queue is not evidence that the queue is healthy. */
+export function queueIsHealthy(
+  count: number,
+  oldest: number,
+  deadLetter: boolean,
+  now: number
+): boolean {
+  if (!Number.isSafeInteger(count) || count < 0) {
+    return false
+  }
+  if (count === 0) {
+    return true
+  }
+  return !deadLetter && oldest > 0 && oldest <= now && now - oldest < 900_000
 }
 
 if (import.meta.main) {

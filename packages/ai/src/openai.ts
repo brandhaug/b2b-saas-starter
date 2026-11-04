@@ -33,19 +33,6 @@ type ChatRequest = {
 
 const OpenAIFinishReason = Schema.Literals(['stop', 'length', 'content_filter'])
 
-/** Only OpenAI's `content_filter` differs from the response part's spelling. */
-function finishReason(
-  reason: typeof OpenAIFinishReason.Type | undefined
-): Response.FinishPartEncoded['reason'] {
-  if (reason === 'content_filter') {
-    return 'content-filter'
-  }
-  if (reason === undefined) {
-    return 'unknown'
-  }
-  return reason
-}
-
 const OpenAIChatResponse = Schema.Struct({
   choices: Schema.Array(
     Schema.Struct({
@@ -58,11 +45,6 @@ const OpenAIChatResponse = Schema.Struct({
 })
 
 const decodeOpenAIChatResponse = Schema.decodeUnknownOption(OpenAIChatResponse)
-
-/** One `AiError` for this adapter's `generateText` hook, with the module stamped. */
-function openAiError(reason: AiError.AiErrorReason) {
-  return AiError.make({ module: PROVIDER, method: 'generateText', reason })
-}
 
 export function makeOpenAIModel(config: OpenAIConfig) {
   const baseUrl = config.baseUrl ?? 'https://api.openai.com/v1'
@@ -222,4 +204,20 @@ export function makeOpenAIModel(config: OpenAIConfig) {
       })
     )
   )
+}
+
+function finishReason(
+  reason: typeof OpenAIFinishReason.Type | undefined
+): Response.FinishPartEncoded['reason'] {
+  if (reason === 'content_filter') {
+    return 'content-filter'
+  }
+  if (reason === undefined) {
+    return 'unknown'
+  }
+  return reason
+}
+
+function openAiError(reason: AiError.AiErrorReason) {
+  return AiError.make({ module: PROVIDER, method: 'generateText', reason })
 }

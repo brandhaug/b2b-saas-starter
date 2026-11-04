@@ -23,18 +23,6 @@ import {
 } from './workspace-members'
 
 /**
- * The members payload composition, the member effects and their server-only
- * wiring, reached only through dynamic `import()` inside the handlers of
- * `workspace-members.ts`: handler bodies are stripped from the client build,
- * so this graph ships to the server alone. `workspace-members.ts` holds the
- * client-safe half and the reason for the split.
- *
- * Each handler reads the session once, then proves the actor may act
- * (`member:update` / `member:delete`, declared → enforced inside the effect)
- * before handing the change to the membership capability.
- */
-
-/**
  * `notification:read` is the page's own read permission and a hard gate —
  * same shape as every page. A `member` holds it; only an actorless context
  * fails it.

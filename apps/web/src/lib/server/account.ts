@@ -5,15 +5,6 @@ import { Schema } from 'effect'
 import { type AccountPagePayload } from './account.effects'
 import { type NotificationPreferenceRow } from './notification-preferences'
 
-/**
- * The account page's server functions, in a **client-safe** module — the
- * client-safe half of the `account.effects.ts` split; see apps/web/AGENTS.md
- * for the rule and `scripts/assert-client-boundary.mjs` for the enforcement.
- * Each input is written once, as its Effect Schema: the validator is the
- * single strict decode, and the derived type types both the client stub and
- * the effects handler.
- */
-
 /** The composed `/account` loader payload: the plan plus the preference rows. */
 export type AccountPageData = AccountPagePayload & {
   readonly preferences: ReadonlyArray<NotificationPreferenceRow>

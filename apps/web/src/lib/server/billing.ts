@@ -15,15 +15,6 @@ import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
 
 /**
- * The billing server functions and the billing loader, in a **client-safe**
- * module — the client-safe half of the `billing.effects.ts` split; see
- * apps/web/AGENTS.md for the rule and `scripts/assert-client-boundary.mjs`
- * for the enforcement. Each input is written once, as its Effect Schema: the
- * validator is the single strict decode, and the derived types below type
- * both the client stub and the effects handlers.
- */
-
-/**
  * The billing page payload: the workspace's current plan, the catalog, and
  * whether checkout is actually wired. `stripeConfigured` comes from the
  * Billing capability itself — the one definition of "Stripe is configured",

@@ -589,15 +589,20 @@ export function SeedBilling(options?: {
           return yield* currentPlanForWorkspace(ctx.workspace.id)
         })(),
         lifecycleStatus: Effect.fn('Billing.lifecycleStatus')(function* () {
-          return yield* lifecycleForWorkspace((yield* WorkspaceContext).workspace.id)
+          const ctx = yield* WorkspaceContext
+          return yield* lifecycleForWorkspace(ctx.workspace.id)
         })(),
-        displayedPlans: Effect.forEach(PLANS, (plan) =>
-          Effect.succeed({
-            ...plan,
-            providerPrice: plan.price,
-            annualProviderPrice: plan.annualPrice
-          })
-        ),
+        displayedPlans: Effect.sync(() => {
+          const plans = []
+          for (const plan of PLANS) {
+            plans.push({
+              ...plan,
+              providerPrice: plan.price,
+              annualProviderPrice: plan.annualPrice
+            })
+          }
+          return plans
+        }),
         synchronizationStatus: Effect.fn('Billing.synchronizationStatus')(function* () {
           const ctx = yield* WorkspaceContext
           if (!(yield* Ref.get(subscriptions)).has(ctx.workspace.id) && !configured) {

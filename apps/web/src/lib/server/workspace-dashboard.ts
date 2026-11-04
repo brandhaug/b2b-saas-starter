@@ -11,18 +11,6 @@ import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
 
 /**
- * The dashboard loader, in a **client-safe** module — the client-safe half
- * of the `workspace-dashboard.effects.ts` split (see apps/web/AGENTS.md for
- * the rule and `assert-client-boundary.mjs` for the enforcement). Each input
- * is written once, as its Effect Schema: the validator is the single strict
- * decode, and the derived type types both the client stub and the effects
- * handler.
- *
- * The behaviour is tested as the plain loader function in the effects file
- * (`workspace-dashboard.test.ts`), driven directly with fixture actors.
- */
-
-/**
  * The dashboard payload, assembled per actor: the `workspaceDashboard`
  * projection (everything `notification:read` covers) plus the soft segments
  * the attention feed reads, each `null` for an actor without its permission,

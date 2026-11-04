@@ -8,6 +8,7 @@ import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-conte
 import { memberPrincipal } from '@b2b-saas-starter/authz/client'
 import { requirePermission } from '@b2b-saas-starter/authz/guard'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
+import { annotateWideEvent } from '@b2b-saas-starter/logger'
 import { Effect, Option, Result, Schema } from 'effect'
 import { HttpRouter, HttpServerResponse } from 'effect/http'
 
@@ -41,23 +42,6 @@ const DownloadQuery = Schema.Struct({
 const decodeQuery = Schema.decodeUnknownResult(DownloadQuery)
 
 const notFound = HttpServerResponse.empty({ status: 404 })
-
-/**
- * A guard failure as a plain response on this non-contract route: status and
- * body both come from the contract's own error annotations
- * (`guardFailureResponse`), so the refusal reads exactly like the same
- * failure on a REST route — the same thing `POST /mcp` does. Only the gzip
- * response and the 404s above are this route's own shape.
- */
-function guardResponse(
-  error: RateLimited | CapabilityUnavailable
-): HttpServerResponse.HttpServerResponse {
-  const { status, body } = guardFailureResponse(error)
-  return HttpServerResponse.jsonUnsafe(body, {
-    status,
-    contentType: 'application/problem+json'
-  })
-}
 
 export function exportDownloadLayer(env: ApiEnv) {
   return HttpRouter.add('GET', '/exports/:exportId/download', (request) =>
@@ -150,4 +134,13 @@ export function exportDownloadLayer(env: ApiEnv) {
     )
   )
 }
-import { annotateWideEvent } from '@b2b-saas-starter/logger'
+
+function guardResponse(
+  error: RateLimited | CapabilityUnavailable
+): HttpServerResponse.HttpServerResponse {
+  const { status, body } = guardFailureResponse(error)
+  return HttpServerResponse.jsonUnsafe(body, {
+    status,
+    contentType: 'application/problem+json'
+  })
+}

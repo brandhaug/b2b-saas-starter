@@ -367,7 +367,8 @@ it.effect(
         taskId: task.id,
         sourceId: 'whd_seed_dead_lettered'
       })
-      const policy = yield* (yield* AssistantDirectory).get(host.row.id)
+      const directory = yield* AssistantDirectory
+      const policy = yield* directory.get(host.row.id)
       expect(policy?.requiredPermissions).toContain('webhook:list')
       expect(policy?.policyRevision).toBeGreaterThan(0)
       yield* host.store.ledger.update({
