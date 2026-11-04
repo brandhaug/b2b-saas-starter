@@ -23,7 +23,10 @@ for the current task; optional design guidance may fall back as documented there
    comments, test titles, filenames, and other tracked implementation content;
    never embed issue numbers or AC IDs there. Preserve legitimate external
    dependency references and unrelated numeric values. Map criteria to test
-   evidence in the PR. Use `grilling` for unresolved product decisions and
+   evidence in the PR. Apply [feature acceptance](../../../CONTRIBUTING.md#feature-acceptance)
+   when defining criteria and selecting verification; inspect existing callers,
+   operation catalog and capability contracts before deciding applicability.
+   Use `grilling` for unresolved product decisions and
    `to-tickets` for independently verifiable slices.
 2. Implement in the main session by default. The session already holds the issue,
    the grilling, and the plan; a worker briefed from a summary loses that context
@@ -69,7 +72,9 @@ for the current task; optional design guidance may fall back as documented there
 4. Finish related implementation, tests and docs before dispatching review. Run
    the affected format/lint/type checks and required focused tests first; fix
    actionable failures and save a compact summary with commands, revision, results
-   and log paths. Reuse results only while inputs, tool versions and environment
+   and log paths. Map applicable entry points and supported recovery/denial cases
+   to that evidence; preserve exclusions and unverified paths for the PR.
+   Reuse results only while inputs, tool versions and environment
    match. Preserve blockers as unverified work. Docs and mechanical edits get one
    targeted reviewer. For behavior changes, use
    `code-review` against a fixed base/head and the agreed spec, with its separate
