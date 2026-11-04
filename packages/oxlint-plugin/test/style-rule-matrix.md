@@ -13,7 +13,10 @@ covers those gaps without duplicating its Promise diagnostics.
 The starter fixtures cover all eight sync/fork/callback entrypoints, imported
 aliases, static computed members, named subpath imports, root namespaces and
 `ManagedRuntime.make`. Shadowed imports, unrelated objects, type-only imports
-and `Effect.forkScoped` stay quiet. Both rules are syntax-only; local namespace
+and `Effect.forkScoped` stay quiet. Non-Promise methods on receivers named
+`runtime` or ending in `Runtime`, including instance properties, are also checked.
+This naming convention is a heuristic; unrelated receivers stay quiet.
+Both rules are syntax-only; local namespace
 aliases, re-exports, dynamic property names and runtime values under arbitrary
 names are review limitations. The installed Promise rule also misses named
 runner imports from `effect/Effect` and root namespace member chains; use the
@@ -24,7 +27,9 @@ Root configuration enables the checks in application/package source. Named
 HTTP/SDK/React adapters, existing runtime owners and synchronous CSPRNG adapters
 have reasoned exceptions. CLI/infra entrypoints and test/setup adapters own
 execution outside this production policy. Test Promise interop remains subject
-to `starter/no-run-promise-in-tests`. See
+to `starter/no-run-promise-in-tests` for both `.test` and `.spec` modules.
+Playwright and the named D1/SDK setup adapters use their external runners.
+Root-policy fixtures verify both restrictions and justified interop. See
 [execution ownership](../../../docs/agents/code-conventions.md#execution-ownership).
 
 ## Failure and false-positive matrix

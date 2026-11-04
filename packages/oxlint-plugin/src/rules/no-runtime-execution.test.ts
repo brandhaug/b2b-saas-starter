@@ -45,6 +45,11 @@ describe('runtime execution placement', () => {
     'rejects named managed constructor imports',
     `import { make } from 'effect/ManagedRuntime'; make(layer)`
   )
+  for (const runner of ['runSync', 'runSyncExit', 'runFork', 'runCallback']) {
+    invalid(`rejects application runtime ${runner}`, `webRuntime.${runner}(program)`)
+    invalid(`rejects instance runtime ${runner}`, `this.runtime.${runner}(program)`)
+  }
+  valid('allows unrelated runner methods', `scheduler.runSync(task)`)
   valid(
     'leaves promises to the existing Effect rule',
     `import { Effect } from 'effect'; Effect.runPromise(program)`

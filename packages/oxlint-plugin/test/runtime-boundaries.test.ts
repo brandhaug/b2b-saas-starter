@@ -45,4 +45,39 @@ describe('root runtime boundary policy', () => {
       valid(`${rule} allows ${filename}`, call, { filename })
     }
   }
+
+  const rule = 'starter/no-run-promise-in-tests'
+  const overrides = (lintConfig.overrides ?? []).flatMap((override) => {
+    const severity = override.rules?.[rule]
+    if (severity !== 'off' && severity !== 'error') {
+      return []
+    }
+    return [{ files: override.files, rules: { [rule]: severity } }]
+  })
+  const { valid, invalid } = createRuleHarness(rule, {}, overrides)
+  const call = `import { Effect } from 'effect'; Effect.runPromise(program)`
+  for (const filename of [
+    'packages/capabilities/src/operation.test.ts',
+    'packages/capabilities/src/operation.spec.ts',
+    'apps/web/src/component.spec.tsx'
+  ]) {
+    invalid(
+      `requires test-runner interop justification in ${filename}`,
+      call,
+      undefined,
+      { filename }
+    )
+    valid(
+      `allows justified interop in ${filename}`,
+      `import { Effect } from 'effect';\n// oxlint-disable-next-line starter/no-run-promise-in-tests -- native callback port under test owns execution\nEffect.runPromise(program)`,
+      { filename }
+    )
+  }
+  for (const filename of [
+    'apps/web/e2e/audit-inspection.spec.ts',
+    'packages/capabilities/src/testing/live-harness.ts',
+    'packages/db/src/testing.ts'
+  ]) {
+    valid(`allows explicit external runner adapter ${filename}`, call, { filename })
+  }
 })

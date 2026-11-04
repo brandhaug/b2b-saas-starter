@@ -62,6 +62,11 @@ export default defineRule({
         }
         if (path !== undefined && isExecution(`${path}/${memberName(node)}`)) {
           report(node)
+          return
+        }
+        const method = memberName(node)
+        if (method !== undefined && runners.has(method) && isRuntimeReceiver(object)) {
+          report(node)
         }
       }
     }
@@ -74,6 +79,18 @@ export default defineRule({
     }
   }
 })
+
+// Match the same explicit receiver naming convention as effect/noRunPromise.
+// This is syntax, not proof of a ManagedRuntime type.
+function isRuntimeReceiver(node: ESTree.Node): boolean {
+  let name: string | undefined
+  if (node.type === 'Identifier') {
+    name = node.name
+  } else if (node.type === 'MemberExpression') {
+    name = memberName(node)
+  }
+  return name !== undefined && (name === 'runtime' || name.endsWith('Runtime'))
+}
 
 function memberName(node: ESTree.MemberExpression): string | undefined {
   if (node.computed) {

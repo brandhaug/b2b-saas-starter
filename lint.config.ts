@@ -674,8 +674,8 @@ const { lint = {} } = defineConfig({
           '**/*.test.{ts,tsx}',
           '**/*.spec.{ts,tsx}',
           '**/test/**',
-          '**/testing/**',
           '**/vitest.setup.ts',
+          'packages/capabilities/src/testing/live-harness.ts',
           'packages/db/src/testing.ts',
           'packages/ai/src/test-ask.ts'
         ],
@@ -741,6 +741,10 @@ const { lint = {} } = defineConfig({
         rules: {
           'react/only-export-components': 'off'
         }
+      },
+      {
+        files: ['**/*.spec.{ts,tsx}'],
+        rules: { 'starter/no-run-promise-in-tests': 'error' }
       },
       {
         files: ['**/test/**', '**/*.test.ts', '**/*.test.tsx', '**/vitest.setup.ts'],
@@ -812,6 +816,12 @@ const { lint = {} } = defineConfig({
           '@typescript-eslint/no-non-null-assertion': 'off'
         },
         plugins: ['typescript', 'vitest', 'react']
+      },
+      {
+        // Playwright runs outside @effect/vitest; these probes bridge browser
+        // actions and native Worker callbacks rather than Effect-native tests.
+        files: ['apps/web/e2e/**'],
+        rules: { 'starter/no-run-promise-in-tests': 'off' }
       },
       {
         files: [
