@@ -65,7 +65,7 @@ export function SeedApiTokenRegistry(
           const plaintext = seedApiTokenValue(token)
           return {
             token,
-            tokenHash: yield* Effect.promise(() => hashSha256(plaintext)),
+            tokenHash: yield* hashSha256(plaintext),
             workspaceId: seedWorkspaceRecord.id,
             workspaceSlug: seedWorkspaceRecord.slug,
             revokedAt: null
@@ -151,7 +151,7 @@ export function SeedApiTokenRegistry(
             expiresAt: valid.expiresAt ?? null,
             replacedByTokenId: null
           }
-          const tokenHash = yield* Effect.promise(() => hashSha256(token))
+          const tokenHash = yield* hashSha256(token)
           yield* audit.record({
             workspaceId: ctx.workspace.id,
             actorUserId: ctx.actor?.userId ?? null,
@@ -207,7 +207,7 @@ export function SeedApiTokenRegistry(
             createdAt: DateTime.formatIso(now),
             replacedByTokenId: null
           }
-          const tokenHash = yield* Effect.promise(() => hashSha256(token))
+          const tokenHash = yield* hashSha256(token)
           yield* audit.record({
             workspaceId: ctx.workspace.id,
             actorUserId: ctx.actor?.userId ?? null,
@@ -284,7 +284,7 @@ export function SeedApiTokenRegistry(
         }, mutation),
         verifyBearerToken: Effect.fn('ApiTokenRegistry.verifyBearerToken')(
           function* (token) {
-            const tokenHash = yield* Effect.promise(() => hashSha256(token))
+            const tokenHash = yield* hashSha256(token)
             const entry = store.find(
               (candidate) =>
                 candidate.tokenHash === tokenHash && candidate.revokedAt === null

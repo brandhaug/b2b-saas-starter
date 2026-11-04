@@ -1,4 +1,4 @@
-import { DateTime, Effect, Schema } from 'effect'
+import { Cause, DateTime, Effect, Schema } from 'effect'
 import { AssistantCredentialReference } from '@b2b-saas-starter/authz/assistant-access-token'
 import { PreparedConversationPrompt } from '@b2b-saas-starter/ai/conversation-context'
 import { AssistantAdmission } from '../assistant/admission.ts'
@@ -79,8 +79,10 @@ export const acceptConversationAnswer = Effect.fn('AssistantConversation.accept'
       operation: 'write',
       mode: 'observe'
     })
-    const hash = yield* Effect.tryPromise(() =>
-      hashSha256(canonicalConversationOperation(operation))
+    // The host maps digest failures through the admission error channel, as it
+    // did when this operation crossed a Promise boundary.
+    const hash = yield* hashSha256(canonicalConversationOperation(operation)).pipe(
+      Effect.catchDefect((cause) => Effect.fail(new Cause.UnknownError(cause)))
     )
     const latest = yield* ledger.latestAttempt()
     let retry: Parameters<typeof admitConversationOperation>[0]['retry']

@@ -2,16 +2,14 @@ import { Effect, Layer } from 'effect'
 import { Digest, Mac, SecureRandom } from 'effect/crypto'
 import { Base64, Hex } from 'effect/encoding'
 
-// This adapter owns platform selection. Callers retain their Promise/synchronous
-// interfaces and map rejected operations to their existing domain failures.
+// This adapter owns platform selection. Effect callers retain their context;
+// only the synchronous credential API below bridges to the platform runtime.
 const macLayer = Mac.layerWebCrypto.pipe(Layer.provide(SecureRandom.layerWebCrypto))
 
-export function hashSha256(value: string): Promise<string> {
-  return Effect.runPromise(
-    Digest.Digest.use((digest) =>
-      digest.digestHex(Digest.sha256, new TextEncoder().encode(value))
-    ).pipe(Effect.provide(Digest.layerWebCrypto))
-  )
+export function hashSha256(value: string) {
+  return Digest.Digest.use((digest) =>
+    digest.digestHex(Digest.sha256, new TextEncoder().encode(value))
+  ).pipe(Effect.provide(Digest.layerWebCrypto))
 }
 
 const sign = Effect.fn('Crypto.sign')(function* (secret: Uint8Array, payload: string) {
@@ -20,12 +18,10 @@ const sign = Effect.fn('Crypto.sign')(function* (secret: Uint8Array, payload: st
   return yield* mac.sign(key, new TextEncoder().encode(payload))
 })
 
-export function hmacSha256Hex(secret: string, payload: string): Promise<string> {
-  return Effect.runPromise(
-    sign(new TextEncoder().encode(secret), payload).pipe(
-      Effect.map(Hex.encode),
-      Effect.provide(macLayer)
-    )
+export function hmacSha256Hex(secret: string, payload: string) {
+  return sign(new TextEncoder().encode(secret), payload).pipe(
+    Effect.map(Hex.encode),
+    Effect.provide(macLayer)
   )
 }
 

@@ -168,7 +168,7 @@ function resolveHashes(fixture: Fixture) {
     demoPassword: Effect.promise(() => hashPassword(DEMO_USER_PASSWORD)),
     // `hashSha256` is the registry's own hashing scheme.
     tokens: Effect.forEach(fixture.tokens, (token) =>
-      Effect.promise(() => hashSha256(seedApiTokenValue(token)))
+      hashSha256(seedApiTokenValue(token))
     )
   })
 }

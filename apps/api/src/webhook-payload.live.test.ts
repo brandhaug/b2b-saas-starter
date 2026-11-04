@@ -27,7 +27,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         Effect.gen(function* () {
           const DB = yield* TestD1
           const token = 'bsk_payload_bounds'
-          const hash = yield* Effect.promise(() => hashSha256(token))
+          const hash = yield* hashSha256(token)
           yield* Effect.promise(() =>
             DB.prepare(
               `INSERT INTO api_tokens (id,workspace_id,name,token_prefix,token_hash,scopes,created_at) VALUES ('tok_payload_bounds','wrk_dev_contract','Payload bounds','bsk_test',?,'["admin"]','2026-01-01T00:00:00Z')`

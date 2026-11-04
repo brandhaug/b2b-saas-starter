@@ -39,8 +39,17 @@ type CaseOptions = {
   readonly filename?: string
 }
 
+type Override = {
+  readonly files: ReadonlyArray<string>
+  readonly rules: Readonly<Record<string, 'off' | 'error'>>
+}
+
 /** `ruleId` is the fully qualified id from lint.config.ts. */
-export function createRuleHarness(ruleId: string, defaults: CaseOptions = {}) {
+export function createRuleHarness(
+  ruleId: string,
+  defaults: CaseOptions = {},
+  overrides?: ReadonlyArray<Override>
+) {
   const cases: Array<Case> = []
   let outcome: ReadonlyMap<string, ReadonlyArray<string>> | undefined
 
@@ -77,7 +86,7 @@ export function createRuleHarness(ruleId: string, defaults: CaseOptions = {}) {
     })
 
     it(name, () => {
-      outcome ??= messagesByCase(ruleId, cases)
+      outcome ??= messagesByCase(ruleId, cases, overrides)
       check(outcome.get(directory) ?? [])
     })
   }
@@ -85,9 +94,18 @@ export function createRuleHarness(ruleId: string, defaults: CaseOptions = {}) {
 
 function messagesByCase(
   ruleId: string,
-  cases: ReadonlyArray<Case>
+  cases: ReadonlyArray<Case>,
+  overrides?: ReadonlyArray<Override>
 ): ReadonlyMap<string, ReadonlyArray<string>> {
   const [pluginName, ruleName] = ruleId.split('/')
+  let pluginEntry = PLUGIN_ENTRY
+  if (pluginName === 'effect') {
+    pluginEntry = fileURLToPath(import.meta.resolve('oxlint-plugin-effect/plugin'))
+  }
+  const rules: Record<string, 'error'> = {}
+  if (overrides === undefined) {
+    rules[ruleId] = 'error'
+  }
   const root = mkdtempSync(join(tmpdir(), 'starter-oxlint-'))
   try {
     writeFileSync(
@@ -98,13 +116,19 @@ function messagesByCase(
         // Without this, built-in rules report unused fixture variables alongside
         // the rule under test.
         categories: { correctness: 'off' },
-        jsPlugins: [{ name: pluginName, specifier: PLUGIN_ENTRY }],
-        rules: { [ruleId]: 'error' }
+        jsPlugins: [{ name: pluginName, specifier: pluginEntry }],
+        rules,
+        overrides: overrides?.map((override) => ({
+          ...override,
+          files: override.files.map((file) => `case-*/${file}`)
+        }))
       })
     )
 
     for (const testCase of cases) {
-      mkdirSync(join(root, testCase.directory), { recursive: true })
+      mkdirSync(dirname(join(root, testCase.directory, testCase.filename)), {
+        recursive: true
+      })
       writeFileSync(join(root, testCase.directory, testCase.filename), testCase.code)
     }
 

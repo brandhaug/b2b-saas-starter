@@ -48,7 +48,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               '["read"]'
             ]
           ] satisfies ReadonlyArray<readonly [string, string, string, string]>) {
-            const hash = yield* Effect.promise(() => hashSha256(token))
+            const hash = yield* hashSha256(token)
             yield* Effect.promise(() =>
               DB.prepare(
                 `INSERT INTO api_tokens (id,workspace_id,name,token_prefix,token_hash,scopes,created_at) VALUES (?, ?, 'Isolation', 'bsk_test', ?, ?, '2026-01-01T00:00:00Z')`

@@ -152,7 +152,7 @@ export function LiveApiTokenRegistry(
             workspaceId: ctx.workspace.id,
             name: valid.name,
             tokenPrefix: token.slice(0, 17),
-            tokenHash: yield* Effect.promise(() => hashSha256(token)),
+            tokenHash: yield* hashSha256(token),
             scopes: valid.scopes,
             expiresAt: valid.expiresAt ?? null,
             replacedByTokenId: null,
@@ -243,7 +243,7 @@ export function LiveApiTokenRegistry(
             workspaceId: ctx.workspace.id,
             name: source.name,
             tokenPrefix: token.slice(0, 17),
-            tokenHash: yield* Effect.promise(() => hashSha256(token)),
+            tokenHash: yield* hashSha256(token),
             scopes: plan.scopes,
             expiresAt: plan.expiresAt,
             replacedByTokenId: null,
@@ -366,7 +366,7 @@ export function LiveApiTokenRegistry(
           }),
         verifyBearerToken: (token) =>
           Effect.gen(function* () {
-            const tokenHash = yield* Effect.promise(() => hashSha256(token))
+            const tokenHash = yield* hashSha256(token)
             const row = yield* unavailable(
               db
                 .select({ token: apiTokens, workspace: workspaces })
