@@ -73,13 +73,13 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('MCP live boundaries', (it)
           TOKEN_INSERT,
           ApiTokenId.make('tok_live_own'),
           'wrk_live',
-          yield* Effect.promise(() => hashSha256(own))
+          yield* hashSha256(own)
         )
         yield* execute(
           TOKEN_INSERT,
           ApiTokenId.make('tok_live_foreign'),
           'wrk_other',
-          yield* Effect.promise(() => hashSha256(foreign))
+          yield* hashSha256(foreign)
         )
         const { handler } = buildWebHandler({ DB, ...rateBindings })
         const client = mcpClient(handler, `Bearer ${own}`)
@@ -142,7 +142,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('MCP live boundaries', (it)
           TOKEN_INSERT,
           ApiTokenId.make('tok_queue_test'),
           'wrk_dev_contract',
-          yield* Effect.promise(() => hashSha256(SEED_API_TOKEN))
+          yield* hashSha256(SEED_API_TOKEN)
         )
         const missing = mcpClient(
           buildWebHandler({ DB, ...rateBindings }).handler,
@@ -320,7 +320,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('MCP live boundaries', (it)
           TOKEN_INSERT,
           ApiTokenId.make('tok_exports_live'),
           'wrk_dev_contract',
-          yield* Effect.promise(() => hashSha256(token))
+          yield* hashSha256(token)
         )
         const client = mcpClient(
           buildWebHandler({ DB, ...rateBindings }).handler,

@@ -43,6 +43,40 @@ constraints; these conventions guide readability within those constraints.
   lifetime and concurrency rules rather than replacing them with generic recovery.
   See [Effect examples](effect-examples.md) and the relevant package intent node.
 
+### Execution ownership
+
+Services, repositories and their constructors return or compose Effects. Do not
+call `Effect.runPromise*`, `runSync*`, `runFork*`, `runCallback*`, runtime runner
+methods or `ManagedRuntime.make` there. `yield*`, `Effect.forkScoped` and Stream
+operations returning Effects compose work; they do not cross this boundary.
+
+Execution belongs in named React lifecycle callbacks, HTTP/Worker adapters,
+CLI entrypoints and SDK callback adapters. Framework conversions such as
+`HttpRouter.toWebHandler` belong at the same boundary. An imperative adapter must
+not hide an Effect service behind a Promise that another service immediately
+wraps back into Effect. Return the Effect directly in that case.
+
+Compose a shared resource once in its application-owned Layer and lifetime.
+Consumers use that environment rather than creating feature-specific runtimes.
+The web request logger, Better Auth integration, background invocation runtime
+and per-Durable-Object conversation host have distinct owners and lifetimes.
+Browser hooks own their scopes, cancellation and cleanup; keep those scopes local
+to the React lifecycle rather than moving them into server runtimes.
+
+`lint.config.ts` names approved execution files with reasons. The assistant
+Cloudflare binding and scoped Seed host implement imperative host ports; the
+synchronous crypto adapters preserve the credential/ID platform API. Test and
+setup adapters can execute at runner boundaries, but Effect-native tests still
+use `it.effect`/`it.live`; `starter/no-run-promise-in-tests` retains its separate
+interop policy. A new exemption must identify the external caller and lifetime
+owner, not merely name the file `runtime.ts` or `adapter.ts`.
+
+`effect/noRunPromise` enforces Promise edges and
+`starter/no-runtime-execution` covers the other imported execution APIs and
+managed construction. These syntax checks cannot prove resource sharing or
+follow arbitrary aliases/re-exports; ownership and indirect execution still
+require review. The rule fixtures document the matching limits.
+
 ### Operation tracing
 
 Use named `Effect.fn('Service.operation')` for reusable service operations and I/O.

@@ -1,5 +1,5 @@
 import { it } from '@effect/vitest'
-import { Effect } from 'effect'
+import { Effect, Exit } from 'effect'
 import { describe, expect, vi } from 'vite-plus/test'
 
 import { hashSha256, hmacSha256Hex, randomWebhookSecret } from './crypto'
@@ -9,13 +9,13 @@ import { hashSha256, hmacSha256Hex, randomWebhookSecret } from './crypto'
 describe('crypto wire compatibility', () => {
   it.effect('keeps SHA-256 fixtures, including UTF-8 and empty input', () =>
     Effect.gen(function* () {
-      expect(yield* Effect.promise(() => hashSha256('abc'))).toBe(
+      expect(yield* hashSha256('abc')).toBe(
         'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'
       )
-      expect(yield* Effect.promise(() => hashSha256(''))).toBe(
+      expect(yield* hashSha256('')).toBe(
         'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
       )
-      expect(yield* Effect.promise(() => hashSha256('雪'))).toBe(
+      expect(yield* hashSha256('雪')).toBe(
         '53058fe2e03c00d93c4ba9361889dd7569d7d7b9674ed172266ee66265208cc6'
       )
     })
@@ -23,18 +23,16 @@ describe('crypto wire compatibility', () => {
 
   it.effect('keeps RFC 4231 HMAC bytes in hex', () =>
     Effect.gen(function* () {
-      expect(
-        yield* Effect.promise(() =>
-          hmacSha256Hex('Jefe', 'what do ya want for nothing?')
-        )
-      ).toBe('5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843')
+      expect(yield* hmacSha256Hex('Jefe', 'what do ya want for nothing?')).toBe(
+        '5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843'
+      )
     })
   )
 
   it.effect('rejects empty HMAC keys', () =>
     Effect.gen(function* () {
-      yield* Effect.promise(() =>
-        expect(hmacSha256Hex('', 'payload')).rejects.toBeDefined()
+      expect(Exit.isFailure(yield* Effect.exit(hmacSha256Hex('', 'payload')))).toBe(
+        true
       )
     })
   )
@@ -43,9 +41,9 @@ describe('crypto wire compatibility', () => {
     Effect.gen(function* () {
       vi.spyOn(crypto.subtle, 'digest').mockRejectedValue(new Error('digest refused'))
       vi.spyOn(crypto.subtle, 'sign').mockRejectedValue(new Error('sign refused'))
-      yield* Effect.promise(() => expect(hashSha256('abc')).rejects.toBeDefined())
-      yield* Effect.promise(() =>
-        expect(hmacSha256Hex('key', 'payload')).rejects.toBeDefined()
+      expect(Exit.isFailure(yield* Effect.exit(hashSha256('abc')))).toBe(true)
+      expect(Exit.isFailure(yield* Effect.exit(hmacSha256Hex('key', 'payload')))).toBe(
+        true
       )
     }).pipe(Effect.ensuring(Effect.sync(() => vi.restoreAllMocks())))
   )

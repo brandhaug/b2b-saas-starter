@@ -685,7 +685,7 @@ index 00000000..d41a6496
 +            )
 +            .run()
 +        )
-+        const hash = yield* Effect.promise(() => hashSha256('notes-test-secret'))
++        const hash = yield* hashSha256('notes-test-secret')
 +        yield* Effect.promise(() =>
 +          database.d1
 +            .prepare(

@@ -13,8 +13,8 @@ import { getPropertyName, isIdentifier, unwrapExpression } from '../internal/ast
  *
  * Deliberately only the promise runners: `runFork`/`runSync` have test uses a
  * blanket ban would misjudge. Path gating lives in the root `lint.config.ts`
- * test override — outside test files `Effect.runPromise` is the correct way to
- * bridge into callback and promise code. Genuine interop sites inside tests
+ * test override. Production execution is restricted separately to named host
+ * boundaries in lint.config.ts. Genuine interop sites inside tests
  * (a runner port a non-Effect framework calls) keep an `oxlint-disable` with
  * the reason.
  *

@@ -618,6 +618,73 @@ const { lint = {} } = defineConfig({
     },
     overrides: [
       {
+        // Application and package source compose Effects by default. CLI/infra
+        // entrypoints live outside this scope and own their process execution.
+        files: ['apps/*/src/**/*.{ts,tsx}', 'packages/*/src/**/*.{ts,tsx}'],
+        rules: {
+          'effect/noRunPromise': 'error',
+          'starter/no-runtime-execution': 'error'
+        }
+      },
+      {
+        // HTTP/framework adapters execute work on the application-owned runtime.
+        // These exemptions allow Promise edges, not new ManagedRuntime owners.
+        files: [
+          'apps/web/src/start.ts',
+          'apps/web/src/lib/capabilities.ts',
+          'apps/web/src/lib/server/{oauth-discovery,two-factor-sign-in-gate,env-gate,workspace-sso.effects,auth-http,auth-session-read,plugin-call,admin.effects}.ts',
+          'apps/web/src/lib/server/auth-audit/target.ts',
+          // Cloudflare Promise binding ports and the scoped Seed host implementing
+          // the same interface. Their callers supply the owning environment/scope.
+          'packages/capabilities/src/developer-platform/assistant-conversation-transport.ts',
+          'packages/capabilities/src/developer-platform/assistant-conversations.seed.ts'
+        ],
+        rules: { 'effect/noRunPromise': 'off' }
+      },
+      {
+        // Existing lifetime owners: request logging, Better Auth/DB, background
+        // invocations, and each Durable Object's conversation host respectively.
+        files: [
+          'apps/web/src/lib/observability.ts',
+          'apps/web/src/lib/auth-runtime.ts',
+          'apps/background/src/queue-consumer.ts',
+          'apps/web/src/lib/assistant/conversation-host.ts',
+          // React lifecycle adapters own cancellation and close browser scopes.
+          'apps/web/src/hooks/use-assistant-conversation.ts',
+          'apps/web/src/components/auth/auth-request.ts'
+        ],
+        rules: {
+          'effect/noRunPromise': 'off',
+          'starter/no-runtime-execution': 'off'
+        }
+      },
+      {
+        // Synchronous platform CSPRNG adapters preserve the credential/ID API.
+        // Async digest/sign operations in capabilities still compose Effects.
+        files: [
+          'packages/failure/src/crypto.ts',
+          'packages/capabilities/src/crypto.ts'
+        ],
+        rules: { 'starter/no-runtime-execution': 'off' }
+      },
+      {
+        // Test runners and setup ports own their execution. The existing
+        // no-run-promise-in-tests rule below still requires explicit test interop.
+        files: [
+          '**/*.test.{ts,tsx}',
+          '**/*.spec.{ts,tsx}',
+          '**/test/**',
+          '**/vitest.setup.ts',
+          'packages/capabilities/src/testing/live-harness.ts',
+          'packages/db/src/testing.ts',
+          'packages/ai/src/test-ask.ts'
+        ],
+        rules: {
+          'effect/noRunPromise': 'off',
+          'starter/no-runtime-execution': 'off'
+        }
+      },
+      {
         // Application operation tracing. Deployment/build scripts own their
         // orchestration separately and are outside this convention's lint scope.
         files: ['apps/**', 'packages/**'],
@@ -686,6 +753,10 @@ const { lint = {} } = defineConfig({
         rules: {
           'react/only-export-components': 'off'
         }
+      },
+      {
+        files: ['**/*.spec.{ts,tsx}'],
+        rules: { 'starter/no-run-promise-in-tests': 'error' }
       },
       {
         files: ['**/test/**', '**/*.test.ts', '**/*.test.tsx', '**/vitest.setup.ts'],
@@ -757,6 +828,12 @@ const { lint = {} } = defineConfig({
           '@typescript-eslint/no-non-null-assertion': 'off'
         },
         plugins: ['typescript', 'vitest', 'react']
+      },
+      {
+        // Playwright runs outside @effect/vitest; these probes bridge browser
+        // actions and native Worker callbacks rather than Effect-native tests.
+        files: ['apps/web/e2e/**'],
+        rules: { 'starter/no-run-promise-in-tests': 'off' }
       },
       {
         files: [

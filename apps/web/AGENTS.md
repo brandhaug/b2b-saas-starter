@@ -37,7 +37,7 @@ Before changing auth HTTP handling, session reads, workspace authentication gate
 
 - Read `cloudflare:workers` bindings, never hardcode empty env. `DB` selects Live, absence Seed; dev uses persisted local D1 (ADR 0049). Browser navigation depends on the root fixture-parity rule.
 - `src/worker.ts` exports the native conversation class for Alchemy development and deployment; `src/server.ts` remains usable by Node SSR. Only the compiled E2E preview uses `scripts/local-worker-runtime.mjs` and its separate Miniflare storage. Alchemy persists development data under `.alchemy/local`.
-- Two runtimes. `webRuntime` runs every server-side Effect, with isolate-level `WideEventLoggerLive` and OTLP per invocation (ADR 0050). `authAvailability()` exposes a separate runtime holding only `Auth` when D1 exists: merging the Auth layer in drags the Better Auth server into the browser bundle.
+- `webRuntime` owns server request execution, with isolate-level `WideEventLoggerLive` and OTLP per invocation (ADR 0050). `authAvailability()` exposes a separate runtime holding only `Auth` when D1 exists: merging the Auth layer in drags the Better Auth server into the browser bundle. Each conversation Durable Object owns its host runtime. Browser hooks own their React scopes and cancellation. Reuse these owners; follow [execution ownership](../../docs/agents/code-conventions.md#execution-ownership) before adding an execution boundary.
 
 ## Pitfalls
 
