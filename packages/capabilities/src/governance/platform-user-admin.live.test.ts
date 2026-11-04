@@ -1,5 +1,5 @@
 import { Database } from '@b2b-saas-starter/db/service'
-import { workspaceMembers } from '@b2b-saas-starter/db/schema'
+import { workspaceMembers } from '@b2b-saas-starter/db/schema/workspaces'
 import { eq } from 'drizzle-orm'
 import { Effect, Layer } from 'effect'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'

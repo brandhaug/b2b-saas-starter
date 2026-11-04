@@ -1,4 +1,4 @@
-import { invitationStatuses } from '@b2b-saas-starter/db/schema'
+import { invitationStatuses } from '@b2b-saas-starter/db/enums'
 import { Context, DateTime, Effect, Option, Schema } from 'effect'
 
 import { MembershipChangeRejected } from '../errors.ts'

@@ -1,17 +1,16 @@
+import { apiTokens } from '@b2b-saas-starter/db/schema/developer-platform'
+import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
+import { emailDeliveries } from '@b2b-saas-starter/db/schema/email-delivery'
+import { notifications } from '@b2b-saas-starter/db/schema/notifications'
 import {
-  apiTokens,
-  auditEvents,
-  emailDeliveries,
-  notifications,
   oauthAccessToken,
   oauthClient,
   oauthConsent,
-  oauthRefreshToken,
-  user,
-  workspaceMembers,
-  workspaceSubscriptions,
-  workspaces
-} from '@b2b-saas-starter/db/schema'
+  oauthRefreshToken
+} from '@b2b-saas-starter/db/schema/oauth'
+import { user } from '@b2b-saas-starter/db/schema/auth'
+import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema/workspaces'
+import { workspaceSubscriptions } from '@b2b-saas-starter/db/schema/billing'
 import { Database, layerFromD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'

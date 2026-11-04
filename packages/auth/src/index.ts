@@ -7,7 +7,7 @@ import {
   ssoProvisionedRoles,
   type SsoProvisionedRoleValue
 } from '@b2b-saas-starter/db/enums'
-import * as schema from '@b2b-saas-starter/db/schema'
+import { schema } from '@b2b-saas-starter/db/schema'
 import { cimd } from '@better-auth/cimd'
 import { mcp } from '@better-auth/mcp'
 import { sso } from '@better-auth/sso'

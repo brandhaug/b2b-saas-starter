@@ -1,5 +1,6 @@
 // oxlint-disable effect/noGlobals -- D1 SQL parameters require serialized typed JSON at this adapter boundary.
-import { auditEvents, user } from '@b2b-saas-starter/db/schema'
+import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
+import { user } from '@b2b-saas-starter/db/schema/auth'
 import { auditActorTypes } from '@b2b-saas-starter/db/enums'
 import { Database } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer, Schema } from 'effect'

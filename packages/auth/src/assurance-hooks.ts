@@ -1,6 +1,6 @@
 /* oxlint-disable effect/noAsyncFunction, effect/noGlobals, effect/noThrowStatement, effect/noTryCatch -- Better Auth invokes these database and endpoint callbacks outside Effect; its APIError and native Date are the adapter contract. */
 import { revokeRetainedAssistantSessions } from './assistant-session-hooks.ts'
-import * as schema from '@b2b-saas-starter/db/schema'
+import { schema } from '@b2b-saas-starter/db/schema'
 import { type GenericEndpointContext } from 'better-auth'
 import {
   APIError,

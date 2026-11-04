@@ -3,7 +3,7 @@ import { count, eq, getTableName, is, Table } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest'
 import { provisionTestD1, type TestD1 } from './testing.ts'
 import { Database, layerFromD1, type RawD1, batch, DbBatchError } from './service.ts'
-import * as schema from './schema.ts'
+import { schema } from './schema.ts'
 
 const {
   apiTokens,

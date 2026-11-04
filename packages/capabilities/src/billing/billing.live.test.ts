@@ -1,4 +1,4 @@
-import { workspaceSubscriptions } from '@b2b-saas-starter/db/schema'
+import { workspaceSubscriptions } from '@b2b-saas-starter/db/schema/billing'
 import { Database } from '@b2b-saas-starter/db/service'
 import { Effect } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'

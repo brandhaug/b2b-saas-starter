@@ -1,4 +1,5 @@
-import { emailDeliveries, user } from '@b2b-saas-starter/db/schema'
+import { emailDeliveries } from '@b2b-saas-starter/db/schema/email-delivery'
+import { user } from '@b2b-saas-starter/db/schema/auth'
 import { Database } from '@b2b-saas-starter/db/service'
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm'
 import { Effect, Layer } from 'effect'

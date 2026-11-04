@@ -1,4 +1,5 @@
-import { oauthClient, user } from '@b2b-saas-starter/db/schema'
+import { oauthClient } from '@b2b-saas-starter/db/schema/oauth'
+import { user } from '@b2b-saas-starter/db/schema/auth'
 import { validateCimdMetadata, validateClientIdUrl } from '@better-auth/cimd'
 import { adminSystemRole } from '@b2b-saas-starter/db/enums'
 import { eq } from 'drizzle-orm'

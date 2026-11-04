@@ -1,6 +1,7 @@
 import { AssistantDirectory } from '../assistant/directory.ts'
 import { Database } from '@b2b-saas-starter/db/service'
-import { user, workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema'
+import { user } from '@b2b-saas-starter/db/schema/auth'
+import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Effect, Layer } from 'effect'
 import { and, asc, eq, type SQL } from 'drizzle-orm'
 

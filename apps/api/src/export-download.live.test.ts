@@ -4,12 +4,9 @@ import { expect, layer } from '@effect/vitest'
 import { DateTime, Effect, Option, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
 import { Database } from '@b2b-saas-starter/db/service'
-import {
-  workspaceExports,
-  workspaceMembers,
-  session,
-  passkey
-} from '@b2b-saas-starter/db/schema'
+import { workspaceExports } from '@b2b-saas-starter/db/schema/governance'
+import { workspaceMembers } from '@b2b-saas-starter/db/schema/workspaces'
+import { session, passkey } from '@b2b-saas-starter/db/schema/auth'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import {
   WorkspaceExports,

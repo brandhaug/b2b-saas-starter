@@ -1,5 +1,5 @@
 /* oxlint-disable effect/noAsyncFunction, effect/noGlobals -- Better Auth database callbacks run outside Effect and use native timestamps. */
-import { assistantSessionAuthority } from '@b2b-saas-starter/db/schema'
+import { assistantSessionAuthority } from '@b2b-saas-starter/db/schema/assistant'
 import { type GenericEndpointContext } from 'better-auth'
 import { and, eq, ne } from 'drizzle-orm'
 import { Schema } from 'effect'

@@ -3,9 +3,9 @@ import { decodeSubscriptionRow } from './subscription-row.ts'
 import {
   billingProviderEvents,
   billingSynchronization,
-  workspaceSubscriptions,
-  workspaces
-} from '@b2b-saas-starter/db/schema'
+  workspaceSubscriptions
+} from '@b2b-saas-starter/db/schema/billing'
+import { workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database, type BatchStatement } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect } from 'effect'
 import { annotateWideEvent } from '@b2b-saas-starter/logger'

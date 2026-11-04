@@ -1,6 +1,6 @@
 import { accountLocales } from '@b2b-saas-starter/db/enums'
 import { isLocale, type Locale } from '@b2b-saas-starter/i18n/locale'
-import { user } from '@b2b-saas-starter/db/schema'
+import { user } from '@b2b-saas-starter/db/schema/auth'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { Context, Effect, Layer, Ref, Schema } from 'effect'
 import { eq, sql, type SQL } from 'drizzle-orm'

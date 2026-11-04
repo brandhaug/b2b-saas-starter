@@ -1,5 +1,9 @@
 import { Database } from '@b2b-saas-starter/db/service'
-import { apiTokens, auditEvents, webhookEndpoints } from '@b2b-saas-starter/db/schema'
+import {
+  apiTokens,
+  webhookEndpoints
+} from '@b2b-saas-starter/db/schema/developer-platform'
+import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
 import { Effect, Layer } from 'effect'
 import { eq } from 'drizzle-orm'
 import { expect, layer } from '@effect/vitest'

@@ -2,7 +2,7 @@ import { Effect, Layer } from 'effect'
 import { expect, layer } from '@effect/vitest'
 import { eq } from 'drizzle-orm'
 import { Database } from '@b2b-saas-starter/db/service'
-import { webhookEndpoints } from '@b2b-saas-starter/db/schema'
+import { webhookEndpoints } from '@b2b-saas-starter/db/schema/developer-platform'
 import { WebhookEndpoints } from './webhook-endpoints.ts'
 import { ApiTokenRegistry } from './api-token-registry.ts'
 import {

@@ -1,4 +1,4 @@
-import { notifications } from '@b2b-saas-starter/db/schema'
+import { notifications } from '@b2b-saas-starter/db/schema/notifications'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'

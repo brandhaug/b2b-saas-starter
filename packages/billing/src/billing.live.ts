@@ -8,10 +8,9 @@ import {
   billingSynchronization,
   billingCheckoutClaims,
   billingProviderEvents,
-  workspaceMembers,
-  workspaces,
   workspaceSubscriptions
-} from '@b2b-saas-starter/db/schema'
+} from '@b2b-saas-starter/db/schema/billing'
+import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer } from 'effect'
 import { annotateWideEvent } from '@b2b-saas-starter/logger'

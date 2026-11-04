@@ -5,7 +5,7 @@ import {
   workspaceMembers,
   workspaces,
   workspaceDeletionFences
-} from '@b2b-saas-starter/db/schema'
+} from '@b2b-saas-starter/db/schema/workspaces'
 import { layerFromD1 } from '@b2b-saas-starter/db/service'
 import { makeLiveCapabilitiesLayer } from '../layers.ts'
 import { WorkspaceLifecycle } from './workspace-lifecycle.ts'

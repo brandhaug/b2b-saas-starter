@@ -1,6 +1,10 @@
 // oxlint-disable effect/noGlobals -- Real-clock Better Auth ceremonies require real timestamps, including persisted expiry boundary tests.
 import { type DrizzleDatabase } from './ports.ts'
-import { user, session as sessionTable, twoFactor } from '@b2b-saas-starter/db/schema'
+import {
+  user,
+  session as sessionTable,
+  twoFactor
+} from '@b2b-saas-starter/db/schema/auth'
 import { Effect, type Layer } from 'effect'
 import {
   cookieHeader as toCookieHeader,

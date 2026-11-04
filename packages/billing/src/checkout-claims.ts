@@ -1,4 +1,4 @@
-import { type billingCheckoutClaims } from '@b2b-saas-starter/db/schema'
+import { type billingCheckoutClaims } from '@b2b-saas-starter/db/schema/billing'
 /**
  * One `billing_checkout_claims` row: the fields that must stay immutable for
  * a single logical checkout attempt, read straight off the stored shape.

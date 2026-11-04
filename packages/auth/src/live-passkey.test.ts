@@ -3,7 +3,7 @@ import {
   passkey as passkeyTable,
   session as sessionTable,
   user
-} from '@b2b-saas-starter/db/schema'
+} from '@b2b-saas-starter/db/schema/auth'
 import {
   type AuthenticationResponseJSON,
   type PublicKeyCredentialCreationOptionsJSON,

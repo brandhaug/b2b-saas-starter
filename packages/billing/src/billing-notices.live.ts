@@ -1,4 +1,5 @@
-import { billingNotices, workspaceMembers } from '@b2b-saas-starter/db/schema'
+import { billingNotices } from '@b2b-saas-starter/db/schema/billing'
+import { workspaceMembers } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database, type BatchStatement } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Result } from 'effect'
 import { and, eq, inArray, isNull } from 'drizzle-orm'

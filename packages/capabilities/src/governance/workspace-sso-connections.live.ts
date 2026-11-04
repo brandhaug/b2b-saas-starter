@@ -1,4 +1,4 @@
-import { workspaceSsoConnections } from '@b2b-saas-starter/db/schema'
+import { workspaceSsoConnections } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database } from '@b2b-saas-starter/db/service'
 import { Effect, Layer, Option, Schema } from 'effect'
 import { and, desc, eq } from 'drizzle-orm'

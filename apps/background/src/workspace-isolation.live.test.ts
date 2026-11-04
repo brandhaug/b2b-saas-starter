@@ -3,7 +3,7 @@ import { expect, layer } from '@effect/vitest'
 import { Deferred, Effect, Fiber, Layer, Option, Result, Schema } from 'effect'
 import { HttpClient, HttpClientResponse } from 'effect/http'
 import { Database } from '@b2b-saas-starter/db/service'
-import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema'
+import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { eq } from 'drizzle-orm'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import {

@@ -1,5 +1,8 @@
 import { DateTime, Effect } from 'effect'
-import { apiTokens, webhookEndpoints } from '@b2b-saas-starter/db/schema'
+import {
+  apiTokens,
+  webhookEndpoints
+} from '@b2b-saas-starter/db/schema/developer-platform'
 import { and, eq, gt, isNull, or, sql } from 'drizzle-orm'
 import { PlanLimitExceeded } from './errors.ts'
 

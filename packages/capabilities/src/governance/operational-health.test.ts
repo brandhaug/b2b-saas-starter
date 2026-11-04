@@ -1,4 +1,5 @@
-import { billingSynchronization, emailDeliveries } from '@b2b-saas-starter/db/schema'
+import { billingSynchronization } from '@b2b-saas-starter/db/schema/billing'
+import { emailDeliveries } from '@b2b-saas-starter/db/schema/email-delivery'
 import { Database, RawD1, databaseIsReady } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect } from 'effect'
 import { eq } from 'drizzle-orm'

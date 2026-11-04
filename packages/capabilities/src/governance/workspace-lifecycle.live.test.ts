@@ -1,10 +1,9 @@
+import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
 import {
-  auditEvents,
   billingCheckoutClaims,
-  workspaceSubscriptions,
-  workspaceMembers,
-  workspaces
-} from '@b2b-saas-starter/db/schema'
+  workspaceSubscriptions
+} from '@b2b-saas-starter/db/schema/billing'
+import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database, RawD1 } from '@b2b-saas-starter/db/service'
 import { Effect } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'

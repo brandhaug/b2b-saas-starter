@@ -1,7 +1,7 @@
 // oxlint-disable effect/noAsyncFunction, effect/noNewPromise, effect/noThrowStatement, effect/noNewError -- this capability port is the Promise-shaped boundary into Better Auth's privileged endpoint; D1 binding absence is a deployment defect.
 
 import { type D1Binding } from '@b2b-saas-starter/db/service'
-import * as schema from '@b2b-saas-starter/db/schema'
+import { schema } from '@b2b-saas-starter/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 

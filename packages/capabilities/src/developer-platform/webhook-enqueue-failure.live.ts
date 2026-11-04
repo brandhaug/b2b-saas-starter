@@ -3,7 +3,7 @@ import {
   webhookDeliveries,
   webhookDeliveryAttempts,
   webhookEndpoints
-} from '@b2b-saas-starter/db/schema'
+} from '@b2b-saas-starter/db/schema/developer-platform'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { DateTime, Effect } from 'effect'
 

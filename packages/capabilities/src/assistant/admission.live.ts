@@ -4,7 +4,7 @@ import { and, eq, gt, isNull, lte, sql } from 'drizzle-orm'
 import {
   assistantConversations,
   assistantReservations as reservations
-} from '@b2b-saas-starter/db/schema'
+} from '@b2b-saas-starter/db/schema/assistant'
 import { Database } from '@b2b-saas-starter/db/service'
 import {
   CapabilityUnavailable,

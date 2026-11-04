@@ -1,5 +1,5 @@
 import { billingLifecycleStatuses, billingIntervals } from '@b2b-saas-starter/db/enums'
-import { type JsonObject } from '@b2b-saas-starter/db/schema'
+import { type JsonObject } from '@b2b-saas-starter/db/schema/json'
 import { Context, DateTime, Effect, Schema, type Effect as EffectType } from 'effect'
 
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'

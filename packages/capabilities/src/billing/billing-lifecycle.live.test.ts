@@ -1,14 +1,13 @@
 import * as TestClock from 'effect/testing/TestClock'
 import { type CapabilityServices } from '../layers.ts'
 import { type WorkspaceServices } from '../workspace-context.ts'
+import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
 import {
-  auditEvents,
   billingNotices,
-  notifications,
-  workspaceMembers,
-  workspaces,
   workspaceSubscriptions
-} from '@b2b-saas-starter/db/schema'
+} from '@b2b-saas-starter/db/schema/billing'
+import { notifications } from '@b2b-saas-starter/db/schema/notifications'
+import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database, RawD1 } from '@b2b-saas-starter/db/service'
 import { Effect } from 'effect'
 import { expect, layer } from '@effect/vitest'

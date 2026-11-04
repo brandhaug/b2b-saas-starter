@@ -1,14 +1,14 @@
 // oxlint-disable effect/noAsyncFunction -- these callbacks exercise Better Auth's Promise-shaped hook port against the real D1 adapter.
 
 import { type DrizzleDatabase } from './ports.ts'
+import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
+import { notifications } from '@b2b-saas-starter/db/schema/notifications'
+import { user } from '@b2b-saas-starter/db/schema/auth'
 import {
-  auditEvents,
-  notifications,
-  user,
   workspaceInvitations,
   workspaceMembers,
   workspaces
-} from '@b2b-saas-starter/db/schema'
+} from '@b2b-saas-starter/db/schema/workspaces'
 import { Effect, Result, type Layer } from 'effect'
 import { eq } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest'

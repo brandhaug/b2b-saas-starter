@@ -1,5 +1,5 @@
 /* oxlint-disable effect/noAsyncFunction, effect/noGlobals -- Better Auth invokes this persistence adapter outside Effect. */
-import { verification } from '@b2b-saas-starter/db/schema'
+import { verification } from '@b2b-saas-starter/db/schema/auth'
 import { lte } from 'drizzle-orm'
 import { type AuthConfigInterface } from './ports.ts'
 

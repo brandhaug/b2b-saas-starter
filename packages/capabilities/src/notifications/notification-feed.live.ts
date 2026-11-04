@@ -1,11 +1,8 @@
 import { currentTraceparent } from '@b2b-saas-starter/logger'
 import { Database } from '@b2b-saas-starter/db/service'
-import {
-  notifications,
-  user,
-  workspaceMembers,
-  workspaces
-} from '@b2b-saas-starter/db/schema'
+import { notifications } from '@b2b-saas-starter/db/schema/notifications'
+import { user } from '@b2b-saas-starter/db/schema/auth'
+import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { DateTime, Effect, Layer, Schema } from 'effect'
 import {
   and,

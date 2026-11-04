@@ -1,4 +1,4 @@
-import { workspaceDeletionFences } from '@b2b-saas-starter/db/schema'
+import { workspaceDeletionFences } from '@b2b-saas-starter/db/schema/workspaces'
 import { type EffectDatabase } from '@b2b-saas-starter/db/service'
 import { orUnavailable } from '@b2b-saas-starter/failure/capability'
 import { and, eq } from 'drizzle-orm'

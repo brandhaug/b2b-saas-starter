@@ -1,6 +1,7 @@
 import { DateTime, Effect, Exit, Layer } from 'effect'
 import { Database, RawD1 } from '@b2b-saas-starter/db/service'
-import { apiTokens, auditEvents } from '@b2b-saas-starter/db/schema'
+import { apiTokens } from '@b2b-saas-starter/db/schema/developer-platform'
+import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
 import { eq } from 'drizzle-orm'
 import { failureTag } from '../internal/failure-tag.ts'
 import { describe, expect, layer } from '@effect/vitest'

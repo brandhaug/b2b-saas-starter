@@ -1,6 +1,6 @@
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { DateTime, Effect, Layer, Schema } from 'effect'
-import { webhookInvestigationTasks } from '@b2b-saas-starter/db/schema'
+import { webhookInvestigationTasks } from '@b2b-saas-starter/db/schema/developer-platform'
 import { Database } from '@b2b-saas-starter/db/service'
 import { orUnavailable } from '@b2b-saas-starter/failure/capability'
 import { newCapabilityId } from '../internal/ids.ts'

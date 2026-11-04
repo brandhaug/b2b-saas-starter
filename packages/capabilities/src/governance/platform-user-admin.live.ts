@@ -1,4 +1,4 @@
-import { user } from '@b2b-saas-starter/db/schema'
+import { user } from '@b2b-saas-starter/db/schema/auth'
 import { Database } from '@b2b-saas-starter/db/service'
 import { Effect, Layer } from 'effect'
 import { eq } from 'drizzle-orm'

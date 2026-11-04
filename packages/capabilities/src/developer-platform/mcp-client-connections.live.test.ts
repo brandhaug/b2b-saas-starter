@@ -1,10 +1,10 @@
+import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
 import {
-  auditEvents,
   oauthAccessToken,
   oauthClient,
   oauthConsent,
   oauthRefreshToken
-} from '@b2b-saas-starter/db/schema'
+} from '@b2b-saas-starter/db/schema/oauth'
 import { Database } from '@b2b-saas-starter/db/service'
 import { Effect } from 'effect'
 import { eq } from 'drizzle-orm'

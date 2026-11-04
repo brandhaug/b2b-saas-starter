@@ -9,15 +9,9 @@ import {
   memberPrincipal,
   needsStrongAuthentication
 } from '@b2b-saas-starter/authz/client'
-import {
-  assistantSessionAuthority,
-  session,
-  user,
-  workspaces,
-  workspaceMembers,
-  twoFactor,
-  passkey
-} from '@b2b-saas-starter/db/schema'
+import { assistantSessionAuthority } from '@b2b-saas-starter/db/schema/assistant'
+import { session, user, twoFactor, passkey } from '@b2b-saas-starter/db/schema/auth'
+import { workspaces, workspaceMembers } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database } from '@b2b-saas-starter/db/service'
 import {
   type CapabilityUnavailable,

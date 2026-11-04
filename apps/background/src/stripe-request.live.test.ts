@@ -1,4 +1,4 @@
-import { billingProviderEvents } from '@b2b-saas-starter/db/schema'
+import { billingProviderEvents } from '@b2b-saas-starter/db/schema/billing'
 import { Database } from '@b2b-saas-starter/db/service'
 import { type SeatSyncQueueBinding } from '@b2b-saas-starter/billing/seat-sync'
 import { Effect } from 'effect'

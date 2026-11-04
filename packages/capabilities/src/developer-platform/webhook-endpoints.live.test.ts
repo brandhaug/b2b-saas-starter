@@ -1,8 +1,8 @@
+import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
 import {
-  auditEvents,
   webhookDeliveries,
   webhookEndpoints
-} from '@b2b-saas-starter/db/schema'
+} from '@b2b-saas-starter/db/schema/developer-platform'
 import { Database } from '@b2b-saas-starter/db/service'
 import { Effect } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'

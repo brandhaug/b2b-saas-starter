@@ -6,13 +6,13 @@ import {
 } from '@b2b-saas-starter/billing/provider-test-fixtures'
 // oxlint-disable effect/noNewPromise, effect/noThrowStatement, effect/noNewError, vitest/require-mock-type-parameters
 
+import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
 import {
-  auditEvents,
   billingCheckoutClaims,
   billingSynchronization,
-  workspaceMembers,
   workspaceSubscriptions
-} from '@b2b-saas-starter/db/schema'
+} from '@b2b-saas-starter/db/schema/billing'
+import { workspaceMembers } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database, type EffectDatabase, type RawD1 } from '@b2b-saas-starter/db/service'
 import { Effect, Layer } from 'effect'
 import { and, eq } from 'drizzle-orm'
