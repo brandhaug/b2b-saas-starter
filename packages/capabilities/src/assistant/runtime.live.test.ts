@@ -6,7 +6,7 @@ import {
   webhookInvestigationTasks,
   webhookDeliveries,
   webhookEndpoints
-} from '@b2b-saas-starter/db/schema'
+} from '@b2b-saas-starter/db/schema/developer-platform'
 import { TestDatabase, LIVE_SUITE_TIMEOUT } from '../testing/live-harness.ts'
 import { liveWorkspaceContext } from '../workspace-context.ts'
 import { AssistantAdmission } from './admission.ts'

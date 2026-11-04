@@ -1,12 +1,12 @@
+import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
+import { user } from '@b2b-saas-starter/db/schema/auth'
+import { webhookEndpoints } from '@b2b-saas-starter/db/schema/developer-platform'
 import {
-  auditEvents,
-  user,
-  webhookEndpoints,
   workspaceInvitations,
   workspaceMembers,
   workspaceSsoConnections,
   workspaces
-} from '@b2b-saas-starter/db/schema'
+} from '@b2b-saas-starter/db/schema/workspaces'
 import {
   Database,
   layerFromD1,

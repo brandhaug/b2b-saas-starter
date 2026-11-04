@@ -7,9 +7,9 @@ import { Clock, Effect, Layer, Schema } from 'effect'
 import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 import {
   assistantConversations as conversations,
-  assistantReservations,
-  personalDataExports
-} from '@b2b-saas-starter/db/schema'
+  assistantReservations
+} from '@b2b-saas-starter/db/schema/assistant'
+import { personalDataExports } from '@b2b-saas-starter/db/schema/governance'
 import { Database } from '@b2b-saas-starter/db/service'
 import {
   CapabilityUnavailable,

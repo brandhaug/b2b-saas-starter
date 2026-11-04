@@ -13,10 +13,9 @@ import {
   billingCheckoutClaims,
   billingProviderEvents,
   billingSynchronization,
-  workspaceMembers,
-  workspaceSubscriptions,
-  workspaces
-} from '@b2b-saas-starter/db/schema'
+  workspaceSubscriptions
+} from '@b2b-saas-starter/db/schema/billing'
+import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Schema } from 'effect'
 import { annotateWideEvent } from '@b2b-saas-starter/logger'

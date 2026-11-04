@@ -1,9 +1,6 @@
-import {
-  systemRoles,
-  user,
-  workspaceMembers,
-  workspaceRoles
-} from '@b2b-saas-starter/db/schema'
+import { systemRoles, workspaceRoles } from '@b2b-saas-starter/db/enums'
+import { user } from '@b2b-saas-starter/db/schema/auth'
+import { workspaceMembers } from '@b2b-saas-starter/db/schema/workspaces'
 import { type EffectDatabase } from '@b2b-saas-starter/db/service'
 import { Effect, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'

@@ -1,5 +1,5 @@
 import { type DrizzleDatabase } from './ports.ts'
-import { account, user } from '@b2b-saas-starter/db/schema'
+import { account, user } from '@b2b-saas-starter/db/schema/auth'
 import { Effect, type Layer } from 'effect'
 import { cookiePairs, cookieHeader } from 'effectful-better-auth'
 import { and, eq } from 'drizzle-orm'

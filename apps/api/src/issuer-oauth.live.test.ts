@@ -8,14 +8,14 @@ import {
 } from '@b2b-saas-starter/authz/mcp-access-token'
 import { testMcpConfig } from '../../../packages/auth/src/test-mcp.ts'
 import { type DrizzleDatabase } from '../../../packages/auth/src/ports.ts'
+import { assistantSessionAuthority } from '@b2b-saas-starter/db/schema/assistant'
+import { session } from '@b2b-saas-starter/db/schema/auth'
 import {
-  assistantSessionAuthority,
-  session,
   oauthClient,
   oauthClientResource,
   oauthConsent,
   oauthRefreshToken
-} from '@b2b-saas-starter/db/schema'
+} from '@b2b-saas-starter/db/schema/oauth'
 import { DateTime, Effect, type Layer, Schema } from 'effect'
 import { createLocalJWKSet, jwtVerify } from 'jose'
 import { makeAssistantOAuthTokenVerifier } from './assistant-oauth-access-token.ts'

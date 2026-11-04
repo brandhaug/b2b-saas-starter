@@ -1,4 +1,4 @@
-import { billingSynchronization } from '@b2b-saas-starter/db/schema'
+import { billingSynchronization } from '@b2b-saas-starter/db/schema/billing'
 import {
   batch,
   Database,

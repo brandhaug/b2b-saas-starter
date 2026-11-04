@@ -1,18 +1,17 @@
 import { AssistantDirectory } from '../assistant/directory.ts'
 import { Billing } from '@b2b-saas-starter/billing/billing'
 import { batch, Database, RawD1 } from '@b2b-saas-starter/db/service'
+import { apiTokens } from '@b2b-saas-starter/db/schema/developer-platform'
+import { emailDeliveries } from '@b2b-saas-starter/db/schema/email-delivery'
+import { notifications } from '@b2b-saas-starter/db/schema/notifications'
 import {
-  apiTokens,
-  emailDeliveries,
-  notifications,
   oauthAccessToken,
   oauthClient,
   oauthConsent,
-  oauthRefreshToken,
-  user,
-  workspaceMembers,
-  workspaces
-} from '@b2b-saas-starter/db/schema'
+  oauthRefreshToken
+} from '@b2b-saas-starter/db/schema/oauth'
+import { user } from '@b2b-saas-starter/db/schema/auth'
+import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Effect, Layer } from 'effect'
 import { and, asc, eq, inArray, isNull, or } from 'drizzle-orm'
 

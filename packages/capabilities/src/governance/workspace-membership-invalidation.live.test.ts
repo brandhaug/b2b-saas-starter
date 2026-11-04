@@ -1,11 +1,8 @@
 import { expect, layer } from '@effect/vitest'
 import { Database } from '@b2b-saas-starter/db/service'
-import {
-  workspaceMembers,
-  workspaces,
-  personalDataExports,
-  session
-} from '@b2b-saas-starter/db/schema'
+import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema/workspaces'
+import { personalDataExports } from '@b2b-saas-starter/db/schema/governance'
+import { session } from '@b2b-saas-starter/db/schema/auth'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { eq } from 'drizzle-orm'
 import { DateTime, Effect, Layer } from 'effect'

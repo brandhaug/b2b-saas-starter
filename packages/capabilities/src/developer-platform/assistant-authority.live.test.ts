@@ -1,15 +1,9 @@
 import { expect, layer } from '@effect/vitest'
 import { Effect, Layer } from 'effect'
-import {
-  assistantSessionAuthority,
-  session,
-  user,
-  workspaces,
-  workspaceMembers,
-  oauthClient,
-  oauthConsent,
-  twoFactor
-} from '@b2b-saas-starter/db/schema'
+import { assistantSessionAuthority } from '@b2b-saas-starter/db/schema/assistant'
+import { session, user, twoFactor } from '@b2b-saas-starter/db/schema/auth'
+import { workspaces, workspaceMembers } from '@b2b-saas-starter/db/schema/workspaces'
+import { oauthClient, oauthConsent } from '@b2b-saas-starter/db/schema/oauth'
 import { Database } from '@b2b-saas-starter/db/service'
 import { eq } from 'drizzle-orm'
 import { TestDatabase, LIVE_SUITE_TIMEOUT } from '../testing/live-harness.ts'

@@ -1,5 +1,6 @@
 import { type DrizzleDatabase } from './ports.ts'
-import { account, user, workspaceMembers } from '@b2b-saas-starter/db/schema'
+import { account, user } from '@b2b-saas-starter/db/schema/auth'
+import { workspaceMembers } from '@b2b-saas-starter/db/schema/workspaces'
 import { Clock, Effect, type Layer } from 'effect'
 import { TestClock } from 'effect/testing'
 import { cookieHeader, cookiePairs } from 'effectful-better-auth'

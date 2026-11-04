@@ -1,7 +1,10 @@
 import { newCapabilityId } from '../internal/ids.ts'
 import { annotateWideEvent, currentTraceparent } from '@b2b-saas-starter/logger'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
-import { webhookDeliveries, webhookEndpoints } from '@b2b-saas-starter/db/schema'
+import {
+  webhookDeliveries,
+  webhookEndpoints
+} from '@b2b-saas-starter/db/schema/developer-platform'
 import { Context, Effect, Layer, Result, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
 import {

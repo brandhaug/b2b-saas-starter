@@ -1,21 +1,23 @@
 import { hashSha256, randomWebhookSecret } from '@b2b-saas-starter/capabilities/crypto'
+import { account, user } from '@b2b-saas-starter/db/schema/auth'
 import {
-  account,
   apiTokens,
-  auditEvents,
-  notificationPreferences,
-  notifications,
-  oauthClient,
-  oauthConsent,
-  user,
   webhookDeliveries,
   webhookDeliveryAttempts,
-  webhookEndpoints,
+  webhookEndpoints
+} from '@b2b-saas-starter/db/schema/developer-platform'
+import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
+import {
+  notificationPreferences,
+  notifications
+} from '@b2b-saas-starter/db/schema/notifications'
+import { oauthClient, oauthConsent } from '@b2b-saas-starter/db/schema/oauth'
+import {
   workspaceMembers,
   workspaceSsoConnections,
-  workspaceSubscriptions,
   workspaces
-} from '@b2b-saas-starter/db/schema'
+} from '@b2b-saas-starter/db/schema/workspaces'
+import { workspaceSubscriptions } from '@b2b-saas-starter/db/schema/billing'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import {
   demoMemberIdentity,

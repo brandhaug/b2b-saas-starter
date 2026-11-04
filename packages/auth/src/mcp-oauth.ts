@@ -13,13 +13,10 @@ import {
   MCP_WORKSPACE_SLUG_CLAIM
 } from '@b2b-saas-starter/authz/mcp-access-token'
 import { type DrizzleDatabase } from './ports.ts'
-import {
-  oauthConsent,
-  workspaceMembers,
-  workspaces,
-  assistantSessionAuthority,
-  session
-} from '@b2b-saas-starter/db/schema'
+import { oauthConsent } from '@b2b-saas-starter/db/schema/oauth'
+import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema/workspaces'
+import { assistantSessionAuthority } from '@b2b-saas-starter/db/schema/assistant'
+import { session } from '@b2b-saas-starter/db/schema/auth'
 import { APIError } from 'better-auth/api'
 import { and, eq } from 'drizzle-orm'
 

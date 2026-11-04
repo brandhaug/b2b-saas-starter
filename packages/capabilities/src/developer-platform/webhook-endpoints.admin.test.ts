@@ -2,11 +2,11 @@ import { describe, expect, it, layer } from '@effect/vitest'
 import { Effect, Layer } from 'effect'
 import { eq } from 'drizzle-orm'
 import { Database } from '@b2b-saas-starter/db/service'
+import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
 import {
-  auditEvents,
   webhookDeliveries,
   webhookEndpoints
-} from '@b2b-saas-starter/db/schema'
+} from '@b2b-saas-starter/db/schema/developer-platform'
 import { TestDatabase, LIVE_SUITE_TIMEOUT } from '../testing/live-harness.ts'
 import { SeedLayer, makeLiveCapabilitiesLayer } from '../layers.ts'
 import { AuditEventLog, SeedAuditEventLog } from '../governance/audit-event-log.ts'

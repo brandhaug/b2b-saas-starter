@@ -1,5 +1,8 @@
 import { Database, type EffectDatabase } from '@b2b-saas-starter/db/service'
-import { workspaceInvitations, workspaces } from '@b2b-saas-starter/db/schema'
+import {
+  workspaceInvitations,
+  workspaces
+} from '@b2b-saas-starter/db/schema/workspaces'
 import { Effect, Layer, Option } from 'effect'
 import { and, desc, eq, sql } from 'drizzle-orm'
 

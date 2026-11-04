@@ -1,4 +1,4 @@
-import { session, twoFactor, passkey } from '@b2b-saas-starter/db/schema'
+import { session, twoFactor, passkey } from '@b2b-saas-starter/db/schema/auth'
 import { Database } from '@b2b-saas-starter/db/service'
 import {
   orUnavailable,

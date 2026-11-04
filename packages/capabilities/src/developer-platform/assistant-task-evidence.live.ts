@@ -5,7 +5,7 @@ import {
   webhookDeliveries,
   webhookEndpoints,
   webhookInvestigationTasks
-} from '@b2b-saas-starter/db/schema'
+} from '@b2b-saas-starter/db/schema/developer-platform'
 import { orUnavailable } from '@b2b-saas-starter/failure/capability'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { AssistantTaskEvidence, taskEvidence } from './assistant-task-evidence.ts'

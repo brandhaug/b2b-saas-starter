@@ -6,7 +6,17 @@
     "./enums": "./src/enums.ts",
     "./schema": "./src/schema.ts",
     "./service": "./src/service.ts",
-    "./testing": "./src/testing.ts"
+    "./testing": "./src/testing.ts",
+    "./schema/auth": "./src/schema/auth.ts",
+    "./schema/workspaces": "./src/schema/workspaces.ts",
+    "./schema/developer-platform": "./src/schema/developer-platform.ts",
+    "./schema/notifications": "./src/schema/notifications.ts",
+    "./schema/governance": "./src/schema/governance.ts",
+    "./schema/oauth": "./src/schema/oauth.ts",
+    "./schema/billing": "./src/schema/billing.ts",
+    "./schema/email-delivery": "./src/schema/email-delivery.ts",
+    "./schema/assistant": "./src/schema/assistant.ts",
+    "./schema/json": "./src/schema/json.ts"
   },
   "scripts": {
     "build": "tsrs --noEmit",

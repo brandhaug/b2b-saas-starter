@@ -3,13 +3,12 @@ import { deliveryView, cutDeliveryViewPage } from './webhook-delivery-view.ts'
 import { deliveryViewQuery } from './webhook-delivery-view.live.ts'
 import { makeLiveAttemptHistory } from './webhook-attempt-history.live.ts'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
+import { type JsonObject, type JsonValue } from '@b2b-saas-starter/db/schema/json'
 import {
-  type JsonObject,
-  type JsonValue,
   webhookDeliveries,
-  webhookEndpoints,
-  workspaces
-} from '@b2b-saas-starter/db/schema'
+  webhookEndpoints
+} from '@b2b-saas-starter/db/schema/developer-platform'
+import { workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { DateTime, Effect, Layer } from 'effect'
 import { and, asc, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm'
 

@@ -1,9 +1,9 @@
 import {
   billingCheckoutClaims,
   billingSynchronization,
-  workspaceMembers,
   workspaceSubscriptions
-} from '@b2b-saas-starter/db/schema'
+} from '@b2b-saas-starter/db/schema/billing'
+import { workspaceMembers } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database, type BatchStatement } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer } from 'effect'
 import * as TestClock from 'effect/testing/TestClock'

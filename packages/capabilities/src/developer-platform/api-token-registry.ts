@@ -1,4 +1,4 @@
-import { apiTokenScopes } from '@b2b-saas-starter/db/schema'
+import { apiTokenScopes } from '@b2b-saas-starter/db/enums'
 import { Context, DateTime, Schema, type Effect } from 'effect'
 
 import {

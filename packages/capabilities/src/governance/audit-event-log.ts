@@ -1,4 +1,4 @@
-import { type JsonObject } from '@b2b-saas-starter/db/schema'
+import { type JsonObject } from '@b2b-saas-starter/db/schema/json'
 import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { type SQL } from 'drizzle-orm'
 import { type BatchStatement } from '@b2b-saas-starter/db/service'

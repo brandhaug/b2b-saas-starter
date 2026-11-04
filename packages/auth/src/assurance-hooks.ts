@@ -1,6 +1,7 @@
 /* oxlint-disable effect/noAsyncFunction, effect/noGlobals, effect/noThrowStatement, effect/noTryCatch -- Better Auth invokes these database and endpoint callbacks outside Effect; its APIError and native Date are the adapter contract. */
 import { revokeRetainedAssistantSessions } from './assistant-session-hooks.ts'
-import * as schema from '@b2b-saas-starter/db/schema'
+import * as schema from '@b2b-saas-starter/db/schema/auth'
+import { assistantSessionAuthority } from '@b2b-saas-starter/db/schema/assistant'
 import { type GenericEndpointContext } from 'better-auth'
 import {
   APIError,
@@ -40,9 +41,9 @@ export function makeAssuranceHooks(options: AuthConfigInterface) {
 
   async function invalidatePassword(userId: string) {
     await db
-      .update(schema.assistantSessionAuthority)
+      .update(assistantSessionAuthority)
       .set({ revokedAt: new Date() })
-      .where(eq(schema.assistantSessionAuthority.userId, userId))
+      .where(eq(assistantSessionAuthority.userId, userId))
     await db
       .update(schema.session)
       .set({ passwordVerifiedAt: null, ...emptyStrongProof })
@@ -298,9 +299,9 @@ export function makeAssuranceHooks(options: AuthConfigInterface) {
             // refused ceremony must not leave that new session usable.
             if (ctx.context.newSession && sessionId !== current?.session.id) {
               await db
-                .update(schema.assistantSessionAuthority)
+                .update(assistantSessionAuthority)
                 .set({ revokedAt: now })
-                .where(eq(schema.assistantSessionAuthority.sessionId, sessionId))
+                .where(eq(assistantSessionAuthority.sessionId, sessionId))
               await db.delete(schema.session).where(eq(schema.session.id, sessionId))
             }
             throw new APIError('FORBIDDEN', {
@@ -342,9 +343,9 @@ export function makeAssuranceHooks(options: AuthConfigInterface) {
             })
           } catch (error) {
             await db
-              .update(schema.assistantSessionAuthority)
+              .update(assistantSessionAuthority)
               .set({ revokedAt: now })
-              .where(eq(schema.assistantSessionAuthority.sessionId, sessionId))
+              .where(eq(assistantSessionAuthority.sessionId, sessionId))
             await db.delete(schema.session).where(eq(schema.session.id, sessionId))
             throw error
           }

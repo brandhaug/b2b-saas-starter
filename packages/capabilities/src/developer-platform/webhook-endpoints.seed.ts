@@ -20,7 +20,7 @@ import { assertWithinPlanLimit } from '@b2b-saas-starter/billing/resource-admiss
 import { newCapabilityId } from '../internal/ids.ts'
 import { seedKeysetPage } from '../internal/keyset-cursor.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
-import { type JsonValue } from '@b2b-saas-starter/db/schema'
+import { type JsonValue } from '@b2b-saas-starter/db/schema/json'
 import { NotificationFeed } from '../notifications/notification-feed.ts'
 import {
   activeSigningSecrets,

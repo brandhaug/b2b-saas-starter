@@ -6,10 +6,12 @@ import { eq } from 'drizzle-orm'
 import { Database, RawD1 } from '@b2b-saas-starter/db/service'
 import {
   apiTokens,
-  webhookEndpoints,
+  webhookEndpoints
+} from '@b2b-saas-starter/db/schema/developer-platform'
+import {
   workspaceResourceSelections,
   workspaceSubscriptions
-} from '@b2b-saas-starter/db/schema'
+} from '@b2b-saas-starter/db/schema/billing'
 import {
   TestDatabase,
   inWorkspace,

@@ -1,4 +1,4 @@
-import { workspaceInvitations } from '@b2b-saas-starter/db/schema'
+import { workspaceInvitations } from '@b2b-saas-starter/db/schema/workspaces'
 import { eq } from 'drizzle-orm'
 import { expect, it } from '@effect/vitest'
 import { Effect, Result } from 'effect'

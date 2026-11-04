@@ -1,9 +1,9 @@
 import { eligibleTokenWhere } from './resource-admission.ts'
 import {
   apiTokens,
-  webhookEndpoints,
-  workspaceResourceSelections
-} from '@b2b-saas-starter/db/schema'
+  webhookEndpoints
+} from '@b2b-saas-starter/db/schema/developer-platform'
+import { workspaceResourceSelections } from '@b2b-saas-starter/db/schema/billing'
 import { batch, Database, RawD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer, Schema } from 'effect'
 import { and, eq, sql } from 'drizzle-orm'

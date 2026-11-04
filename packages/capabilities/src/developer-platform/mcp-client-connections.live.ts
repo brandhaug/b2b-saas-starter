@@ -2,9 +2,9 @@ import {
   oauthAccessToken,
   oauthClient,
   oauthConsent,
-  oauthRefreshToken,
-  workspaces
-} from '@b2b-saas-starter/db/schema'
+  oauthRefreshToken
+} from '@b2b-saas-starter/db/schema/oauth'
+import { workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer } from 'effect'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'

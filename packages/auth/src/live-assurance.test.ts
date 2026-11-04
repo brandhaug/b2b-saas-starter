@@ -1,5 +1,5 @@
 // oxlint-disable effect/noGlobals -- The native Better Auth adapter and real D1 use the wall clock.
-import { session, user, twoFactor } from '@b2b-saas-starter/db/schema'
+import { session, user, twoFactor } from '@b2b-saas-starter/db/schema/auth'
 import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest'
 import { Deferred, Effect, Exit, Fiber, type Layer } from 'effect'
 import { eq } from 'drizzle-orm'

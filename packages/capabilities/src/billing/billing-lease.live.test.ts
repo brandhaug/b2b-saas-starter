@@ -1,4 +1,5 @@
-import { billingSynchronization, workspaces } from '@b2b-saas-starter/db/schema'
+import { billingSynchronization } from '@b2b-saas-starter/db/schema/billing'
+import { workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database } from '@b2b-saas-starter/db/service'
 import { Effect } from 'effect'
 import * as TestClock from 'effect/testing/TestClock'

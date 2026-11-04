@@ -1,4 +1,5 @@
-import { workspaceExports, workspaces } from '@b2b-saas-starter/db/schema'
+import { workspaceExports } from '@b2b-saas-starter/db/schema/governance'
+import { workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer, Option, Result } from 'effect'
 import { and, desc, eq } from 'drizzle-orm'

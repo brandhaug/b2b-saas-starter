@@ -6,16 +6,10 @@ import * as TestClock from 'effect/testing/TestClock'
 import { AccountLifecycle } from './account-lifecycle.ts'
 import { describe, expect, layer } from '@effect/vitest'
 import { DateTime, Effect, Result, Schema } from 'effect'
-import {
-  account,
-  notifications,
-  oauthClient,
-  oauthConsent,
-  passkey,
-  session,
-  user,
-  workspaceMembers
-} from '@b2b-saas-starter/db/schema'
+import { account, passkey, session, user } from '@b2b-saas-starter/db/schema/auth'
+import { notifications } from '@b2b-saas-starter/db/schema/notifications'
+import { oauthClient, oauthConsent } from '@b2b-saas-starter/db/schema/oauth'
+import { workspaceMembers } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database } from '@b2b-saas-starter/db/service'
 import { eq } from 'drizzle-orm'
 import { PersonalDataExports } from './personal-data-export.ts'

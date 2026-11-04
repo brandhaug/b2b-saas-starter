@@ -1,7 +1,7 @@
 import { WorkspaceContext as BillingWorkspaceContext } from '@b2b-saas-starter/billing/ports'
 import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { Database } from '@b2b-saas-starter/db/service'
-import { workspaces } from '@b2b-saas-starter/db/schema'
+import { workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Context, Effect, Layer, Schema } from 'effect'
 import { eq } from 'drizzle-orm'
 import { WorkspaceNotFound } from './errors.ts'

@@ -1,9 +1,9 @@
 import { and, or, sql, type SQL } from 'drizzle-orm'
 import {
   webhookDeliveries,
-  webhookEndpoints,
-  workspaces
-} from '@b2b-saas-starter/db/schema'
+  webhookEndpoints
+} from '@b2b-saas-starter/db/schema/developer-platform'
+import { workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import {
   deliveryViewCursor,
   type DeliveryView,

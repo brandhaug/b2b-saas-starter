@@ -1,5 +1,5 @@
 import { AssistantDirectory } from '../assistant/directory.ts'
-import { workspaceMembers } from '@b2b-saas-starter/db/schema'
+import { workspaceMembers } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database } from '@b2b-saas-starter/db/service'
 import { Effect } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'

@@ -1,4 +1,5 @@
-import { auditEvents, user } from '@b2b-saas-starter/db/schema'
+import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
+import { user } from '@b2b-saas-starter/db/schema/auth'
 import { Database } from '@b2b-saas-starter/db/service'
 import { Effect } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'

@@ -1,4 +1,4 @@
-import { billingCheckoutClaims } from '@b2b-saas-starter/db/schema'
+import { billingCheckoutClaims } from '@b2b-saas-starter/db/schema/billing'
 import { type EffectDatabase } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect } from 'effect'
 import { and, eq, inArray } from 'drizzle-orm'

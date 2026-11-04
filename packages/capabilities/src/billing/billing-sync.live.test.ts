@@ -4,17 +4,18 @@ import {
   testSubscriptionFields,
   paidInvoice
 } from '@b2b-saas-starter/billing/provider-test-fixtures'
+import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
 import {
-  auditEvents,
   billingCheckoutClaims,
   billingProviderEvents,
   billingSynchronization,
+  workspaceSubscriptions
+} from '@b2b-saas-starter/db/schema/billing'
+import {
   webhookDeliveries,
-  webhookEndpoints,
-  workspaceMembers,
-  workspaceSubscriptions,
-  workspaces
-} from '@b2b-saas-starter/db/schema'
+  webhookEndpoints
+} from '@b2b-saas-starter/db/schema/developer-platform'
+import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database, RawD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, type Context, Effect } from 'effect'
 import * as TestClock from 'effect/testing/TestClock'

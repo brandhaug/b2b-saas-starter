@@ -1,5 +1,6 @@
 import { batch, Database, RawD1 } from '@b2b-saas-starter/db/service'
-import { auditEvents, type JsonValue } from '@b2b-saas-starter/db/schema'
+import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
+import { type JsonValue } from '@b2b-saas-starter/db/schema/json'
 import { Effect } from 'effect'
 import { and, asc, eq, gt, or, sql } from 'drizzle-orm'
 

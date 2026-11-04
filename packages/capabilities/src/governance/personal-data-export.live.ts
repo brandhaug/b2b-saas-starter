@@ -1,14 +1,8 @@
 import { AssistantConversationLifecycle } from '../assistant/lifecycle.ts'
-import {
-  account,
-  notifications,
-  oauthClient,
-  oauthConsent,
-  passkey,
-  personalDataExports,
-  session,
-  user
-} from '@b2b-saas-starter/db/schema'
+import { account, passkey, session, user } from '@b2b-saas-starter/db/schema/auth'
+import { notifications } from '@b2b-saas-starter/db/schema/notifications'
+import { oauthClient, oauthConsent } from '@b2b-saas-starter/db/schema/oauth'
+import { personalDataExports } from '@b2b-saas-starter/db/schema/governance'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { EmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery'
 import { Clock, DateTime, Effect, Layer } from 'effect'

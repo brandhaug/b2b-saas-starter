@@ -2,7 +2,7 @@ import { WorkspaceContext, testWorkspaceContext } from '../workspace-context.ts'
 import { Array, Effect, Layer } from 'effect'
 import { expect, layer } from '@effect/vitest'
 import { Database } from '@b2b-saas-starter/db/service'
-import { workspaces } from '@b2b-saas-starter/db/schema'
+import { workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { eq } from 'drizzle-orm'
 import {
   TestDatabase,

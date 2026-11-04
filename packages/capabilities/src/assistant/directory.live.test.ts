@@ -7,12 +7,9 @@ import { Clock, Effect, Layer } from 'effect'
 import { TestClock } from 'effect/testing'
 import { provisionTestD1 } from '@b2b-saas-starter/db/testing'
 import { Database, layerFromD1 } from '@b2b-saas-starter/db/service'
-import {
-  user,
-  workspaces,
-  auditEvents,
-  workspaceMembers
-} from '@b2b-saas-starter/db/schema'
+import { user } from '@b2b-saas-starter/db/schema/auth'
+import { workspaces, workspaceMembers } from '@b2b-saas-starter/db/schema/workspaces'
+import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
 import { LiveAuditEventLog } from '../governance/audit-event-log.live.ts'
 import { assistantDirectoryContractCases } from './directory.contract.ts'
 import { LiveAssistantDirectory } from './directory.live.ts'

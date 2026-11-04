@@ -1,4 +1,4 @@
-import { notificationPreferences } from '@b2b-saas-starter/db/schema'
+import { notificationPreferences } from '@b2b-saas-starter/db/schema/notifications'
 import { notificationKinds } from '@b2b-saas-starter/db/enums'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { Context, DateTime, Effect, Layer, Ref, Schema } from 'effect'

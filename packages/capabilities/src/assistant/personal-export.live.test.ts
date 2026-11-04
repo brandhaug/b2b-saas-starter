@@ -1,7 +1,8 @@
 import { describe, expect, layer } from '@effect/vitest'
 import { Clock, DateTime, Effect, Schema } from 'effect'
 import { Database } from '@b2b-saas-starter/db/service'
-import { session, workspaceMembers } from '@b2b-saas-starter/db/schema'
+import { session } from '@b2b-saas-starter/db/schema/auth'
+import { workspaceMembers } from '@b2b-saas-starter/db/schema/workspaces'
 import { eq } from 'drizzle-orm'
 import {
   TestDatabase,

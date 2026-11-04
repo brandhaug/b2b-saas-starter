@@ -2,7 +2,7 @@ import {
   billingCheckoutClaims,
   billingSynchronization,
   workspaceSubscriptions
-} from '@b2b-saas-starter/db/schema'
+} from '@b2b-saas-starter/db/schema/billing'
 import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { DateTime, Effect } from 'effect'
 import { eq, sql } from 'drizzle-orm'

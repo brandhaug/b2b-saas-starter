@@ -1,10 +1,10 @@
 # Database
 
-Owns Drizzle schema, migrations, and D1 services. Stored enum vocabularies live in `src/enums.ts`, which stays Drizzle-free for auth and authorization consumers.
+Owns domain-organized Drizzle tables in `src/schema/`, migrations, and D1 services. Import tables from the owning `db/schema/<domain>` entry point. `src/schema.ts` assembles the complete table registry for adapter configuration and migrated-schema inspection. Stored enum vocabularies live in `src/enums.ts`, which stays Drizzle-free for auth and authorization consumers.
 
 ## Migration changes
 
-Edit `schema.ts`, run `db:generate`, and commit schema and generated migration together. `scripts/migrate.ts`, `scripts/baseline.ts`, `./testing`, and the background pool share `migrations-fs.ts` for folder names and ordering. Use repository migration scripts to preserve those bookkeeping identities. Current Wrangler and the Vitest plugin support nested patterns but name migrations by relative SQL path; the pool adapter restores the shared folder names.
+Edit the owning file in `src/schema/`, run `db:generate`, and commit schema and generated migration together. `scripts/migrate.ts`, `scripts/baseline.ts`, `./testing`, and the background pool share `migrations-fs.ts` for folder names and ordering. Use repository migration scripts to preserve those bookkeeping identities. Current Wrangler and the Vitest plugin support nested patterns but name migrations by relative SQL path; the pool adapter restores the shared folder names.
 
 After a squash, obsolete local D1 state still names deleted migrations. Follow [local reset setup](../../docs/setup.md): Alchemy development uses `.alchemy/local` and `.alchemy/state/b2b-saas-starter/local`; the compiled E2E preview uses `packages/db/.wrangler/state/v3/d1` and the `db:migrate:local` / `db:seed` commands. Reset the store used by the failing runtime (ADR 0049).
 

@@ -2,7 +2,7 @@ import {
   billingCheckoutClaims,
   billingSynchronization,
   workspaceSubscriptions
-} from '@b2b-saas-starter/db/schema'
+} from '@b2b-saas-starter/db/schema/billing'
 import { Database } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect } from 'effect'
 import { eq } from 'drizzle-orm'

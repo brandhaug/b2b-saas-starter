@@ -1,7 +1,7 @@
 import { AssistantDirectory } from '../assistant/directory.ts'
 import { Billing } from '@b2b-saas-starter/billing/billing'
 import { Database } from '@b2b-saas-starter/db/service'
-import { workspaces } from '@b2b-saas-starter/db/schema'
+import { workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Context, Effect, Layer, Option, Ref, Schema } from 'effect'
 import { eq } from 'drizzle-orm'
 import { WorkspaceChangeRejected } from '../errors.ts'

@@ -1,5 +1,5 @@
 import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
-import { type JsonObject } from '@b2b-saas-starter/db/schema'
+import { type JsonObject } from '@b2b-saas-starter/db/schema/json'
 import { type BatchStatement } from '@b2b-saas-starter/db/service'
 import { Context, type Effect } from 'effect'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'

@@ -1,5 +1,5 @@
 import { ssoProvisionedRoles } from '@b2b-saas-starter/db/enums'
-import { type JsonObject } from '@b2b-saas-starter/db/schema'
+import { type JsonObject } from '@b2b-saas-starter/db/schema/json'
 import { Context, Effect, type Option, Schema } from 'effect'
 
 import { MembershipChangeRejected } from '../errors.ts'

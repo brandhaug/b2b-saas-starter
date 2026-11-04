@@ -1,8 +1,5 @@
-import {
-  notifications,
-  workspaceMembers,
-  workspaces
-} from '@b2b-saas-starter/db/schema'
+import { notifications } from '@b2b-saas-starter/db/schema/notifications'
+import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database } from '@b2b-saas-starter/db/service'
 import { eq, inArray } from 'drizzle-orm'
 import { DateTime, Effect } from 'effect'
