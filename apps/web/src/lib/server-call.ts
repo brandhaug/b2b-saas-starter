@@ -19,7 +19,7 @@ export function callServerFn<A>(
   fallback: string,
   describe: (cause: unknown) => string = (cause) => causeMessage(cause, fallback)
 ): Promise<{ ok: true; value: A } | { ok: false; message: string }> {
-  // oxlint-disable-next-line effect/noNewPromise -- folding a promise boundary IS this function; the Effect wrapper it replaced only unfolded the exit again, and shipped `effect` to the browser to do it
+  // oxlint-disable-next-line effect/noNewPromise -- folds a Promise-based server call into its UI result, including synchronous failures
   return Promise.resolve()
     .then(run)
     .then(

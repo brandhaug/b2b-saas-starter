@@ -33,7 +33,7 @@ import { m } from '@b2b-saas-starter/i18n/messages'
 function previewAssistantAsk(
   ..._args: Parameters<AskAssistant>
 ): ReturnType<AskAssistant> {
-  // oxlint-disable-next-line effect/noNewPromise -- The browser preview implements the assistant Promise contract without importing the Effect runtime.
+  // oxlint-disable-next-line effect/noNewPromise -- The browser preview implements the assistant Promise contract.
   return Promise.resolve({
     ok: false,
     reason: 'unavailable',

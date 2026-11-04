@@ -69,9 +69,7 @@ type SignInValues = {
 const NO_SOCIAL_PROVIDERS: ReadonlyArray<SocialProviderId> = []
 
 /**
- * Whether the sign-in response asks for the two-factor hop. A plain field
- * probe rather than an effect Schema: this page is statically imported by the
- * route tree and ships to the browser, so it must not pin the Effect runtime.
+ * Whether the sign-in response asks for the two-factor hop.
  */
 // oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof -- Better Auth's response `data` is untyped JSON at this boundary; this probe is the parse step
 function wantsTwoFactorRedirect(data: unknown): boolean {

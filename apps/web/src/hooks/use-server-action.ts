@@ -55,7 +55,7 @@ export function useServerAction<I = void, A = void>(
   const scope = useRef({ identityKey, epoch: 0 })
   const inFlight = useRef<Promise<ServerActionOutcome<A>> | null>(null)
   function checkedCall(input: I, current: () => boolean) {
-    // oxlint-disable-next-line effect/noNewPromise -- client-side promise boundary also captures synchronous server-call failures without bundling Effect
+    // oxlint-disable-next-line effect/noNewPromise -- client-side promise boundary also captures synchronous server-call failures
     return Promise.resolve()
       .then(() => call(input))
       .catch(
