@@ -84,12 +84,12 @@ export function SearchButton() {
         <SearchIcon className="size-4" />
       </Button>
       <Button
-        variant="outline"
+        variant="outline-muted"
         onClick={() => value?.setOpen(true)}
         onMouseEnter={preloadCommandPalette}
         onFocus={preloadCommandPalette}
         aria-label={m.common_search()}
-        className="hidden h-9 w-56 gap-2 rounded-md px-3 text-sm text-muted-foreground md:flex"
+        className="hidden w-56 gap-2 md:flex"
       >
         <SearchIcon className="size-4" />
         <span className="flex-1 text-left">{m.common_search_placeholder()}</span>

@@ -323,7 +323,8 @@ function Investigation({
                 <li key={task.id}>
                   <Button
                     variant={activeTaskId === task.id ? 'secondary' : 'ghost'}
-                    className="h-auto min-h-11 w-full justify-start py-3 max-md:h-auto"
+                    size="row-lg"
+                    className="w-full"
                     aria-pressed={activeTaskId === task.id}
                     onClick={() => select(task)}
                   >

@@ -315,7 +315,11 @@ export function WebhooksPanel({
             <ItemGroup className="gap-0">
               {visibleEndpoints.map((endpoint, index) => (
                 <Fragment key={endpoint.id}>
-                  <Item className="flex-col items-stretch border-0 px-0 py-4">
+                  <Item
+                    size="row"
+                    variant="borderless"
+                    className="flex-col items-stretch"
+                  >
                     <ItemContent>
                       <ItemTitle className="flex-wrap">
                         <Identifier>{endpoint.url}</Identifier>

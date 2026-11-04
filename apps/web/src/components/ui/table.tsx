@@ -64,13 +64,18 @@ function TableRow({ className, ...props }: React.ComponentProps<'tr'>) {
   )
 }
 
-function TableHead({ className, ...props }: React.ComponentProps<'th'>) {
+function TableHead({
+  className,
+  sticky = false,
+  ...props
+}: React.ComponentProps<'th'> & { sticky?: boolean }) {
   return (
     <th
       data-slot="table-head"
       scope="col"
       className={cn(
         'text-foreground h-10 px-2 text-left align-middle font-medium whitespace-nowrap [&:has([role=checkbox])]:pr-0',
+        sticky && 'sticky left-0 z-10 bg-card group-hover:bg-muted/50',
         className
       )}
       {...props}
@@ -78,12 +83,19 @@ function TableHead({ className, ...props }: React.ComponentProps<'th'>) {
   )
 }
 
-function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
+function TableCell({
+  className,
+  tone = 'default',
+  sticky = false,
+  ...props
+}: React.ComponentProps<'td'> & { tone?: 'default' | 'muted'; sticky?: boolean }) {
   return (
     <td
       data-slot="table-cell"
       className={cn(
         'p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0',
+        tone === 'muted' && 'text-sm text-muted-foreground',
+        sticky && 'sticky left-0 z-10 bg-card group-hover:bg-muted/50',
         className
       )}
       {...props}

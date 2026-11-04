@@ -212,7 +212,7 @@ export function LiveNotifications({
           {failedMark !== null && failedMark.key.length > 1 ? (
             <ActionFeedback error={failedMark.message} />
           ) : null}
-          <ItemGroup className="divide-y divide-border">
+          <ItemGroup variant="divided">
             {visible.map((notification) => (
               /* One row shape at every width: the actions sit beside the
                   copy while it fits, packed to the row's right edge

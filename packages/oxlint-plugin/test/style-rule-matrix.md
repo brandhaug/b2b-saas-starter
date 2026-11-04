@@ -122,6 +122,19 @@ All lint probes and fixtures run through Vite+ 1.4.0's real bundled binary. The
 rule has no fixer, and its root enablement relies on import-aware matching rather
 than path exclusions. Integration owns the full-repository check.
 
+# Shared UI appearance
+
+`no-ui-appearance-override.test.ts` exercises named/aliased/namespace imports,
+shadowing, conditional and template classes, arbitrary variants/properties,
+important modifiers, inline appearance styles, and layout/accessibility false
+positives through the real oxlint binary. The web override enables the rule;
+the shared UI implementation directory is exempt because it owns appearance.
+
+This syntax-only check recognizes appearance utility families, not every possible
+Tailwind or custom CSS class. Indirect variables, spread props, variant helper
+calls, external CSS, and render-prop styles remain review responsibilities.
+Native elements and feature-component imports are outside this rule.
+
 # Operation tracing coverage
 
 `named-effect-operation.test.ts` covers dynamic/empty labels, direct import aliases,

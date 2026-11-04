@@ -1,14 +1,18 @@
 import { cn } from '@/lib/utils'
 import { Loader2Icon } from 'lucide-react'
 
-function Spinner({ className, ...props }: React.ComponentProps<'svg'>) {
+function Spinner({
+  className,
+  size = 'default',
+  ...props
+}: React.ComponentProps<'svg'> & { size?: 'default' | 'sm' }) {
   return (
     <span data-slot="spinner" className="inline-flex motion-safe:animate-spin">
       <Loader2Icon
         // Decorative inline: the action's label carries the state ("Signing
         // in…"), so an aria-label here only concatenated into button names.
         aria-hidden="true"
-        className={cn('size-4', className)}
+        className={cn(size === 'sm' ? 'size-3' : 'size-4', className)}
         {...props}
       />
     </span>

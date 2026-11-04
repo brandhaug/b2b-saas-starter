@@ -207,10 +207,7 @@ function OAuthConsentContent({
                     aria-label={m.oauth_workspace()}
                   >
                     {payload.workspaces.map(({ workspace, memberCount }) => (
-                      <Label
-                        key={workspace.id}
-                        className="flex items-start gap-3 rounded-sm border border-border px-3 py-2 has-data-checked:border-primary"
-                      >
+                      <Label key={workspace.id} variant="choice">
                         <RadioGroupItem value={workspace.id} className="mt-0.5" />
                         <span className="grid gap-0.5">
                           <span className="text-sm">{workspace.name}</span>

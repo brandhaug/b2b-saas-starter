@@ -192,7 +192,8 @@ function AuthenticatedWorkspaceShell({
               // clickable.
               <Badge
                 variant="neutral"
-                className="gap-1 font-mono tabular-nums max-md:min-h-11 max-md:min-w-11"
+                typography="numeric"
+                size="touch"
                 render={
                   <Link
                     to="/account/notifications"

@@ -13,6 +13,7 @@ Before changing auth HTTP handling, session reads, workspace authentication gate
 
 ## Changes
 
+- Shared UI components own appearance through variants and sizes. Follow [DESIGN.md component ownership](../../DESIGN.md#components) for layout, composition and accessibility exceptions; do not restyle shared internals from consumers or descendant selectors.
 - Loader modules use `workspacePage(gate, segment)` to gate reads, resolve `WorkspaceContext` once and wrap secondary permissions in `whenPermitted`. Payload types belong here: segment shape is authorization.
 - Server fns dynamically import sibling `.effects.ts` handlers combining session read, permissions and capability call, without an intermediate exported effect. The route tree ships to browsers; TanStack import protection checks the compiled import graph and `assert-client-boundary.mjs` checks built markers independently.
 - Declare one input Effect Schema in the client-safe module. Reuse it for browser validation and the server function's `.validator(Schema.decodeUnknownSync(X))`. `typeof X.Type` types stub and handler; handlers never re-decode. Browser validation improves feedback; server validation remains authoritative.

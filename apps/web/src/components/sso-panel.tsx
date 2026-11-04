@@ -393,7 +393,7 @@ function WorkspaceSsoPanel({
                             onChange={(event) => field.handleChange(event.target.value)}
                             rows={4}
                             placeholder={m.sso_metadata_xml_placeholder()}
-                            className="font-mono text-xs"
+                            typography="code"
                           />
                         </div>
                       )}

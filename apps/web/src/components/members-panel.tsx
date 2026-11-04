@@ -174,10 +174,7 @@ function MemberActions({
               </DropdownMenuItem>
             ) : null}
             {canRemove && !ownRow ? (
-              <DropdownMenuItem
-                className="text-destructive focus-visible:text-destructive"
-                onClick={onRemove}
-              >
+              <DropdownMenuItem variant="destructive" onClick={onRemove}>
                 {m.action_remove()}
               </DropdownMenuItem>
             ) : null}
@@ -314,7 +311,9 @@ function WorkspaceMembers({
             }
             placeholder={m.members_search_placeholder()}
             aria-label={m.members_search_label()}
-            className="bg-card pl-9 sm:max-w-md"
+            appearance="solid"
+            leadingIcon
+            className="sm:max-w-md"
           />
         </div>
         <TableViewControls fields={fields} view={table.view} onChange={table.setView} />
@@ -339,14 +338,11 @@ function WorkspaceMembers({
         </Empty>
       ) : (
         <>
-          <ItemGroup className="gap-0">
+          <ItemGroup spacing="compact">
             {visibleMembers.map((member, index) => (
               <Fragment key={member.id}>
-                <Item size="sm" className="flex-nowrap px-0 py-4">
-                  <ItemMedia
-                    aria-hidden="true"
-                    className="grid size-10 place-items-center rounded-md border border-border bg-card text-sm font-medium text-muted-foreground"
-                  >
+                <Item size="row" className="flex-nowrap">
+                  <ItemMedia aria-hidden="true" variant="initials">
                     {member.name
                       .trim()
                       .split(/\s+/u)

@@ -125,7 +125,7 @@ export function WorkspacesPage({
         ) : (
           <ItemGroup>
             {workspaces.map(({ workspace, memberCount, notificationCount }) => (
-              <Item key={workspace.id} variant="outline" className="p-0">
+              <Item key={workspace.id} variant="outline" size="flush">
                 <Link
                   to="/workspaces/$workspaceSlug"
                   params={{ workspaceSlug: workspace.slug }}
