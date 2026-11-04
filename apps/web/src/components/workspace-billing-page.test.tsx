@@ -11,7 +11,7 @@ import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import {
   resourceEntitlement,
   seatUsage,
-  type ResourceSelection,
+  ResourceSelection,
   STARTER_PLAN
 } from '@b2b-saas-starter/billing/plan-catalog'
 import { type BillingLifecycle } from '@b2b-saas-starter/billing/billing'
@@ -24,6 +24,7 @@ import type * as BillingServer from '@/lib/server/billing'
 import { type SelectBillingResources } from './workspace-billing'
 
 const { save } = vi.hoisted(() => ({ save: vi.fn<SelectBillingResources>() }))
+const decodeSelection = Schema.decodeUnknownSync(ResourceSelection)
 vi.mock('@/lib/server/billing', async (importOriginal) => ({
   ...(await importOriginal<typeof BillingServer>()),
   selectBillingResourcesServerFn: save
@@ -57,8 +58,8 @@ function fixture(): WorkspaceBillingPayload {
   const tokens = ['A', 'B', 'C']
   const hooks = ['https://example.test/one', 'https://example.test/two']
   const selection = {
-    apiTokenIds: ['A'],
-    webhookEndpointIds: ['https://example.test/one']
+    apiTokenIds: [ApiTokenId.make('A')],
+    webhookEndpointIds: [WebhookEndpointId.make('https://example.test/one')]
   }
   return {
     viewer: { role: 'owner' },
@@ -142,8 +143,9 @@ async function renderBilling(
     </QueryClientProvider>
   )
   save.mockImplementation(async ({ data }) => {
-    payload = withSelection(payload, data)
-    return data
+    const selection = decodeSelection(data)
+    payload = withSelection(payload, selection)
+    return selection
   })
   return {
     ...view,
@@ -377,7 +379,10 @@ describe('WorkspaceBillingPage route', () => {
             { id: 'C', name: 'Token C' }
           ]
         },
-        { apiTokenIds: ['D', 'C'], webhookEndpointIds: [] }
+        {
+          apiTokenIds: [ApiTokenId.make('D'), ApiTokenId.make('C')],
+          webhookEndpointIds: []
+        }
       )
     )
     await act(() => view.router.invalidate())
@@ -409,14 +414,17 @@ describe('WorkspaceBillingPage route', () => {
             { id: 'https://example.test/two', url: 'https://example.test/two' }
           ]
         },
-        { apiTokenIds: ['D', 'B'], webhookEndpointIds: [] }
+        {
+          apiTokenIds: [ApiTokenId.make('D'), ApiTokenId.make('B')],
+          webhookEndpointIds: []
+        }
       )
     )
     // Another loader refresh may arrive before the mutation response.
     await act(() => view.router.invalidate())
     pending.resolve({
-      apiTokenIds: ['A', 'B'],
-      webhookEndpointIds: ['https://example.test/one']
+      apiTokenIds: [ApiTokenId.make('A'), ApiTokenId.make('B')],
+      webhookEndpointIds: [WebhookEndpointId.make('https://example.test/one')]
     })
     await waitFor(() =>
       expect(
@@ -537,3 +545,5 @@ it.each(statuses)(
     }
   }
 )
+import { ApiTokenId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import { Schema } from 'effect'

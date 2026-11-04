@@ -96,7 +96,7 @@ export function SeedApiTokenRegistry(
         return current
       })
       inventory.registerTokens((workspaceId, now, includeUnavailable) => {
-        const ids: Array<string> = []
+        const ids: Array<ApiTokenId> = []
         for (const entry of store) {
           if (
             entry.workspaceId === workspaceId &&

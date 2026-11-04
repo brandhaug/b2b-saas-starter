@@ -6,7 +6,11 @@ import { ResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitle
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
-import { planById, seatUsage } from '@b2b-saas-starter/billing/plan-catalog'
+import {
+  planById,
+  seatUsage,
+  type ResourceSelection
+} from '@b2b-saas-starter/billing/plan-catalog'
 import { Effect } from 'effect'
 import { env as cloudflareEnv } from 'cloudflare:workers'
 
@@ -115,10 +119,7 @@ export async function loadWorkspaceBillingHandler(
 
 export async function selectBillingResourcesHandler(
   input: SelectResourcesInput
-): Promise<{
-  readonly apiTokenIds: ReadonlyArray<string>
-  readonly webhookEndpointIds: ReadonlyArray<string>
-}> {
+): Promise<ResourceSelection> {
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
     input.workspaceSlug,

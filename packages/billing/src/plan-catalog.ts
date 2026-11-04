@@ -149,8 +149,8 @@ export type EntitlementResource = 'api_token' | 'webhook_endpoint'
  * The persistence capability owns where this record is stored.
  */
 export const ResourceSelection = Schema.Struct({
-  apiTokenIds: Schema.Array(Schema.String),
-  webhookEndpointIds: Schema.Array(Schema.String)
+  apiTokenIds: Schema.Array(ApiTokenId),
+  webhookEndpointIds: Schema.Array(WebhookEndpointId)
 })
 export type ResourceSelection = typeof ResourceSelection.Type
 
@@ -238,3 +238,4 @@ export function limitFor(plan: Plan, resource: EntitlementResource): number | nu
   }
   return plan.limits.webhookEndpoints
 }
+import { ApiTokenId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'

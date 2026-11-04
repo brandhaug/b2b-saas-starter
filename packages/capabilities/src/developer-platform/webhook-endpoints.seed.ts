@@ -146,7 +146,7 @@ export function SeedWebhookEndpoints(
         consecutiveFailures: 0
       }))
       inventory.registerWebhooks((workspaceId, includeUnavailable) => {
-        const ids: Array<string> = []
+        const ids: Array<WebhookEndpointId> = []
         for (const endpoint of endpoints) {
           if (
             endpoint.workspaceId === workspaceId &&

@@ -85,8 +85,8 @@ async function renderPlans(options?: {
   readonly subscribedPlanId?: string
   readonly selectResources?: SelectBillingResources
   readonly resourceSelection?: {
-    readonly apiTokenIds: ReadonlyArray<string>
-    readonly webhookEndpointIds: ReadonlyArray<string>
+    readonly apiTokenIds: ReadonlyArray<ApiTokenId>
+    readonly webhookEndpointIds: ReadonlyArray<WebhookEndpointId>
   } | null
   readonly resourceEntitlements?: {
     readonly apiTokens: ResourceEntitlement

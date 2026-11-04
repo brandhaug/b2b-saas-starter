@@ -70,18 +70,18 @@ const nullableString = Schema.NullOr(Schema.String)
 const workspaceRole = Schema.Literals(['owner', 'admin', 'member'])
 export const WebhookEventPayloads = {
   'api_token.created': Schema.Struct({
-    id: Schema.String,
+    id: ApiTokenId,
     name: Schema.String,
     prefix: Schema.String,
     scopes: Schema.Array(Schema.String),
     lastUsedAt: nullableString,
     createdAt: Schema.String,
     expiresAt: nullableString,
-    replacedByTokenId: nullableString
+    replacedByTokenId: Schema.NullOr(ApiTokenId)
   }),
   'api_token.revoked': Schema.Struct({ tokenId: ApiTokenId }),
   'webhook_endpoint.created': Schema.Struct({
-    id: Schema.String,
+    id: WebhookEndpointId,
     url: Schema.String,
     enabled: Schema.Boolean,
     events: Schema.Array(Schema.String),
