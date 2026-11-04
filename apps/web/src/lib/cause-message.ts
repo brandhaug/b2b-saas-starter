@@ -1,4 +1,4 @@
-/* oxlint-disable anti-slop/no-runtime-typeof -- this is the client-safe decoder for untrusted serialized errors; Effect Schema cannot enter the browser bundle */
+import { Option, Schema } from 'effect'
 import { LocalizedError } from './localized-error'
 import {
   type ForbiddenReason,
@@ -7,6 +7,27 @@ import {
   type UserAdminRefusalReason
 } from './capability-error'
 import * as m from '@b2b-saas-starter/i18n/messages'
+
+const decodeEnvelope = Schema.decodeUnknownOption(
+  Schema.Struct({
+    code: Schema.String,
+    details: Schema.optionalKey(Schema.Unknown)
+  })
+)
+const decodeDetails = Schema.decodeUnknownOption(
+  Schema.Struct({
+    reason: Schema.optionalKey(Schema.Unknown),
+    planId: Schema.optionalKey(Schema.Unknown),
+    limit: Schema.optionalKey(Schema.Unknown)
+  })
+)
+const decodePlanLimit = Schema.decodeUnknownOption(
+  Schema.Struct({
+    planId: Schema.String,
+    limit: Schema.Number
+  })
+)
+const isReason = Schema.is(Schema.String)
 
 /**
  * One translated sentence per refusal reason, keyed by the reason vocabulary
@@ -68,9 +89,8 @@ function reasonMessage<Reason extends string>(
   // `Object.hasOwn` keeps inherited keys like `constructor` out of the lookup.
   const lookup: ReasonLookup = messages
   const message =
-    (typeof reason === 'string' && Object.hasOwn(lookup, reason)
-      ? lookup[reason]
-      : undefined) ?? messages[fallbackReason]
+    (isReason(reason) && Object.hasOwn(lookup, reason) ? lookup[reason] : undefined) ??
+    messages[fallbackReason]
   return message()
 }
 
@@ -82,15 +102,13 @@ export function causeMessage(thrown: unknown, fallback: string): string {
   if (thrown instanceof LocalizedError) {
     return thrown.message
   }
-  if (typeof thrown !== 'object' || thrown === null || !('code' in thrown)) {
+  const envelope = decodeEnvelope(thrown)
+  if (Option.isNone(envelope)) {
     return fallback
   }
-  const details =
-    'details' in thrown && typeof thrown.details === 'object' && thrown.details !== null
-      ? thrown.details
-      : {}
-  const reason = 'reason' in details ? details.reason : undefined
-  switch (thrown.code) {
+  const details = decodeDetails(envelope.value.details)
+  const reason = Option.isSome(details) ? details.value.reason : undefined
+  switch (envelope.value.code) {
     case 'invalid_calendar_day': {
       return m.shell_invalid_calendar_day()
     }
@@ -122,13 +140,9 @@ export function causeMessage(thrown: unknown, fallback: string): string {
       return m.workspace_billing_delete_blocked()
     }
     case 'plan_limit': {
-      if (
-        'planId' in details &&
-        typeof details.planId === 'string' &&
-        'limit' in details &&
-        typeof details.limit === 'number'
-      ) {
-        return m.shell_plan_limit({ planId: details.planId, limit: details.limit })
+      const plan = decodePlanLimit(envelope.value.details)
+      if (Option.isSome(plan)) {
+        return m.shell_plan_limit(plan.value)
       }
       return fallback
     }

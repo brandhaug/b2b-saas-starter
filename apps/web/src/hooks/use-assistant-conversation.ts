@@ -125,7 +125,7 @@ export function useAssistantConversation(
                 deny(result.message)
                 return null
               }
-              // oxlint-disable-next-line effect/noThrowStatement, effect/noNewError -- TanStack Query requires rejection; the capability result already contains safe localized UI copy and Effect must stay outside the browser bundle.
+              // oxlint-disable-next-line effect/noThrowStatement, effect/noNewError -- TanStack Query requires rejection; the capability result already contains safe localized UI copy.
               throw new Error(result.message)
             }
             const current = client.getQueryData<ConversationHistory | null>(key) ?? null

@@ -14,7 +14,7 @@ Drizzle is pinned to a prerelease in the workspace catalog. Before changing APIs
 
 ## Storage invariants
 
-- `src/ids.ts` owns Drizzle-free branded API-token, webhook-endpoint and webhook-delivery identities. Decode transport inputs with these schemas; construct generated identities and fixture literals explicitly. `src/identity-values.ts` provides nominal constructors for trusted shared fixtures without shipping Schema to the browser. Keep brands through storage references and service contracts; form text stays untrusted until its server boundary decodes it.
+- `src/ids.ts` owns Drizzle-free branded API-token, webhook-endpoint and webhook-delivery identities shared by browser and server. Decode transport inputs with these schemas; construct generated identities and fixture literals explicitly. Keep brands through storage references and service contracts; form text stays untrusted until its server boundary decodes it.
 - Drizzle column builders are single-use. Helpers must return fresh builders.
 - Resolve `RawD1` at layer construction instead of threading the binding through application code. D1 atomicity uses `batch` with compiled statements; use `batchResults` when change counts or selected evidence are needed. Both share compilation and preserve statement order. Explicit transactions are unsupported.
 - Better Auth and plugin tables use epoch seconds; starter-owned tables use ISO strings. Do not decode workspace creation time as ISO storage.

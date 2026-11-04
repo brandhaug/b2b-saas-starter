@@ -1,3 +1,4 @@
+import { Option, Schema } from 'effect'
 export { cn } from 'cn'
 
 /**
@@ -18,39 +19,33 @@ export function safeRedirect(raw: string | undefined): string {
   return second === '/' || second === '\\' ? '/workspaces' : raw
 }
 
-/**
- * A search param shape of nothing but optional strings — the whole vocabulary
- * the auth-flow routes need (`?redirect=`, `?token=`, `?error=`). This is a
- * five-line narrowing instead of an `effect/Schema` decode on purpose: these
- * validators are module-level imports of every route file, and the route tree
- * ships statically to the browser, so an effect import here would pin the
- * Effect runtime onto pages (sign-in, sign-up) that never run a capability.
- */
-// oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, anti-slop/no-unsafe-dictionary-type, anti-slop/no-known-value-widening
-// TanStack Router hands `validateSearch` an untyped search record at this
-// module's boundary — the parse step for that boundary lives here and only
-// here. Object values are probed as unknown before accepting any string field.
-function isSearchRecord(search: unknown): search is Record<string, unknown> {
-  return typeof search === 'object' && search !== null
-}
+const decodeSearchRecord = Schema.decodeUnknownOption(
+  Schema.Record(Schema.String, Schema.Unknown)
+)
+const isString = Schema.is(Schema.String)
+type OptionalStrings = Record<string, string | undefined>
 
+/** Keep valid string fields independently; one malformed field does not erase its siblings. */
+// oxlint-disable anti-slop/no-known-value-widening -- caller-supplied key lists define this boundary's dictionary contract
 export function pickOptionalStrings(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- TanStack Router and config fetches provide untrusted input at this decode boundary
   search: unknown,
   keys: ReadonlyArray<string>
-): Record<string, string | undefined> {
-  const picked: Record<string, string | undefined> = {}
-  if (!isSearchRecord(search)) {
+): OptionalStrings {
+  const picked: OptionalStrings = {}
+  const decoded = decodeSearchRecord(search)
+  if (Option.isNone(decoded)) {
     return picked
   }
   for (const key of keys) {
-    const value = search[key]
-    if (typeof value === 'string') {
+    const value = decoded.value[key]
+    if (isString(value)) {
       picked[key] = value
     }
   }
   return picked
 }
-// oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, anti-slop/no-unsafe-dictionary-type, anti-slop/no-known-value-widening
+// oxlint-enable anti-slop/no-known-value-widening
 
 /**
  * The `?redirect=` search param the auth flow routes (sign-in, sign-up,

@@ -15,11 +15,11 @@ Before changing auth HTTP handling, session reads, workspace authentication gate
 
 - Loader modules use `workspacePage(gate, segment)` to gate reads, resolve `WorkspaceContext` once and wrap secondary permissions in `whenPermitted`. Payload types belong here: segment shape is authorization.
 - Server fns dynamically import sibling `.effects.ts` handlers combining session read, permissions and capability call, without an intermediate exported effect. The route tree ships to browsers; `assert-client-boundary.mjs` guards this split.
-- Declare one input Effect Schema in the client-safe module. TanStack strips `.validator(Schema.decodeUnknownSync(X))`; tree-shaking removes Schema and `effect`, checked by the bundle guard's Schema markers. `typeof X.Type` types stub and handler; handlers never re-decode.
+- Declare one input Effect Schema in the client-safe module. Reuse it for browser validation and the server function's `.validator(Schema.decodeUnknownSync(X))`. `typeof X.Type` types stub and handler; handlers never re-decode. Browser validation improves feedback; server validation remains authoritative.
 - Component-less API routes (`api.auth.$.ts`) may import `.effects.ts` directly; routes with components may not.
 - Organization-plugin mutations pass a `CapabilityBindings` binding per call, never module env.
 - The UI gates by permission, never role name (`viewerCan`): an unreadable section is absent, an unpermitted action shows a reason, and the server re-checks.
-- Browser decodes stay plain shape probes (`pickOptionalStrings`, `impersonation.ts`); Effect Schema would ship unconditionally.
+- Use Effect Schema at browser boundaries, including route search/context, persisted preferences, configuration and serialized errors. Compile reusable decoders at module scope and preserve each boundary's fallback behavior. Effect and Schema may ship to the client; database services, server credentials and capability execution stay server-only. The bundle guard checks those server-only modules.
 
 ## Boundaries
 
