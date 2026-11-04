@@ -2,12 +2,16 @@
  * The signed OAuth query the provider redirects to the consent and sign-in
  * pages with (ADR 0068): the authorization request's own parameters plus
  * `exp`, `ba_iat`, `ba_param` (the names it signed) and `sig`. Both helpers are
- * pure and ship to the browser, so no Effect here.
+ * pure and share the browser's schema-backed decoding.
  */
 
 import { m } from '@b2b-saas-starter/i18n/messages'
+import { Option, Schema } from 'effect'
 
 const SIGNED_PARAMETER_NAMES = 'ba_param'
+const decodeRepeatedValues = Schema.decodeUnknownOption(
+  Schema.fromJsonString(Schema.Array(Schema.String))
+)
 
 /** Restore only repeatable protocol fields after TanStack search serialization. */
 function restoreRepeatedParameter(params: URLSearchParams, name: string): boolean {
@@ -16,24 +20,15 @@ function restoreRepeatedParameter(params: URLSearchParams, name: string): boolea
   if (values.length !== 1 || !value?.startsWith('[')) {
     return true
   }
-  // oxlint-disable-next-line effect/noTryCatch -- browser query boundary refuses malformed JSON without importing Effect
-  try {
-    const decoded: unknown = JSON.parse(value)
-    if (
-      !Array.isArray(decoded) ||
-      // oxlint-disable-next-line anti-slop/no-runtime-typeof -- browser boundary validates every untrusted repeated query value
-      !decoded.every((entry) => typeof entry === 'string')
-    ) {
-      return false
-    }
-    params.delete(name)
-    for (const entry of decoded) {
-      params.append(name, entry)
-    }
-    return true
-  } catch {
+  const decoded = decodeRepeatedValues(value)
+  if (Option.isNone(decoded)) {
     return false
   }
+  params.delete(name)
+  for (const entry of decoded.value) {
+    params.append(name, entry)
+  }
+  return true
 }
 
 /**

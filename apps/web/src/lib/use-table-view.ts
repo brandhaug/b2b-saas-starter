@@ -1,4 +1,5 @@
 import { useNavigate, useRouterState } from '@tanstack/react-router'
+import { Option, Schema } from 'effect'
 
 import {
   parseTableView,
@@ -10,39 +11,34 @@ import {
 const MAX_VIEWS = 24
 
 type SerializedViews = Record<string, string>
-/* oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, effect/noTryCatch -- tableViews is an intentionally plain URL search payload. */
+const ViewsRecord = Schema.Record(Schema.String, Schema.Unknown)
+const decodeViews = Schema.decodeUnknownOption(
+  Schema.Union([
+    ViewsRecord,
+    Schema.String.check(Schema.isMaxLength(32_768)).pipe(
+      Schema.decodeTo(Schema.fromJsonString(ViewsRecord))
+    )
+  ])
+)
+const isSerializedView = Schema.is(Schema.String)
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- URL input is decoded here before individual entries are retained
 function readViews(value: unknown): SerializedViews {
-  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-    return Object.fromEntries(
-      Object.entries(value)
-        .filter(
-          ([key, serialized]) => key.length <= 128 && typeof serialized === 'string'
-        )
-        .slice(0, MAX_VIEWS)
-    )
-  }
-  if (typeof value !== 'string' || value.length > 32_768) {
+  const decoded = decodeViews(value)
+  if (Option.isNone(decoded)) {
     return {}
   }
-  try {
-    const parsed: unknown = JSON.parse(value)
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-      return {}
-    }
-    return Object.fromEntries(
-      Object.entries(parsed)
-        .filter(
-          ([key, serialized]) => key.length <= 128 && typeof serialized === 'string'
-        )
-        .slice(0, MAX_VIEWS)
-    )
-  } catch {
-    return {}
-  }
+  return Object.fromEntries(
+    Object.entries(decoded.value)
+      .flatMap(([key, serialized]) =>
+        key.length <= 128 && isSerializedView(serialized) ? [[key, serialized]] : []
+      )
+      .slice(0, MAX_VIEWS)
+  )
 }
 
 /** Update one saved view while preserving the other lists' URL state. */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- accepts the same URL boundary as readViews
 export function updateTableViews(value: unknown, key: string, view: TableView) {
   const views = readViews(value)
   const serialized = serializeTableView(view)
@@ -74,6 +70,7 @@ export function useTableView(
       to: '.',
       search: (previous) => {
         const current = parseTableView(readViews(previous.tableViews)[key], fields)
+        // oxlint-disable-next-line anti-slop/no-runtime-typeof -- React-style updater is an already-typed function-or-value union
         const nextView = typeof next === 'function' ? next(current) : next
         const criteriaChanged =
           current.query !== nextView.query ||
@@ -97,4 +94,3 @@ export function useTableView(
 
   return { view, setView }
 }
-/* oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof, effect/noTryCatch */

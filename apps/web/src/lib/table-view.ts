@@ -14,6 +14,7 @@ import {
 } from '@tanstack/table-core'
 import { storeReactivityBindings } from '@tanstack/table-core/store-reactivity-bindings'
 import { presentationSettings } from './i18n'
+import { Option, Schema } from 'effect'
 
 export const tableFilterOperators = [
   'contains',
@@ -57,28 +58,27 @@ export const defaultTableView: TableView = { match: 'all', filters: [], sorts: [
 
 const MAX_INPUT_LENGTH = 16_384
 const MAX_ITEMS = 32
-const operatorSet = new Set<string>(tableFilterOperators)
-
-function isTableFilterOperator(value: unknown): value is TableFilterOperator {
-  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Parsed JSON values are narrowed at this browser boundary.
-  return typeof value === 'string' && operatorSet.has(value)
-}
-
-function isSortDirection(value: unknown): value is 'asc' | 'desc' {
-  return value === 'asc' || value === 'desc'
-}
-
-/* oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-unsafe-dictionary-type, anti-slop/no-runtime-typeof, effect/noTryCatch -- JSON URL payload is intentionally narrowed at this browser boundary. */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function normalizeValue(value: unknown): string | undefined {
-  if (typeof value !== 'string' || value.length > 512) {
-    return undefined
-  }
-  return value
-}
+const FilterOperator = Schema.Literals(tableFilterOperators)
+const decodeEnvelope = Schema.decodeUnknownOption(
+  Schema.fromJsonString(Schema.Record(Schema.String, Schema.Unknown))
+)
+const decodeItems = Schema.decodeUnknownOption(Schema.Array(Schema.Unknown))
+const decodeFilter = Schema.decodeUnknownOption(
+  Schema.Struct({
+    field: Schema.String,
+    operator: FilterOperator,
+    value: Schema.String.check(Schema.isMaxLength(512))
+  })
+)
+const decodeSort = Schema.decodeUnknownOption(
+  Schema.Struct({ field: Schema.String, direction: Schema.Literals(['asc', 'desc']) })
+)
+const decodeQuery = Schema.decodeUnknownOption(
+  Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(512))
+)
+const decodePageIndex = Schema.decodeUnknownOption(
+  Schema.Int.check(Schema.isGreaterThan(0))
+)
 
 export function parseTableView(
   serialized: string | undefined,
@@ -87,49 +87,32 @@ export function parseTableView(
   if (!serialized || serialized.length > MAX_INPUT_LENGTH) {
     return defaultTableView
   }
-  let decoded: unknown
-  try {
-    decoded = JSON.parse(serialized)
-  } catch {
+  const envelope = decodeEnvelope(serialized)
+  if (Option.isNone(envelope)) {
     return defaultTableView
   }
-  if (!isRecord(decoded)) {
-    return defaultTableView
-  }
+  const decoded = envelope.value
   const fieldIds = new Set(fields.map((field) => field.id))
-  const parsedFilters = Array.isArray(decoded.filters)
-    ? decoded.filters.slice(0, MAX_ITEMS).flatMap((candidate) => {
-        if (!isRecord(candidate)) {
-          return []
-        }
-        const field = candidate.field
-        const operator = candidate.operator
-        const value = normalizeValue(candidate.value)
-        const fieldSpec =
-          typeof field === 'string'
-            ? fields.find((item) => item.id === field)
-            : undefined
-        const validOption =
-          fieldSpec?.kind !== 'select' ||
-          value === '' ||
-          fieldSpec.options?.some((option) => option.value === value)
-        const validOperator = validOperatorForField(fieldSpec, operator)
-        const validValue = validValueForField(fieldSpec, value ?? '')
-        if (
-          typeof field !== 'string' ||
-          !fieldIds.has(field) ||
-          typeof operator !== 'string' ||
-          !isTableFilterOperator(operator) ||
-          value === undefined ||
-          !validOption ||
-          !validOperator ||
-          !validValue
-        ) {
-          return []
-        }
-        return [{ field, operator, value }]
-      })
-    : []
+  const parsedFilters = Option.getOrElse(decodeItems(decoded.filters), () => [])
+    .slice(0, MAX_ITEMS)
+    .flatMap((candidate) => {
+      const filter = decodeFilter(candidate)
+      if (Option.isNone(filter)) {
+        return []
+      }
+      const { field, operator, value } = filter.value
+      const fieldSpec = fields.find((item) => item.id === field)
+      const validOption =
+        fieldSpec?.kind !== 'select' ||
+        value === '' ||
+        fieldSpec.options?.some((option) => option.value === value)
+      const validOperator = validOperatorForField(fieldSpec, operator)
+      const validValue = validValueForField(fieldSpec, value)
+      if (!fieldIds.has(field) || !validOption || !validOperator || !validValue) {
+        return []
+      }
+      return [{ field, operator, value }]
+    })
   const seenFilterFields = new Set<string>()
   const filters = parsedFilters.filter((filter) => {
     if (seenFilterFields.has(filter.field)) {
@@ -138,23 +121,15 @@ export function parseTableView(
     seenFilterFields.add(filter.field)
     return true
   })
-  const parsedSorts = Array.isArray(decoded.sorts)
-    ? decoded.sorts.slice(0, MAX_ITEMS).flatMap((candidate) => {
-        if (!isRecord(candidate)) {
-          return []
-        }
-        const field = candidate.field
-        const direction = candidate.direction
-        if (
-          typeof field !== 'string' ||
-          !fieldIds.has(field) ||
-          !isSortDirection(direction)
-        ) {
-          return []
-        }
-        return [{ field, direction }]
-      })
-    : []
+  const parsedSorts = Option.getOrElse(decodeItems(decoded.sorts), () => [])
+    .slice(0, MAX_ITEMS)
+    .flatMap((candidate) => {
+      const sort = decodeSort(candidate)
+      if (Option.isNone(sort) || !fieldIds.has(sort.value.field)) {
+        return []
+      }
+      return [sort.value]
+    })
   const seenSortFields = new Set<string>()
   const sorts = parsedSorts.filter((sort) => {
     if (seenSortFields.has(sort.field)) {
@@ -168,15 +143,13 @@ export function parseTableView(
     filters,
     sorts
   }
-  if (
-    typeof decoded.query === 'string' &&
-    decoded.query.length <= 512 &&
-    decoded.query !== ''
-  ) {
-    view = { ...view, query: decoded.query }
+  const query = decodeQuery(decoded.query)
+  if (Option.isSome(query)) {
+    view = { ...view, query: query.value }
   }
-  if (Number.isSafeInteger(decoded.pageIndex) && Number(decoded.pageIndex) > 0) {
-    view = { ...view, pageIndex: Number(decoded.pageIndex) }
+  const pageIndex = decodePageIndex(decoded.pageIndex)
+  if (Option.isSome(pageIndex)) {
+    view = { ...view, pageIndex: pageIndex.value }
   }
   return view
 }
@@ -220,13 +193,9 @@ export function operatorsForTableField(
 
 function validOperatorForField(
   field: TableViewField | undefined,
-  operator: unknown
+  operator: TableFilterOperator
 ): boolean {
-  return (
-    field !== undefined &&
-    isTableFilterOperator(operator) &&
-    operatorsForTableField(field).includes(operator)
-  )
+  return field !== undefined && operatorsForTableField(field).includes(operator)
 }
 
 function validValueForField(field: TableViewField | undefined, value: string): boolean {
@@ -250,6 +219,7 @@ function valueAsText(value: TableValue): string {
 
 const calendarFormatters = new Map<string, Intl.DateTimeFormat>()
 
+/* oxlint-disable anti-slop/no-runtime-typeof -- pure table comparisons discriminate already-typed local values, not untrusted input */
 function calendarDay(value: Date | string): string | undefined {
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return value
@@ -442,4 +412,4 @@ export function applyTableView<T extends RowData>(
   })
   return table.getSortedRowModel().rows.map((row) => row.original)
 }
-/* oxlint-enable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof */
+/* oxlint-enable anti-slop/no-runtime-typeof */
