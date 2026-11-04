@@ -1,3 +1,4 @@
+import { WebhookDeliveryId } from '@b2b-saas-starter/db/ids'
 import { DateTime, Effect } from 'effect'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
@@ -21,7 +22,7 @@ function observation(eventType: string) {
     })
     return {
       message: {
-        deliveryId: `whd_${eventType}`,
+        deliveryId: WebhookDeliveryId.make(`whd_${eventType}`),
         endpointId: endpoint.id,
         workspaceId: ctx.workspace.id,
         eventType,
@@ -135,7 +136,7 @@ export function webhookCompletionCases(
           ...input,
           message: {
             ...input.message,
-            deliveryId: 'whd_completion_dlq',
+            deliveryId: WebhookDeliveryId.make('whd_completion_dlq'),
             eventType: 'completion_dlq'
           },
           attempts: 6

@@ -1,3 +1,4 @@
+import { ApiTokenId } from '@b2b-saas-starter/db/ids'
 import { apiTokenScopes } from '@b2b-saas-starter/db/enums'
 import { Context, DateTime, Schema, type Effect } from 'effect'
 
@@ -28,14 +29,14 @@ export const ApiTokenScope = Schema.Literals(apiTokenScopes)
 export type ApiTokenScope = typeof ApiTokenScope.Type
 
 export const ApiToken = Schema.Struct({
-  id: Schema.String,
+  id: ApiTokenId,
   name: Schema.String,
   prefix: Schema.String,
   scopes: Schema.Array(ApiTokenScope),
   lastUsedAt: Schema.NullOr(Schema.String),
   createdAt: Schema.String,
   expiresAt: Schema.NullOr(Schema.String),
-  replacedByTokenId: Schema.NullOr(Schema.String)
+  replacedByTokenId: Schema.NullOr(ApiTokenId)
 })
 export type ApiToken = typeof ApiToken.Type
 
@@ -87,7 +88,9 @@ export const ReplaceApiTokenPayload = Schema.Struct({
   expiresAt: Schema.optionalKey(ApiTokenExpiry)
 })
 export type ReplaceApiTokenPayload = typeof ReplaceApiTokenPayload.Type
-export type ReplaceApiTokenInput = ReplaceApiTokenPayload & { readonly tokenId: string }
+export type ReplaceApiTokenInput = ReplaceApiTokenPayload & {
+  readonly tokenId: ApiTokenId
+}
 
 export const CreatedApiTokenSchema = Schema.Struct({
   ...ApiToken.fields,
@@ -95,13 +98,13 @@ export const CreatedApiTokenSchema = Schema.Struct({
 })
 export const ReplacedApiTokenSchema = Schema.Struct({
   ...CreatedApiTokenSchema.fields,
-  previousTokenId: Schema.String,
+  previousTokenId: ApiTokenId,
   previousTokenExpiresAt: Schema.String
 })
 export type ReplacedApiToken = typeof ReplacedApiTokenSchema.Type
 
 export type RevokeApiTokenInput = {
-  readonly tokenId: string
+  readonly tokenId: ApiTokenId
 }
 
 type ApiTokenRegistryInterface = {

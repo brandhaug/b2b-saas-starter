@@ -33,10 +33,13 @@ export type ResourceEntitlementsInterface = {
     input: ResourceEntitlementInput
   ) => Effect.Effect<ResourceEntitlement, CapabilityUnavailable, WorkspaceContext>
   readonly isActiveForWorkspace: (
-    input: ResourceEntitlementInput & {
-      readonly resourceId: string
-      readonly workspaceId: string
-    }
+    input: { readonly workspaceId: string } & (
+      | { readonly resource: 'api_token'; readonly resourceId: ApiTokenId }
+      | {
+          readonly resource: 'webhook_endpoint'
+          readonly resourceId: WebhookEndpointId
+        }
+    )
   ) => Effect.Effect<boolean, CapabilityUnavailable>
 }
 
@@ -44,3 +47,4 @@ export class ResourceEntitlements extends Context.Service<
   ResourceEntitlements,
   ResourceEntitlementsInterface
 >()('@b2b-saas-starter/billing/ResourceEntitlements') {}
+import { type ApiTokenId, type WebhookEndpointId } from '@b2b-saas-starter/db/ids'

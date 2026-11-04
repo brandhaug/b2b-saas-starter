@@ -160,7 +160,7 @@ export function resourceEntitlementsContract(expect: typeof VitestExpect) {
       failureTag(
         yield* Effect.exit(
           entitlements.select({
-            apiTokenIds: ['foreign-token'],
+            apiTokenIds: [ApiTokenId.make('foreign-token')],
             webhookEndpointIds: []
           })
         )
@@ -171,7 +171,7 @@ export function resourceEntitlementsContract(expect: typeof VitestExpect) {
         yield* Effect.exit(
           entitlements.select({
             apiTokenIds: [],
-            webhookEndpointIds: ['foreign-endpoint']
+            webhookEndpointIds: [WebhookEndpointId.make('foreign-endpoint')]
           })
         )
       )
@@ -269,3 +269,4 @@ export function resourceAdmissionContract(expect: typeof VitestExpect) {
     ).toBe('PlanLimitExceeded')
   })
 }
+import { ApiTokenId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'

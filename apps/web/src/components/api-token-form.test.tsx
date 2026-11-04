@@ -1,3 +1,4 @@
+import { ApiTokenId } from '@b2b-saas-starter/db/ids'
 import { type CreatedApiToken } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { renderWithRouter } from '@/test/router-harness'
@@ -5,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { ApiTokenForm, type CreateApiToken } from './api-token-form'
 
 const createdToken: CreatedApiToken = {
-  id: 'tok_test',
+  id: ApiTokenId.make('tok_test'),
   name: 'CI token',
   prefix: 'bsk_live_abcdefgh',
   scopes: ['read'],

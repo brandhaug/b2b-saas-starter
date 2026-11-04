@@ -42,7 +42,7 @@ const readSelection = Effect.fn('ResourceSelections.read')(function* (
 /** Prepared in the selection owner, committed with the token claim and its audit. */
 export const prepareTokenSelectionRotation = Effect.fn(
   'ResourceSelections.prepareTokenRotation'
-)(function* (workspaceId: string, fromId: string, toId: string, now: string) {
+)(function* (workspaceId: string, fromId: ApiTokenId, toId: ApiTokenId, now: string) {
   const db = yield* Database
   return db
     .update(workspaceResourceSelections)
@@ -231,3 +231,4 @@ export const LiveResourceEntitlements: Layer.Layer<
     })
   })
 )
+import { type ApiTokenId } from '@b2b-saas-starter/db/ids'

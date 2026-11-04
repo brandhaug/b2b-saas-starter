@@ -1,3 +1,4 @@
+import { ApiTokenId } from '@b2b-saas-starter/db/ids'
 import {
   CreateApiTokenPayload,
   ReplaceApiTokenPayload,
@@ -35,7 +36,7 @@ const CreateApiTokenInput = Schema.Struct({
 // input is `{ tokenId }` alone (`RevokeApiTokenRef` below).
 const RevokeApiTokenInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
-  tokenId: Schema.NonEmptyString
+  tokenId: ApiTokenId
 })
 
 export type LoadApiTokensInput = typeof LoadApiTokensInput.Type
@@ -66,7 +67,7 @@ export const revokeApiTokenServerFn = createServerFn({ method: 'POST' })
 
 const ReplaceApiTokenInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
-  tokenId: Schema.NonEmptyString,
+  tokenId: ApiTokenId,
   ...ReplaceApiTokenPayload.fields
 })
 export type ReplaceApiTokenInput = typeof ReplaceApiTokenInput.Type

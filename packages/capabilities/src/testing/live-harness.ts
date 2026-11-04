@@ -1,3 +1,4 @@
+import { WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
 import { user } from '@b2b-saas-starter/db/schema/auth'
 import { webhookEndpoints } from '@b2b-saas-starter/db/schema/developer-platform'
@@ -247,7 +248,7 @@ const insertFixtureRows = Effect.gen(function* () {
   )
   // The endpoint the webhook delivery-attempt suite records attempts against.
   yield* db.insert(webhookEndpoints).values({
-    id: 'wh_live',
+    id: WebhookEndpointId.make('wh_live'),
     workspaceId: 'wrk_live',
     url: 'https://example.com/hook',
     signingSecret: 'whsec_live_test',

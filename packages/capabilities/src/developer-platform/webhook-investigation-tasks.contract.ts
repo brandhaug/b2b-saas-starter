@@ -1,3 +1,4 @@
+import { WebhookDeliveryId, type WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { Effect, Exit } from 'effect'
 
 import { type PlanLimitExceeded } from '@b2b-saas-starter/billing/errors'
@@ -36,8 +37,8 @@ type WebhookInvestigationTaskContractCase = {
 }
 
 type PreparedDelivery = {
-  readonly endpointId: string
-  readonly deliveryId: string
+  readonly endpointId: WebhookEndpointId
+  readonly deliveryId: WebhookDeliveryId
   readonly workspaceId: string
   readonly eventType: string
 }
@@ -248,8 +249,11 @@ export function webhookInvestigationTaskContractCases(
           question: 'Do not dispatch after this endpoint changes'
         })
         const approved = yield* tasks.approve({ taskId: task.id })
-        const replayDeliveryId = approved.replayDeliveryId ?? ''
-        expect(replayDeliveryId).toBe(`replay_${task.id}`)
+        const replayDeliveryId = approved.replayDeliveryId
+        expect(replayDeliveryId).toBe(WebhookDeliveryId.make(`replay_${task.id}`))
+        if (replayDeliveryId === null) {
+          return
+        }
         yield* webhooks.update({
           endpointId: source.endpointId,
           url: 'https://example.com/investigation/approved-url-change-now'
@@ -275,8 +279,11 @@ export function webhookInvestigationTaskContractCases(
           question: 'Did the replay arrive?'
         })
         const approved = yield* tasks.approve({ taskId: task.id })
-        const replayDeliveryId = approved.replayDeliveryId ?? ''
-        expect(replayDeliveryId).toBe(`replay_${task.id}`)
+        const replayDeliveryId = approved.replayDeliveryId
+        expect(replayDeliveryId).toBe(WebhookDeliveryId.make(`replay_${task.id}`))
+        if (replayDeliveryId === null) {
+          return
+        }
         expect(approved.outcome).toBe('pending')
         yield* webhooks.recordDeliveryAttempt({
           id: replayDeliveryId,

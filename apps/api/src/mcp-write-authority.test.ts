@@ -1,3 +1,4 @@
+import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { RateLimiter } from '@b2b-saas-starter/api'
 import { SeedLayer } from '@b2b-saas-starter/capabilities/layers'
 import { McpClientConnections } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
@@ -89,7 +90,7 @@ it.live(
         yield* Effect.promise(() => client.initialize())
         info.mockClear()
         const response = yield* call(client, 'send_webhook_test_event', {
-          endpointId: 'wh_release'
+          endpointId: WebhookEndpointId.make('wh_release')
         })
         expect(response.isError).toBe(true)
         expect(info).not.toHaveBeenCalled()
@@ -468,19 +469,24 @@ it.effect(
       harness.setUser('usr_dev')
       expect(yield* visibleTools(oauth)).not.toContain('delete_webhook')
       expect(
-        (yield* call(oauth, 'delete_webhook', { endpointId: 'wh_release' })).isError
+        (yield* call(oauth, 'delete_webhook', {
+          endpointId: WebhookEndpointId.make('wh_release')
+        })).isError
       ).toBe(true)
       harness.setUser('removed-user')
       expect(yield* visibleTools(oauth)).toEqual([])
       expect(
-        (yield* call(oauth, 'delete_webhook', { endpointId: 'wh_release' })).content[0]
-          ?.text
+        (yield* call(oauth, 'delete_webhook', {
+          endpointId: WebhookEndpointId.make('wh_release')
+        })).content[0]?.text
       ).toBe('workspace not found')
       harness.setUser('usr_demo')
       harness.setWorkspace('foreign-workspace')
       expect(yield* visibleTools(oauth)).toEqual([])
       expect(
-        (yield* call(oauth, 'delete_webhook', { endpointId: 'wh_release' })).isError
+        (yield* call(oauth, 'delete_webhook', {
+          endpointId: WebhookEndpointId.make('wh_release')
+        })).isError
       ).toBe(true)
     })
 )
@@ -518,7 +524,9 @@ for (const revoke of ['revoke', 'reduceGrant', 'oldCredential'] satisfies Readon
         )
         expect(resources.result.resources).toEqual([])
         expect(
-          (yield* call(client, 'delete_webhook', { endpointId: 'wh_release' })).isError
+          (yield* call(client, 'delete_webhook', {
+            endpointId: WebhookEndpointId.make('wh_release')
+          })).isError
         ).toBe(true)
         expect((yield* call(client, 'list_audit_events')).isError).toBe(true)
         expect(yield* call(observer, 'list_audit_events')).toEqual(before)
@@ -595,8 +603,14 @@ it.effect(
       const client = mcpClient(handler, `Bearer ${SEED_API_TOKEN}`)
       yield* Effect.promise(() => client.initialize())
       for (const [name, args] of [
-        ['send_webhook_test_event', { endpointId: 'wh_release' }],
-        ['replay_webhook_delivery', { deliveryId: 'whd_seed_failed' }]
+        [
+          'send_webhook_test_event',
+          { endpointId: WebhookEndpointId.make('wh_release') }
+        ],
+        [
+          'replay_webhook_delivery',
+          { deliveryId: WebhookDeliveryId.make('whd_seed_failed') }
+        ]
       ] satisfies ReadonlyArray<[string, Schema.Json]>) {
         const failure = yield* call(client, name, args)
         expect(failure.isError).toBe(true)
@@ -606,7 +620,7 @@ it.effect(
       }
       expect(attempts).toBe(2)
       const deliveries = yield* call(client, 'list_webhook_deliveries', {
-        endpointId: 'wh_release'
+        endpointId: WebhookEndpointId.make('wh_release')
       })
       expect(deliveries.content[0]?.text).toContain('pending')
     })
@@ -631,7 +645,7 @@ it.effect('one-time secrets and signed URLs never enter invocation telemetry', (
       scopes: ['read']
     })
     const rotated = yield* call(client, 'rotate_webhook_secret', {
-      endpointId: 'wh_release'
+      endpointId: WebhookEndpointId.make('wh_release')
     })
     const link = yield* call(client, 'get_workspace_export_download_link', {
       exportId: 'exp_seed_ready'
@@ -673,7 +687,9 @@ for (const change of ['reconsent', 'restoreGrant'] satisfies ReadonlyArray<
       harness.reduceGrant()
       harness[change]()
       expect(
-        (yield* call(client, 'delete_webhook', { endpointId: 'wh_release' })).isError
+        (yield* call(client, 'delete_webhook', {
+          endpointId: WebhookEndpointId.make('wh_release')
+        })).isError
       ).toBe(true)
     })
   )

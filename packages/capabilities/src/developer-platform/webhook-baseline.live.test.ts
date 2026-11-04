@@ -1,3 +1,4 @@
+import { WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { Effect, Layer } from 'effect'
 import { expect, layer } from '@effect/vitest'
 import { eq } from 'drizzle-orm'
@@ -65,7 +66,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('publisher', (it) => {
       yield* db
         .update(webhookEndpoints)
         .set({ events: ['workspace_member.added'] })
-        .where(eq(webhookEndpoints.id, 'wh_live'))
+        .where(eq(webhookEndpoints.id, WebhookEndpointId.make('wh_live')))
       const messages: Array<unknown> = []
       const publisher = yield* Effect.service(WebhookPublisher).pipe(
         Effect.provide(
@@ -104,7 +105,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('publisher', (it) => {
       expect(messages[0]).toMatchObject({
         body: {
           workspaceId: 'wrk_live',
-          endpointId: 'wh_live',
+          endpointId: WebhookEndpointId.make('wh_live'),
           eventType: 'workspace_member.added',
           payload: { userId: 'usr_joiner', role: 'member' }
         }
@@ -112,7 +113,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('publisher', (it) => {
       const rows = yield* inWorkspace(
         'live-lab',
         Effect.flatMap(WebhookEndpoints, (endpoints) =>
-          endpoints.listDeliveries({ endpointId: 'wh_live' })
+          endpoints.listDeliveries({ endpointId: WebhookEndpointId.make('wh_live') })
         )
       )
       const deliveries = rows.filter(
@@ -130,7 +131,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('publisher', (it) => {
     Effect.gen(function* () {
       const db = yield* Database
       yield* db.insert(webhookEndpoints).values({
-        id: 'wh_member_baseline',
+        id: WebhookEndpointId.make('wh_member_baseline'),
         workspaceId: 'wrk_member_contract',
         url: 'https://example.com/member-hook',
         signingSecret: 'whsec_member_test',

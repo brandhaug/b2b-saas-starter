@@ -1,3 +1,4 @@
+import { WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import {
   testPrice,
   testItem,
@@ -218,11 +219,13 @@ const reset = Effect.gen(function* () {
   yield* db.delete(billingCheckoutClaims)
   yield* db.delete(billingSynchronization)
   yield* db.delete(workspaceSubscriptions)
-  yield* db.delete(webhookDeliveries).where(eq(webhookDeliveries.endpointId, 'wh_live'))
+  yield* db
+    .delete(webhookDeliveries)
+    .where(eq(webhookDeliveries.endpointId, WebhookEndpointId.make('wh_live')))
   yield* db
     .update(webhookEndpoints)
     .set({ events: ['webhook_endpoint.created'] })
-    .where(eq(webhookEndpoints.id, 'wh_live'))
+    .where(eq(webhookEndpoints.id, WebhookEndpointId.make('wh_live')))
   yield* db.delete(auditEvents).where(eq(auditEvents.workspaceId, workspaceId))
   yield* db
     .delete(workspaceMembers)
@@ -315,7 +318,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           yield* db
             .update(webhookEndpoints)
             .set({ events: ['billing.plan_changed'] })
-            .where(eq(webhookEndpoints.id, 'wh_live'))
+            .where(eq(webhookEndpoints.id, WebhookEndpointId.make('wh_live')))
           const messages = new Array<{ readonly body: WebhookQueueMessage }>()
           const webhookQueue = {
             send: (_message: WebhookQueueMessage) => Promise.resolve(),
@@ -336,7 +339,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               yield* billing.reconcileWorkspace({ workspaceId })
               const webhooks = yield* WebhookEndpoints
               return yield* webhooks.listDeliveries({
-                endpointId: 'wh_live'
+                endpointId: WebhookEndpointId.make('wh_live')
               })
             }),
             undefined,
@@ -346,7 +349,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           expect(messages).toHaveLength(1)
           expect(messages[0]?.body).toMatchObject({
             workspaceId,
-            endpointId: 'wh_live',
+            endpointId: WebhookEndpointId.make('wh_live'),
             eventType: 'billing.plan_changed',
             payload: { planId: 'team', previousPlanId: 'starter' }
           })
@@ -357,7 +360,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
 
           expect(deliveries).toHaveLength(1)
           expect(deliveries[0]).toMatchObject({
-            endpointId: 'wh_live',
+            endpointId: WebhookEndpointId.make('wh_live'),
             eventType: 'billing.plan_changed',
             payload: { planId: 'team', previousPlanId: 'starter' }
           })

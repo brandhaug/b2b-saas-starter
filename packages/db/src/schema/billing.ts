@@ -68,10 +68,10 @@ export const workspaceResourceSelections = sqliteTable(
   {
     workspaceId: workspaceRef().primaryKey(),
     apiTokenIds: text('api_token_ids', { mode: 'json' })
-      .$type<ReadonlyArray<string>>()
+      .$type<ReadonlyArray<ApiTokenId>>()
       .notNull(),
     webhookEndpointIds: text('webhook_endpoint_ids', { mode: 'json' })
-      .$type<ReadonlyArray<string>>()
+      .$type<ReadonlyArray<WebhookEndpointId>>()
       .notNull(),
     updatedAt: text('updated_at').notNull()
   }
@@ -212,3 +212,4 @@ export const billingNotices = sqliteTable(
     )
   ]
 )
+import { type ApiTokenId, type WebhookEndpointId } from '../ids.ts'

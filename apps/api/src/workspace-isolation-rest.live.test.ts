@@ -1,3 +1,4 @@
+import { ApiTokenId, WebhookDeliveryId } from '@b2b-saas-starter/db/ids'
 import { hashSha256 } from '@b2b-saas-starter/capabilities/crypto'
 import {
   LIVE_SUITE_TIMEOUT,
@@ -28,9 +29,24 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           const foreign = 'bsk_isolation_rest_foreign'
           const reader = 'bsk_isolation_rest_reader'
           for (const [id, workspaceId, token, scopes] of [
-            ['tok_isolation_own', 'wrk_dev_contract', own, '["admin"]'],
-            ['tok_isolation_foreign', 'wrk_other', foreign, '["admin"]'],
-            ['tok_isolation_reader', 'wrk_dev_contract', reader, '["read"]']
+            [
+              ApiTokenId.make('tok_isolation_own'),
+              'wrk_dev_contract',
+              own,
+              '["admin"]'
+            ],
+            [
+              ApiTokenId.make('tok_isolation_foreign'),
+              'wrk_other',
+              foreign,
+              '["admin"]'
+            ],
+            [
+              ApiTokenId.make('tok_isolation_reader'),
+              'wrk_dev_contract',
+              reader,
+              '["read"]'
+            ]
           ] satisfies ReadonlyArray<readonly [string, string, string, string]>) {
             const hash = yield* Effect.promise(() => hashSha256(token))
             yield* Effect.promise(() =>
@@ -122,7 +138,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           expect(sent.status).toBe(201)
           const delivery = yield* jsonBody(
             sent,
-            Schema.Struct({ deliveryId: Schema.String })
+            Schema.Struct({ deliveryId: WebhookDeliveryId })
           )
           yield* Effect.promise(() =>
             DB.prepare(

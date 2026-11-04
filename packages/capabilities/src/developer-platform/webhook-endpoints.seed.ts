@@ -1,3 +1,4 @@
+import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { makeWebhookReplay } from './webhook-replay.ts'
 import { seedDeliveryViewPage } from './webhook-delivery-view.ts'
 import { seedOperatorDispatch } from './webhook-operator-dispatch.seed.ts'
@@ -67,7 +68,7 @@ import { type Workspace } from '../governance/workspace-identity.ts'
  * fields take fixed fixture defaults.
  */
 export type SeedWebhookEndpointFixture = {
-  readonly id: string
+  readonly id: WebhookEndpointId
   readonly url: string
   readonly enabled: boolean
   readonly events: ReadonlyArray<string>
@@ -81,7 +82,7 @@ export type SeedDeliveryFixture = Omit<SeedWebhookDeliveryFixture, 'lastAttemptA
 }
 
 type SeedEndpointRow = {
-  readonly id: string
+  readonly id: WebhookEndpointId
   readonly workspaceId: string
   url: string
   enabled: boolean
@@ -95,8 +96,8 @@ type SeedEndpointRow = {
 }
 
 type SeedDeliveryRow = {
-  readonly id: string
-  readonly endpointId: string
+  readonly id: WebhookDeliveryId
+  readonly endpointId: WebhookEndpointId
   readonly workspaceId: string
   readonly eventType: string
   readonly status: WebhookDeliveryStatus
@@ -107,7 +108,7 @@ type SeedDeliveryRow = {
   readonly payload: Json
   readonly requestHeaders: Record<string, string> | null
   readonly responseBody: string | null
-  readonly replayedFrom: string | null
+  readonly replayedFrom: WebhookDeliveryId | null
 }
 
 const TERMINAL_STATUSES: ReadonlySet<WebhookDeliveryStatus> = new Set(
@@ -145,7 +146,7 @@ export function SeedWebhookEndpoints(
         consecutiveFailures: 0
       }))
       inventory.registerWebhooks((workspaceId, includeUnavailable) => {
-        const ids: Array<string> = []
+        const ids: Array<WebhookEndpointId> = []
         for (const endpoint of endpoints) {
           if (
             endpoint.workspaceId === workspaceId &&
@@ -160,7 +161,7 @@ export function SeedWebhookEndpoints(
         toDeliveryRow(fixture, seedWorkspaceRecord.id)
       )
 
-      function endpointFor(endpointId: string, workspaceId: string) {
+      function endpointFor(endpointId: WebhookEndpointId, workspaceId: string) {
         return (
           endpoints.find(
             (endpoint) =>
@@ -169,7 +170,7 @@ export function SeedWebhookEndpoints(
         )
       }
 
-      function inWorkspace(endpointId: string) {
+      function inWorkspace(endpointId: WebhookEndpointId) {
         return Effect.map(WorkspaceContext, (ctx) =>
           endpointFor(endpointId, ctx.workspace.id)
         )
@@ -220,11 +221,15 @@ export function SeedWebhookEndpoints(
         observation: WebhookAttemptObservation
       ) {
         const input = observation.input
-        let deliveryId: string
+        let deliveryId: WebhookDeliveryId
         if (observation.kind === 'queued_terminal') {
           deliveryId = observation.input.id
         } else {
-          deliveryId = input.id ?? (yield* newCapabilityId('whd'))
+          deliveryId =
+            input.id ??
+            (yield* newCapabilityId('whd').pipe(
+              Effect.map((id) => WebhookDeliveryId.make(id))
+            ))
         }
         const attemptedAt = DateTime.formatIso(yield* DateTime.now)
         const id = yield* newCapabilityId('wha')
@@ -237,7 +242,9 @@ export function SeedWebhookEndpoints(
             failureAction: 'silent',
             status: 'failed_permanent',
             consecutiveFailures: 0
-          } satisfies RecordedWebhookAttempt & { readonly deliveryId: string }
+          } satisfies RecordedWebhookAttempt & {
+            readonly deliveryId: WebhookDeliveryId
+          }
         }
         const index = deliveries.findIndex((row) => row.id === deliveryId)
         const previous = deliveries[index]
@@ -250,7 +257,9 @@ export function SeedWebhookEndpoints(
             failureAction: 'silent',
             status: 'failed_permanent',
             consecutiveFailures: endpoint.consecutiveFailures
-          } satisfies RecordedWebhookAttempt & { readonly deliveryId: string }
+          } satisfies RecordedWebhookAttempt & {
+            readonly deliveryId: WebhookDeliveryId
+          }
         }
         if (
           (previous && previous.endpointId !== input.endpointId) ||
@@ -267,7 +276,9 @@ export function SeedWebhookEndpoints(
             failureAction: 'silent',
             status: previous?.status ?? 'failed_permanent',
             consecutiveFailures: endpoint.consecutiveFailures
-          } satisfies RecordedWebhookAttempt & { readonly deliveryId: string }
+          } satisfies RecordedWebhookAttempt & {
+            readonly deliveryId: WebhookDeliveryId
+          }
         }
         let ordinal = input.attempts
         if (evidence.phase === 'terminal') {
@@ -293,7 +304,9 @@ export function SeedWebhookEndpoints(
             failureAction: 'silent',
             status: previous.status,
             consecutiveFailures: endpoint.consecutiveFailures
-          } satisfies RecordedWebhookAttempt & { readonly deliveryId: string }
+          } satisfies RecordedWebhookAttempt & {
+            readonly deliveryId: WebhookDeliveryId
+          }
         }
         let responseStatus = evidence.responseStatus
         let requestHeaders = evidence.requestHeaders
@@ -399,7 +412,7 @@ export function SeedWebhookEndpoints(
           failureAction,
           status: input.status,
           consecutiveFailures
-        } satisfies RecordedWebhookAttempt & { readonly deliveryId: string }
+        } satisfies RecordedWebhookAttempt & { readonly deliveryId: WebhookDeliveryId }
       })
 
       const approvedDestinations = new Map<string, string>()
@@ -445,12 +458,14 @@ export function SeedWebhookEndpoints(
                 .map((row) => row.id)
             )
             for (let i = deliveries.length - 1; i >= 0; i--) {
-              if (expired.has(deliveries[i]?.id ?? '')) {
+              const delivery = deliveries[i]
+              if (delivery && expired.has(delivery.id)) {
                 deliveries.splice(i, 1)
               }
             }
             for (let i = attempts.length - 1; i >= 0; i--) {
-              if (expired.has(attempts[i]?.deliveryId ?? '')) {
+              const attempt = attempts[i]
+              if (attempt && expired.has(attempt.deliveryId)) {
                 attempts.splice(i, 1)
               }
             }
@@ -500,7 +515,9 @@ export function SeedWebhookEndpoints(
             Effect.provideService(BillingWorkspaceContext, ctx)
           )
           const endpoint: SeedEndpointRow = {
-            id: yield* newCapabilityId('wh'),
+            id: yield* newCapabilityId('wh').pipe(
+              Effect.map((id) => WebhookEndpointId.make(id))
+            ),
             workspaceId: ctx.workspace.id,
             url: input.url,
             enabled: true,
@@ -780,7 +797,9 @@ export function SeedWebhookEndpoints(
               test: true,
               sentAt: DateTime.formatIso(yield* DateTime.now)
             }
-            const deliveryId = yield* newCapabilityId('whd')
+            const deliveryId = yield* newCapabilityId('whd').pipe(
+              Effect.map((id) => WebhookDeliveryId.make(id))
+            )
             // No audit event, mirroring Live: the pending row is the record.
             yield* recordOperatorDispatch({
               deliveryId,

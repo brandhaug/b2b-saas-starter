@@ -1,3 +1,4 @@
+import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { expect, layer } from '@effect/vitest'
 import { Clock, Effect, Layer } from 'effect'
 import { Database } from '@b2b-saas-starter/db/service'
@@ -88,7 +89,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               ))._tag
             ).toBe('AssistantAuthorityDenied')
             yield* db.insert(webhookEndpoints).values({
-              id: 'host-endpoint',
+              id: WebhookEndpointId.make('host-endpoint'),
               workspaceId: 'wrk_live',
               url: 'https://private.example',
               signingSecret: 'private',
@@ -96,15 +97,15 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               createdAt: '2026-09-23T00:00:00Z'
             })
             yield* db.insert(webhookDeliveries).values({
-              id: 'host-replay',
-              endpointId: 'host-endpoint',
+              id: WebhookDeliveryId.make('host-replay'),
+              endpointId: WebhookEndpointId.make('host-endpoint'),
               eventType: 'member.created',
               status: 'pending',
               payload: {}
             })
             yield* db
               .update(webhookInvestigationTasks)
-              .set({ replayDeliveryId: 'host-replay' })
+              .set({ replayDeliveryId: WebhookDeliveryId.make('host-replay') })
               .where(eq(webhookInvestigationTasks.id, 'host-task'))
             expect((yield* assistantTaskEvidence('host-task'))?.text).toContain(
               '"outcome":"pending"'
@@ -112,21 +113,21 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             yield* db
               .update(webhookDeliveries)
               .set({ status: 'delivered' })
-              .where(eq(webhookDeliveries.id, 'host-replay'))
+              .where(eq(webhookDeliveries.id, WebhookDeliveryId.make('host-replay')))
             expect((yield* assistantTaskEvidence('host-task'))?.text).toContain(
               '"outcome":"delivered"'
             )
             yield* db
               .update(webhookDeliveries)
               .set({ status: 'dead_lettered' })
-              .where(eq(webhookDeliveries.id, 'host-replay'))
+              .where(eq(webhookDeliveries.id, WebhookDeliveryId.make('host-replay')))
             expect((yield* assistantTaskEvidence('host-task'))?.text).toContain(
               '"outcome":"failed"'
             )
             yield* db
               .update(webhookEndpoints)
               .set({ workspaceId: 'wrk_other' })
-              .where(eq(webhookEndpoints.id, 'host-endpoint'))
+              .where(eq(webhookEndpoints.id, WebhookEndpointId.make('host-endpoint')))
             expect((yield* assistantTaskEvidence('host-task'))?.text).toContain(
               '"outcome":"unavailable"'
             )

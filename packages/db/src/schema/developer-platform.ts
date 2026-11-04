@@ -1,4 +1,9 @@
 import { sql } from 'drizzle-orm'
+import {
+  type ApiTokenId,
+  type WebhookEndpointId,
+  type WebhookDeliveryId
+} from '../ids.ts'
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import {
   type ApiTokenScopeValue,
@@ -13,7 +18,7 @@ import { type JsonValue, type JsonObject } from './json.ts'
 export const apiTokens = sqliteTable(
   'api_tokens',
   {
-    id: id(),
+    id: id().$type<ApiTokenId>(),
     workspaceId: workspaceRef(),
     name: text('name').notNull(),
     tokenPrefix: text('token_prefix').notNull(),
@@ -23,7 +28,7 @@ export const apiTokens = sqliteTable(
       .notNull(),
     lastUsedAt: text('last_used_at'),
     expiresAt: text('expires_at'),
-    replacedByTokenId: text('replaced_by_token_id'),
+    replacedByTokenId: text('replaced_by_token_id').$type<ApiTokenId>(),
     revokedAt: text('revoked_at'),
     createdAt: isoCreatedAt(),
     createdByUserId: text('created_by_user_id').references(() => user.id)
@@ -42,7 +47,7 @@ export const apiTokens = sqliteTable(
 export const webhookEndpoints = sqliteTable(
   'webhook_endpoints',
   {
-    id: id(),
+    id: id().$type<WebhookEndpointId>(),
     workspaceId: workspaceRef(),
     url: text('url').notNull(),
     description: text('description'),
@@ -79,8 +84,9 @@ export const webhookEndpoints = sqliteTable(
 export const webhookDeliveries = sqliteTable(
   'webhook_deliveries',
   {
-    id: id(),
+    id: id().$type<WebhookDeliveryId>(),
     endpointId: text('endpoint_id')
+      .$type<WebhookEndpointId>()
       .notNull()
       .references(() => webhookEndpoints.id, { onDelete: 'cascade' }),
     eventType: text('event_type').notNull(),
@@ -102,7 +108,7 @@ export const webhookDeliveries = sqliteTable(
       Record<string, string>
     >(),
     responseBody: text('response_body'),
-    replayedFrom: text('replayed_from'),
+    replayedFrom: text('replayed_from').$type<WebhookDeliveryId>(),
     lastAttemptToken: text('last_attempt_token')
   },
   (table) => [
@@ -121,6 +127,7 @@ export const webhookDeliveryAttempts = sqliteTable(
   {
     id: id(),
     deliveryId: text('delivery_id')
+      .$type<WebhookDeliveryId>()
       .notNull()
       .references(() => webhookDeliveries.id, { onDelete: 'cascade' }),
     attempts: integer('attempts').notNull(),
@@ -156,7 +163,7 @@ export const webhookInvestigationTasks = sqliteTable(
       enum: ['proposed', 'approved', 'cancelled', 'completed']
     }).notNull(),
     record: text('record', { mode: 'json' }).$type<JsonObject>().notNull(),
-    replayDeliveryId: text('replay_delivery_id'),
+    replayDeliveryId: text('replay_delivery_id').$type<WebhookDeliveryId>(),
     transitionId: text('transition_id'),
     createdAt: isoCreatedAt(),
     updatedAt: text('updated_at').notNull()

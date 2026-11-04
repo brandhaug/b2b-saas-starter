@@ -1,3 +1,4 @@
+import { ApiTokenId } from '@b2b-saas-starter/db/ids'
 import { McpClientConnections } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
 import { RateLimiter } from '@b2b-saas-starter/api'
 import {
@@ -91,7 +92,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               `INSERT INTO session (id,token,userId,expiresAt,createdAt,updatedAt,strongAuthAt,strongAuthMethod,strongAuthCredentialId)
               VALUES (?,?,?,strftime('%s','now')+3600,strftime('%s','now'),strftime('%s','now'),strftime('%s','now'),'passkey',?)`,
               `ses_${userId}`,
-              `tok_${userId}`,
+              ApiTokenId.make(`tok_${userId}`),
               userId,
               `pk_isolation_${userId}`
             )

@@ -1,3 +1,8 @@
+import {
+  ApiTokenId,
+  WebhookDeliveryId,
+  WebhookEndpointId
+} from '@b2b-saas-starter/db/ids'
 import { newCapabilityId } from '../internal/ids.ts'
 import { annotateWideEvent, currentTraceparent } from '@b2b-saas-starter/logger'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
@@ -30,11 +35,11 @@ import { makeLiveWebhookEnqueueFailure } from './webhook-enqueue-failure.live.ts
  * endpoint's signing secret is released to the consumer.
  */
 export const WebhookQueueMessage = Schema.Struct({
-  endpointId: Schema.String,
+  endpointId: WebhookEndpointId,
   workspaceId: Schema.String,
   eventType: Schema.String,
   /** Stable across queue retries and transfer to the dead-letter queue. */
-  deliveryId: Schema.String,
+  deliveryId: WebhookDeliveryId,
   // Deliberately an unchecked string, with no W3C pattern. A failed decode at
   // the consumer's queue boundary is treated as a malformed message and acked,
   // so a strict check here would turn a cosmetic trace defect into a silently
@@ -65,18 +70,18 @@ const nullableString = Schema.NullOr(Schema.String)
 const workspaceRole = Schema.Literals(['owner', 'admin', 'member'])
 export const WebhookEventPayloads = {
   'api_token.created': Schema.Struct({
-    id: Schema.String,
+    id: ApiTokenId,
     name: Schema.String,
     prefix: Schema.String,
     scopes: Schema.Array(Schema.String),
     lastUsedAt: nullableString,
     createdAt: Schema.String,
     expiresAt: nullableString,
-    replacedByTokenId: nullableString
+    replacedByTokenId: Schema.NullOr(ApiTokenId)
   }),
-  'api_token.revoked': Schema.Struct({ tokenId: Schema.String }),
+  'api_token.revoked': Schema.Struct({ tokenId: ApiTokenId }),
   'webhook_endpoint.created': Schema.Struct({
-    id: Schema.String,
+    id: WebhookEndpointId,
     url: Schema.String,
     enabled: Schema.Boolean,
     events: Schema.Array(Schema.String),
@@ -139,10 +144,10 @@ export type PublishWebhookEventInput = WebhookEventInput
  * trace context and sends.
  */
 type EnqueueWebhookMessageInput = {
-  readonly endpointId: string
+  readonly endpointId: WebhookEndpointId
   readonly workspaceId: string
   readonly eventType: string
-  readonly deliveryId: string
+  readonly deliveryId: WebhookDeliveryId
   readonly payload: typeof Schema.Json.Type
 }
 
@@ -306,7 +311,9 @@ export function LiveWebhookPublisher(
                 body: withTraceparent(
                   {
                     endpointId: endpoint.id,
-                    deliveryId: yield* newCapabilityId('whd'),
+                    deliveryId: yield* newCapabilityId('whd').pipe(
+                      Effect.map((id) => WebhookDeliveryId.make(id))
+                    ),
                     workspaceId,
                     eventType: input.eventType,
                     payload: yield* sanitizeWebhookPayload(input)

@@ -1,3 +1,4 @@
+import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import {
   type WebhookDelivery,
   type WebhookDeliveryAttempt
@@ -12,8 +13,8 @@ import {
 } from './webhook-delivery-timeline'
 
 const delivery: WebhookDelivery = {
-  id: 'delivery',
-  endpointId: 'endpoint',
+  id: WebhookDeliveryId.make('delivery'),
+  endpointId: WebhookEndpointId.make('endpoint'),
   eventType: 'webhook.test_event',
   status: 'delivered',
   attempts: 2,
@@ -27,7 +28,7 @@ const delivery: WebhookDelivery = {
 }
 const failed = {
   id: 'attempt-1',
-  deliveryId: 'delivery',
+  deliveryId: WebhookDeliveryId.make('delivery'),
   attempts: 1,
   phase: 'http',
   status: 'pending',

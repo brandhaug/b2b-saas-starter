@@ -1,3 +1,4 @@
+import { ApiTokenId } from '@b2b-saas-starter/db/ids'
 import { prepareTokenSelectionRotation } from '@b2b-saas-starter/billing/resource-entitlements.live'
 import { WorkspaceContext as BillingWorkspaceContext } from '@b2b-saas-starter/billing/ports'
 import { Billing } from '@b2b-saas-starter/billing/billing'
@@ -42,7 +43,7 @@ const unavailable = orUnavailable('api-token-registry')
  * revoke's pre-check and write share it, and list drops the id condition by
  * omitting `tokenId`.
  */
-function activeTokenWhere(tokenId: string | undefined, workspaceId: string) {
+function activeTokenWhere(tokenId: ApiTokenId | undefined, workspaceId: string) {
   const conditions = [
     eq(apiTokens.workspaceId, workspaceId),
     isNull(apiTokens.revokedAt)
@@ -145,7 +146,9 @@ export function LiveApiTokenRegistry(
           const token = mintApiToken()
           const createdAt = DateTime.formatIso(now)
           const row = {
-            id: yield* newCapabilityId('tok'),
+            id: yield* newCapabilityId('tok').pipe(
+              Effect.map((id) => ApiTokenId.make(id))
+            ),
             workspaceId: ctx.workspace.id,
             name: valid.name,
             tokenPrefix: token.slice(0, 17),
@@ -234,7 +237,9 @@ export function LiveApiTokenRegistry(
           )
           const token = mintApiToken()
           const row = {
-            id: yield* newCapabilityId('tok'),
+            id: yield* newCapabilityId('tok').pipe(
+              Effect.map((id) => ApiTokenId.make(id))
+            ),
             workspaceId: ctx.workspace.id,
             name: source.name,
             tokenPrefix: token.slice(0, 17),

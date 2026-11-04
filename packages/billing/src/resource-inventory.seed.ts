@@ -10,20 +10,27 @@ export class SeedResourceInventory extends Context.Service<
         workspaceId: string,
         now: number,
         includeUnavailable: boolean
-      ) => ReadonlyArray<string>
+      ) => ReadonlyArray<ApiTokenId>
     ) => void
     readonly registerTokenResolver: (
-      read: (workspaceId: string, id: string) => string
+      read: (workspaceId: string, id: ApiTokenId) => ApiTokenId
     ) => void
-    readonly resolveToken: (workspaceId: string, id: string) => string
+    readonly resolveToken: (workspaceId: string, id: ApiTokenId) => ApiTokenId
     readonly registerWebhooks: (
-      read: (workspaceId: string, includeUnavailable: boolean) => ReadonlyArray<string>
+      read: (
+        workspaceId: string,
+        includeUnavailable: boolean
+      ) => ReadonlyArray<WebhookEndpointId>
     ) => void
     readonly available: (workspaceId: string, now: number) => ResourceSelection
     readonly known: (workspaceId: string) => ResourceSelection
     readonly lock: Semaphore.Semaphore
     readonly selections: Map<string, ResourceSelection>
-    readonly rotateToken: (workspaceId: string, fromId: string, toId: string) => void
+    readonly rotateToken: (
+      workspaceId: string,
+      fromId: ApiTokenId,
+      toId: ApiTokenId
+    ) => void
   }
 >()('@b2b-saas-starter/billing/SeedResourceInventory') {}
 
@@ -31,16 +38,16 @@ function emptyTokens(
   _workspaceId: string,
   _now: number,
   _includeUnavailable: boolean
-): ReadonlyArray<string> {
+): ReadonlyArray<ApiTokenId> {
   return []
 }
-function unchangedToken(_workspaceId: string, id: string): string {
+function unchangedToken(_workspaceId: string, id: ApiTokenId): ApiTokenId {
   return id
 }
 function emptyWebhooks(
   _workspaceId: string,
   _includeUnavailable: boolean
-): ReadonlyArray<string> {
+): ReadonlyArray<WebhookEndpointId> {
   return []
 }
 
@@ -88,3 +95,4 @@ export const SeedResourceInventoryLayer = Layer.effect(
     })
   })
 )
+import { type ApiTokenId, type WebhookEndpointId } from '@b2b-saas-starter/db/ids'

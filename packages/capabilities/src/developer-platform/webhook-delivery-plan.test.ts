@@ -1,3 +1,8 @@
+import {
+  ApiTokenId,
+  WebhookDeliveryId,
+  WebhookEndpointId
+} from '@b2b-saas-starter/db/ids'
 import { DateTime } from 'effect'
 import { describe, expect, it } from 'vite-plus/test'
 
@@ -24,15 +29,15 @@ const dayLater = DateTime.makeUnsafe('2026-09-02T12:00:00.000Z')
 
 describe('replay plan', () => {
   const source = {
-    id: 'whd_original',
-    endpointId: 'wh_release',
+    id: WebhookDeliveryId.make('whd_original'),
+    endpointId: WebhookEndpointId.make('wh_release'),
     eventType: 'api_token.created',
-    payload: { tokenId: 'tok_docs' }
+    payload: { tokenId: ApiTokenId.make('tok_docs') }
   }
 
   it('resets attempts and starts pending on a new row', () => {
     expect(planReplayedDelivery(source)).toMatchObject({
-      endpointId: 'wh_release',
+      endpointId: WebhookEndpointId.make('wh_release'),
       eventType: 'api_token.created',
       status: 'pending',
       attempts: 0,
@@ -43,8 +48,8 @@ describe('replay plan', () => {
 
   it('carries the original payload verbatim and links back with replayedFrom', () => {
     const plan = planReplayedDelivery(source)
-    expect(plan.payload).toEqual({ tokenId: 'tok_docs' })
-    expect(plan.replayedFrom).toBe('whd_original')
+    expect(plan.payload).toEqual({ tokenId: ApiTokenId.make('tok_docs') })
+    expect(plan.replayedFrom).toBe(WebhookDeliveryId.make('whd_original'))
   })
 
   it('leaves the source row identity out of the plan — adapters own ids and clocks', () => {

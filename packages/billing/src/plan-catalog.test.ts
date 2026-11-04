@@ -1,3 +1,4 @@
+import { WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { describe, expect, it } from 'vite-plus/test'
 
 import {
@@ -15,8 +16,12 @@ describe('billableSeatQuantity', () => {
 })
 
 describe('webhook entitlement counting', () => {
-  const stored = ['wh_enabled', 'wh_disabled', 'wh_also_disabled']
-  const enabled = ['wh_enabled']
+  const stored = [
+    WebhookEndpointId.make('wh_enabled'),
+    WebhookEndpointId.make('wh_disabled'),
+    WebhookEndpointId.make('wh_also_disabled')
+  ]
+  const enabled = [WebhookEndpointId.make('wh_enabled')]
 
   it('counts every stored endpoint, the way creation admission does', () => {
     const summary = resourceEntitlement(
@@ -40,13 +45,19 @@ describe('webhook entitlement counting', () => {
       STARTER_PLAN,
       'webhook_endpoint',
       enabled,
-      { apiTokenIds: [], webhookEndpointIds: ['wh_enabled', 'wh_disabled'] },
+      {
+        apiTokenIds: [],
+        webhookEndpointIds: [
+          WebhookEndpointId.make('wh_enabled'),
+          WebhookEndpointId.make('wh_disabled')
+        ]
+      },
       stored
     )
 
     expect(summary.used).toBe(3)
-    expect(summary.selectedIds).toEqual(['wh_enabled'])
-    expect(summary.activeIds).toEqual(['wh_enabled'])
+    expect(summary.selectedIds).toEqual([WebhookEndpointId.make('wh_enabled')])
+    expect(summary.activeIds).toEqual([WebhookEndpointId.make('wh_enabled')])
     expect(summary.paused).toBe(false)
   })
 

@@ -1,3 +1,4 @@
+import { WebhookDeliveryId } from '@b2b-saas-starter/db/ids'
 import { describe, expect, it } from '@effect/vitest'
 import { Effect } from 'effect'
 import { selectWorkspaceLayer } from '../runtime.ts'
@@ -11,7 +12,7 @@ describe('webhook investigation tasks', () => {
       Effect.gen(function* () {
         const tasks = yield* WebhookInvestigationTasks
         const task = yield* tasks.create({
-          deliveryId: 'whd_seed_dead_lettered',
+          deliveryId: WebhookDeliveryId.make('whd_seed_dead_lettered'),
           question: 'Why did this fail?'
         })
         const saved = yield* tasks.get({ taskId: task.id })

@@ -1,3 +1,4 @@
+import { ApiTokenId } from '@b2b-saas-starter/db/ids'
 import { hashSha256 } from '@b2b-saas-starter/capabilities/crypto'
 import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import {
@@ -70,13 +71,13 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('MCP live boundaries', (it)
         const foreign = 'bsk_foreign_live'
         yield* execute(
           TOKEN_INSERT,
-          'tok_live_own',
+          ApiTokenId.make('tok_live_own'),
           'wrk_live',
           yield* Effect.promise(() => hashSha256(own))
         )
         yield* execute(
           TOKEN_INSERT,
-          'tok_live_foreign',
+          ApiTokenId.make('tok_live_foreign'),
           'wrk_other',
           yield* Effect.promise(() => hashSha256(foreign))
         )
@@ -107,13 +108,16 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('MCP live boundaries', (it)
           expect(refusal.content[0]?.text).toBe('webhook endpoint not found')
         }
         expect(
-          (yield* call(client, 'delete_api_token', { tokenId: 'tok_live_foreign' }))
-            .isError
+          (yield* call(client, 'delete_api_token', {
+            tokenId: ApiTokenId.make('tok_live_foreign')
+          })).isError
         ).not.toBe(true)
         expect(yield* call(other, 'list_webhooks')).toEqual(before)
         expect(yield* call(other, 'list_audit_events')).toEqual(audit)
         // The foreign credential is still valid; the own credential can be revoked.
-        yield* call(client, 'delete_api_token', { tokenId: 'tok_live_own' })
+        yield* call(client, 'delete_api_token', {
+          tokenId: ApiTokenId.make('tok_live_own')
+        })
         expect(
           (yield* Effect.promise(() =>
             client.rpc('tools/call', {
@@ -136,7 +140,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('MCP live boundaries', (it)
         const DB = yield* TestD1
         yield* execute(
           TOKEN_INSERT,
-          'tok_queue_test',
+          ApiTokenId.make('tok_queue_test'),
           'wrk_dev_contract',
           yield* Effect.promise(() => hashSha256(SEED_API_TOKEN))
         )
@@ -314,7 +318,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('MCP live boundaries', (it)
         const token = 'bsk_exports_live'
         yield* execute(
           TOKEN_INSERT,
-          'tok_exports_live',
+          ApiTokenId.make('tok_exports_live'),
           'wrk_dev_contract',
           yield* Effect.promise(() => hashSha256(token))
         )

@@ -1,3 +1,4 @@
+import { ApiTokenId } from '@b2b-saas-starter/db/ids'
 import {
   SeedResourceInventory,
   SeedResourceInventoryLayer
@@ -95,7 +96,7 @@ export function SeedApiTokenRegistry(
         return current
       })
       inventory.registerTokens((workspaceId, now, includeUnavailable) => {
-        const ids: Array<string> = []
+        const ids: Array<ApiTokenId> = []
         for (const entry of store) {
           if (
             entry.workspaceId === workspaceId &&
@@ -139,7 +140,9 @@ export function SeedApiTokenRegistry(
           )
           const token = mintApiToken()
           const created: ApiToken = {
-            id: yield* newCapabilityId('tok'),
+            id: yield* newCapabilityId('tok').pipe(
+              Effect.map((id) => ApiTokenId.make(id))
+            ),
             name: valid.name,
             prefix: token.slice(0, 17),
             scopes: valid.scopes,
@@ -193,7 +196,9 @@ export function SeedApiTokenRegistry(
           )
           const token = mintApiToken()
           const created: ApiToken = {
-            id: yield* newCapabilityId('tok'),
+            id: yield* newCapabilityId('tok').pipe(
+              Effect.map((id) => ApiTokenId.make(id))
+            ),
             name: entry.token.name,
             prefix: token.slice(0, 17),
             scopes: plan.scopes,

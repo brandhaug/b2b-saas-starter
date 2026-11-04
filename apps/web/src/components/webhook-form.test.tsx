@@ -6,7 +6,7 @@ import { WebhookForm, type CreateWebhookEndpoint } from './webhook-form'
 it('retries only refresh after the endpoint was created', async () => {
   const createEndpoint = vi.fn<CreateWebhookEndpoint>(async () => ({
     endpoint: {
-      id: 'whe_new',
+      id: WebhookEndpointId.make('whe_new'),
       url: 'https://example.test/hooks',
       enabled: true,
       events: ['api_token.created'],
@@ -34,3 +34,4 @@ it('retries only refresh after the endpoint was created', async () => {
   await waitFor(() => expect(onCreated).toHaveBeenCalledTimes(2))
   expect(createEndpoint).toHaveBeenCalledTimes(1)
 })
+import { WebhookEndpointId } from '@b2b-saas-starter/db/ids'

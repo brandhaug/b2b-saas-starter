@@ -1,3 +1,4 @@
+import { ApiTokenId } from '@b2b-saas-starter/db/ids'
 import { gunzipSync } from 'node:zlib'
 import { expect, layer } from '@effect/vitest'
 import { Deferred, Effect, Fiber, Layer, Option, Result, Schema } from 'effect'
@@ -190,9 +191,9 @@ function publishWebhook(
 
 function tokenPayload(marker: string): WebhookPayload['api_token.created'] {
   return {
-    id: `tok_${marker}`,
+    id: ApiTokenId.make(`tok_${marker}`),
     name: marker,
-    prefix: `tok_${marker}`,
+    prefix: ApiTokenId.make(`tok_${marker}`),
     scopes: ['read'],
     lastUsedAt: null,
     createdAt: '2026-09-01T00:00:00.000Z',

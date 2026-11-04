@@ -1,3 +1,4 @@
+import { type WebhookDeliveryId } from '@b2b-saas-starter/db/ids'
 import { DateTime, Effect } from 'effect'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
@@ -10,7 +11,7 @@ export function seedOperatorDispatch(deliveries: Array<SeedDeliveryFixture>) {
   return Effect.gen(function* () {
     const audit = yield* AuditEventLog
     return Effect.fnUntraced(function* (input: {
-      readonly deliveryId: string
+      readonly deliveryId: WebhookDeliveryId
       readonly workspaceId: string
       readonly plan: PendingDispatchPlan
       readonly auditEventType?: 'webhook.delivery_replayed' | undefined

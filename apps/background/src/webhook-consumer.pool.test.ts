@@ -1,3 +1,4 @@
+import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { type WebhookQueueMessage } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
 import { webhookDeadLetterQueueName, webhookQueueName } from '@b2b-saas-starter/infra'
 import { type MessageBatchMessage } from 'cloudflare:test'
@@ -28,7 +29,7 @@ import {
 // suites in `packages/auth`.
 
 const WORKSPACE_ID = 'ws_pool'
-const ENDPOINT_ID = 'wh_pool'
+const ENDPOINT_ID = WebhookEndpointId.make('wh_pool')
 const ENDPOINT_URL = 'https://receiver.example.test/hook'
 const SIGNING_SECRET = 'whsec_cG9vbF90ZXN0X3NlY3JldA=='
 
@@ -98,7 +99,7 @@ function webhookMessage(
     timestamp: new Date(1000),
     attempts,
     body: {
-      deliveryId: `whd_${id}`,
+      deliveryId: WebhookDeliveryId.make(`whd_${id}`),
       endpointId: ENDPOINT_ID,
       workspaceId: WORKSPACE_ID,
       eventType: 'api_token.created',
@@ -116,7 +117,7 @@ function seedDelivery(messageId: string): Effect.Effect<void> {
           (id, endpoint_id, event_type, status, attempts, payload)
          values (?, ?, 'api_token.created', 'pending', 0, '{"hello":"world"}')`
       )
-      .bind(`whd_${messageId}`, ENDPOINT_ID)
+      .bind(WebhookDeliveryId.make(`whd_${messageId}`), ENDPOINT_ID)
       .run()
   ).pipe(Effect.asVoid)
 }
@@ -211,7 +212,10 @@ describe('webhook consumer (workers pool)', () => {
         expect(result.retryMessages).toStrictEqual([])
         // ...and the acked attempt is the row D1 holds.
         const delivery = yield* Effect.promise(() =>
-          row('select * from webhook_deliveries where id = ?', 'whd_qmsg_ok')
+          row(
+            'select * from webhook_deliveries where id = ?',
+            WebhookDeliveryId.make('whd_qmsg_ok')
+          )
         )
         expect(delivery?.endpoint_id).toBe(ENDPOINT_ID)
         expect(delivery?.event_type).toBe('api_token.created')
@@ -230,10 +234,12 @@ describe('webhook consumer (workers pool)', () => {
         expect(
           new Webhook(SIGNING_SECRET).verify(posted.body, posted.headers)
         ).toMatchObject({
-          deliveryId: 'whd_qmsg_ok',
+          deliveryId: WebhookDeliveryId.make('whd_qmsg_ok'),
           payload: { hello: 'world' }
         })
-        expect(outbound[0]?.headers['webhook-id']).toBe('whd_qmsg_ok')
+        expect(outbound[0]?.headers['webhook-id']).toBe(
+          WebhookDeliveryId.make('whd_qmsg_ok')
+        )
         expect(outbound[0]?.headers['webhook-signature']).toMatch(
           /^v1,[A-Za-z0-9+/]{43}=$/
         )
@@ -241,7 +247,7 @@ describe('webhook consumer (workers pool)', () => {
           'webhook-signature': outbound[0]?.headers['webhook-signature']
         })
         expect(readJsonColumn(outbound[0]?.body)).toMatchObject({
-          deliveryId: 'whd_qmsg_ok'
+          deliveryId: WebhookDeliveryId.make('whd_qmsg_ok')
         })
         // Delivered is not terminal: no audit event, no notification.
         expect(
@@ -272,13 +278,16 @@ describe('webhook consumer (workers pool)', () => {
         expect(suspended.retryBatch.retry).toBe(false)
         expect(outbound).toHaveLength(0)
         const terminal = yield* Effect.promise(() =>
-          row('select * from webhook_deliveries where id = ?', 'whd_qmsg_suspended')
+          row(
+            'select * from webhook_deliveries where id = ?',
+            WebhookDeliveryId.make('whd_qmsg_suspended')
+          )
         )
         expect(terminal?.status).toBe('failed_permanent')
         const attempt = yield* Effect.promise(() =>
           row(
             'select * from webhook_delivery_attempts where delivery_id = ?',
-            'whd_qmsg_suspended'
+            WebhookDeliveryId.make('whd_qmsg_suspended')
           )
         )
         expect(attempt?.failure_reason).toBe('workspace_suspended')
@@ -309,7 +318,10 @@ describe('webhook consumer (workers pool)', () => {
         expect(result.explicitAcks).toStrictEqual([])
         expect(result.retryMessages).toStrictEqual([{ msgId: 'qmsg_retry' }])
         const delivery = yield* Effect.promise(() =>
-          row('select * from webhook_deliveries where id = ?', 'whd_qmsg_retry')
+          row(
+            'select * from webhook_deliveries where id = ?',
+            WebhookDeliveryId.make('whd_qmsg_retry')
+          )
         )
         expect(delivery?.status).toBe('failed')
         expect(delivery?.attempts).toBe(2)
@@ -335,7 +347,10 @@ describe('webhook consumer (workers pool)', () => {
         expect(result.explicitAcks).toStrictEqual([])
         expect(result.retryMessages).toStrictEqual([{ msgId: 'qmsg_net' }])
         const delivery = yield* Effect.promise(() =>
-          row('select * from webhook_deliveries where id = ?', 'whd_qmsg_net')
+          row(
+            'select * from webhook_deliveries where id = ?',
+            WebhookDeliveryId.make('whd_qmsg_net')
+          )
         )
         expect(delivery?.status).toBe('failed')
         expect(delivery?.attempts).toBe(1)
@@ -374,7 +389,10 @@ describe('webhook consumer (workers pool)', () => {
           )
         ).toBe(false)
         const delivery = yield* Effect.promise(() =>
-          row('select * from webhook_deliveries where id = ?', 'whd_qmsg_redirect')
+          row(
+            'select * from webhook_deliveries where id = ?',
+            WebhookDeliveryId.make('whd_qmsg_redirect')
+          )
         )
         expect(delivery?.status).toBe('failed')
         expect(delivery?.response_status).toBe(307)
@@ -396,7 +414,10 @@ describe('webhook consumer (workers pool)', () => {
         expect(result.explicitAcks).toStrictEqual(['qmsg_4xx'])
         expect(result.retryMessages).toStrictEqual([])
         const delivery = yield* Effect.promise(() =>
-          row('select * from webhook_deliveries where id = ?', 'whd_qmsg_4xx')
+          row(
+            'select * from webhook_deliveries where id = ?',
+            WebhookDeliveryId.make('whd_qmsg_4xx')
+          )
         )
         expect(delivery?.status).toBe('failed_permanent')
         expect(delivery?.attempts).toBe(1)
@@ -415,7 +436,7 @@ describe('webhook consumer (workers pool)', () => {
         expect(audit[0]?.target_type).toBe('webhook_endpoint')
         expect(audit[0]?.target_id).toBe(ENDPOINT_ID)
         expect(readJsonColumn(audit[0]?.metadata)).toMatchObject({
-          deliveryId: 'whd_qmsg_4xx',
+          deliveryId: WebhookDeliveryId.make('whd_qmsg_4xx'),
           eventType: 'api_token.created',
           queueAttempts: 1
         })
@@ -447,7 +468,7 @@ describe('webhook consumer (workers pool)', () => {
           rows('select * from webhook_deliveries where status = ?', 'dead_lettered')
         )
         expect(terminal).toHaveLength(1)
-        expect(terminal[0]?.id).toBe('whd_qmsg_dead')
+        expect(terminal[0]?.id).toBe(WebhookDeliveryId.make('whd_qmsg_dead'))
         expect(terminal[0]?.endpoint_id).toBe(ENDPOINT_ID)
         expect(terminal[0]?.event_type).toBe('api_token.created')
         expect(terminal[0]?.attempts).toBe(7)
@@ -493,7 +514,7 @@ describe('webhook consumer (workers pool)', () => {
         const attempts = yield* Effect.promise(() =>
           rows(
             'select * from webhook_delivery_attempts where delivery_id = ? order by attempts',
-            'whd_history'
+            WebhookDeliveryId.make('whd_history')
           )
         )
         expect(attempts).toHaveLength(2)
@@ -503,7 +524,10 @@ describe('webhook consumer (workers pool)', () => {
         expect(attempts[0]?.duration_ms).toBeTypeOf('number')
         expect(attempts[1]?.status).toBe('delivered')
         const summary = yield* Effect.promise(() =>
-          row('select * from webhook_deliveries where id = ?', 'whd_history')
+          row(
+            'select * from webhook_deliveries where id = ?',
+            WebhookDeliveryId.make('whd_history')
+          )
         )
         expect(summary?.status).toBe('delivered')
         expect(summary?.attempts).toBe(2)
@@ -542,12 +566,18 @@ describe('webhook consumer (workers pool)', () => {
           expect(result.retryBatch.retry).toBe(false)
           expect(
             yield* Effect.promise(() =>
-              row('select status from webhook_deliveries where id = ?', 'whd_blocked')
+              row(
+                'select status from webhook_deliveries where id = ?',
+                WebhookDeliveryId.make('whd_blocked')
+              )
             )
           ).toEqual({ status: 'pending' })
           expect(
             yield* Effect.promise(() =>
-              row('select status from webhook_deliveries where id = ?', 'whd_sibling')
+              row(
+                'select status from webhook_deliveries where id = ?',
+                WebhookDeliveryId.make('whd_sibling')
+              )
             )
           ).toEqual({ status: 'delivered' })
         }).pipe(
@@ -564,7 +594,7 @@ describe('webhook consumer (workers pool)', () => {
           yield* Effect.promise(() =>
             row(
               'select status, attempts from webhook_deliveries where id = ?',
-              'whd_blocked'
+              WebhookDeliveryId.make('whd_blocked')
             )
           )
         ).toEqual({ status: 'delivered', attempts: 2 })
@@ -627,7 +657,10 @@ describe('webhook consumer (workers pool)', () => {
         expect(outbound).toHaveLength(0)
         expect(
           yield* Effect.promise(() =>
-            row('select status from webhook_deliveries where id = ?', 'whd_dlq_recover')
+            row(
+              'select status from webhook_deliveries where id = ?',
+              WebhookDeliveryId.make('whd_dlq_recover')
+            )
           )
         ).toEqual({ status: 'dead_lettered' })
         expect(
@@ -662,7 +695,7 @@ describe('webhook consumer (workers pool)', () => {
           yield* Effect.promise(() =>
             rows(
               'select * from webhook_delivery_attempts where delivery_id = ?',
-              'whd_duplicate'
+              WebhookDeliveryId.make('whd_duplicate')
             )
           )
         ).toHaveLength(1)

@@ -1,3 +1,8 @@
+import {
+  ApiTokenId,
+  WebhookDeliveryId,
+  WebhookEndpointId
+} from '@b2b-saas-starter/db/ids'
 import { requireTokenScopes } from '@b2b-saas-starter/authz/guard'
 import { annotateWideEvent } from '@b2b-saas-starter/logger'
 import {
@@ -144,7 +149,9 @@ type ParameterizedReadOperation<
    */
   readonly read: (
     page: ListPageInput | undefined,
-    args: Readonly<Record<Key, string>>
+    args: Readonly<
+      Pick<{ endpointId: WebhookEndpointId; deliveryId: WebhookDeliveryId }, Key>
+    >
   ) => CapabilityRead
   readonly toolName: string
   readonly toolDescription: string
@@ -227,7 +234,7 @@ export const READ_OPERATIONS = {
     endpoint: WorkspaceApi.endpoints['webhook-deliveries'],
     permission: { webhook: ['list'] },
     input: 'endpointId',
-    param: { sample: 'wh_release' },
+    param: { sample: WebhookEndpointId.make('wh_release') },
     read: (_page, args) =>
       Effect.flatMap(WebhookEndpoints, (webhooks) =>
         webhooks.listDeliveries({ endpointId: args.endpointId })
@@ -240,7 +247,7 @@ export const READ_OPERATIONS = {
     endpoint: WorkspaceApi.endpoints['webhook-delivery-attempts'],
     permission: { webhook: ['list'] },
     input: 'deliveryId',
-    param: { sample: 'whd_seed_failed' },
+    param: { sample: WebhookDeliveryId.make('whd_seed_failed') },
     read: (_page, args) =>
       Effect.flatMap(WebhookEndpoints, (webhooks) =>
         webhooks.listDeliveryAttempts({ deliveryId: args.deliveryId })
@@ -367,7 +374,7 @@ export const MUTATION_OPERATIONS = {
   'api-tokens.replace': {
     endpoint: ApiTokenApi.endpoints.replace,
     permission: { apiToken: ['create'] },
-    param: { sample: 'tok_docs' },
+    param: { sample: ApiTokenId.make('tok_docs') },
     samplePayload: { scopes: ['read'], overlapSeconds: 3600 },
     run: (options: OperationInput<typeof ApiTokenApi.endpoints.replace>) =>
       Effect.gen(function* () {
@@ -391,7 +398,7 @@ export const MUTATION_OPERATIONS = {
   'api-tokens.delete': {
     endpoint: ApiTokenApi.endpoints.delete,
     permission: { apiToken: ['revoke'] },
-    param: { sample: 'tok_seed' },
+    param: { sample: ApiTokenId.make('tok_seed') },
     run: (options: OperationInput<typeof ApiTokenApi.endpoints.delete>) =>
       Effect.gen(function* () {
         const tokens = yield* ApiTokenRegistry
@@ -424,7 +431,7 @@ export const MUTATION_OPERATIONS = {
   'webhooks.update': {
     endpoint: WebhookApi.endpoints.update,
     permission: { webhook: ['update'] },
-    param: { sample: 'wh_release' },
+    param: { sample: WebhookEndpointId.make('wh_release') },
     samplePayload: { enabled: true },
     run: (options: OperationInput<typeof WebhookApi.endpoints.update>) =>
       Effect.gen(function* () {
@@ -451,7 +458,7 @@ export const MUTATION_OPERATIONS = {
   'webhooks.delete': {
     endpoint: WebhookApi.endpoints.delete,
     permission: { webhook: ['delete'] },
-    param: { sample: 'wh_release' },
+    param: { sample: WebhookEndpointId.make('wh_release') },
     run: (options: OperationInput<typeof WebhookApi.endpoints.delete>) =>
       Effect.gen(function* () {
         const webhooks = yield* WebhookEndpoints
@@ -464,7 +471,7 @@ export const MUTATION_OPERATIONS = {
   'webhooks.rotate-secret': {
     endpoint: WebhookApi.endpoints['rotate-secret'],
     permission: { webhook: ['rotateSecret'] },
-    param: { sample: 'wh_release' },
+    param: { sample: WebhookEndpointId.make('wh_release') },
     run: (options: OperationInput<(typeof WebhookApi.endpoints)['rotate-secret']>) =>
       Effect.gen(function* () {
         const webhooks = yield* WebhookEndpoints
@@ -480,7 +487,7 @@ export const MUTATION_OPERATIONS = {
   'webhooks.test-event': {
     endpoint: WebhookApi.endpoints['test-event'],
     permission: { webhook: ['test'] },
-    param: { sample: 'wh_release' },
+    param: { sample: WebhookEndpointId.make('wh_release') },
     run: (options: OperationInput<(typeof WebhookApi.endpoints)['test-event']>) =>
       Effect.gen(function* () {
         const webhooks = yield* WebhookEndpoints
@@ -497,7 +504,7 @@ export const MUTATION_OPERATIONS = {
   'webhooks.replay-delivery': {
     endpoint: WebhookApi.endpoints['replay-delivery'],
     permission: { webhook: ['replay'] },
-    param: { sample: 'whd_seed_failed' },
+    param: { sample: WebhookDeliveryId.make('whd_seed_failed') },
     run: (options: OperationInput<(typeof WebhookApi.endpoints)['replay-delivery']>) =>
       Effect.gen(function* () {
         const webhooks = yield* WebhookEndpoints

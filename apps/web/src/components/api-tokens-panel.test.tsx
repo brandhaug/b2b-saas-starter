@@ -1,3 +1,4 @@
+import { ApiTokenId } from '@b2b-saas-starter/db/ids'
 import { type ApiToken } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
@@ -17,7 +18,7 @@ function deferred<A>() {
 }
 
 const token: ApiToken = {
-  id: 'tok_ci',
+  id: ApiTokenId.make('tok_ci'),
   name: 'CI token',
   prefix: 'bsk_live_abcdefgh',
   scopes: ['read'],
@@ -66,7 +67,10 @@ describe('ApiTokensPanel', () => {
     revokeToken.mockReturnValue(pending.promise)
     await renderPanel({
       role: 'owner',
-      tokens: [token, { ...token, id: 'tok_other', name: 'Other token' }]
+      tokens: [
+        token,
+        { ...token, id: ApiTokenId.make('tok_other'), name: 'Other token' }
+      ]
     })
     fireEvent.click(screen.getByRole('button', { name: 'More actions for CI token' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Revoke' }))
@@ -112,7 +116,12 @@ describe('ApiTokensPanel', () => {
       role: 'owner',
       tokens: [
         token,
-        { ...token, id: 'tok_deploy', name: 'Deploy token', prefix: 'bsk_test_deploy' }
+        {
+          ...token,
+          id: ApiTokenId.make('tok_deploy'),
+          name: 'Deploy token',
+          prefix: 'bsk_test_deploy'
+        }
       ]
     })
     fireEvent.change(screen.getByRole('textbox', { name: 'Search tokens' }), {
@@ -139,7 +148,7 @@ describe('ApiTokensPanel', () => {
         token,
         {
           ...token,
-          id: 'tok_expired',
+          id: ApiTokenId.make('tok_expired'),
           name: 'Expired token',
           expiresAt: '2000-01-01T00:00:00.000Z'
         }
@@ -152,7 +161,7 @@ describe('ApiTokensPanel', () => {
   it('pages through URL state and clamps an out-of-range page', async () => {
     const tokens = Array.from({ length: 21 }, (_, index) => ({
       ...token,
-      id: `tok_${index}`,
+      id: ApiTokenId.make(`tok_${index}`),
       name: `Token ${String(index).padStart(2, '0')}`,
       createdAt: `2026-05-${String(index + 1).padStart(2, '0')}T09:00:00.000Z`
     }))
@@ -205,7 +214,7 @@ describe('ApiTokensPanel', () => {
   it('sorts before pagination and resets the page when searching', async () => {
     const tokens = Array.from({ length: 21 }, (_, index) => ({
       ...token,
-      id: `row_${index}`,
+      id: ApiTokenId.make(`row_${index}`),
       name: `Token ${String(index).padStart(2, '0')}`
     }))
     const tableViews = encodeURIComponent(
@@ -236,7 +245,7 @@ describe('ApiTokensPanel', () => {
   it('resets the page when changing a status filter', async () => {
     const tokens = Array.from({ length: 21 }, (_, index) => ({
       ...token,
-      id: `row_${index}`,
+      id: ApiTokenId.make(`row_${index}`),
       name: `Token ${String(index).padStart(2, '0')}`
     }))
     const { router } = await renderPanel({
@@ -268,17 +277,22 @@ describe('ApiTokensPanel', () => {
         token,
         {
           ...token,
-          id: 'expired',
+          id: ApiTokenId.make('expired'),
           name: 'Expired unused',
           expiresAt: '2000-01-01T00:00:00.000Z'
         },
         {
           ...token,
-          id: 'replaced',
+          id: ApiTokenId.make('replaced'),
           name: 'Replaced unused',
-          replacedByTokenId: 'replacement'
+          replacedByTokenId: ApiTokenId.make('replacement')
         },
-        { ...token, id: 'used', name: 'Used token', lastUsedAt: token.createdAt }
+        {
+          ...token,
+          id: ApiTokenId.make('used'),
+          name: 'Used token',
+          lastUsedAt: token.createdAt
+        }
       ]
     })
     expect(screen.getByText('CI token')).not.toBeNull()
@@ -303,7 +317,7 @@ describe('ApiTokensPanel', () => {
       expect(screen.getByText('Failed to revoke token')).not.toBeNull()
     })
     expect(revokeToken).toHaveBeenCalledWith({
-      data: { workspaceSlug: 'starter-lab', tokenId: 'tok_ci' }
+      data: { workspaceSlug: 'starter-lab', tokenId: ApiTokenId.make('tok_ci') }
     })
   })
 })
@@ -312,7 +326,11 @@ it('shows expired and replaced tokens without offering another replacement', asy
   await renderPanel({
     role: 'owner',
     tokens: [
-      { ...token, expiresAt: '2000-01-01T00:00:00.000Z', replacedByTokenId: 'tok_new' }
+      {
+        ...token,
+        expiresAt: '2000-01-01T00:00:00.000Z',
+        replacedByTokenId: ApiTokenId.make('tok_new')
+      }
     ]
   })
   expect(screen.getByText(/Expired.*Replacement issued/)).not.toBeNull()

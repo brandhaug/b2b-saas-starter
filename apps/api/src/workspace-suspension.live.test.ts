@@ -1,3 +1,4 @@
+import { ApiTokenId } from '@b2b-saas-starter/db/ids'
 import { hashSha256 } from '@b2b-saas-starter/capabilities/crypto'
 import {
   LIVE_SUITE_TIMEOUT,
@@ -69,7 +70,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               `INSERT INTO session (id,token,userId,expiresAt,createdAt,updatedAt,strongAuthAt,strongAuthMethod,strongAuthCredentialId)
               VALUES (?,?,?,strftime('%s','now')+3600,strftime('%s','now'),strftime('%s','now'),strftime('%s','now'),'passkey',?)`,
               `ses_suspension_${userId}`,
-              `tok_suspension_${userId}`,
+              ApiTokenId.make(`tok_suspension_${userId}`),
               userId,
               `pk_suspension_${userId}`
             )
@@ -160,8 +161,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           const credential = 'bsk_suspension_existing'
           const otherCredential = 'bsk_suspension_other'
           const credentials: ReadonlyArray<readonly [string, string, string]> = [
-            ['tok_suspension', 'wrk_live', credential],
-            ['tok_suspension_other', 'wrk_other', otherCredential]
+            [ApiTokenId.make('tok_suspension'), 'wrk_live', credential],
+            [ApiTokenId.make('tok_suspension_other'), 'wrk_other', otherCredential]
           ]
           for (const [id, workspaceId, token] of credentials) {
             yield* execute(

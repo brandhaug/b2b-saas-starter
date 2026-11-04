@@ -1,3 +1,4 @@
+import { WebhookDeliveryId } from '@b2b-saas-starter/db/ids'
 import { activeSigningSecrets } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { randomWebhookSecret } from '@b2b-saas-starter/capabilities/crypto'
 import { describe, expect, it, vi } from '@effect/vitest'
@@ -7,7 +8,7 @@ import { computeWebhookSignature, signatureHeaderValue } from './webhook-signing
 
 const currentSecret = 'whsec_MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY='
 const previousSecret = 'whsec_YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODk='
-const messageId = 'whd_interoperability'
+const messageId = WebhookDeliveryId.make('whd_interoperability')
 const decodedBody = { deliveryId: messageId, payload: { text: 'héllo 🌍' } }
 const body = '{"deliveryId":"whd_interoperability","payload":{"text":"héllo 🌍"}}'
 

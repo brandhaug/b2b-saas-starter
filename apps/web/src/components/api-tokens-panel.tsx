@@ -1,3 +1,4 @@
+import { type ApiTokenId } from '@b2b-saas-starter/db/ids'
 import { type ApiToken } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { Fragment, useEffect, useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
@@ -140,7 +141,7 @@ function useExpiryClock(tokens: ReadonlyArray<ApiToken>): number {
 export type RevokeApiToken = (input: {
   readonly data: {
     readonly workspaceSlug: string
-    readonly tokenId: string
+    readonly tokenId: ApiTokenId
   }
 }) => Promise<boolean>
 
@@ -182,7 +183,7 @@ export function ApiTokensPanel({
   // The loader owns the list, so the hook re-runs it on success rather than
   // mirroring the revoked row into local state.
   const revoke = useServerAction(
-    (tokenId: string) => revokeToken({ data: { workspaceSlug, tokenId } }),
+    (tokenId: ApiTokenId) => revokeToken({ data: { workspaceSlug, tokenId } }),
     { failureMessage: m.api_token_revoke_failed() }
   )
 
@@ -191,7 +192,7 @@ export function ApiTokensPanel({
   // model the webhooks panel uses, instead of a lone panel-foot alert.
   const { failure: failedRow, runWith: revokeOnRow } = useKeyedFailure<string>()
 
-  async function revokeTokenOnRow(tokenId: string) {
+  async function revokeTokenOnRow(tokenId: ApiTokenId) {
     await revokeOnRow(tokenId, () => revoke.runAsync(tokenId))
   }
 

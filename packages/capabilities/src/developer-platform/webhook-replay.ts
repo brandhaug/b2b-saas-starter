@@ -1,3 +1,4 @@
+import { WebhookDeliveryId, type WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { Effect } from 'effect'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type RecordAuditEventInput } from '../governance/audit-event-log.ts'
@@ -20,8 +21,8 @@ import { type WebhookPublisher } from './webhook-publisher.ts'
 type ReplayInput = Parameters<WebhookEndpoints['Service']['replayDelivery']>[0]
 
 type ReplaySource = {
-  readonly id: string
-  readonly endpointId: string
+  readonly id: WebhookDeliveryId
+  readonly endpointId: WebhookEndpointId
   readonly eventType: string
   readonly status: WebhookDeliveryStatus
   readonly payload: Json
@@ -30,20 +31,20 @@ type ReplaySource = {
 }
 
 type ReplayReservation = {
-  readonly endpointId: string
-  readonly replayedFrom: string | null
+  readonly endpointId: WebhookEndpointId
+  readonly replayedFrom: WebhookDeliveryId | null
   readonly approvedEndpointUrl: string | null
   readonly status: WebhookDeliveryStatus
 }
 
 type ReplayStore = {
   readonly source: (
-    deliveryId: string,
+    deliveryId: WebhookDeliveryId,
     workspaceId: string
   ) => Effect.Effect<ReplaySource | null, CapabilityUnavailable>
   /** Atomically reserve and audit once, then return the stored identity. */
   readonly reserve: (input: {
-    readonly deliveryId: string
+    readonly deliveryId: WebhookDeliveryId
     readonly workspaceId: string
     readonly plan: PendingDispatchPlan
     readonly approvedEndpointUrl: string | undefined
@@ -85,7 +86,11 @@ export function makeWebhookReplay(
     if (reason !== null) {
       return yield* new WebhookDispatchRejected({ reason })
     }
-    const deliveryId = input.replayDeliveryId ?? (yield* newCapabilityId('whd'))
+    const deliveryId =
+      input.replayDeliveryId ??
+      (yield* newCapabilityId('whd').pipe(
+        Effect.map((id) => WebhookDeliveryId.make(id))
+      ))
     const replay = yield* store.reserve({
       deliveryId,
       workspaceId: ctx.workspace.id,

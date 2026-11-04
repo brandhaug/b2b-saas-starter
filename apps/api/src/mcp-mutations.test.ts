@@ -1,3 +1,4 @@
+import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import {
   SEED_API_TOKEN,
   SEED_READONLY_API_TOKEN
@@ -26,7 +27,7 @@ const createdToken = Schema.Struct({
 })
 const queued = Schema.Struct({
   status: Schema.Literal('queued'),
-  deliveryId: Schema.String
+  deliveryId: WebhookDeliveryId
 })
 const secret = Schema.Struct({ signingSecret: Schema.String })
 const link = Schema.Struct({ url: Schema.String, expiresAt: Schema.String })
@@ -268,10 +269,10 @@ describe('MCP workspace mutations over streamable HTTP', () => {
         const replay = yield* success(
           client,
           'replay_webhook_delivery',
-          { deliveryId: 'whd_seed_failed' },
+          { deliveryId: WebhookDeliveryId.make('whd_seed_failed') },
           queued
         )
-        expect(replay.deliveryId).not.toBe('whd_seed_failed')
+        expect(replay.deliveryId).not.toBe(WebhookDeliveryId.make('whd_seed_failed'))
         yield* success(
           client,
           'update_webhook',
@@ -396,7 +397,10 @@ it.effect('malformed write JSON is rejected without changing the audit trail', (
     for (const [name, args] of [
       ['create_api_token', { name: 'bad', scopes: ['superadmin'] }],
       ['create_webhook', { url: 'https://valid.example', events: [] }],
-      ['update_webhook', { endpointId: 'wh_release', enabled: 'false' }],
+      [
+        'update_webhook',
+        { endpointId: WebhookEndpointId.make('wh_release'), enabled: 'false' }
+      ],
       ['rotate_webhook_secret', {}],
       ['get_workspace_export_download_link', { exportId: 123 }]
     ] satisfies ReadonlyArray<[string, Schema.Json]>) {

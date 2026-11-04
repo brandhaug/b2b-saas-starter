@@ -1,3 +1,4 @@
+import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vite-plus/test'
@@ -14,13 +15,13 @@ function task(
 ): WebhookInvestigationTask {
   return {
     id: 'task_1',
-    sourceDeliveryId: 'whd_failed',
+    sourceDeliveryId: WebhookDeliveryId.make('whd_failed'),
     requestedBy: 'usr_demo',
     question: 'Investigate this delivery',
     status: 'proposed',
     diagnosis: 'receiver_unavailable',
     evidence: {
-      endpointId: 'ep_1',
+      endpointId: WebhookEndpointId.make('ep_1'),
       endpointUrl: 'https://example.test/hook',
       eventType: 'invoice.created',
       deliveryStatus: 'dead_lettered',
@@ -69,7 +70,7 @@ describe('WorkspaceAssistantInvestigation', () => {
         workspaceSlug="starter-lab"
         data={{ configured: true, viewer: { role: 'owner' } }}
         ask={ask}
-        selectedDeliveryId="whd_new"
+        selectedDeliveryId={WebhookDeliveryId.make('whd_new')}
         investigation={{
           tasks: [task()],
           get,
@@ -95,11 +96,13 @@ describe('WorkspaceAssistantInvestigation', () => {
 
   it('creates a proposal and approves it while preserving pending outcome', async () => {
     const create = vi.fn().mockResolvedValue(task())
-    const approve = vi
-      .fn()
-      .mockResolvedValue(
-        task({ status: 'approved', outcome: 'pending', replayDeliveryId: 'replay_1' })
-      )
+    const approve = vi.fn().mockResolvedValue(
+      task({
+        status: 'approved',
+        outcome: 'pending',
+        replayDeliveryId: WebhookDeliveryId.make('replay_1')
+      })
+    )
     const ports = {
       tasks: [],
       create,
@@ -108,7 +111,7 @@ describe('WorkspaceAssistantInvestigation', () => {
     } satisfies AssistantInvestigationPorts
     await renderWorkbench(ports)
     fireEvent.change(screen.getByLabelText('Delivery ID'), {
-      target: { value: 'whd_failed' }
+      target: { value: WebhookDeliveryId.make('whd_failed') }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Investigate delivery' }))
     await waitFor(() => screen.getByRole('button', { name: /invoice.created/ }))
@@ -125,7 +128,7 @@ describe('WorkspaceAssistantInvestigation', () => {
         task(),
         task({
           id: 'task_2',
-          sourceDeliveryId: 'whd_two',
+          sourceDeliveryId: WebhookDeliveryId.make('whd_two'),
           evidence: { ...task().evidence, eventType: 'customer.updated' }
         })
       ],
@@ -135,7 +138,7 @@ describe('WorkspaceAssistantInvestigation', () => {
     } satisfies AssistantInvestigationPorts
     await renderWorkbench(ports)
     fireEvent.click(screen.getByRole('button', { name: /customer.updated/ }))
-    expect(screen.getByText('whd_two')).toBeTruthy()
+    expect(screen.getByText(WebhookDeliveryId.make('whd_two'))).toBeTruthy()
     fireEvent.change(screen.getByLabelText('Delivery ID'), {
       target: { value: 'bad_delivery' }
     })
@@ -174,7 +177,7 @@ describe('saved investigations', () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
     const pending = task({
       status: 'approved',
-      replayDeliveryId: 'replay_1',
+      replayDeliveryId: WebhookDeliveryId.make('replay_1'),
       outcome: 'pending'
     })
     const get = vi
@@ -223,7 +226,7 @@ describe('saved investigations', () => {
   it('recovers committed approval after queue failure and retries the saved task', async () => {
     const approved = task({
       status: 'approved',
-      replayDeliveryId: 'replay_task_1',
+      replayDeliveryId: WebhookDeliveryId.make('replay_task_1'),
       outcome: 'unavailable'
     })
     const get = vi.fn().mockResolvedValueOnce(task()).mockResolvedValue(approved)
@@ -256,7 +259,7 @@ describe('saved investigations', () => {
     const first = deferred<WebhookInvestigationTask>()
     const second = task({
       id: 'task_2',
-      sourceDeliveryId: 'whd_two',
+      sourceDeliveryId: WebhookDeliveryId.make('whd_two'),
       question: 'Second task',
       evidence: { ...task().evidence, eventType: 'customer.updated' }
     })
@@ -283,7 +286,7 @@ describe('saved investigations', () => {
     })
     expect(
       within(screen.getByRole('region', { name: 'Webhook investigation' })).getByText(
-        'whd_two'
+        WebhookDeliveryId.make('whd_two')
       )
     ).toBeTruthy()
     await act(async () => {
@@ -291,7 +294,7 @@ describe('saved investigations', () => {
     })
     await waitFor(() =>
       within(screen.getByRole('region', { name: 'Webhook investigation' })).getByText(
-        'whd_failed'
+        WebhookDeliveryId.make('whd_failed')
       )
     )
     await act(async () => {
@@ -299,7 +302,7 @@ describe('saved investigations', () => {
     })
     await waitFor(() =>
       within(screen.getByRole('region', { name: 'Webhook investigation' })).getByText(
-        'whd_two'
+        WebhookDeliveryId.make('whd_two')
       )
     )
   })
@@ -313,7 +316,7 @@ describe('saved investigations', () => {
       path: '/workspaces/starter-lab/assistant'
     })
     fireEvent.change(screen.getByLabelText('Delivery ID'), {
-      target: { value: 'whd_failed' }
+      target: { value: WebhookDeliveryId.make('whd_failed') }
     })
     fireEvent.change(screen.getByLabelText('Investigation request'), {
       target: { value: 'Why did billing stop?' }
@@ -323,7 +326,7 @@ describe('saved investigations', () => {
     expect(create).toHaveBeenCalledWith({
       data: {
         workspaceSlug: 'starter-lab',
-        deliveryId: 'whd_failed',
+        deliveryId: WebhookDeliveryId.make('whd_failed'),
         question: 'Why did billing stop?'
       }
     })

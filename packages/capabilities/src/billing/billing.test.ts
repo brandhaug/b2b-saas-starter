@@ -1,3 +1,4 @@
+import { ApiTokenId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { assertWithinPlanLimit } from '@b2b-saas-starter/billing/resource-admission'
 import { SeedNotificationFeed } from '../notifications/notification-feed.seed.ts'
 import { SeedNotificationPreferences } from '../notifications/notification-preferences.ts'
@@ -223,7 +224,11 @@ describe('seat pricing catalog', () => {
   })
 
   it('preserves excess resources but pauses an over-limit category until selected', () => {
-    const ids = ['tok_1', 'tok_2', 'tok_3']
+    const ids = [
+      ApiTokenId.make('tok_1'),
+      ApiTokenId.make('tok_2'),
+      ApiTokenId.make('tok_3')
+    ]
     const paused = resourceEntitlement(
       STARTER_PLAN,
       'api_token',
@@ -235,21 +240,32 @@ describe('seat pricing catalog', () => {
     expect(paused.used).toBe(3)
 
     const selected = resourceEntitlement(STARTER_PLAN, 'api_token', ids, {
-      apiTokenIds: ['tok_3', 'tok_missing', 'tok_1'],
+      apiTokenIds: [
+        ApiTokenId.make('tok_3'),
+        ApiTokenId.make('tok_missing'),
+        ApiTokenId.make('tok_1')
+      ],
       webhookEndpointIds: []
     })
     expect(selected.paused).toBe(false)
-    expect(selected.activeIds).toEqual(['tok_3', 'tok_1'])
+    expect(selected.activeIds).toEqual([
+      ApiTokenId.make('tok_3'),
+      ApiTokenId.make('tok_1')
+    ])
     expect(
       resourceEntitlement(STARTER_PLAN, 'api_token', ids, {
-        apiTokenIds: ['tok_1', 'tok_2'],
+        apiTokenIds: [ApiTokenId.make('tok_1'), ApiTokenId.make('tok_2')],
         webhookEndpointIds: []
       }).paused
     ).toBe(false)
   })
 
   it('keeps every resource active when the plan has no ceiling', () => {
-    const ids = ['wh_1', 'wh_2', 'wh_3']
+    const ids = [
+      WebhookEndpointId.make('wh_1'),
+      WebhookEndpointId.make('wh_2'),
+      WebhookEndpointId.make('wh_3')
+    ]
     const entitlement = resourceEntitlement(planById('team'), 'webhook_endpoint', ids)
     expect(entitlement.paused).toBe(false)
     expect(entitlement.activeIds).toEqual(ids)

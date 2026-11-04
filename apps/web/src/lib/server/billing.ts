@@ -69,8 +69,8 @@ const PortalInput = Schema.Struct({
 })
 const SelectResourcesInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
-  apiTokenIds: Schema.Array(Schema.NonEmptyString),
-  webhookEndpointIds: Schema.Array(Schema.NonEmptyString)
+  apiTokenIds: Schema.Array(ApiTokenId),
+  webhookEndpointIds: Schema.Array(WebhookEndpointId)
 })
 
 export type WorkspaceBillingInput = typeof WorkspaceBillingInput.Type
@@ -123,3 +123,4 @@ export const selectBillingResourcesServerFn = createServerFn({ method: 'POST' })
     const { selectBillingResourcesHandler } = await import('./billing.effects')
     return selectBillingResourcesHandler(data)
   })
+import { ApiTokenId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'

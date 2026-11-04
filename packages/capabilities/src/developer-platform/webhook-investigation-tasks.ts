@@ -1,3 +1,4 @@
+import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { Context, DateTime, Effect, Schema } from 'effect'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { newCapabilityId } from '../internal/ids.ts'
@@ -13,7 +14,7 @@ const AttemptEvidence = Schema.Struct({
 
 export const WebhookInvestigationTask = Schema.Struct({
   id: Schema.String,
-  sourceDeliveryId: Schema.String,
+  sourceDeliveryId: WebhookDeliveryId,
   requestedBy: Schema.NullOr(Schema.String),
   question: Schema.String,
   status: Schema.Literals(['proposed', 'approved', 'cancelled', 'completed']),
@@ -26,14 +27,14 @@ export const WebhookInvestigationTask = Schema.Struct({
     'unknown'
   ]),
   evidence: Schema.Struct({
-    endpointId: Schema.String,
+    endpointId: WebhookEndpointId,
     endpointUrl: Schema.String,
     eventType: Schema.String,
     deliveryStatus: Schema.String,
     lastResponseStatus: Schema.NullOr(Schema.Number),
     attempts: Schema.Array(AttemptEvidence)
   }),
-  replayDeliveryId: Schema.NullOr(Schema.String),
+  replayDeliveryId: Schema.NullOr(WebhookDeliveryId),
   outcome: Schema.NullOr(
     Schema.Literals(['pending', 'delivered', 'failed', 'unavailable'])
   ),
@@ -71,7 +72,7 @@ export class WebhookInvestigationTasks extends Context.Service<
   WebhookInvestigationTasks,
   {
     readonly create: (input: {
-      readonly deliveryId: string
+      readonly deliveryId: WebhookDeliveryId
       readonly question: string
     }) => Effect.Effect<WebhookInvestigationTask, TaskError, WorkspaceContext>
     readonly get: (
@@ -139,7 +140,7 @@ export function makeInvestigationTasks(store: InvestigationTaskStore) {
       return task
     })
     const inspect = Effect.fn('WebhookInvestigationTasks.inspect')(function* (
-      deliveryId: string
+      deliveryId: WebhookDeliveryId
     ) {
       return yield* webhooks
         .inspectDelivery({ deliveryId })
@@ -168,7 +169,7 @@ export function makeInvestigationTasks(store: InvestigationTaskStore) {
       return { ...task, outcome: result }
     })
     const create = Effect.fn('WebhookInvestigationTasks.create')(function* (input: {
-      readonly deliveryId: string
+      readonly deliveryId: WebhookDeliveryId
       readonly question: string
     }) {
       const ctx = yield* WorkspaceContext
@@ -264,7 +265,7 @@ export function makeInvestigationTasks(store: InvestigationTaskStore) {
       yield* webhooks
         .replayDelivery({
           deliveryId: task.sourceDeliveryId,
-          replayDeliveryId: `replay_${task.id}`,
+          replayDeliveryId: WebhookDeliveryId.make(`replay_${task.id}`),
           expectedEndpointUrl: task.evidence.endpointUrl,
           expectedStatus: 'dead_lettered'
         })
@@ -312,15 +313,15 @@ export function investigationTransition(
 ) {
   if (status === 'approved') {
     return {
-      replayDeliveryId: `replay_${taskId}`,
+      replayDeliveryId: WebhookDeliveryId.make(`replay_${taskId}`),
       eventType: 'assistant_task.approved'
     } satisfies {
-      replayDeliveryId: string | null
+      replayDeliveryId: WebhookDeliveryId | null
       eventType: 'assistant_task.approved' | 'assistant_task.cancelled'
     }
   }
   return { replayDeliveryId: null, eventType: 'assistant_task.cancelled' } satisfies {
-    replayDeliveryId: string | null
+    replayDeliveryId: WebhookDeliveryId | null
     eventType: 'assistant_task.approved' | 'assistant_task.cancelled'
   }
 }

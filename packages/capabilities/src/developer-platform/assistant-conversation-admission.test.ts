@@ -1,3 +1,4 @@
+import { WebhookDeliveryId } from '@b2b-saas-starter/db/ids'
 import { expect, it } from '@effect/vitest'
 import { DateTime, Effect, Stream } from 'effect'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -355,7 +356,7 @@ it.effect(
       const host = yield* setup()
       const tasks = yield* WebhookInvestigationTasks
       const task = yield* tasks.create({
-        deliveryId: 'whd_seed_dead_lettered',
+        deliveryId: WebhookDeliveryId.make('whd_seed_dead_lettered'),
         question: 'Explain failure'
       })
       const accepted = yield* host.accept({
@@ -365,7 +366,7 @@ it.effect(
       })
       expect(accepted.attempt.evidence).toMatchObject({
         taskId: task.id,
-        sourceId: 'whd_seed_dead_lettered'
+        sourceId: WebhookDeliveryId.make('whd_seed_dead_lettered')
       })
       const directory = yield* AssistantDirectory
       const policy = yield* directory.get(host.row.id)

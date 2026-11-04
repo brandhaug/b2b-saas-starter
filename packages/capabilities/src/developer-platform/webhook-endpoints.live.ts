@@ -1,3 +1,4 @@
+import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { makeWebhookReplay } from './webhook-replay.ts'
 import { deliveryView, cutDeliveryViewPage } from './webhook-delivery-view.ts'
 import { deliveryViewQuery } from './webhook-delivery-view.live.ts'
@@ -80,7 +81,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
       unavailable
     })
 
-    function endpointExists(endpointId: string, workspaceId: string) {
+    function endpointExists(endpointId: WebhookEndpointId, workspaceId: string) {
       return unavailable(
         db
           .select({ id: webhookEndpoints.id })
@@ -90,7 +91,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
       ).pipe(Effect.map((rows) => rows.length > 0))
     }
 
-    function endpointRow(endpointId: string, workspaceId: string) {
+    function endpointRow(endpointId: WebhookEndpointId, workspaceId: string) {
       return unavailable(
         db
           .select()
@@ -119,7 +120,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
     }
 
     function endpointProjection(
-      endpointId: string,
+      endpointId: WebhookEndpointId,
       workspaceId: string
     ): Effect.Effect<WebhookEndpoint | null, CapabilityUnavailable> {
       return unavailable(
@@ -145,7 +146,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
      * provenance.
      */
     function recordOperatorDispatch(input: {
-      readonly deliveryId: string
+      readonly deliveryId: WebhookDeliveryId
       readonly workspaceId: string
       readonly plan: PendingDispatchPlan
       readonly auditEvent?: RecordAuditEventInput | undefined
@@ -241,7 +242,9 @@ export const LiveWebhookEndpoints: Layer.Layer<
           const signingSecret = randomWebhookSecret()
           const createdAt = yield* DateTime.now
           const endpoint = {
-            id: yield* newCapabilityId('wh'),
+            id: yield* newCapabilityId('wh').pipe(
+              Effect.map((id) => WebhookEndpointId.make(id))
+            ),
             workspaceId: ctx.workspace.id,
             url: input.url,
             description: input.description,
@@ -621,7 +624,9 @@ export const LiveWebhookEndpoints: Layer.Layer<
           }
           const now = yield* DateTime.now
           const payload = { test: true, sentAt: DateTime.formatIso(now) }
-          const deliveryId = yield* newCapabilityId('whd')
+          const deliveryId = yield* newCapabilityId('whd').pipe(
+            Effect.map((id) => WebhookDeliveryId.make(id))
+          )
           // No audit event: a test send is operator tooling, not a
           // security-relevant mutation — the delivery row itself is the record.
           yield* recordOperatorDispatch({
@@ -800,7 +805,7 @@ function projectionFromAggregate(
 }
 
 // Always pair endpoint identity with its owning workspace.
-function scopedEndpointWhere(endpointId: string, workspaceId: string) {
+function scopedEndpointWhere(endpointId: WebhookEndpointId, workspaceId: string) {
   return and(
     eq(webhookEndpoints.id, endpointId),
     eq(webhookEndpoints.workspaceId, workspaceId)
@@ -827,7 +832,7 @@ function updateMetadata(input: {
 }
 
 function toEndpointProjection(endpoint: {
-  readonly id: string
+  readonly id: WebhookEndpointId
   readonly url: string
   readonly enabled: boolean
   readonly events: ReadonlyArray<string>

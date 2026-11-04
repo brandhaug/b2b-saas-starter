@@ -1,3 +1,4 @@
+import { ApiTokenId } from '@b2b-saas-starter/db/ids'
 import { Effect } from 'effect'
 import { count, eq, getTableName, is, Table } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest'
@@ -195,7 +196,7 @@ describe('column modes over live D1', () => {
           name: 'JSON check'
         })
         yield* database.insert(apiTokens).values({
-          id: 'tok_json_check',
+          id: ApiTokenId.make('tok_json_check'),
           workspaceId: 'wrk_json_check',
           name: 'JSON check',
           tokenPrefix: 'bsk_live_json',
@@ -206,7 +207,7 @@ describe('column modes over live D1', () => {
         const rows = yield* database
           .select()
           .from(apiTokens)
-          .where(eq(apiTokens.id, 'tok_json_check'))
+          .where(eq(apiTokens.id, ApiTokenId.make('tok_json_check')))
         expect(rows[0]?.scopes).toEqual(['read', 'write'])
       })
     )
@@ -298,7 +299,7 @@ describe('referential integrity over live D1', () => {
           inviterId: 'usr_cascade'
         })
         yield* database.insert(apiTokens).values({
-          id: 'tok_cascade',
+          id: ApiTokenId.make('tok_cascade'),
           workspaceId: 'wrk_cascade',
           name: 'Cascade token',
           tokenPrefix: 'bsk_live_casc',

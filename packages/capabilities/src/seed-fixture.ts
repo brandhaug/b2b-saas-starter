@@ -1,3 +1,9 @@
+import { type WebhookDeliveryId } from '@b2b-saas-starter/db/ids'
+import {
+  apiTokenId,
+  webhookDeliveryId,
+  webhookEndpointId
+} from '@b2b-saas-starter/db/identity-values'
 import { type PersonalDataExport } from './governance/personal-data-export-archive.ts'
 import { DateTime, Duration } from 'effect'
 import {
@@ -182,7 +188,7 @@ export const seedUserAdminMemberships: ReadonlyArray<SeedMembership> = seedMembe
 
 export const seedApiTokens: ReadonlyArray<ApiToken> = [
   {
-    id: 'tok_docs',
+    id: apiTokenId('tok_docs'),
     name: 'Local admin token',
     prefix: SEED_API_TOKEN.slice(0, 17),
     scopes: ['read', 'write', 'admin'],
@@ -192,7 +198,7 @@ export const seedApiTokens: ReadonlyArray<ApiToken> = [
     createdAt: '2026-05-12T11:15:00.000Z'
   },
   {
-    id: 'tok_mcp',
+    id: apiTokenId('tok_mcp'),
     name: 'MCP local client',
     prefix: SEED_READONLY_API_TOKEN.slice(0, 17),
     scopes: ['read'],
@@ -248,13 +254,13 @@ export const seedMcpClientConnections: ReadonlyArray<McpClientConnection> = [
 
 export const seedWebhookEndpoints: ReadonlyArray<SeedWebhookEndpointFixture> = [
   {
-    id: 'wh_release',
+    id: webhookEndpointId('wh_release'),
     url: 'https://example.com/webhooks/starter',
     enabled: true,
     events: ['api_token.created']
   },
   {
-    id: 'wh_billing',
+    id: webhookEndpointId('wh_billing'),
     url: 'https://billing.example.com/hooks/starter',
     enabled: false,
     events: ['webhook_endpoint.created']
@@ -267,7 +273,7 @@ export const seedWebhookEndpoints: ReadonlyArray<SeedWebhookEndpointFixture> = [
  * own `WEBHOOK_USER_AGENT`. Fixture helper so the seeded history reads like
  * the real thing.
  */
-function seedDeliveryRequestHeaders(deliveryId: string) {
+function seedDeliveryRequestHeaders(deliveryId: WebhookDeliveryId) {
   return {
     'content-type': 'application/json',
     'user-agent': WEBHOOK_USER_AGENT,
@@ -287,20 +293,22 @@ function seedDeliveryRequestHeaders(deliveryId: string) {
  */
 export const seedDeliveries: ReadonlyArray<SeedWebhookDeliveryFixture> = [
   {
-    id: 'whd_seed_delivered_1',
-    endpointId: 'wh_release',
+    id: webhookDeliveryId('whd_seed_delivered_1'),
+    endpointId: webhookEndpointId('wh_release'),
     eventType: 'api_token.created',
     status: 'delivered',
     attempts: 2,
     lastAttemptAt: '2026-05-16T07:02:00.000Z',
     responseStatus: 200,
     payload: { tokenId: 'tok_mcp', name: 'MCP local client' },
-    requestHeaders: seedDeliveryRequestHeaders('whd_seed_delivered_1'),
+    requestHeaders: seedDeliveryRequestHeaders(
+      webhookDeliveryId('whd_seed_delivered_1')
+    ),
     responseBody: ''
   },
   {
-    id: 'whd_seed_failed',
-    endpointId: 'wh_release',
+    id: webhookDeliveryId('whd_seed_failed'),
+    endpointId: webhookEndpointId('wh_release'),
     eventType: 'api_token.created',
     status: 'failed',
     attempts: 2,
@@ -308,22 +316,24 @@ export const seedDeliveries: ReadonlyArray<SeedWebhookDeliveryFixture> = [
     responseStatus: 500,
     nextAttemptAt: '2026-05-16T08:42:00.000Z',
     payload: { tokenId: 'tok_docs', name: 'Docs automation' },
-    requestHeaders: seedDeliveryRequestHeaders('whd_seed_failed'),
+    requestHeaders: seedDeliveryRequestHeaders(webhookDeliveryId('whd_seed_failed')),
     responseBody: 'upstream connect error'
   },
   {
     // The dead-letter rung on the enabled endpoint: the receiver gave up
     // after six attempts, matching the fixture notification's story. This is
     // the row `/admin` can replay.
-    id: 'whd_seed_dead_lettered',
-    endpointId: 'wh_release',
+    id: webhookDeliveryId('whd_seed_dead_lettered'),
+    endpointId: webhookEndpointId('wh_release'),
     eventType: 'api_token.created',
     status: 'dead_lettered',
     attempts: 6,
     lastAttemptAt: '2026-05-16T09:12:00.000Z',
     responseStatus: 503,
     payload: { tokenId: 'tok_docs', name: 'Docs automation' },
-    requestHeaders: seedDeliveryRequestHeaders('whd_seed_dead_lettered'),
+    requestHeaders: seedDeliveryRequestHeaders(
+      webhookDeliveryId('whd_seed_dead_lettered')
+    ),
     responseBody: 'service unavailable'
   },
   {
@@ -331,15 +341,17 @@ export const seedDeliveries: ReadonlyArray<SeedWebhookDeliveryFixture> = [
     // 410 once and the endpoint has since been turned off, so `/admin`'s
     // replay affordance refuses with the reason — the state an operator
     // must resolve in the workspace before this row can move again.
-    id: 'whd_seed_perm_failed',
-    endpointId: 'wh_billing',
+    id: webhookDeliveryId('whd_seed_perm_failed'),
+    endpointId: webhookEndpointId('wh_billing'),
     eventType: 'webhook_endpoint.created',
     status: 'failed_permanent',
     attempts: 1,
     lastAttemptAt: '2026-05-16T08:55:00.000Z',
     responseStatus: 410,
     payload: { url: 'https://billing.example.com/hooks/starter' },
-    requestHeaders: seedDeliveryRequestHeaders('whd_seed_perm_failed'),
+    requestHeaders: seedDeliveryRequestHeaders(
+      webhookDeliveryId('whd_seed_perm_failed')
+    ),
     responseBody: 'gone'
   }
 ]

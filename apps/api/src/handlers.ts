@@ -1,3 +1,7 @@
+import {
+  type WebhookDeliveryId,
+  type WebhookEndpointId
+} from '@b2b-saas-starter/db/ids'
 import { tokenPrincipal, type PermissionRequest } from '@b2b-saas-starter/authz/client'
 import { annotateWideEvent } from '@b2b-saas-starter/logger'
 import { type ListPageInput } from '@b2b-saas-starter/capabilities/internal/keyset-cursor'
@@ -80,7 +84,10 @@ export function workspaceGroup(env: ApiEnv) {
   // than widening to the union of reads. HttpApiBuilder checks the result
   // against that endpoint's contract. Parameterized reads require their declared path ID.
   function workspaceRead<
-    Args extends { readonly endpointId?: string; readonly deliveryId?: string },
+    Args extends {
+      readonly endpointId?: WebhookEndpointId
+      readonly deliveryId?: WebhookDeliveryId
+    },
     A,
     E,
     R

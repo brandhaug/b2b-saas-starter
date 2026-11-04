@@ -1,3 +1,4 @@
+import { type WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { statusLabel } from '@/lib/value-labels'
 import { type WebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { type WebhookEndpoint } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
@@ -88,7 +89,7 @@ function webhookListFields(): ReadonlyArray<TableViewField> {
 export type UpdateWebhookEndpoint = (input: {
   readonly data: {
     readonly workspaceSlug: string
-    readonly endpointId: string
+    readonly endpointId: WebhookEndpointId
     readonly enabled: boolean
   }
 }) => Promise<WebhookEndpoint>
@@ -96,7 +97,7 @@ export type UpdateWebhookEndpoint = (input: {
 export type RotateWebhookSecret = (input: {
   readonly data: {
     readonly workspaceSlug: string
-    readonly endpointId: string
+    readonly endpointId: WebhookEndpointId
   }
 }) => Promise<string>
 
@@ -178,7 +179,7 @@ export function WebhooksPanel({
   const fields = webhookListFields()
   const { view, update } = useWorkspaceView()
   const [rotatedSecret, setRotatedSecret] = useState<{
-    readonly endpointId: string
+    readonly endpointId: WebhookEndpointId
     readonly secret: string
   } | null>(null)
   // Disabling an endpoint stops its deliveries with no re-enable control in
@@ -194,7 +195,7 @@ export function WebhooksPanel({
   // The loader owns the list, so the hook re-runs it on success rather than
   // mirroring the change into local state.
   const disable = useServerAction(
-    (endpointId: string) =>
+    (endpointId: WebhookEndpointId) =>
       updateEndpoint({
         data: { workspaceSlug, endpointId, enabled: false }
       }),
@@ -207,7 +208,7 @@ export function WebhooksPanel({
   )
 
   const rotate = useServerAction(
-    async (endpointId: string) => {
+    async (endpointId: WebhookEndpointId) => {
       const secret = await rotateSecret({ data: { workspaceSlug, endpointId } })
       setRotatedSecret({ endpointId, secret })
     },
@@ -220,7 +221,7 @@ export function WebhooksPanel({
   // the next mutation — the shared per-row failure hook.
   const { failure: failedRow, runWith: runOnRow } = useKeyedFailure<string>()
 
-  async function disableOnRow(endpointId: string) {
+  async function disableOnRow(endpointId: WebhookEndpointId) {
     if (actionInFlight.current) {
       return
     }
@@ -230,7 +231,7 @@ export function WebhooksPanel({
     })
   }
 
-  async function rotateOnRow(endpointId: string) {
+  async function rotateOnRow(endpointId: WebhookEndpointId) {
     if (actionInFlight.current) {
       return
     }

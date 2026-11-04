@@ -1,3 +1,4 @@
+import { type WebhookDeliveryId } from '@b2b-saas-starter/db/ids'
 import {
   WebhookEndpoints,
   type WebhookEndpoint,
@@ -122,7 +123,7 @@ export async function rotateWebhookSecretHandler(
 
 export async function replayWebhookDeliveryHandler(
   input: ReplayDeliveryInput
-): Promise<{ readonly deliveryId: string }> {
+): Promise<{ readonly deliveryId: WebhookDeliveryId }> {
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
     input.workspaceSlug,
@@ -140,7 +141,7 @@ export async function replayWebhookDeliveryHandler(
 
 export async function sendTestEventHandler(
   input: EndpointMutationInput
-): Promise<{ readonly deliveryId: string }> {
+): Promise<{ readonly deliveryId: WebhookDeliveryId }> {
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
     input.workspaceSlug,

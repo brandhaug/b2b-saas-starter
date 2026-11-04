@@ -1,3 +1,4 @@
+import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 // oxlint-disable-next-line import/no-unassigned-import -- Installs the explicit authenticated-session test fixture.
 import '@/test/qualified-session'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
@@ -69,7 +70,7 @@ describe('updateWebhookEndpointHandler', () => {
     await expect(
       updateWebhookEndpointHandler({
         workspaceSlug: 'starter-lab',
-        endpointId: 'wh_release',
+        endpointId: WebhookEndpointId.make('wh_release'),
         enabled: false
       })
     ).rejects.toMatchObject({ name: 'ForbiddenError' })
@@ -79,7 +80,7 @@ describe('updateWebhookEndpointHandler', () => {
     await expect(
       updateWebhookEndpointHandler({
         workspaceSlug: 'starter-lab',
-        endpointId: 'wh_missing',
+        endpointId: WebhookEndpointId.make('wh_missing'),
         enabled: false
       })
     ).rejects.toMatchObject({ _tag: 'WebhookEndpointNotFound' })
@@ -95,7 +96,7 @@ describe('rotateWebhookSecretHandler', () => {
     await expect(
       rotateWebhookSecretHandler({
         workspaceSlug: 'starter-lab',
-        endpointId: 'wh_release'
+        endpointId: WebhookEndpointId.make('wh_release')
       })
     ).resolves.toMatch(/^whsec_[A-Za-z0-9+/]{43}=$/)
   })
@@ -105,7 +106,7 @@ describe('rotateWebhookSecretHandler', () => {
     await expect(
       rotateWebhookSecretHandler({
         workspaceSlug: 'starter-lab',
-        endpointId: 'wh_release'
+        endpointId: WebhookEndpointId.make('wh_release')
       })
     ).rejects.toMatchObject({ name: 'ForbiddenError' })
   })
@@ -114,7 +115,7 @@ describe('rotateWebhookSecretHandler', () => {
     await expect(
       rotateWebhookSecretHandler({
         workspaceSlug: 'starter-lab',
-        endpointId: 'wh_missing'
+        endpointId: WebhookEndpointId.make('wh_missing')
       })
     ).rejects.toMatchObject({ _tag: 'WebhookEndpointNotFound' })
   })
@@ -128,18 +129,18 @@ describe('replayWebhookDeliveryHandler', () => {
   it('requeues the failed seed delivery for webhook:replay', async () => {
     const replayed = await replayWebhookDeliveryHandler({
       workspaceSlug: 'starter-lab',
-      deliveryId: 'whd_seed_failed'
+      deliveryId: WebhookDeliveryId.make('whd_seed_failed')
     })
     // The copy is a new row linked to its source (the capability's own
     // contract asserts the linkage and the reset attempts).
-    expect(replayed.deliveryId).not.toBe('whd_seed_failed')
+    expect(replayed.deliveryId).not.toBe(WebhookDeliveryId.make('whd_seed_failed'))
   })
 
   it('fails the typed 404 for an unknown delivery', async () => {
     await expect(
       replayWebhookDeliveryHandler({
         workspaceSlug: 'starter-lab',
-        deliveryId: 'whd_missing'
+        deliveryId: WebhookDeliveryId.make('whd_missing')
       })
     ).rejects.toMatchObject({ _tag: 'WebhookDeliveryNotFound' })
   })
@@ -149,7 +150,7 @@ describe('replayWebhookDeliveryHandler', () => {
     await expect(
       replayWebhookDeliveryHandler({
         workspaceSlug: 'starter-lab',
-        deliveryId: 'whd_seed_failed'
+        deliveryId: WebhookDeliveryId.make('whd_seed_failed')
       })
     ).rejects.toMatchObject({ name: 'ForbiddenError' })
   })
@@ -163,14 +164,17 @@ describe('sendTestEventHandler', () => {
   it('queues a pending webhook.test_event for webhook:test', async () => {
     const sent = await sendTestEventHandler({
       workspaceSlug: 'starter-lab',
-      endpointId: 'wh_release'
+      endpointId: WebhookEndpointId.make('wh_release')
     })
     expect(sent.deliveryId).toMatch(/^whd_/)
   })
 
   it('refuses a disabled endpoint', async () => {
     await expect(
-      sendTestEventHandler({ workspaceSlug: 'starter-lab', endpointId: 'wh_billing' })
+      sendTestEventHandler({
+        workspaceSlug: 'starter-lab',
+        endpointId: WebhookEndpointId.make('wh_billing')
+      })
     ).rejects.toMatchObject({ _tag: 'WebhookDispatchRejected' })
   })
 
@@ -179,7 +183,7 @@ describe('sendTestEventHandler', () => {
     await expect(
       sendTestEventHandler({
         workspaceSlug: 'starter-lab',
-        endpointId: 'wh_release'
+        endpointId: WebhookEndpointId.make('wh_release')
       })
     ).rejects.toMatchObject({ name: 'ForbiddenError' })
   })
@@ -190,10 +194,13 @@ describe('updateWebhookEndpointHandler — the mutating case', () => {
     actor.userId = ADMIN
     const endpoint = await updateWebhookEndpointHandler({
       workspaceSlug: 'starter-lab',
-      endpointId: 'wh_release',
+      endpointId: WebhookEndpointId.make('wh_release'),
       enabled: false
     })
-    expect(endpoint).toMatchObject({ id: 'wh_release', enabled: false })
+    expect(endpoint).toMatchObject({
+      id: WebhookEndpointId.make('wh_release'),
+      enabled: false
+    })
   })
 })
 
@@ -205,12 +212,14 @@ describe('listWebhookDeliveryAttemptsHandler', () => {
   it('reads retained evidence for a workspace delivery', async () => {
     const attempts = await listWebhookDeliveryAttemptsHandler({
       workspaceSlug: 'starter-lab',
-      deliveryId: 'whd_seed_failed'
+      deliveryId: WebhookDeliveryId.make('whd_seed_failed')
     })
     expect(attempts.length).toBeGreaterThan(0)
-    expect(attempts.every((attempt) => attempt.deliveryId === 'whd_seed_failed')).toBe(
-      true
-    )
+    expect(
+      attempts.every(
+        (attempt) => attempt.deliveryId === WebhookDeliveryId.make('whd_seed_failed')
+      )
+    ).toBe(true)
   })
 
   it('does not reveal evidence to a member without webhook:list', async () => {
@@ -218,7 +227,7 @@ describe('listWebhookDeliveryAttemptsHandler', () => {
     await expect(
       listWebhookDeliveryAttemptsHandler({
         workspaceSlug: 'starter-lab',
-        deliveryId: 'whd_seed_failed'
+        deliveryId: WebhookDeliveryId.make('whd_seed_failed')
       })
     ).rejects.toMatchObject({ name: 'ForbiddenError' })
   })
@@ -227,7 +236,7 @@ describe('listWebhookDeliveryAttemptsHandler', () => {
     await expect(
       listWebhookDeliveryAttemptsHandler({
         workspaceSlug: 'starter-lab',
-        deliveryId: 'whd_foreign'
+        deliveryId: WebhookDeliveryId.make('whd_foreign')
       })
     ).resolves.toEqual([])
   })

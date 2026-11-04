@@ -1,3 +1,7 @@
+import {
+  type WebhookDeliveryId,
+  type WebhookEndpointId
+} from '@b2b-saas-starter/db/ids'
 import { Link } from '@tanstack/react-router'
 import { statusLabel } from '@/lib/value-labels'
 import { type WebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
@@ -36,16 +40,16 @@ import { type ListDeliveryAttempts } from '@/components/webhook-delivery-timelin
 export type ReplayDelivery = (input: {
   readonly data: {
     readonly workspaceSlug: string
-    readonly deliveryId: string
+    readonly deliveryId: WebhookDeliveryId
   }
-}) => Promise<{ readonly deliveryId: string }>
+}) => Promise<{ readonly deliveryId: WebhookDeliveryId }>
 
 export type SendTestEvent = (input: {
   readonly data: {
     readonly workspaceSlug: string
-    readonly endpointId: string
+    readonly endpointId: WebhookEndpointId
   }
-}) => Promise<{ readonly deliveryId: string }>
+}) => Promise<{ readonly deliveryId: WebhookDeliveryId }>
 
 export function WebhookDeliveriesDrawer({
   workspaceSlug,
@@ -73,7 +77,8 @@ export function WebhookDeliveriesDrawer({
   const canTest = viewerCan(viewer, { webhook: ['test'] })
 
   const replay = useServerAction(
-    (deliveryId: string) => replayDelivery({ data: { workspaceSlug, deliveryId } }),
+    (deliveryId: WebhookDeliveryId) =>
+      replayDelivery({ data: { workspaceSlug, deliveryId } }),
     { failureMessage: m.replay_queue_failed() }
   )
   const sendTest = useServerAction(
