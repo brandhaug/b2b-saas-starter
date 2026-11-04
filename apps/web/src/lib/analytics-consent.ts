@@ -1,4 +1,5 @@
-/* oxlint-disable effect/noTryCatch, anti-slop/no-runtime-typeof -- Browser storage is an untrusted, fallible boundary; Effect must stay out of the client bundle. */
+/* oxlint-disable effect/noTryCatch -- Browser storage access can throw before a value reaches schema decoding. */
+import { Option, Schema } from 'effect'
 
 const storageKey = 'starter.analytics-consent'
 const noticeVersion = '2026-10-13'
@@ -9,21 +10,25 @@ const beaconSelector =
 
 type ConsentChoice = 'accepted' | 'declined'
 type ConsentRecord = { readonly choice: ConsentChoice; readonly decidedAt: number }
+const StoredConsent = Schema.fromJsonString(
+  Schema.Struct({
+    version: Schema.Literal(noticeVersion),
+    choice: Schema.Literals(['accepted', 'declined']),
+    decidedAt: Schema.Finite
+  })
+)
+const decodeConsent = Schema.decodeUnknownOption(StoredConsent)
+const encodeConsent = Schema.encodeSync(StoredConsent)
 
 function readRecord(): ConsentRecord | undefined {
   try {
     const raw = localStorage.getItem(storageKey)
-    const value: unknown = raw ? JSON.parse(raw) : undefined
+    const decoded = decodeConsent(raw)
+    if (Option.isNone(decoded)) {
+      return undefined
+    }
+    const value = decoded.value
     if (
-      value !== null &&
-      typeof value === 'object' &&
-      'version' in value &&
-      'choice' in value &&
-      'decidedAt' in value &&
-      value.version === noticeVersion &&
-      (value.choice === 'accepted' || value.choice === 'declined') &&
-      typeof value.decidedAt === 'number' &&
-      Number.isFinite(value.decidedAt) &&
       value.decidedAt <= Date.now() &&
       Date.now() - value.decidedAt < preferenceLifetimeMs
     ) {
@@ -91,7 +96,7 @@ export function saveAnalyticsConsent(choice: ConsentChoice, announce = true): bo
   }
   let saved = false
   try {
-    const record = JSON.stringify({
+    const record = encodeConsent({
       version: noticeVersion,
       choice,
       decidedAt: Date.now()

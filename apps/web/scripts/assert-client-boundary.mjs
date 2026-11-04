@@ -24,39 +24,10 @@ import { join } from 'node:path'
  *   server effects (and docs prose, which this never matched because prose
  *   spells the package without the `/templates` subpath… guard kept exact).
  *
- * The capabilities / Effect Schema invariant (the loader code-split removal
- * made this load-bearing: the route tree's static graph ships on every page).
- * One marker is not enough — minified `effect` mangles its namespace, so the
- * Schema chunk can ship without any obvious `Schema.*` name. The set below
- * covers the three violation shapes observed in this repo, each verified
- * absent from a clean `dist/client` and present in a deliberately violated
- * one (a route loader statically importing an `.effects` module):
- *
- * - `capability.workspace` — the capabilities runtime's wide-event scope; the
- *   full workspace graph ships with it (the historical `capabilities-*.js`
- *   155 kB preload).
- * - `insufficient_permission` — the authz/capabilities
- *   `Schema.TaggedError` reason literals; a bare error-class pin (a client
- *   component importing `@b2b-saas-starter/authz/errors` at runtime) ships
- *   this string. `httpApiStatus` — the third literal on those
- *   classes — was rejected: the `/docs` effect-backbone pages quote it in
- *   MDX code samples, so it matches docs content chunks on a clean build.
- *   `no_principal` is also used by the safe UI error translator, so it cannot
- *   distinguish that browser code from the server error schema.
- * - `isMinLength` — a `Schema` filter combinator called as a property in
- *   capabilities/effects source; minification keeps the property name, so any
- *   Schema-using capability code that ships carries it.
- * - `onExcessProperty`, `unsafePreserveChecks` — Schema internals that ship
- *   with the *minimal* schema construct (`Schema.Struct({ x: Schema.String })`
- *   — no filters, no NonEmptyString), verified present in a deliberately
- *   leaked plain struct and absent from a clean build, docs prose, and every
- *   bundled vendor dist. These close the hole `isMinLength` alone left: the
- *   client-safe halves' validators are Effect Schemas stripped from the
- *   client build by the TanStack compiler, so a regression here is exactly
- *   "a schema construct shipped", and these two names ride along with any
- *   construct, filters or not. (`toJsonSchema` was verified too but rejected:
- *   other validator libraries implement the same method name, so it would
- *   false-positive on a legitimately bundled validator.)
+ * Effect and Schema are supported browser dependencies. Markers identify
+ * server execution instead: `capability.workspace` belongs to the server
+ * capability runtime, and the Database/RawD1 service IDs identify storage
+ * services. Schema constructors, brands and error contracts are allowed.
  *
  * If a marker starts matching docs prose (the `/docs` routes bundle MDX into
  * client chunks — `TaggedError` was rejected for exactly that reason), pick
@@ -81,10 +52,8 @@ const MARKERS = [
   'css-tree',
   '@b2b-saas-starter/email/templates',
   'capability.workspace',
-  'insufficient_permission',
-  'isMinLength',
-  'onExcessProperty',
-  'unsafePreserveChecks'
+  '@b2b-saas-starter/db/Database',
+  '@b2b-saas-starter/db/RawD1'
 ]
 
 const CLIENT_DIR = new URL('../dist/client', import.meta.url)
@@ -117,14 +86,9 @@ if (offenders.length > 0) {
       'Client bundle boundary violated — server-only modules shipped to dist/client:',
       ...offenders.map((line) => `  - ${line}`),
       '',
-      'A capabilities or Effect Schema graph is in the client bundle again.',
-      'lib/server modules must stay client-safe at module level: the server fn',
-      'keeps createServerFn, type imports, and its Effect Schema validators (the',
-      'TanStack compiler strips .validator() from the client build — these',
-      'markers are the proof it did), and its behavior lives in a sibling',
-      '.effects.ts reached by dynamic import(). Components read vocabularies',
-      'from Schema-free leaves (@b2b-saas-starter/db/enums,',
-      'capabilities .../webhook-events).'
+      'Effect Schema is allowed. Database services, email rendering and the',
+      'server capability runtime are not. Keep server behavior in sibling',
+      '.effects.ts modules reached through dynamic imports in server handlers.'
     ].join('\n')
   )
   process.exit(1)

@@ -15,7 +15,7 @@ export const loadSupportConfig = createIsomorphicFn()
   })
   .client(async (): Promise<SupportConfig> => {
     // A failed config fetch leaves diagnostic copying available.
-    // oxlint-disable-next-line effect/noTryCatch -- browser fetch boundary; no Effect runtime ships to the client
+    // oxlint-disable-next-line effect/noTryCatch -- a failed browser fetch leaves diagnostic copying available
     try {
       const response = await fetch('/api/support-config', { credentials: 'omit' })
       if (!response.ok) {

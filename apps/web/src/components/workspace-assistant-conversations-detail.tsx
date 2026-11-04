@@ -80,7 +80,7 @@ export function ConversationDetail({
           await onDeleted()
           return
         }
-        // oxlint-disable-next-line effect/noNewPromise -- parallel client-side refreshes; keep the Effect runtime out of the browser bundle
+        // oxlint-disable-next-line effect/noNewPromise -- TanStack Query refresh methods expose promises
         await Promise.all([onChanged(), state.refresh()])
       }
     }

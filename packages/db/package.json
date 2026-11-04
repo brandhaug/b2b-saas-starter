@@ -4,7 +4,6 @@
   "type": "module",
   "exports": {
     "./ids": "./src/ids.ts",
-    "./identity-values": "./src/identity-values.ts",
     "./enums": "./src/enums.ts",
     "./schema": "./src/schema.ts",
     "./service": "./src/service.ts",

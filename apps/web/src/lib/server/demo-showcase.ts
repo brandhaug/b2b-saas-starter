@@ -3,7 +3,7 @@ import { createServerFn } from '@tanstack/react-start'
 
 /**
  * Client-safe homepage summary. The handler's dynamic import keeps capability
- * implementations and Effect Schema out of the route tree's browser graph.
+ * server implementations out of the route tree's browser graph.
  */
 
 export type DemoShowcase = {

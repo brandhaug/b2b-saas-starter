@@ -1,9 +1,8 @@
-import { type WebhookDeliveryId } from '@b2b-saas-starter/db/ids'
 import {
-  apiTokenId,
-  webhookDeliveryId,
-  webhookEndpointId
-} from '@b2b-saas-starter/db/identity-values'
+  ApiTokenId,
+  WebhookDeliveryId,
+  WebhookEndpointId
+} from '@b2b-saas-starter/db/ids'
 import { type WebhookDeliveryAttempt } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import {
   seedMembers,
@@ -83,7 +82,7 @@ const notifications = [
 ] satisfies ReadonlyArray<Notification & NotificationPreview>
 const tokens = [
   {
-    id: apiTokenId('tok_docs'),
+    id: ApiTokenId.make('tok_docs'),
     name: 'Local admin token',
     prefix: 'starter_local_ad',
     scopes: ['read', 'write', 'admin'],
@@ -93,7 +92,7 @@ const tokens = [
     replacedByTokenId: null
   },
   {
-    id: apiTokenId('tok_mcp'),
+    id: ApiTokenId.make('tok_mcp'),
     name: 'MCP local client',
     prefix: 'starter_mcp_read',
     scopes: ['read'],
@@ -105,15 +104,15 @@ const tokens = [
 ] satisfies WorkspaceApiTokensPayload['tokens']
 const deliveries = [
   {
-    id: webhookDeliveryId('whd_delivered'),
-    endpointId: webhookEndpointId('wh_release'),
+    id: WebhookDeliveryId.make('whd_delivered'),
+    endpointId: WebhookEndpointId.make('wh_release'),
     eventType: 'api_token.created',
     status: 'delivered',
     attempts: 2,
     lastAttemptAt: '2026-05-16T07:02:00.000Z',
     nextAttemptAt: null,
     responseStatus: 200,
-    payload: { tokenId: apiTokenId('tok_mcp'), name: 'MCP local client' },
+    payload: { tokenId: ApiTokenId.make('tok_mcp'), name: 'MCP local client' },
     requestHeaders: {
       'content-type': 'application/json',
       'user-agent': 'Needlefish/1.0'
@@ -122,15 +121,15 @@ const deliveries = [
     replayedFrom: null
   },
   {
-    id: webhookDeliveryId('whd_failed'),
-    endpointId: webhookEndpointId('wh_release'),
+    id: WebhookDeliveryId.make('whd_failed'),
+    endpointId: WebhookEndpointId.make('wh_release'),
     eventType: 'api_token.created',
     status: 'failed',
     attempts: 2,
     lastAttemptAt: '2026-05-16T08:41:30.000Z',
     nextAttemptAt: '2026-05-16T08:42:00.000Z',
     responseStatus: 500,
-    payload: { tokenId: apiTokenId('tok_docs'), name: 'Local admin token' },
+    payload: { tokenId: ApiTokenId.make('tok_docs'), name: 'Local admin token' },
     requestHeaders: {
       'content-type': 'application/json',
       'user-agent': 'Needlefish/1.0'
@@ -142,7 +141,7 @@ const deliveries = [
 const deliveryAttempts = [
   {
     id: 'whd_delivered_1',
-    deliveryId: webhookDeliveryId('whd_delivered'),
+    deliveryId: WebhookDeliveryId.make('whd_delivered'),
     attempts: 1,
     phase: 'http',
     status: 'failed',
@@ -155,7 +154,7 @@ const deliveryAttempts = [
   },
   {
     id: 'whd_delivered_2',
-    deliveryId: webhookDeliveryId('whd_delivered'),
+    deliveryId: WebhookDeliveryId.make('whd_delivered'),
     attempts: 2,
     phase: 'http',
     status: 'delivered',
@@ -168,7 +167,7 @@ const deliveryAttempts = [
   },
   {
     id: 'whd_failed_1',
-    deliveryId: webhookDeliveryId('whd_failed'),
+    deliveryId: WebhookDeliveryId.make('whd_failed'),
     attempts: 1,
     phase: 'http',
     status: 'failed',
@@ -181,7 +180,7 @@ const deliveryAttempts = [
   },
   {
     id: 'whd_failed_2',
-    deliveryId: webhookDeliveryId('whd_failed'),
+    deliveryId: WebhookDeliveryId.make('whd_failed'),
     attempts: 2,
     phase: 'http',
     status: 'failed',
@@ -195,7 +194,7 @@ const deliveryAttempts = [
 ] satisfies ReadonlyArray<WebhookDeliveryAttempt>
 const endpoints = [
   {
-    id: webhookEndpointId('wh_release'),
+    id: WebhookEndpointId.make('wh_release'),
     url: 'https://example.com/webhooks/starter',
     enabled: true,
     events: ['api_token.created'],
@@ -203,7 +202,7 @@ const endpoints = [
     deliveries
   },
   {
-    id: webhookEndpointId('wh_billing'),
+    id: WebhookEndpointId.make('wh_billing'),
     url: 'https://billing.example.com/hooks/starter',
     enabled: false,
     events: ['webhook_endpoint.created'],
@@ -272,8 +271,8 @@ const auditEvents = demoAuditDetails.map((event) => ({
   createdAt: event.createdAt
 })) satisfies WorkspaceAuditPayload['events']
 const selectedResources = {
-  apiTokenIds: [apiTokenId('tok_docs'), apiTokenId('tok_mcp')],
-  webhookEndpointIds: [webhookEndpointId('wh_release')]
+  apiTokenIds: [ApiTokenId.make('tok_docs'), ApiTokenId.make('tok_mcp')],
+  webhookEndpointIds: [WebhookEndpointId.make('wh_release')]
 }
 // Display-only sample values. The preview never imports the billing catalog or
 // evaluates entitlement policy in the browser.
@@ -325,18 +324,24 @@ const resourceEntitlements = {
     resource: 'api_token',
     limit: null,
     used: 2,
-    eligibleIds: [apiTokenId('tok_docs'), apiTokenId('tok_mcp')],
-    selectedIds: [apiTokenId('tok_docs'), apiTokenId('tok_mcp')],
-    activeIds: [apiTokenId('tok_docs'), apiTokenId('tok_mcp')],
+    eligibleIds: [ApiTokenId.make('tok_docs'), ApiTokenId.make('tok_mcp')],
+    selectedIds: [ApiTokenId.make('tok_docs'), ApiTokenId.make('tok_mcp')],
+    activeIds: [ApiTokenId.make('tok_docs'), ApiTokenId.make('tok_mcp')],
     paused: false
   },
   webhookEndpoints: {
     resource: 'webhook_endpoint',
     limit: null,
     used: 2,
-    eligibleIds: [webhookEndpointId('wh_release'), webhookEndpointId('wh_billing')],
-    selectedIds: [webhookEndpointId('wh_release')],
-    activeIds: [webhookEndpointId('wh_release'), webhookEndpointId('wh_billing')],
+    eligibleIds: [
+      WebhookEndpointId.make('wh_release'),
+      WebhookEndpointId.make('wh_billing')
+    ],
+    selectedIds: [WebhookEndpointId.make('wh_release')],
+    activeIds: [
+      WebhookEndpointId.make('wh_release'),
+      WebhookEndpointId.make('wh_billing')
+    ],
     paused: false
   }
 } satisfies WorkspaceBillingPayload['resourceEntitlements']

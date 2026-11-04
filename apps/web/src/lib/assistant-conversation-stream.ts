@@ -100,7 +100,7 @@ function history(value: unknown): value is ConversationHistory {
 
 export function readConversationSnapshot(data: string): ConversationHistory | null {
   let frame: unknown
-  // oxlint-disable-next-line effect/noTryCatch -- Native browser JSON boundary; importing Effect would enter the client bundle.
+  // oxlint-disable-next-line effect/noTryCatch -- malformed stream JSON must follow the transport's refusal path
   try {
     frame = JSON.parse(data)
   } catch {
