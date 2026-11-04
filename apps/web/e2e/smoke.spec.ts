@@ -30,6 +30,10 @@ test('public homepage exposes every request stage and optional caller evidence',
     exact: true
   })
   await expect(contract).toBeVisible()
+  // Native anchor scrolling works before React attaches the current-step handler.
+  await page
+    .locator('header [data-slot="select-trigger"]:enabled')
+    .waitFor({ state: 'attached' })
   await page
     .getByRole('navigation', { name: 'Follow the request' })
     .getByRole('link', { name: /Contract/ })
