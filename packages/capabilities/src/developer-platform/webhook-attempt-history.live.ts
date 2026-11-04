@@ -1,7 +1,12 @@
 import { WebhookDeliveryId } from '@b2b-saas-starter/db/ids'
 import { bestEffort } from '../internal/best-effort.ts'
 // oxlint-disable effect/noGlobals -- D1 SQL parameters require serialized typed JSON at this adapter boundary.
-import { Database, RawD1, type BatchStatement } from '@b2b-saas-starter/db/service'
+import {
+  batchResults,
+  Database,
+  RawD1,
+  type BatchStatement
+} from '@b2b-saas-starter/db/service'
 import {
   webhookDeliveries,
   webhookDeliveryAttempts,
@@ -279,14 +284,7 @@ export const makeLiveAttemptHistory = Effect.gen(function* () {
         .where(endpointScope)
     )
     const results = yield* unavailable(
-      Effect.tryPromise(() =>
-        d1.batch(
-          statements.map((statement) => {
-            const query = statement.toSQL()
-            return d1.prepare(query.sql).bind(...query.params)
-          })
-        )
-      )
+      batchResults(statements).pipe(Effect.provideService(RawD1, d1))
     )
     const rows = yield* unavailable(decodeRecorded(results.at(-1)?.results ?? []))
     const row = rows[0]

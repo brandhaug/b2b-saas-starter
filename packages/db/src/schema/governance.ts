@@ -1,10 +1,11 @@
 import { sql } from 'drizzle-orm'
+import { Schema } from 'effect'
+import { jsonText } from '../json-column.ts'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { workspaceExportStatuses, auditActorTypes } from '../enums.ts'
 import { user, session } from './auth.ts'
 import { workspaceRef, workspaceRefNullable } from './workspaces.ts'
 import { id, isoCreatedAt, workspaceIdIndex } from './columns.ts'
-import { type JsonObject } from './json.ts'
 
 export const auditEvents = sqliteTable(
   'audit_events',
@@ -16,8 +17,11 @@ export const auditEvents = sqliteTable(
     eventType: text('event_type').notNull(),
     targetType: text('target_type').notNull(),
     targetId: text('target_id'),
-    metadata: text('metadata', { mode: 'json' })
-      .$type<JsonObject>()
+    metadata: jsonText(
+      'audit_events',
+      'metadata',
+      Schema.Record(Schema.String, Schema.Json)
+    )
       .default(sql`'{}'`)
       .notNull(),
     createdAt: isoCreatedAt()
@@ -88,8 +92,11 @@ export const personalDataExports = sqliteTable(
       .notNull()
       .references(() => session.id, { onDelete: 'cascade' }),
     archive: text('archive').notNull(),
-    conversationManifest: text('conversation_manifest', { mode: 'json' })
-      .$type<ReadonlyArray<{ readonly id: string; readonly policyRevision: number }>>()
+    conversationManifest: jsonText(
+      'personal_data_exports',
+      'conversation_manifest',
+      Schema.Array(Schema.Struct({ id: Schema.String, policyRevision: Schema.Int }))
+    )
       .notNull()
       .default([]),
     createdAt: isoCreatedAt(),

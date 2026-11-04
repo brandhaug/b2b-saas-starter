@@ -1,4 +1,6 @@
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { Schema } from 'effect'
+import { jsonText } from '../json-column.ts'
 import { user } from './auth.ts'
 import { id, isoCreatedAt } from './columns.ts'
 
@@ -9,8 +11,11 @@ export const assistantConversations = sqliteTable(
     id: id(),
     workspaceId: text('workspace_id').notNull(),
     creatorUserId: text('creator_user_id').notNull(),
-    requiredPermissions: text('required_permissions', { mode: 'json' })
-      .$type<ReadonlyArray<string>>()
+    requiredPermissions: jsonText(
+      'assistant_conversations',
+      'required_permissions',
+      Schema.Array(Schema.String)
+    )
       .notNull()
       .default([]),
     policyRevision: integer('policy_revision').notNull().default(0),

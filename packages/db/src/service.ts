@@ -1,4 +1,4 @@
-import { failureMessage } from '@b2b-saas-starter/failure'
+import { isPersistenceDecodeError } from '@b2b-saas-starter/failure/persistence'
 import { Context, Effect, Layer, Schema } from 'effect'
 import * as D1Client from '@effect/sql-d1/D1Client'
 import * as SQLiteD1Drizzle from 'drizzle-orm/effect-d1'
@@ -65,23 +65,31 @@ export type BatchStatement = {
  * through the raw `D1Database` binding, which it reads from the {@link RawD1}
  * service rather than taking as an argument.
  */
-export function batch(
-  statements: ReadonlyArray<BatchStatement>
-): Effect.Effect<void, DbBatchError, RawD1> {
-  return Effect.gen(function* () {
-    const d1 = yield* RawD1
-    yield* Effect.tryPromise({
-      try: () =>
-        d1.batch(
-          statements.map((statement) => {
-            const query = statement.toSQL()
-            return d1.prepare(query.sql).bind(...query.params)
-          })
-        ),
-      catch: (cause) => new DbBatchError({ reason: failureMessage(cause) })
-    })
-  })
+export function batch(statements: ReadonlyArray<BatchStatement>) {
+  return batchResults(statements).pipe(Effect.asVoid)
 }
+
+/** Ordered raw results retain change counts and selected evidence for atomic callers. */
+export const batchResults = Effect.fn('Database.batch')(function* (
+  statements: ReadonlyArray<BatchStatement>
+) {
+  const d1 = yield* RawD1
+  return yield* Effect.tryPromise({
+    try: () =>
+      d1.batch(
+        statements.map((statement) => {
+          const query = statement.toSQL()
+          return d1.prepare(query.sql).bind(...query.params)
+        })
+      ),
+    catch: (cause) => {
+      if (isPersistenceDecodeError(cause)) {
+        return cause
+      }
+      return new DbBatchError({ reason: 'persistence_sql' })
+    }
+  })
+})
 
 /** Bounded readiness probe checks the schema needed for sign-in and Workspaces. */
 export function databaseIsReady(

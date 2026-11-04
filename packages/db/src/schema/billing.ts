@@ -1,4 +1,6 @@
 import { sql } from 'drizzle-orm'
+import { Schema } from 'effect'
+import { jsonText } from '../json-column.ts'
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import {
   billingProviderEventStatuses,
@@ -67,12 +69,16 @@ export const workspaceResourceSelections = sqliteTable(
   'workspace_resource_selections',
   {
     workspaceId: workspaceRef().primaryKey(),
-    apiTokenIds: text('api_token_ids', { mode: 'json' })
-      .$type<ReadonlyArray<ApiTokenId>>()
-      .notNull(),
-    webhookEndpointIds: text('webhook_endpoint_ids', { mode: 'json' })
-      .$type<ReadonlyArray<WebhookEndpointId>>()
-      .notNull(),
+    apiTokenIds: jsonText(
+      'workspace_resource_selections',
+      'api_token_ids',
+      Schema.Array(ApiTokenId)
+    ).notNull(),
+    webhookEndpointIds: jsonText(
+      'workspace_resource_selections',
+      'webhook_endpoint_ids',
+      Schema.Array(WebhookEndpointId)
+    ).notNull(),
     updatedAt: text('updated_at').notNull()
   }
 )
@@ -212,4 +218,4 @@ export const billingNotices = sqliteTable(
     )
   ]
 )
-import { type ApiTokenId, type WebhookEndpointId } from '../ids.ts'
+import { ApiTokenId, WebhookEndpointId } from '../ids.ts'
