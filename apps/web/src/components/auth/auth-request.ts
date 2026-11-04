@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
+import { Effect, Exit, Fiber, Scope } from 'effect'
 
 export type AuthRequest = {
   readonly signal: AbortSignal
@@ -10,11 +11,13 @@ export type AuthRequest = {
 
 function createRequestScope() {
   let active: {
-    controller: AbortController
+    lifetime: Scope.Closeable
     kind: 'passive' | 'explicit' | 'won'
   } | null = null
   function cancel() {
-    active?.controller.abort()
+    if (active !== null) {
+      Effect.runFork(Scope.close(active.lifetime, Exit.void))
+    }
     active = null
   }
   return {
@@ -26,17 +29,18 @@ function createRequestScope() {
       }
       cancel()
       const attempt: NonNullable<typeof active> = {
-        controller: new AbortController(),
+        lifetime: Scope.makeUnsafe(),
         kind: passive ? 'passive' : 'explicit'
       }
       active = attempt
       return {
-        signal: attempt.controller.signal,
-        current: () => active === attempt && !attempt.controller.signal.aborted,
+        lifetime: attempt.lifetime,
+        current: () => active === attempt && attempt.lifetime.state._tag !== 'Closed',
         win: () => {
           attempt.kind = 'won'
         },
         release: () => {
+          Effect.runFork(Scope.close(attempt.lifetime, Exit.void))
           if (active === attempt && attempt.kind !== 'won') {
             active = null
           }
@@ -72,25 +76,46 @@ export function useAuthRequest(failureMessage: string, ownScope?: RequestScope) 
   const inherited = useContext(AuthRequestContext)
   const local = useAuthRequestScope()
   const scope = ownScope ?? inherited ?? local
-  const lifetime = useRef<AbortController | null>(null)
-  useEffect(() => () => lifetime.current?.abort(), [])
+  const lifetime = useRef<Scope.Closeable | null>(null)
+  useEffect(
+    () => () => {
+      if (lifetime.current !== null) {
+        Effect.runFork(Scope.close(lifetime.current, Exit.void))
+      }
+    },
+    []
+  )
   // oxlint-disable-next-line react-doctor/query-mutation-missing-invalidation -- auth outcomes navigate through session gates; there is no cached resource to invalidate
   const mutation = useMutation({
     gcTime: 0,
     mutationFn: async ({
       task,
-      request
+      lease
     }: {
       task: AuthRequestTask
-      request: AuthRequest
+      lease: NonNullable<ReturnType<RequestScope['acquire']>>
     }) => {
-      if (!request.current()) {
+      if (!lease.current()) {
         return null
       }
-      return task(request).then(
-        (error) => (request.current() ? (error ?? null) : null),
-        () => (request.current() ? failureMessage : null)
+      const result = await Effect.runPromiseExit(
+        Effect.tryPromise({
+          try: async (signal) =>
+            (await task({
+              signal,
+              current: () => lease.current() && !signal.aborted,
+              win: lease.win
+            })) ?? null,
+          catch: () => failureMessage
+        }).pipe(
+          Effect.catch((error) => Effect.succeed(error)),
+          Effect.map((message) => (lease.current() ? (message ?? null) : null)),
+          Effect.forkIn(lease.lifetime, { startImmediately: true }),
+          Effect.flatMap(Fiber.join)
+        )
       )
+      // Interruption settles Query state even when an SDK ignores its AbortSignal.
+      return Exit.isSuccess(result) ? result.value : null
     }
   })
   async function run(task: AuthRequestTask, passive = false) {
@@ -98,22 +123,11 @@ export function useAuthRequest(failureMessage: string, ownScope?: RequestScope) 
     if (lease === null) {
       return
     }
-    const controller = new AbortController()
-    lifetime.current?.abort()
-    lifetime.current = controller
-    function abort() {
-      controller.abort()
+    if (lifetime.current !== null) {
+      Effect.runFork(Scope.close(lifetime.current, Exit.void))
     }
-    lease.signal.addEventListener('abort', abort, { once: true })
-    const request: AuthRequest = {
-      signal: controller.signal,
-      current: () => lease.current() && !controller.signal.aborted,
-      win: lease.win
-    }
-    await mutation.mutateAsync({ task, request }).finally(() => {
-      lease.signal.removeEventListener('abort', abort)
-      lease.release()
-    })
+    lifetime.current = lease.lifetime
+    await mutation.mutateAsync({ task, lease }).finally(lease.release)
   }
   return {
     run,

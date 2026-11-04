@@ -11,6 +11,8 @@ import { ResetPasswordPage } from '@/routes/reset-password'
 import { OAuthConsentPage } from '@/routes/oauth.consent'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { deferred } from './auth-deferred.test-support'
+import { Button } from '@/components/ui/button'
+import { useAuthRequest, useAuthRequestScope, type AuthRequest } from './auth-request'
 
 vi.mock('@/lib/auth-client', async () => {
   const { authClientDouble } = await import('@/test/fake-auth-client')
@@ -18,6 +20,47 @@ vi.mock('@/lib/auth-client', async () => {
 })
 
 beforeEach(() => vi.clearAllMocks())
+
+it('interrupts passive work that ignores abort and retains a completed winner', async () => {
+  const pending = deferred<undefined>()
+  let passiveRequest: AuthRequest | undefined
+  const explicitTask = vi.fn(async (request: AuthRequest) => request.win())
+  function Requests() {
+    const scope = useAuthRequestScope()
+    const passive = useAuthRequest('Failed', scope)
+    const explicit = useAuthRequest('Failed', scope)
+    return (
+      <>
+        <Button
+          type="button"
+          onClick={() =>
+            void passive.run((request) => {
+              passiveRequest = request
+              return pending.promise
+            }, true)
+          }
+        >
+          Discover
+        </Button>
+        <Button type="button" onClick={() => void explicit.run(explicitTask)}>
+          Choose
+        </Button>
+        <output>{passive.pending ? 'Discovering' : 'Idle'}</output>
+      </>
+    )
+  }
+  await renderWithRouter(<Requests />)
+  fireEvent.click(screen.getByText('Discover'))
+  await screen.findByText('Discovering')
+  fireEvent.click(screen.getByText('Choose'))
+  await waitFor(() => expect(explicitTask).toHaveBeenCalledOnce())
+  await screen.findByText('Idle')
+  expect(passiveRequest?.signal.aborted).toBe(true)
+  expect(passiveRequest?.current()).toBe(false)
+  fireEvent.click(screen.getByText('Choose'))
+  expect(explicitTask).toHaveBeenCalledOnce()
+  await act(async () => pending.resolve(undefined))
+})
 
 it('ignores verification after switching to a different email', async () => {
   const result = deferred<{ error: null }>()
