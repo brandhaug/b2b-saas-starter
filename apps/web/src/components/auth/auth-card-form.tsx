@@ -81,17 +81,11 @@ export function AuthCardForm({
           : 'mx-auto grid w-full max-w-md flex-1 place-items-center px-4 py-12 outline-none'
       }
     >
-      <Card
-        className={
-          appearance === 'entry' ? 'w-full border-0 bg-transparent py-0' : 'w-full'
-        }
-      >
-        <CardHeader className={appearance === 'entry' ? 'px-0' : undefined}>
+      <Card variant={appearance === 'entry' ? 'plain' : 'default'} className="w-full">
+        <CardHeader>
           <CardTitle
             as="h1"
-            className={
-              appearance === 'entry' ? 'font-display text-3xl font-normal' : undefined
-            }
+            typography={appearance === 'entry' ? 'display' : 'default'}
           >
             {title}
           </CardTitle>
@@ -100,9 +94,8 @@ export function AuthCardForm({
           ) : null}
         </CardHeader>
         <CardContent
-          className={
-            appearance === 'entry' ? 'grid gap-4 px-0 [&_input]:bg-card' : 'grid gap-4'
-          }
+          className="grid gap-4"
+          data-input-appearance={appearance === 'entry' ? 'solid' : undefined}
         >
           {form === null ? (
             <div className="grid gap-4">

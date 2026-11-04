@@ -272,8 +272,8 @@ function useEmailCodeExchange({
       />
       <Button
         type="button"
-        variant="ghost"
-        className="h-auto p-0 text-muted-foreground"
+        variant="ghost-muted"
+        size="inline"
         onClick={switchToEmailStep}
       >
         {differentEmailLabel}

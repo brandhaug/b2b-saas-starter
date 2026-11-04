@@ -77,7 +77,7 @@ function auditColumns(
           <Button
             id={`audit-event-${row.original.id}`}
             variant="link"
-            className="h-auto p-0"
+            size="inline"
             onClick={() => onOpenEvent(row.original)}
           >
             {auditEventLabel(row.original.eventType)}

@@ -295,10 +295,10 @@ export function ApiTokensPanel({
             </Empty>
           ) : null}
           {visibleTokens.length === 0 ? null : (
-            <ItemGroup className="gap-0">
+            <ItemGroup spacing="compact">
               {visibleTokens.map((token, index) => (
                 <Fragment key={token.id}>
-                  <Item size="sm" className="border-0 px-0 py-4">
+                  <Item size="row" variant="borderless">
                     <ItemContent>
                       <ItemTitle>
                         {token.name}

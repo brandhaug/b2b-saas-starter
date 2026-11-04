@@ -8,6 +8,7 @@ const alertVariants = cva(
   "group/alert relative grid w-full gap-0.5 rounded-none border px-2.5 py-2 text-left text-sm has-data-[slot=alert-action]:relative has-data-[slot=alert-action]:pr-18 has-[>svg]:grid-cols-[auto_1fr] has-[>svg]:gap-x-2 *:[svg]:row-span-2 *:[svg]:translate-y-0 *:[svg]:text-current *:[svg:not([class*='size-'])]:size-4",
   {
     variants: {
+      inset: { default: '', edge: 'border-x-0' },
       variant: {
         default: 'bg-card text-card-foreground',
         /* Tinted fill + tinted border, never plain card: inside a Panel (also
@@ -31,6 +32,7 @@ const alertVariants = cva(
 function Alert({
   className,
   variant,
+  inset = 'default',
   children,
   icon = variant === 'destructive' ? <CircleAlertIcon aria-hidden="true" /> : null,
   ...props
@@ -42,7 +44,7 @@ function Alert({
     <div
       data-slot="alert"
       role="alert"
-      className={cn(alertVariants({ variant }), className)}
+      className={cn(alertVariants({ variant, inset }), className)}
       {...props}
     >
       {icon}

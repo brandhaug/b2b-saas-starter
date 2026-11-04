@@ -76,7 +76,7 @@ export function BanUserAction({ user }: { readonly user: SystemUser }) {
             </AlertDialogCancel>
             <Button
               variant={banned ? 'default' : 'destructive'}
-              className="h-auto min-h-9 py-2 max-md:h-auto max-md:min-h-11"
+              size="flexible"
               disabled={confirm.pending}
               onClick={() => confirm.run()}
             >

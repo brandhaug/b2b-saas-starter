@@ -148,9 +148,8 @@ function FacetFilter({
       <PopoverTrigger
         render={
           <Button
-            variant="outline"
+            variant="dashed"
             size="xs"
-            className="border-dashed"
             aria-expanded={open}
             aria-label={
               activeLabel === undefined ? field.label : `${field.label}: ${activeLabel}`
@@ -166,14 +165,14 @@ function FacetFilter({
           </span>
         )}
       </PopoverTrigger>
-      <PopoverContent className="w-56 p-0" aria-label={field.label}>
+      <PopoverContent className="w-56" padding="none" aria-label={field.label}>
         <div className="border-b border-border p-2">
           <Input
             placeholder={m.table_view_search_values()}
             aria-label={m.table_view_search_values()}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            className="h-8"
+            density="compact"
           />
         </div>
         <RadioGroup
@@ -190,10 +189,7 @@ function FacetFilter({
           ) : (
             options.map((option) => {
               return (
-                <Label
-                  key={option.value}
-                  className="focus-within:ring-ring flex h-8 w-full cursor-pointer items-center gap-2 rounded-sm px-2 text-sm hover:bg-muted/50 focus-within:ring-2 max-md:h-11"
-                >
+                <Label key={option.value} variant="option">
                   <RadioGroupItem value={option.value} />
                   {option.label}
                 </Label>
@@ -264,9 +260,8 @@ function FieldFilter({
       <PopoverTrigger
         render={
           <Button
-            variant="outline"
+            variant="dashed"
             size="xs"
-            className="border-dashed"
             aria-expanded={open}
             aria-label={
               activeLabel === undefined ? field.label : `${field.label}: ${activeLabel}`
@@ -354,8 +349,7 @@ function MatchControl({ view, onChange }: Pick<Props, 'view' | 'onChange'>) {
         <Button
           key={match}
           variant={view.match === match ? 'secondary' : 'ghost'}
-          size="xs"
-          className="h-7 border-0 px-2 max-md:h-10"
+          size="compact"
           aria-pressed={view.match === match}
           onClick={() => onChange({ ...view, match })}
         >

@@ -13,13 +13,16 @@ Before changing auth HTTP handling, session reads, workspace authentication gate
 
 ## Changes
 
+- Shared UI components own appearance through variants and sizes. Follow [DESIGN.md component ownership](../../DESIGN.md#components) for layout, composition and accessibility exceptions; do not restyle shared internals from consumers or descendant selectors.
 - Loader modules use `workspacePage(gate, segment)` to gate reads, resolve `WorkspaceContext` once and wrap secondary permissions in `whenPermitted`. Payload types belong here: segment shape is authorization.
-- Server fns dynamically import sibling `.effects.ts` handlers combining session read, permissions and capability call, without an intermediate exported effect. The route tree ships to browsers; `assert-client-boundary.mjs` guards this split.
+- Server fns dynamically import sibling `.effects.ts` handlers combining session read, permissions and capability call, without an intermediate exported effect. The route tree ships to browsers; TanStack import protection checks the compiled import graph and `assert-client-boundary.mjs` checks built markers independently.
 - Declare one input Effect Schema in the client-safe module. Reuse it for browser validation and the server function's `.validator(Schema.decodeUnknownSync(X))`. `typeof X.Type` types stub and handler; handlers never re-decode. Browser validation improves feedback; server validation remains authoritative.
 - Component-less API routes (`api.auth.$.ts`) may import `.effects.ts` directly; routes with components may not.
 - Organization-plugin mutations pass a `CapabilityBindings` binding per call, never module env.
 - The UI gates by permission, never role name (`viewerCan`): an unreadable section is absent, an unpermitted action shows a reason, and the server re-checks.
-- Use Effect Schema at browser boundaries, including route search/context, persisted preferences, configuration and serialized errors. Compile reusable decoders at module scope and preserve each boundary's fallback behavior. Effect and Schema may ship to the client; database services, server credentials and capability execution stay server-only. The bundle guard checks those server-only modules.
+- Use Effect Schema at browser boundaries, including route search/context, persisted preferences, configuration and serialized errors. Compile reusable decoders at module scope and preserve each boundary's fallback behavior. Effect and Schema may ship to the client; database services, server credentials and capability execution stay server-only, including through shared intermediate modules.
+- `scripts/client-import-protection.ts` owns server-only import rules for dev and builds. Add new server execution entrypoints there; preserve shared contracts and the data-only demo identity. Rules follow resolved workspace paths as well as package specifiers. Vitest alone disables them because server-handler tests run in its client environment. `pnpm -C apps/web test:client-boundary` exercises real Start builds and saves per-case logs under `.context/client-boundary` at the repository root.
+- A schema exported by a server-only implementation does not make that module client-safe. If a browser consumer needs it, move the shared schema to a client-safe module first; do not exempt the implementation file.
 
 ## Boundaries
 

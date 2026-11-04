@@ -86,7 +86,7 @@ export function NotificationPreferencesPanel({
                       {m.default_label()}
                     </span>
                   ) : null}
-                  {pending ? <Spinner className="size-3" /> : null}
+                  {pending ? <Spinner size="sm" /> : null}
                 </div>
                 <p className="text-sm text-muted-foreground">{row.description}</p>
               </div>
@@ -99,7 +99,7 @@ export function NotificationPreferencesPanel({
                 className="flex flex-wrap gap-3"
               >
                 {channels().map((channel) => (
-                  <FieldLabel key={channel.value} className="text-sm">
+                  <FieldLabel key={channel.value}>
                     <RadioGroupItem value={channel.value} />
                     <span>{channel.label}</span>
                   </FieldLabel>

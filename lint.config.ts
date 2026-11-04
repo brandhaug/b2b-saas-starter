@@ -698,6 +698,7 @@ const { lint = {} } = defineConfig({
       {
         files: ['apps/web/**/*.{ts,tsx}'],
         rules: {
+          'starter/no-ui-appearance-override': 'error',
           'better-tailwindcss/no-concatenated-classes': 'error',
           'better-tailwindcss/no-conflicting-classes': 'error',
           'better-tailwindcss/no-deprecated-classes': 'error',
@@ -840,6 +841,7 @@ const { lint = {} } = defineConfig({
           '.github/scripts/**',
           'packages/*/scripts/**',
           'apps/web/scripts/{agent-markdown,generate-agent-exports,agent-exports.verify}.mjs',
+          'apps/web/scripts/client-boundary.verify.mjs',
           'apps/web/scripts/source-examples.ts',
           'apps/web/scripts/source-examples.test.ts',
           'infra/**',
@@ -869,7 +871,8 @@ const { lint = {} } = defineConfig({
         files: [
           'scripts/setup-agent-skills.test.ts',
           '.github/scripts/*.test.ts',
-          'apps/web/scripts/agent-exports.verify.mjs'
+          'apps/web/scripts/agent-exports.verify.mjs',
+          'apps/web/scripts/client-boundary.verify.mjs'
         ],
         rules: {
           // These CLIs and their tests run directly on Node 26, before app tooling.
@@ -988,6 +991,8 @@ const { lint = {} } = defineConfig({
       {
         files: ['apps/web/src/components/ui/**'],
         rules: {
+          // Shared components own their internals, including composed primitives.
+          'starter/no-ui-appearance-override': 'off',
           'react/forbid-elements': 'off',
           'jsx-a11y/label-has-associated-control': 'off'
         },

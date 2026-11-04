@@ -117,7 +117,8 @@ export function LocalePreferences() {
                 <SelectTrigger
                   id={`${id}-language`}
                   aria-labelledby={`${id}-language-label`}
-                  className="w-full pr-3 text-base sm:text-sm"
+                  variant="comfortable"
+                  className="w-full"
                 >
                   <SelectValue>
                     <LocaleFlag locale={field.state.value} />

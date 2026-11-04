@@ -35,12 +35,9 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table'
-import { cn } from '@/lib/utils'
 import { formatDateTime } from '@/lib/format-date'
 import { tableViewFeatures, type tableViewOptions } from '@/lib/table-view'
 import { DataTableContext, useDataTableContext } from './data-table-context'
-
-const STICKY_CLASSES = 'sticky left-0 z-10 bg-card group-hover:bg-muted/50'
 
 function isDate(cell: ReactNode | Date): cell is Date {
   return Object.prototype.toString.call(cell) === '[object Date]'
@@ -149,7 +146,7 @@ function DataTableTable<TData extends RowData>({
                 <TableHead
                   key={header.id}
                   aria-sort={canSort ? sortState.aria : undefined}
-                  className={cn(isSticky && STICKY_CLASSES)}
+                  sticky={isSticky}
                 >
                   {canSort && label !== null ? (
                     <Button
@@ -172,10 +169,7 @@ function DataTableTable<TData extends RowData>({
       <TableBody>
         {rowModel.rows.length === 0 ? (
           <TableRow>
-            <TableCell
-              colSpan={columns.length}
-              className="text-center text-sm text-muted-foreground"
-            >
+            <TableCell colSpan={columns.length} tone="muted" className="text-center">
               {emptyMessage}
             </TableCell>
           </TableRow>
@@ -189,7 +183,7 @@ function DataTableTable<TData extends RowData>({
                   cell.getContext()
                 )
                 return (
-                  <TableCell key={cell.id} className={cn(isSticky && STICKY_CLASSES)}>
+                  <TableCell key={cell.id} sticky={isSticky}>
                     {isDate(rendered) ? formatDateCell(rendered) : rendered}
                   </TableCell>
                 )
@@ -255,14 +249,18 @@ export function DataTableColumns() {
           </span>
         )}
       </PopoverTrigger>
-      <PopoverContent className="w-56 p-0" aria-label={m.table_view_columns()}>
+      <PopoverContent
+        className="w-56"
+        padding="none"
+        aria-label={m.table_view_columns()}
+      >
         <div className="border-b border-border p-2">
           <Input
             placeholder={m.table_view_search_columns()}
             aria-label={m.table_view_search_columns()}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            className="h-8"
+            density="compact"
           />
         </div>
         <fieldset
@@ -273,10 +271,7 @@ export function DataTableColumns() {
             <p className="px-2 py-6 text-center text-sm">{m.table_view_no_results()}</p>
           ) : (
             matchingColumns.map((column) => (
-              <Label
-                key={column.id}
-                className="focus-within:ring-ring flex h-8 w-full cursor-pointer items-center gap-2 rounded-sm px-2 text-sm hover:bg-muted/50 focus-within:ring-2 max-md:h-11"
-              >
+              <Label key={column.id} variant="option">
                 <Checkbox
                   checked={column.visible}
                   onCheckedChange={() => column.setVisible(!column.visible)}

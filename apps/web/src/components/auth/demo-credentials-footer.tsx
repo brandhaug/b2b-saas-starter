@@ -73,7 +73,7 @@ export function DemoCredentialsFooter({
             <Button
               type="button"
               variant="outline"
-              className="min-h-11"
+              size="touch"
               onClick={() => {
                 focusPasswordOnClose.current = true
                 onFill(DEMO_CREDENTIALS)
@@ -85,7 +85,7 @@ export function DemoCredentialsFooter({
             <Button
               type="button"
               variant="outline"
-              className="min-h-11"
+              size="touch"
               onClick={() => {
                 focusPasswordOnClose.current = true
                 onFill(DEMO_MEMBER_CREDENTIALS)

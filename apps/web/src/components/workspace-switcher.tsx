@@ -52,8 +52,8 @@ export function WorkspaceSwitcher({
       <DropdownMenuTrigger
         render={
           <Button
-            variant="outline"
-            className="w-full justify-between gap-2 border-sidebar-border bg-sidebar-accent/50 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            variant="sidebar"
+            className="w-full justify-between gap-2"
             aria-label={m.common_switch_workspace()}
           />
         }

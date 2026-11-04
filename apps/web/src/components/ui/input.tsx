@@ -3,7 +3,18 @@ import * as React from 'react'
 
 import { cn } from '@/lib/utils'
 
-function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
+function Input({
+  className,
+  type,
+  density = 'default',
+  appearance = 'default',
+  leadingIcon = false,
+  ...props
+}: React.ComponentProps<'input'> & {
+  density?: 'default' | 'compact' | 'code'
+  appearance?: 'default' | 'solid'
+  leadingIcon?: boolean
+}) {
   return (
     <InputPrimitive
       type={type}
@@ -13,6 +24,11 @@ function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
         // zooming the page on focus (it zooms any input below 16px and never
         // zooms back out).
         'bg-input/30 border-input focus-visible:border-ring aria-invalid:ring-destructive/40 aria-invalid:border-destructive/50 disabled:bg-input/80 h-9 max-md:h-11 rounded-md border px-2.5 py-1 text-base transition-colors file:h-6 file:text-xs file:font-medium focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background aria-invalid:ring-1 md:text-sm file:text-foreground placeholder:text-muted-foreground w-full min-w-0 outline-none file:inline-flex file:border-0 file:bg-transparent disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
+        density === 'compact' && 'h-8',
+        density === 'code' && 'h-9 w-10 px-0 text-center font-mono text-lg',
+        'in-data-[input-appearance=solid]:bg-card',
+        appearance === 'solid' && 'bg-card',
+        leadingIcon && 'pl-9',
         className
       )}
       {...props}

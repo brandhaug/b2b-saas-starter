@@ -10,6 +10,14 @@ const badgeVariants = cva(
   'min-h-5.5 gap-1 rounded-md border border-transparent px-2 py-0.5 text-xs font-medium transition-colors has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&>svg]:size-3! inline-flex items-center justify-center w-fit whitespace-nowrap shrink-0 [&>svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background aria-invalid:ring-destructive/40 aria-invalid:border-destructive group/badge',
   {
     variants: {
+      typography: {
+        default: '',
+        numeric: 'font-mono tabular-nums'
+      },
+      size: {
+        default: '',
+        touch: 'max-md:min-h-11 max-md:min-w-11'
+      },
       variant: {
         default: 'bg-primary text-primary-foreground [a]:hover:bg-primary/80',
         destructive:
@@ -35,6 +43,8 @@ const badgeVariants = cva(
 function Badge({
   className,
   variant = 'default',
+  typography = 'default',
+  size = 'default',
   render,
   ...props
 }: useRender.ComponentProps<'span'> & VariantProps<typeof badgeVariants>) {
@@ -42,7 +52,7 @@ function Badge({
     defaultTagName: 'span',
     props: mergeProps<'span'>(
       {
-        className: cn(badgeVariants({ className, variant }))
+        className: cn(badgeVariants({ className, variant, typography, size }))
       },
       props
     ),
