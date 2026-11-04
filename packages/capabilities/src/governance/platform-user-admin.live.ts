@@ -57,7 +57,9 @@ export function LivePlatformUserAdmin(
        * UPDATE match zero rows silently — the audit row must not fire for a
        * change that changed nothing.
        */
-      const requireAccount = Effect.fnUntraced(function* (userId: string) {
+      const requireAccount = Effect.fn('PlatformUserAdmin.requireAccount')(function* (
+        userId: string
+      ) {
         const rows = yield* unavailable(
           db.select().from(user).where(eq(user.id, userId)).limit(1)
         )

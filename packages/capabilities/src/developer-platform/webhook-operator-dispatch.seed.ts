@@ -10,7 +10,7 @@ import { type SeedDeliveryFixture } from './webhook-endpoints.seed.ts'
 export function seedOperatorDispatch(deliveries: Array<SeedDeliveryFixture>) {
   return Effect.gen(function* () {
     const audit = yield* AuditEventLog
-    return Effect.fnUntraced(function* (input: {
+    return Effect.fn('WebhookOperatorDispatch.reserve')(function* (input: {
       readonly deliveryId: WebhookDeliveryId
       readonly workspaceId: string
       readonly plan: PendingDispatchPlan

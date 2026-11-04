@@ -80,7 +80,7 @@ export function LiveWorkspaceInvitations(
        * than trusting the binding's return value: the plugin's response shape
        * is exactly what this package refuses to name.
        */
-      const readPending = Effect.fnUntraced(function* (
+      const readPending = Effect.fn('WorkspaceInvitations.readPending')(function* (
         workspaceId: string,
         email: string
       ) {
@@ -99,7 +99,9 @@ export function LiveWorkspaceInvitations(
        * path and the accept page's read go through here: neither has a slug to
        * resolve a `WorkspaceContext` from.
        */
-      const findJoined = Effect.fnUntraced(function* (invitationId: string) {
+      const findJoined = Effect.fn('WorkspaceInvitations.findJoined')(function* (
+        invitationId: string
+      ) {
         const rows = yield* unavailable(
           db
             .select({ invitation: workspaceInvitations, workspace: workspaces })
@@ -116,10 +118,9 @@ export function LiveWorkspaceInvitations(
        * touched. The plugin would answer for any invitation the session may
        * cancel; this capability answers only for the workspace in context.
        */
-      const requirePendingInWorkspace = Effect.fnUntraced(function* (
-        workspaceId: string,
-        invitationId: string
-      ) {
+      const requirePendingInWorkspace = Effect.fn(
+        'WorkspaceInvitations.requirePendingInWorkspace'
+      )(function* (workspaceId: string, invitationId: string) {
         const rows = yield* unavailable(
           db
             .select()

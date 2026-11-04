@@ -292,7 +292,7 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
           .limit(AUDIT_EVENT_PAGE_SIZE)
       ).pipe(Effect.map((rows) => rows.map(toWireRow)))
 
-      const insertFor = Effect.fnUntraced(function* (
+      const insertFor = Effect.fn('AuditEventLog.insertFor')(function* (
         input: RecordAuditEventInput,
         condition?: SQL
       ) {

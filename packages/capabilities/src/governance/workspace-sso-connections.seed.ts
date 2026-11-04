@@ -46,6 +46,7 @@ export function SeedSsoConnections(
     Effect.gen(function* () {
       const audit = yield* AuditEventLog
 
+      // oxlint-disable-next-line starter/named-effect-operation -- per-connection in-memory lookup only; no I/O or independent workflow to trace
       const findInWorkspace = Effect.fnUntraced(function* (providerId: string) {
         const ctx = yield* WorkspaceContext
         return rows.find(
