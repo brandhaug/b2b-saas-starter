@@ -1,16 +1,9 @@
 import { sql } from 'drizzle-orm'
 import { Schema } from 'effect'
-import {
-  customType,
-  index,
-  integer,
-  sqliteTable,
-  text,
-  uniqueIndex
-} from 'drizzle-orm/sqlite-core'
+import { jsonText } from '../json-column.ts'
+import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { user, session } from './auth.ts'
 import { id, authCreatedAt, authTimestamps } from './columns.ts'
-import { type JsonValue } from './json.ts'
 
 /*
  * Better Auth `jwt` plugin and `@better-auth/mcp` (the OAuth 2.1 provider it is
@@ -21,24 +14,13 @@ import { type JsonValue } from './json.ts'
  */
 
 /** Better Auth's SQLite adapter pre-serializes arrays; direct Drizzle callers pass arrays. */
-const authArray = Schema.Array(Schema.String)
-const authArrayJson = Schema.fromJsonString(authArray)
-const decodeAuthArrayInput = Schema.decodeUnknownSync(
-  Schema.Union([authArray, authArrayJson])
-)
-const encodeAuthArray = Schema.encodeSync(authArrayJson)
-const decodeAuthArray = Schema.decodeUnknownSync(authArrayJson)
-const authStringArray = customType<{ data: ReadonlyArray<string>; driverData: string }>(
-  {
-    dataType: () => 'text',
-    toDriver: (value) => encodeAuthArray(decodeAuthArrayInput(value)),
-    fromDriver: decodeAuthArray
-  }
-)
+function authStringArray(column: string) {
+  return jsonText('oauth', column, Schema.Array(Schema.String), true)
+}
 
 /** A Better Auth `json` field with no declared shape beyond "JSON". */
 function authJson(column: string) {
-  return text(column, { mode: 'json' }).$type<JsonValue>()
+  return jsonText('oauth', column, Schema.Json)
 }
 
 /** The jwt plugin's signing keys; the public halves are served at `/api/auth/jwks`. */

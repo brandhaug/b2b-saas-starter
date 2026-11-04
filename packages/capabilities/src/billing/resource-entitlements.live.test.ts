@@ -214,9 +214,17 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
     )
     it.effect('selection audit failure rolls back the selection write', () =>
       Effect.gen(function* () {
-        const db = yield* Database
         const d1 = yield* RawD1
-        const before = yield* db.select().from(workspaceResourceSelections)
+        // The corruption test deliberately retains an invalid row. Compare raw
+        // stored values so this rollback assertion includes that row unchanged.
+        const storedSelections = Effect.promise(() =>
+          d1
+            .prepare(
+              'SELECT * FROM workspace_resource_selections ORDER BY workspace_id'
+            )
+            .all()
+        ).pipe(Effect.map((result) => result.results))
+        const before = yield* storedSelections
         yield* Effect.acquireUseRelease(
           Effect.promise(() =>
             d1
@@ -237,9 +245,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                     )
                   )
                 ).toBe('CapabilityUnavailable')
-                expect(yield* db.select().from(workspaceResourceSelections)).toEqual(
-                  before
-                )
+                expect(yield* storedSelections).toEqual(before)
               }),
               { userId: 'usr_owner' }
             ),

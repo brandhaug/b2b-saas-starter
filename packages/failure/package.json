@@ -5,6 +5,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./capability": "./src/capability.ts",
+    "./persistence": "./src/persistence.ts",
     "./crypto": "./src/crypto.ts"
   },
   "scripts": {
@@ -16,6 +17,7 @@
     "effect": "catalog:"
   },
   "devDependencies": {
+    "@effect/vitest": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:"
   }

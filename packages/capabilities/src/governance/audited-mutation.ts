@@ -1,4 +1,4 @@
-import { type BatchStatement, RawD1 } from '@b2b-saas-starter/db/service'
+import { batchResults, type BatchStatement, RawD1 } from '@b2b-saas-starter/db/service'
 import { and, sql, type SQL } from 'drizzle-orm'
 import { Effect } from 'effect'
 
@@ -92,14 +92,7 @@ export function auditedMutations(
           ...(input.transition?.alongside ?? [])
         ]
         const results = yield* deps.unavailable(
-          Effect.tryPromise(() =>
-            d1.batch(
-              statements.map((statement) => {
-                const query = statement.toSQL()
-                return d1.prepare(query.sql).bind(...query.params)
-              })
-            )
-          )
+          batchResults(statements).pipe(Effect.provideService(RawD1, d1))
         )
         // The nominated write's count distinguishes the winning transition.
         // Bulk lifecycle fences also succeed when they change several rows.

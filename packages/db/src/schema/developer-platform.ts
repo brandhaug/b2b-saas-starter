@@ -1,19 +1,16 @@
 import { sql } from 'drizzle-orm'
+import { Schema } from 'effect'
+import { jsonText } from '../json-column.ts'
 import {
   type ApiTokenId,
   type WebhookEndpointId,
   type WebhookDeliveryId
 } from '../ids.ts'
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
-import {
-  type ApiTokenScopeValue,
-  deliveryStatuses,
-  deliveryAttemptPhases
-} from '../enums.ts'
+import { apiTokenScopes, deliveryStatuses, deliveryAttemptPhases } from '../enums.ts'
 import { user } from './auth.ts'
 import { workspaceRef } from './workspaces.ts'
 import { id, isoCreatedAt, workspaceIdIndex } from './columns.ts'
-import { type JsonValue, type JsonObject } from './json.ts'
 
 export const apiTokens = sqliteTable(
   'api_tokens',
@@ -23,9 +20,11 @@ export const apiTokens = sqliteTable(
     name: text('name').notNull(),
     tokenPrefix: text('token_prefix').notNull(),
     tokenHash: text('token_hash').unique().notNull(),
-    scopes: text('scopes', { mode: 'json' })
-      .$type<ReadonlyArray<ApiTokenScopeValue>>()
-      .notNull(),
+    scopes: jsonText(
+      'api_tokens',
+      'scopes',
+      Schema.Array(Schema.Literals(apiTokenScopes))
+    ).notNull(),
     lastUsedAt: text('last_used_at'),
     expiresAt: text('expires_at'),
     replacedByTokenId: text('replaced_by_token_id').$type<ApiTokenId>(),
@@ -69,7 +68,11 @@ export const webhookEndpoints = sqliteTable(
     // without a migration (see webhook-endpoints.AGENTS.md in
     // packages/capabilities). The known vocabulary lives in the capabilities
     // package as `WEBHOOK_EVENT_TYPES` for the management UI.
-    events: text('events', { mode: 'json' }).$type<ReadonlyArray<string>>().notNull(),
+    events: jsonText(
+      'webhook_endpoints',
+      'events',
+      Schema.Array(Schema.String)
+    ).notNull(),
     createdAt: isoCreatedAt()
   },
   (table) => [
@@ -103,10 +106,12 @@ export const webhookDeliveries = sqliteTable(
     // row may be pruned while its replay is still worth listing. The payload
     // is NOT NULL — every dispatch holds one, and terminal rows record what
     // they never sent or exhausted.
-    payload: text('payload', { mode: 'json' }).$type<JsonValue>().notNull(),
-    requestHeaders: text('request_headers', { mode: 'json' }).$type<
-      Record<string, string>
-    >(),
+    payload: jsonText('webhook_deliveries', 'payload', Schema.Json).notNull(),
+    requestHeaders: jsonText(
+      'webhook_deliveries',
+      'request_headers',
+      Schema.Record(Schema.String, Schema.String)
+    ),
     responseBody: text('response_body'),
     replayedFrom: text('replayed_from').$type<WebhookDeliveryId>(),
     lastAttemptToken: text('last_attempt_token')
@@ -137,9 +142,11 @@ export const webhookDeliveryAttempts = sqliteTable(
     durationMs: integer('duration_ms'),
     failureReason: text('failure_reason'),
     responseStatus: integer('response_status'),
-    requestHeaders: text('request_headers', { mode: 'json' }).$type<
-      Record<string, string>
-    >(),
+    requestHeaders: jsonText(
+      'webhook_delivery_attempts',
+      'request_headers',
+      Schema.Record(Schema.String, Schema.String)
+    ),
     responseBody: text('response_body')
   },
   (table) => [
@@ -162,7 +169,11 @@ export const webhookInvestigationTasks = sqliteTable(
     status: text('status', {
       enum: ['proposed', 'approved', 'cancelled', 'completed']
     }).notNull(),
-    record: text('record', { mode: 'json' }).$type<JsonObject>().notNull(),
+    record: jsonText(
+      'webhook_investigation_tasks',
+      'record',
+      Schema.Record(Schema.String, Schema.Json)
+    ).notNull(),
     replayDeliveryId: text('replay_delivery_id').$type<WebhookDeliveryId>(),
     transitionId: text('transition_id'),
     createdAt: isoCreatedAt(),

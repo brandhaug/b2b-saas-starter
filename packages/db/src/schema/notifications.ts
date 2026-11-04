@@ -3,7 +3,6 @@ import { notificationKinds, notificationChannels } from '../enums.ts'
 import { user } from './auth.ts'
 import { workspaceRefNullable } from './workspaces.ts'
 import { id, isoCreatedAt, workspaceIdIndex } from './columns.ts'
-import { type JsonObject } from './json.ts'
 
 export const notifications = sqliteTable(
   'notifications',
@@ -19,7 +18,11 @@ export const notifications = sqliteTable(
     message: text('message').notNull(),
     // Structured data for system notifications. Literal announcements use null;
     // event renderers use the recipient's current locale for system events.
-    event: text('event', { mode: 'json' }).$type<JsonObject | null>(),
+    event: jsonText(
+      'notifications',
+      'event',
+      Schema.NullOr(Schema.Record(Schema.String, Schema.Json))
+    ),
     readAt: text('read_at'),
     createdAt: isoCreatedAt()
   },
@@ -51,3 +54,5 @@ export const notificationPreferences = sqliteTable(
     uniqueIndex('notification_preferences_user_kind_idx').on(table.userId, table.kind)
   ]
 )
+import { Schema } from 'effect'
+import { jsonText } from '../json-column.ts'
