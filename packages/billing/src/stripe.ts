@@ -145,10 +145,20 @@ function stripeRequest(
     ...idempotencyHeader(idempotencyKey),
     'stripe-version': STRIPE_API_VERSION
   }
-  // stripe 23.1.0 bounds JSON body reads, but RequestOptions still has no caller
-  // AbortSignal. Keep scoped cancellation and manual redirects in this transport.
-  // Exact SDK operations and source evidence: docs/research/effect-4-adoption.md.
-  return Effect.gen(function* () {
+  // Snapshot headers at call time as before; transport remains lazy.
+  return executeStripeRequest(method, url, requestHeaders, body)
+}
+
+const executeStripeRequest = Effect.fn('Stripe.request')(
+  function* (
+    method: 'GET' | 'POST',
+    url: string,
+    requestHeaders: Record<string, string>,
+    body?: string
+  ) {
+    // stripe 23.1.0 bounds JSON body reads, but RequestOptions still has no caller
+    // AbortSignal. Keep scoped cancellation and manual redirects in this transport.
+    // Exact SDK operations and source evidence: docs/research/effect-4-adoption.md.
     const client = yield* HttpClient.HttpClient
     let request = HttpClientRequest.make(method)(url, { headers: requestHeaders })
     if (body !== undefined) {
@@ -163,23 +173,22 @@ function stripeRequest(
       ok: response.status >= 200 && response.status < 300,
       body: yield* response.text
     }
-  }).pipe(
-    Effect.scoped,
-    Effect.provide(
-      FetchHttpClient.layer.pipe(
-        Layer.provide(Layer.sync(FetchHttpClient.Fetch, () => globalThis.fetch))
-      )
-    ),
-    Effect.provideService(FetchHttpClient.RequestInit, { redirect: 'manual' }),
-    Effect.mapError(() => stripeUnavailable('stripe request failed')),
-    Effect.timeout(PROVIDER_TIMEOUT),
-    // The deadline is the same "provider unreachable" failure the transport
-    // path reports — never leak `TimeoutError` into the interface channel.
-    Effect.catchTag('TimeoutError', () =>
-      Effect.fail(stripeUnavailable('stripe request timed out'))
+  },
+  Effect.scoped,
+  Effect.provide(
+    FetchHttpClient.layer.pipe(
+      Layer.provide(Layer.sync(FetchHttpClient.Fetch, () => globalThis.fetch))
     )
+  ),
+  Effect.provideService(FetchHttpClient.RequestInit, { redirect: 'manual' }),
+  Effect.mapError(() => stripeUnavailable('stripe request failed')),
+  Effect.timeout(PROVIDER_TIMEOUT),
+  // The deadline is the same "provider unreachable" failure the transport
+  // path reports — never leak `TimeoutError` into the interface channel.
+  Effect.catchTag('TimeoutError', () =>
+    Effect.fail(stripeUnavailable('stripe request timed out'))
   )
-}
+)
 
 function stripeJson(response: StripeHttpResponse) {
   const decoded = decodeStripeJson(response.body)

@@ -90,21 +90,22 @@ export class EmailDispatcher extends Context.Service<
   EmailDispatcherInterface
 >()('@b2b-saas-starter/email/EmailDispatcher') {}
 
-function renderMessage(
+const renderMessage = Effect.fn('EmailDispatcher.renderMessage')(function* (
   message: EmailMessage
-): Effect.Effect<{ readonly html: string; readonly text: string }, EmailRenderError> {
-  return Effect.gen(function* () {
-    const html = yield* Effect.tryPromise({
-      try: () => render(message.element),
-      catch: (cause) => new EmailRenderError({ message: failureMessage(cause) })
-    })
-    const text = yield* Effect.try({
-      try: () => toPlainText(html),
-      catch: (cause) => new EmailRenderError({ message: failureMessage(cause) })
-    })
-    return { html, text }
+): Effect.fn.Return<
+  { readonly html: string; readonly text: string },
+  EmailRenderError
+> {
+  const html = yield* Effect.tryPromise({
+    try: () => render(message.element),
+    catch: (cause) => new EmailRenderError({ message: failureMessage(cause) })
   })
-}
+  const text = yield* Effect.try({
+    try: () => toPlainText(html),
+    catch: (cause) => new EmailRenderError({ message: failureMessage(cause) })
+  })
+  return { html, text }
+})
 
 /**
  * Cloudflare Email's documented failure codes, and what each means for a
@@ -170,24 +171,22 @@ function sendFailure(cause: unknown, to: string, subject: string): EmailSendErro
  * exists so flows that email a link (magic link, password reset,
  * verification) stay finishable without a provider.
  */
-function logDelivery(
+const logDelivery = Effect.fn('EmailDispatcher.logDelivery')(function* (
   message: EmailMessage
-): Effect.Effect<EmailDeliveryResult, EmailRenderError> {
-  return Effect.gen(function* () {
-    const rendered = yield* renderMessage(message)
-    yield* Effect.log('email.dispatched', {
-      mode: 'log',
-      to: message.to,
-      subject: message.subject,
-      text: rendered.text
-    })
-    return EmailDeliveryResult.make({
-      mode: 'log',
-      to: message.to,
-      subject: message.subject
-    })
+): Effect.fn.Return<EmailDeliveryResult, EmailRenderError> {
+  const rendered = yield* renderMessage(message)
+  yield* Effect.log('email.dispatched', {
+    mode: 'log',
+    to: message.to,
+    subject: message.subject,
+    text: rendered.text
   })
-}
+  return EmailDeliveryResult.make({
+    mode: 'log',
+    to: message.to,
+    subject: message.subject
+  })
+})
 
 export const LogEmailDispatcherLayer: Layer.Layer<EmailDispatcher> = Layer.succeed(
   EmailDispatcher
@@ -200,34 +199,33 @@ export function makeCloudflareEmailDispatcherLayer(
   options?: { readonly defaultFrom?: string }
 ): Layer.Layer<EmailDispatcher> {
   return Layer.succeed(EmailDispatcher)({
-    send: (message) =>
-      Effect.gen(function* () {
-        const from = message.from || options?.defaultFrom
-        if (!from) {
-          // A binding without a sender address is unconfigured, not broken:
-          // the same call renders and logs instead of failing (ADR 0014).
-          return yield* logDelivery(message)
-        }
-        const { html, text } = yield* renderMessage(message)
-        const result = yield* Effect.tryPromise({
-          try: () =>
-            binding.send({
-              from,
-              to: message.to,
-              subject: message.subject,
-              text,
-              html
-            }),
-          catch: (cause) => sendFailure(cause, message.to, message.subject)
-        })
-        yield* annotateWideEvent({ emailTransport: 'cloudflare-email' })
-        return EmailDeliveryResult.make({
-          mode: 'cloudflare-email',
-          to: message.to,
-          subject: message.subject,
-          providerMessageId: result.messageId
-        })
+    send: Effect.fn('EmailDispatcher.send')(function* (message) {
+      const from = message.from || options?.defaultFrom
+      if (!from) {
+        // A binding without a sender address is unconfigured, not broken:
+        // the same call renders and logs instead of failing (ADR 0014).
+        return yield* logDelivery(message)
+      }
+      const { html, text } = yield* renderMessage(message)
+      const result = yield* Effect.tryPromise({
+        try: () =>
+          binding.send({
+            from,
+            to: message.to,
+            subject: message.subject,
+            text,
+            html
+          }),
+        catch: (cause) => sendFailure(cause, message.to, message.subject)
       })
+      yield* annotateWideEvent({ emailTransport: 'cloudflare-email' })
+      return EmailDeliveryResult.make({
+        mode: 'cloudflare-email',
+        to: message.to,
+        subject: message.subject,
+        providerMessageId: result.messageId
+      })
+    })
   })
 }
 

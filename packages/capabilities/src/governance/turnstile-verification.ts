@@ -80,9 +80,9 @@ const decodeSiteverifyResponse = Schema.decodeUnknownResult(SiteverifyResponse)
  * socket, and transport failures surface as typed `CapabilityUnavailable`
  * instead of defects.
  */
-const liveSiteverifyCaller: SiteverifyCaller = Effect.fnUntraced(function* (
-  request: SiteverifyRequest
-) {
+const liveSiteverifyCaller: SiteverifyCaller = Effect.fn(
+  'TurnstileVerifier.siteverify'
+)(function* (request: SiteverifyRequest) {
   const response = yield* Effect.tryPromise({
     try: (signal) =>
       // oxlint-disable-next-line effect/noGlobals -- the Workers global fetch is the platform adapter here; JSON body encoding included; see the Stripe twin in billing.ts

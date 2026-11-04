@@ -85,7 +85,7 @@ export function LiveWorkspaceMembership(
       }
 
       /** Reads the member back through the same join `listMembers` uses. */
-      const readMember = Effect.fnUntraced(function* (
+      const readMember = Effect.fn('WorkspaceMembership.readMember')(function* (
         workspaceId: string,
         userId: string
       ) {
@@ -104,7 +104,7 @@ export function LiveWorkspaceMembership(
        * means the caller gets the machine reason, and the plugin is never
        * asked for a change it would refuse with message text.
        */
-      const rosterFacts = Effect.fnUntraced(function* (
+      const rosterFacts = Effect.fn('WorkspaceMembership.rosterFacts')(function* (
         workspaceId: string,
         userId: string
       ) {

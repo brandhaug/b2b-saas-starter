@@ -77,7 +77,9 @@ export function LiveBilling(
         recordFailure: store.fail
       })
       /** Counts the workspace's members — the seat quantity a per-seat plan bills. */
-      const countMembers = Effect.fnUntraced(function* (workspaceId: string) {
+      const countMembers = Effect.fn('Billing.countMembers')(function* (
+        workspaceId: string
+      ) {
         const rows = yield* unavailable(
           db
             .select({ value: count() })
@@ -87,7 +89,9 @@ export function LiveBilling(
         return rows[0]?.value ?? 0
       })
 
-      const readSubscription = Effect.fnUntraced(function* (workspaceId: string) {
+      const readSubscription = Effect.fn('Billing.readSubscription')(function* (
+        workspaceId: string
+      ) {
         const rows = yield* unavailable(
           db
             .select()
