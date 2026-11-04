@@ -145,6 +145,7 @@ export function SeedWorkspaceLifecycle(options: {
       const conversations = yield* AssistantDirectory
       const billing = yield* Billing
 
+      // oxlint-disable-next-line starter/named-effect-operation -- local validation inside create/update has no I/O or independent operation to trace
       const requireAvailableSlug = Effect.fnUntraced(function* (
         slug: string,
         taken: ReadonlyArray<string>
@@ -288,7 +289,9 @@ export function LiveWorkspaceLifecycle(
       const unavailable = orUnavailable('workspace-lifecycle')
 
       /** Reads the workspace back rather than trusting the binding's response. */
-      const readBySlug = Effect.fnUntraced(function* (slug: string) {
+      const readBySlug = Effect.fn('WorkspaceLifecycle.readBySlug')(function* (
+        slug: string
+      ) {
         const rows = yield* unavailable(
           db.select().from(workspaces).where(eq(workspaces.slug, slug)).limit(1)
         )

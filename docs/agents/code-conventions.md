@@ -77,6 +77,27 @@ managed construction. These syntax checks cannot prove resource sharing or
 follow arbitrary aliases/re-exports; ownership and indirect execution still
 require review. The rule fixtures document the matching limits.
 
+### Operation tracing
+
+Use named `Effect.fn('Service.operation')` for reusable service operations and I/O.
+Keep established service names and existing span labels/options. New labels are
+static, code-owned names, never IDs, URLs or request data. Named `Effect.fn` adds
+one span through the existing tracer; do not add a second `withSpan` for that same
+operation. Inline programs, callbacks and layer construction can use `Effect.gen`.
+Pure helpers stay synchronous.
+
+Use `Effect.fnUntraced` deliberately for per-chunk/per-event work, tight loops or
+small helpers already covered by an operation boundary. Add a local lint suppression
+with the specific frequency or enclosing boundary that makes tracing redundant.
+Do not convert every small helper into a traced operation just to satisfy lint.
+
+When replacing a function wrapping `Effect.gen`, preserve call-time work versus
+execution-time work, generics, error/dependency channels, resource scope and
+interruption. `Effect.fn` suspends both generator and ordinary callback bodies.
+Keep any deliberate call-time snapshots outside that body. Explicit generator
+return types use `Effect.fn.Return<A, E, R>`. Put whole-operation combinators after
+the body; transforms receive the effect followed by the original arguments.
+
 ## Comments
 
 Explain non-obvious constraints, failure modes and surprising behavior. Preserve
@@ -92,6 +113,14 @@ keep implementation-specific reasons next to the code.
 before adding a custom rule. Follow the [plugin guidance](../../packages/oxlint-plugin/AGENTS.md)
 for syntax-only checks, failure and false-positive fixtures, and concrete diagnostics.
 Custom rules have no automatic fixers.
+
+`effect/preferEffectFn` checks generators that add spans.
+`starter/named-effect-operation` checks unnamed callbacks, static labels and explicit
+`fnUntraced` exceptions in `apps/**` and `packages/**`, not deployment/build
+orchestration. It resolves direct
+Effect imports and shadowing; indirect aliases and deciding which arbitrary
+functions are reusable effectful operations remain review judgments. Existing
+nonempty literal labels are accepted to preserve trace identity.
 
 `starter/no-nested-service-yield` checks direct capitalized service references inside
 imported Effect generator callbacks. It resolves the Effect import and its shadowing;

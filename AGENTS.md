@@ -58,6 +58,8 @@ Read [code conventions](docs/agents/code-conventions.md) when writing or reviewi
 - Highly prefer E2E tests as the sole testing mechanism. Use them to verify complex features work. At the end of E2E tests, produce a verifiable and repeatable artifact with the reproduction command and observed results.
 - If you must test a system in isolation, FIRST write all the ways it could fail, THEN write the code.
 - Prefer tests that verify observable behavior across real boundaries. Avoid tests that merely repeat implementation details or assert mocked delegation. Before removing a test, map its meaningful assertions to retained or replacement coverage. Keep focused security, concurrency, failure-injection, and Seed/Live contract tests when E2E cannot cover them reliably.
+- Synchronize concurrent tests with `Deferred`, `Queue`, explicit events, or worker drains. Gate the contested boundary and await completion; sleeps, repeated `yieldNow`, and elapsed-time assertions do not prove ordering. Use `TestClock` for time-dependent behavior, and scope forked fibers so failures release them.
+- Browser tests wait for observable readiness and assert visible state with Playwright locators. SSR visibility alone does not prove hydration. Diagnose flakes from first-attempt evidence; do not repair them by adding retries or increasing timeouts. Existing runner deadlines remain failure bounds.
 
 ## Agent execution
 

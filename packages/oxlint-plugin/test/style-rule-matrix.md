@@ -153,3 +153,14 @@ configuration.
 All lint probes and fixtures run through Vite+ 1.4.0's real bundled binary. The
 rule has no fixer, and its root enablement relies on import-aware matching rather
 than path exclusions. Integration owns the full-repository check.
+
+# Operation tracing coverage
+
+`named-effect-operation.test.ts` covers dynamic/empty labels, direct import aliases,
+computed members, unrelated APIs, shadowing and justified untraced helpers. It
+accepts existing literal labels. `effect/requireNamedEffectFn` is not enabled:
+the installed rule misses computed unnamed calls and reports unrelated imports
+named Effect. It also ignores dynamic labels and `fnUntraced`. The custom rule
+resolves import identity and covers these cases; `effect/preferEffectFn`
+continues to own generator-plus-span conversions without duplicate reports. Indirect namespace/function
+aliases and operation ownership need review, not syntax inference.

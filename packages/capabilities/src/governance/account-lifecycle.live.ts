@@ -80,7 +80,9 @@ export function LiveAccountLifecycle(
        * exactly those workspaces — fixture-sized result sets, so the counts
        * are computed here rather than in SQL dialect.
        */
-      const membershipsOf = Effect.fnUntraced(function* (userId: string) {
+      const membershipsOf = Effect.fn('AccountLifecycle.membershipsOf')(function* (
+        userId: string
+      ) {
         const rows = yield* unavailable(
           db
             .select({
@@ -143,7 +145,9 @@ export function LiveAccountLifecycle(
         return Effect.map(membershipsOf(userId), planAccountDeletion)
       }
 
-      const prepareDeletion = Effect.fnUntraced(function* (userId: string) {
+      const prepareDeletion = Effect.fn('AccountLifecycle.prepareDeletion')(function* (
+        userId: string
+      ) {
         // The memberships are kept beside the plan: the steps are the wire
         // shape (no internal row ids), and the leave binding needs the
         // membership row id the plugin addresses members by.

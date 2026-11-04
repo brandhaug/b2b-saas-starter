@@ -685,6 +685,17 @@ const { lint = {} } = defineConfig({
         }
       },
       {
+        // Application operation tracing. Deployment/build scripts own their
+        // orchestration separately and are outside this convention's lint scope.
+        files: ['apps/**', 'packages/**'],
+        rules: {
+          // Upstream requireNamedEffectFn misses computed calls and treats
+          // unrelated imports named Effect as the Effect module. Use the
+          // import-resolving starter rule instead, without duplicate reports.
+          'starter/named-effect-operation': 'error'
+        }
+      },
+      {
         files: ['apps/web/**/*.{ts,tsx}'],
         rules: {
           'better-tailwindcss/no-concatenated-classes': 'error',

@@ -62,60 +62,58 @@ export function makeWorkersAIModel(
   modelId = '@cf/meta/llama-3.1-8b-instruct',
   maxOutputTokens = 4096
 ) {
-  function generateText(options: LanguageModel.ProviderOptions) {
-    return Effect.gen(function* () {
-      const plain = plainChat(options)
-      if ('reason' in plain) {
-        return yield* workersAiError(plain.reason)
-      }
-      const raw = yield* Effect.tryPromise({
-        try: () => {
-          if (plain.messages.some((message) => message.role === 'assistant')) {
-            return binding.run(modelId, {
-              messages: plain.messages,
-              max_tokens: maxOutputTokens
-            })
-          }
+  const generateText = Effect.fn('WorkersAI.generateText')(function* (
+    options: LanguageModel.ProviderOptions
+  ) {
+    const plain = plainChat(options)
+    if ('reason' in plain) {
+      return yield* workersAiError(plain.reason)
+    }
+    const raw = yield* Effect.tryPromise({
+      try: () => {
+        if (plain.messages.some((message) => message.role === 'assistant')) {
           return binding.run(modelId, {
-            prompt: flatPrompt(plain.messages),
+            messages: plain.messages,
             max_tokens: maxOutputTokens
           })
-        },
-        catch: (cause) =>
-          workersAiError(
-            new AiError.UnknownError({ description: failureMessage(cause) })
-          )
-      })
-      const result = yield* decodeWorkersAnswer(raw).pipe(
-        Effect.mapError(() =>
-          workersAiError(
-            new AiError.InvalidOutputError({ description: 'missing response text' })
-          )
-        )
-      )
-      if (!result.response) {
-        return yield* workersAiError(
+        }
+        return binding.run(modelId, {
+          prompt: flatPrompt(plain.messages),
+          max_tokens: maxOutputTokens
+        })
+      },
+      catch: (cause) =>
+        workersAiError(new AiError.UnknownError({ description: failureMessage(cause) }))
+    })
+    const result = yield* decodeWorkersAnswer(raw).pipe(
+      Effect.mapError(() =>
+        workersAiError(
           new AiError.InvalidOutputError({ description: 'missing response text' })
         )
+      )
+    )
+    if (!result.response) {
+      return yield* workersAiError(
+        new AiError.InvalidOutputError({ description: 'missing response text' })
+      )
+    }
+    if (result.finish_reason !== undefined && result.finish_reason !== 'stop') {
+      return yield* workersAiError(
+        new AiError.InvalidOutputError({
+          description: `Assistant answer is incomplete: ${result.finish_reason}.`
+        })
+      )
+    }
+    const parts: Array<Response.PartEncoded> = [
+      { type: 'text', text: result.response },
+      {
+        type: 'finish',
+        reason: result.finish_reason ?? 'unknown',
+        usage: { inputTokens: {}, outputTokens: {} }
       }
-      if (result.finish_reason !== undefined && result.finish_reason !== 'stop') {
-        return yield* workersAiError(
-          new AiError.InvalidOutputError({
-            description: `Assistant answer is incomplete: ${result.finish_reason}.`
-          })
-        )
-      }
-      const parts: Array<Response.PartEncoded> = [
-        { type: 'text', text: result.response },
-        {
-          type: 'finish',
-          reason: result.finish_reason ?? 'unknown',
-          usage: { inputTokens: {}, outputTokens: {} }
-        }
-      ]
-      return parts
-    })
-  }
+    ]
+    return parts
+  })
 
   function streamText(options: LanguageModel.ProviderOptions) {
     return Stream.unwrap(
