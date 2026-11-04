@@ -84,7 +84,7 @@ describe('no-nested-service-yield', () => {
   valid(
     'native generator',
     `
-    function* values() { yield* (yield* items).entries() }
+    function* values() { yield* (yield* Store).read() }
   `
   )
   valid(
@@ -92,7 +92,7 @@ describe('no-nested-service-yield', () => {
     `
     import { Effect } from 'effect'
     Effect.gen(function* () {
-      function* values() { yield* (yield* items).entries() }
+      function* values() { yield* (yield* Store).read() }
       return values
     })
   `
@@ -101,7 +101,7 @@ describe('no-nested-service-yield', () => {
     'unrelated Effect object',
     `
     const Effect = customGenerator
-    Effect.gen(function* () { yield* (yield* items).entries() })
+    Effect.gen(function* () { yield* (yield* Store).read() })
   `
   )
   valid(
@@ -109,7 +109,7 @@ describe('no-nested-service-yield', () => {
     `
     import { Effect } from 'effect'
     function read(Effect) {
-      return Effect.gen(function* () { yield* (yield* items).entries() })
+      return Effect.gen(function* () { yield* (yield* Store).read() })
     }
   `
   )
@@ -118,7 +118,7 @@ describe('no-nested-service-yield', () => {
     `
     import { Effect } from 'effect'
     { const Effect = customGenerator
-      Effect.gen(function* () { yield* (yield* items).entries() })
+      Effect.gen(function* () { yield* (yield* Store).read() })
     }
   `
   )
@@ -126,7 +126,7 @@ describe('no-nested-service-yield', () => {
     'root namespace is not Effect namespace',
     `
     import * as Effect from 'effect'
-    Effect.gen(function* () { yield* (yield* items).entries() })
+    Effect.gen(function* () { yield* (yield* Store).read() })
   `
   )
   valid(
@@ -154,14 +154,14 @@ describe('no-nested-service-yield', () => {
     'dynamic method is not statically identified',
     `
     import { Effect } from 'effect'
-    Effect[gen](function* () { yield* (yield* items).entries() })
+    Effect[gen](function* () { yield* (yield* Store).read() })
   `
   )
   valid(
     'indirect callback',
     `
     import { Effect } from 'effect'
-    function* read() { yield* (yield* items).entries() }
+    function* read() { yield* (yield* Store).read() }
     Effect.gen(read)
   `
   )
