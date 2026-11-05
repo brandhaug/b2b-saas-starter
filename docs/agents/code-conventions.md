@@ -106,6 +106,29 @@ limitations. Remove narration of obvious statements and repeated tutorials alrea
 owned by shared guidance. Put cross-file invariants in the relevant intent node;
 keep implementation-specific reasons next to the code.
 
+Every lint suppression needs an explanation of the constraint that makes the rule
+inappropriate. Put `-- reason` on the directive or prose immediately before or after
+it. Adjacent stacked directives may share an explanation; blank lines and code
+break adjacency. `starter/require-suppression-reason` requires at least ten characters
+and two words. Review must still judge whether the reason actually explains the
+exception. TypeScript descriptions and unused-suppression checks remain enabled.
+
+## Browser test synchronization
+
+Wait for observable readiness with Playwright locators, responses or events. Do not
+add fixed delays or inflate test deadlines/retries to make a flaky test pass.
+In `apps/web/e2e/**`, the bundled `no-restricted-properties` rule rejects
+`waitForTimeout`, including literal computed access and receiver aliases.
+`starter/no-browser-test-inflation` rejects imported Playwright `test.setTimeout`,
+`test.slow` and inline `test.describe.configure` timeout/retry overrides. Import
+aliases and namespace imports are checked; shadowed identifiers are not.
+Existing runner deadlines and operation/assertion timeouts remain valid.
+
+These are selective syntax checks. Dynamic keys, assignment aliases, test fixtures
+re-exported from other modules, callback `testInfo` objects, spread options and timer wrappers still
+need review. They do not prove deterministic synchronization. Keep focused/skipped
+test bans enabled and diagnose failures from their first-attempt evidence.
+
 ## Enforcement and review
 
 [`lint.config.ts`](../../lint.config.ts) owns enabled rules and path exemptions;

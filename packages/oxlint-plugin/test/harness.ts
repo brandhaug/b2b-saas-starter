@@ -41,14 +41,15 @@ type CaseOptions = {
 
 type Override = {
   readonly files: ReadonlyArray<string>
-  readonly rules: Readonly<Record<string, 'off' | 'error'>>
+  readonly rules: Readonly<Record<string, 'off' | 'error' | ReadonlyArray<unknown>>>
 }
 
 /** `ruleId` is the fully qualified id from lint.config.ts. */
 export function createRuleHarness(
   ruleId: string,
   defaults: CaseOptions = {},
-  overrides?: ReadonlyArray<Override>
+  overrides?: ReadonlyArray<Override>,
+  ruleOptions: ReadonlyArray<unknown> = []
 ) {
   const cases: Array<Case> = []
   let outcome: ReadonlyMap<string, ReadonlyArray<string>> | undefined
@@ -86,7 +87,7 @@ export function createRuleHarness(
     })
 
     it(name, () => {
-      outcome ??= messagesByCase(ruleId, cases, overrides)
+      outcome ??= messagesByCase(ruleId, cases, overrides, ruleOptions)
       check(outcome.get(directory) ?? [])
     })
   }
@@ -95,16 +96,21 @@ export function createRuleHarness(
 function messagesByCase(
   ruleId: string,
   cases: ReadonlyArray<Case>,
-  overrides?: ReadonlyArray<Override>
+  overrides?: ReadonlyArray<Override>,
+  ruleOptions: ReadonlyArray<unknown> = []
 ): ReadonlyMap<string, ReadonlyArray<string>> {
   const [pluginName, ruleName] = ruleId.split('/')
   let pluginEntry = PLUGIN_ENTRY
   if (pluginName === 'effect') {
     pluginEntry = fileURLToPath(import.meta.resolve('oxlint-plugin-effect/plugin'))
   }
-  const rules: Record<string, 'error'> = {}
+  const jsPlugins = []
+  if (pluginName !== 'eslint') {
+    jsPlugins.push({ name: pluginName, specifier: pluginEntry })
+  }
+  const rules: Record<string, ReadonlyArray<unknown>> = {}
   if (overrides === undefined) {
-    rules[ruleId] = 'error'
+    rules[ruleId] = ['error', ...ruleOptions]
   }
   const root = mkdtempSync(join(tmpdir(), 'starter-oxlint-'))
   try {
@@ -116,7 +122,7 @@ function messagesByCase(
         // Without this, built-in rules report unused fixture variables alongside
         // the rule under test.
         categories: { correctness: 'off' },
-        jsPlugins: [{ name: pluginName, specifier: pluginEntry }],
+        jsPlugins,
         rules,
         overrides: overrides?.map((override) => ({
           ...override,
