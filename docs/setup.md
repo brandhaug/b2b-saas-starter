@@ -102,6 +102,18 @@ D1 and two browser workers. Each shard uploads a JSON timing report at
 session-revocation tests authenticate afresh; ordinary owner UI tests reuse a
 qualified session per worker in fresh browser contexts.
 
+Browser assertions and server startup run once, locally and in CI. Playwright
+retains traces from the original failed attempt; `playwright-report/results.json`
+records outcomes. Explicit diagnostic retries still fail the run if a test is
+flaky. Fix the cause before rerunning instead of raising timeouts or hiding a
+failure with suite retries. Playwright owns its web-server process tree and stops
+only that tree. CI loads Playwright in-process with a small signal adapter that
+routes SIGTERM through the runner's SIGINT cleanup path.
+Tooling must retain spawned process handles or verified process
+ownership, never use executable-name cleanup such as `pkill -f workerd`.
+The optional registry audit, `node .github/scripts/run-check.ts audit`, separately
+retains three attempts with a one-minute pause.
+
 `pnpm run test:e2e:alchemy` runs the focused sign-in, workspace and persistent
 conversation smoke tests against Alchemy. Validation and a dedicated CI job
 run this too. Validation uses ports 3097, 8797 and 8798 for the Alchemy run;

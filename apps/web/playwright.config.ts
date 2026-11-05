@@ -14,11 +14,12 @@ export default defineConfig({
   // Hydration is setup: its Locator.waitFor calls use the test budget above.
   // Assertions after the page becomes interactive keep this shorter deadline.
   expect: { timeout: Number(process.env.E2E_EXPECT_TIMEOUT ?? 5000) },
-  // Keep a trace for transient browser failures.
-  retries: process.env.CI ? 1 : 0,
+  // Keep the original failure observable; diagnosis must not depend on a retry.
+  retries: 0,
+  failOnFlakyTests: true,
   use: {
     baseURL,
-    trace: 'on-first-retry'
+    trace: 'retain-on-failure'
   },
   webServer: {
     // --strictPort: without it Vite silently serves on 3072 when :3071 is

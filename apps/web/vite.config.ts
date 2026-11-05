@@ -273,6 +273,7 @@ export default defineConfig(({ command, mode }) => {
       setupFiles: ['./src/test/setup.ts'],
       exclude: [
         'e2e/**',
+        'test/browser-policy/**',
         'test/assistant/*.pool.test.ts',
         'test/docs/cold-runtime.test.ts',
         'node_modules/**',
