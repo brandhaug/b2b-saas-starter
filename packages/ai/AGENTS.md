@@ -15,7 +15,7 @@ Effect `LanguageModel` adapters own inference. `AssistantService.ask` retains th
 
 ## Boundaries
 
-- Callers supply `ProviderEnv`; this package reads no process environment or Worker binding directly.
+- Runtime callers supply `ProviderEnv`; application code reads no process environment or Worker binding directly. The opt-in evaluation CLI owns its credential environment.
 - Adapter failures use `AiError`. The stateless boundary maps them to `AssistantUnavailable`; the conversation boundary exposes safe `ConversationModelFailure` data without raw provider diagnostics.
 - OpenAI uses `HttpClient.withScope` so cancellation owns the request through response consumption, including streaming. Keep manual redirects and no automatic inference retry. Workers AI cancels its response reader; its binding provides no provider billing or cancellation guarantee before the response stream exists.
 - Keep SDK UI-message types beside the host. This package exports application events and Effect streams.
@@ -24,3 +24,9 @@ Effect `LanguageModel` adapters own inference. `AssistantService.ask` retains th
 ## Task evidence
 
 The caller rechecks task permissions and constructs bounded evidence without payloads, headers, response bodies or destination URLs. Evidence is data, and chat cannot approve a replay. `usedTools` stays empty for stateless replies until tools are deliberately supported.
+
+## Verification
+
+Run isolated tests through this package's `test` command so `vite.config.ts` installs the fetch refusal hooks. Tests are sequential within each worker because fetch is global. Explicit transport stubs remain supported; unstubbed external attempts fail teardown even after application recovery. Loopback fetch is allowed, with automatic redirects refused. This is fetch isolation, not a firewall for arbitrary sockets or provider bindings.
+
+Instruction changes use the opt-in [evaluation procedure](eval/README.md). Standard tests make no paid calls and do not establish model quality.
