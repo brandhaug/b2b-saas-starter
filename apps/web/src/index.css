@@ -286,6 +286,96 @@
   --code-token-color: var(--code-punctuation);
 }
 
+.assistant-markdown {
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.assistant-markdown > * + * {
+  margin-top: 0.75rem;
+}
+
+.assistant-markdown :is(h3, h4, h5, h6) {
+  margin-top: 1.25rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.assistant-markdown > :first-child {
+  margin-top: 0;
+}
+
+.assistant-markdown :is(ul, ol) {
+  padding-left: 1.5rem;
+}
+
+.assistant-markdown ul {
+  list-style: disc;
+}
+.assistant-markdown ol {
+  list-style: decimal;
+}
+.assistant-markdown li + li {
+  margin-top: 0.25rem;
+}
+.assistant-markdown a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+.assistant-markdown blockquote {
+  border-left: 2px solid var(--border);
+  padding-left: 1rem;
+  color: var(--muted-foreground);
+}
+.assistant-markdown code {
+  white-space: pre-wrap;
+  font-family: var(--font-mono);
+  background: var(--muted);
+  border-radius: var(--radius-sm);
+  padding: 0.1em 0.25em;
+}
+.assistant-markdown pre {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 0.75rem;
+  background: var(--muted);
+  border-radius: var(--radius-md);
+  white-space: pre;
+  overflow-wrap: normal;
+}
+.assistant-markdown pre code {
+  white-space: inherit;
+  padding: 0;
+  background: none;
+}
+.assistant-markdown-table {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.assistant-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.assistant-markdown :is(th, td) {
+  border: 1px solid var(--border);
+  padding: 0.5rem 0.75rem;
+  text-align: start;
+}
+.assistant-markdown th {
+  background: var(--muted);
+  font-weight: 600;
+}
+.assistant-markdown :is(pre, .assistant-markdown-table, a):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.assistant-markdown hr {
+  border-color: var(--border);
+}
+
 /* Heading anchors for TOC scroll: below the fixed 64px header plus clearance. */
 .prose :is(h2, h3)[id] {
   scroll-margin-top: 5.5rem;

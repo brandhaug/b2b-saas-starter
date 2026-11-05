@@ -716,6 +716,7 @@ const { lint = {} } = defineConfig({
             {
               ignore: [
                 '^not-prose$',
+                '^assistant-markdown(-table)?$',
                 '^dark$',
                 '^marketing$',
                 '^toaster$',

@@ -45,24 +45,30 @@ describe('WorkspaceAssistantPage', () => {
   it('sends the question and renders the answer with its provider', async () => {
     ask.mockResolvedValue({
       ok: true,
-      answer: 'Two webhooks were updated this week.',
+      answer:
+        '## Webhooks\n\n- Two webhooks were updated this week.\n\n[Details](https://example.com/webhooks)',
       provider: 'workers-ai',
       modelId: '@cf/meta/llama-3.1-8b-instruct'
     })
     await renderPage(configured)
     fireEvent.change(screen.getByLabelText('Your question'), {
-      target: { value: 'What changed?' }
+      target: { value: '**What changed?**' }
     })
     fireEvent.click(screen.getByRole('button', { name: 'Ask' }))
     await waitFor(() =>
       expect(ask).toHaveBeenCalledWith({
-        data: { workspaceSlug: 'starter-lab', question: 'What changed?' }
+        data: { workspaceSlug: 'starter-lab', question: '**What changed?**' }
       })
     )
     await waitFor(() => {
       screen.getByText('Two webhooks were updated this week.')
     })
     screen.getByText('Workers AI')
+    screen.getByText('**What changed?**')
+    expect(screen.getByRole('heading', { name: 'Webhooks' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Details' }).getAttribute('href')).toBe(
+      'https://example.com/webhooks'
+    )
   })
 
   it('clears the pending action after a transport failure', async () => {
