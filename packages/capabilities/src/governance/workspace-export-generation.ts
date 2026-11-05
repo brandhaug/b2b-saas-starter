@@ -59,27 +59,27 @@ export type WorkspaceExportArchiveBuild = {
 }
 
 /** The shared collect→gzip implementation used by Seed and the queue worker. */
-export function buildWorkspaceExportArchiveEffect(input: {
+export const buildWorkspaceExportArchiveEffect = Effect.fn(
+  'WorkspaceExportGeneration.buildArchive'
+)(function* (input: {
   readonly exportId: string
   readonly generatedAt: DateTime.Utc
-}): Effect.Effect<
+}): Effect.fn.Return<
   WorkspaceExportArchiveBuild,
   CapabilityUnavailable,
   WorkspaceExportSnapshotServices | WorkspaceContext
 > {
-  return Effect.gen(function* () {
-    const snapshot = yield* collectWorkspaceExportSnapshot(input)
-    const archive = yield* Effect.tryPromise({
-      try: () => buildWorkspaceExportArchive(snapshot),
-      catch: (cause) =>
-        new CapabilityUnavailable({
-          capability: 'workspace-export-archive',
-          reason: errorMessage(cause) ?? 'the archive build failed'
-        })
-    })
-    return { snapshot, archive }
+  const snapshot = yield* collectWorkspaceExportSnapshot(input)
+  const archive = yield* Effect.tryPromise({
+    try: () => buildWorkspaceExportArchive(snapshot),
+    catch: (cause) =>
+      new CapabilityUnavailable({
+        capability: 'workspace-export-archive',
+        reason: errorMessage(cause) ?? 'the archive build failed'
+      })
   })
-}
+  return { snapshot, archive }
+})
 
 function failed(
   input: WorkspaceExportGenerationInput,

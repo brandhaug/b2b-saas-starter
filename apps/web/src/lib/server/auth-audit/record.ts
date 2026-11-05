@@ -115,57 +115,55 @@ function locationCarriesError(location: string | null): boolean {
  * (`authAuditError` / `authAuditBodyError`) before the outcome is returned, so
  * a dropped write is always queryable.
  */
-export function recordAuthAudit(
+export const recordAuthAudit = Effect.fn('AuthAudit.record')(function* (
   exchange: AuthExchange,
   response: Response,
   run: RunAuditCapabilities = runCapabilities,
   context?: AuthAuditContext
-): Effect.Effect<AuthAuditOutcome, never, Scope.Scope> {
-  return Effect.gen(function* () {
-    const row = exchangeRow(exchange)
-    if (row === null) {
-      return 'skipped'
-    }
-    if (row.requiresActorContext === true && context === undefined) {
-      return 'skipped'
-    }
+): Effect.fn.Return<AuthAuditOutcome, never, Scope.Scope> {
+  const row = exchangeRow(exchange)
+  if (row === null) {
+    return 'skipped'
+  }
+  if (row.requiresActorContext === true && context === undefined) {
+    return 'skipped'
+  }
 
-    // A body that does not parse still records an event — just an
-    // unattributed or untargeted one — with the reason on the wide event.
-    let actorUserId: string | null = null
-    if (row.actor === 'session') {
-      actorUserId = context?.actorUserId ?? null
-    } else if (row.actor === 'response' && response.ok) {
-      actorUserId = yield* readAndReportBody(readResponseUserId(response))
-    }
+  // A body that does not parse still records an event — just an
+  // unattributed or untargeted one — with the reason on the wide event.
+  let actorUserId: string | null = null
+  if (row.actor === 'session') {
+    actorUserId = context?.actorUserId ?? null
+  } else if (row.actor === 'response' && response.ok) {
+    actorUserId = yield* readAndReportBody(readResponseUserId(response))
+  }
 
-    let targetUserId: string | null = context?.targetUserId ?? null
-    for (const source of row.targetFrom ?? []) {
-      if (targetUserId !== null) {
-        break
-      }
-      if (
-        source === 'request' &&
-        context?.targetUserId === undefined &&
-        context?.request !== undefined
-      ) {
-        targetUserId = yield* readAndReportBody(readRequestUserId(context.request))
-      } else if (source === 'response' && response.ok) {
-        targetUserId = yield* readAndReportBody(readResponseUserId(response))
-      }
+  let targetUserId: string | null = context?.targetUserId ?? null
+  for (const source of row.targetFrom ?? []) {
+    if (targetUserId !== null) {
+      break
     }
-
-    const input = authAuditInput({
-      ...exchange,
-      status: response.status,
-      actorUserId,
-      targetUserId,
-      locationHeader: response.headers.get('location')
-    })
-    if (!input) {
-      return 'skipped'
+    if (
+      source === 'request' &&
+      context?.targetUserId === undefined &&
+      context?.request !== undefined
+    ) {
+      targetUserId = yield* readAndReportBody(readRequestUserId(context.request))
+    } else if (source === 'response' && response.ok) {
+      targetUserId = yield* readAndReportBody(readResponseUserId(response))
     }
+  }
 
-    return yield* writeAndReport(input, run)
+  const input = authAuditInput({
+    ...exchange,
+    status: response.status,
+    actorUserId,
+    targetUserId,
+    locationHeader: response.headers.get('location')
   })
-}
+  if (!input) {
+    return 'skipped'
+  }
+
+  return yield* writeAndReport(input, run)
+})

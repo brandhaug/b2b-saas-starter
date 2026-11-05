@@ -57,35 +57,35 @@ export async function loadWorkspaceSuspensionHandler(input: {
  * request-scoped memo slot, so asking here does not add a D1 round trip to a
  * navigation whose page also asks.
  */
-export function workspaceSuspensionGate(sessionId: string) {
-  return Effect.gen(function* () {
-    const context = yield* WorkspaceContext
-    const service = yield* WorkspaceSuspensionService
-    const state = yield* service.get(context.workspace.id)
-    const actor = context.actor
-    if (actor === null) {
-      return yield* missingActor()
-    }
-    const privileged = may(actor.role, { organization: ['update'] })
-    const strongAuthenticationRequired = needsStrongAuthentication({
-      systemRole: actor.systemRole,
-      workspaceRole: actor.role
-    })
-      ? !(yield* Effect.promise(() =>
-          strongAuthenticationStatusFor({ userId: actor.userId, sessionId })
-        )).qualified
-      : false
-    return {
-      workspaceId: state.workspaceId,
-      status: state.status,
-      changedAt: state.changedAt,
-      customerExplanation: privileged ? state.customerExplanation : null,
-      workspaceName: context.workspace.name,
-      viewer: { role: actor.role },
-      strongAuthenticationRequired
-    }
+export const workspaceSuspensionGate = Effect.fn('WorkspaceSuspension.gate')(function* (
+  sessionId: string
+) {
+  const context = yield* WorkspaceContext
+  const service = yield* WorkspaceSuspensionService
+  const state = yield* service.get(context.workspace.id)
+  const actor = context.actor
+  if (actor === null) {
+    return yield* missingActor()
+  }
+  const privileged = may(actor.role, { organization: ['update'] })
+  const strongAuthenticationRequired = needsStrongAuthentication({
+    systemRole: actor.systemRole,
+    workspaceRole: actor.role
   })
-}
+    ? !(yield* Effect.promise(() =>
+        strongAuthenticationStatusFor({ userId: actor.userId, sessionId })
+      )).qualified
+    : false
+  return {
+    workspaceId: state.workspaceId,
+    status: state.status,
+    changedAt: state.changedAt,
+    customerExplanation: privileged ? state.customerExplanation : null,
+    workspaceName: context.workspace.name,
+    viewer: { role: actor.role },
+    strongAuthenticationRequired
+  }
+})
 
 /** Reads only the narrow services explicitly usable during suspension. */
 export async function loadWorkspaceRecoveryHandler(input: {

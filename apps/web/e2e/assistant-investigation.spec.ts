@@ -22,6 +22,9 @@ test('retains an approved investigation after an unavailable queue', async ({
   await expect(page).toHaveURL(/taskId=task_/)
   const taskUrl = page.url()
   await page.reload()
+  await page
+    .locator('header [data-slot="select-trigger"]:enabled')
+    .waitFor({ state: 'attached' })
   await expect(
     page.getByText('Investigate the exhausted receiver failure', { exact: true })
   ).toBeVisible()

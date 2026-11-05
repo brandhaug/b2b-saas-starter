@@ -92,14 +92,14 @@ export type WorkspaceListItemProjection = {
  * user's memberships first and scopes each per-workspace read itself, using
  * the membership row the query already proved as the actor.
  */
-export function listWorkspacesForUser(
-  userId: string
-): Effect.Effect<
-  ReadonlyArray<WorkspaceListItemProjection>,
-  CapabilityUnavailable,
-  WorkspaceMembership | NotificationFeed
-> {
-  return Effect.gen(function* () {
+export const listWorkspacesForUser = Effect.fn('WorkspaceProjection.listForUser')(
+  function* (
+    userId: string
+  ): Effect.fn.Return<
+    ReadonlyArray<WorkspaceListItemProjection>,
+    CapabilityUnavailable,
+    WorkspaceMembership | NotificationFeed
+  > {
     const membership = yield* WorkspaceMembership
     const feed = yield* NotificationFeed
     const memberships = yield* membership.listWorkspacesForUser(userId)
@@ -126,8 +126,8 @@ export function listWorkspacesForUser(
         ),
       { concurrency: 'unbounded' }
     )
-  })
-}
+  }
+)
 
 /**
  * The onboarding checklist steps. Labels and links are the UI's — this is the
@@ -165,17 +165,6 @@ type WorkspaceProgressOptions = {
   readonly developerPlatform: boolean
 }
 
-/** The list's length, or `null` when the caller may not read the list at all. */
-function countWhen<E, R>(
-  permitted: boolean,
-  list: Effect.Effect<ReadonlyArray<unknown>, E, R>
-): Effect.Effect<number | null, E, R> {
-  if (!permitted) {
-    return Effect.succeed(null)
-  }
-  return Effect.map(list, (items) => items.length)
-}
-
 /**
  * The workspace onboarding checklist, computed live on every read: a step is
  * complete when the owning capability says the thing exists — more than one
@@ -185,9 +174,9 @@ function countWhen<E, R>(
  * the provider is configured (`Billing.configured`); an unconfigured deploy
  * cannot choose a plan, so it is not asked to.
  */
-export function workspaceProgress(
+export const workspaceProgress = Effect.fn('WorkspaceProjection.progress')(function* (
   options: WorkspaceProgressOptions
-): Effect.Effect<
+): Effect.fn.Return<
   WorkspaceProgressProjection,
   CapabilityUnavailable,
   | WorkspaceServices
@@ -197,45 +186,54 @@ export function workspaceProgress(
   | Billing
   | WorkspaceOnboarding
 > {
-  return Effect.gen(function* () {
-    const membership = yield* WorkspaceMembership
-    const tokens = yield* ApiTokenRegistry
-    const webhooks = yield* WebhookEndpoints
-    const billing = yield* Billing
-    const onboarding = yield* WorkspaceOnboarding
+  const membership = yield* WorkspaceMembership
+  const tokens = yield* ApiTokenRegistry
+  const webhooks = yield* WebhookEndpoints
+  const billing = yield* Billing
+  const onboarding = yield* WorkspaceOnboarding
 
-    const facts = yield* Effect.all(
-      {
-        members: membership.listMembers,
-        tokenCount: countWhen(options.developerPlatform, tokens.list),
-        webhookCount: countWhen(options.developerPlatform, webhooks.list),
-        billingConfigured: billing.configured,
-        plan: billing.currentPlan,
-        twoFactor: onboarding.actorTwoFactorEnabled,
-        dismissedAt: onboarding.dismissedAt
-      },
-      { concurrency: 'unbounded' }
-    )
+  const facts = yield* Effect.all(
+    {
+      members: membership.listMembers,
+      tokenCount: countWhen(options.developerPlatform, tokens.list),
+      webhookCount: countWhen(options.developerPlatform, webhooks.list),
+      billingConfigured: billing.configured,
+      plan: billing.currentPlan,
+      twoFactor: onboarding.actorTwoFactorEnabled,
+      dismissedAt: onboarding.dismissedAt
+    },
+    { concurrency: 'unbounded' }
+  )
 
-    const steps: Array<WorkspaceProgressStep> = [
-      { id: 'invite_member', complete: facts.members.length > 1 }
-    ]
-    if (facts.tokenCount !== null) {
-      steps.push({ id: 'create_api_token', complete: facts.tokenCount > 0 })
-    }
-    if (facts.webhookCount !== null) {
-      steps.push({ id: 'add_webhook_endpoint', complete: facts.webhookCount > 0 })
-    }
-    steps.push({ id: 'enable_two_factor', complete: facts.twoFactor })
-    if (facts.billingConfigured) {
-      steps.push({ id: 'choose_plan', complete: facts.plan.id !== STARTER_PLAN.id })
-    }
+  const steps: Array<WorkspaceProgressStep> = [
+    { id: 'invite_member', complete: facts.members.length > 1 }
+  ]
+  if (facts.tokenCount !== null) {
+    steps.push({ id: 'create_api_token', complete: facts.tokenCount > 0 })
+  }
+  if (facts.webhookCount !== null) {
+    steps.push({ id: 'add_webhook_endpoint', complete: facts.webhookCount > 0 })
+  }
+  steps.push({ id: 'enable_two_factor', complete: facts.twoFactor })
+  if (facts.billingConfigured) {
+    steps.push({ id: 'choose_plan', complete: facts.plan.id !== STARTER_PLAN.id })
+  }
 
-    return {
-      steps,
-      completedCount: steps.filter((step) => step.complete).length,
-      totalCount: steps.length,
-      dismissedAt: facts.dismissedAt
-    }
-  })
+  return {
+    steps,
+    completedCount: steps.filter((step) => step.complete).length,
+    totalCount: steps.length,
+    dismissedAt: facts.dismissedAt
+  }
+})
+
+/** The list's length, or `null` when the caller may not read the list at all. */
+function countWhen<E, R>(
+  permitted: boolean,
+  list: Effect.Effect<ReadonlyArray<unknown>, E, R>
+): Effect.Effect<number | null, E, R> {
+  if (!permitted) {
+    return Effect.succeed(null)
+  }
+  return Effect.map(list, (items) => items.length)
 }

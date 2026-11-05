@@ -67,62 +67,60 @@ function callbackFailed(response: Response): boolean {
   return URL.parse(location)?.searchParams.has('error') ?? true
 }
 
-export function recordSsoSignInAudit(
+export const recordSsoSignInAudit = Effect.fn('AuthAudit.recordSsoSignIn')(function* (
   exchange: { readonly method: string; readonly pathname: string },
   response: Response,
   run: RunAuditCapabilities = runCapabilities
-): Effect.Effect<void, never, Scope.Scope> {
-  return Effect.gen(function* () {
-    const providerId = ssoCallbackProviderId(exchange)
-    if (providerId === null) {
-      return
-    }
+): Effect.fn.Return<void, never, Scope.Scope> {
+  const providerId = ssoCallbackProviderId(exchange)
+  if (providerId === null) {
+    return
+  }
 
-    // The workspace the connection belongs to scopes the event; an unknown
-    // provider (a row deleted mid-flight, or a capability hiccup) still
-    // records, unscoped — the `then` fallback folds a rejection into null.
-    const workspaceId = yield* Effect.promise(() =>
-      runCapabilities(
-        Effect.flatMap(SsoConnections, (sso) => sso.resolveProvider(providerId))
-      ).then(
-        (provider) => (Option.isSome(provider) ? provider.value.workspaceId : null),
-        () => null
-      )
+  // The workspace the connection belongs to scopes the event; an unknown
+  // provider (a row deleted mid-flight, or a capability hiccup) still
+  // records, unscoped — the `then` fallback folds a rejection into null.
+  const workspaceId = yield* Effect.promise(() =>
+    runCapabilities(
+      Effect.flatMap(SsoConnections, (sso) => sso.resolveProvider(providerId))
+    ).then(
+      (provider) => (Option.isSome(provider) ? provider.value.workspaceId : null),
+      () => null
     )
+  )
 
-    if (callbackFailed(response)) {
-      yield* writeAndReport(run, {
-        workspaceId,
-        actorUserId: null,
-        actorType: 'user',
-        eventType: 'auth.sso_sign_in_failed',
-        targetType: 'session',
-        targetId: null,
-        metadata: { providerId, statusCode: response.status }
-      })
-      return
-    }
-
-    // Success: attribute the event to the user the response just signed in.
-    const cookie = responseSessionCookie(response)
-    if (cookie === null) {
-      return
-    }
-    const attributed = yield* Effect.promise(() => readResponseSession(cookie))
-    if (attributed === null) {
-      return
-    }
+  if (callbackFailed(response)) {
     yield* writeAndReport(run, {
       workspaceId,
-      actorUserId: attributed.userId,
+      actorUserId: null,
       actorType: 'user',
-      eventType: 'auth.sso_sign_in',
+      eventType: 'auth.sso_sign_in_failed',
       targetType: 'session',
-      targetId: attributed.sessionId,
-      metadata: { providerId }
+      targetId: null,
+      metadata: { providerId, statusCode: response.status }
     })
+    return
+  }
+
+  // Success: attribute the event to the user the response just signed in.
+  const cookie = responseSessionCookie(response)
+  if (cookie === null) {
+    return
+  }
+  const attributed = yield* Effect.promise(() => readResponseSession(cookie))
+  if (attributed === null) {
+    return
+  }
+  yield* writeAndReport(run, {
+    workspaceId,
+    actorUserId: attributed.userId,
+    actorType: 'user',
+    eventType: 'auth.sso_sign_in',
+    targetType: 'session',
+    targetId: attributed.sessionId,
+    metadata: { providerId }
   })
-}
+})
 
 /** The actor an SSO callback's response signed in, read from the cookie it set. */
 function readResponseSession(cookie: string): Promise<{

@@ -36,7 +36,11 @@ export function requireWorkspacePermission(
     permission
   )
 ) {
-  return Effect.gen(function* () {
+  return checkWorkspacePermission(permission, operation)
+}
+
+const checkWorkspacePermission = Effect.fn('Authorization.requireWorkspacePermission')(
+  function* (permission: PermissionRequest, operation: WorkspaceSuspensionOperation) {
     const ctx = yield* WorkspaceContext
     yield* requirePermission(
       ctx.actor ? memberPrincipal(ctx.actor.role) : null,
@@ -51,12 +55,12 @@ export function requireWorkspacePermission(
         sessionId: session.session.id
       })
     }
-  })
-}
+  }
+)
 
 /** Recovery retains normal RBAC; SSO repair during suspension is owner-only. */
-function requireWorkspaceAccess(operation: WorkspaceSuspensionOperation) {
-  return Effect.gen(function* () {
+const requireWorkspaceAccess = Effect.fn('Authorization.requireWorkspaceAccess')(
+  function* (operation: WorkspaceSuspensionOperation) {
     const ctx = yield* WorkspaceContext
     const suspension = yield* WorkspaceSuspensionService
     if (
@@ -81,8 +85,8 @@ function requireWorkspaceAccess(operation: WorkspaceSuspensionOperation) {
       ctx.workspace.id,
       operation === 'sso_recovery' && !canRepairSso ? 'product' : operation
     )
-  })
-}
+  }
+)
 
 /**
  * The read counterpart of the guard: runs `effect` only if the actor may, and

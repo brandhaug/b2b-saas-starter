@@ -43,82 +43,76 @@ const DiscoveryEndpoints = Schema.Struct({
 
 const decodeDiscoveryEndpoints = Schema.decodeUnknownOption(DiscoveryEndpoints)
 
-function discoveryUrl(issuer: string): string {
-  return `${issuer.replace(/\/+$/, '')}/.well-known/openid-configuration`
-}
-
 /**
  * Resolves and validates an OIDC issuer: fetches its discovery document,
  * checks the issuer matches and the required endpoints exist. The plugin's
  * own SSRF guards (public-routable hosts, or a `trustedOrigins` entry for an
  * internal IdP) apply inside `fetchDiscoveryDocument`.
  */
-export function resolveOidcIssuer(
+export const resolveOidcIssuer = Effect.fn('SsoDiscovery.resolveOidcIssuer')(function* (
   issuer: string
-): Effect.Effect<OidcEndpoints, SsoValidationError> {
-  return Effect.gen(function* () {
-    if (!isSecureEndpoint(issuer)) {
-      return yield* Effect.fail({
-        code: 'discovery_invalid',
-        message: m.server_discovery_invalid()
-      } satisfies SsoValidationError)
-    }
-    const document = yield* Effect.tryPromise({
-      try: () => fetchDiscoveryDocument(discoveryUrl(issuer)),
-      catch: () =>
-        ({
-          code: 'discovery_unreachable',
-          message: m.server_discovery_unreachable()
-        }) satisfies SsoValidationError
-    })
-    // Throws on an issuer mismatch or a missing required field; re-typed as
-    // the module's own validation error.
-    const validated = yield* Effect.result(
-      Effect.try({
-        try: () => validateDiscoveryDocument(document, issuer),
-        catch: () => m.server_discovery_invalid()
-      })
-    )
-    if (Result.isFailure(validated)) {
-      return yield* Effect.fail({
-        code: 'discovery_invalid',
-        message: validated.failure
-      } satisfies SsoValidationError)
-    }
-    const endpoints = decodeDiscoveryEndpoints(document)
-    if (Option.isNone(endpoints)) {
-      return yield* Effect.fail({
-        code: 'discovery_invalid',
-        message: m.server_discovery_endpoints_missing()
-      } satisfies SsoValidationError)
-    }
-    const discoveredUrls = [
-      endpoints.value.authorization_endpoint,
-      endpoints.value.token_endpoint,
-      endpoints.value.jwks_uri,
-      endpoints.value.userinfo_endpoint
-    ]
-    if (
-      discoveredUrls.some(
-        (endpoint) => endpoint !== undefined && !isSecureEndpoint(endpoint)
-      )
-    ) {
-      return yield* Effect.fail({
-        code: 'discovery_invalid',
-        message: m.server_discovery_invalid()
-      } satisfies SsoValidationError)
-    }
-    const resolved: OidcEndpoints = {
-      authorizationEndpoint: endpoints.value.authorization_endpoint,
-      tokenEndpoint: endpoints.value.token_endpoint,
-      jwksEndpoint: endpoints.value.jwks_uri
-    }
-    if (endpoints.value.userinfo_endpoint !== undefined) {
-      return { ...resolved, userInfoEndpoint: endpoints.value.userinfo_endpoint }
-    }
-    return resolved
+): Effect.fn.Return<OidcEndpoints, SsoValidationError> {
+  if (!isSecureEndpoint(issuer)) {
+    return yield* Effect.fail({
+      code: 'discovery_invalid',
+      message: m.server_discovery_invalid()
+    } satisfies SsoValidationError)
+  }
+  const document = yield* Effect.tryPromise({
+    try: () => fetchDiscoveryDocument(discoveryUrl(issuer)),
+    catch: () =>
+      ({
+        code: 'discovery_unreachable',
+        message: m.server_discovery_unreachable()
+      }) satisfies SsoValidationError
   })
-}
+  // Throws on an issuer mismatch or a missing required field; re-typed as
+  // the module's own validation error.
+  const validated = yield* Effect.result(
+    Effect.try({
+      try: () => validateDiscoveryDocument(document, issuer),
+      catch: () => m.server_discovery_invalid()
+    })
+  )
+  if (Result.isFailure(validated)) {
+    return yield* Effect.fail({
+      code: 'discovery_invalid',
+      message: validated.failure
+    } satisfies SsoValidationError)
+  }
+  const endpoints = decodeDiscoveryEndpoints(document)
+  if (Option.isNone(endpoints)) {
+    return yield* Effect.fail({
+      code: 'discovery_invalid',
+      message: m.server_discovery_endpoints_missing()
+    } satisfies SsoValidationError)
+  }
+  const discoveredUrls = [
+    endpoints.value.authorization_endpoint,
+    endpoints.value.token_endpoint,
+    endpoints.value.jwks_uri,
+    endpoints.value.userinfo_endpoint
+  ]
+  if (
+    discoveredUrls.some(
+      (endpoint) => endpoint !== undefined && !isSecureEndpoint(endpoint)
+    )
+  ) {
+    return yield* Effect.fail({
+      code: 'discovery_invalid',
+      message: m.server_discovery_invalid()
+    } satisfies SsoValidationError)
+  }
+  const resolved: OidcEndpoints = {
+    authorizationEndpoint: endpoints.value.authorization_endpoint,
+    tokenEndpoint: endpoints.value.token_endpoint,
+    jwksEndpoint: endpoints.value.jwks_uri
+  }
+  if (endpoints.value.userinfo_endpoint !== undefined) {
+    return { ...resolved, userInfoEndpoint: endpoints.value.userinfo_endpoint }
+  }
+  return resolved
+})
 
 /** The IdP half a SAML connection needs, extracted from its metadata XML. */
 export type SamlMetadataSummary = {
@@ -131,10 +125,10 @@ export type SamlMetadataSummary = {
  * Validates SAML IdP metadata: the plugin's own parser (samlify) accepts it,
  * and the SSO redirect binding's URL is present.
  */
-export function validateSamlMetadata(
-  metadataXml: string
-): Effect.Effect<SamlMetadataSummary, SsoValidationError> {
-  return Effect.gen(function* () {
+export const validateSamlMetadata = Effect.fn('SsoDiscovery.validateSamlMetadata')(
+  function* (
+    metadataXml: string
+  ): Effect.fn.Return<SamlMetadataSummary, SsoValidationError> {
     // The parser only reads `idpMetadata`; the required config fields are
     // satisfied with placeholders the IdP-side parse never consults.
     const entityId = yield* Effect.try({
@@ -164,7 +158,11 @@ export function validateSamlMetadata(
       } satisfies SsoValidationError)
     }
     return { entityId, entryPoint }
-  })
+  }
+)
+
+function discoveryUrl(issuer: string): string {
+  return `${issuer.replace(/\/+$/, '')}/.well-known/openid-configuration`
 }
 
 /**

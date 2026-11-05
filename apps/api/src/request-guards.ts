@@ -76,22 +76,20 @@ export function enforceRateLimit(
 }
 
 /** Value-based guard shared by HTTP routes and individual MCP calls. */
-export function enforceRateLimitKey(
+export const enforceRateLimitKey = Effect.fn('Api.enforceRateLimitKey')(function* (
   bucket: RateLimitBucket,
   key: string
-): Effect.Effect<void, RateLimited, RateLimiter | Scope.Scope> {
-  return Effect.gen(function* () {
-    const limiter = yield* RateLimiter
-    const allowed = yield* limiter.take({ bucket, key })
-    if (!allowed) {
-      yield* annotateWideEvent({
-        outcome: 'rate_limited',
-        rateLimitBucket: bucket
-      })
-      return yield* Effect.fail(new RateLimited({ bucket }))
-    }
-  })
-}
+): Effect.fn.Return<void, RateLimited, RateLimiter | Scope.Scope> {
+  const limiter = yield* RateLimiter
+  const allowed = yield* limiter.take({ bucket, key })
+  if (!allowed) {
+    yield* annotateWideEvent({
+      outcome: 'rate_limited',
+      rateLimitBucket: bucket
+    })
+    return yield* Effect.fail(new RateLimited({ bucket }))
+  }
+})
 
 /**
  * The registry half of the token path: verify the bearer token against the
@@ -99,49 +97,47 @@ export function enforceRateLimitKey(
  * those scopes cover what was asked is a separate `requirePermission` call —
  * see `enforcePermission`.
  */
-function verifyToken(
+const verifyToken = Effect.fn('Api.verifyToken')(function* (
   token: string | null
-): Effect.Effect<
+): Effect.fn.Return<
   ApiPrincipalValue,
   Unauthorized | CapabilityUnavailable,
   ApiTokenRegistry | Scope.Scope
 > {
-  return Effect.gen(function* () {
-    if (!token) {
-      yield* annotateWideEvent({ outcome: 'missing_bearer_token' })
-      return yield* Effect.fail(new Unauthorized({ message: 'missing_bearer_token' }))
-    }
+  if (!token) {
+    yield* annotateWideEvent({ outcome: 'missing_bearer_token' })
+    return yield* Effect.fail(new Unauthorized({ message: 'missing_bearer_token' }))
+  }
 
-    const registry = yield* ApiTokenRegistry
-    const verified = yield* Effect.result(registry.verifyBearerToken(token))
-    if (Result.isFailure(verified)) {
-      const failure = verified.failure
-      if (failure._tag === 'CapabilityUnavailable') {
-        yield* annotateWideEvent({
-          outcome: 'capability_unavailable',
-          capability: failure.capability,
-          capabilityReason: failure.reason
-        })
-        return yield* Effect.fail(failure)
-      }
-      // Verification only ever fails for an unknown or revoked token, which is
-      // an authentication failure: 401, not 403.
+  const registry = yield* ApiTokenRegistry
+  const verified = yield* Effect.result(registry.verifyBearerToken(token))
+  if (Result.isFailure(verified)) {
+    const failure = verified.failure
+    if (failure._tag === 'CapabilityUnavailable') {
       yield* annotateWideEvent({
-        outcome: 'unauthorized',
-        authReason: failure.reason
+        outcome: 'capability_unavailable',
+        capability: failure.capability,
+        capabilityReason: failure.reason
       })
-      return yield* Effect.fail(new Unauthorized({ message: failure.reason }))
+      return yield* Effect.fail(failure)
     }
-
+    // Verification only ever fails for an unknown or revoked token, which is
+    // an authentication failure: 401, not 403.
     yield* annotateWideEvent({
-      tokenId: verified.success.id,
-      workspaceId: verified.success.workspaceId,
-      tokenScopes: verified.success.scopes
+      outcome: 'unauthorized',
+      authReason: failure.reason
     })
+    return yield* Effect.fail(new Unauthorized({ message: failure.reason }))
+  }
 
-    return verified.success
+  yield* annotateWideEvent({
+    tokenId: verified.success.id,
+    workspaceId: verified.success.workspaceId,
+    tokenScopes: verified.success.scopes
   })
-}
+
+  return verified.success
+})
 
 /**
  * Who is calling the MCP server: a workspace API Token (scripts, CI) or an
@@ -182,37 +178,35 @@ export function mcpCallerActorType(caller: McpCaller): AuditActorTypeValue {
  * OAuth is for interactive clients, and the contract's `BearerAuth` stays
  * token-only. Resolved again for each write, including batched tool calls.
  */
-export function verifyMcpCredential(
+export const verifyMcpCredential = Effect.fn('Mcp.verifyCredential')(function* (
   bearer: string | null
-): Effect.Effect<
+): Effect.fn.Return<
   McpCaller,
   Unauthorized | CapabilityUnavailable,
   ApiTokenRegistry | OAuthTokenVerifier | Scope.Scope
 > {
-  return Effect.gen(function* () {
-    if (bearer !== null && looksLikeJwt(bearer)) {
-      const verifier = yield* OAuthTokenVerifier
-      const verified = yield* verifier.verify(bearer).pipe(
-        Effect.tapError((failure) =>
-          annotateWideEvent({
-            outcome: 'unauthorized',
-            authReason: failure.message,
-            credential: 'oauth'
-          })
-        )
+  if (bearer !== null && looksLikeJwt(bearer)) {
+    const verifier = yield* OAuthTokenVerifier
+    const verified = yield* verifier.verify(bearer).pipe(
+      Effect.tapError((failure) =>
+        annotateWideEvent({
+          outcome: 'unauthorized',
+          authReason: failure.message,
+          credential: 'oauth'
+        })
       )
-      yield* annotateWideEvent({
-        credential: 'oauth',
-        actorUserId: verified.userId,
-        workspaceId: verified.workspaceId
-      })
-      return { kind: 'oauth', token: verified }
-    }
-    const token = yield* verifyToken(bearer)
-    yield* annotateWideEvent({ credential: 'api_token' })
-    return { kind: 'token', token }
-  })
-}
+    )
+    yield* annotateWideEvent({
+      credential: 'oauth',
+      actorUserId: verified.userId,
+      workspaceId: verified.workspaceId
+    })
+    return { kind: 'oauth', token: verified }
+  }
+  const token = yield* verifyToken(bearer)
+  yield* annotateWideEvent({ credential: 'api_token' })
+  return { kind: 'token', token }
+})
 
 /**
  * Authorization over the already-authenticated principal: the token must belong
@@ -225,40 +219,38 @@ export function verifyMcpCredential(
  * Authentication is the `BearerAuth` middleware's job (see {@link bearerAuth});
  * this reads the `ApiPrincipal` it provided.
  */
-export function enforcePermission(
+export const enforcePermission = Effect.fn('Api.enforcePermission')(function* (
   permission: PermissionRequest,
   expectedWorkspaceSlug?: string
-): Effect.Effect<
+): Effect.fn.Return<
   void,
   AuthorizationDenied | WorkspaceSuspended | CapabilityUnavailable,
   ApiPrincipal | WorkspaceSuspensionService | Scope.Scope
 > {
-  return Effect.gen(function* () {
-    const verified = yield* ApiPrincipal
+  const verified = yield* ApiPrincipal
 
-    if (
-      expectedWorkspaceSlug !== undefined &&
-      verified.workspaceSlug !== expectedWorkspaceSlug
-    ) {
-      yield* annotateWideEvent({
-        outcome: 'forbidden',
-        authReason: 'token_workspace_mismatch'
+  if (
+    expectedWorkspaceSlug !== undefined &&
+    verified.workspaceSlug !== expectedWorkspaceSlug
+  ) {
+    yield* annotateWideEvent({
+      outcome: 'forbidden',
+      authReason: 'token_workspace_mismatch'
+    })
+    return yield* Effect.fail(
+      new AuthorizationDenied({
+        reason: AUTHORIZATION_DENIED_REASONS.tokenWorkspaceMismatch
       })
-      return yield* Effect.fail(
-        new AuthorizationDenied({
-          reason: AUTHORIZATION_DENIED_REASONS.tokenWorkspaceMismatch
-        })
-      )
-    }
-
-    yield* requirePermission(tokenPrincipal(verified.scopes), permission)
-    const suspension = yield* WorkspaceSuspensionService
-    yield* suspension.requireAllowed(
-      verified.workspaceId,
-      workspaceSuspensionOperationForPermission(permission)
     )
-  })
-}
+  }
+
+  yield* requirePermission(tokenPrincipal(verified.scopes), permission)
+  const suspension = yield* WorkspaceSuspensionService
+  yield* suspension.requireAllowed(
+    verified.workspaceId,
+    workspaceSuspensionOperationForPermission(permission)
+  )
+})
 
 const decodeFailureTag = Schema.decodeUnknownResult(
   Schema.Struct({ _tag: Schema.String })

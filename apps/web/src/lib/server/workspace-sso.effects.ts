@@ -254,34 +254,34 @@ function failedTest(code: string, message: string): SsoTestResult {
  * stage or observe a Seed feed across a call — this is where the rule is
  * testable.
  */
-export function notifyOwnersOfFailedTest(
+export const notifyOwnersOfFailedTest = Effect.fn(
+  'SsoConnections.notifyOwnersOfFailedTest'
+)(function* (
   connection: SsoConnection,
   reasonCode: string
-): Effect.Effect<
+): Effect.fn.Return<
   void,
   CapabilityUnavailable,
   WorkspaceContext | WorkspaceMembership | NotificationFeed
 > {
-  return Effect.gen(function* () {
-    const membership = yield* WorkspaceMembership
-    const feed = yield* NotificationFeed
-    const members = yield* membership.listMembers
-    const owners = members.filter((member) => member.role === 'owner')
-    yield* Effect.forEach(owners, (owner) =>
-      feed.record({
-        title: 'SSO connection failed its test',
-        message: `The ${connection.protocol.toUpperCase()} connection for ${connection.domain} failed: ${reasonCode}`,
-        event: {
-          type: 'sso.test_failed',
-          protocol: connection.protocol,
-          domain: connection.domain,
-          reasonCode
-        },
-        userId: owner.id
-      })
-    )
-  })
-}
+  const membership = yield* WorkspaceMembership
+  const feed = yield* NotificationFeed
+  const members = yield* membership.listMembers
+  const owners = members.filter((member) => member.role === 'owner')
+  yield* Effect.forEach(owners, (owner) =>
+    feed.record({
+      title: 'SSO connection failed its test',
+      message: `The ${connection.protocol.toUpperCase()} connection for ${connection.domain} failed: ${reasonCode}`,
+      event: {
+        type: 'sso.test_failed',
+        protocol: connection.protocol,
+        domain: connection.domain,
+        reasonCode
+      },
+      userId: owner.id
+    })
+  )
+})
 
 /**
  * The routing ask's budget. The ask is session-free, so the client key is the

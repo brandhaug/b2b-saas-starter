@@ -119,92 +119,90 @@ export type DigestRunSummary = {
  * pass. The stable window/user identity prevents resending accepted digests;
  * later scheduled passes retry unresolved sends within the six-hour limit.
  */
-export function runNotificationDigest(
+export const runNotificationDigest = Effect.fn('NotificationDigest.run')(function* (
   appUrl: string,
   windowEnd: string
-): Effect.Effect<
+): Effect.fn.Return<
   DigestRunSummary,
   CapabilityUnavailable,
   NotificationEmailEligibility | EmailDispatcher | EmailDelivery | Scope.Scope
 > {
-  return Effect.gen(function* () {
-    const until = windowEnd
-    const since = DateTime.formatIso(
-      DateTime.subtractDuration(DateTime.makeUnsafe(until), DIGEST_WINDOW)
-    )
-    const eligibility = yield* NotificationEmailEligibility
-    const selection = yield* eligibility.digest({ since, until })
-    if (selection.suspendedCount > 0) {
-      yield* annotateWideEvent({
-        notificationDigestSkipped: selection.suspendedCount,
-        skipReason: 'workspace_suspended'
-      })
-    }
-    const digests = buildDigests(selection.candidates)
+  const until = windowEnd
+  const since = DateTime.formatIso(
+    DateTime.subtractDuration(DateTime.makeUnsafe(until), DIGEST_WINDOW)
+  )
+  const eligibility = yield* NotificationEmailEligibility
+  const selection = yield* eligibility.digest({ since, until })
+  if (selection.suspendedCount > 0) {
+    yield* annotateWideEvent({
+      notificationDigestSkipped: selection.suspendedCount,
+      skipReason: 'workspace_suspended'
+    })
+  }
+  const digests = buildDigests(selection.candidates)
 
-    const outcomes = yield* Effect.forEach(
-      digests,
-      (digest) => {
-        const { userId } = digest.recipient
-        return Effect.result(
-          dispatchTrackedEmail(
-            {
-              id: `digest:${until}:${userId}`,
-              purpose: 'digest',
-              recipient: digest.recipient.email,
-              userId,
-              workspaceId: null,
-              referenceId: until,
-              queuedAt: until
-            },
-            {
-              to: digest.recipient.email,
-              subject: m.backend_email_subject_digest(
-                { count: digest.items.length },
-                { locale: digest.recipient.locale ?? DEFAULT_LOCALE }
-              ),
-              element: NotificationDigestEmail({
-                recipientName: digest.recipient.name,
-                items: digest.items,
-                openUrl: `${appUrl}/workspaces`,
-                preferencesUrl: preferencesUrl(appUrl),
-                locale: digest.recipient.locale ?? DEFAULT_LOCALE
-              })
-            }
-          )
+  const outcomes = yield* Effect.forEach(
+    digests,
+    (digest) => {
+      const { userId } = digest.recipient
+      return Effect.result(
+        dispatchTrackedEmail(
+          {
+            id: `digest:${until}:${userId}`,
+            purpose: 'digest',
+            recipient: digest.recipient.email,
+            userId,
+            workspaceId: null,
+            referenceId: until,
+            queuedAt: until
+          },
+          {
+            to: digest.recipient.email,
+            subject: m.backend_email_subject_digest(
+              { count: digest.items.length },
+              { locale: digest.recipient.locale ?? DEFAULT_LOCALE }
+            ),
+            element: NotificationDigestEmail({
+              recipientName: digest.recipient.name,
+              items: digest.items,
+              openUrl: `${appUrl}/workspaces`,
+              preferencesUrl: preferencesUrl(appUrl),
+              locale: digest.recipient.locale ?? DEFAULT_LOCALE
+            })
+          }
         )
-      },
-      { concurrency: 4 }
-    )
-    let sent = 0
-    let failed = 0
-    for (const outcome of outcomes) {
-      if (Result.isSuccess(outcome) && outcome.success.status !== 'skipped') {
-        sent += 1
-      } else if (Result.isFailure(outcome)) {
-        failed += 1
-      }
+      )
+    },
+    { concurrency: 4 }
+  )
+  let sent = 0
+  let failed = 0
+  for (const outcome of outcomes) {
+    if (Result.isSuccess(outcome) && outcome.success.status !== 'skipped') {
+      sent += 1
+    } else if (Result.isFailure(outcome)) {
+      failed += 1
     }
+  }
 
-    const summary: DigestRunSummary = {
-      since,
-      until,
-      candidates: selection.candidateCount,
-      digests: digests.length,
-      sent,
-      failed
+  const summary: DigestRunSummary = {
+    since,
+    until,
+    candidates: selection.candidateCount,
+    digests: digests.length,
+    sent,
+    failed
+  }
+  let outcome = 'sent'
+  if (failed > 0) {
+    outcome = 'failed'
+    if (sent > 0) {
+      outcome = 'partial_failure'
     }
-    let outcome = 'sent'
-    if (failed > 0) {
-      outcome = 'failed'
-      if (sent > 0) {
-        outcome = 'partial_failure'
-      }
-    }
-    yield* annotateWideEvent({ ...summary, outcome })
-    return summary
-  })
-}
+  }
+  yield* annotateWideEvent({ ...summary, outcome })
+  return summary
+})
 
 /**
  * The daily and retry schedules share the same 08:00 UTC window. Durable
