@@ -30,6 +30,9 @@
     // a direct dependency in packages without their own test config.
     "infra/*.test.ts",
     "packages/*/src/**/*.test.ts",
+    // The network-refusal regression launches this isolated Vitest subprocess.
+    "packages/ai/test/network-fixture.config.ts",
+    "packages/ai/test/network.case.ts",
     // `pnpm run test:scripts` runs these by directory, and the runbooks in
     // docs/ invoke the operator CLIs by path rather than through an npm alias.
     "scripts/*.test.ts",
