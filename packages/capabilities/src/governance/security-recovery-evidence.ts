@@ -101,69 +101,73 @@ export function recordSecurityEvidence(
   if (sink === undefined) {
     return Effect.succeed('recorded')
   }
-  return Effect.gen(function* () {
-    const now = yield* DateTime.now
-    let record: SecurityEvidenceRecord = {
-      id: yield* newCapabilityId('sec'),
-      kind: input.kind,
-      subjectId: input.subjectId,
-      workspaceId: input.workspaceId ?? null,
-      occurredAt: DateTime.formatIso(now),
-      source
-    }
-    if (input.creatorUserId !== undefined) {
-      record = { ...record, creatorUserId: input.creatorUserId }
-    }
-    const appended = yield* Effect.result(
-      Effect.tryPromise({
-        try: () => sink.append(record),
-        catch: () => 'security_evidence_unavailable'
-      })
-    )
-    if (Result.isSuccess(appended)) {
-      return 'recorded'
-    }
-    const alerted = yield* Effect.tryPromise({
-      try: () =>
-        sink.reportGap({
-          evidenceId: record.id,
-          kind: record.kind,
-          subjectId: record.subjectId,
-          workspaceId: record.workspaceId
-        }),
-      catch: () => 'security_evidence_gap_alert_failed'
-    }).pipe(Effect.result)
-    if (Result.isFailure(alerted)) {
-      yield* Effect.logError('security.recovery.gap_alert_failed').pipe(
-        Effect.annotateLogs({
-          event: 'security.recovery.gap_alert_failed',
-          evidenceId: record.id,
-          evidenceKind: record.kind,
-          subjectId: record.subjectId,
-          workspaceId: record.workspaceId
-        })
-      )
-    }
-    return 'gap'
-  })
+  return appendSecurityEvidence(input, sink, source)
 }
 
+const appendSecurityEvidence = Effect.fn('SecurityEvidence.record')(function* (
+  input: SecurityEvidenceInput,
+  sink: SecurityEvidenceSink,
+  source: SecurityEvidenceRecord['source']
+): Effect.fn.Return<EvidenceOutcome> {
+  const now = yield* DateTime.now
+  let record: SecurityEvidenceRecord = {
+    id: yield* newCapabilityId('sec'),
+    kind: input.kind,
+    subjectId: input.subjectId,
+    workspaceId: input.workspaceId ?? null,
+    occurredAt: DateTime.formatIso(now),
+    source
+  }
+  if (input.creatorUserId !== undefined) {
+    record = { ...record, creatorUserId: input.creatorUserId }
+  }
+  const appended = yield* Effect.result(
+    Effect.tryPromise({
+      try: () => sink.append(record),
+      catch: () => 'security_evidence_unavailable'
+    })
+  )
+  if (Result.isSuccess(appended)) {
+    return 'recorded'
+  }
+  const alerted = yield* Effect.tryPromise({
+    try: () =>
+      sink.reportGap({
+        evidenceId: record.id,
+        kind: record.kind,
+        subjectId: record.subjectId,
+        workspaceId: record.workspaceId
+      }),
+    catch: () => 'security_evidence_gap_alert_failed'
+  }).pipe(Effect.result)
+  if (Result.isFailure(alerted)) {
+    yield* Effect.logError('security.recovery.gap_alert_failed').pipe(
+      Effect.annotateLogs({
+        event: 'security.recovery.gap_alert_failed',
+        evidenceId: record.id,
+        evidenceKind: record.kind,
+        subjectId: record.subjectId,
+        workspaceId: record.workspaceId
+      })
+    )
+  }
+  return 'gap'
+})
+
 /** Run the live mutation first, then persist evidence only when it matched. */
-export function revokeWithEvidence<E, R>(
+export const revokeWithEvidence = Effect.fn('SecurityEvidence.revoke')(function* <E, R>(
   revoke: Effect.Effect<boolean, E, R>,
   input: SecurityEvidenceInput,
   sink: SecurityEvidenceSink | undefined
-): Effect.Effect<
+): Effect.fn.Return<
   { readonly revoked: boolean; readonly evidence: EvidenceOutcome | 'not_needed' },
   E,
   R
 > {
-  return Effect.gen(function* () {
-    const revoked = yield* revoke
-    if (!revoked) {
-      return { revoked: false, evidence: 'not_needed' }
-    }
-    const evidence = yield* recordSecurityEvidence(input, sink)
-    return { revoked: true, evidence }
-  })
-}
+  const revoked = yield* revoke
+  if (!revoked) {
+    return { revoked: false, evidence: 'not_needed' }
+  }
+  const evidence = yield* recordSecurityEvidence(input, sink)
+  return { revoked: true, evidence }
+})

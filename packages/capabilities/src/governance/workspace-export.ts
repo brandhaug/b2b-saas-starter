@@ -304,31 +304,31 @@ function equalHex(left: string, right: string): boolean {
  * `now`, and the signature matches. Shared by both adapters so Seed refuses
  * exactly what Live refuses.
  */
-export function verifyWorkspaceExportDownload(input: {
+export const verifyWorkspaceExportDownload = Effect.fn(
+  'WorkspaceExports.verifyDownload'
+)(function* (input: {
   readonly downloadSecret: string
   readonly exportId: string
   readonly expires: number
   readonly signature: string
   readonly now: DateTime.Utc
   readonly human?: WorkspaceExportHumanRecipient | undefined
-}): Effect.Effect<boolean> {
-  return Effect.gen(function* () {
-    if (!Number.isSafeInteger(input.expires)) {
-      return false
-    }
-    const nowSeconds = Math.floor(DateTime.toEpochMillis(input.now) / 1000)
-    if (input.expires <= nowSeconds) {
-      return false
-    }
-    const expected = yield* signWorkspaceExportDownload(
-      input.downloadSecret,
-      input.exportId,
-      input.expires,
-      input.human
-    )
-    return equalHex(expected, input.signature)
-  })
-}
+}): Effect.fn.Return<boolean> {
+  if (!Number.isSafeInteger(input.expires)) {
+    return false
+  }
+  const nowSeconds = Math.floor(DateTime.toEpochMillis(input.now) / 1000)
+  if (input.expires <= nowSeconds) {
+    return false
+  }
+  const expected = yield* signWorkspaceExportDownload(
+    input.downloadSecret,
+    input.exportId,
+    input.expires,
+    input.human
+  )
+  return equalHex(expected, input.signature)
+})
 
 /**
  * Whether a stored export can still be downloaded: `ready`, and its artifact
@@ -353,42 +353,37 @@ export function isWorkspaceExportDownloadable(
  * from `now`, capped at the artifact's own horizon so no link outlives the
  * object it points at.
  */
-export function issueWorkspaceExportDownloadLink(input: {
+export const issueWorkspaceExportDownloadLink = Effect.fn(
+  'WorkspaceExports.issueDownloadLink'
+)(function* (input: {
   readonly downloadSecret: string
   readonly record: Pick<WorkspaceExport, 'id' | 'status' | 'expiresAt'>
   readonly now: DateTime.Utc
   readonly human?: WorkspaceExportHumanRecipient | undefined
-}): Effect.Effect<Option.Option<WorkspaceExportDownloadLink>> {
-  return Effect.gen(function* () {
-    const artifactExpiresAt = input.record.expiresAt
-    if (
-      artifactExpiresAt === null ||
-      !isWorkspaceExportDownloadable(input.record, input.now)
-    ) {
-      return Option.none()
-    }
-    const nowSeconds = Math.floor(DateTime.toEpochMillis(input.now) / 1000)
-    const artifactSeconds = Math.floor(
-      DateTime.toEpochMillis(DateTime.makeUnsafe(artifactExpiresAt)) / 1000
-    )
-    const expires = Math.min(
-      nowSeconds + WORKSPACE_EXPORT_LINK_TTL_SECONDS,
-      artifactSeconds
-    )
-    const signature = yield* signWorkspaceExportDownload(
-      input.downloadSecret,
-      input.record.id,
-      expires,
-      input.human
-    )
-    return Option.some({
-      path: workspaceExportDownloadPath(
-        input.record.id,
-        expires,
-        signature,
-        input.human
-      ),
-      expiresAt: DateTime.formatIso(DateTime.makeUnsafe(expires * 1000))
-    })
+}): Effect.fn.Return<Option.Option<WorkspaceExportDownloadLink>> {
+  const artifactExpiresAt = input.record.expiresAt
+  if (
+    artifactExpiresAt === null ||
+    !isWorkspaceExportDownloadable(input.record, input.now)
+  ) {
+    return Option.none()
+  }
+  const nowSeconds = Math.floor(DateTime.toEpochMillis(input.now) / 1000)
+  const artifactSeconds = Math.floor(
+    DateTime.toEpochMillis(DateTime.makeUnsafe(artifactExpiresAt)) / 1000
+  )
+  const expires = Math.min(
+    nowSeconds + WORKSPACE_EXPORT_LINK_TTL_SECONDS,
+    artifactSeconds
+  )
+  const signature = yield* signWorkspaceExportDownload(
+    input.downloadSecret,
+    input.record.id,
+    expires,
+    input.human
+  )
+  return Option.some({
+    path: workspaceExportDownloadPath(input.record.id, expires, signature, input.human),
+    expiresAt: DateTime.formatIso(DateTime.makeUnsafe(expires * 1000))
   })
-}
+})

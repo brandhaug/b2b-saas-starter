@@ -57,13 +57,13 @@ export function exhaustedQueueDelivery(
   return finalQueueAttempt(attempts, policy ?? webhookConsumerSettings)
 }
 
-export function monitorQueueOutcome(
-  env: Env,
-  queue: string,
-  message: Message<unknown>,
-  outcome: DeliveryOutcome
-): Effect.Effect<void> {
-  return Effect.gen(function* () {
+export const monitorQueueOutcome = Effect.fn('Background.monitorQueueOutcome')(
+  function* (
+    env: Env,
+    queue: string,
+    message: Message<unknown>,
+    outcome: DeliveryOutcome
+  ): Effect.fn.Return<void> {
     const evidence = { queue, messageId: message.id, attempts: message.attempts }
     const identity = { service: 'background', ...readWideEventEnvironment(env) }
     if (exhaustedQueueDelivery(queue, message.attempts, outcome !== 'ack')) {
@@ -82,15 +82,21 @@ export function monitorQueueOutcome(
         captureMonitoringSignal('queue_backlog_age', { ...evidence, ageMs }, identity)
       )
     }
-  })
-}
+  }
+)
 
 /** Snapshot zeros clear metric incidents after persisted failures recover. */
 export function monitorOperationalHealth(env: Env, scheduledTime: number) {
   if (env.DB === undefined) {
     return Effect.void
   }
-  return Effect.gen(function* () {
+  return captureOperationalHealth(env, scheduledTime).pipe(
+    Effect.provide(LiveOperationalHealth.pipe(Layer.provide(layerFromD1(env.DB))))
+  )
+}
+
+const captureOperationalHealth = Effect.fn('Background.monitorOperationalHealth')(
+  function* (env: Env, scheduledTime: number) {
     const health = yield* OperationalHealth
     const snapshot = yield* health.read(scheduledTime)
     yield* Effect.promise(() =>
@@ -103,7 +109,5 @@ export function monitorOperationalHealth(env: Env, scheduledTime: number) {
         { service: 'background', ...readWideEventEnvironment(env) }
       )
     )
-  }).pipe(
-    Effect.provide(LiveOperationalHealth.pipe(Layer.provide(layerFromD1(env.DB))))
-  )
-}
+  }
+)

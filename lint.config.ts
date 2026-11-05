@@ -260,7 +260,7 @@ const RESTRICTED_ESCAPE_HATCH_PROPERTIES = [
 const DEEP_WORKSPACE_SRC_IMPORT = {
   group: ['@b2b-saas-starter/*/src', '@b2b-saas-starter/*/src/**'],
   message:
-    "Import through a workspace package's src/ tree. Use the package's curated exports subpath instead (e.g. '@b2b-saas-starter/db/schema', or add the subpath to the package's exports map if it is missing)."
+    "Do not import through a workspace package's src/ tree. Use its curated exports subpath instead (e.g. '@b2b-saas-starter/db/schema', or add the subpath to the package's exports map if it is missing)."
 }
 
 // --- react-doctor ----------------------------------------------------------
@@ -604,9 +604,8 @@ const { lint = {} } = defineConfig({
       // kept that way so the resolved rule set does not change. React 17+ needs no
       // React import in scope.
       'react-in-jsx-scope': 'off',
-      // Off in the config this file replaced, with no reason recorded there.
-      // Kept off so the resolved rule set does not change; turn it back on if
-      // nobody can name the case it was hitting.
+      // Misidentifies Effect.flatMap(source, callback) as Array.flatMap with a
+      // thisArg. Keep data-first Effect calls valid.
       'unicorn/no-array-method-this-argument': 'off',
       // Preact rules, named explicitly rather than dropped: this is a React repo, so
       // `preact` is absent from STACK, and these stay pinned off so a react-doctor

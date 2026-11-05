@@ -42,15 +42,15 @@ const ack: DeliveryOutcome = 'ack'
  * Requirements stay open so tests inject stub layers; `sendNotificationEmail`
  * wraps this with the real layers and the wide-event scope.
  */
-export function processNotificationEmailMessage(
-  delivery: QueueDelivery<NotificationEmailQueueMessage>,
-  appUrl: string
-): Effect.Effect<
-  DeliveryOutcome,
-  CapabilityUnavailable,
-  NotificationEmailEligibility | EmailDispatcher | EmailDelivery | Scope.Scope
-> {
-  return Effect.gen(function* () {
+export const processNotificationEmailMessage = Effect.fn('NotificationEmail.process')(
+  function* (
+    delivery: QueueDelivery<NotificationEmailQueueMessage>,
+    appUrl: string
+  ): Effect.fn.Return<
+    DeliveryOutcome,
+    CapabilityUnavailable,
+    NotificationEmailEligibility | EmailDispatcher | EmailDelivery | Scope.Scope
+  > {
     if (delivery.kind === 'malformed') {
       yield* annotateMalformed('skipped')
       return ack
@@ -131,8 +131,8 @@ export function processNotificationEmailMessage(
     }
     yield* Effect.annotateLogsScoped({ outcome: completion.status })
     return ack
-  })
-}
+  }
+)
 
 /**
  * Queue consumer entry: the boundary decode, the real capability and email

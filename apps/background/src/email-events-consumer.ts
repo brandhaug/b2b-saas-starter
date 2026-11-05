@@ -136,69 +136,71 @@ function toProviderEvent(
  * write. The capability distinguishes an applied/ignored event from an
  * unmatched message, so duplicates ack immediately while a race retries.
  */
-export function processEmailEventMessage(
+export const processEmailEventMessage = Effect.fn('EmailEvents.process')(function* (
   delivery: QueueDelivery<CloudflareEmailSendingEvent>,
   env: Pick<ServerEnv, 'CLOUDFLARE_EMAIL_FROM'>
-): Effect.Effect<DeliveryOutcome, CapabilityUnavailable, EmailDelivery | Scope.Scope> {
-  return Effect.gen(function* () {
-    if (delivery.kind === 'malformed') {
-      yield* annotateMalformed('skipped')
-      yield* recordEventMetric('malformed')
-      return 'ack' satisfies DeliveryOutcome
-    }
+): Effect.fn.Return<
+  DeliveryOutcome,
+  CapabilityUnavailable,
+  EmailDelivery | Scope.Scope
+> {
+  if (delivery.kind === 'malformed') {
+    yield* annotateMalformed('skipped')
+    yield* recordEventMetric('malformed')
+    return 'ack' satisfies DeliveryOutcome
+  }
 
-    const configuredFrom = env.CLOUDFLARE_EMAIL_FROM
-    if (configuredFrom === undefined || configuredFrom.trim() === '') {
-      yield* Effect.annotateLogsScoped({
-        outcome: 'skipped',
-        skipReason: 'provider_unconfigured'
-      })
-      yield* recordEventMetric('provider_unconfigured')
-      return 'ack' satisfies DeliveryOutcome
-    }
-
-    const event = delivery.message
-    const outcome = providerOutcome(event)
-    if (outcome === undefined) {
-      yield* Effect.annotateLogsScoped({
-        outcome: 'skipped',
-        skipReason: 'unsupported_event'
-      })
-      yield* recordEventMetric('unsupported')
-      return 'ack' satisfies DeliveryOutcome
-    }
-    if (!isTrustedEvent(event, configuredFrom)) {
-      yield* Effect.annotateLogsScoped({
-        outcome: 'skipped',
-        skipReason: 'untrusted_event'
-      })
-      yield* recordEventMetric('untrusted')
-      return 'ack' satisfies DeliveryOutcome
-    }
-
-    const emailDelivery = yield* EmailDelivery
-    const applied = yield* emailDelivery.applyProviderEvent(
-      toProviderEvent(event, outcome)
-    )
-    if (applied === 'updated') {
-      yield* Effect.annotateLogsScoped({ outcome: 'applied', status: outcome.status })
-      yield* recordEventMetric(outcome.status)
-      return 'ack' satisfies DeliveryOutcome
-    }
-    if (applied === 'ignored') {
-      yield* Effect.annotateLogsScoped({ outcome: 'ignored', status: outcome.status })
-      yield* recordEventMetric('ignored')
-      return 'ack' satisfies DeliveryOutcome
-    }
-
-    yield* recordEventMetric('unmatched')
+  const configuredFrom = env.CLOUDFLARE_EMAIL_FROM
+  if (configuredFrom === undefined || configuredFrom.trim() === '') {
     yield* Effect.annotateLogsScoped({
-      outcome: 'retry',
-      skipReason: 'correlation_pending'
+      outcome: 'skipped',
+      skipReason: 'provider_unconfigured'
     })
-    return 'retry' satisfies DeliveryOutcome
+    yield* recordEventMetric('provider_unconfigured')
+    return 'ack' satisfies DeliveryOutcome
+  }
+
+  const event = delivery.message
+  const outcome = providerOutcome(event)
+  if (outcome === undefined) {
+    yield* Effect.annotateLogsScoped({
+      outcome: 'skipped',
+      skipReason: 'unsupported_event'
+    })
+    yield* recordEventMetric('unsupported')
+    return 'ack' satisfies DeliveryOutcome
+  }
+  if (!isTrustedEvent(event, configuredFrom)) {
+    yield* Effect.annotateLogsScoped({
+      outcome: 'skipped',
+      skipReason: 'untrusted_event'
+    })
+    yield* recordEventMetric('untrusted')
+    return 'ack' satisfies DeliveryOutcome
+  }
+
+  const emailDelivery = yield* EmailDelivery
+  const applied = yield* emailDelivery.applyProviderEvent(
+    toProviderEvent(event, outcome)
+  )
+  if (applied === 'updated') {
+    yield* Effect.annotateLogsScoped({ outcome: 'applied', status: outcome.status })
+    yield* recordEventMetric(outcome.status)
+    return 'ack' satisfies DeliveryOutcome
+  }
+  if (applied === 'ignored') {
+    yield* Effect.annotateLogsScoped({ outcome: 'ignored', status: outcome.status })
+    yield* recordEventMetric('ignored')
+    return 'ack' satisfies DeliveryOutcome
+  }
+
+  yield* recordEventMetric('unmatched')
+  yield* Effect.annotateLogsScoped({
+    outcome: 'retry',
+    skipReason: 'correlation_pending'
   })
-}
+  return 'retry' satisfies DeliveryOutcome
+})
 
 /** Queue entry point; the main worker wires this to the dedicated event queue. */
 export function consumeEmailEvent(

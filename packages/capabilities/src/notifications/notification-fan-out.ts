@@ -38,12 +38,12 @@ type InstantFanOutInput = {
  * durable record, and the digest still covers a recipient whose instant
  * email was lost.
  */
-export function enqueueInstantEmails(
-  queue: NotificationEmailQueueBinding | undefined,
-  preferences: NotificationPreferencesInterface,
-  input: InstantFanOutInput
-): Effect.Effect<void> {
-  return Effect.gen(function* () {
+export const enqueueInstantEmails = Effect.fn('NotificationFeed.enqueueInstantEmails')(
+  function* (
+    queue: NotificationEmailQueueBinding | undefined,
+    preferences: NotificationPreferencesInterface,
+    input: InstantFanOutInput
+  ): Effect.fn.Return<void> {
     if (queue === undefined || input.recipients.length === 0) {
       return
     }
@@ -91,5 +91,5 @@ export function enqueueInstantEmails(
       return
     }
     yield* annotateWideEvent({ notificationEmailEnqueued: messages.length })
-  })
-}
+  }
+)

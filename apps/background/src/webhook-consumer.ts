@@ -47,10 +47,10 @@ const encodeDeliveryBody = Schema.encodeSync(Schema.fromJsonString(WebhookDelive
  * `WebhookEndpoints` / `HttpClient` layers; the queue handler wraps this with
  * the real layers and the wide-event scope (`deliverWebhook`).
  */
-export function processWebhookMessage(
+export const processWebhookMessage = Effect.fn('WebhookConsumer.process')(function* (
   delivery: QueueDelivery<WebhookQueueMessage>,
   traceId: string
-): Effect.Effect<
+): Effect.fn.Return<
   DeliveryOutcome,
   CapabilityUnavailable,
   | WebhookEndpoints
@@ -59,197 +59,195 @@ export function processWebhookMessage(
   | HttpClient.HttpClient
   | Scope.Scope
 > {
-  return Effect.gen(function* () {
-    // A malformed body is terminal — mirroring how permanent delivery failures
-    // ack instead of retrying forever — and there is nothing to dispatch.
-    if (delivery.kind === 'malformed') {
-      yield* annotateMalformed('failed_permanent')
-      return 'ack' satisfies DeliveryOutcome
-    }
-    const message = delivery.message
-    const attempts = delivery.attempts
-    yield* annotateMessageFields(message)
-    const webhooks = yield* WebhookEndpoints
-    // The delivery id the queue message owns — derived before anything can go
-    // terminal, so a never-dispatched row still resolves this message's
-    // identity (one row per message, even when it dies pre-dispatch).
-    const deliveryId = message.deliveryId
-    if (
-      yield* webhooks.isDeliverySettled({
-        deliveryId,
-        endpointId: message.endpointId,
-        workspaceId: message.workspaceId
-      })
-    ) {
-      yield* Effect.annotateLogsScoped({
-        outcome: 'skipped',
-        skipReason: 'delivery_settled'
-      })
-      return 'ack' satisfies DeliveryOutcome
-    }
-    // The workspace ID from the message is verified inside the capability:
-    // a cross-workspace mismatch resolves null, same as a disabled or deleted
-    // endpoint, so no signing secret leaves the workspace that enqueued it.
-    const target = yield* webhooks.getDispatchTarget(
-      message.endpointId,
-      message.workspaceId,
-      message.deliveryId
-    )
-    if (!target) {
-      yield* webhooks.recordTerminalDeliveryAttempt({
-        deliveryId,
-        endpointId: message.endpointId,
-        workspaceId: message.workspaceId,
-        eventType: message.eventType,
-        attempts,
-        status: 'failed_permanent',
-        failureReason: 'Endpoint is disabled or no longer available',
-        payload: message.payload
-      })
-      yield* Effect.annotateLogsScoped({
-        outcome: 'skipped',
-        skipReason: 'not_dispatchable'
-      })
-      return 'ack' satisfies DeliveryOutcome
-    }
-    // The queue carries routing hints, not authoritative event contents. The
-    // pending row resolved above is the producer's durable identity and
-    // payload; use it for signing and persistence so a tampered body cannot
-    // be sent to a valid endpoint.
-    const trustedMessage = {
-      ...message,
-      eventType: target.eventType,
-      payload: target.payload
-    } satisfies WebhookQueueMessage
-    // A message queued before an administrative suspension must settle as a
-    // terminal refusal. Leaving it in the queue would retry forever, and
-    // replaying it on reactivation would violate the suspension boundary.
-    const suspension = yield* WorkspaceSuspensionService
-    {
-      const allowed = yield* Effect.result(
-        suspension.requireAllowed(message.workspaceId, 'product')
-      )
-      if (Result.isFailure(allowed)) {
-        if (allowed.failure._tag === 'WorkspaceSuspended') {
-          yield* webhooks.recordTerminalDeliveryAttempt({
-            deliveryId,
-            endpointId: target.id,
-            workspaceId: message.workspaceId,
-            eventType: trustedMessage.eventType,
-            attempts,
-            status: 'failed_permanent',
-            failureReason: 'workspace_suspended',
-            payload: trustedMessage.payload
-          })
-          yield* Effect.annotateLogsScoped({
-            outcome: 'skipped',
-            skipReason: 'workspace_suspended'
-          })
-          return 'ack' satisfies DeliveryOutcome
-        }
-        return yield* Effect.fail(allowed.failure)
-      }
-    }
-    // Re-check the destination at dispatch time — an endpoint created before
-    // the guard existed (or edited in the DB) must not let the worker reach
-    // internal targets. DNS-rebinding protection is out of scope for the
-    // starter (see validateWebhookUrl).
-    const urlCheck = validateWebhookUrl(target.url)
-    if (!urlCheck.valid) {
-      // Never-dispatched terminal row: resolves this message's delivery id and
-      // records the payload, so the row stays replayable once the URL is fixed.
-      yield* completeWebhookTerminalObservation({
-        message: trustedMessage,
-        endpointUrl: target.url,
-        attempts,
-        status: 'failed_permanent',
-        failureReason: `Destination refused: ${urlCheck.reason}`
-      })
-      yield* Effect.annotateLogsScoped({
-        outcome: 'failed_permanent',
-        skipReason: `invalid_url: ${urlCheck.reason}`
-      })
-      return 'ack' satisfies DeliveryOutcome
-    }
-    const now = yield* DateTime.now
-    const timestamp = Math.floor(DateTime.toEpochMillis(now) / 1000)
-    const body = encodeDeliveryBody({
+  // A malformed body is terminal — mirroring how permanent delivery failures
+  // ack instead of retrying forever — and there is nothing to dispatch.
+  if (delivery.kind === 'malformed') {
+    yield* annotateMalformed('failed_permanent')
+    return 'ack' satisfies DeliveryOutcome
+  }
+  const message = delivery.message
+  const attempts = delivery.attempts
+  yield* annotateMessageFields(message)
+  const webhooks = yield* WebhookEndpoints
+  // The delivery id the queue message owns — derived before anything can go
+  // terminal, so a never-dispatched row still resolves this message's
+  // identity (one row per message, even when it dies pre-dispatch).
+  const deliveryId = message.deliveryId
+  if (
+    yield* webhooks.isDeliverySettled({
       deliveryId,
-      eventType: trustedMessage.eventType,
-      payload: trustedMessage.payload
+      endpointId: message.endpointId,
+      workspaceId: message.workspaceId
     })
-    // One signature per active signing secret: the current one, plus the
-    // rotated-out one while its 24h grace window is open (the receiver may
-    // still hold it). The header lists them all; receivers try each.
-    const signatures = yield* Effect.forEach(target.signingSecrets, (secret) =>
-      computeWebhookSignature(secret, deliveryId, timestamp, body)
+  ) {
+    yield* Effect.annotateLogsScoped({
+      outcome: 'skipped',
+      skipReason: 'delivery_settled'
+    })
+    return 'ack' satisfies DeliveryOutcome
+  }
+  // The workspace ID from the message is verified inside the capability:
+  // a cross-workspace mismatch resolves null, same as a disabled or deleted
+  // endpoint, so no signing secret leaves the workspace that enqueued it.
+  const target = yield* webhooks.getDispatchTarget(
+    message.endpointId,
+    message.workspaceId,
+    message.deliveryId
+  )
+  if (!target) {
+    yield* webhooks.recordTerminalDeliveryAttempt({
+      deliveryId,
+      endpointId: message.endpointId,
+      workspaceId: message.workspaceId,
+      eventType: message.eventType,
+      attempts,
+      status: 'failed_permanent',
+      failureReason: 'Endpoint is disabled or no longer available',
+      payload: message.payload
+    })
+    yield* Effect.annotateLogsScoped({
+      outcome: 'skipped',
+      skipReason: 'not_dispatchable'
+    })
+    return 'ack' satisfies DeliveryOutcome
+  }
+  // The queue carries routing hints, not authoritative event contents. The
+  // pending row resolved above is the producer's durable identity and
+  // payload; use it for signing and persistence so a tampered body cannot
+  // be sent to a valid endpoint.
+  const trustedMessage = {
+    ...message,
+    eventType: target.eventType,
+    payload: target.payload
+  } satisfies WebhookQueueMessage
+  // A message queued before an administrative suspension must settle as a
+  // terminal refusal. Leaving it in the queue would retry forever, and
+  // replaying it on reactivation would violate the suspension boundary.
+  const suspension = yield* WorkspaceSuspensionService
+  {
+    const allowed = yield* Effect.result(
+      suspension.requireAllowed(message.workspaceId, 'product')
     )
-    const requestHeaders = {
-      'content-type': 'application/json',
-      'user-agent': WEBHOOK_USER_AGENT,
-      'webhook-id': deliveryId,
-      'webhook-timestamp': String(timestamp),
-      'webhook-signature': signatureHeaderValue(signatures),
-      [TRACE_HEADER]: traceId
-    }
-    const client = yield* HttpClient.HttpClient
-    const responseResult = yield* Effect.result(
-      client
-        .post(target.url, {
-          headers: requestHeaders,
-          body: HttpBody.text(body, 'application/json')
+    if (Result.isFailure(allowed)) {
+      if (allowed.failure._tag === 'WorkspaceSuspended') {
+        yield* webhooks.recordTerminalDeliveryAttempt({
+          deliveryId,
+          endpointId: target.id,
+          workspaceId: message.workspaceId,
+          eventType: trustedMessage.eventType,
+          attempts,
+          status: 'failed_permanent',
+          failureReason: 'workspace_suspended',
+          payload: trustedMessage.payload
         })
-        // A hung receiver must not stall the batch; timeout surfaces as a
-        // failure Result (responseStatus 0) and is retried.
-        .pipe(Effect.timeout('10 seconds'))
-    )
-    const responseStatus = Result.match(responseResult, {
-      onSuccess: (response) => response.status,
-      onFailure: () => 0
-    })
-    // Operator evidence from the latest attempt: the response body is read
-    // truncated (a receiver's error page is the thing an operator reads), or
-    // null when there was no response at all. A body read failure degrades to
-    // null — the row still records the attempt.
-    let responseBody: string | null = null
-    if (Result.isSuccess(responseResult)) {
-      const text = yield* Effect.result(readWebhookResponse(responseResult.success))
-      if (Result.isSuccess(text)) {
-        responseBody = text.success
+        yield* Effect.annotateLogsScoped({
+          outcome: 'skipped',
+          skipReason: 'workspace_suspended'
+        })
+        return 'ack' satisfies DeliveryOutcome
       }
+      return yield* Effect.fail(allowed.failure)
     }
-    // The dispatch half of the delivery state machine lives below the
-    // capability interface: classification, persisted status, and the
-    // backoff-aligned retry schedule all come from the capability.
-    const finishedAt = yield* DateTime.now
-    const durationMs = Math.max(
-      0,
-      DateTime.toEpochMillis(finishedAt) - DateTime.toEpochMillis(now)
-    )
-    let failureReason: string | null = null
-    if (Result.isFailure(responseResult)) {
-      failureReason = 'Network request failed'
-      if (responseResult.failure._tag === 'TimeoutError') {
-        failureReason = 'Request timed out'
-      }
-    } else if (responseStatus < 200 || responseStatus >= 300) {
-      failureReason = `Receiver returned HTTP ${responseStatus}`
-    }
-    const recorded = yield* completeWebhookHttpObservation({
+  }
+  // Re-check the destination at dispatch time — an endpoint created before
+  // the guard existed (or edited in the DB) must not let the worker reach
+  // internal targets. DNS-rebinding protection is out of scope for the
+  // starter (see validateWebhookUrl).
+  const urlCheck = validateWebhookUrl(target.url)
+  if (!urlCheck.valid) {
+    // Never-dispatched terminal row: resolves this message's delivery id and
+    // records the payload, so the row stays replayable once the URL is fixed.
+    yield* completeWebhookTerminalObservation({
       message: trustedMessage,
       endpointUrl: target.url,
-      responseStatus,
       attempts,
-      finishedAt,
-      durationMs,
-      failureReason,
-      requestHeaders,
-      responseBody
+      status: 'failed_permanent',
+      failureReason: `Destination refused: ${urlCheck.reason}`
     })
-    yield* Effect.annotateLogsScoped({ outcome: recorded.status, responseStatus })
-    return recorded.outcome satisfies DeliveryOutcome
+    yield* Effect.annotateLogsScoped({
+      outcome: 'failed_permanent',
+      skipReason: `invalid_url: ${urlCheck.reason}`
+    })
+    return 'ack' satisfies DeliveryOutcome
+  }
+  const now = yield* DateTime.now
+  const timestamp = Math.floor(DateTime.toEpochMillis(now) / 1000)
+  const body = encodeDeliveryBody({
+    deliveryId,
+    eventType: trustedMessage.eventType,
+    payload: trustedMessage.payload
   })
-}
+  // One signature per active signing secret: the current one, plus the
+  // rotated-out one while its 24h grace window is open (the receiver may
+  // still hold it). The header lists them all; receivers try each.
+  const signatures = yield* Effect.forEach(target.signingSecrets, (secret) =>
+    computeWebhookSignature(secret, deliveryId, timestamp, body)
+  )
+  const requestHeaders = {
+    'content-type': 'application/json',
+    'user-agent': WEBHOOK_USER_AGENT,
+    'webhook-id': deliveryId,
+    'webhook-timestamp': String(timestamp),
+    'webhook-signature': signatureHeaderValue(signatures),
+    [TRACE_HEADER]: traceId
+  }
+  const client = yield* HttpClient.HttpClient
+  const responseResult = yield* Effect.result(
+    client
+      .post(target.url, {
+        headers: requestHeaders,
+        body: HttpBody.text(body, 'application/json')
+      })
+      // A hung receiver must not stall the batch; timeout surfaces as a
+      // failure Result (responseStatus 0) and is retried.
+      .pipe(Effect.timeout('10 seconds'))
+  )
+  const responseStatus = Result.match(responseResult, {
+    onSuccess: (response) => response.status,
+    onFailure: () => 0
+  })
+  // Operator evidence from the latest attempt: the response body is read
+  // truncated (a receiver's error page is the thing an operator reads), or
+  // null when there was no response at all. A body read failure degrades to
+  // null — the row still records the attempt.
+  let responseBody: string | null = null
+  if (Result.isSuccess(responseResult)) {
+    const text = yield* Effect.result(readWebhookResponse(responseResult.success))
+    if (Result.isSuccess(text)) {
+      responseBody = text.success
+    }
+  }
+  // The dispatch half of the delivery state machine lives below the
+  // capability interface: classification, persisted status, and the
+  // backoff-aligned retry schedule all come from the capability.
+  const finishedAt = yield* DateTime.now
+  const durationMs = Math.max(
+    0,
+    DateTime.toEpochMillis(finishedAt) - DateTime.toEpochMillis(now)
+  )
+  let failureReason: string | null = null
+  if (Result.isFailure(responseResult)) {
+    failureReason = 'Network request failed'
+    if (responseResult.failure._tag === 'TimeoutError') {
+      failureReason = 'Request timed out'
+    }
+  } else if (responseStatus < 200 || responseStatus >= 300) {
+    failureReason = `Receiver returned HTTP ${responseStatus}`
+  }
+  const recorded = yield* completeWebhookHttpObservation({
+    message: trustedMessage,
+    endpointUrl: target.url,
+    responseStatus,
+    attempts,
+    finishedAt,
+    durationMs,
+    failureReason,
+    requestHeaders,
+    responseBody
+  })
+  yield* Effect.annotateLogsScoped({ outcome: recorded.status, responseStatus })
+  return recorded.outcome satisfies DeliveryOutcome
+})
 
 function deliverWebhook(
   envelope: QueueEnvelope,
@@ -281,14 +279,14 @@ function deliverWebhook(
  * `processWebhookMessage`; `recordDeadLetter` wraps it with the real layers
  * and the wide-event scope.
  */
-export function processDeadLetterMessage(
-  delivery: QueueDelivery<WebhookQueueMessage>
-): Effect.Effect<
-  void,
-  CapabilityUnavailable,
-  WebhookEndpoints | NotificationFeed | Scope.Scope
-> {
-  return Effect.gen(function* () {
+export const processDeadLetterMessage = Effect.fn('WebhookConsumer.deadLetter')(
+  function* (
+    delivery: QueueDelivery<WebhookQueueMessage>
+  ): Effect.fn.Return<
+    void,
+    CapabilityUnavailable,
+    WebhookEndpoints | NotificationFeed | Scope.Scope
+  > {
     // Same terminal outcome as `processWebhookMessage`: a malformed dead letter
     // has no trusted endpointId for a delivery row, so log-and-ack only.
     if (delivery.kind === 'malformed') {
@@ -308,8 +306,8 @@ export function processDeadLetterMessage(
       endpointUrl: null
     })
     yield* Effect.annotateLogsScoped({ outcome: 'dead_lettered' })
-  })
-}
+  }
+)
 
 /**
  * Dead-letter consumer entry: wraps `processDeadLetterMessage` with the real

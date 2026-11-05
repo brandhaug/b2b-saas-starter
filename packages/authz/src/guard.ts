@@ -9,11 +9,11 @@ import { authorize, type PermissionRequest, type Principal } from './principal.t
  * means the caller has not proved anything, and trusted server-side reads do
  * not call this guard at all.
  */
-export function requirePermission(
-  principal: Principal | null,
-  request: PermissionRequest
-): Effect.Effect<void, AuthorizationDenied, Scope.Scope> {
-  return Effect.gen(function* () {
+export const requirePermission = Effect.fn('Authorization.requirePermission')(
+  function* (
+    principal: Principal | null,
+    request: PermissionRequest
+  ): Effect.fn.Return<void, AuthorizationDenied, Scope.Scope> {
     if (!principal) {
       yield* Effect.annotateLogsScoped({
         outcome: 'forbidden',
@@ -41,15 +41,15 @@ export function requirePermission(
         reason: AUTHORIZATION_DENIED_REASONS.insufficientPermission
       })
     )
-  })
-}
+  }
+)
 
 /** A minted credential cannot grant any permission its creator lacks. */
-export function requireTokenScopes(
-  principal: Principal | null,
-  scopes: ReadonlyArray<ApiTokenScope>
-): Effect.Effect<void, AuthorizationDenied, Scope.Scope> {
-  return Effect.gen(function* () {
+export const requireTokenScopes = Effect.fn('Authorization.requireTokenScopes')(
+  function* (
+    principal: Principal | null,
+    scopes: ReadonlyArray<ApiTokenScope>
+  ): Effect.fn.Return<void, AuthorizationDenied, Scope.Scope> {
     for (const scope of scopes) {
       for (const [resource, actions] of Object.entries(
         apiTokenScopeAccess[scope].statements
@@ -59,8 +59,8 @@ export function requireTokenScopes(
         }
       }
     }
-  })
-}
+  }
+)
 
 /** `apiToken:list+create webhook:create` in one wide-event field. */
 function describe(request: PermissionRequest): string {

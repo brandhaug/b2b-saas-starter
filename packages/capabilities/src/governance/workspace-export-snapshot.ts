@@ -88,53 +88,53 @@ const allAuditEvents: Effect.Effect<
  * notification feed yields workspace broadcasts only, which is the intended
  * boundary — user-targeted notifications are the user's data.
  */
-export function collectWorkspaceExportSnapshot(input: {
+export const collectWorkspaceExportSnapshot = Effect.fn(
+  'WorkspaceExports.collectSnapshot'
+)(function* (input: {
   readonly exportId: string
   readonly generatedAt: DateTime.Utc
-}): Effect.Effect<
+}): Effect.fn.Return<
   WorkspaceExportSnapshot,
   CapabilityUnavailable,
   WorkspaceExportSnapshotServices | WorkspaceContext
 > {
-  return Effect.gen(function* () {
-    const ctx = yield* WorkspaceContext
-    const membership = yield* WorkspaceMembership
-    const invitations = yield* WorkspaceInvitations
-    const tokens = yield* ApiTokenRegistry
-    const webhooks = yield* WebhookEndpoints
-    const feed = yield* NotificationFeed
+  const ctx = yield* WorkspaceContext
+  const membership = yield* WorkspaceMembership
+  const invitations = yield* WorkspaceInvitations
+  const tokens = yield* ApiTokenRegistry
+  const webhooks = yield* WebhookEndpoints
+  const feed = yield* NotificationFeed
 
-    const segments = yield* Effect.all(
-      {
-        members: membership.listMembers,
-        invitations: invitations.list,
-        apiTokens: tokens.list,
-        endpoints: webhooks.list,
-        auditEvents: allAuditEvents,
-        notifications: feed.list
-      },
-      { concurrency: 'unbounded' }
-    )
-    const webhookEndpoints = yield* Effect.forEach(
-      segments.endpoints,
-      (endpoint) =>
-        Effect.map(
-          webhooks.listDeliveries({ endpointId: endpoint.id }),
-          (deliveries) => ({ ...endpoint, deliveries })
-        ),
-      { concurrency: 'unbounded' }
-    )
+  const segments = yield* Effect.all(
+    {
+      members: membership.listMembers,
+      invitations: invitations.list,
+      apiTokens: tokens.list,
+      endpoints: webhooks.list,
+      auditEvents: allAuditEvents,
+      notifications: feed.list
+    },
+    { concurrency: 'unbounded' }
+  )
+  const webhookEndpoints = yield* Effect.forEach(
+    segments.endpoints,
+    (endpoint) =>
+      Effect.map(
+        webhooks.listDeliveries({ endpointId: endpoint.id }),
+        (deliveries) => ({ ...endpoint, deliveries })
+      ),
+    { concurrency: 'unbounded' }
+  )
 
-    return {
-      exportId: input.exportId,
-      generatedAt: DateTime.formatIso(input.generatedAt),
-      workspace: ctx.workspace,
-      members: segments.members,
-      invitations: segments.invitations,
-      apiTokens: segments.apiTokens,
-      webhookEndpoints,
-      auditEvents: segments.auditEvents,
-      notifications: segments.notifications
-    }
-  })
-}
+  return {
+    exportId: input.exportId,
+    generatedAt: DateTime.formatIso(input.generatedAt),
+    workspace: ctx.workspace,
+    members: segments.members,
+    invitations: segments.invitations,
+    apiTokens: segments.apiTokens,
+    webhookEndpoints,
+    auditEvents: segments.auditEvents,
+    notifications: segments.notifications
+  }
+})
