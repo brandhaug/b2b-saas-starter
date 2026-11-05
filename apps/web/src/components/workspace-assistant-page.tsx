@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useForm, useSelector } from '@tanstack/react-form'
 import { Link } from '@tanstack/react-router'
 import { Badge } from '@/components/ui/badge'
+import { AssistantMarkdown } from './assistant-markdown'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { PageHeader } from '@/components/page/page-header'
@@ -68,10 +69,10 @@ function Transcript({
             className={
               item.role === 'user'
                 ? 'rounded-md bg-muted px-3 py-2 text-sm whitespace-pre-wrap wrap-anywhere'
-                : 'rounded-md border border-border px-3 py-2 text-sm whitespace-pre-wrap wrap-anywhere'
+                : 'min-w-0 rounded-md border border-border px-3 py-2 text-sm'
             }
           >
-            {item.text}
+            {item.role === 'user' ? item.text : <AssistantMarkdown text={item.text} />}
             {item.provider ? (
               <span className="mt-2 block text-xs text-muted-foreground">
                 {providerLabels[item.provider]}

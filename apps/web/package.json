@@ -62,6 +62,8 @@
     "qrcode.react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "react-markdown": "catalog:",
+    "remark-gfm": "catalog:",
     "sonner": "catalog:",
     "tw-animate-css": "catalog:"
   },
@@ -96,7 +98,6 @@
     "rehype-pretty-code": "catalog:",
     "rehype-slug": "catalog:",
     "remark-frontmatter": "catalog:",
-    "remark-gfm": "catalog:",
     "remark-mdx-frontmatter": "catalog:",
     "seroval": "catalog:",
     "tailwindcss": "catalog:",

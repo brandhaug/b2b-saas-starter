@@ -4,6 +4,7 @@ import {
   type ConversationStatus
 } from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversation'
 import { Badge } from '@/components/ui/badge'
+import { AssistantMarkdown } from './assistant-markdown'
 import { Button } from '@/components/ui/button'
 import { formatTimestamp } from '@/lib/format-date'
 import { m } from '@b2b-saas-starter/i18n/messages'
@@ -57,7 +58,7 @@ function Answer({
   const incomplete = answer.status === 'Interrupted' || answer.status === 'Stopped'
   return (
     <article
-      className="grid gap-2 border-t border-border pt-3"
+      className="grid min-w-0 gap-2 border-t border-border pt-3"
       aria-label={m.assistant_conversations_attempt({ number })}
     >
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -77,12 +78,15 @@ function Answer({
           {m.assistant_conversations_omitted({ count: answer.omittedExchanges })}
         </p>
       ) : null}
-      <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-anywhere">
-        {answer.text ||
-          (active
+      {answer.text ? (
+        <AssistantMarkdown text={answer.text} />
+      ) : (
+        <p className="text-sm leading-relaxed">
+          {active
             ? m.assistant_conversations_waiting()
-            : m.assistant_conversations_no_text())}
-      </p>
+            : m.assistant_conversations_no_text()}
+        </p>
+      )}
       {answer.evidence ? (
         <p className="text-sm text-muted-foreground">
           {m.assistant_conversations_historical({

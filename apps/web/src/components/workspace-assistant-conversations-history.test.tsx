@@ -8,7 +8,7 @@ const answer: ConversationAnswer = {
   questionId: 'q1',
   createdAt: '2026-09-15T10:00:00Z',
   status: 'Interrupted',
-  text: 'Saved partial',
+  text: 'Saved partial\n\n```ts\nconst saved = true',
   deadline: 100,
   reason: 'output_limit',
   completedAt: '2026-09-15T10:01:00.000Z',
@@ -67,7 +67,7 @@ describe('saved conversation attempts', () => {
   })
 
   it('keeps saved content visible without a provider and disables retry', () => {
-    render(
+    const { container } = render(
       <ConversationHistoryList
         items={[{ question, attempts: [answer] }]}
         configured={false}
@@ -79,6 +79,12 @@ describe('saved conversation attempts', () => {
       />
     )
     expect(screen.getByText('Saved partial')).toBeTruthy()
+    expect(container.querySelector('pre code')?.textContent).toContain(
+      'const saved = true'
+    )
+    expect(container.querySelector('p pre')).toBeNull()
+    expect(screen.getByText('Workers AI')).toBeTruthy()
+    expect(screen.getByText(/source-old/)).toBeTruthy()
     expect(
       screen
         .getByRole('button', { name: m.assistant_conversations_retry() })
