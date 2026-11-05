@@ -93,9 +93,8 @@ function WorkspaceInviteForm({ workspaceSlug }: { readonly workspaceSlug: string
       readonly previous?: ReadonlyArray<SendResult>
     }) => {
       const next: Array<SendResult> = []
-      // Invitations deliberately run in order: the UI reports a stable result for
-      // each address and reuses the existing one-at-a-time server mutation.
       for (const email of addresses) {
+        // Invitations run in order for stable results and the one-at-a-time mutation.
         // eslint-disable-next-line no-await-in-loop, react-doctor/async-await-in-loop
         const outcome = await send.runAsync({ email, role: invitationRole })
         next.push(

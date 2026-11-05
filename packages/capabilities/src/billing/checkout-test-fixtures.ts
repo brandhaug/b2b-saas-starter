@@ -4,6 +4,8 @@ import {
   testSubscriptionFields,
   paidInvoice
 } from '@b2b-saas-starter/billing/provider-test-fixtures'
+// Stripe fetch doubles return native Promises and throw transport failures;
+// vi.fn infers the callback's fetch signature.
 // oxlint-disable effect/noNewPromise, effect/noThrowStatement, effect/noNewError, vitest/require-mock-type-parameters
 
 import { auditEvents } from '@b2b-saas-starter/db/schema/governance'

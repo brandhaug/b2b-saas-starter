@@ -78,6 +78,7 @@ const SORT_STATE = {
   false: { label: m.shell_table_sort, aria: 'none', glyph: null }
 } satisfies Record<'asc' | 'desc' | 'false', SortState>
 
+// TanStack headers can be render functions; only literal strings supply a title.
 // oxlint-disable anti-slop/no-unknown-parameters, anti-slop/no-runtime-typeof
 function headerTitleOf(header: unknown, fallback: string): string {
   return typeof header === 'string' ? header : fallback

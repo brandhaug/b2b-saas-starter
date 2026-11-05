@@ -171,6 +171,7 @@ const STARTER = `
   no-effect-internal-tags no-inline-schema-compile
   no-interface-merge-outside-dts no-mismatched-augmentation-context
   no-nested-service-yield no-unknown-error-message prefer-effect-predicate
+  require-suppression-reason
 `
 
 const VITE_PLUS = `
@@ -834,7 +835,23 @@ const { lint = {} } = defineConfig({
         // Playwright runs outside @effect/vitest; these probes bridge browser
         // actions and native Worker callbacks rather than Effect-native tests.
         files: ['apps/web/e2e/**'],
-        rules: { 'starter/no-run-promise-in-tests': 'off' }
+        rules: {
+          'starter/no-run-promise-in-tests': 'off',
+          'starter/no-browser-test-inflation': 'error',
+          // The bundled property restriction covers direct and computed calls,
+          // including page aliases. Keep the base restrictions in this override.
+          'no-restricted-properties': [
+            'error',
+            ...RESTRICTED_SCHEMA_PROPERTIES,
+            ...RESTRICTED_EFFECT_PROPERTIES,
+            ...RESTRICTED_ESCAPE_HATCH_PROPERTIES,
+            {
+              property: 'waitForTimeout',
+              message:
+                'Use Playwright locators or waitForResponse/waitForEvent to wait for observable readiness instead of a fixed delay.'
+            }
+          ]
+        }
       },
       {
         files: [
