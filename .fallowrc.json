@@ -21,6 +21,11 @@
     "apps/web/test/assistant/lifecycle-worker.ts",
     // Resolved by the dedicated docs runtime Vite plugin.
     "apps/web/test/docs/metadata-gate.effects.ts",
+    // The failure-policy verifier launches an isolated browser runner and server.
+    "apps/web/test/browser-policy/playwright.config.ts",
+    "apps/web/test/browser-policy/regression.spec.ts",
+    "apps/web/test/browser-policy/server.mjs",
+    "apps/web/test/browser-policy/verify.mjs",
     // Vite+ supplies Vitest transitively; Fallow's Vitest detection requires
     // a direct dependency in packages without their own test config.
     "infra/*.test.ts",
@@ -31,6 +36,8 @@
     "scripts/recovery-security.ts",
     "scripts/seed.ts",
     ".github/scripts/*.test.ts",
+    // Documented manual registry audit CLI; E2E invokes Playwright in-process.
+    ".github/scripts/run-check.ts",
     "packages/i18n/scripts/catalog-validation.test.mjs",
     "packages/email/src/previews/*.tsx"
   ],

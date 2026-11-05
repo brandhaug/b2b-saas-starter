@@ -15,7 +15,7 @@
     "test": "vp test run && pnpm run test:lifecycle && pnpm run test:docs-runtime && pnpm run test:client-boundary",
     "test:lifecycle": "vp test run --config vitest.lifecycle.config.ts",
     "test:docs-runtime": "vp build --config vite.docs-runtime.config.ts && vp test run --config vitest.docs-runtime.config.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "node scripts/playwright.mjs test"
   },
   "dependencies": {
     "@b2b-saas-starter/ai": "workspace:*",
