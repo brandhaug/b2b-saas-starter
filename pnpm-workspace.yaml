@@ -30,7 +30,7 @@ catalog:
   '@better-auth/sso': 1.7.16
   '@better-auth/utils': 0.5.1
   '@cloudflare/ai-chat': 0.12.2
-  agents: 0.32.0
+  agents: 0.33.0
   ai: 7.0.159
   '@cloudflare/workers-types': 5.20261103.1
   '@cloudflare/vitest-plugin': 1.5.1
