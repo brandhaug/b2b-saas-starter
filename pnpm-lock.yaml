@@ -13,8 +13,8 @@ catalogs:
       specifier: 2.0.0-beta.84
       version: 2.0.0-beta.84
     '@alchemy.run/sql':
-      specifier: 2.0.0-beta.84
-      version: 2.0.0-beta.84
+      specifier: 2.0.0-beta.85
+      version: 2.0.0-beta.85
     '@babel/core':
       specifier: 8.1.0
       version: 8.1.0
@@ -1042,7 +1042,7 @@ importers:
     devDependencies:
       '@alchemy.run/sql':
         specifier: 'catalog:'
-        version: 2.0.0-beta.84(alchemy@2.0.0-beta.84(patch_hash=a73960c1c83bc900f144626d1c7a61d87f27224fbeef5a5e35e85b46e5a6d4e5)(@effect/platform-node@4.1.2(effect@4.1.2)(redis@6.3.1(@opentelemetry/api@1.10.0)))(@effect/vitest@4.1.2(effect@4.1.2)(vitest@5.0.5))(@types/react@19.3.0)(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(effect@4.1.2)(ws@8.22.1))(effect@4.1.2)
+        version: 2.0.0-beta.85(alchemy@2.0.0-beta.84(patch_hash=a73960c1c83bc900f144626d1c7a61d87f27224fbeef5a5e35e85b46e5a6d4e5)(@effect/platform-node@4.1.2(effect@4.1.2)(redis@6.3.1(@opentelemetry/api@1.10.0)))(@effect/vitest@4.1.2(effect@4.1.2)(vitest@5.0.5))(@types/react@19.3.0)(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(effect@4.1.2)(ws@8.22.1))(effect@4.1.2)
       '@cloudflare/workers-types':
         specifier: 'catalog:'
         version: 5.20261103.1
@@ -1365,6 +1365,28 @@ packages:
       '@effect/sql-pg': ^4.0.5
       alchemy: 2.0.0-beta.84
       effect: ^4.0.5
+      mysql2: ^3.24.2
+      pg: ^8.22.0
+    peerDependenciesMeta:
+      '@effect/sql-libsql':
+        optional: true
+      '@effect/sql-mysql2':
+        optional: true
+      '@effect/sql-pg':
+        optional: true
+      mysql2:
+        optional: true
+      pg:
+        optional: true
+
+  '@alchemy.run/sql@2.0.0-beta.85':
+    resolution: {integrity: sha512-8827sU12RJRNjj+HM9XMxnw86gxzrg5c4dAon7KEs9xgV96OW2RaJlcrL9bJ4L2QZWzRTayHh5S1KKio4uUAOw==}
+    peerDependencies:
+      '@effect/sql-libsql': ^4.1.0
+      '@effect/sql-mysql2': ^4.1.0
+      '@effect/sql-pg': ^4.1.0
+      alchemy: 2.0.0-beta.85
+      effect: ^4.1.0
       mysql2: ^3.24.2
       pg: ^8.22.0
     peerDependenciesMeta:
@@ -7747,6 +7769,11 @@ snapshots:
       '@types/react': 19.3.0
 
   '@alchemy.run/sql@2.0.0-beta.84(alchemy@2.0.0-beta.84(patch_hash=a73960c1c83bc900f144626d1c7a61d87f27224fbeef5a5e35e85b46e5a6d4e5)(@effect/platform-node@4.1.2(effect@4.1.2)(redis@6.3.1(@opentelemetry/api@1.10.0)))(@effect/vitest@4.1.2(effect@4.1.2)(vitest@5.0.5))(@types/react@19.3.0)(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(effect@4.1.2)(ws@8.22.1))(effect@4.1.2)':
+    dependencies:
+      alchemy: 2.0.0-beta.84(patch_hash=a73960c1c83bc900f144626d1c7a61d87f27224fbeef5a5e35e85b46e5a6d4e5)(@effect/platform-node@4.1.2(effect@4.1.2)(redis@6.3.1(@opentelemetry/api@1.10.0)))(@effect/vitest@4.1.2(effect@4.1.2)(vitest@5.0.5))(@types/react@19.3.0)(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(effect@4.1.2)(ws@8.22.1)
+      effect: 4.1.2
+
+  '@alchemy.run/sql@2.0.0-beta.85(alchemy@2.0.0-beta.84(patch_hash=a73960c1c83bc900f144626d1c7a61d87f27224fbeef5a5e35e85b46e5a6d4e5)(@effect/platform-node@4.1.2(effect@4.1.2)(redis@6.3.1(@opentelemetry/api@1.10.0)))(@effect/vitest@4.1.2(effect@4.1.2)(vitest@5.0.5))(@types/react@19.3.0)(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(effect@4.1.2)(ws@8.22.1))(effect@4.1.2)':
     dependencies:
       alchemy: 2.0.0-beta.84(patch_hash=a73960c1c83bc900f144626d1c7a61d87f27224fbeef5a5e35e85b46e5a6d4e5)(@effect/platform-node@4.1.2(effect@4.1.2)(redis@6.3.1(@opentelemetry/api@1.10.0)))(@effect/vitest@4.1.2(effect@4.1.2)(vitest@5.0.5))(@types/react@19.3.0)(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(effect@4.1.2)(ws@8.22.1)
       effect: 4.1.2
