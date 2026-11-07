@@ -72,7 +72,7 @@ catalog:
   '@alchemy.run/cloudflare': 2.0.0-beta.84
   '@alchemy.run/github': 2.0.0-beta.84
   '@alchemy.run/sql': 2.0.0-beta.85
-  '@distilled.cloud/cloudflare': 1.0.0-rc.17
+  '@distilled.cloud/cloudflare': 1.0.0-rc.18
   babel-plugin-react-compiler: 1.0.0
   better-auth: 1.7.16
   class-variance-authority: 0.7.1
