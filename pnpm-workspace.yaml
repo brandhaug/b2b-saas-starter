@@ -70,7 +70,7 @@ catalog:
   esbuild: 0.28.2
   alchemy: 2.0.0-beta.84
   '@alchemy.run/cloudflare': 2.0.0-beta.84
-  '@alchemy.run/github': 2.0.0-beta.84
+  '@alchemy.run/github': 2.0.0-beta.85
   '@alchemy.run/sql': 2.0.0-beta.85
   '@distilled.cloud/cloudflare': 1.0.0-rc.17
   babel-plugin-react-compiler: 1.0.0
