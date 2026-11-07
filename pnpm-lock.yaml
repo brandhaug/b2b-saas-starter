@@ -55,8 +55,8 @@ catalogs:
       specifier: 5.3.0
       version: 5.3.0
     '@inlang/paraglide-js':
-      specifier: 2.29.3
-      version: 2.29.3
+      specifier: 3.1.0
+      version: 3.1.0
     '@inlang/plugin-message-format':
       specifier: 4.5.6
       version: 4.5.6
@@ -339,7 +339,7 @@ importers:
         version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@inlang/paraglide-js':
         specifier: 'catalog:'
-        version: 2.29.3(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(typescript@7.0.2)
+        version: 3.1.0(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(typescript@7.0.2)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -1183,7 +1183,7 @@ importers:
     dependencies:
       '@inlang/paraglide-js':
         specifier: 'catalog:'
-        version: 2.29.3(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(typescript@7.0.2)
+        version: 3.1.0(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(typescript@7.0.2)
     devDependencies:
       '@inlang/plugin-message-format':
         specifier: 'catalog:'
@@ -2582,17 +2582,14 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@inlang/paraglide-js@2.29.3':
-    resolution: {integrity: sha512-aI9gT7zGTpr/l8tZM7OXHrgGruZ6jcu2iIqIw8QXKOGOY4akF3u1cIK6EBsttBm+DHI0FGiwCl8xVUjz7kDZHg==}
+  '@inlang/paraglide-js@3.1.0':
+    resolution: {integrity: sha512-V8pBa2ZdaPDq6SO7P7MRXs+FZRF7MMIS8sQamc1pjjzuYFF7aD39BAyZclZvf9DzjiLuKCDXMOLOoCPebjBzqw==}
     hasBin: true
     peerDependencies:
       eslint: ^9.0.0 || ^10.0.0
-      typescript: '>=5.6'
       vite: '>=5.0.0'
     peerDependenciesMeta:
       eslint:
-        optional: true
-      typescript:
         optional: true
       vite:
         optional: true
@@ -2607,8 +2604,8 @@ packages:
     resolution: {integrity: sha512-pPlaxyemcFMBcwBx31zbSNWwKORSLc2yv93v0uGCh4QgNh/kBRuLlBxbubmME6UJFsj+5nbao2WDZjz3Fzs+FA==}
     engines: {node: '>=20.0.0'}
 
-  '@inlang/sdk@4.1.1':
-    resolution: {integrity: sha512-eeRnaW6mZPctXd8mwnATWEQgSg0J+EneUsBX2pJEl/7YRfosApCoc5aR4bHKwizLDd0CB3rtfuqteYirG5VSsg==}
+  '@inlang/sdk@4.2.0':
+    resolution: {integrity: sha512-Cmaqvn34wsxiF27318Zw2rg+017HHNJWV5MH8rfyVKVANZNpzlztxzRbFienE/gASMLD8oluYHHolIb/p6Egrw==}
     engines: {node: '>=20.0.0'}
 
   '@isaacs/nonrecursive-glob-match@1.0.3':
@@ -6134,9 +6131,6 @@ packages:
     engines: {node: '>=6'}
     hasBin: true
 
-  jsonc-parser@3.3.1:
-    resolution: {integrity: sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==}
-
   kleur@3.0.3:
     resolution: {integrity: sha512-eTIzlVOSUR+JxdDFepEYcBMtZ9Qqdef+rnzWdRZuMbOywu5tO2w2N7rqjoANZ5k9vywhL6Br1VRjUIgTQx4E8w==}
     engines: {node: '>=6'}
@@ -8746,21 +8740,22 @@ snapshots:
   '@img/sharp-win32-x64@0.35.5':
     optional: true
 
-  '@inlang/paraglide-js@2.29.3(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(typescript@7.0.2)':
+  '@inlang/paraglide-js@3.1.0(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(typescript@7.0.2)':
     dependencies:
       '@inlang/recommend-sherlock': 0.2.1
-      '@inlang/sdk': 4.1.1
+      '@inlang/sdk': 4.2.0
       commander: 11.1.0
       consola: 3.4.0
       jiti: 2.7.0
       json5: 2.2.3
-      jsonc-parser: 3.3.1
+      magic-string: 0.30.21
       unplugin: 2.3.11
       urlpattern-polyfill: 10.1.0
       valibot: 1.5.0(typescript@7.0.2)
     optionalDependencies:
-      typescript: 7.0.2
       vite: '@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1)'
+    transitivePeerDependencies:
+      - typescript
 
   '@inlang/plugin-message-format@4.5.6':
     dependencies:
@@ -8778,7 +8773,7 @@ snapshots:
       kysely: 0.28.19
       uuid: 14.0.3
 
-  '@inlang/sdk@4.1.1':
+  '@inlang/sdk@4.2.0':
     dependencies:
       '@lix-js/sdk': 0.20.1
       '@sinclair/typebox': 0.31.30
@@ -11644,8 +11639,6 @@ snapshots:
   json-with-bigint@3.5.12: {}
 
   json5@2.2.3: {}
-
-  jsonc-parser@3.3.1: {}
 
   kleur@3.0.3: {}
 
