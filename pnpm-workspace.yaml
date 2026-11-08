@@ -23,15 +23,15 @@ catalog:
   '@base-ui/react': 1.9.0
   '@inlang/paraglide-js': 3.1.0
   '@inlang/plugin-message-format': 4.6.0
-  '@better-auth/cimd': 1.7.16
-  '@better-auth/mcp': 1.7.16
-  '@better-auth/oauth-provider': 1.7.16
-  '@better-auth/passkey': 1.7.16
-  '@better-auth/sso': 1.7.16
+  '@better-auth/cimd': 1.7.17
+  '@better-auth/mcp': 1.7.17
+  '@better-auth/oauth-provider': 1.7.17
+  '@better-auth/passkey': 1.7.17
+  '@better-auth/sso': 1.7.17
   '@better-auth/utils': 0.5.1
   '@cloudflare/ai-chat': 0.12.2
   agents: 0.33.0
-  ai: 7.0.162
+  ai: 7.0.163
   '@cloudflare/workers-types': 5.20261104.1
   '@cloudflare/vitest-plugin': 1.6.0
   '@effect/platform-node': 4.1.2
@@ -74,7 +74,7 @@ catalog:
   '@alchemy.run/sql': 2.0.0-beta.85
   '@distilled.cloud/cloudflare': 1.0.0-rc.17
   babel-plugin-react-compiler: 1.0.0
-  better-auth: 1.7.16
+  better-auth: 1.7.17
   class-variance-authority: 0.7.1
   cmdk: 1.1.1
   cn: 0.5.2
