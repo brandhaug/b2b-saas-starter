@@ -7,33 +7,10 @@ import { ShieldCheckIcon } from 'lucide-react'
 import {
   EnabledFlows,
   EnableFlow,
-  EnrollmentFlow,
-  type Enrollment
+  EnrollmentFlow
 } from '@/components/auth/two-factor-flows'
+import { setupTransition } from '@/components/two-factor-setup-state'
 import { m } from '@b2b-saas-starter/i18n/messages'
-
-type SetupState =
-  | { readonly step: 'idle'; readonly message: string | null }
-  | { readonly step: 'enrolling'; readonly enrollment: Enrollment }
-
-type SetupEvent =
-  | { readonly type: 'start' }
-  | { readonly type: 'enrolled'; readonly enrollment: Enrollment }
-  | { readonly type: 'completed'; readonly message: string }
-
-function setupTransition(state: SetupState, event: SetupEvent): SetupState {
-  switch (event.type) {
-    case 'start': {
-      return state.step === 'enrolling' ? state : { step: 'idle', message: null }
-    }
-    case 'enrolled': {
-      return { step: 'enrolling', enrollment: event.enrollment }
-    }
-    case 'completed': {
-      return { step: 'idle', message: event.message }
-    }
-  }
-}
 
 /**
  * Account-level two-factor management: enable (password → one-time QR/secret

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-
-type CopyStatus = 'idle' | 'pending' | 'copied' | 'failed'
+import { copyStatusTransition, type CopyStatus } from '@/lib/copy-status'
 
 /** Local clipboard feedback, scoped to the displayed value rather than a server action. */
 export function useClipboard(
@@ -20,7 +19,10 @@ export function useClipboard(
 
   // Reset before children render, without remounting the live region or focused button.
   if (state.value !== value) {
-    setState({ value, status: 'idle' })
+    setState({
+      value,
+      status: copyStatusTransition(state.status, { type: 'replaced' })
+    })
   }
 
   useEffect(() => {
@@ -41,25 +43,31 @@ export function useClipboard(
     request.current = identity
     clearTimeout(timer.current)
     timer.current = undefined
-    setState({ value, status: 'pending' })
-    let status: 'copied' | 'failed'
+    setState({
+      value,
+      status: copyStatusTransition(state.status, { type: 'requested' })
+    })
+    let succeeded = true
     // oxlint-disable-next-line effect/noTryCatch -- Clipboard is a browser platform boundary; retain local manual-selection recovery.
     try {
       await navigator.clipboard.writeText(text)
-      status = 'copied'
     } catch {
-      status = 'failed'
+      succeeded = false
     }
     if (request.current !== identity) {
       return
     }
     request.current = null
+    const status = copyStatusTransition(
+      'pending',
+      succeeded ? { type: 'succeeded' } : { type: 'failed' }
+    )
     setState({ value, status })
     const duration = status === 'copied' ? successDuration : failureDuration
     if (duration !== undefined) {
       timer.current = setTimeout(() => {
         timer.current = undefined
-        setState({ value, status: 'idle' })
+        setState({ value, status: copyStatusTransition(status, { type: 'expired' }) })
       }, duration)
     }
   }
