@@ -1,6 +1,11 @@
 import { Clock, Effect, Layer } from 'effect'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
-import { AssistantDirectory } from './directory.ts'
+import { AssistantDirectory, isDeletedConversation } from './directory.ts'
+import {
+  canCommitReservation,
+  isReservationExpired,
+  isReservationHeld
+} from './reservation-transitions.ts'
 import {
   AssistantAdmission,
   AssistantAdmissionRefused,
@@ -17,7 +22,7 @@ export const SeedAssistantAdmission = Layer.effect(AssistantAdmission)(
         const conversation = yield* directory.get(input.conversationId)
         if (
           !conversation ||
-          conversation.deletedAt ||
+          isDeletedConversation(conversation) ||
           conversation.workspaceId !== input.workspaceId ||
           conversation.creatorUserId !== input.userId
         ) {
@@ -53,10 +58,7 @@ export const SeedAssistantAdmission = Layer.effect(AssistantAdmission)(
           (row) => row.workspaceId === input.workspaceId && row.userId === input.userId
         )
         const active = member.filter(
-          (row) =>
-            row.releasedAt === null &&
-            retained.has(row.conversationId) &&
-            row.deadline + ASSISTANT_SHUTDOWN_GRACE_MS > now
+          (row) => isReservationHeld(row, now) && retained.has(row.conversationId)
         )
         if (active.length >= input.activeLimit) {
           return yield* new AssistantAdmissionRefused({
@@ -100,14 +102,14 @@ export const SeedAssistantAdmission = Layer.effect(AssistantAdmission)(
       commit: Effect.fn('AssistantAdmission.commit')(function* (id) {
         const now = yield* Clock.currentTimeMillis
         const row = rows.get(id)
-        if (row?.releasedAt !== null || row.deadline <= now) {
+        if (row === undefined || !canCommitReservation(row, now)) {
           return yield* new CapabilityUnavailable({
             capability: 'assistant-admission',
             reason: 'reservation_expired'
           })
         }
         const conversation = yield* directory.get(row.conversationId)
-        if (!conversation || conversation.deletedAt) {
+        if (!conversation || isDeletedConversation(conversation)) {
           return yield* new CapabilityUnavailable({
             capability: 'assistant-admission',
             reason: 'reservation_expired'
@@ -124,10 +126,7 @@ export const SeedAssistantAdmission = Layer.effect(AssistantAdmission)(
           if (count >= limit) {
             break
           }
-          if (
-            row.releasedAt === null &&
-            row.deadline + ASSISTANT_SHUTDOWN_GRACE_MS <= now
-          ) {
+          if (isReservationExpired(row, now)) {
             rows.set(id, { ...row, releasedAt: now })
             count += 1
           }

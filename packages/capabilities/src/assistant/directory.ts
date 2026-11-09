@@ -83,3 +83,83 @@ export type ConversationInvalidationBinding = (
     Pick<ConversationDirectoryEntry, 'id' | 'workspaceId' | 'creatorUserId'>
   >
 ) => Promise<void>
+
+/**
+ * The owner of the `assistant_conversations` tombstone machine (ADR 0077).
+ * A conversation is live until the deletion fence writes `deletedAt`; object
+ * cleanup then writes `cleanedAt`. Tombstones retain immutable addresses
+ * forever — these rows are never cascaded and their IDs never reused — so
+ * `cleanedAt` is terminal.
+ *
+ * Transition evidence is the audit trail: both writes are recorded as
+ * `assistant_conversation.deleted`, cleanup with `action: 'storage_removed'`.
+ *
+ * SQL mirrors that must stay in step, named rather than edited:
+ * - `assistant_conversations_cleanup_idx` on (`deleted_at`, `cleaned_at`)
+ *   backs the `pendingCleanup` deleted-not-yet-cleaned scan (migration
+ *   `20260915114634_friendly_madame_hydra`).
+ * - the directory writes in `directory.live.ts` guard the fence with
+ *   `deleted_at is null` and cleanup with `deleted_at is not null and
+ *   cleaned_at is null`; the admission reserve INSERT in `admission.live.ts`
+ *   requires `deleted_at is null`.
+ */
+export type ConversationLifecycleStatus = 'live' | 'deleted' | 'cleaned'
+
+/** The evidence that moves a tombstone; each write is audited as named above. */
+export type ConversationLifecycleEvent =
+  | { readonly kind: 'fenced' }
+  | { readonly kind: 'cleaned' }
+
+const conversationLifecycleTransitions = {
+  live: { fenced: 'deleted', cleaned: null },
+  deleted: { fenced: null, cleaned: 'cleaned' },
+  cleaned: { fenced: null, cleaned: null }
+} as const satisfies Record<
+  ConversationLifecycleStatus,
+  Record<ConversationLifecycleEvent['kind'], ConversationLifecycleStatus | null>
+>
+
+/** Derives the tombstone state from the stored timestamps. */
+export function conversationLifecycleStatus(
+  entry: Pick<ConversationDirectoryEntry, 'deletedAt' | 'cleanedAt'>
+): ConversationLifecycleStatus {
+  if (entry.cleanedAt !== null) {
+    return 'cleaned'
+  }
+  if (entry.deletedAt !== null) {
+    return 'deleted'
+  }
+  return 'live'
+}
+
+/**
+ * Applies one event; `null` refuses it. Only a live row can fence and only a
+ * deleted-not-cleaned row can clean, so no write ever rewrites a timestamp.
+ */
+export function nextConversationLifecycleStatus(
+  status: ConversationLifecycleStatus,
+  event: ConversationLifecycleEvent
+): ConversationLifecycleStatus | null {
+  return conversationLifecycleTransitions[status][event.kind]
+}
+
+/** Whether the conversation is visible: no deletion fence has been written. */
+export function isLiveConversation(
+  entry: Pick<ConversationDirectoryEntry, 'deletedAt'>
+): boolean {
+  return entry.deletedAt === null
+}
+
+/** Whether the deletion fence has been written; cleaned tombstones stay deleted. */
+export function isDeletedConversation(
+  entry: Pick<ConversationDirectoryEntry, 'deletedAt'>
+): boolean {
+  return entry.deletedAt !== null
+}
+
+/** Whether object cleanup has completed; the terminal tombstone state. */
+export function isCleanedConversation(
+  entry: Pick<ConversationDirectoryEntry, 'cleanedAt'>
+): boolean {
+  return entry.cleanedAt !== null
+}
