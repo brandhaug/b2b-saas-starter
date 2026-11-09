@@ -2,6 +2,7 @@ import { DateTime, Effect, Schema } from 'effect'
 
 import { ApiTokenNotRotatable, InvalidApiTokenInput } from '../errors.ts'
 import { randomHex } from '@b2b-saas-starter/failure/crypto'
+import { isExpiredToken } from '@b2b-saas-starter/db/token-lifecycle'
 import {
   CreateApiTokenPayload,
   ReplaceApiTokenPayload,
@@ -11,11 +12,6 @@ import {
 
 const decodeCreation = Schema.decodeUnknownEffect(CreateApiTokenPayload)
 const decodeReplacement = Schema.decodeUnknownEffect(ReplaceApiTokenPayload)
-
-export function tokenIsExpired(expiresAt: string | null, now: number): boolean {
-  // Invalid persisted timestamps fail closed too.
-  return expiresAt !== null && !(Date.parse(expiresAt) > now)
-}
 
 export const validateTokenCreation = Effect.fn('ApiTokenRegistry.validateCreation')(
   function* (input: CreateApiTokenPayload, now: number) {
@@ -28,7 +24,7 @@ export const validateTokenCreation = Effect.fn('ApiTokenRegistry.validateCreatio
           })
       )
     )
-    if (decoded.expiresAt !== undefined && tokenIsExpired(decoded.expiresAt, now)) {
+    if (decoded.expiresAt !== undefined && isExpiredToken(decoded.expiresAt, now)) {
       return yield* Effect.fail(
         new InvalidApiTokenInput({ message: 'Expiry must be in the future.' })
       )
@@ -39,7 +35,7 @@ export const validateTokenCreation = Effect.fn('ApiTokenRegistry.validateCreatio
 
 export const planTokenReplacement = Effect.fn('ApiTokenRegistry.planReplacement')(
   function* (source: ApiToken, input: ReplaceApiTokenInput, now: number) {
-    if (source.replacedByTokenId !== null || tokenIsExpired(source.expiresAt, now)) {
+    if (source.replacedByTokenId !== null || isExpiredToken(source.expiresAt, now)) {
       return yield* Effect.fail(new ApiTokenNotRotatable({ tokenId: input.tokenId }))
     }
     const decoded = yield* decodeReplacement(input).pipe(
@@ -62,7 +58,7 @@ export const planTokenReplacement = Effect.fn('ApiTokenRegistry.planReplacement'
     }
     const expiresAt = decoded.expiresAt ?? source.expiresAt
     if (
-      tokenIsExpired(expiresAt, now) ||
+      isExpiredToken(expiresAt, now) ||
       (source.expiresAt !== null && expiresAt !== null && expiresAt > source.expiresAt)
     ) {
       return yield* Effect.fail(

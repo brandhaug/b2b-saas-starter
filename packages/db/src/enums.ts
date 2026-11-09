@@ -85,6 +85,22 @@ export const deliveryStatuses = [
 export type DeliveryStatus = (typeof deliveryStatuses)[number]
 
 /**
+ * The webhook investigation task lifecycle (`webhook_investigation_tasks`):
+ * an operator-visible task is `proposed` from failed-delivery evidence, then
+ * `approved` or `cancelled` by the operator; `approved` reaches `completed`
+ * as a read-time projection of its replay delivery's outcome, never a stored
+ * write. Owned by `webhook-investigation-tasks.ts` (ADR 0077).
+ */
+export const webhookInvestigationTaskStatuses = [
+  'proposed',
+  'approved',
+  'cancelled',
+  'completed'
+] as const
+export type WebhookInvestigationTaskStatus =
+  (typeof webhookInvestigationTaskStatuses)[number]
+
+/**
  * The workspace export job lifecycle written by `WorkspaceExports`: `pending`
  * from the request until the background worker picks it up, then `ready` with
  * an object in the export bucket, or `failed` with a reason.

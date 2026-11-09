@@ -27,14 +27,23 @@ export const assertWithinPlanLimit = Effect.fn(
   }
 })
 
-/** Current replacement leaves count for both admission and execution. */
-export function eligibleTokenWhere(workspaceId: string, now: string) {
+/**
+ * The SQL mirror of `isActiveLeafToken`
+ * (`@b2b-saas-starter/db/token-lifecycle`, which names every mirror of
+ * that predicate): a leaf is unrevoked, not yet rotated out, and either
+ * unexpiring or expiring in the future.
+ */
+export function activeLeafTokenWhere(now: string) {
   return and(
-    eq(apiTokens.workspaceId, workspaceId),
     isNull(apiTokens.revokedAt),
     isNull(apiTokens.replacedByTokenId),
     or(isNull(apiTokens.expiresAt), gt(apiTokens.expiresAt, now))
   )
+}
+
+/** Current replacement leaves count for both admission and execution. */
+export function eligibleTokenWhere(workspaceId: string, now: string) {
+  return and(eq(apiTokens.workspaceId, workspaceId), activeLeafTokenWhere(now))
 }
 
 /** Prepare the named policy for use inside the resource's insert statement. */

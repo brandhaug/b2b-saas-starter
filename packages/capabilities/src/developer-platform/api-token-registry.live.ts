@@ -5,6 +5,7 @@ import { Billing } from '@b2b-saas-starter/billing/billing'
 import { apiTokens } from '@b2b-saas-starter/db/schema/developer-platform'
 import { workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database, type BatchStatement, type RawD1 } from '@b2b-saas-starter/db/service'
+import { isExpiredToken } from '@b2b-saas-starter/db/token-lifecycle'
 import { DateTime, Effect, Layer } from 'effect'
 import { and, desc, eq, gt, isNull, or, sql, type SQL } from 'drizzle-orm'
 
@@ -13,7 +14,6 @@ import { ApiTokenNotRotatable, AuthorizationDenied } from '../errors.ts'
 import {
   mintApiToken,
   planTokenReplacement,
-  tokenIsExpired,
   validateTokenCreation
 } from './api-token-policy.ts'
 import { newCapabilityId } from '../internal/ids.ts'
@@ -383,7 +383,7 @@ export function LiveApiTokenRegistry(
             const usedAt = yield* DateTime.now
             if (
               !row ||
-              tokenIsExpired(row.token.expiresAt, DateTime.toEpochMillis(usedAt))
+              isExpiredToken(row.token.expiresAt, DateTime.toEpochMillis(usedAt))
             ) {
               return yield* Effect.fail(
                 new AuthorizationDenied({ reason: 'invalid_token' })

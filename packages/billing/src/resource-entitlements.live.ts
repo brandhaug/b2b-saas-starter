@@ -185,6 +185,12 @@ export const LiveResourceEntitlements: Layer.Layer<
         const now = DateTime.formatIso(yield* DateTime.now)
         // Resolve selected parents to their current leaf at commit time, so an
         // interleaved rotation cannot restore a dead parent or undo another slot.
+        // The leaf filter (`t.revoked_at is null and t.replaced_by_token_id is
+        // null and (t.expires_at is null or t.expires_at > now)`) is the raw-SQL
+        // mirror of `isActiveLeafToken` from
+        // `@b2b-saas-starter/db/token-lifecycle`, which names this statement
+        // among that predicate's mirrors; the alias-bound CTE cannot reuse the
+        // drizzle helper, so the two must move together.
         const tokenIds = sql`(with recursive selected(id) as (select value from json_each(${encodeIds(input.apiTokenIds)}) union select t.replaced_by_token_id from api_tokens t join selected s on t.id = s.id where t.workspace_id = ${ctx.workspace.id} and t.replaced_by_token_id is not null) select json_group_array(id) from (select distinct t.id from api_tokens t join selected s on t.id = s.id where t.workspace_id = ${ctx.workspace.id} and t.revoked_at is null and t.replaced_by_token_id is null and (t.expires_at is null or t.expires_at > ${now})))`
         const endpointIds = sql`(select json_group_array(id) from webhook_endpoints where workspace_id = ${ctx.workspace.id} and enabled = 1 and id in (select value from json_each(${encodeIds(input.webhookEndpointIds)})))`
         const auditStatement = yield* audit.prepareRecord({

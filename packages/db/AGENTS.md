@@ -1,6 +1,6 @@
 # Database
 
-Owns domain-organized Drizzle tables in `src/schema/`, migrations, and D1 services. Import tables from the owning `db/schema/<domain>` entry point. `src/schema.ts` assembles the complete table registry for adapter configuration and migrated-schema inspection. Stored enum vocabularies live in `src/enums.ts`, which stays Drizzle-free for auth and authorization consumers.
+Owns domain-organized Drizzle tables in `src/schema/`, migrations, and D1 services. Import tables from the owning `db/schema/<domain>` entry point. `src/schema.ts` assembles the complete table registry for adapter configuration and migrated-schema inspection. Stored enum vocabularies live in `src/enums.ts`, which stays Drizzle-free for auth and authorization consumers. `src/token-lifecycle.ts` is the Drizzle-free owner of the `api_tokens` lifecycle predicates (ADR 0077): `isActiveLeafToken` and its revoked/rotated/expired parts, with the SQL mirrors — admission, rotation-chain selection, the retention index — named in its doc comment.
 
 ## Migration changes
 

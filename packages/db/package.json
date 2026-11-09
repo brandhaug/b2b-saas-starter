@@ -5,6 +5,7 @@
   "exports": {
     "./ids": "./src/ids.ts",
     "./enums": "./src/enums.ts",
+    "./token-lifecycle": "./src/token-lifecycle.ts",
     "./schema": "./src/schema.ts",
     "./service": "./src/service.ts",
     "./testing": "./src/testing.ts",

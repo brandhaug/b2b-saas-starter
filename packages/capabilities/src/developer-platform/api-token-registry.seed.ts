@@ -20,10 +20,10 @@ import {
 } from '../governance/security-recovery-evidence.ts'
 import { seedApiTokenValue, seedWorkspaceRecord } from '../seed-fixture.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
+import { isActiveLeafToken, isExpiredToken } from '@b2b-saas-starter/db/token-lifecycle'
 import {
   mintApiToken,
   planTokenReplacement,
-  tokenIsExpired,
   validateTokenCreation
 } from './api-token-policy.ts'
 import { hashSha256 } from '../crypto.ts'
@@ -98,12 +98,19 @@ export function SeedApiTokenRegistry(
       inventory.registerTokens((workspaceId, now, includeUnavailable) => {
         const ids: Array<ApiTokenId> = []
         for (const entry of store) {
+          // The in-memory mirror of the Live admission SQL: the leaf
+          // predicate the token-lifecycle owner exports (`isActiveLeafToken`).
           if (
             entry.workspaceId === workspaceId &&
             (includeUnavailable ||
-              (entry.revokedAt === null &&
-                entry.token.replacedByTokenId === null &&
-                !tokenIsExpired(entry.token.expiresAt, now)))
+              isActiveLeafToken(
+                {
+                  revokedAt: entry.revokedAt,
+                  expiresAt: entry.token.expiresAt,
+                  replacedByTokenId: entry.token.replacedByTokenId
+                },
+                now
+              ))
           ) {
             ids.push(entry.token.id)
           }
@@ -292,7 +299,7 @@ export function SeedApiTokenRegistry(
             const now = yield* DateTime.now
             if (
               !entry ||
-              tokenIsExpired(entry.token.expiresAt, DateTime.toEpochMillis(now))
+              isExpiredToken(entry.token.expiresAt, DateTime.toEpochMillis(now))
             ) {
               return yield* Effect.fail(
                 new AuthorizationDenied({ reason: 'invalid_token' })
