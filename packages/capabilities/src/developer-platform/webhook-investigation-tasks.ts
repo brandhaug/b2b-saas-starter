@@ -1,9 +1,89 @@
 import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import {
+  webhookInvestigationTaskStatuses,
+  type WebhookInvestigationTaskStatus
+} from '@b2b-saas-starter/db/enums'
 import { Context, DateTime, Effect, Schema } from 'effect'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { newCapabilityId } from '../internal/ids.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
+import {
+  deadLetteredDeliveryStatus,
+  deliveredDeliveryStatus,
+  failedDeliveryStatus,
+  pendingDeliveryStatus
+} from './webhook-delivery-plan.ts'
 import { WebhookEndpoints } from './webhook-endpoints.ts'
+
+/**
+ * The owner of the `webhook_investigation_tasks.status` machine (ADR 0077).
+ * A task is born `proposed` (a dead-lettered source worth replaying) or
+ * `completed` (a finding that needs no operator action); only a proposal
+ * moves — approval claims it for one stable replay identity, cancellation
+ * retires it. An approved task never re-enters storage: its replay outcome
+ * is projected on read from the replay delivery (`investigationReplayOutcome`),
+ * which is the delivery owner's vocabulary, not a stored task status.
+ *
+ * SQL mirrors that must stay in step, named rather than edited:
+ * - the `webhook_investigation_tasks.status` column constraint restates the
+ *   vocabulary below (schema in `packages/db`, migration
+ *   `20260912202956_fresh_wild_pack`).
+ * - the Live transition claim and the Seed claim guard pin the source row
+ *   to `proposedInvestigationTaskStatus` — the only status a stored
+ *   transition may leave.
+ */
+
+// The stored `webhook_investigation_tasks.status` vocabulary lives in the db
+// enums leaf; re-exported here for existing consumers of this module.
+export type { WebhookInvestigationTaskStatus }
+
+/** The only status a stored task transition may claim from. */
+export const proposedInvestigationTaskStatus: WebhookInvestigationTaskStatus =
+  'proposed'
+
+/** The outcomes that can move a stored task row. */
+export type InvestigationTaskTransition =
+  | { readonly kind: 'approve' }
+  | { readonly kind: 'cancel' }
+
+/**
+ * The declared transition map: the status each operator outcome produces
+ * from each stored status. `null` refuses the outcome — `cancelled` and
+ * `completed` are terminal, and an approved task can no longer be
+ * cancelled (its replay may already be in flight). Approving an approved
+ * task re-enters `approved` idempotently: the retained replay identity is
+ * reused, not replaced.
+ */
+const investigationTaskTransitions = {
+  proposed: { approve: 'approved', cancel: 'cancelled' },
+  approved: { approve: 'approved', cancel: null },
+  cancelled: { approve: null, cancel: null },
+  completed: { approve: null, cancel: null }
+} as const satisfies Record<
+  WebhookInvestigationTaskStatus,
+  Record<InvestigationTaskTransition['kind'], WebhookInvestigationTaskStatus | null>
+>
+
+/** Applies one operator outcome; `null` refuses the transition. */
+export function nextInvestigationTaskStatus(
+  status: WebhookInvestigationTaskStatus,
+  transition: InvestigationTaskTransition
+): WebhookInvestigationTaskStatus | null {
+  return investigationTaskTransitions[status][transition.kind]
+}
+
+/**
+ * The status a new task is born with: only a dead-lettered source proposes
+ * a replay; every other diagnosis is a `completed` finding.
+ */
+export function initialInvestigationTaskStatus(
+  diagnosis: WebhookInvestigationTask['diagnosis']
+): WebhookInvestigationTaskStatus {
+  if (diagnosis === 'receiver_unavailable') {
+    return 'proposed'
+  }
+  return 'completed'
+}
 
 const AttemptEvidence = Schema.Struct({
   id: Schema.String,
@@ -17,7 +97,7 @@ export const WebhookInvestigationTask = Schema.Struct({
   sourceDeliveryId: WebhookDeliveryId,
   requestedBy: Schema.NullOr(Schema.String),
   question: Schema.String,
-  status: Schema.Literals(['proposed', 'approved', 'cancelled', 'completed']),
+  status: Schema.Literals(webhookInvestigationTaskStatuses),
   diagnosis: Schema.Literals([
     'retrying',
     'delivered',
@@ -110,17 +190,23 @@ export type InvestigationTaskStore = {
   ) => Effect.Effect<boolean, CapabilityUnavailable, WorkspaceContext>
 }
 
-/** A replay's current delivery status is the authority for its task outcome. */
+/**
+ * A replay's current delivery status is the authority for its task
+ * outcome, read through the delivery owner's vocabulary: a dispatchable
+ * delivery (still pending or retrying) keeps the outcome `pending`, a
+ * delivered one settles it, and every terminal failure fails it. Retained
+ * evidence missing entirely yields `unavailable`.
+ */
 export function investigationReplayOutcome(
   status: string | null
 ): WebhookInvestigationTask['outcome'] {
   if (status === null) {
     return 'unavailable'
   }
-  if (status === 'delivered') {
+  if (status === deliveredDeliveryStatus) {
     return 'delivered'
   }
-  if (status === 'pending' || status === 'failed') {
+  if (status === pendingDeliveryStatus || status === failedDeliveryStatus) {
     return 'pending'
   }
   return 'failed'
@@ -175,9 +261,12 @@ export function makeInvestigationTasks(store: InvestigationTaskStore) {
       const ctx = yield* WorkspaceContext
       const { delivery, endpoint, attempts } = yield* inspect(input.deliveryId)
       let diagnosis: WebhookInvestigationTask['diagnosis'] = 'unknown'
-      if (delivery.status === 'delivered') {
+      if (delivery.status === deliveredDeliveryStatus) {
         diagnosis = 'delivered'
-      } else if (delivery.status === 'pending' || delivery.status === 'failed') {
+      } else if (
+        delivery.status === pendingDeliveryStatus ||
+        delivery.status === failedDeliveryStatus
+      ) {
         diagnosis = 'retrying'
       } else if (!endpoint.enabled) {
         diagnosis = 'endpoint_disabled'
@@ -187,14 +276,11 @@ export function makeInvestigationTasks(store: InvestigationTaskStore) {
         delivery.responseStatus < 500
       ) {
         diagnosis = 'receiver_rejected'
-      } else if (delivery.status === 'dead_lettered') {
+      } else if (delivery.status === deadLetteredDeliveryStatus) {
         diagnosis = 'receiver_unavailable'
       }
       const now = DateTime.formatIso(yield* DateTime.now)
-      let status: WebhookInvestigationTask['status'] = 'completed'
-      if (diagnosis === 'receiver_unavailable') {
-        status = 'proposed'
-      }
+      const status = initialInvestigationTaskStatus(diagnosis)
       const task: WebhookInvestigationTask = {
         id: yield* newCapabilityId('task'),
         sourceDeliveryId: delivery.id,
@@ -242,10 +328,12 @@ export function makeInvestigationTasks(store: InvestigationTaskStore) {
       input: TaskId
     ) {
       let task = yield* read(input.taskId)
-      if (task.status !== 'proposed' && task.status !== 'approved') {
+      // The machine refuses approval from every status but proposed and
+      // already-approved (the map's only legal `approve` sources).
+      if (nextInvestigationTaskStatus(task.status, { kind: 'approve' }) === null) {
         return yield* new WebhookInvestigationTaskRejected({ reason: 'not_proposed' })
       }
-      if (task.status === 'proposed') {
+      if (task.status === proposedInvestigationTaskStatus) {
         const { endpoint, delivery } = yield* inspect(task.sourceDeliveryId)
         if (
           endpoint.url !== task.evidence.endpointUrl ||
@@ -267,7 +355,7 @@ export function makeInvestigationTasks(store: InvestigationTaskStore) {
           deliveryId: task.sourceDeliveryId,
           replayDeliveryId: WebhookDeliveryId.make(`replay_${task.id}`),
           expectedEndpointUrl: task.evidence.endpointUrl,
-          expectedStatus: 'dead_lettered'
+          expectedStatus: deadLetteredDeliveryStatus
         })
         .pipe(
           Effect.catchTags({

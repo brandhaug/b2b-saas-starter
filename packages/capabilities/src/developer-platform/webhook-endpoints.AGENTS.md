@@ -7,6 +7,7 @@ Webhook destinations and tooling; background dispatch uses [`webhook-publisher`]
 ## Entry Points & Contracts
 
 - [Resource entitlements](../../../billing/src/resource-entitlements.AGENTS.md) owns creation admission; creation publishes a best-effort projection without the secret.
+- `webhook-delivery-plan.ts` owns the delivery status machine (ADR 0077): the transition map (dispatch outcomes, attempts-exhausted, enqueue-failure), the dispatchable/terminal/replayable/settled predicate sets, the single-status names adapters compose SQL from, and the failure-ladder counter transitions. Adapters never write a status literal inline, and operator replay stays a new `pending` row, never a transition of its source.
 - Replay creates an audited `pending` copy linked by `replayedFrom`; the source stays untouched (ADR 0062). Test sends use their delivery row as the record.
 - `/admin` calls `listGlobalDeliveries` and `replayDeliveryAsAdmin` without `WorkspaceContext`. Its boundary rechecks the system-admin session; replay resolves the workspace internally and audits the actual actor with `scope: system_admin`. Never fabricate membership. Workspace replay keeps its membership and permission gates.
 - Background lookups require `(deliveryId, endpointId, workspaceId)` and bind the persisted delivery to the endpoint's current workspace. Dispatch targets return all active signing secrets and the stored event and payload. Terminal audits and dead-letter notifications also use stored contents; unknown or mismatched deliveries create no evidence.

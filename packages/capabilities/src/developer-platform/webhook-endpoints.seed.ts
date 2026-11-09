@@ -28,11 +28,18 @@ import {
   DELIVERY_HISTORY_CLEANUP_LIMIT,
   DELIVERY_HISTORY_RETENTION_DAYS,
   type WebhookDeliveryAttempt,
+  deadLetteredDeliveryStatus,
   deadLetterNotification,
-  failureLadderAction,
+  deliveredDeliveryStatus,
   DELIVERIES_PAGE_SIZE,
   deliverySuccessRate,
+  failedPermanentDeliveryStatus,
+  failureLadderAction,
+  isSettledDeliveryStatus,
+  isTerminalDeliveryStatus,
   nextConsecutiveFailures,
+  pendingDeliveryStatus,
+  failedDeliveryStatus,
   planPendingDispatch,
   planSecretRotation,
   terminalDeliveryAuditEventType,
@@ -45,7 +52,6 @@ import {
   ensureValidWebhookUrl,
   planAdminReplay,
   type AdminReplaySource,
-  TERMINAL_DELIVERY_STATUSES,
   WEBHOOK_TEST_EVENT_TYPE,
   WebhookDispatchRejected,
   WebhookEndpointNotFound,
@@ -110,10 +116,6 @@ type SeedDeliveryRow = {
   readonly responseBody: string | null
   readonly replayedFrom: WebhookDeliveryId | null
 }
-
-const TERMINAL_STATUSES: ReadonlySet<WebhookDeliveryStatus> = new Set(
-  TERMINAL_DELIVERY_STATUSES
-)
 
 export function SeedWebhookEndpoints(
   seedFixtures: ReadonlyArray<SeedWebhookEndpointFixture>,
@@ -205,7 +207,7 @@ export function SeedWebhookEndpoints(
       function globalDeliveries(): Array<GlobalWebhookDelivery> {
         const rows: Array<GlobalWebhookDelivery> = []
         for (const delivery of deliveries) {
-          if (TERMINAL_STATUSES.has(delivery.status)) {
+          if (isTerminalDeliveryStatus(delivery.status)) {
             const row = globalDeliveryRow(delivery)
             if (row !== null) {
               rows.push(row)
@@ -240,7 +242,7 @@ export function SeedWebhookEndpoints(
             deliveryId,
             recorded: false,
             failureAction: 'silent',
-            status: 'failed_permanent',
+            status: failedPermanentDeliveryStatus,
             consecutiveFailures: 0
           } satisfies RecordedWebhookAttempt & {
             readonly deliveryId: WebhookDeliveryId
@@ -255,7 +257,7 @@ export function SeedWebhookEndpoints(
             deliveryId,
             recorded: false,
             failureAction: 'silent',
-            status: 'failed_permanent',
+            status: failedPermanentDeliveryStatus,
             consecutiveFailures: endpoint.consecutiveFailures
           } satisfies RecordedWebhookAttempt & {
             readonly deliveryId: WebhookDeliveryId
@@ -274,7 +276,7 @@ export function SeedWebhookEndpoints(
             deliveryId,
             recorded: false,
             failureAction: 'silent',
-            status: previous?.status ?? 'failed_permanent',
+            status: previous?.status ?? failedPermanentDeliveryStatus,
             consecutiveFailures: endpoint.consecutiveFailures
           } satisfies RecordedWebhookAttempt & {
             readonly deliveryId: WebhookDeliveryId
@@ -292,10 +294,12 @@ export function SeedWebhookEndpoints(
           attemptedAt,
           ...evidence
         })
+        // The Seed mirror of the Live acceptance guard: only dispatchable
+        // rows advance (`dispatchableDeliveryStatuses` in webhook-delivery-plan.ts).
         const advances =
           !previous ||
-          previous.status === 'pending' ||
-          (previous.status === 'failed' &&
+          previous.status === pendingDeliveryStatus ||
+          (previous.status === failedDeliveryStatus &&
             (evidence.phase === 'terminal' || previous.attempts < input.attempts))
         if (!advances) {
           return {
@@ -387,7 +391,7 @@ export function SeedWebhookEndpoints(
             metadata: { deliveryId }
           })
         }
-        if (input.status === 'dead_lettered') {
+        if (input.status === deadLetteredDeliveryStatus) {
           yield* bestEffort(
             feed.create({
               workspaceId: input.workspaceId,
@@ -447,9 +451,7 @@ export function SeedWebhookEndpoints(
                   (row) =>
                     row.lastAttemptAt !== null &&
                     row.lastAttemptAt < cutoff &&
-                    ['delivered', 'failed_permanent', 'dead_lettered'].includes(
-                      row.status
-                    )
+                    isSettledDeliveryStatus(row.status)
                 )
                 .toSorted((a, b) =>
                   (a.lastAttemptAt ?? '').localeCompare(b.lastAttemptAt ?? '')
@@ -855,10 +857,7 @@ export function SeedWebhookEndpoints(
               (delivery) =>
                 delivery.id === input.deliveryId &&
                 delivery.endpointId === input.endpointId &&
-                (delivery.status === 'delivered' ||
-                  TERMINAL_DELIVERY_STATUSES.some(
-                    (status) => status === delivery.status
-                  ))
+                isSettledDeliveryStatus(delivery.status)
             )
           }),
         getDispatchTarget: (endpointId, workspaceId, deliveryId) =>
@@ -949,7 +948,7 @@ function toProjection(
     events: [...endpoint.events],
     successRate: deliverySuccessRate(
       mine.length,
-      mine.filter((row) => row.status === 'delivered').length
+      mine.filter((row) => row.status === deliveredDeliveryStatus).length
     )
   }
 }

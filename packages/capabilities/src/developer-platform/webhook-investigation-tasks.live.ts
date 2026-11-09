@@ -10,6 +10,7 @@ import { WorkspaceContext } from '../workspace-context.ts'
 import {
   investigationTransition,
   makeInvestigationTasks,
+  proposedInvestigationTaskStatus,
   WebhookInvestigationTask,
   WebhookInvestigationTasks
 } from './webhook-investigation-tasks.ts'
@@ -135,7 +136,10 @@ export const LiveWebhookInvestigationTasks = Layer.effect(WebhookInvestigationTa
                   and(
                     eq(webhookInvestigationTasks.id, task.id),
                     eq(webhookInvestigationTasks.workspaceId, ctx.workspace.id),
-                    eq(webhookInvestigationTasks.status, 'proposed')
+                    eq(
+                      webhookInvestigationTasks.status,
+                      proposedInvestigationTaskStatus
+                    )
                   )
                 )
             ],
