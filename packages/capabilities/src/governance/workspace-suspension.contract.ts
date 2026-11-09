@@ -36,6 +36,39 @@ export function workspaceSuspensionContractCases(expect: typeof vitestExpect) {
       })
     },
     {
+      name: 'refuses a same-state transition as a silent no-op',
+      assert: Effect.gen(function* () {
+        const suspension = yield* WorkspaceSuspensionService
+        const suspended = yield* suspension.transition({
+          workspaceId: 'wrk_live',
+          action: 'suspend',
+          actor: { userId: 'usr_sysadmin' },
+          internalReason: 'payment investigation',
+          customerExplanation:
+            'Access is temporarily limited while we review your account.'
+        })
+        // The transition owner refuses the second suspend; the refusal is the
+        // no-op — the stored state, its timestamps and its explanation stay.
+        const refused = yield* suspension.transition({
+          workspaceId: 'wrk_live',
+          action: 'suspend',
+          actor: { userId: 'usr_sysadmin' },
+          internalReason: 'a later, different reason',
+          customerExplanation: 'A different explanation.'
+        })
+        expect(refused.status).toBe('suspended')
+        expect(refused.changedAt).toBe(suspended.changedAt)
+        expect(refused.customerExplanation).toBe(suspended.customerExplanation)
+        expect((yield* suspension.get('wrk_live')).status).toBe('suspended')
+        yield* suspension.transition({
+          workspaceId: 'wrk_live',
+          action: 'unsuspend',
+          actor: { userId: 'usr_sysadmin' },
+          internalReason: 'review completed'
+        })
+      })
+    },
+    {
       name: 'rejects non-admin and impersonating actors',
       assert: Effect.gen(function* () {
         const suspension = yield* WorkspaceSuspensionService

@@ -2,6 +2,8 @@
 
 Invite an address, cancel a pending invitation, accept one. Accepting creates the membership; [`workspace-membership`](workspace-membership.AGENTS.md) owns every other membership change. Writes go through the `WorkspaceInvitationBinding` port, reads through Drizzle.
 
+- `workspace-invitations.ts` is the transition owner module (ADR 0077): it declares the `pending → accepted | rejected | canceled` set, the `isPendingInvitation` / `isTerminalInvitation` predicate sets, and the status a new invitation births. Both adapters route their status reads and Seed its settle writes through it; its doc comment names the `workspace_invitation_terminal_*` triggers and the `workspace_invitations_retention_idx` CASE that mirror the sets in SQL.
+
 ## Contracts
 
 - `accept` and `find` are keyed by invitation id, with no `WorkspaceContext`: the accepter is not a member yet, so `liveWorkspaceContext` would refuse them. The invitation is the authorization, so a `requirePermission` gate there makes accepting unreachable; both adapters reject a mismatched address.

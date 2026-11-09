@@ -24,6 +24,7 @@ import {
 } from '../developer-platform/webhook-publisher.ts'
 import { makeBindingCaller } from './plugin-binding-failure.ts'
 import {
+  initialInvitationStatus,
   normalizeInvitationEmail,
   requirePending,
   requireRecipient,
@@ -129,7 +130,7 @@ export function LiveWorkspaceInvitations(
               and(
                 eq(workspaceInvitations.id, invitationId),
                 eq(workspaceInvitations.workspaceId, workspaceId),
-                eq(workspaceInvitations.status, 'pending')
+                eq(workspaceInvitations.status, initialInvitationStatus)
               )
             )
             .limit(1)
@@ -318,7 +319,7 @@ function pendingByEmail(db: EffectDatabase, workspaceId: string, email: string) 
       and(
         eq(workspaceInvitations.workspaceId, workspaceId),
         sql`lower(${workspaceInvitations.email}) = ${normalizeInvitationEmail(email)}`,
-        eq(workspaceInvitations.status, 'pending')
+        eq(workspaceInvitations.status, initialInvitationStatus)
       )
     )
 }

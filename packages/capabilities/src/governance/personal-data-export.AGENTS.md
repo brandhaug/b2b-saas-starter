@@ -2,6 +2,8 @@
 
 The capability owns collection, the session-bound persistent archive, request/download audit evidence, and expiry. Its interface is `request(userId, sessionId)` followed by `download(userId, sessionId, exportId)`.
 
+- `personal-data-export.ts` is the lifecycle owner module (ADR 0077): the table has no status column, so the machine is `personalDataExportExpiresAt` (born ready, one TTL horizon) and `isExpiredPersonalDataExport`, which both adapters consult for horizons and refusals. Its doc comment names the `personal_data_exports_expiry_idx` index, the retention rule's clock, and the cascading session foreign keys that mirror the lifecycle in SQL.
+
 Archives are personal account records across all of the user's workspaces. Currently authorized private Assistant Conversations include every saved attempt and task reference. Workspace-owned records and other users' data are excluded. OAuth output is limited to client metadata and consent scopes; secrets, credentials, access tokens, refresh tokens, and signing material are never selected.
 
 Live artifacts are stored in D1 with cascading user/session foreign keys and a 24-hour expiry. Download rechecks the user/session pair, expiry and conversation/access manifest before serving the cached archive. Policy changes, membership loss and deletion invalidate existing artifacts; restored access requires a new archive. Retention cleanup is approval-gated through the generic retention policy.

@@ -19,6 +19,9 @@ import { fabricateSeedMember, type Workspace } from './workspace-identity.ts'
 import { type SeedRoster } from './workspace-membership.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import {
+  initialInvitationStatus,
+  isPendingInvitation,
+  nextInvitationStatus,
   normalizeInvitationEmail,
   requirePending,
   requireRecipient,
@@ -27,8 +30,8 @@ import {
   type AcceptInvitationInput,
   type CreateInvitationInput,
   type Invitation,
-  type InvitationRef,
-  type InvitationStatus
+  type InvitationEvent,
+  type InvitationRef
 } from './workspace-invitations.ts'
 
 /** How long a fixture invitation stays pending — the plugin's own 48 hours. */
@@ -73,18 +76,26 @@ function toWire(row: SeedInvitationRow): Invitation {
   }
 }
 
-/** Moves a stored fixture invitation to a terminal status. */
+/**
+ * Settles a stored fixture invitation the way the plugin settles a row: the
+ * transition owner decides the write, and a refused event (a settled
+ * invitation) leaves the row untouched.
+ */
 function settle(
   store: Ref.Ref<ReadonlyArray<SeedInvitationRow>>,
   invitationId: string,
-  status: InvitationStatus
+  event: InvitationEvent
 ): Effect.Effect<void> {
   return Ref.update(store, (rows) =>
     rows.map((row) => {
       if (row.id !== invitationId) {
         return row
       }
-      return { ...row, status }
+      const settled = nextInvitationStatus(row.status, event)
+      if (settled === null) {
+        return row
+      }
+      return { ...row, status: settled }
     })
   )
 }
@@ -181,7 +192,7 @@ export function SeedWorkspaceInvitations(options: {
           const alreadyInvited = current.some(
             (each) =>
               normalizeInvitationEmail(each.email) === email &&
-              each.status === 'pending'
+              isPendingInvitation(each.status)
           )
           if (alreadyInvited) {
             return yield* Effect.fail(
@@ -195,7 +206,7 @@ export function SeedWorkspaceInvitations(options: {
             // Canonical on the way in, matching Live.
             email,
             role: input.role,
-            status: 'pending',
+            status: initialInvitationStatus,
             expiresAt: DateTime.formatIso(
               DateTime.addDuration(now, SEED_INVITATION_TTL_MS)
             ),

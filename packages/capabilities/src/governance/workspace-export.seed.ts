@@ -21,8 +21,13 @@ import {
   type WorkspaceExportSnapshotServices
 } from './workspace-export-snapshot.ts'
 import {
+  completedWorkspaceExportStatus,
+  failedWorkspaceExportStatus,
+  initialWorkspaceExportStatus,
+  isPendingWorkspaceExport,
   issueWorkspaceExportDownloadLink,
   isWorkspaceExportDownloadable,
+  nextWorkspaceExportStatus,
   verifyWorkspaceExportDownload,
   workspaceExportExpiresAt,
   workspaceExportHumanRecipient,
@@ -172,7 +177,7 @@ export function SeedWorkspaceExports(options: {
             ...base,
             record: {
               id: options.fixture.id,
-              status: 'ready',
+              status: completedWorkspaceExportStatus,
               requestedAt: DateTime.formatIso(requestedAt),
               completedAt: DateTime.formatIso(completedAt),
               expiresAt: workspaceExportExpiresAt(completedAt),
@@ -187,7 +192,7 @@ export function SeedWorkspaceExports(options: {
             ...base,
             record: {
               id: options.fixture.id,
-              status: 'failed',
+              status: failedWorkspaceExportStatus,
               requestedAt: DateTime.formatIso(requestedAt),
               completedAt: DateTime.formatIso(yield* DateTime.now),
               expiresAt: null,
@@ -209,7 +214,7 @@ export function SeedWorkspaceExports(options: {
       const drainDeferredBuilds = Effect.gen(function* () {
         for (const row of rows) {
           const build = row.deferredBuild
-          if (build === null || row.record.status !== 'pending') {
+          if (build === null || !isPendingWorkspaceExport(row.record.status)) {
             continue
           }
           yield* build
@@ -222,7 +227,7 @@ export function SeedWorkspaceExports(options: {
           (row) =>
             row.record.id === exportId &&
             row.workspaceId === workspaceId &&
-            row.record.status === 'pending'
+            isPendingWorkspaceExport(row.record.status)
         )
       }
 
@@ -247,7 +252,7 @@ export function SeedWorkspaceExports(options: {
           const row: SeedExportRow = {
             record: {
               id,
-              status: 'pending',
+              status: initialWorkspaceExportStatus,
               requestedAt: DateTime.formatIso(requestedAt),
               completedAt: null,
               expiresAt: null,
@@ -337,6 +342,13 @@ export function SeedWorkspaceExports(options: {
           if (!row) {
             return false
           }
+          // The write routes through the transition owner; `findPending`
+          // already proved the row pending, so the settlement is legal and
+          // a refusal here is unreachable.
+          const settled = nextWorkspaceExportStatus(row.record.status, 'failed')
+          if (settled === null) {
+            return false
+          }
           const completedAt = yield* DateTime.now
           // Record the evidence before changing the row so an unavailable
           // audit service leaves the deferred export pending for retry.
@@ -351,7 +363,7 @@ export function SeedWorkspaceExports(options: {
           })
           row.record = {
             ...row.record,
-            status: 'failed',
+            status: settled,
             completedAt: DateTime.formatIso(completedAt),
             failureReason: input.reason
           }
@@ -420,11 +432,17 @@ function completeRow(
   feed: NotificationFeedInterface
 ): Effect.Effect<void, CapabilityUnavailable> {
   return Effect.gen(function* () {
+    // The write routes through the transition owner; callers reach here
+    // only through `findPending`, so the settlement is legal.
+    const settled = nextWorkspaceExportStatus(row.record.status, 'completed')
+    if (settled === null) {
+      return
+    }
     const expiresAt = workspaceExportExpiresAt(completedAt)
     row.archive = archive
     row.record = {
       ...row.record,
-      status: 'ready',
+      status: settled,
       completedAt: DateTime.formatIso(completedAt),
       expiresAt,
       sizeBytes: archive.length

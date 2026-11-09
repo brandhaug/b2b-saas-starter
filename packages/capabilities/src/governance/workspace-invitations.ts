@@ -18,6 +18,78 @@ export const InvitationStatus = Schema.Literals(invitationStatuses)
 export type InvitationStatus = typeof InvitationStatus.Type
 
 /**
+ * The owner of the `workspace_invitations.status` machine (ADR 0077).
+ * Better Auth's organization plugin owns every status write; this module
+ * declares the legal transition set both adapters pre-check against and the
+ * named predicate sets around it, so Seed and Live refuse the same things
+ * without restating the vocabulary. `canceled` is the plugin's single-`l`
+ * spelling, kept byte for byte.
+ *
+ * SQL mirrors that must stay in step, named rather than edited (migration
+ * `20260907195706_organic_mercury`):
+ * - the `workspace_invitation_terminal_insert` and
+ *   `workspace_invitation_terminal_update` triggers stamp `terminalAt` on
+ *   every row whose status is not `pending` and clear it on return to
+ *   `pending` — terminal means exactly `status <> 'pending'`, which is what
+ *   {@link terminalInvitationStatuses} enumerates.
+ * - `workspace_invitations_retention_idx` orders retention by
+ *   `CASE WHEN status = 'pending' THEN expiresAt ELSE terminalAt END`: a
+ *   pending invitation dies by `expiresAt`, a terminal one by `terminalAt`.
+ *   The `invitations` rule in `retention-rules.ts` composes that CASE from
+ *   these exports.
+ */
+
+/** The status a new invitation is born with — the plugin's only creation status. */
+export const initialInvitationStatus: InvitationStatus = 'pending'
+
+/** Every status a settled invitation holds. */
+export const terminalInvitationStatuses: ReadonlyArray<InvitationStatus> = [
+  'accepted',
+  'rejected',
+  'canceled'
+]
+
+export function isPendingInvitation(status: InvitationStatus): boolean {
+  return status === initialInvitationStatus
+}
+
+/** Terminal exactly as the `terminalAt` triggers decide it: not pending. */
+export function isTerminalInvitation(status: InvitationStatus): boolean {
+  return !isPendingInvitation(status)
+}
+
+/** The ways a pending invitation can settle. */
+export type InvitationEvent = 'accepted' | 'rejected' | 'canceled'
+
+/**
+ * The declared transition map: `pending` settles to any terminal status,
+ * terminal statuses never move. Expiry is time-based, not a transition: a
+ * pending invitation past `expiresAt` is refused by `requireUnexpired`, and
+ * the row stays `pending` for the retention CASE to age out.
+ */
+const invitationTransitions = {
+  pending: { accepted: 'accepted', rejected: 'rejected', canceled: 'canceled' },
+  accepted: { accepted: null, rejected: null, canceled: null },
+  rejected: { accepted: null, rejected: null, canceled: null },
+  canceled: { accepted: null, rejected: null, canceled: null }
+} as const satisfies Record<
+  InvitationStatus,
+  Record<InvitationEvent, InvitationStatus | null>
+>
+
+/**
+ * The status an event produces; `null` refuses the event — a settled
+ * invitation is done. Seed routes its settle writes through here; Live's
+ * writes stay the plugin's, pre-checked through the predicates above.
+ */
+export function nextInvitationStatus(
+  status: InvitationStatus,
+  event: InvitationEvent
+): InvitationStatus | null {
+  return invitationTransitions[status][event]
+}
+
+/**
  * A workspace invitation as the UI and the wire see it. The invitee's address
  * is the identity here — the plugin keys acceptance on it, and the invited
  * person has no user row of ours until they accept.
@@ -173,7 +245,7 @@ export type WorkspaceInvitationBinding = {
 export function requirePending(
   invitation: Invitation
 ): Effect.Effect<void, MembershipChangeRejected> {
-  if (invitation.status !== 'pending') {
+  if (!isPendingInvitation(invitation.status)) {
     return Effect.fail(
       new MembershipChangeRejected({ reason: 'invitation_not_pending' })
     )

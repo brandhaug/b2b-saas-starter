@@ -1,6 +1,13 @@
+import { invitationStatuses } from '@b2b-saas-starter/db/enums'
+
 import { iso } from '../internal/timestamps.ts'
 
 import { type RetentionPolicy, type RetentionRecordClass } from './retention.ts'
+import { initialInvitationStatus } from './workspace-invitations.ts'
+import {
+  failedWorkspaceExportStatus,
+  settledWorkspaceExportStatuses
+} from './workspace-export.ts'
 
 /** Each scan follows its expiry index before testing protocol eligibility.
  * Protected rows still advance the cursor, so they cannot starve later rows. */
@@ -14,6 +21,11 @@ export type RetentionRule = {
   readonly clockType: 'iso' | 'epoch'
   readonly eligible: string
   readonly update?: string
+}
+
+/** Renders a status vocabulary as a SQL `IN` list; values are code-owned enum literals. */
+function sqlIn(statuses: ReadonlyArray<string>): string {
+  return statuses.map((status) => `'${status}'`).join(', ')
 }
 
 const DAY = 86_400_000
@@ -58,11 +70,13 @@ export function retentionRules(
       key: 'invitations',
       table: 'workspace_invitations',
       index: 'workspace_invitations_retention_idx',
-      clock: "CASE WHEN status = 'pending' THEN expiresAt ELSE terminalAt END",
+      // The invitation owner's CASE: a pending invitation dies by its
+      // expiry, a settled one by the triggers' terminalAt stamp.
+      clock: `CASE WHEN status = '${initialInvitationStatus}' THEN expiresAt ELSE terminalAt END`,
       cutoff: Math.floor((now - policy.invitationDays * DAY) / 1000),
       cutoffIso: iso(now - policy.invitationDays * DAY),
       clockType: 'epoch',
-      eligible: "status IN ('pending', 'accepted', 'rejected', 'canceled')"
+      eligible: `status IN (${sqlIn(invitationStatuses)})`
     },
     {
       key: 'sessions',
@@ -97,7 +111,7 @@ export function retentionRules(
       index: 'workspace_exports_retention_idx',
       clock: 'completed_at',
       ...history(policy.exportDays),
-      eligible: "status IN ('ready', 'failed')"
+      eligible: `status IN (${sqlIn(settledWorkspaceExportStatuses)})`
     },
     {
       key: 'personal_data_exports',
@@ -111,9 +125,11 @@ export function retentionRules(
       key: 'export_secrets',
       table: 'workspace_exports',
       index: 'workspace_exports_secret_expiry_idx',
-      clock: "CASE WHEN status = 'failed' THEN completed_at ELSE expires_at END",
+      // The export owner's CASE: a failed row has no artifact horizon, so
+      // its download secret dies with the row's completion instead.
+      clock: `CASE WHEN status = '${failedWorkspaceExportStatus}' THEN completed_at ELSE expires_at END`,
       ...history(0),
-      eligible: "status IN ('ready', 'failed') AND download_secret <> ''",
+      eligible: `status IN (${sqlIn(settledWorkspaceExportStatuses)}) AND download_secret <> ''`,
       update: "download_secret = ''"
     },
     {

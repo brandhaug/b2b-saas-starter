@@ -6,8 +6,9 @@ import { Clock, DateTime, Effect, Layer } from 'effect'
 import { EmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import {
+  isExpiredPersonalDataExport,
   PersonalDataExports,
-  PERSONAL_DATA_EXPORT_TTL_MS
+  personalDataExportExpiresAt
 } from './personal-data-export.ts'
 import {
   type PersonalDataExport,
@@ -148,14 +149,14 @@ export function SeedPersonalDataExports(
             const now = yield* Clock.currentTimeMillis
             const id = yield* newCapabilityId('pde')
             for (const [existingId, existing] of rows) {
-              if (existing.expiresAt <= now) {
+              if (isExpiredPersonalDataExport(existing.expiresAt, now)) {
                 rows.delete(existingId)
               }
             }
             rows.set(id, {
               userId,
               sessionId,
-              expiresAt: now + PERSONAL_DATA_EXPORT_TTL_MS,
+              expiresAt: personalDataExportExpiresAt(now),
               json: renderPersonalDataExport({
                 ...data,
                 conversations: conversationExport.conversations
@@ -170,7 +171,7 @@ export function SeedPersonalDataExports(
               targetId: userId,
               metadata: { exportId: id, action: 'requested' }
             })
-            return { id, expiresAt: iso(now + PERSONAL_DATA_EXPORT_TTL_MS) }
+            return { id, expiresAt: iso(personalDataExportExpiresAt(now)) }
           }),
         download: (userId, sessionId, id) =>
           Effect.gen(function* () {
@@ -180,7 +181,7 @@ export function SeedPersonalDataExports(
               !row ||
               row.userId !== userId ||
               row.sessionId !== sessionId ||
-              row.expiresAt <= now
+              isExpiredPersonalDataExport(row.expiresAt, now)
             ) {
               return yield* new CapabilityUnavailable({
                 capability: 'personal-data-export',

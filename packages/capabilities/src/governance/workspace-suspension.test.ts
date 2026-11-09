@@ -9,7 +9,14 @@ import { Effect, Layer, Ref } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 import { SeedWorkspaceSuspension } from './workspace-suspension.seed.ts'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
-import { WorkspaceSuspensionService } from './workspace-suspension.ts'
+import {
+  initialWorkspaceSuspensionStatus,
+  isSuspendedWorkspace,
+  nextWorkspaceSuspensionStatus,
+  workspaceSuspensionAuditEvent,
+  workspaceSuspensionExplanation,
+  WorkspaceSuspensionService
+} from './workspace-suspension.ts'
 import { type Workspace } from './workspace-identity.ts'
 import { workspaceSuspensionContractCases } from './workspace-suspension.contract.ts'
 import { AuditEventLog } from './audit-event-log.ts'
@@ -69,6 +76,33 @@ const layer = makeLayer(
       Effect.succeed({ writes: [], commit: Effect.void, publish: Effect.void })
   })
 )
+
+describe('workspace suspension transitions', () => {
+  it('moves both directions between active and suspended', () => {
+    expect(initialWorkspaceSuspensionStatus).toBe('active')
+    expect(nextWorkspaceSuspensionStatus('active', 'suspend')).toBe('suspended')
+    expect(nextWorkspaceSuspensionStatus('suspended', 'unsuspend')).toBe('active')
+  })
+
+  it('refuses a transition to the current status', () => {
+    // The no-op both adapters owe their silence to: no write, no audit, no
+    // notice. The assistant_workspace_suspension trigger agrees — it only
+    // fires when the stored status actually changed.
+    expect(nextWorkspaceSuspensionStatus('active', 'unsuspend')).toBeNull()
+    expect(nextWorkspaceSuspensionStatus('suspended', 'suspend')).toBeNull()
+  })
+
+  it('keys the audit event and explanation on the committed status', () => {
+    expect(workspaceSuspensionAuditEvent('suspended')).toBe('workspace.suspended')
+    expect(workspaceSuspensionAuditEvent('active')).toBe('workspace.unsuspended')
+    expect(workspaceSuspensionExplanation('suspended', 'Contact support.')).toBe(
+      'Contact support.'
+    )
+    expect(workspaceSuspensionExplanation('active', 'Contact support.')).toBeNull()
+    expect(isSuspendedWorkspace('suspended')).toBe(true)
+    expect(isSuspendedWorkspace('active')).toBe(false)
+  })
+})
 
 describe('seed workspace suspension', () => {
   it.effect(

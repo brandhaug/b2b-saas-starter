@@ -13,7 +13,7 @@ import {
 } from '@b2b-saas-starter/failure/capability'
 import {
   PersonalDataExports,
-  PERSONAL_DATA_EXPORT_TTL_MS
+  personalDataExportExpiresAt
 } from './personal-data-export.ts'
 import { renderPersonalDataExport } from './personal-data-export-archive.ts'
 import { WorkspaceMembership } from './workspace-membership.ts'
@@ -279,7 +279,7 @@ export const LivePersonalDataExports: Layer.Layer<
       const now = yield* Clock.currentTimeMillis
       yield* requireLiveSession(userId, sessionId, now)
       const id = yield* newCapabilityId('pde')
-      const expiresAt = iso(now + PERSONAL_DATA_EXPORT_TTL_MS)
+      const expiresAt = iso(personalDataExportExpiresAt(now))
       yield* auditedMutation({
         matched: Effect.succeed(true),
         auditEvent: {
@@ -314,6 +314,9 @@ export const LivePersonalDataExports: Layer.Layer<
     ) {
       const now = yield* Clock.currentTimeMillis
       yield* requireLiveSession(userId, sessionId, now)
+      // `expires_at > now` is the SQL mirror of the owner's expired
+      // predicate, named in personal-data-export.ts; the row a download
+      // may serve is exactly one that predicate refuses.
       const rows = yield* unavailable(
         db
           .select()

@@ -18,6 +18,9 @@ import { auditedMutations } from './audited-mutation.ts'
 import { WorkspaceSuspensionService } from './workspace-suspension.ts'
 import { workspaceExportFileName } from './workspace-export-archive.ts'
 import {
+  completedWorkspaceExportStatus,
+  failedWorkspaceExportStatus,
+  initialWorkspaceExportStatus,
   issueWorkspaceExportDownloadLink,
   isWorkspaceExportDownloadable,
   verifyWorkspaceExportDownload,
@@ -90,7 +93,7 @@ function pendingWhere(exportId: string, workspaceId: string) {
   return and(
     eq(workspaceExports.id, exportId),
     eq(workspaceExports.workspaceId, workspaceId),
-    eq(workspaceExports.status, 'pending')
+    eq(workspaceExports.status, initialWorkspaceExportStatus)
   )
 }
 
@@ -175,7 +178,9 @@ export function LiveWorkspaceExports(
               db
                 .update(workspaceExports)
                 .set({
-                  status: 'failed',
+                  // Legal by the transition map: `matched` and the WHERE
+                  // clause both pin the row to the pending status.
+                  status: failedWorkspaceExportStatus,
                   failureReason: reason,
                   completedAt: DateTime.formatIso(completedAt)
                 })
@@ -216,7 +221,7 @@ export function LiveWorkspaceExports(
             id,
             workspaceId: ctx.workspace.id,
             requestedByUserId: ctx.actor?.userId ?? null,
-            status: 'pending',
+            status: initialWorkspaceExportStatus,
             objectKey: null,
             sizeBytes: null,
             // 32 random bytes: the per-export HMAC key behind the signed link.
@@ -321,7 +326,9 @@ export function LiveWorkspaceExports(
               db
                 .update(workspaceExports)
                 .set({
-                  status: 'ready',
+                  // Legal by the transition map: the WHERE clause pins the
+                  // row to the pending status the bucket write just proved.
+                  status: completedWorkspaceExportStatus,
                   objectKey,
                   sizeBytes: input.archive.length,
                   completedAt: DateTime.formatIso(completedAt),

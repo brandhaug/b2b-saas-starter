@@ -36,6 +36,80 @@ export const WorkspaceExport = Schema.Struct({
 export type WorkspaceExport = typeof WorkspaceExport.Type
 
 /**
+ * The owner of the `workspace_exports.status` machine (ADR 0077): a request
+ * births `pending`, the generation worker settles it `ready` (artifact in
+ * the bucket) or `failed` (reason on the row), and a settled export never
+ * moves — the second settlement finds no pending row and writes nothing.
+ *
+ * SQL mirrors that must stay in step, named rather than edited (migration
+ * `20260907195706_organic_mercury`):
+ * - `workspace_exports_retention_idx` ages settled rows by `completed_at`.
+ * - `workspace_exports_secret_expiry_idx` orders secret erasure by
+ *   `CASE WHEN status = 'failed' THEN completed_at ELSE expires_at END`: a
+ *   `failed` row has no artifact horizon, so its download secret dies with
+ *   the row's completion instead.
+ * - `workspace_exports_recovery_idx` leads with `status`, paging the
+ *   pending rows recovery scans.
+ * The `exports` and `export_secrets` rules in `retention-rules.ts` compose
+ * their status vocabulary from the sets below.
+ */
+
+/** The status a request births; the only status the worker settles. */
+export const initialWorkspaceExportStatus: WorkspaceExportStatus = 'pending'
+
+/** The statuses a settled export holds — retention's eligible set. */
+export const settledWorkspaceExportStatuses: ReadonlyArray<WorkspaceExportStatus> = [
+  'ready',
+  'failed'
+]
+
+/**
+ * The status a completed build writes. Every write site guards on the
+ * pending status first (`pendingWhere` in Live, `findPending` in Seed), so
+ * the target is legal by the map below.
+ */
+export const completedWorkspaceExportStatus: WorkspaceExportStatus = 'ready'
+
+/**
+ * The status a failed build writes, under the same pending guards as
+ * {@link completedWorkspaceExportStatus}.
+ */
+export const failedWorkspaceExportStatus: WorkspaceExportStatus = 'failed'
+
+export function isPendingWorkspaceExport(status: WorkspaceExportStatus): boolean {
+  return status === initialWorkspaceExportStatus
+}
+
+/** The signed-link gate: only a completed export has an artifact to serve. */
+export function isReadyWorkspaceExport(status: WorkspaceExportStatus): boolean {
+  return status === completedWorkspaceExportStatus
+}
+
+/** The outcomes that settle a pending export. */
+export type WorkspaceExportSettlement = 'completed' | 'failed'
+
+/**
+ * The declared transition map: `pending` settles either way; `ready` and
+ * `failed` are terminal and refuse everything.
+ */
+const workspaceExportTransitions = {
+  pending: { completed: 'ready', failed: 'failed' },
+  ready: { completed: null, failed: null },
+  failed: { completed: null, failed: null }
+} as const satisfies Record<
+  WorkspaceExportStatus,
+  Record<WorkspaceExportSettlement, WorkspaceExportStatus | null>
+>
+
+/** The status a settlement produces; `null` refuses it — settled exports never move. */
+export function nextWorkspaceExportStatus(
+  status: WorkspaceExportStatus,
+  settlement: WorkspaceExportSettlement
+): WorkspaceExportStatus | null {
+  return workspaceExportTransitions[status][settlement]
+}
+
+/**
  * Whether the deployment can produce exports at all. `unavailable` is the
  * provider-light answer for a worker with no export queue or bucket bound
  * (CLAUDE.md rule 3): the UI explains instead of offering a button that 503s.
@@ -339,7 +413,7 @@ export function isWorkspaceExportDownloadable(
   record: Pick<WorkspaceExport, 'status' | 'expiresAt'>,
   now: DateTime.Utc
 ): boolean {
-  if (record.status !== 'ready' || record.expiresAt === null) {
+  if (!isReadyWorkspaceExport(record.status) || record.expiresAt === null) {
     return false
   }
   return (

@@ -47,6 +47,10 @@ import {
 import { workspaceExportContractCases } from './workspace-export.contract.ts'
 import {
   issueWorkspaceExportDownloadLink,
+  isPendingWorkspaceExport,
+  isReadyWorkspaceExport,
+  nextWorkspaceExportStatus,
+  settledWorkspaceExportStatuses,
   signWorkspaceExportDownload,
   verifyWorkspaceExportDownload,
   WORKSPACE_EXPORT_LINK_TTL_SECONDS,
@@ -309,6 +313,29 @@ describe('SeedWorkspaceExports', () => {
       )
     )
   )
+})
+
+describe('workspace export transitions', () => {
+  it('settles a pending export either way', () => {
+    expect(nextWorkspaceExportStatus('pending', 'completed')).toBe('ready')
+    expect(nextWorkspaceExportStatus('pending', 'failed')).toBe('failed')
+  })
+
+  it('refuses every settlement against a settled export', () => {
+    for (const status of settledWorkspaceExportStatuses) {
+      expect(nextWorkspaceExportStatus(status, 'completed')).toBeNull()
+      expect(nextWorkspaceExportStatus(status, 'failed')).toBeNull()
+    }
+  })
+
+  it('gates downloads on the completed status alone', () => {
+    expect(isReadyWorkspaceExport('ready')).toBe(true)
+    expect(isReadyWorkspaceExport('pending')).toBe(false)
+    expect(isReadyWorkspaceExport('failed')).toBe(false)
+    expect(isPendingWorkspaceExport('pending')).toBe(true)
+    expect(isPendingWorkspaceExport('ready')).toBe(false)
+    expect(isPendingWorkspaceExport('failed')).toBe(false)
+  })
 })
 
 describe('signed download links', () => {
