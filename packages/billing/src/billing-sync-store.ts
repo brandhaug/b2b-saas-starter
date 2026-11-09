@@ -15,6 +15,13 @@ import { AuditEventLog, BillingWebhookPublisher } from './ports.ts'
 import { newCapabilityId } from './internal/ids.ts'
 import { makeBillingLease, type BillingLease } from './billing-lease.ts'
 import {
+  attemptProviderEventStatus,
+  completedProviderEventStatus,
+  failureStatus,
+  settledBySynchronization
+} from './provider-event-status.ts'
+import { nextSynchronizationStatus } from './synchronization-status.ts'
+import {
   billingStoreUnavailable,
   planChangeMetadata,
   seatChangeMetadata,
@@ -22,14 +29,6 @@ import {
   type ProcessProviderEventInput
 } from './billing.ts'
 import { type BillingStateDecision } from './billing-state.ts'
-
-/**
- * Provider events a successful synchronization settles. A `conflict` event is
- * deliberately absent: it is the operator's evidence that one event could not
- * be applied, and a later unrelated commit for the same customer must not
- * rewrite it into a reconciled success.
- */
-const SETTLED_EVENT_STATUSES = ['processing', 'failed'] as const
 
 /** The atomic storage boundary shared by webhook, queue, and scheduled work. */
 export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function* () {
@@ -99,7 +98,7 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
           workspaceId,
           stripeCustomerId: input.subscription?.customerId ?? null,
           stripeSubscriptionId: input.subscription?.subscriptionId ?? null,
-          status: 'processing',
+          status: attemptProviderEventStatus,
           attemptCount: 0,
           receivedAt: now,
           updatedAt: now
@@ -125,7 +124,7 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
           .update(billingProviderEvents)
           .set({
             workspaceId: lease.workspaceId,
-            status: 'processing',
+            status: attemptProviderEventStatus,
             attemptCount: sql`${billingProviderEvents.attemptCount} + 1`,
             updatedAt: now
           })
@@ -149,12 +148,12 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
     const nextAttemptAt = DateTime.formatIso(
       DateTime.add(yield* DateTime.now, { minutes: delayMinutes })
     )
-    let status: 'conflict' | 'delayed' = 'delayed'
-    let eventStatus: 'conflict' | 'failed' = 'failed'
+    const status = nextSynchronizationStatus({ kind: 'failure', conflict })
+    // `begin` re-entered the event into `processing` before this failure, so
+    // the failure half of the event machine is total here.
+    const eventStatus = failureStatus(conflict)
     let conflictReason: string | null = null
     if (conflict) {
-      status = 'conflict'
-      eventStatus = 'conflict'
       conflictReason = reason
     }
     const statements: Array<BatchStatement> = [
@@ -222,10 +221,11 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
       unresolvedSince = before.unresolvedSince
       failureCount = before.failureCount ?? 0
     }
-    let synchronizationStatus: 'current' | 'pending' = 'current'
-    if (!decision.verified || desiredQuantity !== next.seatQuantity) {
-      synchronizationStatus = 'pending'
-    }
+    const synchronizationStatus = nextSynchronizationStatus({
+      kind: 'commit',
+      verified: decision.verified,
+      seatsAligned: desiredQuantity === next.seatQuantity
+    })
     let nextAttemptMinutes = 5
     if (synchronizationStatus === 'pending') {
       nextAttemptMinutes = 1
@@ -327,7 +327,7 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
       db
         .update(billingProviderEvents)
         .set({
-          status: 'completed',
+          status: completedProviderEventStatus,
           outcome: 'reconciled',
           failureReason: null,
           completedAt: now,
@@ -337,7 +337,7 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
         .where(
           and(
             eq(billingProviderEvents.workspaceId, lease.workspaceId),
-            inArray(billingProviderEvents.status, [...SETTLED_EVENT_STATUSES]),
+            inArray(billingProviderEvents.status, [...settledBySynchronization]),
             sql`(${billingProviderEvents.stripeCustomerId} IS NULL OR ${billingProviderEvents.stripeCustomerId} = ${next.customerId})`
           )
         )
@@ -351,7 +351,7 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
             stripeCustomerId: next.customerId,
             stripeSubscriptionId:
               input.subscription?.subscriptionId ?? next.subscriptionId,
-            status: 'completed',
+            status: completedProviderEventStatus,
             outcome: 'applied',
             failureReason: null,
             completedAt: now,

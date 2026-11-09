@@ -1,4 +1,105 @@
 import { type billingCheckoutClaims } from '@b2b-saas-starter/db/schema/billing'
+import { type BillingCheckoutStatus } from '@b2b-saas-starter/db/enums'
+
+/**
+ * The owner of the `billing_checkout_claims.status` machine (ADR 0077).
+ *
+ * SQL mirrors that must stay in step, named rather than edited:
+ * - `billing_checkout_claims_workspace_open_idx` is the partial unique index
+ *   holding one open claim per workspace over exactly
+ *   `openCheckoutClaimStatuses` (migration `20260907080000_billing_reliability`).
+ * - the `workspace_deletion_fences` triggers refuse deletion while a claim is
+ *   `pending` or `created` (migration `20261024202744_strong_captain_america`),
+ *   and `workspaceDeletionAllowed` re-checks the same set.
+ */
+
+/** Claim statuses that still hold the workspace's single checkout slot. */
+export const openCheckoutClaimStatuses: ReadonlyArray<BillingCheckoutStatus> = [
+  'pending',
+  'created'
+]
+
+/** The status a new claim is born with before any provider session exists. */
+export const initialCheckoutClaimStatus: BillingCheckoutStatus = 'pending'
+
+export function isOpenCheckoutClaim(status: BillingCheckoutStatus): boolean {
+  return openCheckoutClaimStatuses.includes(status)
+}
+
+/** Provider evidence that moves a claim; the column is written only through these. */
+export type CheckoutClaimEvent =
+  | { readonly kind: 'provider_session_created' }
+  | { readonly kind: 'provider_session_completed' }
+  | { readonly kind: 'provider_session_expired' }
+  | { readonly kind: 'provider_absence_verified' }
+
+/**
+ * The declared transition map: the status each piece of provider evidence
+ * produces from each stored status. `null` refuses the evidence — terminal
+ * statuses never move. Open statuses accept any provider evidence: a session
+ * that expired before its claim was recorded still expires the claim, and
+ * verified provider absence (`failureReason: verified_no_customer` /
+ * `verified_no_session`) expires a claim the provider never accepted.
+ */
+const checkoutClaimTransitions = {
+  pending: {
+    provider_session_created: 'created',
+    provider_session_completed: 'completed',
+    provider_session_expired: 'expired',
+    provider_absence_verified: 'expired'
+  },
+  created: {
+    provider_session_created: 'created',
+    provider_session_completed: 'completed',
+    provider_session_expired: 'expired',
+    provider_absence_verified: 'expired'
+  },
+  completed: {
+    provider_session_created: null,
+    provider_session_completed: null,
+    provider_session_expired: null,
+    provider_absence_verified: null
+  },
+  expired: {
+    provider_session_created: null,
+    provider_session_completed: null,
+    provider_session_expired: null,
+    provider_absence_verified: null
+  }
+} as const satisfies Record<
+  BillingCheckoutStatus,
+  Record<CheckoutClaimEvent['kind'], BillingCheckoutStatus | null>
+>
+
+/** Applies one piece of provider evidence; `null` refuses it. */
+export function nextCheckoutClaimStatus(
+  status: BillingCheckoutStatus,
+  event: CheckoutClaimEvent
+): BillingCheckoutStatus | null {
+  return checkoutClaimTransitions[status][event.kind]
+}
+
+/**
+ * Maps a provider session state to its claim event. Provider responses carry
+ * plain strings, so any state outside the recoverable vocabulary (`open`,
+ * `complete`, `expired` — the three states `retrieveStripeCheckoutSession`
+ * distinguishes) refuses: recovery cannot classify it.
+ */
+export function checkoutClaimEventFromSessionStatus(
+  status: string
+): CheckoutClaimEvent | null {
+  if (status === 'open') {
+    return { kind: 'provider_session_created' }
+  }
+  if (status === 'complete') {
+    return { kind: 'provider_session_completed' }
+  }
+  if (status === 'expired') {
+    return { kind: 'provider_session_expired' }
+  }
+  return null
+}
+
 /**
  * One `billing_checkout_claims` row: the fields that must stay immutable for
  * a single logical checkout attempt, read straight off the stored shape.

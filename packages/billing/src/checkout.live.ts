@@ -12,9 +12,11 @@ import { type BillingLease } from './billing-lease.ts'
 import { type makeBillingSyncStore } from './billing-sync-store.ts'
 import {
   decideCheckoutClaim,
+  initialCheckoutClaimStatus,
   type CheckoutClaim,
   type CheckoutClaimInput
 } from './checkout-claims.ts'
+import { nextSynchronizationStatus } from './synchronization-status.ts'
 import {
   checkoutFailure,
   recoverCheckoutClaim,
@@ -218,7 +220,7 @@ export function makeDurableCheckout(deps: CheckoutServices) {
             successUrl: input.successUrl,
             cancelUrl: input.cancelUrl,
             idempotencyKey: `billing-checkout:${id}`,
-            status: 'pending',
+            status: initialCheckoutClaimStatus,
             stripeSessionId: null,
             checkoutUrl: null,
             attemptCount: 1,
@@ -231,7 +233,10 @@ export function makeDurableCheckout(deps: CheckoutServices) {
             deps.db.insert(billingCheckoutClaims).values(claim),
             deps.db
               .update(billingSynchronization)
-              .set({ status: 'pending', updatedAt: timestamp })
+              .set({
+                status: nextSynchronizationStatus({ kind: 'checkout_claim_opened' }),
+                updatedAt: timestamp
+              })
               .where(eq(billingSynchronization.workspaceId, input.workspaceId))
           ])
         }

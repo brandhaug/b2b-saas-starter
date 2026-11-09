@@ -1,95 +1,82 @@
-import { describe, expect, it } from '@effect/vitest'
+import { describe, expect, it } from 'vite-plus/test'
 
 import {
-  decideCheckoutClaim,
-  type CheckoutClaim,
-  type CheckoutClaimInput
+  checkoutClaimEventFromSessionStatus,
+  isOpenCheckoutClaim,
+  nextCheckoutClaimStatus,
+  openCheckoutClaimStatuses
 } from './checkout-claims.ts'
+import { billingCheckoutStatuses } from '@b2b-saas-starter/db/enums'
 
-const input: CheckoutClaimInput = {
-  workspaceId: 'wrk_1',
-  planId: 'team',
-  priceId: 'price_team',
-  quantity: 3,
-  successUrl: 'https://example.test/success',
-  cancelUrl: 'https://example.test/cancel'
-}
+describe('nextCheckoutClaimStatus', () => {
+  it('advances a pending claim to created when the provider session exists', () => {
+    expect(
+      nextCheckoutClaimStatus('pending', { kind: 'provider_session_created' })
+    ).toBe('created')
+  })
 
-function claim(overrides: Partial<CheckoutClaim> = {}): CheckoutClaim {
-  return {
-    id: 'claim_1',
-    workspaceId: input.workspaceId,
-    planId: input.planId,
-    idempotencyKey: 'checkout-wrk_1-team-v1',
-    priceId: input.priceId,
-    quantity: input.quantity,
-    successUrl: input.successUrl,
-    cancelUrl: input.cancelUrl,
-    status: 'pending',
-    stripeSessionId: null,
-    checkoutUrl: null,
-    attemptCount: 1,
-    failureReason: null,
-    expiresAt: '2026-09-08T00:00:00.000Z',
-    createdAt: '2026-09-07T00:00:00.000Z',
-    updatedAt: '2026-09-07T00:00:00.000Z',
-    ...overrides
-  }
-}
+  it('completes or expires an open claim from provider evidence', () => {
+    expect(
+      nextCheckoutClaimStatus('pending', { kind: 'provider_session_completed' })
+    ).toBe('completed')
+    expect(
+      nextCheckoutClaimStatus('created', { kind: 'provider_session_expired' })
+    ).toBe('expired')
+  })
 
-describe('checkout claim decisions', () => {
-  it('retries an interrupted pending claim using stored immutable values', () => {
-    const result = decideCheckoutClaim(
-      { ...input, quantity: 99, successUrl: 'https://attacker.test' },
-      claim(),
-      '2026-09-07T12:00:00.000Z'
-    )
-    expect(result.outcome).toBe('retry')
-    if (result.outcome === 'retry') {
-      expect(result.claim.quantity).toBe(3)
-      expect(result.claim.successUrl).toBe('https://example.test/success')
+  it('expires an open claim when the provider verifiably lacks the resource', () => {
+    expect(
+      nextCheckoutClaimStatus('created', { kind: 'provider_absence_verified' })
+    ).toBe('expired')
+    expect(
+      nextCheckoutClaimStatus('pending', { kind: 'provider_absence_verified' })
+    ).toBe('expired')
+  })
+
+  it('refuses transitions out of terminal statuses', () => {
+    for (const status of ['completed', 'expired'] as const) {
+      expect(
+        nextCheckoutClaimStatus(status, { kind: 'provider_session_created' })
+      ).toBeNull()
+      expect(
+        nextCheckoutClaimStatus(status, { kind: 'provider_session_completed' })
+      ).toBeNull()
+      expect(
+        nextCheckoutClaimStatus(status, { kind: 'provider_absence_verified' })
+      ).toBeNull()
     }
   })
 
-  it('reuses only a created session and blocks a competing plan', () => {
-    const created = decideCheckoutClaim(
-      input,
-      claim({
-        status: 'created',
-        stripeSessionId: 'cs_1',
-        checkoutUrl: 'https://checkout.stripe.com/c/pay/1'
-      }),
-      '2026-09-07T12:00:00.000Z'
-    )
-    // The decision hands back the stored claim; the caller pairs it with the
-    // session it retrieved to produce a URL.
-    expect(created.outcome).toBe('reuse')
-    if (created.outcome === 'reuse') {
-      expect(created.claim.stripeSessionId).toBe('cs_1')
-      expect(created.claim.id).toBe('claim_1')
-    }
-
+  it('expires a pending claim whose recovered provider session already expired', () => {
     expect(
-      decideCheckoutClaim(
-        { ...input, planId: 'enterprise' },
-        claim(),
-        '2026-09-07T12:00:00.000Z'
+      nextCheckoutClaimStatus('pending', { kind: 'provider_session_expired' })
+    ).toBe('expired')
+  })
+
+  it('treats only pending and created as open', () => {
+    expect([...openCheckoutClaimStatuses]).toEqual(['pending', 'created'])
+    for (const status of billingCheckoutStatuses) {
+      expect(isOpenCheckoutClaim(status)).toBe(
+        status === 'pending' || status === 'created'
       )
-    ).toEqual({ outcome: 'conflict', reason: 'checkout_in_progress' })
+    }
   })
 })
 
-// A second interval must never reuse the old interval's hosted checkout.
-it('blocks annual checkout while a monthly claim is pending or created', () => {
-  for (const status of ['pending', 'created'] satisfies ReadonlyArray<
-    CheckoutClaim['status']
-  >) {
-    expect(
-      decideCheckoutClaim(
-        { ...input, priceId: 'price_annual' },
-        claim({ status, stripeSessionId: 'cs_month' }),
-        '2026-09-07T12:00:00.000Z'
-      )
-    ).toEqual({ outcome: 'conflict', reason: 'checkout_in_progress' })
-  }
+describe('checkoutClaimEventFromSessionStatus', () => {
+  it('maps the three provider session states to claim events', () => {
+    expect(checkoutClaimEventFromSessionStatus('open')).toEqual({
+      kind: 'provider_session_created'
+    })
+    expect(checkoutClaimEventFromSessionStatus('complete')).toEqual({
+      kind: 'provider_session_completed'
+    })
+    expect(checkoutClaimEventFromSessionStatus('expired')).toEqual({
+      kind: 'provider_session_expired'
+    })
+  })
+
+  it('refuses session states outside the recoverable vocabulary', () => {
+    expect(checkoutClaimEventFromSessionStatus('processing')).toBeNull()
+  })
 })

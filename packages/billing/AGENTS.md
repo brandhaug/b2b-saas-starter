@@ -6,6 +6,7 @@ Stripe lifecycle, checkout recovery, seat billing, and resource entitlements (AD
 
 ## Entry Points & Contracts
 
+- Status machines are explicit (ADR 0077): `checkout-claims.ts` owns the checkout claim machine (`openCheckoutClaimStatuses` mirrors the partial unique index), `provider-event-status.ts` owns provider event transitions and `settledBySynchronization`, and `synchronization-status.ts` owns the synchronization status classification both adapters share. Adapters never write a status literal inline.
 - All provider events, seat work, and scheduled reconciliation use the fenced synchronization workflow. Event fields only route; Live retrieves Stripe authority and Seed reads an independent provider fixture. Provider failures preserve the last verified projection and remain retryable.
 - `billing-state.ts` owns lifecycle decisions. Both synchronization and request-time plan reads evaluate its deadlines. Background callers use `currentPlanForWorkspace`; workspace context is not current billing authority. Seed fixture plans must be supplied explicitly for workspace-keyed reads.
 - Persist the subscribed plan separately from effective access. A downgrade to Starter must retain enough state for payment recovery. Billing writes never change administrative suspension state.
