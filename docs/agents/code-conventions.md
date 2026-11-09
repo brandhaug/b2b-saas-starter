@@ -21,6 +21,26 @@ constraints; [Effect examples](effect-examples.md) point to current implementati
   Choose loops, array methods and destructuring for clarity; avoid nested multi-step
   expressions. Backend Effect lint restrictions still apply.
 
+## State machines
+
+Stored status machines follow [ADR 0077](../adr/0077-explicit-state-machine-transitions.md):
+one owner module per machine declares the states (imported from
+`@b2b-saas-starter/db` enums), an exhaustive transition map or one named
+decision function, and the predicate sets (`open`, `terminal`, `replayable`,
+`settled`) surrounding it.
+
+- Adapters never write a status literal inline; they route through the owner
+  module's transition function, and SQL filters compose from its exported
+  sets.
+- Where SQL mirrors a predicate set — partial index, trigger guard, retention
+  `CASE` — the owner module's doc comment names the table and migration; the
+  migration file itself is never edited after apply.
+- Contract tests pin legal transitions and refuse illegal ones for both the
+  Seed and Live adapters.
+- No `xstate` or `@xstate/store` dependency: durable row state keeps guarded
+  SQL as its concurrency authority, Effect owns in-process orchestration, and
+  UI finite modes stay small pure reducers with direct tests.
+
 ## Effects and boundaries
 
 - Bind services before calling them: `const feed = yield* NotificationFeed`, then
