@@ -21,7 +21,7 @@ catalog:
   '@tanstack/table-core': 9.3.1
   '@babel/core': 8.1.0
   '@base-ui/react': 1.9.0
-  '@inlang/paraglide-js': 3.1.0
+  '@inlang/paraglide-js': 3.2.0
   '@inlang/plugin-message-format': 4.6.0
   '@better-auth/cimd': 1.7.17
   '@better-auth/mcp': 1.7.17
