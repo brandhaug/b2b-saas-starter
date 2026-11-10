@@ -21,7 +21,7 @@ catalog:
   '@tanstack/table-core': 9.3.1
   '@babel/core': 8.1.0
   '@base-ui/react': 1.9.0
-  '@inlang/paraglide-js': 3.2.0
+  '@inlang/paraglide-js': 3.2.1
   '@inlang/plugin-message-format': 4.6.0
   '@better-auth/cimd': 1.7.18
   '@better-auth/mcp': 1.7.18
@@ -31,7 +31,7 @@ catalog:
   '@better-auth/utils': 0.5.1
   '@cloudflare/ai-chat': 0.12.2
   agents: 0.33.0
-  ai: 7.0.163
+  ai: 7.0.164
   '@cloudflare/workers-types': 5.20261106.1
   '@cloudflare/vitest-plugin': 1.6.0
   '@effect/platform-node': 4.1.2
@@ -42,8 +42,8 @@ catalog:
   '@mdx-js/mdx': 3.1.1
   '@mdx-js/rollup': 3.1.1
   '@playwright/test': 1.65.0
-  seroval: 1.7.8
-  '@react-email/ui': 6.11.7
+  seroval: 1.7.9
+  '@react-email/ui': 6.11.8
   '@rolldown/plugin-babel': 0.3.0
   '@tailwindcss/typography': 0.5.20
   '@tailwindcss/vite': 4.3.5
@@ -95,7 +95,7 @@ catalog:
   react: 19.3.1
   react-dom: 19.3.1
   react-markdown: 10.1.0
-  react-email: 6.11.7
+  react-email: 6.11.8
   rehype-pretty-code: 0.14.6
   rehype-slug: 6.0.0
   remark-frontmatter: 5.0.0

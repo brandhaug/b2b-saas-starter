@@ -55,8 +55,8 @@ catalogs:
       specifier: 5.3.0
       version: 5.3.0
     '@inlang/paraglide-js':
-      specifier: 3.2.0
-      version: 3.2.0
+      specifier: 3.2.1
+      version: 3.2.1
     '@inlang/plugin-message-format':
       specifier: 4.6.0
       version: 4.6.0
@@ -73,8 +73,8 @@ catalogs:
       specifier: 1.65.0
       version: 1.65.0
     '@react-email/ui':
-      specifier: 6.11.7
-      version: 6.11.7
+      specifier: 6.11.8
+      version: 6.11.8
     '@rolldown/plugin-babel':
       specifier: 0.3.0
       version: 0.3.0
@@ -145,8 +145,8 @@ catalogs:
       specifier: 0.33.0
       version: 0.33.0
     ai:
-      specifier: 7.0.163
-      version: 7.0.163
+      specifier: 7.0.164
+      version: 7.0.164
     alchemy:
       specifier: 2.0.0-beta.84
       version: 2.0.0-beta.84
@@ -229,8 +229,8 @@ catalogs:
       specifier: 19.3.1
       version: 19.3.1
     react-email:
-      specifier: 6.11.7
-      version: 6.11.7
+      specifier: 6.11.8
+      version: 6.11.8
     react-markdown:
       specifier: 10.1.0
       version: 10.1.0
@@ -250,8 +250,8 @@ catalogs:
       specifier: 6.0.0
       version: 6.0.0
     seroval:
-      specifier: 1.7.8
-      version: 1.7.8
+      specifier: 1.7.9
+      version: 1.7.9
     sonner:
       specifier: 2.0.8
       version: 2.0.8
@@ -339,7 +339,7 @@ importers:
         version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@inlang/paraglide-js':
         specifier: 'catalog:'
-        version: 3.2.0(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(typescript@7.0.2)
+        version: 3.2.1(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(typescript@7.0.2)
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
@@ -497,7 +497,7 @@ importers:
         version: 5.0.5(@vitest/browser@5.0.5)(vitest@5.0.5)
       react-email:
         specifier: 'catalog:'
-        version: 6.11.7(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)
+        version: 6.11.8(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -572,7 +572,7 @@ importers:
         version: 1.7.18(eb514414902688d3e7ccf0b0bd6c220b)
       '@cloudflare/ai-chat':
         specifier: 'catalog:'
-        version: 0.12.2(agents@0.33.0(@ai-sdk/provider@4.0.36)(@babel/core@8.1.0)(@babel/runtime@8.1.0)(@modelcontextprotocol/client@2.4.0)(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.163(zod@4.6.7))(react@19.3.1)(rolldown@1.2.13)(zod@4.6.7))(ai@7.0.163(zod@4.6.7))(react@19.3.1)
+        version: 0.12.2(agents@0.33.0(@ai-sdk/provider@4.0.36)(@babel/core@8.1.0)(@babel/runtime@8.1.0)(@modelcontextprotocol/client@2.4.0)(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.164(zod@4.6.7))(react@19.3.1)(rolldown@1.2.13)(zod@4.6.7))(ai@7.0.164(zod@4.6.7))(react@19.3.1)
       '@fontsource-variable/geist':
         specifier: 'catalog:'
         version: 5.3.0
@@ -605,10 +605,10 @@ importers:
         version: 9.3.1
       agents:
         specifier: 'catalog:'
-        version: 0.33.0(@ai-sdk/provider@4.0.36)(@babel/core@8.1.0)(@babel/runtime@8.1.0)(@modelcontextprotocol/client@2.4.0)(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.163(zod@4.6.7))(react@19.3.1)(rolldown@1.2.13)(zod@4.6.7)
+        version: 0.33.0(@ai-sdk/provider@4.0.36)(@babel/core@8.1.0)(@babel/runtime@8.1.0)(@modelcontextprotocol/client@2.4.0)(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.164(zod@4.6.7))(react@19.3.1)(rolldown@1.2.13)(zod@4.6.7)
       ai:
         specifier: 'catalog:'
-        version: 7.0.163(zod@4.6.7)
+        version: 7.0.164(zod@4.6.7)
       better-auth:
         specifier: 'catalog:'
         version: 1.7.18(@opentelemetry/api@1.10.0)(@tanstack/react-start@1.169.4(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.4)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261106.1)(@effect/sql-d1@4.1.2(effect@4.1.2))(@opentelemetry/api@1.10.0)(effect@4.1.2)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.1.0)(@opentelemetry/api@1.10.0)(@playwright/test@1.65.0)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5)
@@ -756,7 +756,7 @@ importers:
         version: 6.0.0
       seroval:
         specifier: 'catalog:'
-        version: 1.7.8
+        version: 1.7.9
       tailwindcss:
         specifier: 'catalog:'
         version: 4.3.5
@@ -1096,14 +1096,14 @@ importers:
         version: 19.3.1
       react-email:
         specifier: 'catalog:'
-        version: 6.11.7(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)
+        version: 6.11.8(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2)
     devDependencies:
       '@effect/vitest':
         specifier: 4.1.2
         version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
       '@react-email/ui':
         specifier: 'catalog:'
-        version: 6.11.7(@babel/core@8.1.0)(@opentelemetry/api@1.10.0)(@playwright/test@1.65.0)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        version: 6.11.8(@babel/core@8.1.0)(@opentelemetry/api@1.10.0)(@playwright/test@1.65.0)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@types/react':
         specifier: 'catalog:'
         version: 19.3.0
@@ -1183,7 +1183,7 @@ importers:
     dependencies:
       '@inlang/paraglide-js':
         specifier: 'catalog:'
-        version: 3.2.0(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(typescript@7.0.2)
+        version: 3.2.1(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(typescript@7.0.2)
     devDependencies:
       '@inlang/plugin-message-format':
         specifier: 'catalog:'
@@ -1263,8 +1263,8 @@ importers:
 
 packages:
 
-  '@ai-sdk/gateway@4.0.136':
-    resolution: {integrity: sha512-P851NL80P85Ee6MhblRuuCzNlQdOYU5rKmdt/Wuo5dMtkzvIHhyVZY9wtfKG3wBJUUoxHxWKsI2aR6O75o8diA==}
+  '@ai-sdk/gateway@4.0.137':
+    resolution: {integrity: sha512-AYAoZmMGEGOWnMpBvEYc3lONumD3WZIc3GqTv2Q2QLHXr7BY1JVwCbm6ZA3dd8tT1xx5eSJSBbYfZZ3xSRfskQ==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -2534,8 +2534,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@inlang/paraglide-js@3.2.0':
-    resolution: {integrity: sha512-mjcVM+GTbr6Wr463gMHSGUHF0x7y1W0VizJSPyX8gjyxNFYKW0C0rRf1QEtWWMD8d0NBdzo4i7tnfcagR1FyKg==}
+  '@inlang/paraglide-js@3.2.1':
+    resolution: {integrity: sha512-TxTaxvjEMjDoPlH2iIuTz8gPHPyJUuYl9IgubyyF25qBhPHJtZq019bzoYcgWKyyj4MVuLLiVZK6jOunkVrEfQ==}
     hasBin: true
     peerDependencies:
       eslint: ^9.0.0 || ^10.0.0
@@ -3710,8 +3710,8 @@ packages:
       react: ^18.0 || ^19.0 || ^19.0.0-rc
       react-dom: ^18.0 || ^19.0 || ^19.0.0-rc
 
-  '@react-email/ui@6.11.7':
-    resolution: {integrity: sha512-zjOMn9Vt7SP6NO1GphjKIm4M1vDVQh6XYY+NKqNH1pQpAvyHGmdLIYz0RuXm73krZOFmQ+vtd/m4jOjPSxMj8A==}
+  '@react-email/ui@6.11.8':
+    resolution: {integrity: sha512-orE3x9EKUE6GO84UXMcJmhaaFzfusPYc+QZ/k1rJOtk7Bywk6YXx8uoaQCt4zUsQ673n7Vpj8DzxadlAb/CPyQ==}
 
   '@redis/bloom@6.3.1':
     resolution: {integrity: sha512-dpF9j2yJDoPzSCaZn0MSB3xzmnXQVJeTSAWJcQVcgbmluwhpFeemmII0cF1t+WYfoVS+shEFq79+MmUItgzJLg==}
@@ -5056,8 +5056,8 @@ packages:
       vite:
         optional: true
 
-  ai@7.0.163:
-    resolution: {integrity: sha512-nm8+qn36NQXO4Hjfj7SlbcNRhUyNXKtdoS9xhXr/z92lvdGFuPkzHmA2tFzhaUQy13IitNYrcw2QSNpEJC/iSA==}
+  ai@7.0.164:
+    resolution: {integrity: sha512-wZxQnJ53WntJ334Q/UuCIXmhnZ3X0+NcU3706VGSYAeW0lbEIJd9pOKCoRHN7HZTzyOyrl5o38BEgE+0duVwuw==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -5907,8 +5907,8 @@ packages:
   github-slugger@2.0.0:
     resolution: {integrity: sha512-IaOQ9puYtjrkq7Y0Ygl9KDZnrf/aiUJYUpVf89y8kyaxbRG7Y1SrX/jaumrv81vc61+kiMempujsM3Yw7w5qcw==}
 
-  glob@13.0.6:
-    resolution: {integrity: sha512-Wjlyrolmm8uDpm/ogGyXZXb1Z+Ca2B8NbJwqBVg0axK9GbBeoS7yGV6vjXnYdGm6X53iehEuxxbyiKp8QmN4Vw==}
+  glob@14.0.4:
+    resolution: {integrity: sha512-mMiwNKoJZ4HAIRVJxotO6LsNRReA30gQwP9E2/p94tfLv+jygCNpKDjhhSL6OLY6LE371EZm5EAf7RpYuUqlsw==}
     engines: {node: 18 || 20 || >=22}
 
   goober@2.1.19:
@@ -6431,9 +6431,9 @@ packages:
     resolution: {integrity: sha512-pYZ2n85+FYUb7s0oIVcQxO63/+wgaknm+A/kQjctJqshvHPJs3UtnzaIZ7xrrHMOk8atD7yAfauf6G9VAv7Upg==}
     engines: {node: '>=22.0.0'}
 
-  minimatch@11.0.1:
-    resolution: {integrity: sha512-t+Vn6DX4wPCxS23y03C0uhF7S1jpi1GfqPrnlEipCJaA2ykiNbMkVlDutZtmvLfRcUN6R8AYVlzTsQrT4RZoLQ==}
-    engines: {node: 18 || 20 || >=22}
+  minimatch@11.0.5:
+    resolution: {integrity: sha512-snPlVppFcYWfLLFQGhDxUyBcHNtMlWmn3jtj7pEaO+DP8pqL0IvAzXhMYmn1z9ASNtgmwLBdFxSf4tMUB0OTKA==}
+    engines: {node: 20 || >=22}
 
   minimist@1.2.8:
     resolution: {integrity: sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA==}
@@ -6606,8 +6606,8 @@ packages:
     resolution: {integrity: sha512-ojmeN0qd+y0jszEtoY48r0Peq5dwMEkIlCOu6Q5f41lfkswXuKtYrhgoTpLnyIcHm24Uhqx+5Tqm2InSwLhE6Q==}
     engines: {node: '>=8'}
 
-  path-scurry@2.0.2:
-    resolution: {integrity: sha512-3O/iVVsJAPsOnpwWIeD+d6z/7PmqApyQePUtCndjatj/9I5LylHvt5qluFaBT3I5h3r1ejfR056c+FCv+NnNXg==}
+  path-scurry@3.0.0:
+    resolution: {integrity: sha512-1pTbQqH1wIwMi/eleQ5leFTTCkzFsPcgXNjwOA8YGGW/W4/kHT3dssE7Z6NH+zuqNLOzOB0uaD61yl7cAcVhgg==}
     engines: {node: 18 || 20 || >=22}
 
   path-to-regexp@6.3.0:
@@ -6707,8 +6707,8 @@ packages:
     peerDependencies:
       react: ^19.3.1
 
-  react-email@6.11.7:
-    resolution: {integrity: sha512-IPNgzvEBk0oARk21U5RHqEm7tIixuWbJQ2TlJnq2q3J0vUzZIwNQqn79vYgQHqHvYidEHSUTBvrB+GvajjVOkg==}
+  react-email@6.11.8:
+    resolution: {integrity: sha512-dkVwUHe4hSjgydSkVs1cm8w6KK6AnXrhJ9QnAQVDW1wkaoGbqevqJ5lj4yf6WqAlaHWtJVjHcXKsz9/GTKObEQ==}
     engines: {node: '>=20.19.0'}
     hasBin: true
     peerDependencies:
@@ -6883,6 +6883,10 @@ packages:
     resolution: {integrity: sha512-jmb1u6heSPZW1xP9i95WLGrTjqh4gZWmv9x1BVoh1VXap5R/St2H9qZ3a9rPdYzAUKPi/FrKQ9K80oav5qEZnA==}
     engines: {node: '>=20'}
 
+  seroval@1.7.9:
+    resolution: {integrity: sha512-ocL7l8aqYWy/dXDHQF3Z8bt5R4Z9IBB4hASCkBDQhl3ZUclxVEzRMQNmRNshiEEIPF1g7uz+2nENDqg+9TU86A==}
+    engines: {node: '>=20'}
+
   set-cookie-parser@3.2.2:
     resolution: {integrity: sha512-df017qMeYuXo4emL09nlyMpi2i2MtEIKS/6jtXH3vmjFgIRsOi852/5RmhJ4EkvN3ZF8jXadM/EkTPXgc8yPIw==}
 
@@ -7048,9 +7052,6 @@ packages:
     peerDependenciesMeta:
       '@eslint/css':
         optional: true
-
-  tailwindcss@4.3.4:
-    resolution: {integrity: sha512-PCJZTFFdG+sL3gvnP1Do9o6GbkvH2q0p04xSs3f7cSvmAeK+sttG+/7ncK1fdRwKFfC7n+wDDJaOMBSefkI9ow==}
 
   tailwindcss@4.3.5:
     resolution: {integrity: sha512-FcQk9BuffmEHJP2G0XmB2SplU1aLTI7j07Kunk+U74Ny+XiWOtzXz9aujFZ/avntw1e2cOv/3PkgzflQ7gX2vQ==}
@@ -7539,7 +7540,7 @@ packages:
 
 snapshots:
 
-  '@ai-sdk/gateway@4.0.136(zod@4.6.7)':
+  '@ai-sdk/gateway@4.0.137(zod@4.6.7)':
     dependencies:
       '@ai-sdk/provider': 4.0.36
       '@ai-sdk/provider-utils': 5.0.75(zod@4.6.7)
@@ -8104,10 +8105,10 @@ snapshots:
 
   '@cfworker/json-schema@4.1.4': {}
 
-  '@cloudflare/ai-chat@0.12.2(agents@0.33.0(@ai-sdk/provider@4.0.36)(@babel/core@8.1.0)(@babel/runtime@8.1.0)(@modelcontextprotocol/client@2.4.0)(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.163(zod@4.6.7))(react@19.3.1)(rolldown@1.2.13)(zod@4.6.7))(ai@7.0.163(zod@4.6.7))(react@19.3.1)':
+  '@cloudflare/ai-chat@0.12.2(agents@0.33.0(@ai-sdk/provider@4.0.36)(@babel/core@8.1.0)(@babel/runtime@8.1.0)(@modelcontextprotocol/client@2.4.0)(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.164(zod@4.6.7))(react@19.3.1)(rolldown@1.2.13)(zod@4.6.7))(ai@7.0.164(zod@4.6.7))(react@19.3.1)':
     dependencies:
-      agents: 0.33.0(@ai-sdk/provider@4.0.36)(@babel/core@8.1.0)(@babel/runtime@8.1.0)(@modelcontextprotocol/client@2.4.0)(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.163(zod@4.6.7))(react@19.3.1)(rolldown@1.2.13)(zod@4.6.7)
-      ai: 7.0.163(zod@4.6.7)
+      agents: 0.33.0(@ai-sdk/provider@4.0.36)(@babel/core@8.1.0)(@babel/runtime@8.1.0)(@modelcontextprotocol/client@2.4.0)(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.164(zod@4.6.7))(react@19.3.1)(rolldown@1.2.13)(zod@4.6.7)
+      ai: 7.0.164(zod@4.6.7)
       nanoid: 5.1.16
     optionalDependencies:
       react: 19.3.1
@@ -8572,7 +8573,7 @@ snapshots:
   '@img/sharp-win32-x64@0.35.5':
     optional: true
 
-  '@inlang/paraglide-js@3.2.0(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(typescript@7.0.2)':
+  '@inlang/paraglide-js@3.2.1(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(typescript@7.0.2)':
     dependencies:
       '@inlang/recommend-sherlock': 0.2.1
       '@inlang/sdk': 4.2.0
@@ -9460,7 +9461,7 @@ snapshots:
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
 
-  '@react-email/ui@6.11.7(@babel/core@8.1.0)(@opentelemetry/api@1.10.0)(@playwright/test@1.65.0)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+  '@react-email/ui@6.11.8(@babel/core@8.1.0)(@opentelemetry/api@1.10.0)(@playwright/test@1.65.0)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
       esbuild: 0.28.2
       jiti: 2.6.1
@@ -10502,7 +10503,7 @@ snapshots:
 
   acorn@8.19.0: {}
 
-  agents@0.33.0(@ai-sdk/provider@4.0.36)(@babel/core@8.1.0)(@babel/runtime@8.1.0)(@modelcontextprotocol/client@2.4.0)(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.163(zod@4.6.7))(react@19.3.1)(rolldown@1.2.13)(zod@4.6.7):
+  agents@0.33.0(@ai-sdk/provider@4.0.36)(@babel/core@8.1.0)(@babel/runtime@8.1.0)(@modelcontextprotocol/client@2.4.0)(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.164(zod@4.6.7))(react@19.3.1)(rolldown@1.2.13)(zod@4.6.7):
     dependencies:
       '@babel/plugin-proposal-decorators': 8.0.2(@babel/core@8.1.0)
       '@cfworker/json-schema': 4.1.4
@@ -10519,7 +10520,7 @@ snapshots:
       zod: 4.6.7
     optionalDependencies:
       '@ai-sdk/provider': 4.0.36
-      ai: 7.0.163(zod@4.6.7)
+      ai: 7.0.164(zod@4.6.7)
       react: 19.3.1
       vite: '@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1)'
     transitivePeerDependencies:
@@ -10528,9 +10529,9 @@ snapshots:
       - '@babel/runtime'
       - rolldown
 
-  ai@7.0.163(zod@4.6.7):
+  ai@7.0.164(zod@4.6.7):
     dependencies:
-      '@ai-sdk/gateway': 4.0.136(zod@4.6.7)
+      '@ai-sdk/gateway': 4.0.137(zod@4.6.7)
       '@ai-sdk/provider': 4.0.36
       '@ai-sdk/provider-utils': 5.0.75(zod@4.6.7)
       zod: 4.6.7
@@ -11239,11 +11240,11 @@ snapshots:
 
   github-slugger@2.0.0: {}
 
-  glob@13.0.6:
+  glob@14.0.4:
     dependencies:
-      minimatch: 11.0.1
+      minimatch: 11.0.5
       minipass: 7.1.3
-      path-scurry: 2.0.2
+      path-scurry: 3.0.0
 
   goober@2.1.19(csstype@3.2.3):
     dependencies:
@@ -12071,7 +12072,7 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  minimatch@11.0.1:
+  minimatch@11.0.5:
     dependencies:
       '@isaacs/nonrecursive-glob-match': 1.1.0
       brace-expansion: 5.0.12
@@ -12359,7 +12360,7 @@ snapshots:
 
   path-key@3.1.1: {}
 
-  path-scurry@2.0.2:
+  path-scurry@3.0.0:
     dependencies:
       lru-cache: 11.5.3
       minipass: 7.1.3
@@ -12441,7 +12442,7 @@ snapshots:
       react: 19.3.1
       scheduler: 0.28.0
 
-  react-email@6.11.7(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2):
+  react-email@6.11.8(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@10.2.2):
     dependencies:
       '@babel/parser': 7.29.2
       '@babel/traverse': 7.29.0(supports-color@10.2.2)
@@ -12452,7 +12453,7 @@ snapshots:
       css-tree: 3.2.1
       debounce: 2.2.0
       esbuild: 0.28.2
-      glob: 13.0.6
+      glob: 14.0.4
       jiti: 2.6.1
       log-symbols: 7.0.1
       marked: 15.0.12
@@ -12464,7 +12465,7 @@ snapshots:
       react: 19.3.1
       react-dom: 19.3.1(react@19.3.1)
       socket.io: 4.8.4(supports-color@10.2.2)
-      tailwindcss: 4.3.4
+      tailwindcss: 4.3.5
       tsconfig-paths: 4.2.0
     transitivePeerDependencies:
       - bufferutil
@@ -12756,6 +12757,8 @@ snapshots:
 
   seroval@1.7.8: {}
 
+  seroval@1.7.9: {}
+
   set-cookie-parser@3.2.2: {}
 
   sharp@0.35.5(@types/node@26.6.6):
@@ -12948,8 +12951,6 @@ snapshots:
   tagged-tag@1.0.0: {}
 
   tailwind-csstree@0.3.3: {}
-
-  tailwindcss@4.3.4: {}
 
   tailwindcss@4.3.5: {}
 
