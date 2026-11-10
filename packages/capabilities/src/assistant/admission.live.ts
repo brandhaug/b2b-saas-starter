@@ -15,6 +15,12 @@ import {
   AssistantAdmissionRefused,
   ASSISTANT_SHUTDOWN_GRACE_MS
 } from './admission.ts'
+import {
+  canCommitReservation,
+  isReservationAwaitingCommit,
+  isReservationHeld,
+  isReservationReleased
+} from './reservation-transitions.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { auditedMutations } from '../governance/audited-mutation.ts'
 
@@ -136,11 +142,7 @@ export const LiveAssistantAdmission = Layer.effect(AssistantAdmission)(
               )
             )
         )
-        const active = member.filter(
-          (entry) =>
-            entry.releasedAt === null &&
-            entry.deadline + ASSISTANT_SHUTDOWN_GRACE_MS > now
-        )
+        const active = member.filter((entry) => isReservationHeld(entry, now))
         if (active.length >= input.activeLimit) {
           return yield* new AssistantAdmissionRefused({
             reason: 'concurrency_limit',
@@ -164,12 +166,7 @@ export const LiveAssistantAdmission = Layer.effect(AssistantAdmission)(
         const now = yield* Clock.currentTimeMillis
         yield* mutate({
           matched: get(id).pipe(
-            Effect.map(
-              (row) =>
-                row?.committedAt === null &&
-                row.releasedAt === null &&
-                row.deadline > now
-            )
+            Effect.map((row) => isReservationAwaitingCommit(row, now))
           ),
           auditEvent: {
             eventType: 'assistant_attempt.committed',
@@ -194,7 +191,7 @@ export const LiveAssistantAdmission = Layer.effect(AssistantAdmission)(
           ]
         })
         const row = yield* get(id)
-        if (row?.releasedAt !== null || row.deadline <= now) {
+        if (!canCommitReservation(row, now)) {
           return yield* new CapabilityUnavailable({
             capability: 'assistant-admission',
             reason: 'reservation_expired'
@@ -250,7 +247,9 @@ export const LiveAssistantAdmission = Layer.effect(AssistantAdmission)(
       release: Effect.fn('AssistantAdmission.release')(function* (id) {
         const now = yield* Clock.currentTimeMillis
         yield* mutate({
-          matched: get(id).pipe(Effect.map((row) => row?.releasedAt === null)),
+          matched: get(id).pipe(
+            Effect.map((row) => row !== undefined && !isReservationReleased(row))
+          ),
           auditEvent: {
             eventType: 'assistant_attempt.released',
             targetType: 'assistant_attempt',

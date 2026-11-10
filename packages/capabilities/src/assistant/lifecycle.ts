@@ -4,7 +4,7 @@ import {
   CapabilityUnavailable,
   orUnavailable
 } from '@b2b-saas-starter/failure/capability'
-import { AssistantDirectory } from './directory.ts'
+import { AssistantDirectory, isDeletedConversation } from './directory.ts'
 
 export const ConversationExportManifest = Schema.Array(
   Schema.Struct({ id: Schema.String, policyRevision: Schema.Number })
@@ -94,7 +94,7 @@ export function AssistantConversationLifecycleLayer(
             const row = yield* directory.get(entry.id)
             if (
               !row ||
-              row.deletedAt ||
+              isDeletedConversation(row) ||
               row.creatorUserId !== userId ||
               row.policyRevision !== entry.policyRevision
             ) {

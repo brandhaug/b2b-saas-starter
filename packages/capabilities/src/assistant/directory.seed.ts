@@ -3,6 +3,9 @@ import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import {
   AssistantDirectory,
   type ConversationDirectoryEntry,
+  isCleanedConversation,
+  isDeletedConversation,
+  isLiveConversation,
   matchesDeletionScope
 } from './directory.ts'
 import { seedKeysetPage } from '../internal/keyset-cursor.ts'
@@ -20,7 +23,7 @@ export const SeedAssistantDirectory = Layer.sync(AssistantDirectory)(() => {
       const existing = rows.get(input.id)
       if (existing) {
         if (
-          existing.deletedAt ||
+          !isLiveConversation(existing) ||
           existing.workspaceId !== input.workspaceId ||
           existing.creatorUserId !== input.creatorUserId
         ) {
@@ -48,7 +51,7 @@ export const SeedAssistantDirectory = Layer.sync(AssistantDirectory)(() => {
         seedKeysetPage(
           [...rows.values()].filter(
             (row) =>
-              !row.deletedAt &&
+              isLiveConversation(row) &&
               row.workspaceId === input.workspaceId &&
               row.creatorUserId === input.creatorUserId
           ),
@@ -61,14 +64,14 @@ export const SeedAssistantDirectory = Layer.sync(AssistantDirectory)(() => {
     listForCreator: Effect.fn('AssistantDirectory.listForCreator')(function* (userId) {
       return yield* Effect.sync(() =>
         [...rows.values()].filter(
-          (row) => !row.deletedAt && row.creatorUserId === userId
+          (row) => isLiveConversation(row) && row.creatorUserId === userId
         )
       )
     }),
     raisePolicy: Effect.fn('AssistantDirectory.raisePolicy')(
       function* (id, permissions) {
         const row = rows.get(id)
-        if (!row || row.deletedAt) {
+        if (!row || isDeletedConversation(row)) {
           return yield* new CapabilityUnavailable({
             capability: 'assistant-directory',
             reason: 'conversation_not_found'
@@ -92,14 +95,16 @@ export const SeedAssistantDirectory = Layer.sync(AssistantDirectory)(() => {
     policyMatches: Effect.fn('AssistantDirectory.policyMatches')(
       function* (id, revision) {
         const row = yield* get(id)
-        return row?.deletedAt === null && row.policyRevision === revision
+        return (
+          row !== null && isLiveConversation(row) && row.policyRevision === revision
+        )
       }
     ),
     invalidateAccess: Effect.fn('AssistantDirectory.invalidateAccess')(
       function* (scope, options) {
         yield* Effect.sync(() => {
           for (const [id, row] of rows) {
-            if (!row.deletedAt && matchesDeletionScope(row, scope)) {
+            if (isLiveConversation(row) && matchesDeletionScope(row, scope)) {
               rows.set(id, {
                 ...row,
                 policyRevision: row.policyRevision + 1,
@@ -114,7 +119,7 @@ export const SeedAssistantDirectory = Layer.sync(AssistantDirectory)(() => {
     fence: Effect.fn('AssistantDirectory.fence')(function* (scope) {
       const now = yield* Clock.currentTimeMillis
       for (const [id, row] of rows) {
-        if (!row.deletedAt && matchesDeletionScope(row, scope)) {
+        if (isLiveConversation(row) && matchesDeletionScope(row, scope)) {
           rows.set(id, {
             ...row,
             deletedAt: iso(now),
@@ -128,14 +133,14 @@ export const SeedAssistantDirectory = Layer.sync(AssistantDirectory)(() => {
     ) {
       return yield* Effect.sync(() =>
         [...rows.values()]
-          .filter((row) => row.deletedAt && !row.cleanedAt)
+          .filter((row) => isDeletedConversation(row) && !isCleanedConversation(row))
           .slice(0, limit)
       )
     }),
     completeCleanup: Effect.fn('AssistantDirectory.completeCleanup')(function* (id) {
       const now = yield* Clock.currentTimeMillis
       const row = rows.get(id)
-      if (row?.deletedAt) {
+      if (row !== undefined && isDeletedConversation(row)) {
         rows.set(id, { ...row, requiredPermissions: [], cleanedAt: iso(now) })
       }
     })

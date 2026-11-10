@@ -12,41 +12,7 @@ import {
   readConversationSnapshot
 } from '@/lib/assistant-conversation-stream'
 import { m } from '@b2b-saas-starter/i18n/messages'
-
-type Connection =
-  | {
-      readonly status: 'connecting' | 'connected' | 'reconnecting'
-      readonly observer: number
-    }
-  | { readonly status: 'denied'; readonly observer: number; readonly message: string }
-
-type ConnectionEvent =
-  | {
-      readonly type: 'start'
-      readonly observer: number
-      readonly reconnecting: boolean
-    }
-  | { readonly type: 'open' | 'close'; readonly observer: number }
-  | { readonly type: 'deny'; readonly observer: number; readonly message: string }
-
-function transition(state: Connection, event: ConnectionEvent): Connection {
-  if (event.type === 'start') {
-    return {
-      observer: event.observer,
-      status: event.reconnecting ? 'reconnecting' : 'connecting'
-    }
-  }
-  if (event.observer !== state.observer || state.status === 'denied') {
-    return state
-  }
-  if (event.type === 'deny') {
-    return { status: 'denied', observer: event.observer, message: event.message }
-  }
-  return {
-    observer: event.observer,
-    status: event.type === 'open' ? 'connected' : 'reconnecting'
-  }
-}
+import { connectionTransition } from '@/lib/assistant-connection-state'
 
 /** One observing tab. Unmount and reconnect never send Stop or another question. */
 export function useAssistantConversation(
@@ -63,7 +29,7 @@ export function useAssistantConversation(
     queryFn: skipToken,
     gcTime: 0
   })
-  const [connection, dispatch] = useReducer(transition, {
+  const [connection, dispatch] = useReducer(connectionTransition, {
     status: 'connecting',
     observer: 0
   })

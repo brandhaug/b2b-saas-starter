@@ -18,7 +18,9 @@ import {
 import {
   AssistantDirectory,
   type ConversationDeletionScope,
-  type ConversationInvalidationBinding
+  type ConversationInvalidationBinding,
+  isDeletedConversation,
+  isLiveConversation
 } from './directory.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { auditedMutations } from '../governance/audited-mutation.ts'
@@ -107,7 +109,7 @@ export function LiveAssistantDirectory(
           const row = yield* get(input.id)
           if (
             !row ||
-            row.deletedAt ||
+            isDeletedConversation(row) ||
             row.creatorUserId !== input.creatorUserId ||
             row.workspaceId !== input.workspaceId
           ) {
@@ -170,7 +172,7 @@ export function LiveAssistantDirectory(
         raisePolicy: Effect.fn('AssistantDirectory.raisePolicy')(
           function* (id, permissions) {
             const row = yield* get(id)
-            if (!row || row.deletedAt) {
+            if (!row || isDeletedConversation(row)) {
               return yield* new CapabilityUnavailable({
                 capability: 'assistant-directory',
                 reason: 'conversation_not_found'
@@ -220,7 +222,7 @@ export function LiveAssistantDirectory(
               ]
             })
             const current = yield* get(id)
-            if (!current || current.deletedAt) {
+            if (!current || isDeletedConversation(current)) {
               return yield* new CapabilityUnavailable({
                 capability: 'assistant-directory',
                 reason: 'conversation_not_found'
@@ -233,7 +235,9 @@ export function LiveAssistantDirectory(
         policyMatches: Effect.fn('AssistantDirectory.policyMatches')(
           function* (id, revision) {
             const row = yield* get(id)
-            return row?.deletedAt === null && row.policyRevision === revision
+            return (
+              row !== null && isLiveConversation(row) && row.policyRevision === revision
+            )
           }
         ),
         invalidateAccess: Effect.fn('AssistantDirectory.invalidateAccess')(
@@ -314,7 +318,7 @@ export function LiveAssistantDirectory(
           yield* invalidateHosts(scope)
           if ('conversationId' in scope) {
             const row = yield* get(scope.conversationId)
-            if (row?.deletedAt) {
+            if (row !== null && isDeletedConversation(row)) {
               yield* recordSecurityEvidence(
                 {
                   kind: 'assistant_conversation_deleted',
