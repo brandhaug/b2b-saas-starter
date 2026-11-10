@@ -49,7 +49,7 @@ catalog:
   '@tailwindcss/vite': 4.3.5
   '@tanstack/devtools-vite': 0.8.6
   '@tanstack/react-form': 1.33.5
-  '@tanstack/react-query': 5.106.1
+  '@tanstack/react-query': 5.107.1
   '@tanstack/react-router': 1.170.46
   '@tanstack/react-router-devtools': 1.167.2
   '@tanstack/react-router-ssr-query': 1.167.3
