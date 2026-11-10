@@ -2,6 +2,18 @@ import { Clock, DateTime, Effect, Metric, Schedule, Schema } from 'effect'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { randomHex } from '@b2b-saas-starter/failure/crypto'
 import {
+  deliveryClaimLeaseMs,
+  deliveryRetryWindow,
+  initialDeliveryStatus,
+  isClaimableDelivery,
+  isSubmissionProof,
+  isTerminalDelivery,
+  mergeDeliveryEvidence,
+  operationalFailureStatus,
+  providerEventEvidence,
+  recordedOutcomeStatus
+} from './delivery-transitions.ts'
+import {
   EmailDelivery,
   type ClaimEmail,
   type EmailCompletionDecision,
@@ -38,7 +50,6 @@ export type DeliveryStore = {
   ) => Effect.Effect<string | null, CapabilityUnavailable>
 }
 const hour = 3_600_000
-const lease = 5 * 60_000
 const outcomes = Metric.counter('starter.email.send.outcomes')
 
 /**
@@ -75,12 +86,12 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
     if (input.queuedAt !== undefined) {
       created = Date.parse(input.queuedAt)
     }
-    const retryWindow = retryDuration(input.purpose)
+    const retryWindow = deliveryRetryWindow(input.purpose)
     if (!Number.isFinite(created)) {
       return null
     }
     const old = yield* store.get(input.id)
-    if (old && terminal(old)) {
+    if (old && isTerminalDelivery(old.status, old.acceptedAt)) {
       return null
     }
     if (
@@ -100,7 +111,7 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
         {
           ...old,
           revision: old.revision + 1,
-          status: 'failed',
+          status: operationalFailureStatus,
           reason: 'retry_window_expired',
           token: null,
           updatedAt: iso(now)
@@ -119,7 +130,7 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
       recipient: input.recipient.toLowerCase().trim(),
       token,
       revision: 0,
-      status: 'queued',
+      status: initialDeliveryStatus,
       providerMessageId: null,
       lastEventId: null,
       lastEventAt: null,
@@ -130,7 +141,7 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
       attemptCount: 1,
       uncertain: false,
       retryUntil: iso(created + retryWindow),
-      nextAttemptAt: iso(now + lease)
+      nextAttemptAt: iso(now + deliveryClaimLeaseMs)
     }
     if (old) {
       row = {
@@ -139,13 +150,18 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
         revision: old.revision + 1,
         attemptCount: old.attemptCount + 1,
         uncertain: old.uncertain || old.token !== null,
-        nextAttemptAt: iso(now + lease),
+        nextAttemptAt: iso(now + deliveryClaimLeaseMs),
         updatedAt: iso(now)
       }
     }
     if (retryWindow > 0 && created + retryWindow <= now) {
       yield* store.put(
-        { ...row, status: 'failed', reason: 'retry_window_expired', token: null },
+        {
+          ...row,
+          status: operationalFailureStatus,
+          reason: 'retry_window_expired',
+          token: null
+        },
         old?.revision ?? null
       )
       return null
@@ -174,14 +190,14 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
         // A late transport receipt proves submission even after another claim took
         // the lease. Only failed/ambiguous outcomes remain fenced to their attempt.
         const confirmed = outcome.status === 'accepted' || outcome.status === 'logged'
-        if (!confirmed && (old.token !== token || terminal(old))) {
+        if (
+          !confirmed &&
+          (old.token !== token || isTerminalDelivery(old.status, old.acceptedAt))
+        ) {
           return
         }
         const now = yield* Clock.currentTimeMillis
-        let status = outcome.status
-        if (status === 'temporary_failure' && retryDuration(old.purpose) === 0) {
-          status = 'failed'
-        }
+        const status = recordedOutcomeStatus(old.purpose, outcome.status)
         let acceptedAt: string | null = old.acceptedAt
         let providerMessageId = old.providerMessageId
         let reason: string | null = null
@@ -194,7 +210,7 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
           reason = outcome.reason
         }
         if (outcome.status === 'ambiguous') {
-          delay = lease
+          delay = deliveryClaimLeaseMs
         }
         const row: StoredDelivery = {
           ...old,
@@ -222,10 +238,7 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
     id: string
   ) {
     const record = yield* store.get(id)
-    if (
-      record === null ||
-      !['queued', 'temporary_failure', 'ambiguous'].includes(record.status)
-    ) {
+    if (record === null || !isClaimableDelivery(record.status)) {
       return {
         outcome: 'ack',
         status: record?.status ?? 'skipped'
@@ -261,56 +274,31 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
           return 'ignored'
         }
         // Complaints/suppression may follow delivery. Lesser evidence cannot erase them.
-        const rank = {
-          queued: 0,
-          ambiguous: 0,
-          temporary_failure: 0,
-          accepted: 1,
-          logged: 1,
-          delayed: 2,
-          delivered: 3,
-          failed: 4,
-          suppressed: 5
-        }
-        if (rank[event.status] < rank[old.status]) {
+        const merged = mergeDeliveryEvidence(
+          { status: old.status, reason: old.reason },
+          providerEventEvidence(event)
+        )
+        if (merged === null) {
           return 'ignored'
         }
         const now = yield* Clock.currentTimeMillis
-        let reason: string | null = event.reason ?? null
-        if (reason === null && event.status === 'failed') {
-          reason = 'provider_rejected'
-        }
-        if (reason === null && event.status === 'suppressed') {
-          reason = 'provider_suppressed'
-        }
-        if (
-          rank[event.status] === rank[old.status] &&
-          reasonRank(reason) <= reasonRank(old.reason)
-        ) {
-          return 'ignored'
-        }
-        if (reasonRank(old.reason) > reasonRank(reason)) {
-          reason = old.reason
-        }
         // Only evidence that the provider took the message marks acceptance. A
         // bounce or a suppression must not backfill an acceptance that never
-        // happened, and `terminal` reads that marker as proof of submission.
+        // happened, and `isTerminalDelivery` reads that marker as proof of
+        // submission.
         let acceptedAt = old.acceptedAt
-        if (
-          acceptedAt === null &&
-          (event.status === 'delivered' || event.status === 'delayed')
-        ) {
+        if (acceptedAt === null && isSubmissionProof(event.status)) {
           acceptedAt = iso(now)
         }
         const row: StoredDelivery = {
           ...old,
-          status: event.status,
+          status: merged.status,
           acceptedAt,
           updatedAt: iso(now),
           lastEventId: event.eventId,
           lastEventAt: event.occurredAt,
           revision: old.revision + 1,
-          reason
+          reason: merged.reason
         }
         if (yield* store.put(row, old.revision)) {
           return 'updated'
@@ -327,7 +315,7 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
       'Concurrent delivery updates prevented cancellation',
       Effect.gen(function* () {
         const old = yield* store.get(id)
-        if (!old || terminal(old)) {
+        if (!old || isTerminalDelivery(old.status, old.acceptedAt)) {
           return
         }
         const now = yield* Clock.currentTimeMillis
@@ -335,7 +323,7 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
           yield* store.put(
             {
               ...old,
-              status: 'failed',
+              status: operationalFailureStatus,
               reason,
               revision: old.revision + 1,
               updatedAt: iso(now)
@@ -444,43 +432,10 @@ function iso(time: number) {
   return DateTime.formatIso(DateTime.makeUnsafe(time))
 }
 
-function terminal(row: StoredDelivery) {
-  return (
-    row.acceptedAt !== null ||
-    ['delivered', 'failed', 'suppressed', 'logged'].includes(row.status)
-  )
-}
-
 function evidence({
   token: _token,
   revision: _revision,
   ...row
 }: StoredDelivery): EmailDeliveryRecord {
   return row
-}
-
-function retryDuration(purpose: ClaimEmail['purpose']) {
-  if (purpose === 'notification') {
-    return 24 * hour
-  }
-  if (purpose === 'digest') {
-    return 6 * hour
-  }
-  return 0
-}
-
-function reasonRank(reason: string | null): number {
-  if (reason === 'complaint') {
-    return 4
-  }
-  if (reason === 'hard_bounce') {
-    return 3
-  }
-  if (reason === 'provider_suppressed') {
-    return 2
-  }
-  if (reason === 'provider_rejected') {
-    return 1
-  }
-  return 0
 }

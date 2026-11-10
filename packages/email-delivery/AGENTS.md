@@ -8,6 +8,7 @@ Owns send claims and sanitized delivery evidence across auth, invitations and no
 
 ## Pitfalls
 
+- Status transitions are explicit (ADR 0077): `delivery-transitions.ts` owns the evidence-rank lattice, the terminal/claimable/resend sets, the claim lease and the retry windows both adapters consult; inline status arrays belong there, never in adapters.
 - Keep transport calls outside persistence. Claim tokens fence failed outcomes. A late accepted receipt survives lease renewal; the persisted accepted marker forbids future submission even when no delivery event arrives.
 - `trackedAttempt` owns claim, send-outcome persistence and metrics; transport adapters supply an effect producing sanitized outcomes and classify their own failures.
 - An interrupted attempt can be retried after its lease only for notifications/digests within the original creation window. Consumers must recheck relevance, permissions and preferences before claiming.

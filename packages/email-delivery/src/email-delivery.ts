@@ -1,6 +1,11 @@
 import { emailDeliveryStatuses, emailPurposes } from '@b2b-saas-starter/db/enums'
 import { Context, type Effect, Schema } from 'effect'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
+import {
+  blocksResend,
+  resendEligibleStatuses,
+  unconfirmedDeliveryStatuses
+} from './delivery-transitions.ts'
 
 export const EmailDeliveryRecord = Schema.Struct({
   id: Schema.String,
@@ -118,7 +123,7 @@ export function isDeliveryUnconfirmed(
   now: number
 ): boolean {
   return (
-    ['queued', 'accepted', 'delayed', 'ambiguous'].includes(record.status) &&
+    unconfirmedDeliveryStatuses.includes(record.status) &&
     now - Date.parse(record.createdAt) >= 86_400_000
   )
 }
@@ -129,9 +134,7 @@ export function canResendInvitation(record: EmailDeliveryRecord | null): boolean
   }
   return (
     record.acceptedAt === null &&
-    ['failed', 'temporary_failure', 'ambiguous'].includes(record.status) &&
-    !['provider_rejected', 'hard_bounce', 'complaint', 'provider_suppressed'].includes(
-      record.reason ?? ''
-    )
+    resendEligibleStatuses.includes(record.status) &&
+    !blocksResend(record.reason)
   )
 }
