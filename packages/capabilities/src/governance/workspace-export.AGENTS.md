@@ -2,6 +2,8 @@
 
 Workspace export (ADR 0055): an owner requests an archive, the background consumer writes gzipped JSON to R2, and the API worker serves signed downloads.
 
+- `workspace-export.ts` is the transition owner module (ADR 0077): it declares the `pending → ready | failed` set (settled exports refuse everything), the status a request births, the settled set retention composes from, and `isWorkspaceExportDownloadable`'s ready gate. The generation worker's status writes, both adapters' pending matches, and signed-link gating route through it; its doc comment names the `workspace_exports_retention_idx` / `workspace_exports_secret_expiry_idx` CASE expressions and `workspace_exports_recovery_idx` that mirror the sets in SQL.
+
 ## Contracts
 
 - `WorkspaceExportGeneration` owns queued generation: suspension re-check,

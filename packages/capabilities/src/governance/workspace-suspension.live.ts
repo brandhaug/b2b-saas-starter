@@ -3,13 +3,17 @@ import { user } from '@b2b-saas-starter/db/schema/auth'
 import { workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { and, eq, sql } from 'drizzle-orm'
-import { DateTime, Effect, Layer, Match } from 'effect'
+import { DateTime, Effect, Layer } from 'effect'
 import { orUnavailable } from '@b2b-saas-starter/failure/capability'
 import { newCapabilityId } from '../internal/ids.ts'
 import { AuditEventLog } from './audit-event-log.ts'
 import { auditedMutations } from './audited-mutation.ts'
 import { NotificationFeed } from '../notifications/notification-feed.ts'
 import {
+  isSuspendedWorkspace,
+  nextWorkspaceSuspensionStatus,
+  workspaceSuspensionAuditEvent,
+  workspaceSuspensionExplanation,
   WorkspaceSuspended,
   WorkspaceSuspensionService,
   WorkspaceSuspensionUnauthorized,
@@ -75,7 +79,7 @@ export const LiveWorkspaceSuspension: Layer.Layer<
       requireAllowed: Effect.fn('WorkspaceSuspension.requireAllowed')(
         function* (workspaceId, operation) {
           const state = yield* get(workspaceId)
-          if (state.status === 'suspended' && operation === 'product') {
+          if (isSuspendedWorkspace(state.status) && operation === 'product') {
             return yield* new WorkspaceSuspended({ workspaceId })
           }
         }
@@ -93,11 +97,10 @@ export const LiveWorkspaceSuspension: Layer.Layer<
           return yield* new WorkspaceSuspensionUnauthorized()
         }
         const current = yield* get(input.workspaceId)
-        const target = Match.value(input.action).pipe(
-          Match.when('suspend', (): WorkspaceSuspension['status'] => 'suspended'),
-          Match.orElse((): WorkspaceSuspension['status'] => 'active')
-        )
-        if (current.status === target) {
+        // The transition owner refuses a same-state request; the refusal is
+        // the no-op; the row, the audit log, and the owners' feeds stay put.
+        const target = nextWorkspaceSuspensionStatus(current.status, input.action)
+        if (target === null) {
           return current
         }
 
@@ -106,9 +109,9 @@ export const LiveWorkspaceSuspension: Layer.Layer<
         const next: WorkspaceSuspension = {
           workspaceId: input.workspaceId,
           status: target,
-          customerExplanation: Match.value(target).pipe(
-            Match.when('suspended', () => reason.customerExplanation),
-            Match.orElse(() => null)
+          customerExplanation: workspaceSuspensionExplanation(
+            target,
+            reason.customerExplanation
           ),
           changedAt,
           changedByUserId: input.actor.userId
@@ -143,13 +146,7 @@ export const LiveWorkspaceSuspension: Layer.Layer<
             workspaceId: input.workspaceId,
             actorUserId: input.actor.userId,
             actorType: 'user',
-            eventType: Match.value(target).pipe(
-              Match.when(
-                'suspended',
-                (): 'workspace.suspended' => 'workspace.suspended'
-              ),
-              Match.orElse((): 'workspace.unsuspended' => 'workspace.unsuspended')
-            ),
+            eventType: workspaceSuspensionAuditEvent(target),
             targetType: 'workspace',
             targetId: input.workspaceId,
             metadata: { customerExplanation: next.customerExplanation }

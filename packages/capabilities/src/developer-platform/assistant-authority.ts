@@ -24,6 +24,7 @@ import {
   type SessionEvidence
 } from '../governance/strong-authentication.ts'
 import { toWorkspace } from '../governance/workspace-identity.ts'
+import { isSuspendedWorkspace } from '../governance/workspace-suspension.ts'
 import { type Actor, type WorkspaceContextInterface } from '../workspace-context.ts'
 import { McpClientConnections } from './mcp-client-connections.ts'
 
@@ -301,7 +302,7 @@ export function LiveAssistantAuthority(
               actorType: 'user'
             },
             banned: identity.user.banned ?? false,
-            suspended: identity.workspace.suspensionStatus !== 'active',
+            suspended: isSuspendedWorkspace(identity.workspace.suspensionStatus),
             currentSession: currentSession ?? null,
             retainedSession: retainedSession ?? null,
             totpId: totp?.id ?? null,

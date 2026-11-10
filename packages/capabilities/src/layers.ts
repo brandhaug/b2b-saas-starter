@@ -126,7 +126,10 @@ import { type WorkspaceExports } from './governance/workspace-export.ts'
 import { type PersonalDataExports } from './governance/personal-data-export.ts'
 import { LivePersonalDataExports } from './governance/personal-data-export.live.ts'
 import { SeedPersonalDataExports } from './governance/personal-data-export.seed.ts'
-import { WorkspaceSuspensionService } from './governance/workspace-suspension.ts'
+import {
+  isSuspendedWorkspace,
+  WorkspaceSuspensionService
+} from './governance/workspace-suspension.ts'
 import { LiveWorkspaceSuspension } from './governance/workspace-suspension.live.ts'
 import { SeedWorkspaceSuspension } from './governance/workspace-suspension.seed.ts'
 import { LiveSsoConnections } from './governance/workspace-sso-connections.live.ts'
@@ -297,7 +300,7 @@ const SeedGovernance = Layer.unwrap(
             actorType: 'user'
           },
           banned: member.banned,
-          suspended: state.status === 'suspended',
+          suspended: isSuspendedWorkspace(state.status),
           currentSession: proof,
           retainedSession: { ...proof, revokedAt: null },
           totpId: null,

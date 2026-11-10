@@ -1,8 +1,13 @@
 import { AssistantDirectory } from '../assistant/directory.ts'
 import { sql } from 'drizzle-orm'
-import { DateTime, Effect, Layer, Match, Ref, Semaphore } from 'effect'
+import { DateTime, Effect, Layer, Ref, Semaphore } from 'effect'
 import { AuditEventLog } from './audit-event-log.ts'
 import {
+  initialWorkspaceSuspensionStatus,
+  isSuspendedWorkspace,
+  nextWorkspaceSuspensionStatus,
+  workspaceSuspensionAuditEvent,
+  workspaceSuspensionExplanation,
   WorkspaceSuspended,
   WorkspaceSuspensionUnauthorized,
   WorkspaceSuspensionService,
@@ -20,7 +25,7 @@ import {
 function active(workspaceId: string): WorkspaceSuspension {
   return {
     workspaceId,
-    status: 'active',
+    status: initialWorkspaceSuspensionStatus,
     customerExplanation: null,
     changedAt: null,
     changedByUserId: null
@@ -101,7 +106,7 @@ export function SeedWorkspaceSuspension(options: {
         requireAllowed: Effect.fn('WorkspaceSuspension.requireAllowed')(
           function* (workspaceId, operation) {
             const current = yield* get(workspaceId)
-            if (current.status === 'suspended' && operation === 'product') {
+            if (isSuspendedWorkspace(current.status) && operation === 'product') {
               return yield* new WorkspaceSuspended({ workspaceId })
             }
           }
@@ -116,19 +121,19 @@ export function SeedWorkspaceSuspension(options: {
               return yield* new WorkspaceSuspensionUnauthorized()
             }
             const current = yield* get(input.workspaceId)
-            const target = Match.value(input.action).pipe(
-              Match.when('suspend', (): WorkspaceSuspension['status'] => 'suspended'),
-              Match.orElse((): WorkspaceSuspension['status'] => 'active')
-            )
-            if (current.status === target) {
+            // The transition owner refuses a same-state request; the
+            // refusal is the no-op both adapters owe — no write, no audit,
+            // no notice.
+            const target = nextWorkspaceSuspensionStatus(current.status, input.action)
+            if (target === null) {
               return current
             }
             const next: WorkspaceSuspension = {
               workspaceId: current.workspaceId,
               status: target,
-              customerExplanation: Match.value(target).pipe(
-                Match.when('suspended', () => reason.customerExplanation),
-                Match.orElse(() => null)
+              customerExplanation: workspaceSuspensionExplanation(
+                target,
+                reason.customerExplanation
               ),
               changedAt: DateTime.formatIso(yield* DateTime.now),
               changedByUserId: input.actor.userId
@@ -175,13 +180,7 @@ export function SeedWorkspaceSuspension(options: {
               workspaceId: next.workspaceId,
               actorUserId: input.actor.userId,
               actorType: 'user',
-              eventType: Match.value(target).pipe(
-                Match.when(
-                  'suspended',
-                  (): 'workspace.suspended' => 'workspace.suspended'
-                ),
-                Match.orElse((): 'workspace.unsuspended' => 'workspace.unsuspended')
-              ),
+              eventType: workspaceSuspensionAuditEvent(target),
               targetType: 'workspace',
               targetId: next.workspaceId,
               metadata: { customerExplanation: next.customerExplanation }
