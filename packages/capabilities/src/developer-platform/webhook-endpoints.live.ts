@@ -29,9 +29,12 @@ import {
 import {
   activeSigningSecrets,
   DELIVERIES_PAGE_SIZE,
+  deliveredDeliveryStatus,
   deliverySuccessRate,
   planPendingDispatch,
   planSecretRotation,
+  settledDeliveryStatuses,
+  terminalDeliveryStatuses,
   WEBHOOK_FAILURE_AUTO_DISABLE_AT,
   type PendingDispatchPlan
 } from './webhook-delivery-plan.ts'
@@ -39,7 +42,6 @@ import { type NotificationFeed } from '../notifications/notification-feed.ts'
 import {
   ensureValidWebhookUrl,
   planAdminReplay,
-  TERMINAL_DELIVERY_STATUSES,
   type UpdateWebhookEndpointInput,
   WEBHOOK_TEST_EVENT_TYPE,
   WebhookDispatchRejected,
@@ -110,7 +112,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
           enabled: webhookEndpoints.enabled,
           events: webhookEndpoints.events,
           total: count(webhookDeliveries.id),
-          delivered: sql<number>`coalesce(sum(case when ${webhookDeliveries.status} = 'delivered' then 1 else 0 end), 0)`
+          delivered: sql<number>`coalesce(sum(case when ${webhookDeliveries.status} = ${deliveredDeliveryStatus} then 1 else 0 end), 0)`
         })
         .from(webhookEndpoints)
         .leftJoin(
@@ -396,7 +398,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
         function* (input) {
           const limit = clampPageLimit(input?.limit)
           const conditions: Array<SQL> = [
-            inArray(webhookDeliveries.status, [...TERMINAL_DELIVERY_STATUSES])
+            inArray(webhookDeliveries.status, [...terminalDeliveryStatuses])
           ]
           const view = deliveryView(input)
           const query = deliveryViewQuery(view, input?.cursor)
@@ -709,10 +711,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
                   eq(webhookDeliveries.id, input.deliveryId),
                   eq(webhookEndpoints.id, input.endpointId),
                   eq(webhookEndpoints.workspaceId, input.workspaceId),
-                  inArray(webhookDeliveries.status, [
-                    'delivered',
-                    ...TERMINAL_DELIVERY_STATUSES
-                  ])
+                  inArray(webhookDeliveries.status, [...settledDeliveryStatuses])
                 )
               )
               .limit(1)

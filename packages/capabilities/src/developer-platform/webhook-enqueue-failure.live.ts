@@ -11,6 +11,10 @@ import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { auditedMutations } from '../governance/audited-mutation.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '@b2b-saas-starter/failure/capability'
+import {
+  failedPermanentDeliveryStatus,
+  pendingDeliveryStatus
+} from './webhook-delivery-plan.ts'
 import { type WebhookQueueMessage } from './webhook-publisher.ts'
 
 const unavailable = orUnavailable('webhook-publisher')
@@ -43,7 +47,10 @@ export const makeLiveWebhookEnqueueFailure = Effect.gen(function* () {
           db
             .update(webhookDeliveries)
             .set({
-              status: 'failed_permanent',
+              // The machine's enqueue-failure edge: a pending row with no
+              // accepted attempt settles permanently when the queue cannot
+              // confirm acceptance (webhook-delivery-plan.ts owns the map).
+              status: failedPermanentDeliveryStatus,
               lastAttemptAt: attemptedAt,
               nextAttemptAt: null,
               lastAttemptToken: attemptId
@@ -51,7 +58,7 @@ export const makeLiveWebhookEnqueueFailure = Effect.gen(function* () {
             .where(
               and(
                 identity,
-                eq(webhookDeliveries.status, 'pending'),
+                eq(webhookDeliveries.status, pendingDeliveryStatus),
                 eq(webhookDeliveries.attempts, 0),
                 isNull(webhookDeliveries.lastAttemptToken)
               )
@@ -67,7 +74,7 @@ export const makeLiveWebhookEnqueueFailure = Effect.gen(function* () {
                   deliveryId: webhookDeliveries.id,
                   attempts: sql<number>`0`.as('attempts'),
                   phase: sql`'terminal'`.as('phase'),
-                  status: sql`'failed_permanent'`.as('status'),
+                  status: sql`${failedPermanentDeliveryStatus}`.as('status'),
                   attemptedAt: sql<string>`${attemptedAt}`.as('attemptedAt'),
                   durationMs: sql<number | null>`null`.as('durationMs'),
                   failureReason:

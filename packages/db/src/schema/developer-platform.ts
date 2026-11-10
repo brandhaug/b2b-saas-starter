@@ -7,7 +7,12 @@ import {
   type WebhookDeliveryId
 } from '../ids.ts'
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
-import { apiTokenScopes, deliveryStatuses, deliveryAttemptPhases } from '../enums.ts'
+import {
+  apiTokenScopes,
+  deliveryStatuses,
+  deliveryAttemptPhases,
+  webhookInvestigationTaskStatuses
+} from '../enums.ts'
 import { user } from './auth.ts'
 import { workspaceRef } from './workspaces.ts'
 import { id, isoCreatedAt, workspaceIdIndex } from './columns.ts'
@@ -167,7 +172,7 @@ export const webhookInvestigationTasks = sqliteTable(
     id: id(),
     workspaceId: workspaceRef(),
     status: text('status', {
-      enum: ['proposed', 'approved', 'cancelled', 'completed']
+      enum: webhookInvestigationTaskStatuses
     }).notNull(),
     record: jsonText(
       'webhook_investigation_tasks',

@@ -9,6 +9,7 @@ import { type RecordAuditEventInput } from '../governance/audit-event-log.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { type ListPageInput, type Page } from '../internal/keyset-cursor.ts'
 import {
+  isTerminalDeliveryStatus,
   planReplayedDelivery,
   type Json,
   type FailureLadderAction,
@@ -136,16 +137,6 @@ type DeleteWebhookEndpointInput = {
   readonly endpointId: WebhookEndpointId
 }
 
-/**
- * The delivery outcomes that never retry — what the admin dead-letter read
- * serves. `failed` is deliberately absent: a retryable failure is still in
- * flight, and the queue, not an operator, will redeliver it.
- */
-export const TERMINAL_DELIVERY_STATUSES = [
-  'failed_permanent',
-  'dead_lettered'
-] as const satisfies ReadonlyArray<WebhookDeliveryStatus>
-
 /** Terminal delivery and current endpoint state for the global operator list.
  * No payload or signing secrets are exposed. Replay re-reads the source.
  */
@@ -187,7 +178,7 @@ export const planAdminReplay = Effect.fn('WebhookEndpoints.planAdminReplay')(fun
       })
     )
   }
-  if (!TERMINAL_DELIVERY_STATUSES.some((status) => status === source.status)) {
+  if (!isTerminalDeliveryStatus(source.status)) {
     return yield* Effect.fail(
       new WebhookDispatchRejected({
         reason: `delivery is ${source.status}, only terminal deliveries replay from admin`

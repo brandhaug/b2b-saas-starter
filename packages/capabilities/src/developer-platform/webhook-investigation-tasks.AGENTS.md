@@ -3,6 +3,11 @@
 Saved delivery checks and exact replay proposals. `webhook-investigation-tasks.ts`
 owns the contract and shared behavior; Seed and Live own storage only.
 
+- The module owns the task status machine (ADR 0077): tasks are born `proposed`
+  or `completed` from the diagnosis, a proposal moves only to `approved` or
+  `cancelled`, and both stores claim a transition from `proposed` alone. An
+  approved task's replay outcome is projected from the delivery owner's
+  vocabulary, never stored as a task status.
 - Callers require `assistant:read` and `webhook:list`. Approval and cancellation
   additionally require `webhook:replay`, using the current member on every call.
 - A proposal identifies one source delivery and its endpoint URL. Re-check both

@@ -6,6 +6,7 @@ Workspace-scoped programmatic-access tokens for the REST and MCP surface. Tokens
 
 ## Entry Points & Contracts
 
+- The lifecycle owner is [`@b2b-saas-starter/db/token-lifecycle`](../../../db/AGENTS.md): the live/rotated/revoked/expired predicates over `revokedAt`, `expiresAt` and `replacedByTokenId`, consumed by both registries and named in every SQL mirror (admission, rotation-chain selection, the retention index). Never restate those predicates inline.
 - Creation admission belongs to [Resource entitlements](../../../billing/src/resource-entitlements.AGENTS.md); token writes and audits stay here. Published projections must never carry plaintext.
 - `revoke` files `api_token_revoked` security evidence from both adapters and stamps `revokedAt`. Its where clause carries `workspaceId` and `isNull(revokedAt)`, so a double or cross-workspace revoke resolves `false` and emits no audit event and no webhook.
 - `verifyBearerToken` authenticates only: it reports the token's scopes and `requirePermission` decides. It fails `AuthorizationDenied` with `reason: 'invalid_token'`, this layer's single authorization-shaped failure, which `apps/api` answers as 401.

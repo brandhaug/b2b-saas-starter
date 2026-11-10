@@ -1,9 +1,72 @@
 import { WebhookDeliveryId } from '@b2b-saas-starter/db/ids'
+import { webhookInvestigationTaskStatuses } from '@b2b-saas-starter/db/enums'
 import { describe, expect, it } from '@effect/vitest'
 import { Effect } from 'effect'
 import { selectWorkspaceLayer } from '../runtime.ts'
 import { webhookInvestigationTaskContractCases } from './webhook-investigation-tasks.contract.ts'
-import { WebhookInvestigationTasks } from './webhook-investigation-tasks.ts'
+import {
+  initialInvestigationTaskStatus,
+  investigationReplayOutcome,
+  nextInvestigationTaskStatus,
+  proposedInvestigationTaskStatus,
+  WebhookInvestigationTasks
+} from './webhook-investigation-tasks.ts'
+
+describe('investigation task transition map', () => {
+  it('claims a proposal as approved or cancelled', () => {
+    expect(nextInvestigationTaskStatus('proposed', { kind: 'approve' })).toBe(
+      'approved'
+    )
+    expect(nextInvestigationTaskStatus('proposed', { kind: 'cancel' })).toBe(
+      'cancelled'
+    )
+  })
+
+  it('re-enters approved idempotently and never cancels an approved task', () => {
+    expect(nextInvestigationTaskStatus('approved', { kind: 'approve' })).toBe(
+      'approved'
+    )
+    expect(nextInvestigationTaskStatus('approved', { kind: 'cancel' })).toBeNull()
+  })
+
+  it('refuses both outcomes from the terminal statuses', () => {
+    for (const status of ['cancelled', 'completed'] as const) {
+      expect(nextInvestigationTaskStatus(status, { kind: 'approve' })).toBeNull()
+      expect(nextInvestigationTaskStatus(status, { kind: 'cancel' })).toBeNull()
+    }
+  })
+
+  it('births a proposal only for an unavailable receiver', () => {
+    expect(initialInvestigationTaskStatus('receiver_unavailable')).toBe('proposed')
+    for (const diagnosis of [
+      'retrying',
+      'delivered',
+      'receiver_rejected',
+      'endpoint_disabled',
+      'unknown'
+    ] as const) {
+      expect(initialInvestigationTaskStatus(diagnosis)).toBe('completed')
+    }
+  })
+
+  it('pins the only status a stored transition may claim from', () => {
+    expect(proposedInvestigationTaskStatus).toBe('proposed')
+    // Compile-time exhaustiveness plus a runtime guard for the test itself.
+    expect(webhookInvestigationTaskStatuses).toContain('approved')
+  })
+})
+
+describe('investigation replay outcome', () => {
+  it("reads the outcome through the delivery owner's vocabulary", () => {
+    expect(investigationReplayOutcome(null)).toBe('unavailable')
+    expect(investigationReplayOutcome('delivered')).toBe('delivered')
+    // Dispatchable deliveries are still in flight; the outcome waits.
+    expect(investigationReplayOutcome('pending')).toBe('pending')
+    expect(investigationReplayOutcome('failed')).toBe('pending')
+    expect(investigationReplayOutcome('failed_permanent')).toBe('failed')
+    expect(investigationReplayOutcome('dead_lettered')).toBe('failed')
+  })
+})
 
 describe('webhook investigation tasks', () => {
   it.effect(

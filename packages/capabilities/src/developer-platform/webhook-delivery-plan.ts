@@ -1,5 +1,5 @@
 import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
-import { deliveryAttemptPhases } from '@b2b-saas-starter/db/enums'
+import { deliveryAttemptPhases, type DeliveryStatus } from '@b2b-saas-starter/db/enums'
 import { DateTime, Duration, Option, Schema } from 'effect'
 
 import { type AuditEventType } from '../governance/audit-event-taxonomy.ts'
@@ -59,6 +59,30 @@ export type ListWebhookDeliveriesInput = {
 }
 
 /**
+ * The owner of the `webhook_deliveries.status` machine (ADR 0077): the
+ * stored vocabulary, the transition map and predicate sets below, and the
+ * failure-ladder counter transitions (`nextConsecutiveFailures`).
+ *
+ * Operator replay is deliberately not a transition. A terminal row never
+ * moves: replay reads a replayable source and creates a NEW `pending` row
+ * linked by `replayedFrom` (`planReplayedDelivery`), so the source keeps
+ * its terminal evidence forever.
+ *
+ * SQL mirrors that must stay in step, named rather than edited:
+ * - `webhook_deliveries_recovery_idx` serves status-scoped reads over
+ *   (`status`, `last_attempt_at`, `id`) (migration
+ *   `20260907200353_old_random`).
+ * - `webhook_deliveries_retention_idx` orders the cleanup scan on
+ *   (`last_attempt_at`, `id`) (migration
+ *   `20260906141620_webhook_attempt_history`).
+ * - the acceptance guard `status in ('pending', 'failed')` and the ladder
+ *   counter `case when … = 'delivered' then 0 else … + 1 end` in
+ *   `webhook-attempt-history.live.ts` mirror `dispatchableDeliveryStatuses`
+ *   and `nextConsecutiveFailures`.
+ * - the enqueue-failure claim in `webhook-enqueue-failure.live.ts` mirrors
+ *   the `pending --enqueue_failure--> failed_permanent` edge: a pending row
+ *   with no accepted attempt whose queue acceptance is unknown.
+ *
  * Delivery status vocabulary (the stored enum, `deliveryStatuses` in
  * `packages/db`, stays in step):
  * - `pending` — an operator action (replay or test send) created the row and
@@ -71,12 +95,163 @@ export type ListWebhookDeliveriesInput = {
  * - `dead_lettered` — the message exhausted `maxRetries` and was consumed from
  *   the dead-letter queue.
  */
-export type WebhookDeliveryStatus =
-  | 'pending'
-  | 'delivered'
-  | 'failed'
-  | 'failed_permanent'
-  | 'dead_lettered'
+export type WebhookDeliveryStatus = DeliveryStatus
+
+/** The status every operator dispatch (replay, test send) births its row with. */
+export const pendingDeliveryStatus: WebhookDeliveryStatus = 'pending'
+
+/** The one status that settles a delivery and resets the failure ladder. */
+export const deliveredDeliveryStatus: WebhookDeliveryStatus = 'delivered'
+
+/** A retryable failure; the queue still owes this delivery attempts. */
+export const failedDeliveryStatus: WebhookDeliveryStatus = 'failed'
+
+/** Terminal receiver refusal; the message is acked and never redelivered. */
+export const failedPermanentDeliveryStatus: WebhookDeliveryStatus = 'failed_permanent'
+
+/** Attempts exhausted; consumed from the dead-letter queue. */
+export const deadLetteredDeliveryStatus: WebhookDeliveryStatus = 'dead_lettered'
+
+/** The outcomes that can move a stored delivery row. */
+export type WebhookDeliveryTransition =
+  | { readonly kind: 'dispatch'; readonly decision: DeliveryDecision }
+  | { readonly kind: 'attempts_exhausted' }
+  | { readonly kind: 'enqueue_failure' }
+
+type WebhookDeliveryTransitionKey =
+  | 'dispatch_delivered'
+  | 'dispatch_retry'
+  | 'dispatch_terminal'
+  | 'attempts_exhausted'
+  | 'enqueue_failure'
+
+/**
+ * The declared transition map: the status each outcome produces from each
+ * stored status. `null` refuses the outcome — `delivered`,
+ * `failed_permanent` and `dead_lettered` are terminal and refuse
+ * everything; only operator replay reads them again, and it creates a new
+ * row rather than moving them. `enqueue_failure` is legal only from
+ * `pending`: the enqueue confirmation covers the original enqueue of a row
+ * no attempt has touched, not a later dispatch failure.
+ */
+const webhookDeliveryTransitions = {
+  pending: {
+    dispatch_delivered: 'delivered',
+    dispatch_retry: 'failed',
+    dispatch_terminal: 'failed_permanent',
+    attempts_exhausted: 'dead_lettered',
+    enqueue_failure: 'failed_permanent'
+  },
+  failed: {
+    dispatch_delivered: 'delivered',
+    dispatch_retry: 'failed',
+    dispatch_terminal: 'failed_permanent',
+    attempts_exhausted: 'dead_lettered',
+    enqueue_failure: null
+  },
+  delivered: {
+    dispatch_delivered: null,
+    dispatch_retry: null,
+    dispatch_terminal: null,
+    attempts_exhausted: null,
+    enqueue_failure: null
+  },
+  failed_permanent: {
+    dispatch_delivered: null,
+    dispatch_retry: null,
+    dispatch_terminal: null,
+    attempts_exhausted: null,
+    enqueue_failure: null
+  },
+  dead_lettered: {
+    dispatch_delivered: null,
+    dispatch_retry: null,
+    dispatch_terminal: null,
+    attempts_exhausted: null,
+    enqueue_failure: null
+  }
+} as const satisfies Record<
+  WebhookDeliveryStatus,
+  Record<WebhookDeliveryTransitionKey, WebhookDeliveryStatus | null>
+>
+
+/**
+ * Applies one outcome to a stored status; `null` refuses the transition.
+ *
+ * Authority split (ADR 0077): this map is the declared contract — it pins
+ * every legal move and refusal in tests, including replay-as-new-row and
+ * `enqueue_failure` only from `pending`. At runtime the write authority is
+ * the store: the acceptance guard admits exactly
+ * `dispatchableDeliveryStatuses` rows, and callers arrive with an already
+ * classified status (`planDeliveryAttempt`, the enqueue-failure path, the
+ * dead-letter consumer) rather than a transition event, so no adapter
+ * consults this function — the row's current status is known only to the
+ * store that guards the write.
+ */
+export function nextWebhookDeliveryStatus(
+  status: WebhookDeliveryStatus,
+  transition: WebhookDeliveryTransition
+): WebhookDeliveryStatus | null {
+  return webhookDeliveryTransitions[status][deliveryTransitionKey(transition)]
+}
+
+function deliveryTransitionKey(
+  transition: WebhookDeliveryTransition
+): WebhookDeliveryTransitionKey {
+  if (transition.kind !== 'dispatch') {
+    return transition.kind
+  }
+  if (transition.decision === 'delivered') {
+    return 'dispatch_delivered'
+  }
+  if (transition.decision === 'retry') {
+    return 'dispatch_retry'
+  }
+  return 'dispatch_terminal'
+}
+
+/**
+ * The statuses a recorded attempt may move — every status the queue's
+ * acceptance guard admits. The Live guard's `status in ('pending',
+ * 'failed')` and the Seed `advances` check mirror this set.
+ */
+export const dispatchableDeliveryStatuses: ReadonlyArray<WebhookDeliveryStatus> = [
+  pendingDeliveryStatus,
+  failedDeliveryStatus
+]
+
+export function isDispatchableDeliveryStatus(status: WebhookDeliveryStatus): boolean {
+  return dispatchableDeliveryStatuses.includes(status)
+}
+
+/**
+ * The delivery outcomes that never retry — what the admin dead-letter read
+ * serves. `failed` is deliberately absent: a retryable failure is still in
+ * flight, and the queue, not an operator, will redeliver it.
+ */
+export const terminalDeliveryStatuses: ReadonlyArray<WebhookDeliveryStatus> = [
+  failedPermanentDeliveryStatus,
+  deadLetteredDeliveryStatus
+]
+
+export function isTerminalDeliveryStatus(status: WebhookDeliveryStatus): boolean {
+  return terminalDeliveryStatuses.includes(status)
+}
+
+/**
+ * A settled delivery never dispatches again: delivered, or terminally
+ * failed. Dispatch-target reads and history cleanup both filter on this
+ * set; the cleanup SQL's `status in ('delivered', 'failed_permanent',
+ * 'dead_lettered')` mirrors it.
+ */
+export const settledDeliveryStatuses: ReadonlyArray<WebhookDeliveryStatus> = [
+  deliveredDeliveryStatus,
+  ...terminalDeliveryStatuses
+]
+
+export function isSettledDeliveryStatus(status: WebhookDeliveryStatus): boolean {
+  return status === deliveredDeliveryStatus || isTerminalDeliveryStatus(status)
+}
 
 /**
  * A Seed delivery-history row so the operator surface (deliveries list,
@@ -104,13 +279,19 @@ export type SeedWebhookDeliveryFixture = {
 /**
  * The statuses an operator may replay: anything that has failed. A `pending`
  * row has not dispatched yet and a `delivered` row needs no operator help, so
- * neither offers a replay.
+ * neither offers a replay. Replay is legal from the terminal members of this
+ * set, but it never transitions them: it creates a new `pending` row linked
+ * by `replayedFrom` (see the machine doc above).
  */
-const REPLAYABLE_DELIVERY_STATUSES: ReadonlySet<WebhookDeliveryStatus> = new Set([
-  'failed',
-  'failed_permanent',
-  'dead_lettered'
-])
+export const replayableDeliveryStatuses: ReadonlyArray<WebhookDeliveryStatus> = [
+  failedDeliveryStatus,
+  failedPermanentDeliveryStatus,
+  deadLetteredDeliveryStatus
+]
+
+const REPLAYABLE_DELIVERY_STATUSES: ReadonlySet<WebhookDeliveryStatus> = new Set(
+  replayableDeliveryStatuses
+)
 
 export function isReplayableDeliveryStatus(status: WebhookDeliveryStatus): boolean {
   return REPLAYABLE_DELIVERY_STATUSES.has(status)

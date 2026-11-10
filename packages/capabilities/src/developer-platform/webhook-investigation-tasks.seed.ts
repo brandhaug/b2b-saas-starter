@@ -4,6 +4,7 @@ import { WorkspaceContext } from '../workspace-context.ts'
 import {
   investigationTransition,
   makeInvestigationTasks,
+  proposedInvestigationTaskStatus,
   WebhookInvestigationTasks,
   type WebhookInvestigationTask
 } from './webhook-investigation-tasks.ts'
@@ -69,7 +70,7 @@ export const SeedWebhookInvestigationTasks = Layer.effect(WebhookInvestigationTa
             const current = items.find(
               (row) => row.workspaceId === ctx.workspace.id && row.task.id === task.id
             )
-            if (current?.task.status !== 'proposed') {
+            if (current?.task.status !== proposedInvestigationTaskStatus) {
               return [false, items]
             }
             return [

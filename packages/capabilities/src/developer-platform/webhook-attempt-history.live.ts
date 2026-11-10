@@ -7,12 +7,13 @@ import {
   RawD1,
   type BatchStatement
 } from '@b2b-saas-starter/db/service'
+import { deliveryStatuses } from '@b2b-saas-starter/db/enums'
 import {
   webhookDeliveries,
   webhookDeliveryAttempts,
   webhookEndpoints
 } from '@b2b-saas-starter/db/schema/developer-platform'
-import { and, asc, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { DateTime, Duration, Effect, Schema } from 'effect'
 
 import { AuditEventLog } from '../governance/audit-event-log.ts'
@@ -21,10 +22,16 @@ import { orUnavailable } from '@b2b-saas-starter/failure/capability'
 import { NotificationFeed } from '../notifications/notification-feed.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import {
+  deadLetteredDeliveryStatus,
   DELIVERY_HISTORY_CLEANUP_LIMIT,
   DELIVERY_HISTORY_RETENTION_DAYS,
   deadLetterNotification,
+  deliveredDeliveryStatus,
+  dispatchableDeliveryStatuses,
   failureLadderAction,
+  failedPermanentDeliveryStatus,
+  pendingDeliveryStatus,
+  settledDeliveryStatuses,
   terminalDeliveryAuditEventType,
   WEBHOOK_FAILURE_AUTO_DISABLE_AT,
   WebhookDeliveryAttempt,
@@ -44,13 +51,7 @@ const Recorded = Schema.Struct({
   attempts: Schema.Number,
   consecutiveFailures: Schema.Number,
   url: Schema.String,
-  status: Schema.Literals([
-    'pending',
-    'delivered',
-    'failed',
-    'failed_permanent',
-    'dead_lettered'
-  ])
+  status: Schema.Literals(deliveryStatuses)
 })
 
 const decodeRecorded = Schema.decodeUnknownEffect(Schema.Array(Recorded))
@@ -96,7 +97,7 @@ export const makeLiveAttemptHistory = Effect.gen(function* () {
           deliveryId,
           recorded: false,
           failureAction: 'silent',
-          status: 'failed_permanent',
+          status: failedPermanentDeliveryStatus,
           consecutiveFailures: 0
         } satisfies RecordedWebhookAttempt & { readonly deliveryId: WebhookDeliveryId }
       }
@@ -145,7 +146,7 @@ export const makeLiveAttemptHistory = Effect.gen(function* () {
                 id: sql<string>`${deliveryId}`.as('id'),
                 endpointId: sql<string>`${input.endpointId}`.as('endpointId'),
                 eventType: sql<string>`${input.eventType}`.as('eventType'),
-                status: sql`'pending'`.as('status'),
+                status: sql`${pendingDeliveryStatus}`.as('status'),
                 attempts: sql<number>`0`.as('attempts'),
                 lastAttemptAt: sql<string>`${attemptedAt}`.as('lastAttemptAt'),
                 nextAttemptAt: sql<string | null>`null`.as('nextAttemptAt'),
@@ -208,14 +209,18 @@ export const makeLiveAttemptHistory = Effect.gen(function* () {
           and(
             matchingDelivery,
             sql`exists (select 1 from ${webhookDeliveryAttempts} where ${webhookDeliveryAttempts.id} = ${attemptId})`,
-            sql`${webhookDeliveries.status} in ('pending', 'failed')`,
-            sql`(${evidence.phase} = 'terminal' or ${webhookDeliveries.status} = 'pending' or ${webhookDeliveries.attempts} < ${input.attempts})`
+            // The machine's acceptance guard: only dispatchable rows move
+            // (`dispatchableDeliveryStatuses` in webhook-delivery-plan.ts).
+            inArray(webhookDeliveries.status, dispatchableDeliveryStatuses),
+            sql`(${evidence.phase} = 'terminal' or ${webhookDeliveries.status} = ${pendingDeliveryStatus} or ${webhookDeliveries.attempts} < ${input.attempts})`
           )
         ),
       db
         .update(webhookEndpoints)
         .set({
-          consecutiveFailures: sql`case when ${input.status} = 'delivered' then 0 else ${webhookEndpoints.consecutiveFailures} + 1 end`
+          // The ladder counter mirror of `nextConsecutiveFailures`: only a
+          // delivered attempt resets the streak; every failure climbs it.
+          consecutiveFailures: sql`case when ${input.status} = ${deliveredDeliveryStatus} then 0 else ${webhookEndpoints.consecutiveFailures} + 1 end`
         })
         .where(and(endpointScope, accepted, countsFailure))
     )
@@ -276,7 +281,7 @@ export const makeLiveAttemptHistory = Effect.gen(function* () {
           ),
           url: webhookEndpoints.url,
           status:
-            sql`coalesce((select status from ${webhookDeliveries} where ${matchingDelivery}), 'failed_permanent')`.as(
+            sql`coalesce((select status from ${webhookDeliveries} where ${matchingDelivery}), ${failedPermanentDeliveryStatus})`.as(
               'status'
             )
         })
@@ -289,7 +294,7 @@ export const makeLiveAttemptHistory = Effect.gen(function* () {
     const rows = yield* unavailable(decodeRecorded(results.at(-1)?.results ?? []))
     const row = rows[0]
     const recorded = row?.recorded === 1
-    if (recorded && input.status === 'dead_lettered') {
+    if (recorded && input.status === deadLetteredDeliveryStatus) {
       yield* bestEffort(
         notifications.create({
           workspaceId: input.workspaceId,
@@ -312,7 +317,7 @@ export const makeLiveAttemptHistory = Effect.gen(function* () {
       deliveryId,
       recorded,
       failureAction,
-      status: row?.status ?? 'failed_permanent',
+      status: row?.status ?? failedPermanentDeliveryStatus,
       consecutiveFailures: row?.consecutiveFailures ?? 0
     }
   })
@@ -357,7 +362,7 @@ export const makeLiveAttemptHistory = Effect.gen(function* () {
         db
           .delete(webhookDeliveries)
           .where(
-            sql`${webhookDeliveries.id} in (select id from ${webhookDeliveries} where ${webhookDeliveries.lastAttemptAt} < ${cutoff} and ${webhookDeliveries.status} in ('delivered', 'failed_permanent', 'dead_lettered') order by ${webhookDeliveries.lastAttemptAt} limit ${DELIVERY_HISTORY_CLEANUP_LIMIT})`
+            sql`${webhookDeliveries.id} in (select id from ${webhookDeliveries} where ${webhookDeliveries.lastAttemptAt} < ${cutoff} and ${inArray(webhookDeliveries.status, settledDeliveryStatuses)} order by ${webhookDeliveries.lastAttemptAt} limit ${DELIVERY_HISTORY_CLEANUP_LIMIT})`
           )
           .returning({ id: webhookDeliveries.id })
       )
