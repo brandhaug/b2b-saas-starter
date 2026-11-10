@@ -841,8 +841,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           // A conflict is the operator's evidence that one event could not
           // be applied. Settling it alongside an unrelated later success
           // would erase the only record that something needs looking at —
-          // hence `SETTLED_EVENT_STATUSES` naming `processing`/`failed` and
-          // not `conflict`.
+          // hence `settledBySynchronization` naming `processing`/`failed`
+          // and not `conflict`.
           const priced = state.subscriptions
           state.subscriptions = [
             subscription({

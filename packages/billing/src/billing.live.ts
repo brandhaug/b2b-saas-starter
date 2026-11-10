@@ -26,6 +26,10 @@ import { billableSeatQuantity, planById } from './plan-catalog.ts'
 import { displayedBillingPlans, validatedStripePrice } from './stripe-pricing.ts'
 import { decodeSubscriptionRow } from './subscription-row.ts'
 import { billingLifecycle } from './billing-state.ts'
+import { isCurrentSubscriptionStatus } from './stripe.ts'
+import { openCheckoutClaimStatuses } from './checkout-claims.ts'
+import { completedProviderEventStatus } from './provider-event-status.ts'
+import { currentSynchronizationStatus } from './synchronization-status.ts'
 import {
   Billing,
   billingStoreUnavailable,
@@ -140,11 +144,9 @@ export function LiveBilling(
         workspaceDeletionAllowed: Effect.fn('Billing.workspaceDeletionAllowed')(
           function* (workspaceId: string) {
             const subscription = yield* readSubscription(workspaceId)
-            if (
-              subscription &&
-              subscription.status !== 'canceled' &&
-              subscription.status !== 'incomplete_expired'
-            ) {
+            // `isCurrentSubscriptionStatus` is the provider-may-still-collect
+            // predicate; the deletion-fence triggers mirror it in SQL.
+            if (subscription && isCurrentSubscriptionStatus(subscription.status)) {
               return false
             }
             const claims = yield* unavailable(
@@ -154,7 +156,9 @@ export function LiveBilling(
                 .where(
                   and(
                     eq(billingCheckoutClaims.workspaceId, workspaceId),
-                    inArray(billingCheckoutClaims.status, ['pending', 'created'])
+                    inArray(billingCheckoutClaims.status, [
+                      ...openCheckoutClaimStatuses
+                    ])
                   )
                 )
                 .limit(1)
@@ -170,7 +174,7 @@ export function LiveBilling(
                   and(
                     eq(billingSynchronization.workspaceId, workspaceId),
                     or(
-                      ne(billingSynchronization.status, 'current'),
+                      ne(billingSynchronization.status, currentSynchronizationStatus),
                       isNotNull(billingSynchronization.leaseOwner)
                     )
                   )
@@ -187,7 +191,7 @@ export function LiveBilling(
                 .where(
                   and(
                     eq(billingProviderEvents.workspaceId, workspaceId),
-                    ne(billingProviderEvents.status, 'completed'),
+                    ne(billingProviderEvents.status, completedProviderEventStatus),
                     isNull(billingProviderEvents.resolvedAt)
                   )
                 )

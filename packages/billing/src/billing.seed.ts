@@ -23,6 +23,10 @@ import {
   type PaymentEvidence
 } from './billing-state.ts'
 import {
+  currentSynchronizationStatus,
+  nextSynchronizationStatus
+} from './synchronization-status.ts'
+import {
   Billing,
   planChangeMetadata,
   seatChangeMetadata,
@@ -183,12 +187,14 @@ export function SeedBilling(options?: {
 
       /**
        * Records that synchronization did not finish, keeping the last verified
-       * sync time: an unfinished pass never claims to have synced.
+       * sync time: an unfinished pass never claims to have synced. The status
+       * comes from the shared failure classification, never a caller literal.
        */
       const markUnresolved = Effect.fn('Billing.markUnresolved')(function* (
         workspaceId: string,
-        status: 'delayed' | 'conflict'
+        conflict: boolean
       ) {
+        const status = nextSynchronizationStatus({ kind: 'failure', conflict })
         yield* Ref.update(synchronization, (map) => {
           const next = new Map(map)
           next.set(workspaceId, {
@@ -213,7 +219,7 @@ export function SeedBilling(options?: {
             } satisfies ReconcileResult
           }
           if (!configured) {
-            yield* markUnresolved(input.workspaceId, 'delayed')
+            yield* markUnresolved(input.workspaceId, false)
             return {
               workspaceId: input.workspaceId,
               outcome: 'delayed',
@@ -221,7 +227,7 @@ export function SeedBilling(options?: {
             } satisfies ReconcileResult
           }
           if (stored !== undefined && stored.customerId !== provider.customerId) {
-            yield* markUnresolved(input.workspaceId, 'conflict')
+            yield* markUnresolved(input.workspaceId, true)
             return {
               workspaceId: input.workspaceId,
               outcome: 'conflict',
@@ -297,7 +303,7 @@ export function SeedBilling(options?: {
             }
           })
           if (decision.kind === 'conflict') {
-            yield* markUnresolved(input.workspaceId, 'conflict')
+            yield* markUnresolved(input.workspaceId, true)
             return {
               workspaceId: input.workspaceId,
               outcome: 'conflict',
@@ -405,12 +411,17 @@ export function SeedBilling(options?: {
             updated.set(input.workspaceId, providerPlan.id)
             return updated
           })
-          let reconciliationStatus: BillingSynchronizationStatus['status'] = 'pending'
+          // The seed applies the desired quantity eagerly, so its commits are
+          // aligned by construction; the classification stays the shared one.
+          const reconciliationStatus = nextSynchronizationStatus({
+            kind: 'commit',
+            verified: decision.verified,
+            seatsAligned: true
+          })
           let reconciliationSyncedAt =
             (yield* Ref.get(synchronization)).get(input.workspaceId)?.lastSyncedAt ??
             null
-          if (decision.verified) {
-            reconciliationStatus = 'current'
+          if (reconciliationStatus === currentSynchronizationStatus) {
             reconciliationSyncedAt = now
           }
           yield* Ref.update(synchronization, (map) => {
@@ -502,7 +513,10 @@ export function SeedBilling(options?: {
               yield* Ref.update(synchronization, (map) => {
                 const next = new Map(map)
                 next.set(workspaceId, {
-                  status: 'delayed',
+                  status: nextSynchronizationStatus({
+                    kind: 'failure',
+                    conflict: false
+                  }),
                   lastSyncedAt: map.get(workspaceId)?.lastSyncedAt ?? null
                 })
                 return next
@@ -519,7 +533,10 @@ export function SeedBilling(options?: {
               yield* Ref.update(synchronization, (map) => {
                 const next = new Map(map)
                 next.set(workspaceId, {
-                  status: 'conflict',
+                  status: nextSynchronizationStatus({
+                    kind: 'failure',
+                    conflict: true
+                  }),
                   lastSyncedAt: map.get(workspaceId)?.lastSyncedAt ?? null
                 })
                 return next
@@ -571,11 +588,9 @@ export function SeedBilling(options?: {
             const subscription = (yield* Ref.get(subscriptions)).get(workspaceId)
             const sync = (yield* Ref.get(synchronization)).get(workspaceId)
             return (
-              (!subscription ||
-                subscription.status === 'canceled' ||
-                subscription.status === 'incomplete_expired') &&
+              (!subscription || !isCurrentSubscriptionStatus(subscription.status)) &&
               !(yield* Ref.get(checkoutClaims)).has(workspaceId) &&
-              (!sync || sync.status === 'current') &&
+              (!sync || sync.status === currentSynchronizationStatus) &&
               ![...(yield* Ref.get(pendingEvents)).values()].some(
                 (event) => event.workspaceId === workspaceId
               )
@@ -855,7 +870,7 @@ export function SeedBilling(options?: {
                   } satisfies SeatSyncResult
                 }
                 if (!configured) {
-                  yield* markUnresolved(input.workspaceId, 'delayed')
+                  yield* markUnresolved(input.workspaceId, false)
                   return {
                     outcome: 'provider_not_configured',
                     quantity: null
@@ -879,7 +894,12 @@ export function SeedBilling(options?: {
                 yield* Ref.update(synchronization, (map) => {
                   const nextMap = new Map(map)
                   nextMap.set(input.workspaceId, {
-                    status: 'current',
+                    // A completed seat sync is a verified, aligned commit.
+                    status: nextSynchronizationStatus({
+                      kind: 'commit',
+                      verified: true,
+                      seatsAligned: true
+                    }),
                     lastSyncedAt: syncedAt
                   })
                   return nextMap

@@ -19,7 +19,14 @@ import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema/worksp
 import { Database } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Schema } from 'effect'
 import { annotateWideEvent } from '@b2b-saas-starter/logger'
-import { and, asc, count, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm'
+import { and, asc, count, eq, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm'
+import {
+  completedProviderEventStatus,
+  failureStatus,
+  settledBySynchronization
+} from './provider-event-status.ts'
+import { openCheckoutClaimStatuses } from './checkout-claims.ts'
+import { unresolvedSynchronizationStatuses } from './synchronization-status.ts'
 
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { billingConfigured, type BillingOptions } from './billing-config.ts'
@@ -463,11 +470,13 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
           Effect.gen(function* () {
             const now = yield* DateTime.now
             const evidence = yield* store.event(input.providerEventId)
+            // The row is freshly born `processing`; the failure half of the
+            // event machine is total from that state.
             yield* unavailable(
               db
                 .update(billingProviderEvents)
                 .set({
-                  status: 'failed',
+                  status: failureStatus(false),
                   failureReason: error.reason,
                   attemptCount: sql`${billingProviderEvents.attemptCount} + 1`,
                   updatedAt: DateTime.formatIso(now)
@@ -491,11 +500,13 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
       )
       if (workspaceId === undefined) {
         const now = DateTime.formatIso(yield* DateTime.now)
+        // Unknown routing is operator evidence: the conflict classification
+        // comes from the provider-event machine's failure half.
         yield* unavailable(
           db
             .update(billingProviderEvents)
             .set({
-              status: 'conflict',
+              status: failureStatus(true),
               outcome: 'unknown_workspace',
               failureReason: 'unknown_workspace',
               updatedAt: now
@@ -564,7 +575,7 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
           .where(
             and(
               isNull(billingProviderEvents.workspaceId),
-              inArray(billingProviderEvents.status, ['failed', 'processing']),
+              inArray(billingProviderEvents.status, [...settledBySynchronization]),
               lte(
                 billingProviderEvents.updatedAt,
                 DateTime.formatIso(DateTime.add(yield* DateTime.now, { minutes: -1 }))
@@ -599,9 +610,9 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
           .where(
             and(
               sql`EXISTS (SELECT 1 FROM ${workspaceSubscriptions} WHERE ${workspaceSubscriptions.workspaceId} = ${workspaces.id})
-        OR EXISTS (SELECT 1 FROM ${billingCheckoutClaims} WHERE ${billingCheckoutClaims.workspaceId} = ${workspaces.id} AND ${billingCheckoutClaims.status} IN ('pending', 'created'))
-        OR EXISTS (SELECT 1 FROM ${billingProviderEvents} WHERE ${billingProviderEvents.workspaceId} = ${workspaces.id} AND ${billingProviderEvents.status} <> 'completed')
-        OR ${billingSynchronization.status} IN ('pending', 'delayed', 'conflict')`,
+        OR EXISTS (SELECT 1 FROM ${billingCheckoutClaims} WHERE ${billingCheckoutClaims.workspaceId} = ${workspaces.id} AND ${inArray(billingCheckoutClaims.status, [...openCheckoutClaimStatuses])})
+        OR EXISTS (SELECT 1 FROM ${billingProviderEvents} WHERE ${billingProviderEvents.workspaceId} = ${workspaces.id} AND ${ne(billingProviderEvents.status, completedProviderEventStatus)})
+        OR ${inArray(billingSynchronization.status, [...unresolvedSynchronizationStatuses])}`,
               or(
                 isNull(billingSynchronization.nextAttemptAt),
                 lte(billingSynchronization.nextAttemptAt, now)

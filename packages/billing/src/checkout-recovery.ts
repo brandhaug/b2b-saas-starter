@@ -1,4 +1,5 @@
 import { billingCheckoutClaims } from '@b2b-saas-starter/db/schema/billing'
+import { type BillingCheckoutStatus } from '@b2b-saas-starter/db/enums'
 import { type EffectDatabase } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect } from 'effect'
 import { and, eq, inArray } from 'drizzle-orm'
@@ -7,7 +8,12 @@ import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type AuditPort as AuditEventLogInterface } from './ports.ts'
 import { type makeBillingLease, type BillingLease } from './billing-lease.ts'
 import { type billingStoreUnavailable } from './billing.ts'
-import { type CheckoutClaim } from './checkout-claims.ts'
+import {
+  checkoutClaimEventFromSessionStatus,
+  nextCheckoutClaimStatus,
+  openCheckoutClaimStatuses,
+  type CheckoutClaim
+} from './checkout-claims.ts'
 import {
   listStripeCustomerCheckoutSessions,
   listStripeCustomersSince,
@@ -35,6 +41,21 @@ export function checkoutFailure(reason: string) {
   return new CapabilityUnavailable({ capability: 'billing', reason })
 }
 
+/**
+ * The expiry write both absence paths share. `readCheckoutClaim` only returns
+ * open claims, so the transition is always legal; the typed failure is the
+ * guard if that precondition ever breaks.
+ */
+function expiredByAbsence(
+  status: CheckoutClaim['status']
+): Effect.Effect<'expired', CapabilityUnavailable> {
+  const next = nextCheckoutClaimStatus(status, { kind: 'provider_absence_verified' })
+  if (next === 'expired') {
+    return Effect.succeed(next)
+  }
+  return Effect.fail(checkoutFailure('checkout_claim_refused_expiry'))
+}
+
 const readCheckoutClaim = Effect.fn('Billing.readCheckoutClaim')(function* (
   deps: CheckoutDependencies,
   workspaceId: string
@@ -46,7 +67,7 @@ const readCheckoutClaim = Effect.fn('Billing.readCheckoutClaim')(function* (
       .where(
         and(
           eq(billingCheckoutClaims.workspaceId, workspaceId),
-          inArray(billingCheckoutClaims.status, ['pending', 'created'])
+          inArray(billingCheckoutClaims.status, [...openCheckoutClaimStatuses])
         )
       )
       .limit(1)
@@ -93,11 +114,12 @@ export const recoverCheckoutClaim = Effect.fn('Billing.recoverCheckoutClaim')(
       }
       customerId = matches[0]?.id
       if (customerId === undefined) {
+        const expired = yield* expiredByAbsence(claim.status)
         yield* deps.lease.fencedBatch(input.lease, [
           deps.db
             .update(billingCheckoutClaims)
             .set({
-              status: 'expired',
+              status: expired,
               failureReason: 'verified_no_customer',
               updatedAt: timestamp
             })
@@ -135,11 +157,12 @@ export const recoverCheckoutClaim = Effect.fn('Billing.recoverCheckoutClaim')(
       }
       session = matches[0]
       if (session === undefined && old) {
+        const expired = yield* expiredByAbsence(claim.status)
         yield* deps.lease.fencedBatch(input.lease, [
           deps.db
             .update(billingCheckoutClaims)
             .set({
-              status: 'expired',
+              status: expired,
               failureReason: 'verified_no_session',
               updatedAt: timestamp
             })
@@ -172,17 +195,18 @@ export const recoverCheckoutClaim = Effect.fn('Billing.recoverCheckoutClaim')(
     }
     customerId = session.customer
     yield* validateStripeCustomerForWorkspace({ ...input, customerId })
-    if (!['open', 'complete', 'expired'].includes(session.status)) {
+    // The session state is provider evidence for the claim machine; the
+    // transition owner classifies it, and anything it cannot classify — or a
+    // terminal claim refusing it — stays a recovery problem.
+    const claimEvent = checkoutClaimEventFromSessionStatus(session.status)
+    let status: BillingCheckoutStatus | null = null
+    if (claimEvent !== null) {
+      status = nextCheckoutClaimStatus(claim.status, claimEvent)
+    }
+    if (status === null) {
       return yield* Effect.fail(checkoutFailure('checkout_recovery_required'))
     }
     const pending = session.status === 'open'
-    let status: 'created' | 'completed' | 'expired' = 'created'
-    if (session.status === 'complete') {
-      status = 'completed'
-    }
-    if (session.status === 'expired') {
-      status = 'expired'
-    }
     const statements = [
       deps.db
         .update(billingCheckoutClaims)
@@ -222,7 +246,7 @@ export const recoverCheckoutClaim = Effect.fn('Billing.recoverCheckoutClaim')(
     if (pending) {
       openClaim = {
         ...claim,
-        status: 'created',
+        status,
         stripeSessionId: session.id,
         checkoutUrl: session.url
       }
