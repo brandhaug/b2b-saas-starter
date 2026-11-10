@@ -66,3 +66,4 @@ Each record explains a current decision and the trade-off behind it. Update the 
 - [0070: Optional social sign-in providers](./0070-social-sign-in-as-absent-until-configured-provider.md)
 - [0072: Shared workspace operation catalog](./0072-workspace-operation-catalog.md)
 - [0076: Billing lifecycle and entitlements](./0076-billing-lifecycle-and-entitlement-decisions.md)
+- [0077: Explicit state machine transitions](./0077-explicit-state-machine-transitions.md)
