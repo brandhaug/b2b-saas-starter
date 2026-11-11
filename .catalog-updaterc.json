@@ -32,6 +32,10 @@
     { "name": "tanstack", "patterns": ["@tanstack/*"] },
     { "name": "effect", "patterns": ["effect", "@effect/*"] },
     {
+      "name": "alchemy",
+      "patterns": ["alchemy", "@alchemy.run/*", "@distilled.cloud/*"]
+    },
+    {
       "name": "cloudflare-runtime",
       "patterns": [
         "wrangler",
