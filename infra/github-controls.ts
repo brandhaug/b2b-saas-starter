@@ -1,4 +1,4 @@
-import { Octokit } from '@alchemy.run/github/Octokit'
+import * as GitHub from '@distilled.cloud/github'
 import { isResolved } from 'alchemy/Diff'
 import * as Provider from 'alchemy/Provider'
 import { Resource } from 'alchemy/Resource'
@@ -45,39 +45,39 @@ class GitHubControlsError extends Schema.TaggedError<GitHubControlsError>()(
   { operation: Schema.String, cause: Schema.Unknown }
 ) {}
 
-function request<A>(operation: string, run: () => Promise<A>) {
-  return Effect.tryPromise({
-    try: run,
-    catch: (cause) => new GitHubControlsError({ operation, cause })
-  })
+/** Attach the failing operation's name to a distilled GitHub op's typed errors. */
+function op<A, E>(
+  operation: string,
+  effect: Effect.Effect<A, E, GitHub.GithubOpContext>
+) {
+  return effect.pipe(
+    Effect.mapError((cause) => new GitHubControlsError({ operation, cause }))
+  )
 }
 
 export const readGitHubControls = Effect.fn('GitHubControls.read')(function* (
   props: Pick<GitHubControlsProps, 'owner' | 'repository'>
 ) {
-  const client = yield* Octokit
   const target = { owner: props.owner, repo: props.repository }
   const [actions, workflow, retention, forks, repo] = yield* Effect.all(
     [
-      request('read Actions permissions', () =>
-        client.rest.actions.getGithubActionsPermissionsRepository(target)
+      op(
+        'read Actions permissions',
+        GitHub.actions.getGithubActionsPermissionsRepository(target)
       ),
-      request('read workflow permissions', () =>
-        client.rest.actions.getGithubActionsDefaultWorkflowPermissionsRepository(target)
+      op(
+        'read workflow permissions',
+        GitHub.actions.getGithubActionsDefaultWorkflowPermissionsRepository(target)
       ),
-      request('read retention', () =>
-        client.request(
-          'GET /repos/{owner}/{repo}/actions/permissions/artifact-and-log-retention',
-          target
-        )
+      op(
+        'read retention',
+        GitHub.actions.getArtifactAndLogRetentionSettingsRepository(target)
       ),
-      request('read fork approvals', () =>
-        client.request(
-          'GET /repos/{owner}/{repo}/actions/permissions/fork-pr-contributor-approval',
-          target
-        )
+      op(
+        'read fork approvals',
+        GitHub.actions.getForkPrContributorApprovalPermissionsRepository(target)
       ),
-      request('read repository controls', () => client.rest.repos.get(target))
+      op('read repository controls', GitHub.repos.get(target))
     ],
     { concurrency: 4 }
   )
@@ -85,23 +85,26 @@ export const readGitHubControls = Effect.fn('GitHubControls.read')(function* (
     owner: props.owner,
     repository: props.repository,
     actions: {
-      enabled: actions.data.enabled,
-      allowed_actions: actions.data.allowed_actions,
-      sha_pinning_required: actions.data.sha_pinning_required
+      enabled: actions.enabled,
+      allowed_actions: actions.allowed_actions,
+      sha_pinning_required: actions.sha_pinning_required
     },
-    workflow: workflow.data,
-    retention: { days: retention.data.days },
-    forks: { approval_policy: forks.data.approval_policy },
+    workflow: {
+      default_workflow_permissions: workflow.default_workflow_permissions,
+      can_approve_pull_request_reviews: workflow.can_approve_pull_request_reviews
+    },
+    retention: { days: retention.days },
+    forks: { approval_policy: forks.approval_policy },
     repositoryPolicy: {
-      allow_update_branch: repo.data.allow_update_branch,
-      allow_forking: repo.data.allow_forking,
-      web_commit_signoff_required: repo.data.web_commit_signoff_required,
-      squash_merge_commit_title: repo.data.squash_merge_commit_title,
-      squash_merge_commit_message: repo.data.squash_merge_commit_message,
+      allow_update_branch: repo.allow_update_branch,
+      allow_forking: repo.allow_forking,
+      web_commit_signoff_required: repo.web_commit_signoff_required,
+      squash_merge_commit_title: repo.squash_merge_commit_title,
+      squash_merge_commit_message: repo.squash_merge_commit_message,
       security_and_analysis: {
-        secret_scanning: repo.data.security_and_analysis?.secret_scanning,
+        secret_scanning: repo.security_and_analysis?.secret_scanning,
         secret_scanning_push_protection:
-          repo.data.security_and_analysis?.secret_scanning_push_protection
+          repo.security_and_analysis?.secret_scanning_push_protection
       }
     }
   }
@@ -110,12 +113,12 @@ export const readGitHubControls = Effect.fn('GitHubControls.read')(function* (
 export const reconcileGitHubControls = Effect.fn('GitHubControls.reconcile')(function* (
   props: GitHubControlsProps
 ) {
-  const client = yield* Octokit
   const target = { owner: props.owner, repo: props.repository }
   const current = yield* readGitHubControls(props)
   if (!isDeepStrictEqual(current.repositoryPolicy, props.repositoryPolicy)) {
-    yield* request('write repository controls', () =>
-      client.rest.repos.update({ ...target, ...props.repositoryPolicy })
+    yield* op(
+      'write repository controls',
+      GitHub.repos.update({ ...target, ...props.repositoryPolicy })
     )
   }
   if (
@@ -123,8 +126,9 @@ export const reconcileGitHubControls = Effect.fn('GitHubControls.reconcile')(fun
     current.actions.allowed_actions !== props.actions.allowed_actions ||
     current.actions.sha_pinning_required !== props.actions.sha_pinning_required
   ) {
-    yield* request('write Actions permissions', () =>
-      client.rest.actions.setGithubActionsPermissionsRepository({
+    yield* op(
+      'write Actions permissions',
+      GitHub.actions.setGithubActionsPermissionsRepository({
         ...target,
         ...props.actions
       })
@@ -136,27 +140,30 @@ export const reconcileGitHubControls = Effect.fn('GitHubControls.reconcile')(fun
     current.workflow.can_approve_pull_request_reviews !==
       props.workflow.can_approve_pull_request_reviews
   ) {
-    yield* request('write workflow permissions', () =>
-      client.rest.actions.setGithubActionsDefaultWorkflowPermissionsRepository({
+    yield* op(
+      'write workflow permissions',
+      GitHub.actions.setGithubActionsDefaultWorkflowPermissionsRepository({
         ...target,
         ...props.workflow
       })
     )
   }
   if (current.retention.days !== props.retention.days) {
-    yield* request('write retention', () =>
-      client.request(
-        'PUT /repos/{owner}/{repo}/actions/permissions/artifact-and-log-retention',
-        { ...target, ...props.retention }
-      )
+    yield* op(
+      'write retention',
+      GitHub.actions.setArtifactAndLogRetentionSettingsRepository({
+        ...target,
+        ...props.retention
+      })
     )
   }
   if (current.forks.approval_policy !== props.forks.approval_policy) {
-    yield* request('write fork approvals', () =>
-      client.request(
-        'PUT /repos/{owner}/{repo}/actions/permissions/fork-pr-contributor-approval',
-        { ...target, ...props.forks }
-      )
+    yield* op(
+      'write fork approvals',
+      GitHub.actions.setForkPrContributorApprovalPermissionsRepository({
+        ...target,
+        ...props.forks
+      })
     )
   }
   return yield* readGitHubControls(props)
