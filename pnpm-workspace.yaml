@@ -69,7 +69,7 @@ catalog:
   miniflare: 5.20261104.0-beta
   esbuild: 0.28.2
   alchemy: 2.0.0-beta.84
-  '@alchemy.run/cloudflare': 2.0.0-beta.84
+  '@alchemy.run/cloudflare': 2.0.0-beta.85
   '@alchemy.run/github': 2.0.0-beta.84
   '@alchemy.run/sql': 2.0.0-beta.85
   '@distilled.cloud/cloudflare': 1.0.0-rc.17
