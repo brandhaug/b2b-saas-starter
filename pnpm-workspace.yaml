@@ -68,11 +68,12 @@ catalog:
   ws: 8.22.1
   miniflare: 5.20261104.0-beta
   esbuild: 0.28.2
-  alchemy: 2.0.0-beta.84
-  '@alchemy.run/cloudflare': 2.0.0-beta.84
-  '@alchemy.run/github': 2.0.0-beta.84
+  alchemy: 2.0.0-beta.85
+  '@alchemy.run/cloudflare': 2.0.0-beta.85
+  '@alchemy.run/github': 2.0.0-beta.85
   '@alchemy.run/sql': 2.0.0-beta.85
-  '@distilled.cloud/cloudflare': 1.0.0-rc.17
+  '@distilled.cloud/cloudflare': 1.0.0-rc.18
+  '@distilled.cloud/github': 1.0.0-rc.18
   babel-plugin-react-compiler: 1.0.0
   better-auth: 1.7.18
   class-variance-authority: 0.7.1
@@ -173,8 +174,6 @@ overrides:
   vite@*: 'catalog:'
   vitest@*: 'catalog:'
   postcss-selector-parser@<6.1.5: 6.1.5
-patchedDependencies:
-  alchemy@2.0.0-beta.84: patches/alchemy@2.0.0-beta.84.patch
 peerDependencyRules:
   allowAny:
     - vite

@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto'
-import { Octokit } from '@alchemy.run/github/Octokit'
+import * as GitHub from '@distilled.cloud/github'
 import * as Provider from 'alchemy/Provider'
 import { Resource } from 'alchemy/Resource'
-import { Config, Effect, Redacted, Schema } from 'effect'
+import { Config, Effect, Redacted } from 'effect'
 import { SourceError } from 'effect/ConfigProvider'
 
 /** Input has already passed readBackupConfiguration's 32-byte validation. */
@@ -33,31 +33,27 @@ export const BackupRecoveryKey = Resource<BackupRecoveryKey>(
   'Starter.BackupRecoveryKey'
 )
 const name = 'BACKUP_KEY_FINGERPRINT'
-const isNotFound = Schema.is(Schema.Struct({ status: Schema.Literal(404) }))
 
 const readFingerprint = Effect.fn('Backup.readKeyIdentity')(function* (props: Props) {
-  const client = yield* Octokit
-  return yield* Effect.tryPromise({
-    try: async () => {
-      try {
-        const result = await client.rest.actions.getRepoVariable({
-          owner: props.owner,
-          repo: props.repository,
-          name
-        })
-        return { fingerprint: result.data.value }
-      } catch (error) {
-        if (isNotFound(error)) {
-          return
-        }
-        throw error
-      }
-    },
-    catch: (cause) =>
-      new Config.ConfigError(
-        new SourceError({ message: 'Cannot read backup recovery-key identity', cause })
+  return yield* GitHub.actions
+    .getRepoVariable({
+      owner: props.owner,
+      repo: props.repository,
+      name
+    })
+    .pipe(
+      Effect.map((variable) => ({ fingerprint: variable.value })),
+      Effect.catchTag('NotFound', () => Effect.succeed(undefined)),
+      Effect.mapError(
+        (cause) =>
+          new Config.ConfigError(
+            new SourceError({
+              message: 'Cannot read backup recovery-key identity',
+              cause
+            })
+          )
       )
-  })
+    )
 })
 
 export const BackupRecoveryKeyProvider = Provider.succeed(BackupRecoveryKey, {
@@ -74,23 +70,24 @@ export const BackupRecoveryKeyProvider = Provider.succeed(BackupRecoveryKey, {
       yield* verifyRecoveryKey(existing.fingerprint, news.fingerprint)
       return existing
     }
-    const client = yield* Octokit
-    yield* Effect.tryPromise({
-      try: () =>
-        client.rest.actions.createRepoVariable({
-          owner: news.owner,
-          repo: news.repository,
-          name,
-          value: news.fingerprint
-        }),
-      catch: (cause) =>
-        new Config.ConfigError(
-          new SourceError({
-            message: 'Cannot persist backup recovery-key identity',
-            cause
-          })
+    yield* GitHub.actions
+      .createRepoVariable({
+        owner: news.owner,
+        repo: news.repository,
+        name,
+        value: news.fingerprint
+      })
+      .pipe(
+        Effect.mapError(
+          (cause) =>
+            new Config.ConfigError(
+              new SourceError({
+                message: 'Cannot persist backup recovery-key identity',
+                cause
+              })
+            )
         )
-    })
+      )
     return { fingerprint: news.fingerprint }
   }),
   // Preserve the independent identity even if Alchemy's local state is removed.

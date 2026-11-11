@@ -48,25 +48,23 @@ export const branchRules = {
   target: 'branch',
   conditions: { include: ['~DEFAULT_BRANCH'], exclude: [] },
   bypassActors: [],
-  rules: {
-    deletion: true,
-    nonFastForward: true,
-    pullRequest: {
-      requiredApprovingReviewCount: 0,
-      requireCodeOwnerReview: false,
-      requireLastPushApproval: false,
-      requireExtraApprovalForUnattributedChanges: false,
-      allowedMergeMethods: ['squash']
-    },
-    requiredStatusChecks: {
-      checks: [
-        { context: 'ci', integrationId: 15_368 },
-        { context: 'e2e', integrationId: 15_368 },
-        { context: 'audit', integrationId: 15_368 },
-        { context: 'Conventional commit title', integrationId: 15_368 }
-      ],
-      strictRequiredStatusChecksPolicy: false
-    }
+  deletion: true,
+  nonFastForward: true,
+  pullRequest: {
+    requiredApprovingReviewCount: 0,
+    requireCodeOwnerReview: false,
+    requireLastPushApproval: false,
+    requireExtraApprovalForUnattributedChanges: false,
+    allowedMergeMethods: ['squash']
+  },
+  requiredStatusChecks: {
+    checks: [
+      { context: 'ci', integrationId: 15_368 },
+      { context: 'e2e', integrationId: 15_368 },
+      { context: 'audit', integrationId: 15_368 },
+      { context: 'Conventional commit title', integrationId: 15_368 }
+    ],
+    strictRequiredStatusChecksPolicy: false
   }
 } satisfies Omit<GitHub.RulesetProps, 'owner' | 'repository'>
 

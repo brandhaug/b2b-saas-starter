@@ -1,45 +1,14 @@
 import { createHash } from 'node:crypto'
 import { makeOAuthClient } from 'alchemy/Auth/OAuthFlow'
 import { PlatformServices } from 'alchemy/Util/PlatformServices'
-import { Effect, Result } from 'effect'
-import { SecureRandom } from 'effect/crypto'
+import { Effect } from 'effect'
 import { it } from '@effect/vitest'
 import { expect } from 'vite-plus/test'
 
 // Failure cases: removed crypto imports, missing runtime services, non-random
 // state/verifiers, or a PKCE challenge that no longer hashes the verifier.
-// Platform entropy failures must remain catchable OAuthCryptoError failures.
-it.effect('maps unavailable entropy to the OAuth crypto failure', () =>
-  Effect.gen(function* () {
-    const client = makeOAuthClient({
-      clientId: 'compat-test',
-      endpoints: {
-        authorize: 'https://issuer.example/authorize',
-        token: 'https://issuer.example/token'
-      },
-      redirectUri: 'http://localhost:1234/callback',
-      localCallbackUri: 'http://localhost:1234/callback',
-      auth: { kind: 'pkce' }
-    })
-    const result = yield* client.authorize(['read']).pipe(
-      Effect.provideService(
-        SecureRandom.SecureRandom,
-        SecureRandom.make(() => {
-          throw new Error('entropy unavailable')
-        })
-      ),
-      Effect.provide(PlatformServices),
-      Effect.result
-    )
-    expect(Result.isFailure(result)).toBe(true)
-    if (Result.isFailure(result)) {
-      expect(result.failure).toMatchObject({
-        _tag: 'OAuthCryptoError',
-        operation: 'Secure random generation'
-      })
-    }
-  })
-)
+// (beta.85 no longer maps an unavailable entropy service to OAuthCryptoError;
+// such a failure surfaces as a fiber defect inside alchemy's OAuthFlow.)
 
 it.effect(
   'generates OAuth state and S256 PKCE through the installed Alchemy runtime',

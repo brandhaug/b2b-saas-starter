@@ -5,7 +5,9 @@
 // - Destroy resets existing repository policy or changes the wrong repository.
 import { createServer } from 'node:http'
 import { once } from 'node:events'
-import * as GitHub from '@alchemy.run/github'
+import { fromToken } from '@alchemy.run/github'
+import * as Layer from 'effect/Layer'
+import * as FetchHttpClient from 'effect/http/FetchHttpClient'
 import { Effect } from 'effect'
 import { expect, it, onTestFinished } from 'vite-plus/test'
 import { reconcileGitHubControls } from '../infra/github-controls.ts'
@@ -80,7 +82,7 @@ async function fixture(failPath?: string) {
   if (!address || typeof address === 'string') {
     throw new Error('No local address')
   }
-  const credentials = GitHub.fromToken('test-token', {
+  const credentials = fromToken('test-token', {
     baseUrl: `http://127.0.0.1:${address.port}/api/v3`
   })
   return {
@@ -90,9 +92,11 @@ async function fixture(failPath?: string) {
       failWrite = path
     },
     run: () => {
-      // oxlint-disable-next-line starter/no-run-promise-in-tests -- Exercises the real Octokit adapter against a local HTTP fixture.
+      // oxlint-disable-next-line starter/no-run-promise-in-tests -- Exercises the real distilled GitHub client against a local HTTP fixture.
       return Effect.runPromise(
-        reconcileGitHubControls(desired).pipe(Effect.provide(credentials))
+        reconcileGitHubControls(desired).pipe(
+          Effect.provide(Layer.merge(credentials, FetchHttpClient.layer))
+        )
       )
     }
   }
