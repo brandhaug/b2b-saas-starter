@@ -17,7 +17,9 @@ import {
   readBackupConfiguration
 } from './infra/backup-settings.ts'
 
-export const Stack = Alchemy.Stack(
+// Consumed through the default export: Alchemy's entrypoint loader reads
+// `module.default` (Alchemist/Entrypoint.js).
+const Stack = Alchemy.Stack(
   'b2b-saas-starter-backup',
   {
     providers: BackupRecoveryKeyProvider.pipe(
