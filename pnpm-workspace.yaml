@@ -31,7 +31,7 @@ catalog:
   '@better-auth/utils': 0.5.1
   '@cloudflare/ai-chat': 0.12.2
   agents: 0.33.0
-  ai: 7.0.164
+  ai: 7.0.165
   '@cloudflare/workers-types': 5.20261107.1
   '@cloudflare/vitest-plugin': 1.6.0
   '@effect/platform-node': 4.1.2
@@ -42,7 +42,7 @@ catalog:
   '@mdx-js/mdx': 3.1.1
   '@mdx-js/rollup': 3.1.1
   '@playwright/test': 1.65.0
-  seroval: 1.7.9
+  seroval: 1.7.10
   '@react-email/ui': 6.11.8
   '@rolldown/plugin-babel': 0.3.0
   '@tailwindcss/typography': 0.5.20
@@ -51,9 +51,9 @@ catalog:
   '@tanstack/react-form': 1.33.5
   '@tanstack/react-query': 5.107.1
   '@tanstack/react-router': 1.170.46
-  '@tanstack/react-router-devtools': 1.167.2
+  '@tanstack/react-router-devtools': 1.167.3
   '@tanstack/react-router-ssr-query': 1.167.3
-  '@tanstack/react-start': 1.169.4
+  '@tanstack/react-start': 1.169.5
   '@tanstack/react-table': 9.3.1
   '@testing-library/dom': 10.4.2
   '@testing-library/react': 16.3.3
