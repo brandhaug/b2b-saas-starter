@@ -80,6 +80,7 @@
     "@alchemy.run/github": "catalog:",
     "@cloudflare/workers-types": "catalog:",
     "@distilled.cloud/cloudflare": "catalog:",
+    "@distilled.cloud/github": "catalog:",
     "@effect/platform-node": "catalog:",
     "@effect/vitest": "catalog:",
     "@inlang/paraglide-js": "catalog:",
