@@ -28,7 +28,7 @@ import {
 } from '@/lib/audit-search'
 import { type WorkspaceAuditPayload } from '@/lib/server/workspace-audit'
 import { m } from '@b2b-saas-starter/i18n/messages'
-import { formatDateTime } from '@/lib/format-date'
+import { formatTimestamp } from '@/lib/format-date'
 import { type AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { TableViewControls } from './table-view-controls'
 import {
@@ -62,7 +62,7 @@ function auditColumns(
       // The shared table timestamp, identical to the admin dashboard's.
       cell: ({ row }) => (
         <span className="font-mono text-muted-foreground whitespace-nowrap tabular-nums">
-          {formatDateTime(row.original.createdAt)}
+          {formatTimestamp(row.original.createdAt)}
         </span>
       )
     },
@@ -194,6 +194,7 @@ export function WorkspaceAuditPage({
       workspaceSlug={workspaceSlug}
       systemRole={systemRole}
       viewer={data.viewer}
+      unreadCount={data.unreadCount}
     >
       <PageHeader
         breadcrumb={<WorkspaceCrumb workspaceSlug={workspaceSlug} />}

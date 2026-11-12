@@ -60,7 +60,9 @@
   "shell_plan_unlimited_tokens": "unlimited API tokens",
   "shell_plan_unlimited_webhooks": "unlimited webhook endpoints",
   "shell_plan_billed_member": "Billed per member",
-  "shell_plan_unlimited_label": "Unlimited {label}",
+  "shell_plan_row_unlimited_seats": "Unlimited seats",
+  "shell_plan_row_unlimited_api_tokens": "Unlimited API tokens",
+  "shell_plan_row_unlimited_webhook_endpoints": "Unlimited webhook endpoints",
   "shell_plan_limit_label": "{label}: up to {limit}",
   "shell_plan_seats": [
     {

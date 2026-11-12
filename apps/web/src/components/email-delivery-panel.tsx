@@ -7,7 +7,7 @@ import {
   type DataTableColumnDef
 } from './data-table'
 import { Panel } from './page/panel'
-import { formatDateTime } from '@/lib/format-date'
+import { formatTimestamp } from '@/lib/format-date'
 
 export function EmailDeliveryPanel({
   records
@@ -169,7 +169,7 @@ function deliveryColumns(): Array<DataTableColumnDef<EmailDeliveryRow>> {
       header: m.email_delivery_updated(),
       cell: ({ row }) => (
         <span className="font-mono tabular-nums">
-          {formatDateTime(row.original.updatedAt)}
+          {formatTimestamp(row.original.updatedAt)}
         </span>
       )
     }

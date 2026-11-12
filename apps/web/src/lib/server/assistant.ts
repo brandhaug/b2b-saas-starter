@@ -18,6 +18,7 @@ import { Schema } from 'effect'
  */
 export type AssistantPagePayload = {
   readonly viewer: WorkspaceViewer | null
+  readonly unreadCount: number
   readonly configured: boolean
   readonly investigations?: {
     readonly tasks: ReadonlyArray<WebhookInvestigationTask>

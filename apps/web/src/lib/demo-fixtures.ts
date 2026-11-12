@@ -385,7 +385,8 @@ export const demoFixtures = {
     nextCursor: null,
     filters: {},
     members: members.map(({ id, name }) => ({ id, name })),
-    selectedEvent: null
+    selectedEvent: null,
+    unreadCount: 2
   } satisfies WorkspaceAuditPayload,
   billing: {
     viewer,
@@ -447,7 +448,11 @@ export const demoFixtures = {
   // Both providers read as inactive, the provider-light default the landing
   // page promises: an unset key leaves the surface honest instead of faking
   // a configured deployment.
-  assistant: { viewer, configured: false } satisfies AssistantPagePayload
+  assistant: {
+    viewer,
+    unreadCount: 2,
+    configured: false
+  } satisfies AssistantPagePayload
 } satisfies {
   readonly dashboard: WorkspaceDashboardPayload
   readonly members: WorkspaceMembersPayload

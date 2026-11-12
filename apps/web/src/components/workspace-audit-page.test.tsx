@@ -16,6 +16,7 @@ const applySearch = vi.fn<ApplyWorkspaceAuditSearch>()
 const payload: WorkspaceAuditPayload = {
   selectedEvent: null,
   viewer: { role: 'owner' },
+  unreadCount: 0,
   events: [
     {
       id: 'evt_1',

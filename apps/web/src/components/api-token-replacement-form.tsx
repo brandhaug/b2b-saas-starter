@@ -16,7 +16,7 @@ import {
 } from '@/lib/server/api-tokens'
 import { useServerCall } from '@/hooks/use-server-call'
 import { useServerAction } from '@/hooks/use-server-action'
-import { formatDateTime, formatTimestampOr } from '@/lib/format-date'
+import { formatTimestamp, formatTimestampOr } from '@/lib/format-date'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 export type ReplaceApiToken = (input: {
@@ -89,7 +89,7 @@ export function ApiTokenReplacementForm({
             />
             <p>
               {m.token_update_clients_expiry({
-                time: formatDateTime(created.previousTokenExpiresAt)
+                time: formatTimestamp(created.previousTokenExpiresAt)
               })}
             </p>
             <p>

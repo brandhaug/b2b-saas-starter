@@ -11,7 +11,7 @@ import { Effect } from 'effect'
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requestPresentation } from './i18n-context'
-import { workspacePage } from './page-frame'
+import { unreadCount, workspacePage } from './page-frame'
 import { type WorkspaceAuditInput, type WorkspaceAuditPayload } from './workspace-audit'
 import { zonedDayBoundary } from './zoned-day-boundary'
 
@@ -77,16 +77,18 @@ export async function loadWorkspaceAuditEventsHandler(
         // No second gate here: the hard `auditLog` read above already decided
         // who reaches this payload (owner/admin only), and the role table has no
         // separate member-list statement to compose.
-        const [page, members, selectedEvent] = yield* Effect.all(
+        const [page, members, selectedEvent, unread] = yield* Effect.all(
           [
             log.list(listInput),
             membership.listMembers,
-            input.event ? log.get(input.event) : Effect.succeed(null)
+            input.event ? log.get(input.event) : Effect.succeed(null),
+            unreadCount
           ],
           { concurrency: 'unbounded' }
         )
         return {
           selectedEvent,
+          unreadCount: unread,
           events: page.items,
           nextCursor: page.nextCursor,
           filters: input.filters,

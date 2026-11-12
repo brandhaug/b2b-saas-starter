@@ -14,7 +14,7 @@ import { env as cloudflareEnv } from 'cloudflare:workers'
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission, whenPermitted } from './authorize'
-import { workspacePage } from './page-frame'
+import { unreadCount, workspacePage } from './page-frame'
 import {
   type AssistantAnswered,
   type AssistantPageInput,
@@ -60,7 +60,11 @@ const assistantPagePayload = workspacePage({ assistant: ['read'] }, () =>
         return { tasks: recentTasks, deliveries: deliveries.flat() }
       })
     )
-    return { configured: isAssistantConfigured(cloudflareEnv), investigations }
+    return {
+      configured: isAssistantConfigured(cloudflareEnv),
+      unreadCount: yield* unreadCount,
+      investigations
+    }
   })
 )
 

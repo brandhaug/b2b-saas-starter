@@ -1,7 +1,7 @@
 import { type WorkspaceView } from '@/lib/workspace-view'
 import { type Invitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import { auditActorTypeLabel, auditEventLabel } from '@/lib/audit-labels'
-import { formatDateTime } from '@/lib/format-date'
+import { formatTimestamp } from '@/lib/format-date'
 import { type AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { type ApiToken } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { type WebhookEndpoint } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
@@ -106,7 +106,7 @@ export function attentionItems({
         description: m.attention_audit_description({
           actor: event.actor,
           type: auditActorTypeLabel(event.actorType),
-          time: formatDateTime(event.createdAt)
+          time: formatTimestamp(event.createdAt)
         }),
         to: '/workspaces/$workspaceSlug/audit',
         linkLabel: m.attention_open_audit()

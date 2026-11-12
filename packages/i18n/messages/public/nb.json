@@ -80,7 +80,7 @@
   "public_docs_category_integrations": "Integrasjonsflater",
   "public_docs_category_operations": "Drift",
   "public_docs_category_governance": "Styring",
-  "public_faq_title": "Før du starter",
+  "public_faq_title": "Før du starter.",
   "public_faq_description": "Oppsett, arkitektur, utrulling og lisens.",
   "public_faq_q1": "Hvorfor TanStack Start?",
   "public_faq_a1": "Webappen kjører på en Cloudflare Worker. TanStack Start gir filbasert ruting, typede lastere og serverfunksjoner som kaller de samme kapabilitetene som REST-API-et.",

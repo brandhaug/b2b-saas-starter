@@ -194,6 +194,7 @@ function AssistantPage({
       workspaceSlug={workspaceSlug}
       systemRole={systemRole}
       viewer={data.viewer}
+      unreadCount={data.unreadCount}
     >
       <PageHeader
         breadcrumb={<WorkspaceCrumb workspaceSlug={workspaceSlug} />}

@@ -13,7 +13,7 @@ import {
 import { Panel } from './page/panel'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
-import { formatDateTime } from '@/lib/format-date'
+import { formatTimestamp } from '@/lib/format-date'
 import { webhookDeliveryStatusVariant } from '@/lib/badge-variants'
 import { useServerAction } from '@/hooks/use-server-action'
 import {
@@ -108,7 +108,7 @@ function columns(): Array<DataTableColumnDef<GlobalWebhookDelivery>> {
         <span className="font-mono tabular-nums">
           {row.original.lastAttemptAt === null
             ? m.not_recorded()
-            : formatDateTime(row.original.lastAttemptAt)}
+            : formatTimestamp(row.original.lastAttemptAt)}
         </span>
       )
     },

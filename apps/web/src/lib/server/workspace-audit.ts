@@ -37,6 +37,7 @@ export type WorkspaceAuditFilters = Types.Mutable<typeof WorkspaceAuditFilters.T
 export type WorkspaceAuditPayload = {
   readonly selectedEvent: AuditEventDetail | null
   readonly viewer: WorkspaceViewer | null
+  readonly unreadCount: number
   readonly events: ReadonlyArray<AuditEvent>
   /** Opaque keyset cursor for the next older page, or null on the last one. */
   readonly nextCursor: string | null

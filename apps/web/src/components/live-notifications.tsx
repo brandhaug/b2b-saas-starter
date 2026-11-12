@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { BellIcon, RefreshCwIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { causeMessage } from '@/lib/cause-message'
-import { formatDateTime } from '@/lib/format-date'
+import { formatTimestamp } from '@/lib/format-date'
 import {
   listNotificationsServerFn,
   markNotificationsReadServerFn,
@@ -232,7 +232,7 @@ export function LiveNotifications({
                   </ItemDescription>
                   {/* Mono tabular UTC, the tables' timestamp convention. */}
                   <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                    {formatDateTime(notification.createdAt)}
+                    {formatTimestamp(notification.createdAt)}
                   </span>
                   {failedMark?.key.length === 1 &&
                   failedMark.key[0] === notification.id ? (

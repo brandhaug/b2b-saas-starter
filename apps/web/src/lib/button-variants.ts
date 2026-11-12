@@ -19,12 +19,21 @@ export const buttonVariants = cva(
         ghost: ghostAppearance,
         destructive:
           'bg-destructive/20 hover:bg-destructive/30 focus-visible:ring-destructive text-destructive focus-visible:border-destructive',
-        link: 'text-primary underline-offset-4 hover:underline',
+        // Matches the app's text links: always underlined, so a link-styled
+        // button beside a real link reads as the same kind of control.
+        link: 'text-primary underline underline-offset-4',
         'outline-muted': [outlineAppearance, 'text-muted-foreground'],
         dashed: [outlineAppearance, 'border-dashed'],
         sidebar:
           'border-sidebar-border bg-sidebar-accent/50 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground aria-expanded:bg-muted aria-expanded:text-foreground',
-        'ghost-muted': [ghostAppearance, 'text-muted-foreground']
+        'ghost-muted': [ghostAppearance, 'text-muted-foreground'],
+        // One option of a segmented choice. `aria-pressed` carries the
+        // selection, drawn like active navigation: an inset mauve ring over
+        // the accent fill, so the chosen option stays distinct on any track.
+        segment: [
+          ghostAppearance,
+          'text-muted-foreground aria-pressed:bg-accent aria-pressed:text-accent-foreground aria-pressed:ring-1 aria-pressed:ring-inset aria-pressed:ring-primary'
+        ]
       },
       size: {
         default: ['h-9 max-md:h-11', defaultSpacing],

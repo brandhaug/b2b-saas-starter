@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/sheet'
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty'
 import { auditActorTypeLabel, auditEventLabel } from '@/lib/audit-labels'
-import { formatDateTime } from '@/lib/format-date'
+import { formatTimestamp } from '@/lib/format-date'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 export function AuditEventLink({ event }: { readonly event: AuditEvent }) {
@@ -27,7 +27,7 @@ export function AuditEventLink({ event }: { readonly event: AuditEvent }) {
       className="inline-flex min-h-11 items-center rounded-md text-primary underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring md:min-h-9"
       aria-label={m.inspect_audit_event({
         event: auditEventLabel(event.eventType),
-        time: formatDateTime(event.createdAt)
+        time: formatTimestamp(event.createdAt)
       })}
     >
       {auditEventLabel(event.eventType)}
