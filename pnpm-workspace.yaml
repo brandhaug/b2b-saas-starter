@@ -33,7 +33,7 @@ catalog:
   agents: 0.33.0
   ai: 7.0.166
   '@cloudflare/workers-types': 5.20261109.1
-  '@cloudflare/vitest-plugin': 1.6.0
+  '@cloudflare/vitest-plugin': 1.6.1
   '@effect/platform-node': 4.1.2
   '@effect/sql-d1': 4.1.2
   '@effect/vitest': 4.1.2
@@ -111,7 +111,7 @@ catalog:
   tsrs: 0.18.0-ts7.1.0-dev.20260929
   vite: npm:@voidzero-dev/vite-plus-core@1.4.0
   vitest: 5.0.5
-  wrangler: 4.158.0
+  wrangler: 4.159.0
   vite-plus: 1.4.0
 
 minimumReleaseAgeExclude:
