@@ -31,7 +31,7 @@ catalog:
   '@better-auth/utils': 0.5.1
   '@cloudflare/ai-chat': 0.12.2
   agents: 0.33.0
-  ai: 7.0.165
+  ai: 7.0.166
   '@cloudflare/workers-types': 5.20261109.1
   '@cloudflare/vitest-plugin': 1.6.0
   '@effect/platform-node': 4.1.2
@@ -44,7 +44,7 @@ catalog:
   '@playwright/test': 1.65.0
   seroval: 1.8.0
   '@react-email/ui': 6.11.8
-  '@rolldown/plugin-babel': 0.3.0
+  '@rolldown/plugin-babel': 0.3.1
   '@tailwindcss/typography': 0.5.20
   '@tailwindcss/vite': 4.3.5
   '@tanstack/devtools-vite': 0.8.6
@@ -65,7 +65,7 @@ catalog:
   '@types/react-dom': 19.3.0
   '@vitejs/plugin-react': 6.1.1
   '@vitest/coverage-v8': 5.0.5
-  ws: 8.22.1
+  ws: 8.22.2
   miniflare: 5.20261109.0-beta
   esbuild: 0.28.2
   alchemy: 2.0.0-beta.85
@@ -88,7 +88,7 @@ catalog:
   fallow: 3.41.0
   jsdom: 31.0.0
   js-yaml: 5.5.0
-  jose: 6.2.15
+  jose: 6.2.16
   lucide-react: 1.70.0
   oxlint-plugin-effect: 0.29.0
   oxlint-plugin-react-doctor: 0.9.12
