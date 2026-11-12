@@ -253,8 +253,8 @@ catalogs:
       specifier: 6.0.0
       version: 6.0.0
     seroval:
-      specifier: 1.7.10
-      version: 1.7.10
+      specifier: 1.8.0
+      version: 1.8.0
     sonner:
       specifier: 2.0.8
       version: 2.0.8
@@ -759,7 +759,7 @@ importers:
         version: 6.0.0
       seroval:
         specifier: 'catalog:'
-        version: 1.7.10
+        version: 1.8.0
       tailwindcss:
         specifier: 'catalog:'
         version: 4.3.5
@@ -1889,9 +1889,6 @@ packages:
     engines: {node: '>=16'}
     cpu: [x64]
     os: [win32]
-
-  '@cloudflare/workers-types@5.20261108.1':
-    resolution: {integrity: sha512-lCGPhVOCy4sepGLuuy6KGxlxt8pVD8kbAt+mkdPcdr29fi5YLtihOLGKeNtInnmgdkSGiKhPCkRv/iq5tXC1/w==}
 
   '@cloudflare/workers-types@5.20261109.1':
     resolution: {integrity: sha512-TH937ZS17uWVSrIGFjBTA7L8NSpJzQIv5VKBcLBMg+TGs38ON+VBNVUghUWoHDvNmS3YWMwktd1MSWES/C0QnQ==}
@@ -6795,6 +6792,10 @@ packages:
     resolution: {integrity: sha512-6Ya73+E5T7ToU9AJQSAvEt+WsLYfc7jM9C93KVcUGM14REPU9/eLn6Ho6fqBb+QkpjSQMPewWBzxI80WiNl7Mg==}
     engines: {node: '>=20'}
 
+  seroval@1.8.0:
+    resolution: {integrity: sha512-W5N4cMPc58lypAsScCmhGTyZxNZ6gPHvLHtMqtyvDFpfyNDsH1QjU0nI9Lr34+Q5ZLPsWeqOhkgTY5XtaPVQ4A==}
+    engines: {node: '>=20'}
+
   set-cookie-parser@3.2.2:
     resolution: {integrity: sha512-df017qMeYuXo4emL09nlyMpi2i2MtEIKS/6jtXH3vmjFgIRsOi852/5RmhJ4EkvN3ZF8jXadM/EkTPXgc8yPIw==}
 
@@ -8074,8 +8075,6 @@ snapshots:
   '@cloudflare/workerd-windows-64@1.20261104.1':
     optional: true
 
-  '@cloudflare/workers-types@5.20261108.1': {}
-
   '@cloudflare/workers-types@5.20261109.1': {}
 
   '@cspotcode/source-map-support@0.8.1':
@@ -8142,7 +8141,7 @@ snapshots:
 
   '@effect/sql-d1@4.1.2(effect@4.1.2)':
     dependencies:
-      '@cloudflare/workers-types': 5.20261108.1
+      '@cloudflare/workers-types': 5.20261109.1
       effect: 4.1.2
 
   '@effect/vitest@4.1.2(effect@4.1.2)(vitest@5.0.5)':
@@ -12586,6 +12585,8 @@ snapshots:
       seroval: 1.7.10
 
   seroval@1.7.10: {}
+
+  seroval@1.8.0: {}
 
   set-cookie-parser@3.2.2: {}
 
