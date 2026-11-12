@@ -60,7 +60,9 @@
   "shell_plan_unlimited_tokens": "ubegrenset antall API-tokener",
   "shell_plan_unlimited_webhooks": "ubegrenset antall webhook-endepunkter",
   "shell_plan_billed_member": "Faktureres per medlem",
-  "shell_plan_unlimited_label": "Ubegrenset antall: {label}",
+  "shell_plan_row_unlimited_seats": "Ubegrenset antall plasser",
+  "shell_plan_row_unlimited_api_tokens": "Ubegrenset antall API-tokener",
+  "shell_plan_row_unlimited_webhook_endpoints": "Ubegrenset antall webhook-endepunkter",
   "shell_plan_limit_label": "{label}: opptil {limit}",
   "shell_plan_seats": [
     {

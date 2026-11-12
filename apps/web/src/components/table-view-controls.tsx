@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { SegmentGroup } from '@/components/ui/segment-group'
 import {
   Select,
   SelectContent,
@@ -343,12 +344,12 @@ function FieldFilter({
 
 function MatchControl({ view, onChange }: Pick<Props, 'view' | 'onChange'>) {
   return (
-    <fieldset className="inline-flex rounded-md border border-input bg-input/30 p-0.5">
+    <SegmentGroup>
       <legend className="sr-only">{m.table_view_match()}</legend>
       {filterMatches.map((match) => (
         <Button
           key={match}
-          variant={view.match === match ? 'secondary' : 'ghost'}
+          variant="segment"
           size="compact"
           aria-pressed={view.match === match}
           onClick={() => onChange({ ...view, match })}
@@ -356,7 +357,7 @@ function MatchControl({ view, onChange }: Pick<Props, 'view' | 'onChange'>) {
           {match === 'all' ? m.table_view_all() : m.table_view_any()}
         </Button>
       ))}
-    </fieldset>
+    </SegmentGroup>
   )
 }
 

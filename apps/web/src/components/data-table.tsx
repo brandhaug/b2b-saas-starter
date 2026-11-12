@@ -35,7 +35,7 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table'
-import { formatDateTime } from '@/lib/format-date'
+import { formatTimestamp } from '@/lib/format-date'
 import { tableViewFeatures, type tableViewOptions } from '@/lib/table-view'
 import { DataTableContext, useDataTableContext } from './data-table-context'
 
@@ -44,7 +44,7 @@ function isDate(cell: ReactNode | Date): cell is Date {
 }
 
 function formatDateCell(value: Date) {
-  return <span className="font-mono tabular-nums">{formatDateTime(value)}</span>
+  return <span className="font-mono tabular-nums">{formatTimestamp(value)}</span>
 }
 
 const dataTableFeatures = tableFeatures({

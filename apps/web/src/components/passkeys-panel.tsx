@@ -19,7 +19,7 @@ import { ActionFeedback } from '@/components/page/action-feedback'
 import { useServerAction } from '@/hooks/use-server-action'
 import { useAuthClientAction, useAuthClientRows } from '@/hooks/use-auth-client-rows'
 import { unwrapAuthResult } from '@/lib/auth-result'
-import { formatTimestamp } from '@/lib/format-date'
+import { formatCalendarDate } from '@/lib/format-date'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 /** One Better Auth passkey row, as the panel reads it. */
@@ -55,7 +55,7 @@ function toViewModels(passkeys: ReadonlyArray<PasskeyRecord>): Array<PasskeyRowV
       id: passkey.id,
       label: describeLabel(passkey),
       synced: passkey.backedUp,
-      createdLabel: formatTimestamp(passkey.createdAt, { dateStyle: 'medium' })
+      createdLabel: formatCalendarDate(passkey.createdAt)
     }))
 }
 

@@ -68,7 +68,7 @@ describe('WorkspaceAssistantInvestigation', () => {
     await renderWithRouter(
       <WorkspaceAssistantPage
         workspaceSlug="starter-lab"
-        data={{ configured: true, viewer: { role: 'owner' } }}
+        data={{ configured: true, unreadCount: 0, viewer: { role: 'owner' } }}
         ask={ask}
         selectedDeliveryId={WebhookDeliveryId.make('whd_new')}
         investigation={{

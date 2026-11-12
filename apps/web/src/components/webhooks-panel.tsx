@@ -111,8 +111,9 @@ function Deliveries({
   return (
     <div className="grid gap-2">
       <Button
-        variant="ghost"
+        variant="outline"
         size="xs"
+        className="justify-self-start"
         onClick={onOpenDrawer}
         aria-label={m.deliveries_count({ count: deliveries.length })}
       >

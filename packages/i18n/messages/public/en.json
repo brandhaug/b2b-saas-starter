@@ -80,7 +80,7 @@
   "public_docs_category_integrations": "Integration surfaces",
   "public_docs_category_operations": "Operations",
   "public_docs_category_governance": "Governance",
-  "public_faq_title": "Before you start",
+  "public_faq_title": "Before you start.",
   "public_faq_description": "Setup, architecture, deployment, and licensing.",
   "public_faq_q1": "Why TanStack Start?",
   "public_faq_a1": "The web app runs on a Cloudflare Worker. TanStack Start provides file-based routing, typed loaders, and server functions that call the same capabilities as the REST API.",

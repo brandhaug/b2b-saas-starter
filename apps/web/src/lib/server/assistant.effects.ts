@@ -14,7 +14,7 @@ import { env as cloudflareEnv } from 'cloudflare:workers'
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission, whenPermitted } from './authorize'
-import { workspacePage } from './page-frame'
+import { unreadCount, workspacePage } from './page-frame'
 import {
   type AssistantAnswered,
   type AssistantPageInput,
@@ -26,7 +26,7 @@ import {
 
 const assistantPagePayload = workspacePage({ assistant: ['read'] }, () =>
   Effect.gen(function* () {
-    const investigations = yield* whenPermitted(
+    const investigationsSegment = whenPermitted(
       { webhook: ['list'] },
       Effect.gen(function* () {
         const tasks = yield* WebhookInvestigationTasks
@@ -60,7 +60,11 @@ const assistantPagePayload = workspacePage({ assistant: ['read'] }, () =>
         return { tasks: recentTasks, deliveries: deliveries.flat() }
       })
     )
-    return { configured: isAssistantConfigured(cloudflareEnv), investigations }
+    const segments = yield* Effect.all(
+      { unreadCount, investigations: investigationsSegment },
+      { concurrency: 'unbounded' }
+    )
+    return { configured: isAssistantConfigured(cloudflareEnv), ...segments }
   })
 )
 

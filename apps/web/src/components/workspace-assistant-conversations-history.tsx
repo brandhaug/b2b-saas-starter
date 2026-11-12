@@ -66,12 +66,7 @@ function Answer({
         <Badge variant={incomplete ? 'warn' : 'outline'}>
           {statusLabel(answer.status)}
         </Badge>
-        <time dateTime={answer.createdAt}>
-          {formatTimestamp(answer.createdAt, {
-            dateStyle: 'short',
-            timeStyle: 'short'
-          })}
-        </time>
+        <time dateTime={answer.createdAt}>{formatTimestamp(answer.createdAt)}</time>
       </div>
       {answer.omittedExchanges > 0 ? (
         <p className="text-sm text-muted-foreground">
@@ -92,10 +87,7 @@ function Answer({
           {m.assistant_conversations_historical({
             taskId: answer.evidence.taskId,
             sourceId: answer.evidence.sourceId,
-            time: formatTimestamp(answer.evidence.observedAt, {
-              dateStyle: 'short',
-              timeStyle: 'short'
-            })
+            time: formatTimestamp(answer.evidence.observedAt)
           })}
         </p>
       ) : null}
@@ -161,10 +153,7 @@ export function ConversationHistoryList({
             <div className="flex flex-wrap items-baseline justify-between gap-2 text-xs text-muted-foreground">
               <span>{m.assistant_you()}</span>
               <time dateTime={question.createdAt}>
-                {formatTimestamp(question.createdAt, {
-                  dateStyle: 'short',
-                  timeStyle: 'short'
-                })}
+                {formatTimestamp(question.createdAt)}
               </time>
             </div>
             <p className="text-sm font-medium whitespace-pre-wrap wrap-anywhere">

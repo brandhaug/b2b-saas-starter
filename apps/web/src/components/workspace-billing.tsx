@@ -26,6 +26,7 @@ import {
 } from '@/lib/server/billing'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { Panel } from '@/components/page/panel'
+import { SegmentGroup } from '@/components/ui/segment-group'
 import { Spinner } from '@/components/ui/spinner'
 import { formatCurrency, formatDate, formatNumber } from '@b2b-saas-starter/i18n/format'
 import { getLocale } from '@b2b-saas-starter/i18n/runtime'
@@ -336,10 +337,12 @@ export function BillingPlans({
               key={plan.id}
               plan={plan}
               interval={interval}
-              isCurrent={
-                plan.id === currentPlanId &&
-                (plan.purchase !== 'self_serve' || lifecycle.interval === interval)
-              }
+              isCurrent={isCurrentOffer(
+                plan,
+                currentPlanId,
+                lifecycle.interval,
+                interval
+              )}
               priceNote={stripeConfigured ? null : m.billing_example_price()}
             >
               <PlanAction
@@ -399,19 +402,43 @@ function PlanTile({
           unlimitedLabel={
             plan.pricing === 'per_seat'
               ? m.shell_plan_billed_member()
-              : m.shell_plan_unlimited_label({
-                  label: m.seats().toLocaleLowerCase(getLocale())
-                })
+              : m.shell_plan_row_unlimited_seats()
           }
         />
-        <EntitlementRow label={m.nav_api_tokens()} limit={plan.limits.apiTokens} />
+        <EntitlementRow
+          label={m.nav_api_tokens()}
+          limit={plan.limits.apiTokens}
+          unlimitedLabel={m.shell_plan_row_unlimited_api_tokens()}
+        />
         <EntitlementRow
           label={m.nav_webhook_endpoints()}
           limit={plan.limits.webhookEndpoints}
+          unlimitedLabel={m.shell_plan_row_unlimited_webhook_endpoints()}
         />
       </ul>
       {children}
     </div>
+  )
+}
+
+/**
+ * Whether a plan tile is the workspace's current offer. A self-serve plan is
+ * current only on the interval its subscription bills; with no recorded
+ * interval (no provider subscription), the plan is current on either view.
+ */
+function isCurrentOffer(
+  plan: BillingPlan,
+  currentPlanId: string | null,
+  subscribedInterval: BillingInterval | null,
+  shownInterval: BillingInterval
+): boolean {
+  if (plan.id !== currentPlanId) {
+    return false
+  }
+  return (
+    plan.purchase !== 'self_serve' ||
+    subscribedInterval === null ||
+    subscribedInterval === shownInterval
   )
 }
 
@@ -678,15 +705,14 @@ function EntitlementRow({
 }: {
   label: string
   limit: number | null
-  /** What the unlimited row says; defaults to "Unlimited <label>". */
-  unlimitedLabel?: string
+  /** The whole unlimited row, written per entitlement so each locale owns its casing. */
+  unlimitedLabel: string
 }) {
   if (limit === null) {
     return (
       <li className="flex items-center gap-2">
         <Check className="size-4 text-status-ok" />
-        {unlimitedLabel ??
-          m.shell_plan_unlimited_label({ label: label.toLocaleLowerCase(getLocale()) })}
+        {unlimitedLabel}
       </li>
     )
   }
@@ -760,9 +786,9 @@ function BillingIntervalPicker({
     return null
   }
   return (
-    <fieldset className="mb-4 flex gap-2" aria-label={m.billing_interval()}>
+    <SegmentGroup className="mb-4" aria-label={m.billing_interval()}>
       <Button
-        variant="outline"
+        variant="segment"
         aria-pressed={interval === 'month'}
         disabled={disabled}
         onClick={() => onChange('month')}
@@ -770,14 +796,14 @@ function BillingIntervalPicker({
         {m.billing_monthly()}
       </Button>
       <Button
-        variant="outline"
+        variant="segment"
         aria-pressed={interval === 'year'}
         disabled={disabled}
         onClick={() => onChange('year')}
       >
         {m.billing_annual()}
       </Button>
-    </fieldset>
+    </SegmentGroup>
   )
 }
 

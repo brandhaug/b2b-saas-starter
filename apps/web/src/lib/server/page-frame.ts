@@ -85,11 +85,10 @@ export function workspacePage<Segment, E, R>(
 }
 
 /**
- * The unread-notification count the workspace shell badges. Every page that
- * renders the badge reads it concurrently with its own segment, so it is a
- * value to compose into `Effect.all` rather than a step of the frame: the
- * dashboard already gets the count from its projection, and the assistant and
- * audit pages render no badge at all.
+ * The unread-notification count the workspace shell badges. Every page reads
+ * it concurrently with its own segment, so it is a value to compose into
+ * `Effect.all` rather than a step of the frame: the dashboard already derives
+ * the count from its overview projection, and a frame step would read it twice.
  */
 export const unreadCount: Effect.Effect<
   number,

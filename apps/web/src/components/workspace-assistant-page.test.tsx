@@ -11,11 +11,13 @@ const ask = vi.fn<AskAssistant>()
 
 const configured: AssistantPagePayload = {
   viewer: { role: 'member' },
+  unreadCount: 0,
   configured: true
 }
 
 const unconfigured: AssistantPagePayload = {
   viewer: { role: 'member' },
+  unreadCount: 0,
   configured: false
 }
 

@@ -26,7 +26,7 @@ import { Panel } from '@/components/page/panel'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { Badge } from '@/components/ui/badge'
 import { RoutePending } from '@/components/route-pending'
-import { formatDateTime } from '@/lib/format-date'
+import { formatTimestamp } from '@/lib/format-date'
 import { auditActorTypeLabel } from '@/lib/audit-labels'
 import { auditActorTypeVariant } from '@/lib/badge-variants'
 import {
@@ -107,7 +107,7 @@ function auditColumns(): Array<DataTableColumnDef<AuditEvent>> {
       // The shared table timestamp — identical to the audit trail's rendering.
       cell: ({ row }) => (
         <span className="font-mono tabular-nums">
-          {formatDateTime(row.original.createdAt)}
+          {formatTimestamp(row.original.createdAt)}
         </span>
       )
     }

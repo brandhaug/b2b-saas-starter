@@ -95,10 +95,7 @@ export function PersonalDataExportPanel({
       {exported === null ? null : (
         <p className="text-sm text-muted-foreground">
           {m.personal_data_available_until({
-            time: formatTimestamp(exported.expiresAt, {
-              dateStyle: 'medium',
-              timeStyle: 'short'
-            })
+            time: formatTimestamp(exported.expiresAt)
           })}
         </p>
       )}
