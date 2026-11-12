@@ -26,7 +26,7 @@ import {
 
 const assistantPagePayload = workspacePage({ assistant: ['read'] }, () =>
   Effect.gen(function* () {
-    const investigations = yield* whenPermitted(
+    const investigationsSegment = whenPermitted(
       { webhook: ['list'] },
       Effect.gen(function* () {
         const tasks = yield* WebhookInvestigationTasks
@@ -60,11 +60,11 @@ const assistantPagePayload = workspacePage({ assistant: ['read'] }, () =>
         return { tasks: recentTasks, deliveries: deliveries.flat() }
       })
     )
-    return {
-      configured: isAssistantConfigured(cloudflareEnv),
-      unreadCount: yield* unreadCount,
-      investigations
-    }
+    const segments = yield* Effect.all(
+      { unreadCount, investigations: investigationsSegment },
+      { concurrency: 'unbounded' }
+    )
+    return { configured: isAssistantConfigured(cloudflareEnv), ...segments }
   })
 )
 

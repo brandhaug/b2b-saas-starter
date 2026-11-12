@@ -337,12 +337,12 @@ export function BillingPlans({
               key={plan.id}
               plan={plan}
               interval={interval}
-              isCurrent={
-                plan.id === currentPlanId &&
-                (plan.purchase !== 'self_serve' ||
-                  lifecycle.interval === null ||
-                  lifecycle.interval === interval)
-              }
+              isCurrent={isCurrentOffer(
+                plan,
+                currentPlanId,
+                lifecycle.interval,
+                interval
+              )}
               priceNote={stripeConfigured ? null : m.billing_example_price()}
             >
               <PlanAction
@@ -418,6 +418,27 @@ function PlanTile({
       </ul>
       {children}
     </div>
+  )
+}
+
+/**
+ * Whether a plan tile is the workspace's current offer. A self-serve plan is
+ * current only on the interval its subscription bills; with no recorded
+ * interval (no provider subscription), the plan is current on either view.
+ */
+function isCurrentOffer(
+  plan: BillingPlan,
+  currentPlanId: string | null,
+  subscribedInterval: BillingInterval | null,
+  shownInterval: BillingInterval
+): boolean {
+  if (plan.id !== currentPlanId) {
+    return false
+  }
+  return (
+    plan.purchase !== 'self_serve' ||
+    subscribedInterval === null ||
+    subscribedInterval === shownInterval
   )
 }
 

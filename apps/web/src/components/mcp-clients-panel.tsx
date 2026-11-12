@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/item'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { ListSection } from '@/components/page/panel'
-import { formatTimestamp } from '@/lib/format-date'
+import { formatCalendarDate } from '@/lib/format-date'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 /** The one server call this panel makes, as a port — a test drives it with a plain function. */
@@ -89,7 +89,7 @@ export function McpClientsPanel({
                       </span>
                     ) : null}
                     {connection.scopes.join(' ')} · since{' '}
-                    {formatTimestamp(connection.grantedAt, { dateStyle: 'medium' })}
+                    {formatCalendarDate(connection.grantedAt)}
                   </ItemDescription>
                 </ItemContent>
                 <ItemActions>

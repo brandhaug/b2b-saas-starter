@@ -230,7 +230,7 @@ export function LiveNotifications({
                   <ItemDescription className="line-clamp-none break-words">
                     {notification.message}
                   </ItemDescription>
-                  {/* Mono tabular UTC, the tables' timestamp convention. */}
+                  {/* Mono tabular digits, the tables' timestamp convention. */}
                   <span className="font-mono text-xs text-muted-foreground tabular-nums">
                     {formatTimestamp(notification.createdAt)}
                   </span>

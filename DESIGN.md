@@ -85,7 +85,7 @@ to its trigger. Inactive assistant views link to provider setup.
 - Outline is the default action treatment; ghost suits row actions and dismissals. Confirm destructive changes.
 - Segmented choices, such as billing interval or filter All/Any, put `segment` buttons inside `SegmentGroup`. `aria-pressed` draws the selected option like active navigation, an inset mauve ring over the accent fill.
 - Link-styled buttons stay underlined like text links, so an action and a navigation link side by side look alike.
-- Instants render through `formatTimestamp` without options: medium date, short time, and the display zone, everywhere a timestamp appears.
+- Every time of day renders through `formatTimestamp`: medium date, short time, and the display zone. Values that only need the day use `formatCalendarDate`.
 - Alerts use their semantic tint and an icon, not an ordinary card treatment.
 - [badge-variants.ts](apps/web/src/lib/badge-variants.ts) maps status and administrative role emphasis to variants. Member rosters use neutral role labels so identity leads the row; the administrative membership editor retains owner emphasis. Mauve means current/selected; unknown free-text status uses outline.
 - Docs code blocks use Shiki's Catppuccin Mocha theme on the card background.

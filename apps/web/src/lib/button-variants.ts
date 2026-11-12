@@ -21,7 +21,7 @@ export const buttonVariants = cva(
           'bg-destructive/20 hover:bg-destructive/30 focus-visible:ring-destructive text-destructive focus-visible:border-destructive',
         // Matches the app's text links: always underlined, so a link-styled
         // button beside a real link reads as the same kind of control.
-        link: 'text-primary underline underline-offset-4',
+        link: 'text-primary underline underline-offset-4 hover:decoration-2',
         'outline-muted': [outlineAppearance, 'text-muted-foreground'],
         dashed: [outlineAppearance, 'border-dashed'],
         sidebar:

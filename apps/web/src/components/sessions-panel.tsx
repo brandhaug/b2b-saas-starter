@@ -5,7 +5,7 @@ import { useAuthClientAction, useAuthClientRows } from '@/hooks/use-auth-client-
 import { Button } from '@/components/ui/button'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { Panel } from '@/components/page/panel'
-import { formatTimestamp } from '@/lib/format-date'
+import { formatCalendarDate } from '@/lib/format-date'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -70,10 +70,10 @@ function toViewModels(sessions: ReadonlyArray<SessionRecord>): Array<SessionRowV
     .map((session) => ({
       token: session.token,
       deviceLabel: describeUserAgent(session.userAgent),
-      // `formatTimestamp` pins locale and zone (en-US/UTC), like every other
+      // `formatCalendarDate` pins locale and zone, like every other
       // timestamp — the ambient-locale call this replaced was the one
       // remaining hydration-unsafe formatter.
-      expiresLabel: formatTimestamp(session.expiresAt, { dateStyle: 'medium' }),
+      expiresLabel: formatCalendarDate(session.expiresAt),
       ipAddress: session.ipAddress
     }))
 }

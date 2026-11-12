@@ -4,7 +4,7 @@ import { loginMethodLabel } from '@/components/auth/social-provider-labels'
 import { useAuthClientAction, useAuthClientRows } from '@/hooks/use-auth-client-rows'
 import { Button } from '@/components/ui/button'
 import { ActionFeedback } from '@/components/page/action-feedback'
-import { formatTimestamp } from '@/lib/format-date'
+import { formatCalendarDate } from '@/lib/format-date'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import {
   AlertDialog,
@@ -44,7 +44,7 @@ function toViewModels(
     .map((linked) => ({
       accountId: linked.id,
       methodLabel: loginMethodLabel(linked.providerId),
-      linkedLabel: formatTimestamp(linked.createdAt, { dateStyle: 'medium' })
+      linkedLabel: formatCalendarDate(linked.createdAt)
     }))
 }
 
