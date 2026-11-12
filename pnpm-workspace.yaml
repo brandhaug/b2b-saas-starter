@@ -66,7 +66,7 @@ catalog:
   '@vitejs/plugin-react': 6.1.1
   '@vitest/coverage-v8': 5.0.5
   ws: 8.22.1
-  miniflare: 5.20261104.0-beta
+  miniflare: 5.20261109.0-beta
   esbuild: 0.28.2
   alchemy: 2.0.0-beta.85
   '@alchemy.run/cloudflare': 2.0.0-beta.85
