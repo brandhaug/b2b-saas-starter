@@ -184,8 +184,8 @@ catalogs:
       specifier: 0.28.2
       version: 0.28.2
     eslint-plugin-better-tailwindcss:
-      specifier: 4.10.0
-      version: 4.10.0
+      specifier: 4.11.0
+      version: 4.11.0
     fallow:
       specifier: 3.41.0
       version: 3.41.0
@@ -354,7 +354,7 @@ importers:
         version: 4.1.3
       eslint-plugin-better-tailwindcss:
         specifier: 'catalog:'
-        version: 4.10.0(oxlint@1.89.0(oxlint-tsgolint@7.0.2004)(vite-plus@1.4.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.0.5)(@vitest/ui@5.0.5)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(playwright@1.65.0)(typescript@7.0.2)(yaml@2.9.1)))(tailwindcss@4.3.5)(typescript@7.0.2)
+        version: 4.11.0(oxlint@1.89.0(oxlint-tsgolint@7.0.2004)(vite-plus@1.4.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.0.5)(@vitest/ui@5.0.5)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(playwright@1.65.0)(typescript@7.0.2)(yaml@2.9.1)))(tailwindcss@4.3.5)(typescript@7.0.2)
       fallow:
         specifier: 'catalog:'
         version: 3.41.0(tsrs@0.18.0-ts7.1.0-dev.20260929)
@@ -5650,8 +5650,8 @@ packages:
     resolution: {integrity: sha512-/veY75JbMK4j1yjvuUxuVsiS/hr/4iHs9FTT6cgTexxdE0Ly/glccBAkloH/DofkjRbZU3bnoj38mOmhkZ0lHw==}
     engines: {node: '>=12'}
 
-  eslint-plugin-better-tailwindcss@4.10.0:
-    resolution: {integrity: sha512-EvcfEScF7N39LXuqX8fDnDsgylhbBZe5bbNb+6oN8ht06ou3MvwfPQ5hVgm2LWIPLOB5LBwNDCY6gBQGW4KHGA==}
+  eslint-plugin-better-tailwindcss@4.11.0:
+    resolution: {integrity: sha512-gN4CvWp1StR6/quRVuSlQ4AVMhomdIN8CwD3U/+eS1kG2sF/xs83kQj3o3kQ+SP9C05sO2OF9RE7mZNNtyGLNQ==}
     engines: {node: ^20.19.0 || ^22.12.0 || >=23.0.0}
     peerDependencies:
       eslint: ^7.0.0 || ^8.0.0 || ^9.0.0 || ^10.0.0
@@ -10908,7 +10908,7 @@ snapshots:
 
   escape-string-regexp@5.0.0: {}
 
-  eslint-plugin-better-tailwindcss@4.10.0(oxlint@1.89.0(oxlint-tsgolint@7.0.2004)(vite-plus@1.4.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.0.5)(@vitest/ui@5.0.5)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(playwright@1.65.0)(typescript@7.0.2)(yaml@2.9.1)))(tailwindcss@4.3.5)(typescript@7.0.2):
+  eslint-plugin-better-tailwindcss@4.11.0(oxlint@1.89.0(oxlint-tsgolint@7.0.2004)(vite-plus@1.4.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/coverage-v8@5.0.5)(@vitest/ui@5.0.5)(esbuild@0.28.2)(jiti@2.7.0)(jsdom@31.0.0(@noble/hashes@2.4.0))(playwright@1.65.0)(typescript@7.0.2)(yaml@2.9.1)))(tailwindcss@4.3.5)(typescript@7.0.2):
     dependencies:
       '@eslint/css-tree': 4.1.2
       '@valibot/to-json-schema': 1.8.0(valibot@1.5.0(typescript@7.0.2))
