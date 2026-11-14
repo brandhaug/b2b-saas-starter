@@ -199,8 +199,8 @@ catalogs:
       specifier: 31.0.0
       version: 31.0.0
     lucide-react:
-      specifier: 1.71.0
-      version: 1.71.0
+      specifier: 1.72.0
+      version: 1.72.0
     mdast-util-gfm:
       specifier: 3.1.0
       version: 3.1.0
@@ -635,7 +635,7 @@ importers:
         version: 1.0.10(better-auth@1.7.20(@opentelemetry/api@1.10.0)(@tanstack/react-start@1.169.5(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rolldown@1.2.13)(rollup@4.67.4)(supports-color@10.2.2))(drizzle-kit@1.0.0-rc.5-ab785fc)(drizzle-orm@1.0.0-rc.5-ab785fc(@cloudflare/workers-types@5.20261110.1)(@effect/sql-d1@4.1.4(effect@4.1.4))(@opentelemetry/api@1.10.0)(effect@4.1.4)(valibot@1.5.0(typescript@7.0.2))(zod@4.6.7))(next@16.4.3(@babel/core@8.1.0)(@opentelemetry/api@1.10.0)(@playwright/test@1.65.0)(@types/node@26.6.6)(babel-plugin-react-compiler@1.0.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.0.5))(effect@4.1.4)
       lucide-react:
         specifier: 'catalog:'
-        version: 1.71.0(@types/react@19.3.0)(react@19.3.1)
+        version: 1.72.0(@types/react@19.3.0)(react@19.3.1)
       minisearch:
         specifier: 'catalog:'
         version: 7.2.0
@@ -6102,8 +6102,8 @@ packages:
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
 
-  lucide-react@1.71.0:
-    resolution: {integrity: sha512-8YtvF+bqT/EMqAXU7kWvYdRu+TV9j4kS1eIS7IbN1j1Z1DgupbrTL0nDIygdqgBDTD7AJPP607VdVgzDTar4zA==}
+  lucide-react@1.72.0:
+    resolution: {integrity: sha512-fbF5i1GU8GODETa3Q7rXqrJrcx3iPYrQtxthom103zGx+Z0BGwKYAW9s+9435ohYJ7hQm0av0PoZcqI1CRwNrg==}
     peerDependencies:
       '@types/react': '*'
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
@@ -6788,10 +6788,6 @@ packages:
     engines: {node: '>=20'}
     peerDependencies:
       seroval: ^1.0
-
-  seroval@1.8.0:
-    resolution: {integrity: sha512-W5N4cMPc58lypAsScCmhGTyZxNZ6gPHvLHtMqtyvDFpfyNDsH1QjU0nI9Lr34+Q5ZLPsWeqOhkgTY5XtaPVQ4A==}
-    engines: {node: '>=20'}
 
   seroval@1.8.1:
     resolution: {integrity: sha512-7z9x1flFYfZBz+LfDkXNfm5UIhZJ/97ASaV8Q1wctoVkeqVfv+tLPsWebeMXBNw6XprvwxDE5wC5Ylqmr+iSrA==}
@@ -9828,8 +9824,8 @@ snapshots:
     dependencies:
       '@tanstack/history': 1.162.5
       cookie-es: 3.1.1
-      seroval: 1.8.0
-      seroval-plugins: 1.7.7(seroval@1.8.0)
+      seroval: 1.8.1
+      seroval-plugins: 1.7.7(seroval@1.8.1)
 
   '@tanstack/router-devtools-core@1.168.3(@tanstack/router-core@1.171.39)(csstype@3.2.3)':
     dependencies:
@@ -9899,7 +9895,7 @@ snapshots:
       '@tanstack/router-core': 1.171.39
       '@tanstack/start-fn-stubs': 1.162.0
       '@tanstack/start-storage-context': 1.167.41
-      seroval: 1.8.0
+      seroval: 1.8.1
 
   '@tanstack/start-fn-stubs@1.162.0': {}
 
@@ -9918,7 +9914,7 @@ snapshots:
       lightningcss: 1.33.0
       pathe: 2.0.3
       picomatch: 4.0.7
-      seroval: 1.8.0
+      seroval: 1.8.1
       source-map: 0.7.6
       srvx: 1.0.8
       tinyglobby: 0.2.17
@@ -9949,7 +9945,7 @@ snapshots:
       '@tanstack/start-storage-context': 1.167.41
       cookie-es: 3.1.1
       fetchdts: 0.2.0
-      seroval: 1.8.0
+      seroval: 1.8.1
 
   '@tanstack/start-storage-context@1.167.41':
     dependencies:
@@ -11380,7 +11376,7 @@ snapshots:
     dependencies:
       yallist: 3.1.1
 
-  lucide-react@1.71.0(@types/react@19.3.0)(react@19.3.1):
+  lucide-react@1.72.0(@types/react@19.3.0)(react@19.3.1):
     dependencies:
       react: 19.3.1
     optionalDependencies:
@@ -12579,11 +12575,9 @@ snapshots:
 
   semver@7.8.6: {}
 
-  seroval-plugins@1.7.7(seroval@1.8.0):
+  seroval-plugins@1.7.7(seroval@1.8.1):
     dependencies:
-      seroval: 1.8.0
-
-  seroval@1.8.0: {}
+      seroval: 1.8.1
 
   seroval@1.8.1: {}
 
