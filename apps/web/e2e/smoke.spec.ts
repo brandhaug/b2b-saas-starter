@@ -187,6 +187,9 @@ test('an unusable magic link leads back to credential entry', async ({ page }) =
     .getByRole('link', { name: 'Request a new link or use your password' })
     .click()
   await expect(page).toHaveURL(/\/sign-in$/)
+  // The fieldset stays disabled until React hydrates; the dev server can take
+  // longer than an assertion's timeout to compile a first-visited route.
+  await page.locator('form[data-hydrated="true"]').waitFor()
   await expect(page.getByLabel('Password', { exact: true })).toBeEnabled()
 })
 
