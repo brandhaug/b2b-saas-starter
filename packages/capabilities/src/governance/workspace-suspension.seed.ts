@@ -68,7 +68,7 @@ export function SeedWorkspaceSuspension(options: {
         return current.get(workspaceId) ?? active(workspaceId)
       })
       return WorkspaceSuspensionService.of({
-        list: Effect.gen(function* () {
+        list: Effect.fn('WorkspaceSuspension.list')(function* () {
           const known = yield* Ref.get(catalog)
           const current = yield* Ref.get(state)
           return (
@@ -101,7 +101,7 @@ export function SeedWorkspaceSuspension(options: {
                 suspension: current.get(workspace.id) ?? active(workspace.id)
               }))
           )
-        }),
+        })(),
         get,
         requireAllowed: Effect.fn('WorkspaceSuspension.requireAllowed')(
           function* (workspaceId, operation) {

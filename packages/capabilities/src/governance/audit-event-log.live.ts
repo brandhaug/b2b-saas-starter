@@ -311,18 +311,17 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
             metadata: decodeAuditEventMetadata(row.event.metadata)
           }
         }),
-        list: (input) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            const rows = yield* pagedRows(ctx.workspace.id, input)
-            const view = normalizeAuditView(input?.view)
-            return buildPage(
-              rows,
-              pageLimit(input),
-              view,
-              auditViewKey(view, ctx.workspace.id, input)
-            )
-          }),
+        list: Effect.fn('AuditEventLog.list')(function* (input) {
+          const ctx = yield* WorkspaceContext
+          const rows = yield* pagedRows(ctx.workspace.id, input)
+          const view = normalizeAuditView(input?.view)
+          return buildPage(
+            rows,
+            pageLimit(input),
+            view,
+            auditViewKey(view, ctx.workspace.id, input)
+          )
+        }),
         listGlobal: globalRows,
         record: (input) =>
           insertFor(input).pipe(

@@ -30,8 +30,8 @@ export const LiveWebhookDispatch: Layer.Layer<
       yield* makeLiveWebhookStorage('webhook-dispatch')
 
     return {
-      isDeliverySettled: (input) =>
-        Effect.gen(function* () {
+      isDeliverySettled: Effect.fn('WebhookDispatch.isDeliverySettled')(
+        function* (input) {
           const rows = yield* unavailable(
             db
               .select({ id: webhookDeliveries.id })
@@ -51,9 +51,10 @@ export const LiveWebhookDispatch: Layer.Layer<
               .limit(1)
           )
           return rows.length > 0
-        }),
-      getDispatchTarget: (endpointId, workspaceId, deliveryId) =>
-        Effect.gen(function* () {
+        }
+      ),
+      getDispatchTarget: Effect.fn('WebhookDispatch.getDispatchTarget')(
+        function* (endpointId, workspaceId, deliveryId) {
           const endpoint = yield* endpointRow(endpointId, workspaceId)
           if (!endpoint || !endpoint.enabled) {
             return null
@@ -101,7 +102,8 @@ export const LiveWebhookDispatch: Layer.Layer<
             eventType: queued.eventType,
             payload: queued.payload
           }
-        }),
+        }
+      ),
       recordDeliveryAttempt: (input) => history.recordAttempt(input),
       recordTerminalDeliveryAttempt: (input) =>
         // Resolve the producer's existing row and stored contents before

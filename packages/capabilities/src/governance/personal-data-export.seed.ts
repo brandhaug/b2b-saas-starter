@@ -139,8 +139,8 @@ export function SeedPersonalDataExports(
         })
       }
       return {
-        request: (userId, sessionId) =>
-          Effect.gen(function* () {
+        request: Effect.fn('PersonalDataExports.request')(
+          function* (userId, sessionId) {
             const data = yield* collect(userId)
             const conversationExport = yield* conversations.collectForExport(
               userId,
@@ -172,9 +172,10 @@ export function SeedPersonalDataExports(
               metadata: { exportId: id, action: 'requested' }
             })
             return { id, expiresAt: iso(personalDataExportExpiresAt(now)) }
-          }),
-        download: (userId, sessionId, id) =>
-          Effect.gen(function* () {
+          }
+        ),
+        download: Effect.fn('PersonalDataExports.download')(
+          function* (userId, sessionId, id) {
             const now = yield* Clock.currentTimeMillis
             const row = rows.get(id)
             if (
@@ -202,7 +203,8 @@ export function SeedPersonalDataExports(
               row.conversationManifest
             )
             return { fileName: `personal-data-${userId}.json`, json: row.json }
-          })
+          }
+        )
       }
     })
   )

@@ -112,77 +112,76 @@ export function SeedAccountPreferences(
           }
           return Effect.map(get(userId), (preferences) => preferences)
         },
-        set: (input) =>
-          Effect.gen(function* () {
-            const stored = yield* Ref.get(store)
-            const row = stored.get(input.userId)
-            const current = {
-              locale: row?.locale ?? null,
-              timeZone: row?.timeZone ?? null
-            }
-            if (
-              row === undefined ||
-              (input.locale === undefined && input.timeZone === undefined)
-            ) {
-              return current
-            }
-            const rejected = validateInput(input)
-            if (rejected !== null) {
-              return yield* Effect.fail(rejected)
-            }
-            if (
-              input.locale === undefined &&
-              input.timeZone !== undefined &&
-              input.initializeTimeZone === true &&
-              current.timeZone !== null
-            ) {
-              return current
-            }
-            const result = yield* Ref.modify(
-              store,
-              (
-                rows
-              ): readonly [
-                { readonly preferences: AccountPreferences; readonly changed: boolean },
-                Map<string, SeedAccountPreference>
-              ] => {
-                const latest = rows.get(input.userId)
-                if (latest === undefined) {
-                  return [{ preferences: current, changed: false }, rows]
-                }
-                const latestPreferences: AccountPreferences = {
-                  locale: latest.locale ?? null,
-                  timeZone: latest.timeZone ?? null
-                }
-                let nextLocale = latestPreferences.locale
-                if (input.locale !== undefined) {
-                  nextLocale = input.locale
-                }
-                let nextTimeZone = latestPreferences.timeZone
-                if (input.timeZone !== undefined) {
-                  nextTimeZone = input.timeZone
-                }
-                if (
-                  input.initializeTimeZone === true &&
-                  latestPreferences.timeZone !== null
-                ) {
-                  nextTimeZone = latestPreferences.timeZone
-                }
-                const next: AccountPreferences = {
-                  locale: nextLocale,
-                  timeZone: nextTimeZone
-                }
-                return [
-                  { preferences: next, changed: true },
-                  new Map(rows).set(input.userId, { userId: input.userId, ...next })
-                ]
+        set: Effect.fn('AccountPreferences.set')(function* (input) {
+          const stored = yield* Ref.get(store)
+          const row = stored.get(input.userId)
+          const current = {
+            locale: row?.locale ?? null,
+            timeZone: row?.timeZone ?? null
+          }
+          if (
+            row === undefined ||
+            (input.locale === undefined && input.timeZone === undefined)
+          ) {
+            return current
+          }
+          const rejected = validateInput(input)
+          if (rejected !== null) {
+            return yield* Effect.fail(rejected)
+          }
+          if (
+            input.locale === undefined &&
+            input.timeZone !== undefined &&
+            input.initializeTimeZone === true &&
+            current.timeZone !== null
+          ) {
+            return current
+          }
+          const result = yield* Ref.modify(
+            store,
+            (
+              rows
+            ): readonly [
+              { readonly preferences: AccountPreferences; readonly changed: boolean },
+              Map<string, SeedAccountPreference>
+            ] => {
+              const latest = rows.get(input.userId)
+              if (latest === undefined) {
+                return [{ preferences: current, changed: false }, rows]
               }
-            )
-            if (result.changed) {
-              yield* audit.record(preferenceChanged(input))
+              const latestPreferences: AccountPreferences = {
+                locale: latest.locale ?? null,
+                timeZone: latest.timeZone ?? null
+              }
+              let nextLocale = latestPreferences.locale
+              if (input.locale !== undefined) {
+                nextLocale = input.locale
+              }
+              let nextTimeZone = latestPreferences.timeZone
+              if (input.timeZone !== undefined) {
+                nextTimeZone = input.timeZone
+              }
+              if (
+                input.initializeTimeZone === true &&
+                latestPreferences.timeZone !== null
+              ) {
+                nextTimeZone = latestPreferences.timeZone
+              }
+              const next: AccountPreferences = {
+                locale: nextLocale,
+                timeZone: nextTimeZone
+              }
+              return [
+                { preferences: next, changed: true },
+                new Map(rows).set(input.userId, { userId: input.userId, ...next })
+              ]
             }
-            return result.preferences
-          })
+          )
+          if (result.changed) {
+            yield* audit.record(preferenceChanged(input))
+          }
+          return result.preferences
+        })
       }
     })
   )
@@ -274,70 +273,69 @@ export const LiveAccountPreferences: Layer.Layer<
     return {
       get,
       getByEmail,
-      set: (input) =>
-        Effect.gen(function* () {
-          const current = yield* get(input.userId)
-          if (input.locale === undefined && input.timeZone === undefined) {
-            return current
-          }
-          const rejected = validateInput(input)
-          if (rejected !== null) {
-            return yield* Effect.fail(rejected)
-          }
-          let locale = current.locale
-          if (input.locale !== undefined) {
-            locale = input.locale
-          }
-          const shouldInitialize =
-            input.initializeTimeZone === true && current.timeZone === null
-          if (
-            input.locale === undefined &&
-            input.timeZone !== undefined &&
-            input.initializeTimeZone === true &&
-            !shouldInitialize
-          ) {
-            return current
-          }
-          let timeZone = current.timeZone
-          if (input.timeZone !== undefined) {
-            timeZone = input.timeZone
-          }
-          if (input.initializeTimeZone === true && !shouldInitialize) {
-            timeZone = current.timeZone
-          }
-          yield* auditedMutation({
-            matched: unavailable(
-              db
-                .select({ id: user.id })
-                .from(user)
-                .where(eq(user.id, input.userId))
-                .limit(1)
-            ).pipe(Effect.map((rows) => rows.length > 0)),
-            auditEvent: preferenceChanged(input),
-            write: () => {
-              const values: AccountPreferencesUpdate = {}
-              if (input.locale !== undefined) {
-                values.locale = locale
-              }
-              if (input.timeZone !== undefined) {
-                if (input.initializeTimeZone === true) {
-                  // Keep an already initialized timezone while allowing an
-                  // explicit locale in the same atomic update. A conditional
-                  // WHERE would discard that locale when two first visits
-                  // race to initialize the account.
-                  values.timeZone = sql`coalesce(${user.timeZone}, ${input.timeZone})`
-                } else {
-                  values.timeZone = timeZone
-                }
-              }
-              return [db.update(user).set(values).where(eq(user.id, input.userId))]
+      set: Effect.fn('AccountPreferences.set')(function* (input) {
+        const current = yield* get(input.userId)
+        if (input.locale === undefined && input.timeZone === undefined) {
+          return current
+        }
+        const rejected = validateInput(input)
+        if (rejected !== null) {
+          return yield* Effect.fail(rejected)
+        }
+        let locale = current.locale
+        if (input.locale !== undefined) {
+          locale = input.locale
+        }
+        const shouldInitialize =
+          input.initializeTimeZone === true && current.timeZone === null
+        if (
+          input.locale === undefined &&
+          input.timeZone !== undefined &&
+          input.initializeTimeZone === true &&
+          !shouldInitialize
+        ) {
+          return current
+        }
+        let timeZone = current.timeZone
+        if (input.timeZone !== undefined) {
+          timeZone = input.timeZone
+        }
+        if (input.initializeTimeZone === true && !shouldInitialize) {
+          timeZone = current.timeZone
+        }
+        yield* auditedMutation({
+          matched: unavailable(
+            db
+              .select({ id: user.id })
+              .from(user)
+              .where(eq(user.id, input.userId))
+              .limit(1)
+          ).pipe(Effect.map((rows) => rows.length > 0)),
+          auditEvent: preferenceChanged(input),
+          write: () => {
+            const values: AccountPreferencesUpdate = {}
+            if (input.locale !== undefined) {
+              values.locale = locale
             }
-          })
-          // The conditional update above is intentionally followed by a read;
-          // the returned row is authoritative if another request initialized
-          // the timezone concurrently.
-          return yield* get(input.userId)
+            if (input.timeZone !== undefined) {
+              if (input.initializeTimeZone === true) {
+                // Keep an already initialized timezone while allowing an
+                // explicit locale in the same atomic update. A conditional
+                // WHERE would discard that locale when two first visits
+                // race to initialize the account.
+                values.timeZone = sql`coalesce(${user.timeZone}, ${input.timeZone})`
+              } else {
+                values.timeZone = timeZone
+              }
+            }
+            return [db.update(user).set(values).where(eq(user.id, input.userId))]
+          }
         })
+        // The conditional update above is intentionally followed by a read;
+        // the returned row is authoritative if another request initialized
+        // the timezone concurrently.
+        return yield* get(input.userId)
+      })
     }
   })
 )

@@ -211,7 +211,7 @@ export function SeedNotificationFeed(
       })
 
       return {
-        list: Effect.gen(function* () {
+        list: Effect.fn('NotificationFeed.list')(function* () {
           const ctx = yield* WorkspaceContext
           const all = yield* Ref.get(rows)
           return all
@@ -222,7 +222,7 @@ export function SeedNotificationFeed(
             )
             .toSorted((a, b) => b.createdAt.localeCompare(a.createdAt))
             .map(stripStorage)
-        }),
+        })(),
         countVisibleToUser: (userId, workspaceIds) =>
           Effect.map(
             Ref.get(rows),
@@ -241,31 +241,30 @@ export function SeedNotificationFeed(
                 )
               )
           ),
-        listPage: (input) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            const all = yield* Ref.get(rows)
-            // The shared keyset helper orders `(createdAt DESC, id DESC)` and
-            // cuts the page over the same visible, stripped rows `list`
-            // serves, so a page fetch behaves exactly like Live's ordered SQL
-            // read.
-            const visible: Array<Notification> = []
-            for (const row of all) {
-              if (
-                inWorkspace(row, ctx.workspace.id) &&
-                visibleToActor(row.userId, ctx.actor)
-              ) {
-                visible.push(stripStorage(row))
-              }
+        listPage: Effect.fn('NotificationFeed.listPage')(function* (input) {
+          const ctx = yield* WorkspaceContext
+          const all = yield* Ref.get(rows)
+          // The shared keyset helper orders `(createdAt DESC, id DESC)` and
+          // cuts the page over the same visible, stripped rows `list`
+          // serves, so a page fetch behaves exactly like Live's ordered SQL
+          // read.
+          const visible: Array<Notification> = []
+          for (const row of all) {
+            if (
+              inWorkspace(row, ctx.workspace.id) &&
+              visibleToActor(row.userId, ctx.actor)
+            ) {
+              visible.push(stripStorage(row))
             }
-            return seedKeysetPage(
-              visible,
-              'desc',
-              (row) => ({ key: row.createdAt, id: row.id }),
-              input
-            )
-          }),
-        unreadCount: Effect.gen(function* () {
+          }
+          return seedKeysetPage(
+            visible,
+            'desc',
+            (row) => ({ key: row.createdAt, id: row.id }),
+            input
+          )
+        }),
+        unreadCount: Effect.fn('NotificationFeed.unreadCount')(function* () {
           const ctx = yield* WorkspaceContext
           const all = yield* Ref.get(rows)
           return all.filter(
@@ -274,122 +273,122 @@ export function SeedNotificationFeed(
               !row.read &&
               visibleToActor(row.userId, ctx.actor)
           ).length
+        })(),
+        markRead: Effect.fn('NotificationFeed.markRead')(function* (ids) {
+          const ctx = yield* WorkspaceContext
+          const requested = new Set(ids)
+          // `Ref.modify`, not `Ref.update` + a closure counter: modify runs
+          // its function exactly once per successful state transition, so
+          // the returned count is the transition's own answer.
+          return yield* Ref.modify(rows, (current) => {
+            let marked = 0
+            const next = current.map((row) => {
+              if (
+                !requested.has(row.id) ||
+                !inWorkspace(row, ctx.workspace.id) ||
+                !visibleToActor(row.userId, ctx.actor) ||
+                row.read
+              ) {
+                return row
+              }
+              marked += 1
+              return { ...row, read: true }
+            })
+            return [marked, next]
+          })
         }),
-        markRead: (ids) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            const requested = new Set(ids)
-            // `Ref.modify`, not `Ref.update` + a closure counter: modify runs
-            // its function exactly once per successful state transition, so
-            // the returned count is the transition's own answer.
-            return yield* Ref.modify(rows, (current) => {
-              let marked = 0
-              const next = current.map((row) => {
-                if (
-                  !requested.has(row.id) ||
-                  !inWorkspace(row, ctx.workspace.id) ||
-                  !visibleToActor(row.userId, ctx.actor) ||
-                  row.read
-                ) {
-                  return row
-                }
-                marked += 1
-                return { ...row, read: true }
-              })
-              return [marked, next]
-            })
-          }),
-        create: (input: CreateNotificationInput) =>
-          Effect.gen(function* () {
-            let id: string
-            if (input.deduplicationKey === undefined) {
-              id = yield* newCapabilityId('not')
-            } else {
-              id = `not:${input.workspaceId}:${input.userId ?? 'broadcast'}:${input.deduplicationKey}`
-            }
-            const existing = (yield* Ref.get(rows)).find((row) => row.id === id)
-            if (existing !== undefined) {
-              return stripStorage(existing)
-            }
-            const createdAt = DateTime.formatIso(yield* DateTime.now)
-            const row: SeedRow = {
-              id,
-              workspaceId: input.workspaceId,
-              userId: input.userId ?? null,
-              kind: input.kind,
-              title: input.title,
-              message: input.message,
-              event: input.event,
-              createdAt,
-              read: false
-            }
-            yield* Ref.update(rows, (all) => [...all, row])
-            const traceparent = yield* currentTraceparent
-            yield* enqueueInstantEmails(options.emailQueue, preferences, {
-              notificationId: id,
-              kind: input.kind,
-              recipients: recipientsOf(row),
-              traceparent
-            })
-            return stripStorage(row)
-          }),
-        record: (input) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            const row: SeedRow = {
-              id: yield* newCapabilityId('not'),
-              workspaceId: ctx.workspace.id,
-              // The failed-test notice is a plain feed message: no kind-driven
-              // email fan-out, no preferences consultation.
-              kind: 'announcement',
-              title: input.title,
-              message: input.message,
-              event: input.event,
-              createdAt: DateTime.formatIso(yield* DateTime.now),
-              read: false,
-              userId: input.userId
-            }
-            yield* Ref.update(rows, (all) => [...all, row])
-          }),
-        notifyUser: (input: NotifyUserInput) =>
-          Effect.gen(function* () {
-            // The fixture is one workspace with one roster, so "every
-            // workspace the user is a member of" collapses to the fixture
-            // workspace when the user is on the roster — and to nothing (no
-            // row, no email) when they are not, mirroring the Live join.
-            const member = fixture.members.find(
-              (candidate) => candidate.id === input.userId
-            )
-            if (member === undefined) {
-              return
-            }
-            const row: SeedRow = {
-              id: yield* newCapabilityId('not'),
-              workspaceId: fixture.workspace.id,
-              userId: input.userId,
-              kind: input.kind,
-              title: input.title,
-              message: input.message,
-              event: input.event,
-              createdAt: DateTime.formatIso(yield* DateTime.now),
-              read: false
-            }
-            yield* Ref.update(rows, (all) => [...all, row])
-            const traceparent = yield* currentTraceparent
-            yield* enqueueInstantEmails(options.emailQueue, preferences, {
-              notificationId: row.id,
-              kind: input.kind,
-              recipients: [recipientOf(member)],
-              traceparent
-            })
-          }),
+        create: Effect.fn('NotificationFeed.create')(function* (
+          input: CreateNotificationInput
+        ) {
+          let id: string
+          if (input.deduplicationKey === undefined) {
+            id = yield* newCapabilityId('not')
+          } else {
+            id = `not:${input.workspaceId}:${input.userId ?? 'broadcast'}:${input.deduplicationKey}`
+          }
+          const existing = (yield* Ref.get(rows)).find((row) => row.id === id)
+          if (existing !== undefined) {
+            return stripStorage(existing)
+          }
+          const createdAt = DateTime.formatIso(yield* DateTime.now)
+          const row: SeedRow = {
+            id,
+            workspaceId: input.workspaceId,
+            userId: input.userId ?? null,
+            kind: input.kind,
+            title: input.title,
+            message: input.message,
+            event: input.event,
+            createdAt,
+            read: false
+          }
+          yield* Ref.update(rows, (all) => [...all, row])
+          const traceparent = yield* currentTraceparent
+          yield* enqueueInstantEmails(options.emailQueue, preferences, {
+            notificationId: id,
+            kind: input.kind,
+            recipients: recipientsOf(row),
+            traceparent
+          })
+          return stripStorage(row)
+        }),
+        record: Effect.fn('NotificationFeed.record')(function* (input) {
+          const ctx = yield* WorkspaceContext
+          const row: SeedRow = {
+            id: yield* newCapabilityId('not'),
+            workspaceId: ctx.workspace.id,
+            // The failed-test notice is a plain feed message: no kind-driven
+            // email fan-out, no preferences consultation.
+            kind: 'announcement',
+            title: input.title,
+            message: input.message,
+            event: input.event,
+            createdAt: DateTime.formatIso(yield* DateTime.now),
+            read: false,
+            userId: input.userId
+          }
+          yield* Ref.update(rows, (all) => [...all, row])
+        }),
+        notifyUser: Effect.fn('NotificationFeed.notifyUser')(function* (
+          input: NotifyUserInput
+        ) {
+          // The fixture is one workspace with one roster, so "every
+          // workspace the user is a member of" collapses to the fixture
+          // workspace when the user is on the roster — and to nothing (no
+          // row, no email) when they are not, mirroring the Live join.
+          const member = fixture.members.find(
+            (candidate) => candidate.id === input.userId
+          )
+          if (member === undefined) {
+            return
+          }
+          const row: SeedRow = {
+            id: yield* newCapabilityId('not'),
+            workspaceId: fixture.workspace.id,
+            userId: input.userId,
+            kind: input.kind,
+            title: input.title,
+            message: input.message,
+            event: input.event,
+            createdAt: DateTime.formatIso(yield* DateTime.now),
+            read: false
+          }
+          yield* Ref.update(rows, (all) => [...all, row])
+          const traceparent = yield* currentTraceparent
+          yield* enqueueInstantEmails(options.emailQueue, preferences, {
+            notificationId: row.id,
+            kind: input.kind,
+            recipients: [recipientOf(member)],
+            traceparent
+          })
+        }),
         prepareWorkspaceOwners,
         notifyWorkspaceOwners: (input) =>
           Effect.flatMap(prepareWorkspaceOwners(input), (prepared) =>
             Effect.flatMap(prepared.commit, () => prepared.publish)
           ),
-        loadForEmail: (notificationId, recipientUserId) =>
-          Effect.gen(function* () {
+        loadForEmail: Effect.fn('NotificationFeed.loadForEmail')(
+          function* (notificationId, recipientUserId) {
             const all = yield* Ref.get(rows)
             const row = all.find((candidate) => candidate.id === notificationId)
             if (row === undefined || row.read) {
@@ -403,9 +402,10 @@ export function SeedNotificationFeed(
               return null
             }
             return contextFor(row, yield* withCurrentPreferences(recipient))
-          }),
-        listDigestCandidates: (window) =>
-          Effect.gen(function* () {
+          }
+        ),
+        listDigestCandidates: Effect.fn('NotificationFeed.listDigestCandidates')(
+          function* (window) {
             const all = yield* Ref.get(rows)
             const candidates: Array<NotificationEmailContext> = []
             for (const row of all) {
@@ -422,7 +422,8 @@ export function SeedNotificationFeed(
               )
             }
             return candidates
-          })
+          }
+        )
       }
     })
   )

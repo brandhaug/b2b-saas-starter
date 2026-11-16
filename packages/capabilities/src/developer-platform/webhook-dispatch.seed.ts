@@ -252,8 +252,8 @@ export const SeedWebhookDispatch: Layer.Layer<
               isSettledDeliveryStatus(delivery.status)
           )
         }),
-      getDispatchTarget: (endpointId, workspaceId, deliveryId) =>
-        Effect.gen(function* () {
+      getDispatchTarget: Effect.fn('WebhookDispatch.getDispatchTarget')(
+        function* (endpointId, workspaceId, deliveryId) {
           const endpoint = endpointFor(endpointId, workspaceId)
           if (
             !endpoint ||
@@ -290,7 +290,8 @@ export const SeedWebhookDispatch: Layer.Layer<
             eventType: queued.eventType,
             payload: queued.payload
           }
-        }),
+        }
+      ),
       recordDeliveryAttempt: (input) =>
         recordAttempt({ kind: 'trusted_attempt', input }),
       recordTerminalDeliveryAttempt: (input) =>

@@ -410,11 +410,10 @@ export function SeedAuditEventLog(
     // over the fixture. Like the other Seed adapters, the context arrives
     // from the runner (selectWorkspaceLayer / testWorkspaceContext), not from
     // this layer.
-    list: (input) =>
-      Effect.gen(function* () {
-        const ctx = yield* WorkspaceContext
-        return pagedSeedRows(rows, ctx.workspace.id, input)
-      }),
+    list: Effect.fn('AuditEventLog.list')(function* (input) {
+      const ctx = yield* WorkspaceContext
+      return pagedSeedRows(rows, ctx.workspace.id, input)
+    }),
     // Same order and cap as Live: newest first on `(createdAt, id)`, at most
     // one page of rows. `/admin` reads this unpaged, so the cap is the whole
     // answer rather than a first page.
@@ -424,26 +423,25 @@ export function SeedAuditEventLog(
           limit: AUDIT_EVENT_PAGE_SIZE
         }).items
     ),
-    record: (input) =>
-      Effect.gen(function* () {
-        // Appends into this instance's store so recorded events read back
-        // through `list`/`listGlobal` exactly as Live's inserts do —
-        // mutating-capability Seeds depend on this to satisfy the same
-        // interface behavior.
-        const row: SeedAuditEventRow = {
-          id: yield* newCapabilityId('aud'),
-          eventType: input.eventType,
-          targetType: input.targetType,
-          targetId: input.targetId ?? null,
-          actor: seedActorName(actors, input.actorUserId),
-          actorType: input.actorType,
-          actorUserId: input.actorUserId ?? null,
-          workspaceId: input.workspaceId ?? null,
-          metadata: structuredClone(input.metadata ?? {}),
-          createdAt: DateTime.formatIso(yield* DateTime.now)
-        }
-        rows.push(row)
-      }),
+    record: Effect.fn('AuditEventLog.record')(function* (input) {
+      // Appends into this instance's store so recorded events read back
+      // through `list`/`listGlobal` exactly as Live's inserts do —
+      // mutating-capability Seeds depend on this to satisfy the same
+      // interface behavior.
+      const row: SeedAuditEventRow = {
+        id: yield* newCapabilityId('aud'),
+        eventType: input.eventType,
+        targetType: input.targetType,
+        targetId: input.targetId ?? null,
+        actor: seedActorName(actors, input.actorUserId),
+        actorType: input.actorType,
+        actorUserId: input.actorUserId ?? null,
+        workspaceId: input.workspaceId ?? null,
+        metadata: structuredClone(input.metadata ?? {}),
+        createdAt: DateTime.formatIso(yield* DateTime.now)
+      }
+      rows.push(row)
+    }),
     prepareRecord: () => Effect.succeed(noopStatement)
   })
 }

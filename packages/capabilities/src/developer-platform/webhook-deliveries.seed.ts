@@ -33,44 +33,43 @@ export const SeedWebhookDeliveries: Layer.Layer<
             )
         }
       ),
-      listDeliveries: (input) =>
-        Effect.gen(function* () {
-          const ctx = yield* WorkspaceContext
-          // Same join semantics as Live: the endpoint's owning workspace is
-          // resolved from context, so a foreign endpoint id yields nothing.
-          const owned = new Set<string>()
-          for (const endpoint of endpoints) {
-            if (endpoint.workspaceId === ctx.workspace.id) {
-              owned.add(endpoint.id)
-            }
+      listDeliveries: Effect.fn('WebhookDeliveries.listDeliveries')(function* (input) {
+        const ctx = yield* WorkspaceContext
+        // Same join semantics as Live: the endpoint's owning workspace is
+        // resolved from context, so a foreign endpoint id yields nothing.
+        const owned = new Set<string>()
+        for (const endpoint of endpoints) {
+          if (endpoint.workspaceId === ctx.workspace.id) {
+            owned.add(endpoint.id)
           }
-          const matched = deliveries.filter(
-            (row) => row.endpointId === input.endpointId && owned.has(row.endpointId)
-          )
-          // `lastAttemptAt` DESC, row id DESC as the tie-break — a total
-          // order, mirroring Live's orderBy so the shared contract can
-          // assert the sequence on both adapters.
-          const sorted = matched.toSorted((a, b) => {
-            if ((a.lastAttemptAt ?? '') > (b.lastAttemptAt ?? '')) {
-              return -1
-            }
-            if ((a.lastAttemptAt ?? '') < (b.lastAttemptAt ?? '')) {
-              return 1
-            }
-            if (a.id > b.id) {
-              return -1
-            }
-            if (a.id < b.id) {
-              return 1
-            }
-            return 0
-          })
-          return sorted
-            .slice(0, DELIVERIES_PAGE_SIZE)
-            .map(({ workspaceId: _ws, ...row }) => row)
-        }),
-      inspectDelivery: (input) =>
-        Effect.gen(function* () {
+        }
+        const matched = deliveries.filter(
+          (row) => row.endpointId === input.endpointId && owned.has(row.endpointId)
+        )
+        // `lastAttemptAt` DESC, row id DESC as the tie-break — a total
+        // order, mirroring Live's orderBy so the shared contract can
+        // assert the sequence on both adapters.
+        const sorted = matched.toSorted((a, b) => {
+          if ((a.lastAttemptAt ?? '') > (b.lastAttemptAt ?? '')) {
+            return -1
+          }
+          if ((a.lastAttemptAt ?? '') < (b.lastAttemptAt ?? '')) {
+            return 1
+          }
+          if (a.id > b.id) {
+            return -1
+          }
+          if (a.id < b.id) {
+            return 1
+          }
+          return 0
+        })
+        return sorted
+          .slice(0, DELIVERIES_PAGE_SIZE)
+          .map(({ workspaceId: _ws, ...row }) => row)
+      }),
+      inspectDelivery: Effect.fn('WebhookDeliveries.inspectDelivery')(
+        function* (input) {
           const ctx = yield* WorkspaceContext
           const delivery = deliveries.find((row) => row.id === input.deliveryId)
           if (!delivery) {
@@ -89,7 +88,8 @@ export const SeedWebhookDeliveries: Layer.Layer<
             delivery: { ...delivery },
             attempts: attempts.filter((row) => row.deliveryId === delivery.id)
           }
-        }),
+        }
+      ),
       replayDelivery: makeWebhookReplay(
         {
           source: (deliveryId, workspaceId) =>

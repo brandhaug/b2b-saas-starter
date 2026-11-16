@@ -177,3 +177,16 @@ named Effect. It also ignores dynamic labels and `fnUntraced`. The custom rule
 resolves import identity and covers these cases; `effect/preferEffectFn`
 continues to own generator-plus-span conversions without duplicate reports. Indirect namespace/function
 aliases and operation ownership need review, not syntax inference.
+
+`named-service-operation.test.ts` covers the service implementations the Seed and
+Live adapters build: the object literal, or same-file constant holding one,
+passed to `Tag.of` or `Layer.succeed(Tag)` (curried or data-first), or returned
+from the generator a `Layer.effect(Tag)` runs, including a same-file `make`
+constant. Suggested labels drop a trailing `Service` from the tag. A property
+whose value is a bare `Effect.gen` (the Effect-valued form, fixed as
+`Effect.fn('S.op')(function* () {…})()`), or a function returning one, reports;
+`Effect.fn`, plain data, non-generator operations, gens piped through
+`Effect.withSpan` and objects returned from nested callbacks or operations stay
+quiet. Implementations built by an imported factory, and non-`Effect.gen`
+operations that return an untraced Effect, need review. Test doubles in
+`*.test.ts` are exempt in `lint.config.ts`.

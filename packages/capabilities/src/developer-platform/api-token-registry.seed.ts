@@ -121,12 +121,12 @@ export function SeedApiTokenRegistry(
         return ids
       })
       return ApiTokenRegistry.of({
-        list: Effect.gen(function* () {
+        list: Effect.fn('ApiTokenRegistry.list')(function* () {
           const ctx = yield* WorkspaceContext
           return activeIn(ctx.workspace.id)
             .map((entry) => entry.token)
             .toSorted((a, b) => b.createdAt.localeCompare(a.createdAt))
-        }),
+        })(),
         listPage: Effect.fn('ApiTokenRegistry.listPage')(function* (input) {
           const ctx = yield* WorkspaceContext
           return seedKeysetPage(

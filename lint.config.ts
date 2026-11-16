@@ -695,8 +695,18 @@ const { lint = {} } = defineConfig({
           // Upstream requireNamedEffectFn misses computed calls and treats
           // unrelated imports named Effect as the Effect module. Use the
           // import-resolving starter rule instead, without duplicate reports.
-          'starter/named-effect-operation': 'error'
+          'starter/named-effect-operation': 'error',
+          // Service implementations (Tag.of, Layer.succeed/effect, Context.Service
+          // make) expose each operation as a named span, so Seed and Live traces
+          // line up; named-effect-operation only sees operations already in Effect.fn.
+          'starter/named-service-operation': 'error'
         }
+      },
+      {
+        // Test doubles stand in for a service inside one test; nothing reads
+        // their spans, and Seed/Live parity is the contract suites' job.
+        files: ['**/*.test.{ts,tsx}'],
+        rules: { 'starter/named-service-operation': 'off' }
       },
       {
         files: ['apps/web/**/*.{ts,tsx}'],

@@ -641,17 +641,18 @@ export function SeedBilling(options?: {
           } satisfies BillingSynchronizationStatus
         })(),
         processProviderEvent,
-        recordProviderEvent: (input: ProcessProviderEventInput) =>
-          Effect.gen(function* () {
-            if ((yield* Ref.get(processedEvents)).has(input.providerEventId)) {
-              return
-            }
-            yield* Ref.update(pendingEvents, (events) => {
-              const next = new Map(events)
-              next.set(input.providerEventId, input)
-              return next
-            })
-          }),
+        recordProviderEvent: Effect.fn('Billing.recordProviderEvent')(function* (
+          input: ProcessProviderEventInput
+        ) {
+          if ((yield* Ref.get(processedEvents)).has(input.providerEventId)) {
+            return
+          }
+          yield* Ref.update(pendingEvents, (events) => {
+            const next = new Map(events)
+            next.set(input.providerEventId, input)
+            return next
+          })
+        }),
         reconcileWorkspace,
         reconcileBatch: Effect.fn('Billing.reconcileBatch')(function* (input?: {
           readonly limit?: number | undefined

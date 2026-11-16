@@ -233,6 +233,7 @@ export function provideWorkspace<A, E, R>(
 export function bearerAuth(): Layer.Layer<BearerAuth> {
   return Layer.succeed(BearerAuth)(
     BearerAuth.of({
+      // oxlint-disable-next-line starter/named-service-operation -- HttpApiMiddleware, not a service operation: it runs the handler effect it receives, so a span here would enclose the whole request
       bearer: (httpEffect, { credential, endpoint, group }) =>
         Effect.gen(function* () {
           const request = yield* HttpServerRequest.HttpServerRequest

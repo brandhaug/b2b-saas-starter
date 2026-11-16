@@ -142,18 +142,17 @@ export function SeedNotificationPreferences(
       }
       return {
         ...storedPreferenceReads(storedFor, storedForUsers),
-        set: (input) =>
-          Effect.gen(function* () {
-            yield* Ref.update(store, (rows) => {
-              const byKind = new Map(rows.get(input.userId))
-              byKind.set(input.kind, input.channel)
-              const next = new Map(rows)
-              next.set(input.userId, byKind)
-              return next
-            })
-            yield* audit.record(preferenceChangeEvent(input))
-            return { kind: input.kind, channel: input.channel, isDefault: false }
+        set: Effect.fn('NotificationPreferences.set')(function* (input) {
+          yield* Ref.update(store, (rows) => {
+            const byKind = new Map(rows.get(input.userId))
+            byKind.set(input.kind, input.channel)
+            const next = new Map(rows)
+            next.set(input.userId, byKind)
+            return next
           })
+          yield* audit.record(preferenceChangeEvent(input))
+          return { kind: input.kind, channel: input.channel, isDefault: false }
+        })
       }
     })
   )
@@ -215,36 +214,32 @@ export const LiveNotificationPreferences: Layer.Layer<
 
     return {
       ...storedPreferenceReads(storedFor, storedForUsers),
-      set: (input) =>
-        Effect.gen(function* () {
-          const id = yield* newCapabilityId('npref')
-          const updatedAt = DateTime.formatIso(yield* DateTime.now)
-          // One row per (user, kind): the unique index makes this an upsert,
-          // batched with the audit insert.
-          yield* auditedMutation({
-            matched: Effect.succeed(true),
-            auditEvent: preferenceChangeEvent(input),
-            write: () => [
-              db
-                .insert(notificationPreferences)
-                .values({
-                  id,
-                  userId: input.userId,
-                  kind: input.kind,
-                  channel: input.channel,
-                  updatedAt
-                })
-                .onConflictDoUpdate({
-                  target: [
-                    notificationPreferences.userId,
-                    notificationPreferences.kind
-                  ],
-                  set: { channel: input.channel, updatedAt }
-                })
-            ]
-          })
-          return { kind: input.kind, channel: input.channel, isDefault: false }
+      set: Effect.fn('NotificationPreferences.set')(function* (input) {
+        const id = yield* newCapabilityId('npref')
+        const updatedAt = DateTime.formatIso(yield* DateTime.now)
+        // One row per (user, kind): the unique index makes this an upsert,
+        // batched with the audit insert.
+        yield* auditedMutation({
+          matched: Effect.succeed(true),
+          auditEvent: preferenceChangeEvent(input),
+          write: () => [
+            db
+              .insert(notificationPreferences)
+              .values({
+                id,
+                userId: input.userId,
+                kind: input.kind,
+                channel: input.channel,
+                updatedAt
+              })
+              .onConflictDoUpdate({
+                target: [notificationPreferences.userId, notificationPreferences.kind],
+                set: { channel: input.channel, updatedAt }
+              })
+          ]
         })
+        return { kind: input.kind, channel: input.channel, isDefault: false }
+      })
     }
   })
 )

@@ -86,48 +86,46 @@ export function LivePlatformUserAdmin(
         listUsers: unavailable(db.select().from(user)).pipe(
           Effect.map((rows) => rows.map(toAccount))
         ),
-        banUser: (input) =>
-          Effect.gen(function* () {
-            yield* requireAccount(input.userId)
-            yield* callBinding(binding, (bound) =>
-              bound.banUser({ userId: input.userId })
-            )
-            yield* recordSecurityEvidence(
-              { kind: 'account_banned', subjectId: input.userId },
-              evidenceSink
-            )
-            yield* recordCompletedAudit(
-              audit,
-              {
-                actorUserId: input.actorUserId,
-                actorType: 'user',
-                eventType: 'system_admin.user_banned',
-                targetType: 'user',
-                targetId: input.userId
-              },
-              'platform_user_admin.ban'
-            )
-          }),
-        unbanUser: (input) =>
-          Effect.gen(function* () {
-            yield* requireAccount(input.userId)
-            yield* callBinding(binding, (bound) =>
-              bound.unbanUser({ userId: input.userId })
-            )
-            yield* recordCompletedAudit(
-              audit,
-              {
-                actorUserId: input.actorUserId,
-                actorType: 'user',
-                eventType: 'system_admin.user_unbanned',
-                targetType: 'user',
-                targetId: input.userId
-              },
-              'platform_user_admin.unban'
-            )
-          }),
-        changeWorkspaceRole: (input) =>
-          Effect.gen(function* () {
+        banUser: Effect.fn('PlatformUserAdmin.banUser')(function* (input) {
+          yield* requireAccount(input.userId)
+          yield* callBinding(binding, (bound) =>
+            bound.banUser({ userId: input.userId })
+          )
+          yield* recordSecurityEvidence(
+            { kind: 'account_banned', subjectId: input.userId },
+            evidenceSink
+          )
+          yield* recordCompletedAudit(
+            audit,
+            {
+              actorUserId: input.actorUserId,
+              actorType: 'user',
+              eventType: 'system_admin.user_banned',
+              targetType: 'user',
+              targetId: input.userId
+            },
+            'platform_user_admin.ban'
+          )
+        }),
+        unbanUser: Effect.fn('PlatformUserAdmin.unbanUser')(function* (input) {
+          yield* requireAccount(input.userId)
+          yield* callBinding(binding, (bound) =>
+            bound.unbanUser({ userId: input.userId })
+          )
+          yield* recordCompletedAudit(
+            audit,
+            {
+              actorUserId: input.actorUserId,
+              actorType: 'user',
+              eventType: 'system_admin.user_unbanned',
+              targetType: 'user',
+              targetId: input.userId
+            },
+            'platform_user_admin.unban'
+          )
+        }),
+        changeWorkspaceRole: Effect.fn('PlatformUserAdmin.changeWorkspaceRole')(
+          function* (input) {
             const memberId = yield* resolveMemberId(input.workspaceId, input.userId)
             yield* callBinding(binding, (bound) =>
               bound.setMemberRole({
@@ -171,9 +169,10 @@ export function LivePlatformUserAdmin(
               'platform_user_admin.change_workspace_role'
             )
             return member
-          }),
-        startImpersonation: (input) =>
-          Effect.gen(function* () {
+          }
+        ),
+        startImpersonation: Effect.fn('PlatformUserAdmin.startImpersonation')(
+          function* (input) {
             const target = yield* requireAccount(input.userId)
             yield* refuseImpersonationTarget(target, input.actorUserId)
             const admin = yield* requireAccount(input.actorUserId)
@@ -200,9 +199,10 @@ export function LivePlatformUserAdmin(
               userId: input.userId,
               expiresInSeconds: IMPERSONATION_SESSION_SECONDS
             }
-          }),
-        stopImpersonation: (input) =>
-          Effect.gen(function* () {
+          }
+        ),
+        stopImpersonation: Effect.fn('PlatformUserAdmin.stopImpersonation')(
+          function* (input) {
             yield* callBinding(binding, (bound) => bound.stopImpersonating())
             yield* recordCompletedAudit(
               audit,
@@ -215,7 +215,8 @@ export function LivePlatformUserAdmin(
               },
               'platform_user_admin.stop_impersonation'
             )
-          })
+          }
+        )
       }
     })
   )

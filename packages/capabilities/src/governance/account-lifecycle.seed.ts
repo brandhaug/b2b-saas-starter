@@ -145,45 +145,43 @@ export function SeedAccountLifecycle(options: {
         return plan
       })
 
-      function recordDeleted(input: {
-        readonly userId: string
-        readonly plan: AccountDeletionPlan
-      }) {
-        return Effect.andThen(
-          recordSecurityEvidence(
-            { kind: 'account_deleted', subjectId: input.userId },
-            options.securityEvidence,
-            'seed'
-          ),
-          audit.record({
-            workspaceId: null,
-            actorUserId: null,
-            actorType: 'user',
-            eventType: 'account.deleted',
-            targetType: 'user',
-            targetId: input.userId,
-            metadata: deletionMetadata(input.plan)
-          })
-        )
-      }
+      // Same span as Live's after-delete hook, so the two adapters trace alike.
+      const recordDeleted = Effect.fn('AccountLifecycle.recordDeleted')(
+        (input: { readonly userId: string; readonly plan: AccountDeletionPlan }) =>
+          Effect.andThen(
+            recordSecurityEvidence(
+              { kind: 'account_deleted', subjectId: input.userId },
+              options.securityEvidence,
+              'seed'
+            ),
+            audit.record({
+              workspaceId: null,
+              actorUserId: null,
+              actorType: 'user',
+              eventType: 'account.deleted',
+              targetType: 'user',
+              targetId: input.userId,
+              metadata: deletionMetadata(input.plan)
+            })
+          )
+      )
 
       return {
         planDeletion,
         prepareDeletion,
         recordDeleted,
-        deleteAccount: (input) =>
-          Effect.gen(function* () {
-            const plan = yield* planDeletion(input.userId)
-            if (!plan.canDelete) {
-              return yield* Effect.fail(
-                new AccountDeletionBlocked({ workspaces: blockingWorkspaces(plan) })
-              )
-            }
-            yield* requireSeedPassword(input.password)
-            const executed = yield* prepareDeletion(input.userId)
-            yield* recordDeleted({ userId: input.userId, plan: executed })
-            return executed
-          })
+        deleteAccount: Effect.fn('AccountLifecycle.deleteAccount')(function* (input) {
+          const plan = yield* planDeletion(input.userId)
+          if (!plan.canDelete) {
+            return yield* Effect.fail(
+              new AccountDeletionBlocked({ workspaces: blockingWorkspaces(plan) })
+            )
+          }
+          yield* requireSeedPassword(input.password)
+          const executed = yield* prepareDeletion(input.userId)
+          yield* recordDeleted({ userId: input.userId, plan: executed })
+          return executed
+        })
       }
     })
   )

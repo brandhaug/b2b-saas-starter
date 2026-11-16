@@ -198,7 +198,8 @@ export function LiveNotificationFeed(
         return membersOf(row.workspaceId)
       }
 
-      const prepareOwners = Effect.fn('NotificationFeed.prepareOwners')(function* (
+      // oxlint-disable-next-line starter/named-effect-operation -- shared step inside the prepareWorkspaceOwners and notifyWorkspaceOwners spans
+      const prepareOwners = Effect.fnUntraced(function* (
         input: NotifyWorkspaceOwnersInput
       ) {
         const owners = yield* ownersOf(input.workspaceId, input.audience)
@@ -279,7 +280,7 @@ export function LiveNotificationFeed(
       })
 
       return {
-        list: Effect.gen(function* () {
+        list: Effect.fn('NotificationFeed.list')(function* () {
           const ctx = yield* WorkspaceContext
           const rows = yield* unavailable(
             db
@@ -289,7 +290,7 @@ export function LiveNotificationFeed(
               .orderBy(desc(notifications.createdAt))
           )
           return rows.map(toNotification)
-        }),
+        })(),
         countVisibleToUser: Effect.fn('NotificationFeed.countVisibleToUser')(function* (
           userId: string,
           workspaceIds: ReadonlyArray<string>
@@ -310,42 +311,41 @@ export function LiveNotificationFeed(
             )
           )
         }),
-        listPage: (input) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            const limit = clampPageLimit(input?.limit)
-            const conditions: Array<SQL | undefined> = [
-              visibilityFilter(ctx.workspace.id, ctx.actor)
-            ]
-            // The SQL half of the keyset recipe lives in `keyset-query.ts`,
-            // shared with every other paged Live read.
-            const resume = keysetResume(
-              'desc',
-              { key: notifications.createdAt, id: notifications.id },
-              input?.cursor
-            )
-            if (resume.kind === 'empty') {
-              return { items: [], nextCursor: null }
-            }
-            if (resume.kind === 'resume') {
-              conditions.push(resume.condition)
-            }
-            // One row past the page cap, so `cutKeysetPage` can see whether
-            // the cap actually cut rows off before offering a cursor.
-            const rows = yield* unavailable(
-              db
-                .select()
-                .from(notifications)
-                .where(and(...conditions))
-                .orderBy(desc(notifications.createdAt), desc(notifications.id))
-                .limit(limit + 1)
-            )
-            return cutKeysetPage(rows.map(toNotification), limit, (row) => ({
-              key: row.createdAt,
-              id: row.id
-            }))
-          }),
-        unreadCount: Effect.gen(function* () {
+        listPage: Effect.fn('NotificationFeed.listPage')(function* (input) {
+          const ctx = yield* WorkspaceContext
+          const limit = clampPageLimit(input?.limit)
+          const conditions: Array<SQL | undefined> = [
+            visibilityFilter(ctx.workspace.id, ctx.actor)
+          ]
+          // The SQL half of the keyset recipe lives in `keyset-query.ts`,
+          // shared with every other paged Live read.
+          const resume = keysetResume(
+            'desc',
+            { key: notifications.createdAt, id: notifications.id },
+            input?.cursor
+          )
+          if (resume.kind === 'empty') {
+            return { items: [], nextCursor: null }
+          }
+          if (resume.kind === 'resume') {
+            conditions.push(resume.condition)
+          }
+          // One row past the page cap, so `cutKeysetPage` can see whether
+          // the cap actually cut rows off before offering a cursor.
+          const rows = yield* unavailable(
+            db
+              .select()
+              .from(notifications)
+              .where(and(...conditions))
+              .orderBy(desc(notifications.createdAt), desc(notifications.id))
+              .limit(limit + 1)
+          )
+          return cutKeysetPage(rows.map(toNotification), limit, (row) => ({
+            key: row.createdAt,
+            id: row.id
+          }))
+        }),
+        unreadCount: Effect.fn('NotificationFeed.unreadCount')(function* () {
           const ctx = yield* WorkspaceContext
           const rows = yield* unavailable(
             db
@@ -359,159 +359,155 @@ export function LiveNotificationFeed(
               )
           )
           return rows[0]?.value ?? 0
-        }),
-        markRead: (ids) =>
-          Effect.gen(function* () {
-            if (ids.length === 0) {
-              return 0
-            }
-            const ctx = yield* WorkspaceContext
-            const readAt = yield* DateTime.now
-            // The visibility filter scopes the write exactly like the read: an
-            // id the actor cannot see is never stamped. One statement, and
-            // the rows it returns are the count — a select-then-update pair
-            // would report rows another request stamped in between.
-            const stamped = yield* unavailable(
-              db
-                .update(notifications)
-                .set({ readAt: DateTime.formatIso(readAt) })
-                .where(
-                  and(
-                    visibilityFilter(ctx.workspace.id, ctx.actor),
-                    isNull(notifications.readAt),
-                    inArray(notifications.id, [...ids])
-                  )
+        })(),
+        markRead: Effect.fn('NotificationFeed.markRead')(function* (ids) {
+          if (ids.length === 0) {
+            return 0
+          }
+          const ctx = yield* WorkspaceContext
+          const readAt = yield* DateTime.now
+          // The visibility filter scopes the write exactly like the read: an
+          // id the actor cannot see is never stamped. One statement, and
+          // the rows it returns are the count — a select-then-update pair
+          // would report rows another request stamped in between.
+          const stamped = yield* unavailable(
+            db
+              .update(notifications)
+              .set({ readAt: DateTime.formatIso(readAt) })
+              .where(
+                and(
+                  visibilityFilter(ctx.workspace.id, ctx.actor),
+                  isNull(notifications.readAt),
+                  inArray(notifications.id, [...ids])
                 )
-                .returning({ id: notifications.id })
+              )
+              .returning({ id: notifications.id })
+          )
+          return stamped.length
+        }),
+        create: Effect.fn('NotificationFeed.create')(function* (input) {
+          let id: string
+          if (input.deduplicationKey === undefined) {
+            id = yield* newCapabilityId('not')
+          } else {
+            id = `not:${input.workspaceId}:${input.userId ?? 'broadcast'}:${input.deduplicationKey}`
+          }
+          const createdAt = DateTime.formatIso(yield* DateTime.now)
+          const row: NotificationRow = {
+            id,
+            workspaceId: input.workspaceId,
+            userId: input.userId ?? null,
+            kind: input.kind,
+            title: input.title,
+            message: input.message,
+            event: input.event ?? null,
+            readAt: null,
+            createdAt
+          }
+          const inserted = yield* unavailable(
+            db
+              .insert(notifications)
+              .values(row)
+              .onConflictDoNothing({ target: notifications.id })
+              .returning()
+          )
+          if (inserted.length === 0) {
+            const existing = yield* unavailable(
+              db.select().from(notifications).where(eq(notifications.id, id)).limit(1)
             )
-            return stamped.length
-          }),
-        create: (input) =>
-          Effect.gen(function* () {
-            let id: string
-            if (input.deduplicationKey === undefined) {
-              id = yield* newCapabilityId('not')
-            } else {
-              id = `not:${input.workspaceId}:${input.userId ?? 'broadcast'}:${input.deduplicationKey}`
+            const stored = existing[0]
+            if (stored !== undefined) {
+              return toNotification(stored)
             }
-            const createdAt = DateTime.formatIso(yield* DateTime.now)
-            const row: NotificationRow = {
-              id,
-              workspaceId: input.workspaceId,
-              userId: input.userId ?? null,
+            // Inserted nothing and found nothing: the row was deleted
+            // between the two statements. Unavailable, stated directly —
+            // laundering a bare string through `orUnavailable` hides which
+            // capability is answering.
+            return yield* new CapabilityUnavailable({
+              capability: 'notification-feed',
+              reason: 'notification_disappeared'
+            })
+          }
+          const recipients = yield* recipientsOf(row)
+          const traceparent = yield* currentTraceparent
+          yield* enqueueInstantEmails(options.emailQueue, preferences, {
+            notificationId: id,
+            kind: input.kind,
+            recipients,
+            traceparent
+          })
+          return toNotification(row)
+        }),
+        record: Effect.fn('NotificationFeed.record')(function* (input) {
+          const ctx = yield* WorkspaceContext
+          const createdAt = DateTime.formatIso(yield* DateTime.now)
+          // The failed-test notice is a plain feed message: no kind-driven
+          // email fan-out, no preferences consultation.
+          yield* unavailable(
+            db.insert(notifications).values({
+              id: yield* newCapabilityId('not'),
+              workspaceId: ctx.workspace.id,
+              userId: input.userId,
+              kind: 'announcement',
+              title: input.title,
+              message: input.message,
+              event: input.event ?? null,
+              readAt: null,
+              createdAt
+            })
+          )
+        }),
+        notifyUser: Effect.fn('NotificationFeed.notifyUser')(function* (input) {
+          const memberships = yield* unavailable(
+            db
+              .select({ workspaceId: workspaceMembers.workspaceId })
+              .from(workspaceMembers)
+              .where(eq(workspaceMembers.userId, input.userId))
+          )
+          if (memberships.length === 0) {
+            return
+          }
+          const createdAt = DateTime.formatIso(yield* DateTime.now)
+          const rows: Array<NotificationRow> = []
+          for (const membership of memberships) {
+            rows.push({
+              id: yield* newCapabilityId('not'),
+              workspaceId: membership.workspaceId,
+              userId: input.userId,
               kind: input.kind,
               title: input.title,
               message: input.message,
               event: input.event ?? null,
               readAt: null,
               createdAt
-            }
-            const inserted = yield* unavailable(
-              db
-                .insert(notifications)
-                .values(row)
-                .onConflictDoNothing({ target: notifications.id })
-                .returning()
-            )
-            if (inserted.length === 0) {
-              const existing = yield* unavailable(
-                db.select().from(notifications).where(eq(notifications.id, id)).limit(1)
-              )
-              const stored = existing[0]
-              if (stored !== undefined) {
-                return toNotification(stored)
-              }
-              // Inserted nothing and found nothing: the row was deleted
-              // between the two statements. Unavailable, stated directly —
-              // laundering a bare string through `orUnavailable` hides which
-              // capability is answering.
-              return yield* new CapabilityUnavailable({
-                capability: 'notification-feed',
-                reason: 'notification_disappeared'
-              })
-            }
-            const recipients = yield* recipientsOf(row)
-            const traceparent = yield* currentTraceparent
-            yield* enqueueInstantEmails(options.emailQueue, preferences, {
-              notificationId: id,
-              kind: input.kind,
-              recipients,
-              traceparent
             })
-            return toNotification(row)
-          }),
-        record: (input) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            const createdAt = DateTime.formatIso(yield* DateTime.now)
-            // The failed-test notice is a plain feed message: no kind-driven
-            // email fan-out, no preferences consultation.
-            yield* unavailable(
-              db.insert(notifications).values({
-                id: yield* newCapabilityId('not'),
-                workspaceId: ctx.workspace.id,
-                userId: input.userId,
-                kind: 'announcement',
-                title: input.title,
-                message: input.message,
-                event: input.event ?? null,
-                readAt: null,
-                createdAt
-              })
-            )
-          }),
-        notifyUser: (input) =>
-          Effect.gen(function* () {
-            const memberships = yield* unavailable(
-              db
-                .select({ workspaceId: workspaceMembers.workspaceId })
-                .from(workspaceMembers)
-                .where(eq(workspaceMembers.userId, input.userId))
-            )
-            if (memberships.length === 0) {
-              return
-            }
-            const createdAt = DateTime.formatIso(yield* DateTime.now)
-            const rows: Array<NotificationRow> = []
-            for (const membership of memberships) {
-              rows.push({
-                id: yield* newCapabilityId('not'),
-                workspaceId: membership.workspaceId,
-                userId: input.userId,
-                kind: input.kind,
-                title: input.title,
-                message: input.message,
-                event: input.event ?? null,
-                readAt: null,
-                createdAt
-              })
-            }
-            // `memberships.length === 0` returned above, so the insert is
-            // never empty — but say it in code, not in a non-null assertion.
-            const [firstRow] = rows
-            if (firstRow === undefined) {
-              return
-            }
-            yield* unavailable(db.insert(notifications).values(rows))
-            // One event, one email: the extra rows are feed copies across the
-            // user's other workspaces, not additional messages. Channel
-            // resolution stays with the fan-out helper.
-            const recipient = yield* userById(input.userId)
-            const recipients: Array<EmailQueueRecipient> = []
-            if (recipient !== null) {
-              recipients.push(recipient)
-            }
-            const traceparent = yield* currentTraceparent
-            yield* enqueueInstantEmails(options.emailQueue, preferences, {
-              notificationId: firstRow.id,
-              kind: input.kind,
-              recipients,
-              traceparent
-            })
-          }),
+          }
+          // `memberships.length === 0` returned above, so the insert is
+          // never empty — but say it in code, not in a non-null assertion.
+          const [firstRow] = rows
+          if (firstRow === undefined) {
+            return
+          }
+          yield* unavailable(db.insert(notifications).values(rows))
+          // One event, one email: the extra rows are feed copies across the
+          // user's other workspaces, not additional messages. Channel
+          // resolution stays with the fan-out helper.
+          const recipient = yield* userById(input.userId)
+          const recipients: Array<EmailQueueRecipient> = []
+          if (recipient !== null) {
+            recipients.push(recipient)
+          }
+          const traceparent = yield* currentTraceparent
+          yield* enqueueInstantEmails(options.emailQueue, preferences, {
+            notificationId: firstRow.id,
+            kind: input.kind,
+            recipients,
+            traceparent
+          })
+        }),
         prepareWorkspaceOwners,
-        notifyWorkspaceOwners: (input) =>
-          Effect.gen(function* () {
+        notifyWorkspaceOwners: Effect.fn('NotificationFeed.notifyWorkspaceOwners')(
+          function* (input) {
             const prepared = yield* prepareOwners(input)
             if (prepared.created.length === 0) {
               return
@@ -520,9 +516,10 @@ export function LiveNotificationFeed(
               db.insert(notifications).values(prepared.created.map(({ row }) => row))
             )
             yield* prepared.publish
-          }),
-        loadForEmail: (notificationId, recipientUserId) =>
-          Effect.gen(function* () {
+          }
+        ),
+        loadForEmail: Effect.fn('NotificationFeed.loadForEmail')(
+          function* (notificationId, recipientUserId) {
             const rows = yield* unavailable(
               db
                 .select({ notification: notifications, workspace: workspaces })
@@ -548,9 +545,10 @@ export function LiveNotificationFeed(
               workspace: toWorkspaceRef(found.workspace)
             }
             return context
-          }),
-        listDigestCandidates: (window) =>
-          Effect.gen(function* () {
+          }
+        ),
+        listDigestCandidates: Effect.fn('NotificationFeed.listDigestCandidates')(
+          function* (window) {
             // Two shapes of row, two joins: a targeted row reaches its user,
             // a broadcast row reaches every member of its workspace. The
             // joins are independent — run them together.
@@ -592,7 +590,8 @@ export function LiveNotificationFeed(
               recipient: toRecipient(row.user),
               workspace: toWorkspaceRef(row.workspace)
             }))
-          })
+          }
+        )
       }
     })
   )
