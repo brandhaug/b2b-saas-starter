@@ -74,7 +74,10 @@ describe('telemetry output policy', () => {
       failed: 1,
       notificationId: 'ntf_1',
       recipientUserId: 'usr_2',
-      operation: 'billing.reconcile'
+      operation: 'billing.reconcile',
+      notificationEmailEnqueueReason: 'queue_rejected',
+      turnstileUnavailable: 'status_5xx',
+      rateLimitCapacityRefused: true
     }
     try {
       const response = new Response('unchanged', { status: 503 })
@@ -214,6 +217,32 @@ describe('telemetry output policy', () => {
         webhookDeadLetterNotification: 'private-diagnostic',
         notificationEmailRecipients: 'private-diagnostic',
         notificationEmailEnqueued: Number.NaN
+      })
+    ).toEqual({})
+  })
+
+  it('keeps degraded-provider reasons only from their code-owned sets', () => {
+    expect(
+      diagnosticFields({
+        notificationEmailEnqueueReason: 'preferences_unavailable',
+        turnstileUnavailable: 'no_response',
+        rateLimitCapacityRefused: true
+      })
+    ).toEqual({
+      notificationEmailEnqueueReason: 'preferences_unavailable',
+      turnstileUnavailable: 'no_response',
+      rateLimitCapacityRefused: true
+    })
+    for (const reason of ['timeout', 'status_4xx', 'unparseable_body', 'no_verdict']) {
+      expect(diagnosticFields({ turnstileUnavailable: reason })).toEqual({
+        turnstileUnavailable: reason
+      })
+    }
+    expect(
+      diagnosticFields({
+        notificationEmailEnqueueReason: 'private-diagnostic',
+        turnstileUnavailable: 'siteverify_responded_503',
+        rateLimitCapacityRefused: 'private-diagnostic'
       })
     ).toEqual({})
   })

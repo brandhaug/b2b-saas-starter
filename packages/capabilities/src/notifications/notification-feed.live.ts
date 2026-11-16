@@ -3,7 +3,7 @@ import { Database } from '@b2b-saas-starter/db/service'
 import { notifications } from '@b2b-saas-starter/db/schema/notifications'
 import { user } from '@b2b-saas-starter/db/schema/auth'
 import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema/workspaces'
-import { DateTime, Effect, Layer, Schema } from 'effect'
+import { DateTime, Effect, Layer, Option, Schema } from 'effect'
 import {
   and,
   count,
@@ -20,6 +20,7 @@ import {
 } from 'drizzle-orm'
 import { clampPageLimit, cutKeysetPage } from '../internal/keyset-cursor.ts'
 import { keysetResume } from '../internal/keyset-query.ts'
+import { countInIdChunks } from '../internal/d1-id-list.ts'
 
 import {
   CapabilityUnavailable,
@@ -64,7 +65,7 @@ function toNotification(row: NotificationRow): Notification {
   }
   if (row.event !== null) {
     const event = decodeNotificationEvent(row.event)
-    if (event._tag === 'Some') {
+    if (Option.isSome(event)) {
       return {
         ...base,
         event: event.value
@@ -91,18 +92,23 @@ function toWorkspaceRef(row: WorkspaceRow | null): NotificationWorkspace | null 
   return { id: row.id, slug: row.slug, name: row.name }
 }
 
-// Broadcast rows (userId IS NULL) are visible to everyone in the workspace;
-// user-targeted rows only to that actor. Without an actor in context, only
-// broadcast rows are visible.
 function visibilityFilter(workspaceId: string, actor: Actor | null) {
-  const workspaceScope = eq(notifications.workspaceId, workspaceId)
-  if (actor === null) {
-    return and(workspaceScope, isNull(notifications.userId))
-  }
   return and(
-    workspaceScope,
-    or(isNull(notifications.userId), eq(notifications.userId, actor.userId))
+    eq(notifications.workspaceId, workspaceId),
+    visibleToUserCondition(actor?.userId)
   )
+}
+
+/**
+ * The SQL twin of `visibleToUser`: a broadcast (userId IS NULL) reaches
+ * everyone in the workspace, an addressed row only its addressee. With no
+ * viewer, only broadcasts.
+ */
+function visibleToUserCondition(viewerUserId: string | undefined) {
+  if (viewerUserId === undefined) {
+    return isNull(notifications.userId)
+  }
+  return or(isNull(notifications.userId), eq(notifications.userId, viewerUserId))
 }
 
 /** Unread rows created inside `[since, until)`. */
@@ -283,6 +289,26 @@ export function LiveNotificationFeed(
               .orderBy(desc(notifications.createdAt))
           )
           return rows.map(toNotification)
+        }),
+        countVisibleToUser: Effect.fn('NotificationFeed.countVisibleToUser')(function* (
+          userId: string,
+          workspaceIds: ReadonlyArray<string>
+        ) {
+          // One bound parameter is the user id.
+          return yield* countInIdChunks(workspaceIds, 1, (chunk) =>
+            unavailable(
+              db
+                .select({ id: notifications.workspaceId, value: count() })
+                .from(notifications)
+                .where(
+                  and(
+                    inArray(notifications.workspaceId, chunk),
+                    visibleToUserCondition(userId)
+                  )
+                )
+                .groupBy(notifications.workspaceId)
+            )
+          )
         }),
         listPage: (input) =>
           Effect.gen(function* () {

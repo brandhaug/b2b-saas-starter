@@ -1,7 +1,9 @@
-import { Effect, Layer } from 'effect'
+import { Effect, Layer, Logger } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
+import { withRequestScope } from '@b2b-saas-starter/logger'
+import { diagnosticAnnotations } from '@b2b-saas-starter/logger/sanitization'
 import {
   AccountPreferencesService,
   SeedAccountPreferences
@@ -414,7 +416,9 @@ describe('enqueueInstantEmails', () => {
   ]
   const instantForAll: NotificationPreferencesInterface = {
     list: () => Effect.die('unused'),
-    resolve: () => Effect.succeed('instant'),
+    resolve: () => Effect.die('unused'),
+    resolveForUsers: (userIds) =>
+      Effect.succeed(new Map(userIds.map((userId) => [userId, 'instant'] as const))),
     set: () => Effect.die('unused')
   }
 
@@ -473,30 +477,114 @@ describe('enqueueInstantEmails', () => {
     })
   )
 
-  it.effect('skips a recipient whose preference store is unreadable', () =>
-    Effect.gen(function* () {
-      const enqueued: Array<NotificationEmailQueueMessage> = []
-      const flaky: NotificationPreferencesInterface = {
-        ...instantForAll,
-        resolve: (userId) => {
-          if (userId === 'usr_a') {
-            return Effect.fail(
-              new CapabilityUnavailable({
-                capability: 'notification-preferences',
-                reason: 'unreadable'
-              })
-            )
+  const crowd = Array.from({ length: 250 }, (_, index) => ({
+    userId: `usr_${String(index).padStart(3, '0')}`,
+    email: `member${index}@example.com`,
+    name: `Member ${index}`
+  }))
+
+  it.effect(
+    'sends at most 100 messages per batch and reads preferences per batch',
+    () =>
+      Effect.gen(function* () {
+        const batches: Array<number> = []
+        const preferenceReads: Array<number> = []
+        const enqueued: Array<NotificationEmailQueueMessage> = []
+        const counting: NotificationPreferencesInterface = {
+          ...instantForAll,
+          resolveForUsers: (userIds, kind) => {
+            preferenceReads.push(userIds.length)
+            return instantForAll.resolveForUsers(userIds, kind)
           }
-          return Effect.succeed('instant')
         }
-      }
-      yield* enqueueInstantEmails(capturingQueue(enqueued), flaky, {
-        notificationId: 'not_1',
-        kind: 'api_token.created',
-        recipients,
-        traceparent: undefined
+        const queue: NotificationEmailQueueBinding = {
+          send: () => Promise.reject(new Error('unused')),
+          sendBatch: (messages) => {
+            const bodies = Array.from(messages, (message) => message.body)
+            if (bodies.length > 100) {
+              return Promise.reject(new Error('batch over the Queues limit'))
+            }
+            batches.push(bodies.length)
+            enqueued.push(...bodies)
+            return Promise.resolve()
+          }
+        }
+        yield* enqueueInstantEmails(queue, counting, {
+          notificationId: 'not_1',
+          kind: 'webhook.delivery_failed',
+          recipients: crowd,
+          traceparent: undefined
+        })
+        expect(batches).toEqual([100, 100, 50])
+        expect(preferenceReads).toEqual([100, 100, 50])
+        expect(enqueued.map((message) => message.recipientUserId)).toEqual(
+          crowd.map((recipient) => recipient.userId)
+        )
       })
-      expect(enqueued.map((message) => message.recipientUserId)).toEqual(['usr_b'])
-    })
+  )
+
+  it.effect(
+    'a rejected batch or unreadable preference read drops only its own batch',
+    () => {
+      const records: Array<ReturnType<typeof diagnosticAnnotations>> = []
+      const capture = Logger.layer([
+        Logger.map(Logger.formatStructured, (record) => {
+          records.push(diagnosticAnnotations(record.annotations))
+        })
+      ])
+      return Effect.gen(function* () {
+        const enqueued: Array<NotificationEmailQueueMessage> = []
+        const flaky: NotificationPreferencesInterface = {
+          ...instantForAll,
+          resolveForUsers: (userIds, kind) => {
+            if (userIds.includes('usr_100')) {
+              return Effect.fail(
+                new CapabilityUnavailable({
+                  capability: 'notification-preferences',
+                  reason: 'unreadable'
+                })
+              )
+            }
+            return instantForAll.resolveForUsers(userIds, kind)
+          }
+        }
+        const queue: NotificationEmailQueueBinding = {
+          send: () => Promise.reject(new Error('unused')),
+          sendBatch: (messages) => {
+            const bodies = Array.from(messages, (message) => message.body)
+            if (bodies.some((body) => body.recipientUserId === 'usr_000')) {
+              return Promise.reject(new Error('queue down'))
+            }
+            enqueued.push(...bodies)
+            return Promise.resolve()
+          }
+        }
+        yield* withRequestScope(
+          { service: 'web', event: 'notification.create' },
+          enqueueInstantEmails(queue, flaky, {
+            notificationId: 'not_1',
+            kind: 'webhook.delivery_failed',
+            recipients: crowd,
+            traceparent: undefined
+          })
+        )
+        expect(enqueued.map((message) => message.recipientUserId)).toEqual(
+          crowd.slice(200).map((recipient) => recipient.userId)
+        )
+        // Totals across batches; concurrent batches leave whichever failure
+        // reason annotated last.
+        expect(records).toHaveLength(1)
+        expect(records[0]).toMatchObject({
+          status: 'ok',
+          notificationEmailEnqueue: 'failed',
+          notificationEmailRecipients: 200,
+          notificationEmailEnqueued: 50
+        })
+        expect(records[0]).toHaveProperty(
+          'notificationEmailEnqueueReason',
+          expect.stringMatching(/^(preferences_unavailable|queue_rejected)$/)
+        )
+      }).pipe(Effect.provide(capture))
+    }
   )
 })

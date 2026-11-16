@@ -86,6 +86,34 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
     )
   })
 
+  describe('batched preference read over live D1', () => {
+    it.effect('resolves past the D1 bound-parameter limit, defaults included', () =>
+      withFeed(
+        [],
+        Effect.gen(function* () {
+          const preferences = yield* NotificationPreferences
+          yield* preferences.set({
+            userId: 'usr_owner',
+            kind: 'billing.plan_changed',
+            channel: 'off'
+          })
+          const strangers = Array.from(
+            { length: 150 },
+            (_, index) => `usr_none_${index}`
+          )
+          const channels = yield* preferences.resolveForUsers(
+            [...strangers, 'usr_owner'],
+            'billing.plan_changed'
+          )
+          expect(channels.size).toBe(151)
+          expect(channels.get('usr_owner')).toBe('off')
+          expect(channels.get('usr_none_0')).toBe('digest')
+          expect(channels.get('usr_none_149')).toBe('digest')
+        })
+      )
+    )
+  })
+
   describe('create and instant fan-out', () => {
     it.effect('persists a broadcast and enqueues one message per instant member', () =>
       Effect.gen(function* () {

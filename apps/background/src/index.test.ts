@@ -151,6 +151,7 @@ function stubFeed(
     list: Effect.die('unused in delivery tests'),
     listPage: () => Effect.die('unused in delivery tests'),
     unreadCount: Effect.die('unused in delivery tests'),
+    countVisibleToUser: () => Effect.die('unused in delivery tests'),
     markRead: () => Effect.die('unused in delivery tests'),
     notifyUser: () => Effect.die('unused in delivery tests'),
     create: (input) =>

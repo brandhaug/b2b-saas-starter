@@ -41,7 +41,7 @@ Mutating capabilities that write to D1 wrap the write in `governance/audited-mut
 
 - Compose Effects in the caller environment; do not execute runtimes inside services or repositories. Named framework binding adapters follow [execution ownership](../../docs/agents/code-conventions.md#execution-ownership). Digest and HMAC helpers return Effects directly.
 
-- No `slug` parameter on per-workspace methods. Depend on `WorkspaceContext` and read `ctx.workspace`. Identity-keyed methods (invitations by id, notification preferences, account lifecycle, platform user admin, SSO resolution, background feed writers) are the exception and take their key explicitly.
+- No `slug` parameter on per-workspace methods. Depend on `WorkspaceContext` and read `ctx.workspace`. Identity-keyed methods (invitations by id, notification preferences, account lifecycle, platform user admin, SSO resolution, background feed writers) are the exception and take their key explicitly. So are the "my workspaces" counts, `WorkspaceMembership.countMembers(workspaceIds)` and `NotificationFeed.countVisibleToUser(userId, workspaceIds)`: they check no membership, so callers pass only workspace ids that `listWorkspacesForUser` returned for that user.
 - No authorization inside a capability. `WorkspaceContext` proves membership; `requirePermission` at the route boundary decides permission. `verifyBearerToken` authenticates only.
 - No Live mutation without the matching Seed mutation. Tests bind Seed and would pass silently.
 - No Drizzle row types on an `XxxInterface`. The schema struct is the wire contract.

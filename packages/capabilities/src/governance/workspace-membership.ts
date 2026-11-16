@@ -55,6 +55,15 @@ type WorkspaceMembershipInterface = {
   readonly listWorkspacesForUser: (
     userId: string
   ) => Effect.Effect<ReadonlyArray<WorkspaceWithMembership>, CapabilityUnavailable>
+  /**
+   * Member count per workspace, an entry (possibly 0) for every requested id,
+   * counted the way `listMembers` lists (members whose user exists). Keyed by
+   * ids the caller already proved, like `listWorkspacesForUser`; it discloses
+   * counts only. Live answers with one grouped query per 100 ids.
+   */
+  readonly countMembers: (
+    workspaceIds: ReadonlyArray<string>
+  ) => Effect.Effect<ReadonlyMap<string, number>, CapabilityUnavailable>
   readonly removeMember: (
     input: MemberRef
   ) => Effect.Effect<
@@ -289,6 +298,22 @@ export function SeedWorkspaceMembership(
                   (member) => ({ key: member.id, id: member.id }),
                   input
                 )
+            )
+        ),
+        countMembers: Effect.fn('WorkspaceMembership.countMembers')(
+          (workspaceIds: ReadonlyArray<string>) =>
+            Ref.get(roster).pipe(
+              Effect.map(
+                (current) =>
+                  new Map(
+                    workspaceIds.map((id) => {
+                      if (id === workspace.id) {
+                        return [id, current.length] as const
+                      }
+                      return [id, 0] as const
+                    })
+                  )
+              )
             )
         ),
         listWorkspacesForUser: Effect.fn('WorkspaceMembership.listWorkspacesForUser')(

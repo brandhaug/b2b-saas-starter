@@ -26,6 +26,8 @@ export type RateLimiterConfig<Bucket extends string> = {
   readonly binding: (bucket: Bucket) => CloudflareRateLimit | undefined
   /** Per-bucket allowance for the in-memory fallback's 60s window. */
   readonly fallbackLimits: Record<Bucket, number>
+  /** Keys the fallback tracks per bucket; defaults to {@link FALLBACK_CAPACITY}. */
+  readonly fallbackCapacity?: number | undefined
 }
 
 // In-memory fallback for local dev, tests, and transient binding failures.
@@ -38,9 +40,22 @@ export type RateLimiterConfig<Bucket extends string> = {
 // isolate (consumers rebuild the rate-limiter layer per request).
 const FALLBACK_WINDOW_MS = 60_000
 
+/**
+ * Keys tracked per bucket. The fallback runs while the binding fails, often
+ * under a flood of distinct IPs; a full bucket refuses keys it does not track
+ * rather than growing or evicting a tracked caller's count, which would
+ * reopen that caller's allowance.
+ */
+const FALLBACK_CAPACITY = 5000
+
 type BucketState = { count: number; resetAt: number }
 
-const fallbackStore = new Map<string, BucketState>()
+type FallbackDecision = 'allowed' | 'limited' | 'capacity_refused'
+
+// Per bucket, in insertion order. Every window has the same length and an
+// entry is re-inserted when its window restarts, so insertion order is
+// expiry order: the sweep stops at the first live entry.
+const fallbackStore = new Map<string, Map<string, BucketState>>()
 
 export function makeRateLimiter<Bucket extends string>(
   config: RateLimiterConfig<Bucket>
@@ -78,12 +93,19 @@ export function makeRateLimiter<Bucket extends string>(
           rateLimitBucket: input.bucket
         })
         const now = yield* Clock.currentTimeMillis
-        return takeFromFallback(
+        const decision = takeFromFallback(
           input.bucket,
           input.key,
           config.fallbackLimits[input.bucket],
+          config.fallbackCapacity ?? FALLBACK_CAPACITY,
           now
         )
+        if (decision === 'capacity_refused') {
+          // A caller refused for room, not for its own rate, under a flood of
+          // distinct keys: queryable apart from ordinary limiting.
+          yield* Effect.annotateLogsScoped({ rateLimitCapacityRefused: true })
+        }
+        return decision === 'allowed'
       })
   }
 }
@@ -114,27 +136,40 @@ function takeFromFallback(
   bucket: string,
   key: string,
   limit: number,
+  capacity: number,
   now: number
-): boolean {
+): FallbackDecision {
+  let entries = fallbackStore.get(bucket)
+  if (entries === undefined) {
+    entries = new Map()
+    fallbackStore.set(bucket, entries)
+  }
   // Without expiry, a sustained binding failure retains every distinct IP
-  // until the isolate dies. Sweep synchronously on each take; no timer survives
-  // independently of the request.
-  for (const [id, state] of fallbackStore) {
-    if (state.resetAt < now) {
-      fallbackStore.delete(id)
+  // until the isolate dies. Expired entries sit at the front; no timer
+  // survives independently of the request.
+  for (const [id, state] of entries) {
+    if (state.resetAt >= now) {
+      break
     }
+    entries.delete(id)
   }
-  const id = `${bucket}:${key}`
-  const existing = fallbackStore.get(id)
-  if (!existing || existing.resetAt < now) {
-    fallbackStore.set(id, { count: 1, resetAt: now + FALLBACK_WINDOW_MS })
-    return true
+  const existing = entries.get(key)
+  // An expired entry behind a live one means the clock stepped back; restart
+  // its window at the back so the order holds again.
+  if (existing !== undefined && existing.resetAt < now) {
+    entries.delete(key)
+  } else if (existing !== undefined) {
+    if (existing.count >= limit) {
+      return 'limited'
+    }
+    existing.count += 1
+    return 'allowed'
   }
-  if (existing.count >= limit) {
-    return false
+  if (entries.size >= capacity) {
+    return 'capacity_refused'
   }
-  existing.count += 1
-  return true
+  entries.set(key, { count: 1, resetAt: now + FALLBACK_WINDOW_MS })
+  return 'allowed'
 }
 
 function fallbackReason(

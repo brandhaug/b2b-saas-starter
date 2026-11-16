@@ -2,7 +2,7 @@ import { notificationPreferences } from '@b2b-saas-starter/db/schema/notificatio
 import { notificationKinds } from '@b2b-saas-starter/db/enums'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { Context, DateTime, Effect, Layer, Ref, Schema } from 'effect'
-import { eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 
 import {
   type CapabilityUnavailable,
@@ -13,6 +13,7 @@ import {
   type RecordAuditEventInput
 } from '../governance/audit-event-log.ts'
 import { auditedMutations } from '../governance/audited-mutation.ts'
+import { selectInIdChunks } from '../internal/d1-id-list.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 
 import {
@@ -67,6 +68,14 @@ export type NotificationPreferencesInterface = {
     kind: NotificationKind
   ) => Effect.Effect<NotificationChannel, CapabilityUnavailable>
   /**
+   * The channel for one kind across many users, with an entry for every
+   * requested user. Fan-out reads its recipients here instead of once each.
+   */
+  readonly resolveForUsers: (
+    userIds: ReadonlyArray<string>,
+    kind: NotificationKind
+  ) => Effect.Effect<ReadonlyMap<string, NotificationChannel>, CapabilityUnavailable>
+  /**
    * Stores an explicit choice and records `notification_preference.changed`
    * against the user. Choosing the kind's default still stores a row: the
    * user said so, and the UI should keep showing it as chosen.
@@ -116,8 +125,23 @@ export function SeedNotificationPreferences(
       ): Effect.Effect<ReadonlyMap<NotificationKind, NotificationChannel>> {
         return Effect.map(Ref.get(store), (rows) => rows.get(userId) ?? new Map())
       }
+      function storedForUsers(userIds: ReadonlyArray<string>, kind: NotificationKind) {
+        return Effect.map(
+          Ref.get(store),
+          (rows) =>
+            new Map(
+              userIds.flatMap((userId) => {
+                const channel = rows.get(userId)?.get(kind)
+                if (channel === undefined) {
+                  return []
+                }
+                return [[userId, channel] as const]
+              })
+            )
+        )
+      }
       return {
-        ...storedPreferenceReads(storedFor),
+        ...storedPreferenceReads(storedFor, storedForUsers),
         set: (input) =>
           Effect.gen(function* () {
             yield* Ref.update(store, (rows) => {
@@ -167,8 +191,30 @@ export const LiveNotificationPreferences: Layer.Layer<
       ).pipe(Effect.map((rows) => new Map(rows.map((row) => [row.kind, row.channel]))))
     }
 
+    function storedForUsers(userIds: ReadonlyArray<string>, kind: NotificationKind) {
+      // One bound parameter is the kind.
+      return selectInIdChunks(userIds, 1, (chunk) =>
+        unavailable(
+          db
+            .select({
+              userId: notificationPreferences.userId,
+              channel: notificationPreferences.channel
+            })
+            .from(notificationPreferences)
+            .where(
+              and(
+                eq(notificationPreferences.kind, kind),
+                inArray(notificationPreferences.userId, chunk)
+              )
+            )
+        )
+      ).pipe(
+        Effect.map((rows) => new Map(rows.map((row) => [row.userId, row.channel])))
+      )
+    }
+
     return {
-      ...storedPreferenceReads(storedFor),
+      ...storedPreferenceReads(storedFor, storedForUsers),
       set: (input) =>
         Effect.gen(function* () {
           const id = yield* newCapabilityId('npref')
@@ -224,11 +270,23 @@ function preferenceChangeEvent(
 function storedPreferenceReads<E>(
   storedFor: (
     userId: string
-  ) => Effect.Effect<ReadonlyMap<NotificationKind, NotificationChannel>, E>
+  ) => Effect.Effect<ReadonlyMap<NotificationKind, NotificationChannel>, E>,
+  storedForUsers: (
+    userIds: ReadonlyArray<string>,
+    kind: NotificationKind
+  ) => Effect.Effect<ReadonlyMap<string, NotificationChannel>, E>
 ) {
   return {
     list: (userId: string) => Effect.map(storedFor(userId), resolvePreferences),
     resolve: (userId: string, kind: NotificationKind) =>
-      Effect.map(storedFor(userId), (stored) => resolveChannel(kind, stored.get(kind)))
+      Effect.map(storedFor(userId), (stored) => resolveChannel(kind, stored.get(kind))),
+    resolveForUsers: (userIds: ReadonlyArray<string>, kind: NotificationKind) =>
+      Effect.map(
+        storedForUsers(userIds, kind),
+        (stored): ReadonlyMap<string, NotificationChannel> =>
+          new Map(
+            userIds.map((userId) => [userId, resolveChannel(kind, stored.get(userId))])
+          )
+      )
   }
 }

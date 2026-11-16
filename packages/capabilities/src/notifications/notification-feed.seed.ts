@@ -16,6 +16,7 @@ import {
   inDigestWindow,
   NotificationFeed,
   visibleToActor,
+  visibleToUser,
   type CreateNotificationInput,
   type NotificationEmailContext,
   type PreparedNotificationCondition,
@@ -222,6 +223,24 @@ export function SeedNotificationFeed(
             .toSorted((a, b) => b.createdAt.localeCompare(a.createdAt))
             .map(stripStorage)
         }),
+        countVisibleToUser: (userId, workspaceIds) =>
+          Effect.map(
+            Ref.get(rows),
+            (all) =>
+              new Map(
+                workspaceIds.map(
+                  (workspaceId) =>
+                    [
+                      workspaceId,
+                      all.filter(
+                        (row) =>
+                          inWorkspace(row, workspaceId) &&
+                          visibleToUser(row.userId, userId)
+                      ).length
+                    ] as const
+                )
+              )
+          ),
         listPage: (input) =>
           Effect.gen(function* () {
             const ctx = yield* WorkspaceContext

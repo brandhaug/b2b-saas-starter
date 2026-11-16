@@ -54,6 +54,7 @@ function stubFeed(
     list: Effect.die('unused'),
     listPage: () => Effect.die('unused'),
     unreadCount: Effect.die('unused'),
+    countVisibleToUser: () => Effect.die('unused'),
     markRead: () => Effect.die('unused'),
     create: () => Effect.die('unused'),
     record: () => Effect.die('unused'),

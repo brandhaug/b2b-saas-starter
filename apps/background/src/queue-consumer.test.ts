@@ -1,7 +1,7 @@
 // oxlint-disable-next-line effect/noNodeBuiltinImport -- loopback server verifies native fetch redirect behavior
 import { createServer } from 'node:http'
 import { describe, expect, it, vi } from '@effect/vitest'
-import { DateTime, Effect, Result } from 'effect'
+import { DateTime, Deferred, Effect, Fiber, Queue, Result } from 'effect'
 import { HttpClient } from 'effect/http'
 
 import { consumeBatch, consumerInvocation, runInvocation } from './queue-consumer.ts'
@@ -46,6 +46,66 @@ describe('consumeBatch', () => {
         }
       })
   )
+  it.effect(
+    'runs at most six messages at once, the Worker outbound connection limit',
+    () => {
+      const messages = Array.from(
+        { length: 25 },
+        (_, index) =>
+          ({
+            id: `message-${index}`,
+            timestamp: DateTime.toDate(DateTime.makeUnsafe(0)),
+            body: {},
+            attempts: 1,
+            ack: vi.fn(),
+            retry: vi.fn()
+          }) satisfies Message<unknown>
+      )
+      const batch = {
+        queue: 'b2b-saas-starter-webhooks',
+        messages,
+        metadata: { metrics: { backlogCount: 0, backlogBytes: 0 } },
+        retryAll: vi.fn(),
+        ackAll: vi.fn()
+      } satisfies MessageBatch<unknown>
+      // Every started message waits on the gate, so none can finish and free a
+      // slot: once six have started, a seventh can only have started if the
+      // batch ignores the bound.
+      const gate = Deferred.makeUnsafe<undefined>()
+      let started = 0
+      let peak = 0
+      let inFlight = 0
+      return Effect.gen(function* () {
+        const starts = yield* Queue.unbounded<number>()
+        function perMessage() {
+          return Effect.gen(function* () {
+            started += 1
+            inFlight += 1
+            peak = Math.max(peak, inFlight)
+            yield* Queue.offer(starts, started)
+            yield* Deferred.await(gate)
+            inFlight -= 1
+            return 'ack' as const
+          })
+        }
+        const run = yield* Effect.forkChild(
+          Effect.tryPromise(() => consumeBatch({}, batch, perMessage))
+        )
+        for (let index = 0; index < 6; index += 1) {
+          yield* Queue.take(starts)
+        }
+        expect(started).toBe(6)
+        yield* Deferred.succeed(gate, undefined)
+        yield* Fiber.join(run)
+        expect(started).toBe(25)
+        expect(peak).toBe(6)
+        expect(messages.every((message) => message.ack.mock.calls.length === 1)).toBe(
+          true
+        )
+      })
+    }
+  )
+
   it.effect('honors a consumer-provided retry delay', () => {
     const retry = vi.fn()
     const message = {
