@@ -31,6 +31,8 @@ jobs:
       - run: vp run lint
       - name: Public agent exports are up to date
         run: pnpm run check:agent-docs
+      - name: Migrations match the schema
+        run: pnpm run check:migrations
       # Dead-code regression gate (the `dead-code` step of `pnpm run check`).
       # Fallow is pinned in the workspace catalog so local and CI runs use the
       # same analyzer binary.

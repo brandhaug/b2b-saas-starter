@@ -25,6 +25,7 @@
     "typecheck": "tsrs --noEmit",
     "test": "vp test run --passWithNoTests",
     "db:generate": "drizzle-kit generate",
+    "db:check": "node scripts/check-migrations.ts",
     "db:migrate:local": "node scripts/migrate.ts",
     "db:migrate:remote": "node scripts/migrate.ts --remote"
   },
