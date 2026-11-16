@@ -1,26 +1,12 @@
-import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
-import { type ListGlobalDeliveriesInput } from './webhook-delivery-view.ts'
+import { WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { Context, Effect, Schema } from 'effect'
 
 import { type PlanLimitExceeded } from '@b2b-saas-starter/billing/errors'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
-import { Workspace } from '../governance/workspace-identity.ts'
-import { type RecordAuditEventInput } from '../governance/audit-event-log.ts'
-import { newCapabilityId } from '../internal/ids.ts'
 import { type ListPageInput, type Page } from '../internal/keyset-cursor.ts'
-import {
-  isTerminalDeliveryStatus,
-  planReplayedDelivery,
-  type Json,
-  type FailureLadderAction,
-  type ListWebhookDeliveriesInput,
-  type WebhookDelivery,
-  type WebhookDeliveryAttempt,
-  type WebhookDeliveryAttemptInput,
-  type WebhookDeliveryStatus
-} from './webhook-delivery-plan.ts'
 import { validateWebhookUrl, InvalidWebhookUrl } from './webhook-url.ts'
 import { type WorkspaceContext } from '../workspace-context.ts'
+import { type DispatchedDelivery } from './webhook-deliveries.ts'
 
 /**
  * No endpoint matched in this workspace. Raised by the operator mutations
@@ -31,18 +17,6 @@ import { type WorkspaceContext } from '../workspace-context.ts'
 export class WebhookEndpointNotFound extends Schema.TaggedError<WebhookEndpointNotFound>()(
   'WebhookEndpointNotFound',
   { endpointId: WebhookEndpointId },
-  { httpApiStatus: 404 }
-) {}
-
-/**
- * No delivery row matched in this workspace. Distinct from
- * {@link WebhookEndpointNotFound} because a replay addresses a delivery, and a
- * foreign delivery id must not read as a missing endpoint.
- */
-// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
-export class WebhookDeliveryNotFound extends Schema.TaggedError<WebhookDeliveryNotFound>()(
-  'WebhookDeliveryNotFound',
-  { deliveryId: WebhookDeliveryId },
   { httpApiStatus: 404 }
 ) {}
 
@@ -137,101 +111,6 @@ type DeleteWebhookEndpointInput = {
   readonly endpointId: WebhookEndpointId
 }
 
-/** Terminal delivery and current endpoint state for the global operator list.
- * No payload or signing secrets are exposed. Replay re-reads the source.
- */
-export const GlobalWebhookDelivery = Schema.Struct({
-  id: WebhookDeliveryId,
-  endpointId: WebhookEndpointId,
-  endpointUrl: Schema.String,
-  endpointEnabled: Schema.Boolean,
-  endpointConsecutiveFailures: Schema.Number,
-  endpointFailureLimitReached: Schema.Boolean,
-  eventType: Schema.String,
-  status: Schema.String,
-  attempts: Schema.Number,
-  lastAttemptAt: Schema.NullOr(Schema.String),
-  responseStatus: Schema.NullOr(Schema.Number),
-  workspace: Workspace
-})
-export type GlobalWebhookDelivery = typeof GlobalWebhookDelivery.Type
-
-export type AdminReplaySource = {
-  readonly id: WebhookDeliveryId
-  readonly endpointId: WebhookEndpointId
-  readonly workspaceId: string
-  readonly eventType: string
-  readonly status: WebhookDeliveryStatus
-  readonly enabled: boolean
-  readonly payload: Json | undefined
-}
-
-/** Shared replay policy and audit attribution; adapters only persist and enqueue. */
-export const planAdminReplay = Effect.fn('WebhookEndpoints.planAdminReplay')(function* (
-  source: AdminReplaySource | undefined,
-  actorUserId: string
-) {
-  if (source === undefined) {
-    return yield* Effect.fail(
-      new WebhookDispatchRejected({
-        reason: 'delivery or endpoint no longer exists'
-      })
-    )
-  }
-  if (!isTerminalDeliveryStatus(source.status)) {
-    return yield* Effect.fail(
-      new WebhookDispatchRejected({
-        reason: `delivery is ${source.status}, only terminal deliveries replay from admin`
-      })
-    )
-  }
-  if (!source.enabled) {
-    return yield* Effect.fail(
-      new WebhookDispatchRejected({
-        reason:
-          'endpoint is disabled; a workspace operator must re-enable it before replay'
-      })
-    )
-  }
-  if (source.payload === undefined) {
-    return yield* Effect.fail(
-      new WebhookDispatchRejected({
-        reason: 'delivery payload is missing; replay cannot reconstruct it'
-      })
-    )
-  }
-  const deliveryId = yield* newCapabilityId('whd').pipe(
-    Effect.map((id) => WebhookDeliveryId.make(id))
-  )
-  return {
-    deliveryId,
-    workspaceId: source.workspaceId,
-    plan: planReplayedDelivery({ ...source, payload: source.payload }),
-    auditEvent: {
-      workspaceId: source.workspaceId,
-      actorUserId,
-      actorType: 'user',
-      eventType: 'webhook.delivery_replayed',
-      targetType: 'webhook_endpoint',
-      targetId: source.endpointId,
-      metadata: {
-        deliveryId,
-        replayedFrom: source.id,
-        eventType: source.eventType,
-        scope: 'system_admin'
-      }
-    } satisfies RecordAuditEventInput
-  }
-})
-
-type ReplayWebhookDeliveryInput = {
-  readonly deliveryId: WebhookDeliveryId
-  /** Stable identity for a caller that must reconcile an uncertain enqueue. */
-  readonly replayDeliveryId?: WebhookDeliveryId | undefined
-  readonly expectedEndpointUrl?: string | undefined
-  readonly expectedStatus?: WebhookDeliveryStatus | undefined
-}
-
 type SendTestEventInput = {
   readonly endpointId: WebhookEndpointId
 }
@@ -244,34 +123,8 @@ type SendTestEventInput = {
  */
 export const WEBHOOK_TEST_EVENT_TYPE = 'webhook.test_event'
 
-/**
- * How many endpoints' `listDeliveries` reads a caller runs at once when it
- * reads every endpoint's history. Endpoints are unlimited on paid plans, and a
- * Worker invocation holds six outbound connections; this leaves room for the
- * caller's other reads.
- */
-export const WEBHOOK_DELIVERY_READ_CONCURRENCY = 4
-
-type DispatchedDelivery = {
-  /**
-   * The id of the `pending` delivery row the dispatch created. The queue
-   * consumer records its attempts against this id, so the row a replay or test
-   * created is the row that resolves.
-   */
-  readonly deliveryId: WebhookDeliveryId
-}
-
 type RotateWebhookSecretInput = {
   readonly endpointId: WebhookEndpointId
-}
-
-/** Accepted-summary result. The worker follows the persisted status for queue
- * disposition and sends only the failure reaction named by persistence. */
-export type RecordedWebhookAttempt = {
-  readonly recorded: boolean
-  readonly failureAction: FailureLadderAction
-  readonly status: WebhookDeliveryStatus
-  readonly consecutiveFailures: number
 }
 
 type WebhookEndpointsInterface = {
@@ -298,47 +151,6 @@ type WebhookEndpointsInterface = {
     CapabilityUnavailable | InvalidWebhookUrl | PlanLimitExceeded,
     WorkspaceContext
   >
-
-  /**
-   * Recent delivery attempts for one of this workspace's endpoints, newest
-   * first. Workspace scoping comes from `WorkspaceContext`; an endpoint id
-   * from another workspace yields an empty list, never its deliveries.
-   */
-  readonly listDeliveryAttempts: (input: {
-    readonly deliveryId: WebhookDeliveryId
-  }) => Effect.Effect<
-    ReadonlyArray<WebhookDeliveryAttempt>,
-    CapabilityUnavailable,
-    WorkspaceContext
-  >
-  readonly cleanupDeliveryHistory: () => Effect.Effect<number, CapabilityUnavailable>
-
-  readonly listDeliveries: (
-    input: ListWebhookDeliveriesInput
-  ) => Effect.Effect<
-    ReadonlyArray<WebhookDelivery>,
-    CapabilityUnavailable,
-    WorkspaceContext
-  >
-
-  readonly inspectDelivery: (input: {
-    readonly deliveryId: WebhookDeliveryId
-  }) => Effect.Effect<
-    {
-      readonly endpoint: WebhookEndpoint
-      readonly delivery: WebhookDelivery
-      readonly attempts: ReadonlyArray<WebhookDeliveryAttempt>
-    },
-    CapabilityUnavailable | WebhookDeliveryNotFound,
-    WorkspaceContext
-  >
-
-  /** Like AuditEventLog.listGlobal, this read requires boundary authorization,
-   * not WorkspaceContext. Pages newest-first by (lastAttemptAt, id), nulls last.
-   */
-  readonly listGlobalDeliveries: (
-    input?: ListGlobalDeliveriesInput
-  ) => Effect.Effect<Page<GlobalWebhookDelivery>, CapabilityUnavailable>
 
   /**
    * Updates the mutable endpoint fields — URL, event subscriptions, and the
@@ -370,34 +182,6 @@ type WebhookEndpointsInterface = {
   >
 
   /**
-   * Re-enqueues a failed delivery verbatim: a **new** `pending` row carrying
-   * the original payload, attempts reset to zero, and a `replayedFrom` link to
-   * the source row. Fails `WebhookDeliveryNotFound` when no delivery matched in
-   * this workspace, `WebhookDispatchRejected` when there is nothing honest to
-   * re-send (the delivery never failed, records no payload, or its endpoint is
-   * disabled or gone).
-   */
-  readonly replayDelivery: (
-    input: ReplayWebhookDeliveryInput
-  ) => Effect.Effect<
-    DispatchedDelivery,
-    CapabilityUnavailable | WebhookDeliveryNotFound | WebhookDispatchRejected,
-    WorkspaceContext
-  >
-
-  /** System-admin operation. The boundary authorizes the session; the service
-   * resolves the delivery's workspace and records the real admin actor.
-   * This grants no workspace membership and never provides WorkspaceContext.
-   */
-  readonly replayDeliveryAsAdmin: (input: {
-    readonly deliveryId: WebhookDeliveryId
-    readonly actorUserId: string
-  }) => Effect.Effect<
-    DispatchedDelivery,
-    CapabilityUnavailable | WebhookDispatchRejected
-  >
-
-  /**
    * Dispatches one synthetic `webhook.test_event` to the endpoint so an
    * operator can prove a receiver's configuration end to end. Creates the same
    * `pending` row a replay does. Fails `WebhookEndpointNotFound` when no
@@ -426,65 +210,13 @@ type WebhookEndpointsInterface = {
     CapabilityUnavailable | WebhookEndpointNotFound,
     WorkspaceContext
   >
-
-  /** Persisted outcomes that must not dispatch again on queue redelivery. */
-  readonly isDeliverySettled: (input: {
-    readonly deliveryId: WebhookDeliveryId
-    readonly endpointId: WebhookEndpointId
-    readonly workspaceId: string
-  }) => Effect.Effect<boolean, CapabilityUnavailable>
-
-  /**
-   * Background-worker surface — no `WorkspaceContext` exists on the queue
-   * consumer, so the workspace ID travels in the queue message (stamped by
-   * `WebhookPublisher` from the producing request's context) and is verified
-   * here: the lookup filters on `(endpointId, workspaceId)` and resolves
-   * `null` on a cross-workspace mismatch, so a forged or misrouted message
-   * never yields another workspace's signing secret. `signingSecrets` holds
-   * every secret a dispatch may currently sign with — the current one, plus
-   * the rotated-out one while its grace window is open.
-   */
-  readonly getDispatchTarget: (
-    endpointId: WebhookEndpointId,
-    workspaceId: string,
-    /** Queue execution supplies the producer-stamped delivery identity. */
-    deliveryId: WebhookDeliveryId
-  ) => Effect.Effect<
-    {
-      readonly id: WebhookEndpointId
-      readonly url: string
-      readonly signingSecrets: ReadonlyArray<string>
-      /** Authoritative queued delivery contents, present for queue execution. */
-      readonly eventType: string
-      readonly payload: Json
-    } | null,
-    CapabilityUnavailable
-  >
-
-  /** Atomically records immutable HTTP evidence and advances summary, streak,
-   * terminal audit, and automatic disable only for an accepted observation. */
-  readonly recordDeliveryAttempt: (
-    input: WebhookDeliveryAttemptInput
-  ) => Effect.Effect<RecordedWebhookAttempt, CapabilityUnavailable>
-
-  /** One terminal observation per delivery, including never-dispatched outcomes.
-   * DLQ retries cannot create extra observations or increment the HTTP count.
-   * Existing HTTP evidence and replay provenance remain on the summary. */
-  readonly recordTerminalDeliveryAttempt: (input: {
-    readonly deliveryId: WebhookDeliveryId
-    readonly endpointId: WebhookEndpointId
-    readonly workspaceId: string
-    readonly eventType: string
-    readonly attempts: number
-    readonly status: 'failed_permanent' | 'dead_lettered'
-    readonly failureReason?: string | null
-    readonly payload: Json
-  }) => Effect.Effect<
-    { readonly deliveryId: WebhookDeliveryId } & RecordedWebhookAttempt,
-    CapabilityUnavailable
-  >
 }
 
+/**
+ * Workspace endpoint management: the settings page, REST and MCP surfaces.
+ * Delivery history is `WebhookDeliveries`, cross-workspace operator reads are
+ * `WebhookDeliveryAdmin`, and queue execution state is `WebhookDispatch`.
+ */
 export class WebhookEndpoints extends Context.Service<
   WebhookEndpoints,
   WebhookEndpointsInterface

@@ -6,7 +6,10 @@ import {
   isAssistantConfigured,
   selectAssistantLayer
 } from '@b2b-saas-starter/ai'
-import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
+import {
+  WorkspaceContext,
+  WorkspaceCaller
+} from '@b2b-saas-starter/capabilities/workspace-context'
 import { Effect } from 'effect'
 
 import { env as cloudflareEnv } from 'cloudflare:workers'
@@ -23,6 +26,7 @@ import {
   type AskAssistantOutcome,
   type AssistantRefused
 } from './assistant'
+import { WebhookDeliveries } from '@b2b-saas-starter/capabilities/developer-platform/webhook-deliveries'
 
 const assistantPagePayload = workspacePage({ assistant: ['read'] }, () =>
   Effect.gen(function* () {
@@ -31,6 +35,7 @@ const assistantPagePayload = workspacePage({ assistant: ['read'] }, () =>
       Effect.gen(function* () {
         const tasks = yield* WebhookInvestigationTasks
         const webhooks = yield* WebhookEndpoints
+        const deliveryLog = yield* WebhookDeliveries
         const { tasks: recentTasks, deliveries } = yield* Effect.all(
           {
             tasks: tasks.list(),
@@ -39,7 +44,7 @@ const assistantPagePayload = workspacePage({ assistant: ['read'] }, () =>
                 Effect.forEach(
                   endpoints,
                   (endpoint) =>
-                    webhooks.listDeliveries({ endpointId: endpoint.id }).pipe(
+                    deliveryLog.listDeliveries({ endpointId: endpoint.id }).pipe(
                       Effect.map((items) =>
                         items.map((delivery) => ({
                           id: delivery.id,
@@ -69,9 +74,11 @@ export async function loadAssistantPageHandler(
   input: AssistantPageInput
 ): Promise<AssistantPagePayload> {
   const session = await requireRequestSession()
-  return runWorkspaceCapabilities(input.workspaceSlug, assistantPagePayload, {
-    userId: session.user.id
-  })
+  return runWorkspaceCapabilities(
+    input.workspaceSlug,
+    assistantPagePayload,
+    WorkspaceCaller.user(session.user.id)
+  )
 }
 
 export async function askAssistantHandler(
@@ -136,6 +143,6 @@ export async function askAssistantHandler(
       // deployment says so.
       Effect.provide(selectAssistantLayer(cloudflareEnv))
     ),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }

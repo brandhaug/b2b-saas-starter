@@ -56,7 +56,6 @@ export const WebhookDeliveryAttempt = Schema.Struct({
 export type WebhookDeliveryAttempt = typeof WebhookDeliveryAttempt.Type
 
 export const DELIVERY_HISTORY_RETENTION_DAYS = 30
-export const DELIVERY_HISTORY_CLEANUP_LIMIT = 100
 
 export type ListWebhookDeliveriesInput = {
   readonly endpointId: WebhookEndpointId

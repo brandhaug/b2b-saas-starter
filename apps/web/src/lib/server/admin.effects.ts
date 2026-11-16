@@ -18,7 +18,6 @@ import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/gover
 import { adminSystemRole } from '@b2b-saas-starter/db/enums'
 import { Effect } from 'effect'
 import { env } from 'cloudflare:workers'
-import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import {
   selectCapabilitiesLayer,
   starterEnv
@@ -47,6 +46,7 @@ import {
   requireRecentAuthentication
 } from './strong-authentication.effects'
 import { webUserAdminBinding } from './user-admin-binding'
+import { WebhookDeliveryAdmin } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-admin'
 
 /** System-level user list. Direct server calls verify the admin role and
  * this session's strong authentication before reading platform data. */
@@ -150,8 +150,8 @@ export async function loadFailedDeliveriesHandler(
         )
         view = { ...view, filters }
       }
-      const webhooks = yield* WebhookEndpoints
-      return yield* webhooks.listGlobalDeliveries({ ...input, view, limit: 20 })
+      const deliveryAdmin = yield* WebhookDeliveryAdmin
+      return yield* deliveryAdmin.listGlobalDeliveries({ ...input, view, limit: 20 })
     })
   )
 }
@@ -176,8 +176,8 @@ export async function replayFailedDeliveryHandler(
     withWebRequestScope(
       { event: 'admin.webhook.replay', metadata: { actorUserId: session.user.id } },
       Effect.gen(function* () {
-        const webhooks = yield* WebhookEndpoints
-        const result = yield* webhooks.replayDeliveryAsAdmin({
+        const deliveryAdmin = yield* WebhookDeliveryAdmin
+        const result = yield* deliveryAdmin.replayDeliveryAsAdmin({
           deliveryId: input.deliveryId,
           actorUserId: session.user.id
         })

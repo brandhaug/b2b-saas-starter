@@ -3,8 +3,9 @@ import { Context, DateTime, Effect } from 'effect'
 import { ApiTokenRegistry } from '../developer-platform/api-token-registry.ts'
 import {
   WEBHOOK_DELIVERY_READ_CONCURRENCY,
-  WebhookEndpoints
-} from '../developer-platform/webhook-endpoints.ts'
+  WebhookDeliveries
+} from '../developer-platform/webhook-deliveries.ts'
+import { WebhookEndpoints } from '../developer-platform/webhook-endpoints.ts'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { walkKeysetPages } from '../internal/keyset-cursor.ts'
 import { NotificationFeed } from '../notifications/notification-feed.ts'
@@ -23,6 +24,7 @@ export type WorkspaceExportSnapshotServices =
   | ApiTokenRegistry
   | AuditEventLog
   | NotificationFeed
+  | WebhookDeliveries
   | WebhookEndpoints
   | WorkspaceInvitations
   | WorkspaceMembership
@@ -47,6 +49,7 @@ export function workspaceExportSnapshotContextEffect(): Effect.Effect<
       Context.make(ApiTokenRegistry, yield* ApiTokenRegistry),
       Context.make(AuditEventLog, yield* AuditEventLog),
       Context.make(NotificationFeed, yield* NotificationFeed),
+      Context.make(WebhookDeliveries, yield* WebhookDeliveries),
       Context.make(WebhookEndpoints, yield* WebhookEndpoints),
       Context.make(WorkspaceInvitations, yield* WorkspaceInvitations),
       Context.make(WorkspaceMembership, yield* WorkspaceMembership)
@@ -106,6 +109,7 @@ export const collectWorkspaceExportSnapshot = Effect.fn(
   const invitations = yield* WorkspaceInvitations
   const tokens = yield* ApiTokenRegistry
   const webhooks = yield* WebhookEndpoints
+  const history = yield* WebhookDeliveries
   const feed = yield* NotificationFeed
 
   const segments = yield* Effect.all(
@@ -122,10 +126,10 @@ export const collectWorkspaceExportSnapshot = Effect.fn(
   const webhookEndpoints = yield* Effect.forEach(
     segments.endpoints,
     (endpoint) =>
-      Effect.map(
-        webhooks.listDeliveries({ endpointId: endpoint.id }),
-        (deliveries) => ({ ...endpoint, deliveries })
-      ),
+      Effect.map(history.listDeliveries({ endpointId: endpoint.id }), (deliveries) => ({
+        ...endpoint,
+        deliveries
+      })),
     { concurrency: WEBHOOK_DELIVERY_READ_CONCURRENCY }
   )
 

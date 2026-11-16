@@ -8,7 +8,7 @@ import { Effect, Layer } from 'effect'
 import { eq } from 'drizzle-orm'
 import { expect, layer } from '@effect/vitest'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
-import { WorkspaceContext, testWorkspaceContext } from '../workspace-context.ts'
+import { WorkspaceContext, testResolvedWorkspaceContext } from '../workspace-context.ts'
 import {
   TestDatabase,
   inWorkspace,
@@ -42,11 +42,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('mutation contention', (it)
                     expect(yield* tokens.revoke({ tokenId: token.id })).toBe(true)
                   }
                   return yield* audit.prepareRecord(input, condition)
-                }).pipe(
-                  Effect.provide(
-                    testWorkspaceContext(ctx.workspace, ctx.actor, ctx.actorType)
-                  )
-                )
+                }).pipe(Effect.provide(testResolvedWorkspaceContext(ctx)))
             })
           )
           const result = yield* Effect.gen(function* () {
@@ -97,11 +93,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('mutation contention', (it)
                       .delete({ endpointId: created.endpoint.id })
                       .pipe(Effect.orDie)
                     return yield* audit.prepareRecord(input, condition)
-                  }).pipe(
-                    Effect.provide(
-                      testWorkspaceContext(ctx.workspace, ctx.actor, ctx.actorType)
-                    )
-                  )
+                  }).pipe(Effect.provide(testResolvedWorkspaceContext(ctx)))
               })
             )
             const result = yield* Effect.exit(
@@ -181,11 +173,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('mutation contention', (it)
                     )
                   }
                   return yield* audit.prepareRecord(input, condition)
-                }).pipe(
-                  Effect.provide(
-                    testWorkspaceContext(ctx.workspace, ctx.actor, ctx.actorType)
-                  )
-                )
+                }).pipe(Effect.provide(testResolvedWorkspaceContext(ctx)))
             })
           )
           const racing = Layer.mergeAll(

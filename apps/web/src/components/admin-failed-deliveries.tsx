@@ -3,7 +3,7 @@ import { useNavigate, useRouter, useRouterState } from '@tanstack/react-router'
 import { TableViewControls } from './table-view-controls'
 import { parseTableView, serializeTableView } from '@/lib/table-view'
 import { statusLabel } from '@/lib/value-labels'
-import { type GlobalWebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+import { type GlobalWebhookDelivery } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-admin'
 import {
   DataTable,
   DataTableColumns,

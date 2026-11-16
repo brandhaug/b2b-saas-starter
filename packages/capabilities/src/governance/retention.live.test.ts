@@ -1,6 +1,6 @@
 import { RawD1, type D1Binding } from '@b2b-saas-starter/db/service'
 import { it } from '@effect/vitest'
-import { DateTime, Effect, Layer, Schema } from 'effect'
+import { DateTime, Duration, Effect, Layer, Schema } from 'effect'
 import { describe, expect } from 'vite-plus/test'
 
 import { withRawTestD1 } from '../testing/live-harness.ts'
@@ -404,6 +404,58 @@ describe('retention on D1', { timeout: 30_000 }, () => {
           expect(
             (yield* run('execute', { batchSize: 1, workBudget: 18 })).deleted.webhooks
           ).toBe(0)
+        })
+      )
+  )
+
+  it.effect(
+    'keeps settled deliveries inside the 30-day window and retryable ones past it',
+    () =>
+      withDatabase((d1) =>
+        Effect.gen(function* () {
+          yield* insert(d1, 'webhook_endpoints', {
+            id: 'endpoint',
+            workspace_id: 'retention-one',
+            url: 'https://example.test/hook',
+            signing_secret: 'current-secret',
+            created_at: isoOld,
+            events: '[]'
+          })
+          // An hour either side of 30 days: any other window, or a status set
+          // that drops a settled outcome or adds the retryable one, moves a row.
+          const hour = 3_600_000
+          const insideWindow = DateTime.formatIso(
+            DateTime.subtractDuration(now, Duration.millis(30 * 24 * hour - hour))
+          )
+          const pastWindow = DateTime.formatIso(
+            DateTime.subtractDuration(now, Duration.millis(30 * 24 * hour + hour))
+          )
+          const rows = [
+            ['kept-delivered', 'delivered', insideWindow],
+            ['kept-failed-permanent', 'failed_permanent', insideWindow],
+            ['kept-dead-lettered', 'dead_lettered', insideWindow],
+            ['kept-retryable', 'failed', pastWindow],
+            ['old-delivered', 'delivered', pastWindow],
+            ['old-failed-permanent', 'failed_permanent', pastWindow],
+            ['old-dead-lettered', 'dead_lettered', pastWindow]
+          ] as const
+          for (const [id, status, lastAttemptAt] of rows) {
+            yield* insert(d1, 'webhook_deliveries', {
+              id,
+              endpoint_id: 'endpoint',
+              event_type: 'test',
+              status,
+              last_attempt_at: lastAttemptAt,
+              payload: '{}'
+            })
+          }
+          expect((yield* run('execute')).deleted.webhooks).toBe(3)
+          expect(yield* ids(d1, 'webhook_deliveries')).toEqual([
+            'kept-dead-lettered',
+            'kept-delivered',
+            'kept-failed-permanent',
+            'kept-retryable'
+          ])
         })
       )
   )

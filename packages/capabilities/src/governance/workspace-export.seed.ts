@@ -1,3 +1,4 @@
+import { workspaceAuditAttribution } from '@b2b-saas-starter/billing/ports'
 import { DateTime, Effect, Layer, Option, Result, Scope } from 'effect'
 
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -8,7 +9,11 @@ import {
   type NotificationFeedInterface
 } from '../notifications/notification-feed.ts'
 import { type SystemNotificationEvent } from '../notifications/notification-events.ts'
-import { testWorkspaceContext, WorkspaceContext } from '../workspace-context.ts'
+import {
+  testWorkspaceContext,
+  WorkspaceCaller,
+  WorkspaceContext
+} from '../workspace-context.ts'
 import { AuditEventLog, type AuditEventLogInterface } from './audit-event-log.ts'
 import { workspaceExportFileName } from './workspace-export-archive.ts'
 import {
@@ -38,7 +43,8 @@ import {
   type OpenWorkspaceExportDownloadInput,
   type WorkspaceExport,
   type WorkspaceExportAvailability,
-  type WorkspaceExportsInterface
+  type WorkspaceExportsInterface,
+  workspaceExportDownloadAttribution
 } from './workspace-export.ts'
 import { type Workspace } from './workspace-identity.ts'
 import { WorkspaceSuspensionService } from './workspace-suspension.ts'
@@ -162,7 +168,9 @@ export function SeedWorkspaceExports(options: {
             generatedAt: completedAt
           }).pipe(
             Effect.provide(snapshotContext),
-            Effect.provide(testWorkspaceContext(options.workspace, null, 'system'))
+            Effect.provide(
+              testWorkspaceContext(options.workspace, WorkspaceCaller.system)
+            )
           )
         )
         const base = {
@@ -269,9 +277,7 @@ export function SeedWorkspaceExports(options: {
           }
           rows.push(row)
           yield* audit.record({
-            workspaceId: ctx.workspace.id,
-            actorUserId: ctx.actor?.userId ?? null,
-            actorType: ctx.actorType,
+            ...workspaceAuditAttribution(ctx),
             eventType: 'workspace.export_requested',
             targetType: 'workspace_export',
             targetId: id,
@@ -284,7 +290,7 @@ export function SeedWorkspaceExports(options: {
           // The build reads the workspace's own data with a trusted system
           // context, rather than inheriting the next reader's actor.
           row.deferredBuild = workspaceExportGenerationEffect(() =>
-            testWorkspaceContext(ctx.workspace, null, 'system')
+            testWorkspaceContext(ctx.workspace, WorkspaceCaller.system)
           ).pipe(
             Effect.provide(snapshotContext),
             Effect.provideService(WorkspaceExports, service),
@@ -398,14 +404,9 @@ export function SeedWorkspaceExports(options: {
           if (!valid) {
             return Option.none()
           }
-          let actorType: 'user' | 'api_token' = 'api_token'
-          if (input.human) {
-            actorType = 'user'
-          }
           yield* audit.record({
             workspaceId: row.workspaceId,
-            actorUserId: input.human?.userId ?? null,
-            actorType,
+            ...workspaceExportDownloadAttribution(input.human),
             eventType: 'workspace.export_downloaded',
             targetType: 'workspace_export',
             targetId: row.record.id,

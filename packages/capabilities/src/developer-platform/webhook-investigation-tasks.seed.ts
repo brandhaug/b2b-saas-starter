@@ -1,3 +1,4 @@
+import { workspaceAuditAttribution } from '@b2b-saas-starter/billing/ports'
 import { DateTime, Effect, Layer, Ref } from 'effect'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
@@ -52,9 +53,7 @@ export const SeedWebhookInvestigationTasks = Layer.effect(WebhookInvestigationTa
           { workspaceId: ctx.workspace.id, task }
         ])
         yield* audit.record({
-          workspaceId: ctx.workspace.id,
-          actorUserId: ctx.actor?.userId ?? null,
-          actorType: ctx.actorType,
+          ...workspaceAuditAttribution(ctx),
           eventType: 'assistant_task.created',
           targetType: 'assistant_task',
           targetId: task.id,
@@ -93,9 +92,7 @@ export const SeedWebhookInvestigationTasks = Layer.effect(WebhookInvestigationTa
           })
           if (won) {
             yield* audit.record({
-              workspaceId: ctx.workspace.id,
-              actorUserId: ctx.actor?.userId ?? null,
-              actorType: ctx.actorType,
+              ...workspaceAuditAttribution(ctx),
               eventType: change.eventType,
               targetType: 'assistant_task',
               targetId: task.id,

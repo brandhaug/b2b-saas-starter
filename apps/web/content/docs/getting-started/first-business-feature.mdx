@@ -162,8 +162,9 @@ the note and then independently write its audit event.
 Add `workspace_note.created` and `workspace_note` to
 `governance/audit-event-taxonomy.ts`. Mark the new event `audit-only` in
 `developer-platform/webhook-events.ts`. The event stores the note ID and actor
-provenance, never the note text. API Token writes retain `actorType: 'api_token'`;
-web writes retain the authenticated user.
+provenance, never the note text: spread `workspaceAuditAttribution(ctx)` into the
+audit event. API Token writes retain `actorType: 'api_token'`; web writes retain
+the authenticated user.
 
 The Live list query always includes
 `eq(workspaceNotes.workspaceId, ctx.workspace.id)`. It orders by `createdAt` and

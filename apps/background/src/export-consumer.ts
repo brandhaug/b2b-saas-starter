@@ -9,6 +9,7 @@ import {
   type WorkspaceExportGenerationResult
 } from '@b2b-saas-starter/capabilities/governance/workspace-export-generation'
 import { WorkspaceExportQueueMessage } from '@b2b-saas-starter/capabilities/governance/workspace-export'
+import { WorkspaceCaller } from '@b2b-saas-starter/capabilities/workspace-context'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { Effect, Layer, type Scope } from 'effect'
 
@@ -93,7 +94,7 @@ export function buildWorkspaceExport(
   const delivery = readDelivery(WorkspaceExportQueueMessage, envelope)
   const capabilitiesEnv = starterEnv(env)
   const generationLayer = WorkspaceExportGenerationLayer((slug) =>
-    selectWorkspaceContextLayer(capabilitiesEnv, slug, undefined, 'system')
+    selectWorkspaceContextLayer(capabilitiesEnv, slug, WorkspaceCaller.system)
   ).pipe(Layer.provide(selectCapabilitiesLayer(capabilitiesEnv)))
 
   return consumerInvocation(env, {

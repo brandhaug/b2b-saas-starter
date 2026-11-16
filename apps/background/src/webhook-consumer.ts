@@ -3,7 +3,7 @@ import {
   selectCapabilitiesLayer,
   starterEnv
 } from '@b2b-saas-starter/capabilities/runtime'
-import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+import { WebhookDispatch } from '@b2b-saas-starter/capabilities/developer-platform/webhook-dispatch'
 import { WEBHOOK_USER_AGENT } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import {
   completeWebhookHttpObservation,
@@ -44,7 +44,7 @@ const encodeDeliveryBody = Schema.encodeSync(Schema.fromJsonString(WebhookDelive
  * Delivers one webhook message: resolve the dispatch target, re-check the
  * SSRF guard, sign, POST, persist the attempt row, and decide ack/retry.
  * Capability and HTTP requirements stay open so tests inject stub
- * `WebhookEndpoints` / `HttpClient` layers; the queue handler wraps this with
+ * `WebhookDispatch` / `HttpClient` layers; the queue handler wraps this with
  * the real layers and the wide-event scope (`deliverWebhook`).
  */
 export const processWebhookMessage = Effect.fn('WebhookConsumer.process')(function* (
@@ -53,7 +53,7 @@ export const processWebhookMessage = Effect.fn('WebhookConsumer.process')(functi
 ): Effect.fn.Return<
   DeliveryOutcome,
   CapabilityUnavailable,
-  | WebhookEndpoints
+  | WebhookDispatch
   | NotificationFeed
   | WorkspaceSuspensionService
   | HttpClient.HttpClient
@@ -68,7 +68,7 @@ export const processWebhookMessage = Effect.fn('WebhookConsumer.process')(functi
   const message = delivery.message
   const attempts = delivery.attempts
   yield* annotateMessageFields(message)
-  const webhooks = yield* WebhookEndpoints
+  const webhooks = yield* WebhookDispatch
   // The delivery id the queue message owns — derived before anything can go
   // terminal, so a never-dispatched row still resolves this message's
   // identity (one row per message, even when it dies pre-dispatch).
@@ -275,7 +275,7 @@ function deliverWebhook(
  * Core of the dead-letter consumer: the message exhausted `maxRetries` on the
  * primary queue, so record a terminal `dead_lettered` delivery row (the
  * capability batches the matching audit event with it). Exported with the
- * `WebhookEndpoints` requirement left open for tests, like
+ * `WebhookDispatch` requirement left open for tests, like
  * `processWebhookMessage`; `recordDeadLetter` wraps it with the real layers
  * and the wide-event scope.
  */
@@ -285,7 +285,7 @@ export const processDeadLetterMessage = Effect.fn('WebhookConsumer.deadLetter')(
   ): Effect.fn.Return<
     void,
     CapabilityUnavailable,
-    WebhookEndpoints | NotificationFeed | Scope.Scope
+    WebhookDispatch | NotificationFeed | Scope.Scope
   > {
     // Same terminal outcome as `processWebhookMessage`: a malformed dead letter
     // has no trusted endpointId for a delivery row, so log-and-ack only.

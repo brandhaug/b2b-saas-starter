@@ -1,3 +1,4 @@
+import { workspaceAuditAttribution } from '@b2b-saas-starter/billing/ports'
 import { user } from '@b2b-saas-starter/db/schema/auth'
 import { workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
@@ -103,9 +104,7 @@ export function SeedWorkspaceOnboarding(
             return next
           })
           yield* audit.record({
-            workspaceId: ctx.workspace.id,
-            actorUserId: ctx.actor?.userId ?? null,
-            actorType: ctx.actorType,
+            ...workspaceAuditAttribution(ctx),
             eventType: 'workspace.onboarding_dismissed',
             targetType: 'workspace',
             targetId: ctx.workspace.id,
@@ -183,9 +182,7 @@ export const LiveWorkspaceOnboarding: Layer.Layer<
             Effect.map((dismissedAt) => dismissedAt === null)
           ),
           auditEvent: {
-            workspaceId: ctx.workspace.id,
-            actorUserId: ctx.actor?.userId ?? null,
-            actorType: ctx.actorType,
+            ...workspaceAuditAttribution(ctx),
             eventType: 'workspace.onboarding_dismissed',
             targetType: 'workspace',
             targetId: ctx.workspace.id,

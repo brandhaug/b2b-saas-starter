@@ -9,7 +9,7 @@ import { SeedNotificationFeed } from '../notifications/notification-feed.seed.ts
 import { SeedNotificationPreferences } from '../notifications/notification-preferences.ts'
 import { SeedAccountPreferences } from '../governance/account-preferences.ts'
 import { SeedApiTokenRegistry } from '../developer-platform/api-token-registry.seed.ts'
-import { SeedWebhookEndpoints } from '../developer-platform/webhook-endpoints.seed.ts'
+import { SeedWebhooks } from '../developer-platform/webhooks.seed.ts'
 import { SeedWebhookPublisher } from '../developer-platform/webhook-publisher.ts'
 import { ApiTokenRegistry } from '../developer-platform/api-token-registry.ts'
 import { SeedLayer } from '../layers.ts'
@@ -65,7 +65,7 @@ function seedFixture(
     billing,
     selection,
     SeedApiTokenRegistry([]),
-    SeedWebhookEndpoints([])
+    SeedWebhooks([])
   ).pipe(
     Layer.provide(selection),
     Layer.provide(billing),

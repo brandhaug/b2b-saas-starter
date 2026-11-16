@@ -4,7 +4,7 @@ import {
   failureLadderAction,
   type WebhookDeliveryAttemptInput
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
-import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+import { WebhookDispatch } from '@b2b-saas-starter/capabilities/developer-platform/webhook-dispatch'
 import { WebhookQueueMessage } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
 import {
   NotificationFeed,
@@ -75,23 +75,9 @@ function stubEndpoints(
   dispatchTarget: typeof target | null,
   recorded: Array<WebhookDeliveryAttemptInput>,
   streakInput?: StreakState
-): Layer.Layer<WebhookEndpoints> {
+): Layer.Layer<WebhookDispatch> {
   const streak: StreakState = streakInput ?? { current: 0 }
-  return Layer.succeed(WebhookEndpoints)({
-    list: Effect.die('unused in delivery tests'),
-    listPage: () => Effect.die('unused in delivery tests'),
-    create: () => Effect.die('unused in delivery tests'),
-    rotateSecret: () => Effect.die('unused in delivery tests'),
-    update: () => Effect.die('unused in delivery tests'),
-    delete: () => Effect.die('unused in delivery tests'),
-    replayDelivery: () => Effect.die('unused in delivery tests'),
-    sendTestEvent: () => Effect.die('unused in delivery tests'),
-    listDeliveryAttempts: () => Effect.die('unused in delivery tests'),
-    cleanupDeliveryHistory: () => Effect.die('unused in delivery tests'),
-    listDeliveries: () => Effect.die('unused in delivery tests'),
-    inspectDelivery: () => Effect.die('unused in delivery tests'),
-    listGlobalDeliveries: () => Effect.die('unused in delivery tests'),
-    replayDeliveryAsAdmin: () => Effect.die('unused in delivery tests'),
+  return Layer.succeed(WebhookDispatch)({
     isDeliverySettled: () => Effect.succeed(false),
     getDispatchTarget: (endpointId, workspaceId) =>
       Effect.succeed(resolveTarget(dispatchTarget, endpointId, workspaceId)),

@@ -6,6 +6,7 @@ import { DEMO_WORKSPACE_SLUG } from '@/lib/demo-workspace'
 import { Effect } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
+import { WorkspaceCaller } from '@b2b-saas-starter/capabilities/workspace-context'
 import { type DemoShowcase } from './demo-showcase'
 
 /**
@@ -37,7 +38,8 @@ export function loadDemoShowcase(): Promise<DemoShowcase | null> {
         )
       },
       { concurrency: 'unbounded' }
-    )
+    ),
+    WorkspaceCaller.system
   ).then(
     (raw) => ({
       overview: raw.overview,

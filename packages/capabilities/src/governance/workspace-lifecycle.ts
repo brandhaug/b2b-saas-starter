@@ -1,3 +1,4 @@
+import { workspaceAuditAttribution } from '@b2b-saas-starter/billing/ports'
 import { AssistantDirectory } from '../assistant/directory.ts'
 import { Billing } from '@b2b-saas-starter/billing/billing'
 import { Database } from '@b2b-saas-starter/db/service'
@@ -255,9 +256,8 @@ export function SeedWorkspaceLifecycle(options: {
           const audit = yield* Effect.serviceOption(AuditEventLog)
           if (Option.isSome(audit)) {
             yield* audit.value.record({
+              ...workspaceAuditAttribution(ctx),
               workspaceId: null,
-              actorUserId: ctx.actor?.userId ?? null,
-              actorType: ctx.actorType,
               eventType: 'workspace.deleted',
               targetType: 'workspace',
               targetId: removed.id,
@@ -394,9 +394,8 @@ export function LiveWorkspaceLifecycle(
           yield* recordCompletedAudit(
             audit,
             {
+              ...workspaceAuditAttribution(ctx),
               workspaceId: null,
-              actorUserId: ctx.actor?.userId ?? null,
-              actorType: ctx.actorType,
               eventType: 'workspace.deleted',
               targetType: 'workspace',
               targetId: removed.id,

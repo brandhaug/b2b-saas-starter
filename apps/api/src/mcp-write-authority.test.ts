@@ -7,7 +7,7 @@ import {
   StrongAuthenticationRequired
 } from '@b2b-saas-starter/capabilities/governance/strong-authentication'
 import { WebhookPublisher } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
-import { SeedWebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints.seed'
+import { SeedWebhooks } from '@b2b-saas-starter/capabilities/developer-platform/webhooks.seed'
 import {
   seedWebhookEndpoints,
   seedDeliveries
@@ -48,7 +48,7 @@ it.live(
         publishForWorkspace: () => Effect.void,
         enqueue: () => Effect.die(new TypeError('private-provider-payload'))
       })
-      const webhooks = SeedWebhookEndpoints(seedWebhookEndpoints, seedDeliveries).pipe(
+      const webhooks = SeedWebhooks(seedWebhookEndpoints, seedDeliveries).pipe(
         Layer.provide(publisher),
         Layer.provide(SeedLayer)
       )
@@ -585,7 +585,7 @@ it.effect(
             )
           })
       })
-      const webhooks = SeedWebhookEndpoints(seedWebhookEndpoints, seedDeliveries).pipe(
+      const webhooks = SeedWebhooks(seedWebhookEndpoints, seedDeliveries).pipe(
         Layer.provide(publisher),
         Layer.provide(SeedLayer)
       )

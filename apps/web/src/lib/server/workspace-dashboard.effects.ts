@@ -9,6 +9,7 @@ import {
 import { Effect } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
+import { WorkspaceCaller } from '@b2b-saas-starter/capabilities/workspace-context'
 import { requireRequestSession } from './auth'
 import { permitted, whenPermitted } from './authorize'
 import { workspacePage, type WorkspacePageFrame } from './page-frame'
@@ -73,7 +74,9 @@ export async function loadWorkspaceDashboardHandler(
   input: WorkspaceDashboardInput
 ): Promise<WorkspaceDashboardPayload> {
   const session = await requireRequestSession()
-  return runWorkspaceCapabilities(input.workspaceSlug, dashboardPayload, {
-    userId: session.user.id
-  })
+  return runWorkspaceCapabilities(
+    input.workspaceSlug,
+    dashboardPayload,
+    WorkspaceCaller.user(session.user.id)
+  )
 }

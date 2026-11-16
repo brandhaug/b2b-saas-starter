@@ -1,12 +1,13 @@
 import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { type WebhookDeliveryAttemptInput } from './webhook-delivery-plan.ts'
-import { Clock, Effect } from 'effect'
-import { TestClock } from 'effect/testing'
+import { Effect } from 'effect'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { type ContractExpect } from '../governance/contract-expect.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { type DeveloperPlatformContractCase } from './developer-platform.contract.ts'
 import { WebhookEndpoints } from './webhook-endpoints.ts'
+import { WebhookDeliveries } from './webhook-deliveries.ts'
+import { WebhookDispatch } from './webhook-dispatch.ts'
 
 export function webhookAttemptHistoryCases(
   expect: ContractExpect
@@ -16,6 +17,7 @@ export function webhookAttemptHistoryCases(
       name: 'terminal delivery state survives endpoint recovery and stays scoped to its workspace',
       assert: Effect.gen(function* () {
         const service = yield* WebhookEndpoints
+        const dispatch = yield* WebhookDispatch
         const ctx = yield* WorkspaceContext
         const { endpoint } = yield* service.create({
           url: 'https://example.com/settled-delivery',
@@ -26,8 +28,8 @@ export function webhookAttemptHistoryCases(
           endpointId: endpoint.id,
           workspaceId: ctx.workspace.id
         }
-        expect(yield* service.isDeliverySettled(identity)).toBe(false)
-        yield* service.recordDeliveryAttempt({
+        expect(yield* dispatch.isDeliverySettled(identity)).toBe(false)
+        yield* dispatch.recordDeliveryAttempt({
           id: identity.deliveryId,
           endpointId: endpoint.id,
           workspaceId: ctx.workspace.id,
@@ -36,8 +38,8 @@ export function webhookAttemptHistoryCases(
           status: 'failed',
           payload: {}
         })
-        expect(yield* service.isDeliverySettled(identity)).toBe(false)
-        yield* service.recordTerminalDeliveryAttempt({
+        expect(yield* dispatch.isDeliverySettled(identity)).toBe(false)
+        yield* dispatch.recordTerminalDeliveryAttempt({
           ...identity,
           eventType: 'demo.event',
           attempts: 2,
@@ -46,12 +48,12 @@ export function webhookAttemptHistoryCases(
           payload: {}
         })
         yield* service.update({ endpointId: endpoint.id, enabled: true })
-        expect(yield* service.isDeliverySettled(identity)).toBe(true)
+        expect(yield* dispatch.isDeliverySettled(identity)).toBe(true)
         expect(
-          yield* service.isDeliverySettled({ ...identity, workspaceId: 'wrk_other' })
+          yield* dispatch.isDeliverySettled({ ...identity, workspaceId: 'wrk_other' })
         ).toBe(false)
         expect(
-          yield* service.isDeliverySettled({
+          yield* dispatch.isDeliverySettled({
             ...identity,
             endpointId: WebhookEndpointId.make('wh_other')
           })
@@ -62,6 +64,7 @@ export function webhookAttemptHistoryCases(
       name: 'concurrent independent failures reach the atomic disable rung exactly once and re-enable remains effective',
       assert: Effect.gen(function* () {
         const service = yield* WebhookEndpoints
+        const dispatch = yield* WebhookDispatch
         const ctx = yield* WorkspaceContext
         const audit = yield* AuditEventLog
         const { endpoint } = yield* service.create({
@@ -79,7 +82,7 @@ export function webhookAttemptHistoryCases(
         }
         const results = yield* Effect.all(
           Array.from({ length: 20 }, (_, index) =>
-            service.recordDeliveryAttempt({
+            dispatch.recordDeliveryAttempt({
               ...base,
               id: WebhookDeliveryId.make(`whd_atomic_${index}`)
             })
@@ -90,7 +93,7 @@ export function webhookAttemptHistoryCases(
           results.map((row) => row.consecutiveFailures).toSorted((a, b) => a - b)
         ).toEqual(Array.from({ length: 20 }, (_, index) => index + 1))
         expect(
-          yield* service.getDispatchTarget(
+          yield* dispatch.getDispatchTarget(
             endpoint.id,
             ctx.workspace.id,
             WebhookDeliveryId.make('whd_atomic_19')
@@ -102,19 +105,19 @@ export function webhookAttemptHistoryCases(
           })).items.filter((row) => row.targetId === endpoint.id)
         ).toHaveLength(1)
         yield* service.update({ endpointId: endpoint.id, enabled: true })
-        const duplicate = yield* service.recordDeliveryAttempt({
+        const duplicate = yield* dispatch.recordDeliveryAttempt({
           ...base,
           id: WebhookDeliveryId.make('whd_atomic_19')
         })
         expect(duplicate.recorded).toBe(false)
         expect(
-          (yield* service.getDispatchTarget(
+          (yield* dispatch.getDispatchTarget(
             endpoint.id,
             ctx.workspace.id,
             WebhookDeliveryId.make('whd_atomic_19')
           )) !== null
         ).toBe(true)
-        const terminal = yield* service.recordTerminalDeliveryAttempt({
+        const terminal = yield* dispatch.recordTerminalDeliveryAttempt({
           ...base,
           deliveryId: WebhookDeliveryId.make('whd_atomic_19'),
           status: 'dead_lettered'
@@ -123,7 +126,7 @@ export function webhookAttemptHistoryCases(
         expect(terminal.failureAction).toBe('silent')
         expect(terminal.consecutiveFailures).toBe(20)
         expect(
-          (yield* service.getDispatchTarget(
+          (yield* dispatch.getDispatchTarget(
             endpoint.id,
             ctx.workspace.id,
             WebhookDeliveryId.make('whd_atomic_19')
@@ -134,12 +137,12 @@ export function webhookAttemptHistoryCases(
             eventType: 'webhook_endpoint.auto_disabled'
           })).items.filter((row) => row.targetId === endpoint.id)
         ).toHaveLength(1)
-        yield* service.recordDeliveryAttempt({
+        yield* dispatch.recordDeliveryAttempt({
           ...base,
           id: WebhookDeliveryId.make('whd_atomic_after_reenable')
         })
         expect(
-          yield* service.getDispatchTarget(
+          yield* dispatch.getDispatchTarget(
             endpoint.id,
             ctx.workspace.id,
             WebhookDeliveryId.make('whd_atomic_after_reenable')
@@ -156,6 +159,7 @@ export function webhookAttemptHistoryCases(
       name: 'independent success and failure update the streak in commit order',
       assert: Effect.gen(function* () {
         const service = yield* WebhookEndpoints
+        const dispatch = yield* WebhookDispatch
         const ctx = yield* WorkspaceContext
         const { endpoint } = yield* service.create({
           url: 'https://example.com/mixed-results',
@@ -169,18 +173,18 @@ export function webhookAttemptHistoryCases(
           attempts: 1,
           payload: {}
         }
-        yield* service.recordDeliveryAttempt({
+        yield* dispatch.recordDeliveryAttempt({
           ...base,
           id: WebhookDeliveryId.make('whd_mixed_prime')
         })
         const [success, failure] = yield* Effect.all(
           [
-            service.recordDeliveryAttempt({
+            dispatch.recordDeliveryAttempt({
               ...base,
               id: WebhookDeliveryId.make('whd_mixed_ok'),
               status: 'delivered'
             }),
-            service.recordDeliveryAttempt({
+            dispatch.recordDeliveryAttempt({
               ...base,
               id: WebhookDeliveryId.make('whd_mixed_fail')
             })
@@ -189,7 +193,7 @@ export function webhookAttemptHistoryCases(
         )
         expect(success.consecutiveFailures).toBe(0)
         expect([1, 2].includes(failure.consecutiveFailures)).toBe(true)
-        const unchanged = yield* service.recordDeliveryAttempt({
+        const unchanged = yield* dispatch.recordDeliveryAttempt({
           ...base,
           id: WebhookDeliveryId.make('whd_mixed_fail')
         })
@@ -203,6 +207,8 @@ export function webhookAttemptHistoryCases(
       name: 'retry preserves an original null payload and absent replay provenance',
       assert: Effect.gen(function* () {
         const service = yield* WebhookEndpoints
+        const dispatch = yield* WebhookDispatch
+        const deliveryLog = yield* WebhookDeliveries
         const ctx = yield* WorkspaceContext
         const { endpoint } = yield* service.create({
           url: 'https://example.com/null-payload',
@@ -214,70 +220,30 @@ export function webhookAttemptHistoryCases(
           workspaceId: ctx.workspace.id,
           eventType: 'demo.event'
         }
-        yield* service.recordDeliveryAttempt({
+        yield* dispatch.recordDeliveryAttempt({
           ...base,
           status: 'failed',
           attempts: 1,
           payload: null
         })
-        yield* service.recordDeliveryAttempt({
+        yield* dispatch.recordDeliveryAttempt({
           ...base,
           status: 'delivered',
           attempts: 2,
           payload: { changed: true },
           replayedFrom: WebhookDeliveryId.make('unrelated')
         })
-        const rows = yield* service.listDeliveries({ endpointId: endpoint.id })
+        const rows = yield* deliveryLog.listDeliveries({ endpointId: endpoint.id })
         expect(rows[0]?.payload).toBe(null)
         expect(rows[0]?.replayedFrom).toBe(null)
-      })
-    },
-    {
-      name: 'retention removes at most 100 expired deliveries per pass and cascades their attempts',
-      assert: Effect.gen(function* () {
-        const service = yield* WebhookEndpoints
-        const ctx = yield* WorkspaceContext
-        const now = yield* Clock.currentTimeMillis
-        const { endpoint } = yield* service.create({
-          url: 'https://example.com/attempt-retention',
-          events: ['demo.event']
-        })
-        yield* Effect.gen(function* () {
-          yield* TestClock.setTime(Date.parse('1900-01-01T00:00:00.000Z'))
-          yield* Effect.all(
-            Array.from({ length: 101 }, (_, index) =>
-              service.recordDeliveryAttempt({
-                id: WebhookDeliveryId.make(`whd_retention_${index}`),
-                endpointId: endpoint.id,
-                workspaceId: ctx.workspace.id,
-                eventType: 'demo.event',
-                status: 'delivered',
-                attempts: 1,
-                responseStatus: 200,
-                payload: {}
-              })
-            ),
-            { concurrency: 10 }
-          )
-          yield* TestClock.setTime(Date.parse('1900-02-01T00:00:00.000Z'))
-          expect(yield* service.cleanupDeliveryHistory()).toBe(100)
-          expect(
-            yield* service.listDeliveries({ endpointId: endpoint.id })
-          ).toHaveLength(1)
-          expect(yield* service.cleanupDeliveryHistory()).toBe(1)
-          expect(
-            yield* service.listDeliveryAttempts({
-              deliveryId: WebhookDeliveryId.make('whd_retention_100')
-            })
-          ).toHaveLength(0)
-          expect(yield* service.cleanupDeliveryHistory()).toBe(0)
-        }).pipe(Effect.ensuring(TestClock.setTime(now)))
       })
     },
     {
       name: 'immutable attempts survive failure then success and concurrent duplicate processing',
       assert: Effect.gen(function* () {
         const service = yield* WebhookEndpoints
+        const dispatch = yield* WebhookDispatch
+        const deliveryLog = yield* WebhookDeliveries
         const ctx = yield* WorkspaceContext
         const { endpoint } = yield* service.create({
           url: 'https://example.com/attempt-history',
@@ -301,14 +267,14 @@ export function webhookAttemptHistoryCases(
         }
         const duplicates = yield* Effect.all(
           [
-            service.recordDeliveryAttempt(failed),
-            service.recordDeliveryAttempt(failed)
+            dispatch.recordDeliveryAttempt(failed),
+            dispatch.recordDeliveryAttempt(failed)
           ],
           { concurrency: 'unbounded' }
         )
         expect(duplicates.filter((result) => result.recorded)).toHaveLength(1)
         expect(duplicates.map((result) => result.consecutiveFailures)).toEqual([1, 1])
-        const success = yield* service.recordDeliveryAttempt({
+        const success = yield* dispatch.recordDeliveryAttempt({
           ...base,
           status: 'delivered',
           attempts: 3,
@@ -316,7 +282,7 @@ export function webhookAttemptHistoryCases(
           durationMs: 24
         })
         expect(success.consecutiveFailures).toBe(0)
-        const stale = yield* service.recordDeliveryAttempt({
+        const stale = yield* dispatch.recordDeliveryAttempt({
           ...base,
           status: 'failed_permanent',
           attempts: 2,
@@ -326,7 +292,7 @@ export function webhookAttemptHistoryCases(
         expect(stale.recorded).toBe(false)
         expect(stale.status).toBe('delivered')
         expect(stale.consecutiveFailures).toBe(0)
-        const history = yield* service.listDeliveryAttempts({ deliveryId: base.id })
+        const history = yield* deliveryLog.listDeliveryAttempts({ deliveryId: base.id })
         expect(history.map((row) => row.attempts)).toEqual([1, 2, 3])
         expect(history[0]).toMatchObject({
           status: 'failed',
@@ -335,7 +301,7 @@ export function webhookAttemptHistoryCases(
         })
         expect(history[0]?.responseBody?.endsWith('… [truncated]')).toBe(true)
         expect(
-          (yield* service.listDeliveries({ endpointId: endpoint.id }))[0]
+          (yield* deliveryLog.listDeliveries({ endpointId: endpoint.id }))[0]
         ).toMatchObject({
           id: base.id,
           attempts: 3,
@@ -354,6 +320,8 @@ export function webhookAttemptHistoryCases(
       name: 'dead letter is a terminal observation of the existing delivery without another HTTP failure',
       assert: Effect.gen(function* () {
         const service = yield* WebhookEndpoints
+        const dispatch = yield* WebhookDispatch
+        const deliveryLog = yield* WebhookDeliveries
         const ctx = yield* WorkspaceContext
         const { endpoint } = yield* service.create({
           url: 'https://example.com/attempt-terminal',
@@ -367,7 +335,7 @@ export function webhookAttemptHistoryCases(
         }
         yield* Effect.all(
           Array.from({ length: 4 }, (_, index) =>
-            service.recordDeliveryAttempt({
+            dispatch.recordDeliveryAttempt({
               ...base,
               id: WebhookDeliveryId.make(`whd_history_prime_${index}`),
               status: 'failed',
@@ -376,7 +344,7 @@ export function webhookAttemptHistoryCases(
           ),
           { concurrency: 'unbounded' }
         )
-        yield* service.recordDeliveryAttempt({
+        yield* dispatch.recordDeliveryAttempt({
           ...base,
           id: WebhookDeliveryId.make('whd_history_dlq'),
           status: 'failed',
@@ -385,7 +353,7 @@ export function webhookAttemptHistoryCases(
           durationMs: 99,
           responseBody: 'unavailable'
         })
-        const terminal: Parameters<typeof service.recordTerminalDeliveryAttempt>[0] = {
+        const terminal: Parameters<typeof dispatch.recordTerminalDeliveryAttempt>[0] = {
           ...base,
           deliveryId: WebhookDeliveryId.make('whd_history_dlq'),
           status: 'dead_lettered',
@@ -394,15 +362,15 @@ export function webhookAttemptHistoryCases(
         }
         const results = yield* Effect.all(
           [
-            service.recordTerminalDeliveryAttempt(terminal),
-            service.recordTerminalDeliveryAttempt({ ...terminal, attempts: 2 })
+            dispatch.recordTerminalDeliveryAttempt(terminal),
+            dispatch.recordTerminalDeliveryAttempt({ ...terminal, attempts: 2 })
           ],
           { concurrency: 'unbounded' }
         )
         expect(results.filter((row) => row.recorded)).toHaveLength(1)
         expect(results.map((row) => row.consecutiveFailures)).toEqual([5, 5])
         expect(results.map((row) => row.failureAction)).toEqual(['silent', 'silent'])
-        const history = yield* service.listDeliveryAttempts({
+        const history = yield* deliveryLog.listDeliveryAttempts({
           deliveryId: terminal.deliveryId
         })
         expect(history.map((row) => row.phase)).toEqual(['http', 'terminal'])
@@ -413,7 +381,7 @@ export function webhookAttemptHistoryCases(
           failureReason: 'retries_exhausted'
         })
         expect(
-          (yield* service.listDeliveries({ endpointId: endpoint.id })).find(
+          (yield* deliveryLog.listDeliveries({ endpointId: endpoint.id })).find(
             (row) => row.id === terminal.deliveryId
           )
         ).toMatchObject({
@@ -429,14 +397,14 @@ export function webhookAttemptHistoryCases(
             eventType: 'webhook.delivery_dead_lettered'
           })).items.filter((row) => row.targetId === endpoint.id)
         ).toHaveLength(1)
-        const replay = yield* service.replayDelivery({
+        const replay = yield* deliveryLog.replayDelivery({
           deliveryId: terminal.deliveryId
         })
         expect(
-          yield* service.listDeliveryAttempts({ deliveryId: replay.deliveryId })
+          yield* deliveryLog.listDeliveryAttempts({ deliveryId: replay.deliveryId })
         ).toHaveLength(0)
         expect(
-          (yield* service.listDeliveries({ endpointId: endpoint.id })).find(
+          (yield* deliveryLog.listDeliveries({ endpointId: endpoint.id })).find(
             (row) => row.id === replay.deliveryId
           )
         ).toMatchObject({
@@ -450,13 +418,15 @@ export function webhookAttemptHistoryCases(
       name: 'never-dispatched outcomes are recorded and foreign workspace writes create no evidence',
       assert: Effect.gen(function* () {
         const service = yield* WebhookEndpoints
+        const dispatch = yield* WebhookDispatch
+        const deliveryLog = yield* WebhookDeliveries
         const ctx = yield* WorkspaceContext
         const { endpoint } = yield* service.create({
           url: 'https://example.com/attempt-refused',
           events: ['demo.event']
         })
         const sent = yield* service.sendTestEvent({ endpointId: endpoint.id })
-        const input: Parameters<typeof service.recordTerminalDeliveryAttempt>[0] = {
+        const input: Parameters<typeof dispatch.recordTerminalDeliveryAttempt>[0] = {
           deliveryId: sent.deliveryId,
           endpointId: endpoint.id,
           workspaceId: ctx.workspace.id,
@@ -466,10 +436,10 @@ export function webhookAttemptHistoryCases(
           failureReason: 'invalid_url',
           payload: { stable: true }
         }
-        const refused = yield* service.recordTerminalDeliveryAttempt(input)
+        const refused = yield* dispatch.recordTerminalDeliveryAttempt(input)
         expect(refused.consecutiveFailures).toBe(1)
         expect(
-          (yield* service.listDeliveryAttempts({ deliveryId: input.deliveryId }))[0]
+          (yield* deliveryLog.listDeliveryAttempts({ deliveryId: input.deliveryId }))[0]
         ).toMatchObject({
           phase: 'terminal',
           durationMs: null,
@@ -477,18 +447,18 @@ export function webhookAttemptHistoryCases(
           responseStatus: null,
           failureReason: 'invalid_url'
         })
-        const foreign = yield* service.recordTerminalDeliveryAttempt({
+        const foreign = yield* dispatch.recordTerminalDeliveryAttempt({
           ...input,
           deliveryId: WebhookDeliveryId.make('whd_history_foreign'),
           workspaceId: 'wrk_foreign'
         })
         expect(foreign.recorded).toBe(false)
         expect(
-          yield* service.listDeliveryAttempts({
+          yield* deliveryLog.listDeliveryAttempts({
             deliveryId: WebhookDeliveryId.make('whd_history_foreign')
           })
         ).toHaveLength(0)
-        const visible = yield* service
+        const visible = yield* deliveryLog
           .listDeliveryAttempts({ deliveryId: input.deliveryId })
           .pipe(
             Effect.provideService(WorkspaceContext, {

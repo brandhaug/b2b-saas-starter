@@ -8,6 +8,7 @@ import { listInvitationEmailHistory } from '@b2b-saas-starter/capabilities/gover
 import { deliveryRows } from './email-delivery.effects'
 
 import { runWorkspaceCapabilities } from '../capabilities'
+import { WorkspaceCaller } from '@b2b-saas-starter/capabilities/workspace-context'
 import { requireRequestSession } from './auth'
 import { requireRecentAuthentication } from './strong-authentication.effects'
 import { requireWorkspacePermission, whenPermitted } from './authorize'
@@ -63,9 +64,11 @@ export async function loadWorkspaceMembersHandler(
   // proved membership, and `runWorkspaceCapabilities` re-proves it
   // server-side.
   const session = await requireRequestSession()
-  return runWorkspaceCapabilities(input.workspaceSlug, membersPayload, {
-    userId: session.user.id
-  })
+  return runWorkspaceCapabilities(
+    input.workspaceSlug,
+    membersPayload,
+    WorkspaceCaller.user(session.user.id)
+  )
 }
 
 /**
@@ -85,7 +88,7 @@ export async function changeMemberRoleHandler(
       const membership = yield* WorkspaceMembership
       return yield* membership.changeRole({ userId: input.userId, role: input.role })
     }),
-    { userId: session.user.id },
+    WorkspaceCaller.user(session.user.id),
     // The adapter lives server-only and rides per call — see
     // `member-binding.ts` for why it cannot sit on `starterEnv`.
     { memberBinding: webMemberBinding, securityEvidence: makeSecurityEvidenceSink() }
@@ -108,7 +111,7 @@ export async function removeMemberHandler(input: RemoveMemberInput): Promise<voi
       const membership = yield* WorkspaceMembership
       return yield* membership.removeMember({ userId: input.userId })
     }),
-    { userId: session.user.id },
+    WorkspaceCaller.user(session.user.id),
     { memberBinding: webMemberBinding, securityEvidence: makeSecurityEvidenceSink() }
   )
 }
@@ -129,7 +132,7 @@ export async function leaveWorkspaceHandler(input: LeaveWorkspaceInput): Promise
   return runWorkspaceCapabilities(
     input.workspaceSlug,
     Effect.flatMap(WorkspaceMembership, (membership) => membership.leave),
-    { userId: session.user.id },
+    WorkspaceCaller.user(session.user.id),
     { memberBinding: webMemberBinding, securityEvidence: makeSecurityEvidenceSink() }
   )
 }

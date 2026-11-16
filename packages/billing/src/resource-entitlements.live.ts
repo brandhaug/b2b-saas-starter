@@ -8,7 +8,7 @@ import { batch, Database, RawD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer, Schema } from 'effect'
 import { and, eq, sql } from 'drizzle-orm'
 import { Billing } from './billing.ts'
-import { AuditEventLog, WorkspaceContext } from './ports.ts'
+import { AuditEventLog, WorkspaceContext, workspaceAuditAttribution } from './ports.ts'
 import { orUnavailable } from '@b2b-saas-starter/failure/capability'
 import {
   EMPTY_RESOURCE_SELECTION,
@@ -194,9 +194,7 @@ export const LiveResourceEntitlements: Layer.Layer<
         const tokenIds = sql`(with recursive selected(id) as (select value from json_each(${encodeIds(input.apiTokenIds)}) union select t.replaced_by_token_id from api_tokens t join selected s on t.id = s.id where t.workspace_id = ${ctx.workspace.id} and t.replaced_by_token_id is not null) select json_group_array(id) from (select distinct t.id from api_tokens t join selected s on t.id = s.id where t.workspace_id = ${ctx.workspace.id} and t.revoked_at is null and t.replaced_by_token_id is null and (t.expires_at is null or t.expires_at > ${now})))`
         const endpointIds = sql`(select json_group_array(id) from webhook_endpoints where workspace_id = ${ctx.workspace.id} and enabled = 1 and id in (select value from json_each(${encodeIds(input.webhookEndpointIds)})))`
         const auditStatement = yield* audit.prepareRecord({
-          workspaceId: ctx.workspace.id,
-          actorUserId: ctx.actor?.userId ?? null,
-          actorType: ctx.actorType,
+          ...workspaceAuditAttribution(ctx),
           eventType: 'billing.resource_selection_updated',
           targetType: 'workspace',
           targetId: ctx.workspace.id,

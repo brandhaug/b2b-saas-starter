@@ -11,6 +11,7 @@ import {
   completeWebhookTerminalObservation
 } from './webhook-attempt-completion.ts'
 import { WebhookEndpoints } from './webhook-endpoints.ts'
+import { WebhookDeliveries } from './webhook-deliveries.ts'
 
 function observation(eventType: string) {
   return Effect.gen(function* () {
@@ -48,7 +49,7 @@ export function webhookCompletionCases(
       name: 'completion follows persisted results for duplicate and late HTTP observations',
       assert: Effect.gen(function* () {
         const input = yield* observation('completion_ordering')
-        const webhooks = yield* WebhookEndpoints
+        const deliveryLog = yield* WebhookDeliveries
         const audit = yield* AuditEventLog
         const feed = yield* NotificationFeed
         expect(yield* completeWebhookHttpObservation(input)).toEqual({
@@ -83,7 +84,7 @@ export function webhookCompletionCases(
           status: 'delivered',
           outcome: 'ack'
         })
-        const deliveries = yield* webhooks.listDeliveries({
+        const deliveries = yield* deliveryLog.listDeliveries({
           endpointId: input.message.endpointId
         })
         expect(deliveries[0]).toMatchObject({
@@ -93,7 +94,9 @@ export function webhookCompletionCases(
           nextAttemptAt: null
         })
         expect(
-          yield* webhooks.listDeliveryAttempts({ deliveryId: input.message.deliveryId })
+          yield* deliveryLog.listDeliveryAttempts({
+            deliveryId: input.message.deliveryId
+          })
         ).toHaveLength(3)
         expect(
           (yield* audit.list({ eventType: 'webhook.delivery_failed' })).items.filter(
@@ -113,7 +116,7 @@ export function webhookCompletionCases(
       name: 'completion emits terminal notifications and audits once across redelivery',
       assert: Effect.gen(function* () {
         const input = yield* observation('completion_terminal')
-        const webhooks = yield* WebhookEndpoints
+        const deliveryLog = yield* WebhookDeliveries
         const audit = yield* AuditEventLog
         const feed = yield* NotificationFeed
         const refused = { ...input, responseStatus: 410 }
@@ -155,7 +158,7 @@ export function webhookCompletionCases(
         })
         yield* completeWebhookTerminalObservation(terminal)
         expect(
-          (yield* webhooks.listDeliveries({
+          (yield* deliveryLog.listDeliveries({
             endpointId: input.message.endpointId
           })).find((row) => row.id === queued.message.deliveryId)
         ).toMatchObject({ status: 'dead_lettered', attempts: 6, responseStatus: 503 })
@@ -177,7 +180,7 @@ export function webhookCompletionCases(
       name: 'notification failure cannot retry a settled webhook completion',
       assert: Effect.gen(function* () {
         const input = yield* observation('completion_notice_outage')
-        const webhooks = yield* WebhookEndpoints
+        const deliveryLog = yield* WebhookDeliveries
         const audit = yield* AuditEventLog
         const feed = yield* NotificationFeed
         const refused = { ...input, responseStatus: 410 }
@@ -195,7 +198,9 @@ export function webhookCompletionCases(
         )
         expect(result).toEqual({ status: 'failed_permanent', outcome: 'ack' })
         expect(
-          (yield* webhooks.listDeliveries({ endpointId: input.message.endpointId }))[0]
+          (yield* deliveryLog.listDeliveries({
+            endpointId: input.message.endpointId
+          }))[0]
         ).toMatchObject({ status: 'failed_permanent' })
         expect(
           (yield* audit.list({ eventType: 'webhook.delivery_failed' })).items.filter(

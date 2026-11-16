@@ -1,13 +1,5 @@
-import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
-import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
-import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
-import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
-import { WorkspaceExports } from '@b2b-saas-starter/capabilities/governance/workspace-export'
-import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
-import { StrongAuthentication } from '@b2b-saas-starter/capabilities/governance/strong-authentication'
 import { McpClientConnections } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
 import { PlatformUserAdmin } from '@b2b-saas-starter/capabilities/governance/platform-user-admin'
-import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { annotateWideEventCause } from '@b2b-saas-starter/logger'
 import {
@@ -59,6 +51,8 @@ import {
   OperationOrigin,
   OperationExportRecipient,
   OperationPrincipal,
+  capabilityMutationServices,
+  capabilityReadServices,
   type CapabilityMutationServices,
   type CapabilityReadError,
   type CapabilityReadServices
@@ -168,17 +162,7 @@ function registerTools(env: ApiEnv) {
     const services = (yield* Effect.context<
       CapabilityReadServices | McpClientConnections | PlatformUserAdmin
     >()).pipe(
-      Context.pick(
-        NotificationFeed,
-        PlatformUserAdmin,
-        WorkspaceMembership,
-        ApiTokenRegistry,
-        WebhookEndpoints,
-        WorkspaceSuspensionService,
-        StrongAuthentication,
-        AuditEventLog,
-        McpClientConnections
-      )
+      Context.pick(...capabilityReadServices, PlatformUserAdmin, McpClientConnections)
     )
 
     for (const operation of readOperations()) {
@@ -231,18 +215,13 @@ function registerMutationTools(env: ApiEnv) {
     const services = (yield* Effect.context<
       | CapabilityMutationServices
       | RateLimiter
-      | ApiTokenRegistry
       | OAuthTokenVerifier
       | McpClientConnections
       | PlatformUserAdmin
     >()).pipe(
       Context.pick(
-        ApiTokenRegistry,
+        ...capabilityMutationServices,
         PlatformUserAdmin,
-        WebhookEndpoints,
-        WorkspaceExports,
-        WorkspaceSuspensionService,
-        StrongAuthentication,
         RateLimiter,
         OAuthTokenVerifier,
         McpClientConnections
@@ -321,17 +300,7 @@ function registerOverviewResource(env: ApiEnv) {
     const services = (yield* Effect.context<
       CapabilityReadServices | McpClientConnections | PlatformUserAdmin
     >()).pipe(
-      Context.pick(
-        NotificationFeed,
-        PlatformUserAdmin,
-        WorkspaceMembership,
-        ApiTokenRegistry,
-        WebhookEndpoints,
-        WorkspaceSuspensionService,
-        StrongAuthentication,
-        AuditEventLog,
-        McpClientConnections
-      )
+      Context.pick(...capabilityReadServices, PlatformUserAdmin, McpClientConnections)
     )
     return yield* registerResource({
       uri: OVERVIEW_RESOURCE_URI,

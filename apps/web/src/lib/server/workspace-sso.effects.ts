@@ -8,7 +8,10 @@ import {
 } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
-import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
+import {
+  type WorkspaceContext,
+  WorkspaceCaller
+} from '@b2b-saas-starter/capabilities/workspace-context'
 import { Effect, Option, Result } from 'effect'
 
 import { env as cloudflareEnv } from 'cloudflare:workers'
@@ -90,7 +93,7 @@ export async function createSsoConnectionHandler(
         defaultWorkspaceRole: input.defaultWorkspaceRole
       })
     }),
-    { userId: session.user.id },
+    WorkspaceCaller.user(session.user.id),
     { ssoBinding: webSsoBinding }
   )
 }
@@ -169,7 +172,7 @@ export async function updateSsoConnectionHandler(
       }
       return updated.value
     }),
-    { userId: session.user.id },
+    WorkspaceCaller.user(session.user.id),
     { ssoBinding: webSsoBinding }
   )
 }
@@ -185,7 +188,7 @@ export async function removeSsoConnectionHandler(
       const sso = yield* SsoConnections
       return yield* sso.remove({ providerId: input.providerId })
     }),
-    { userId: session.user.id },
+    WorkspaceCaller.user(session.user.id),
     { ssoBinding: webSsoBinding }
   )
 }
@@ -219,7 +222,7 @@ export async function testSsoConnectionHandler(
       }
       return { outcome: 'passed' } satisfies SsoTestResult
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }
 

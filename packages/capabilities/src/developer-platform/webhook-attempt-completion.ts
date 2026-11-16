@@ -2,7 +2,7 @@ import { type DateTime, Effect } from 'effect'
 import { annotateWideEvent } from '@b2b-saas-starter/logger'
 
 import { NotificationFeed } from '../notifications/notification-feed.ts'
-import { WebhookEndpoints, type RecordedWebhookAttempt } from './webhook-endpoints.ts'
+import { WebhookDispatch, type RecordedWebhookAttempt } from './webhook-dispatch.ts'
 import {
   failureLadderNotification,
   type FailureLadderAction,
@@ -99,7 +99,7 @@ type HttpObservationInput = {
 export const completeWebhookHttpObservation = Effect.fn(
   'WebhookAttemptCompletion.completeHttpObservation'
 )(function* (input: HttpObservationInput) {
-  const webhooks = yield* WebhookEndpoints
+  const webhooks = yield* WebhookDispatch
   const plan = planDeliveryAttempt(
     input.responseStatus,
     input.attempts,
@@ -148,7 +148,7 @@ type TerminalObservationInput = {
 export const completeWebhookTerminalObservation = Effect.fn(
   'WebhookAttemptCompletion.completeTerminalObservation'
 )(function* (input: TerminalObservationInput) {
-  const webhooks = yield* WebhookEndpoints
+  const webhooks = yield* WebhookDispatch
   const recorded = yield* webhooks.recordTerminalDeliveryAttempt({
     deliveryId: input.message.deliveryId,
     endpointId: input.message.endpointId,

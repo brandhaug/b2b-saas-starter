@@ -53,9 +53,15 @@ import { type ApiTokenRegistry } from './developer-platform/api-token-registry.t
 import { LiveMcpClientConnections } from './developer-platform/mcp-client-connections.live.ts'
 import { SeedMcpClientConnections } from './developer-platform/mcp-client-connections.seed.ts'
 import { type McpClientConnections } from './developer-platform/mcp-client-connections.ts'
+import { LiveWebhookDeliveries } from './developer-platform/webhook-deliveries.live.ts'
+import { type WebhookDeliveries } from './developer-platform/webhook-deliveries.ts'
+import { LiveWebhookDeliveryAdmin } from './developer-platform/webhook-delivery-admin.live.ts'
+import { type WebhookDeliveryAdmin } from './developer-platform/webhook-delivery-admin.ts'
+import { LiveWebhookDispatch } from './developer-platform/webhook-dispatch.live.ts'
+import { type WebhookDispatch } from './developer-platform/webhook-dispatch.ts'
 import { LiveWebhookEndpoints } from './developer-platform/webhook-endpoints.live.ts'
-import { SeedWebhookEndpoints } from './developer-platform/webhook-endpoints.seed.ts'
 import { type WebhookEndpoints } from './developer-platform/webhook-endpoints.ts'
+import { SeedWebhooks } from './developer-platform/webhooks.seed.ts'
 import {
   LiveWebhookPublisher,
   SeedWebhookPublisher,
@@ -216,6 +222,9 @@ export type CapabilityServices =
   | PlatformUserAdmin
   | SeatSyncPublisher
   | SsoConnections
+  | WebhookDeliveries
+  | WebhookDeliveryAdmin
+  | WebhookDispatch
   | WebhookEndpoints
   | WebhookPublisher
   | WorkspaceExports
@@ -408,7 +417,7 @@ const SeedCore = Layer.mergeAll(
   SeedAccountPrefs,
   SeedSeatSyncPublisher,
   SeedSsoConnections(seedSsoConnections),
-  SeedWebhookEndpoints(
+  SeedWebhooks(
     seedWebhookEndpoints,
     seedDeliveries,
     undefined,
@@ -612,9 +621,13 @@ export function makeLiveCapabilitiesLayer(
     Layer.provide(suspension),
     Layer.provide(LiveEmailDelivery)
   )
-  const webhooks = LiveWebhookEndpoints.pipe(
-    Layer.provide(entitlements),
-    Layer.provide(billing)
+  // The four webhook services share D1 tables, not state, so each is built
+  // from its own dependencies; only dispatch reads entitlements.
+  const webhooks = Layer.mergeAll(
+    LiveWebhookEndpoints.pipe(Layer.provide(billing)),
+    LiveWebhookDeliveries,
+    LiveWebhookDeliveryAdmin,
+    LiveWebhookDispatch.pipe(Layer.provide(entitlements))
   )
   const tasks = LiveWebhookInvestigationTasks.pipe(Layer.provide(webhooks))
   const conversationLifecycle = AssistantConversationLifecycleLayer(

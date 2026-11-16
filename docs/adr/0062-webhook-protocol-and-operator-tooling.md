@@ -16,4 +16,4 @@ D1 batches observation insertion, conditional summary advancement, streak change
 
 Response evidence is size- and time-bounded, including a 2 KiB response prefix; complete event payloads remain available for replay. Authorized operators can inspect attempts, test, replay, update, delete, and rotate endpoints. Explicit enqueue failures must remain visible even when a pending row already committed.
 
-Daily cleanup removes at most 100 deliveries older than thirty days per pass; attempts cascade with them. This bounds scheduled work, though a backlog can require several passes. Seed follows the same acceptance, ordering, rotation, and retention rules as Live.
+Scheduled retention removes settled deliveries thirty days after their last attempt; attempts cascade with them. The retention policy's batch size and work budget bound each run, though a backlog can require several runs. Seed follows the same acceptance, ordering, rotation, and retention rules as Live.

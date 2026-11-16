@@ -2,7 +2,7 @@ import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { Effect } from 'effect'
 import { type ContractExpect } from '../governance/contract-expect.ts'
 import { walkKeysetPages } from '../internal/keyset-cursor.ts'
-import { WebhookEndpoints } from './webhook-endpoints.ts'
+import { WebhookDeliveryAdmin } from './webhook-delivery-admin.ts'
 import {
   deliveryViewLimits,
   type DeliveryView,
@@ -42,9 +42,9 @@ export const deliveryViewWorkspaces = [
  */
 export function deliveryViewFilterContract(expect: ContractExpect) {
   return Effect.gen(function* () {
-    const webhooks = yield* WebhookEndpoints
+    const deliveryAdmin = yield* WebhookDeliveryAdmin
     function ids(filter: DeliveryViewFilter) {
-      return webhooks
+      return deliveryAdmin
         .listGlobalDeliveries({ view: { match: 'all', filters: [filter], sorts: [] } })
         .pipe(Effect.map((page) => page.items.map((row) => row.id)))
     }
@@ -143,7 +143,7 @@ export function deliveryViewFilterContract(expect: ContractExpect) {
     }
     expect(widest.sorts).toHaveLength(deliveryViewLimits.sorts)
     const walk = yield* walkKeysetPages(
-      (input) => webhooks.listGlobalDeliveries({ ...input, view: widest }),
+      (input) => deliveryAdmin.listGlobalDeliveries({ ...input, view: widest }),
       { limit: 1 }
     )
     expect(walk.exhausted).toBe(true)

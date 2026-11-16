@@ -89,7 +89,7 @@
       "canonicalUrl": "/en/docs/getting-started/first-business-feature",
       "markdownUrl": "/agent-docs/getting-started/first-business-feature.md",
       "sourcePath": "apps/web/content/docs/getting-started/first-business-feature.mdx",
-      "digest": "sha256:f316442451e838c10bdcd0741d58bd45d7fac5324d822787f57f4e8716b87319"
+      "digest": "sha256:2856ee12f41303e48961664f2710006757895cf2bc36782bae9706bb41c95be7"
     },
     {
       "id": "docs/getting-started/optional-providers",
@@ -251,7 +251,7 @@
       "canonicalUrl": "/en/docs/operations/outbound-webhooks",
       "markdownUrl": "/agent-docs/operations/outbound-webhooks.md",
       "sourcePath": "apps/web/content/docs/operations/outbound-webhooks.mdx",
-      "digest": "sha256:ebbbd8953deb7d9ca5ee40d1e6c38012972666700d3c73e5f3de4837df1fb307"
+      "digest": "sha256:4c1d0eeeb651972f5897e39bb46c4a57dc26476f6ce66b6e2326479bddd71c6d"
     }
   ]
 }

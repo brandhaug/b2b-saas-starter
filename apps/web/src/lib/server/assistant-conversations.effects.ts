@@ -4,7 +4,10 @@ import {
   type ConversationError
 } from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversations'
 import { ConversationNotFound } from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversation'
-import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
+import {
+  WorkspaceContext,
+  WorkspaceCaller
+} from '@b2b-saas-starter/capabilities/workspace-context'
 import { Effect } from 'effect'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { type Session } from '@b2b-saas-starter/auth'
@@ -119,7 +122,7 @@ export async function createConversationHandler(input: ConversationWorkspaceInpu
         conversations.create({ credential: credentialFor(session) })
       )
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }
 export async function listConversationsHandler(input: ConversationListInput) {
@@ -137,7 +140,7 @@ export async function listConversationsHandler(input: ConversationListInput) {
         })
       )
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }
 export async function conversationHistoryHandler(input: ConversationHistoryInput) {
@@ -161,7 +164,7 @@ export async function conversationHistoryHandler(input: ConversationHistoryInput
         })
       )
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }
 export async function sendConversationHandler(input: ConversationSendInput) {
@@ -190,7 +193,7 @@ export async function sendConversationHandler(input: ConversationSendInput) {
         })
       )
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }
 export async function retryConversationHandler(input: ConversationRetryInput) {
@@ -215,7 +218,7 @@ export async function retryConversationHandler(input: ConversationRetryInput) {
         })
       )
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }
 export async function stopConversationHandler(input: ConversationAttemptInput) {
@@ -239,7 +242,7 @@ export async function stopConversationHandler(input: ConversationAttemptInput) {
         })
       )
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }
 export async function deleteConversationHandler(input: ConversationReadInput) {
@@ -262,6 +265,6 @@ export async function deleteConversationHandler(input: ConversationReadInput) {
         })
       )
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }

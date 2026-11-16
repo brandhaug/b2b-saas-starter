@@ -7,7 +7,7 @@ import {
 } from '@b2b-saas-starter/db/schema/developer-platform'
 import { TestDatabase, LIVE_SUITE_TIMEOUT } from '../testing/live-harness.ts'
 import { makeLiveCapabilitiesLayer } from '../layers.ts'
-import { adminDeliveryFixtures } from './webhook-endpoints.admin.contract.ts'
+import { adminDeliveryFixtures } from './webhook-delivery-admin.contract.ts'
 import {
   deliveryViewEndpoints,
   deliveryViewFilterContract

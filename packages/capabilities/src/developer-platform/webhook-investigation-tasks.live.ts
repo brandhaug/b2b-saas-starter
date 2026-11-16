@@ -1,3 +1,4 @@
+import { workspaceAuditAttribution } from '@b2b-saas-starter/billing/ports'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { DateTime, Effect, Layer, Schema } from 'effect'
 import { webhookInvestigationTasks } from '@b2b-saas-starter/db/schema/developer-platform'
@@ -77,9 +78,7 @@ export const LiveWebhookInvestigationTasks = Layer.effect(WebhookInvestigationTa
         yield* mutate({
           matched: Effect.succeed(true),
           auditEvent: {
-            workspaceId: ctx.workspace.id,
-            actorUserId: ctx.actor?.userId ?? null,
-            actorType: ctx.actorType,
+            ...workspaceAuditAttribution(ctx),
             eventType: 'assistant_task.created',
             targetType: 'assistant_task',
             targetId: task.id,
@@ -115,9 +114,7 @@ export const LiveWebhookInvestigationTasks = Layer.effect(WebhookInvestigationTa
           return yield* mutate({
             matched: Effect.succeed(true),
             auditEvent: {
-              workspaceId: ctx.workspace.id,
-              actorUserId: ctx.actor?.userId ?? null,
-              actorType: ctx.actorType,
+              ...workspaceAuditAttribution(ctx),
               eventType: change.eventType,
               targetType: 'assistant_task',
               targetId: task.id,

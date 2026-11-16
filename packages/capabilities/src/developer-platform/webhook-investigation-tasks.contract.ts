@@ -8,7 +8,6 @@ import { failureTag } from '../internal/failure-tag.ts'
 import { type Workspace } from '../governance/workspace-identity.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import {
-  type WebhookDeliveryNotFound,
   type WebhookDispatchRejected,
   type WebhookEndpointNotFound,
   WebhookEndpoints
@@ -19,6 +18,11 @@ import {
   type WebhookInvestigationTaskRejected,
   WebhookInvestigationTasks
 } from './webhook-investigation-tasks.ts'
+import {
+  WebhookDeliveries,
+  type WebhookDeliveryNotFound
+} from './webhook-deliveries.ts'
+import { WebhookDispatch } from './webhook-dispatch.ts'
 
 type WebhookInvestigationTaskContractCase = {
   readonly name: string
@@ -32,7 +36,11 @@ type WebhookInvestigationTaskContractCase = {
     | WebhookEndpointNotFound
     | WebhookInvestigationTaskNotFound
     | WebhookInvestigationTaskRejected,
-    WebhookEndpoints | WebhookInvestigationTasks | WorkspaceContext
+    | WebhookEndpoints
+    | WebhookDeliveries
+    | WebhookDispatch
+    | WebhookInvestigationTasks
+    | WorkspaceContext
   >
 }
 
@@ -53,6 +61,7 @@ export function prepareInvestigationDelivery(
 ) {
   return Effect.gen(function* () {
     const webhooks = yield* WebhookEndpoints
+    const dispatch = yield* WebhookDispatch
     const ctx = yield* WorkspaceContext
     const eventType = `investigation.${suffix}`
     const { endpoint } = yield* webhooks.create({
@@ -60,7 +69,7 @@ export function prepareInvestigationDelivery(
       events: [eventType]
     })
     const queued = yield* webhooks.sendTestEvent({ endpointId: endpoint.id })
-    yield* webhooks.recordDeliveryAttempt({
+    yield* dispatch.recordDeliveryAttempt({
       id: queued.deliveryId,
       endpointId: endpoint.id,
       workspaceId: ctx.workspace.id,
@@ -73,7 +82,7 @@ export function prepareInvestigationDelivery(
       responseBody: 'must not be copied'
     })
     if (status === 'dead_lettered') {
-      yield* webhooks.recordTerminalDeliveryAttempt({
+      yield* dispatch.recordTerminalDeliveryAttempt({
         deliveryId: queued.deliveryId,
         endpointId: endpoint.id,
         workspaceId: ctx.workspace.id,
@@ -233,7 +242,7 @@ export function webhookInvestigationTaskContractCases(
       assert: Effect.gen(function* () {
         const source = yield* prepareInvestigationDelivery('duplicate', 'dead_lettered')
         const tasks = yield* WebhookInvestigationTasks
-        const webhooks = yield* WebhookEndpoints
+        const deliveryLog = yield* WebhookDeliveries
         const task = yield* tasks.create({
           deliveryId: source.deliveryId,
           question: 'Replay this once'
@@ -251,7 +260,7 @@ export function webhookInvestigationTaskContractCases(
           replayDeliveryId: first.replayDeliveryId,
           outcome: 'pending'
         })
-        const deliveries = yield* webhooks.listDeliveries({
+        const deliveries = yield* deliveryLog.listDeliveries({
           endpointId: source.endpointId
         })
         expect(
@@ -292,6 +301,7 @@ export function webhookInvestigationTaskContractCases(
         )
         const tasks = yield* WebhookInvestigationTasks
         const webhooks = yield* WebhookEndpoints
+        const dispatch = yield* WebhookDispatch
         const task = yield* tasks.create({
           deliveryId: source.deliveryId,
           question: 'Do not dispatch after this endpoint changes'
@@ -308,7 +318,7 @@ export function webhookInvestigationTaskContractCases(
         })
 
         expect(
-          yield* webhooks.getDispatchTarget(
+          yield* dispatch.getDispatchTarget(
             source.endpointId,
             source.workspaceId,
             replayDeliveryId
@@ -321,7 +331,7 @@ export function webhookInvestigationTaskContractCases(
       assert: Effect.gen(function* () {
         const source = yield* prepareInvestigationDelivery('outcome', 'dead_lettered')
         const tasks = yield* WebhookInvestigationTasks
-        const webhooks = yield* WebhookEndpoints
+        const dispatch = yield* WebhookDispatch
         const task = yield* tasks.create({
           deliveryId: source.deliveryId,
           question: 'Did the replay arrive?'
@@ -333,7 +343,7 @@ export function webhookInvestigationTaskContractCases(
           return
         }
         expect(approved.outcome).toBe('pending')
-        yield* webhooks.recordDeliveryAttempt({
+        yield* dispatch.recordDeliveryAttempt({
           id: replayDeliveryId,
           endpointId: source.endpointId,
           workspaceId: source.workspaceId,
@@ -360,7 +370,7 @@ export function webhookInvestigationTaskContractCases(
             Effect.provideService(WorkspaceContext, {
               workspace: foreignWorkspace,
               actor: null,
-              actorType: 'user'
+              actorType: 'system'
             })
           )
         )

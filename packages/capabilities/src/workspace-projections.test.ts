@@ -12,7 +12,7 @@ import { SeedResourceEntitlements } from '@b2b-saas-starter/billing/resource-ent
 import { SeedSeatSyncPublisher } from '@b2b-saas-starter/billing/seat-sync'
 import { SeedApiTokenRegistry } from './developer-platform/api-token-registry.seed.ts'
 import { ApiTokenRegistry } from './developer-platform/api-token-registry.ts'
-import { SeedWebhookEndpoints } from './developer-platform/webhook-endpoints.seed.ts'
+import { SeedWebhooks } from './developer-platform/webhooks.seed.ts'
 import { SeedWebhookPublisher } from './developer-platform/webhook-publisher.ts'
 import { AuditEventLog, SeedAuditEventLog } from './governance/audit-event-log.ts'
 import { SeedAccountPreferences } from './governance/account-preferences.ts'
@@ -37,7 +37,12 @@ import {
   seedWebhookEndpoints,
   seedWorkspaceRecord
 } from './seed-fixture.ts'
-import { testWorkspaceContext, type Actor } from './workspace-context.ts'
+import {
+  testWorkspaceContext,
+  WorkspaceCaller,
+  type Actor,
+  type ActorlessWorkspaceCaller
+} from './workspace-context.ts'
 import { workspaceProgress } from './workspace-projections.ts'
 
 /**
@@ -74,7 +79,7 @@ type Fixture = {
   readonly webhooks?: typeof seedWebhookEndpoints
   readonly stripeConfigured?: boolean
   readonly onboarding?: SeedWorkspaceOnboardingOptions
-  readonly actor?: Actor | null
+  readonly actor?: Actor | ActorlessWorkspaceCaller
 }
 
 function fixtureLayer(fixture: Fixture) {
@@ -98,11 +103,7 @@ function fixtureLayer(fixture: Fixture) {
         Layer.provide(billing),
         Layer.provide(audit)
       )
-      // `null` is a real value here (no actor), so `??` would be wrong.
-      let actor: Actor | null = OWNER
-      if (fixture.actor !== undefined) {
-        actor = fixture.actor
-      }
+      const actor = fixture.actor ?? OWNER
       return Layer.mergeAll(
         audit,
         SeedWebhookPublisher,
@@ -118,7 +119,7 @@ function fixtureLayer(fixture: Fixture) {
           Layer.provide(SeedLayer),
           Layer.provide(entitlements)
         ),
-        SeedWebhookEndpoints(fixture.webhooks ?? []).pipe(
+        SeedWebhooks(fixture.webhooks ?? []).pipe(
           Layer.provide(audit),
           Layer.provide(SeedWebhookPublisher),
           Layer.provide(SeedLayer),
@@ -212,7 +213,7 @@ describe('workspaceProgress', () => {
     }).pipe(
       Effect.provide(
         fixtureLayer({
-          actor: null,
+          actor: WorkspaceCaller.system,
           onboarding: { twoFactorUserIds: [demoUserIdentity.id] }
         })
       )

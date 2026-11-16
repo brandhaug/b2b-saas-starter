@@ -23,6 +23,8 @@ import { type WebhookDeliveryAttemptInput } from './webhook-delivery-plan.ts'
 import { WebhookEndpoints } from './webhook-endpoints.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { failureTag } from '../internal/failure-tag.ts'
+import { WebhookDeliveries } from './webhook-deliveries.ts'
+import { WebhookDispatch } from './webhook-dispatch.ts'
 
 layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
   'live developer platform',
@@ -69,12 +71,14 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           'dev-contract-lab',
           Effect.gen(function* () {
             const webhooks = yield* WebhookEndpoints
+            const dispatch = yield* WebhookDispatch
+            const deliveryLog = yield* WebhookDeliveries
             const ctx = yield* WorkspaceContext
             const { endpoint } = yield* webhooks.create({
               url: 'https://example.com/stable-outage',
               events: []
             })
-            yield* webhooks.recordDeliveryAttempt({
+            yield* dispatch.recordDeliveryAttempt({
               id: WebhookDeliveryId.make('whd_stable_outage'),
               endpointId: endpoint.id,
               workspaceId: ctx.workspace.id,
@@ -83,22 +87,22 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               attempts: 6,
               payload: { retry: true }
             })
-            const input: Parameters<typeof webhooks.replayDelivery>[0] = {
+            const input: Parameters<typeof deliveryLog.replayDelivery>[0] = {
               deliveryId: WebhookDeliveryId.make('whd_stable_outage'),
               replayDeliveryId: WebhookDeliveryId.make('whd_stable_retry'),
               expectedEndpointUrl: endpoint.url,
               expectedStatus: 'dead_lettered'
             }
-            const failed = yield* Effect.exit(webhooks.replayDelivery(input))
+            const failed = yield* Effect.exit(deliveryLog.replayDelivery(input))
             expect(failureTag(failed)).toBe('CapabilityUnavailable')
             expect(
-              (yield* webhooks.listDeliveries({ endpointId: endpoint.id })).filter(
+              (yield* deliveryLog.listDeliveries({ endpointId: endpoint.id })).filter(
                 (row) => row.id === input.replayDeliveryId
               )
             ).toHaveLength(1)
             rejectQueue = false
             const retried = yield* Effect.all(
-              [webhooks.replayDelivery(input), webhooks.replayDelivery(input)],
+              [deliveryLog.replayDelivery(input), deliveryLog.replayDelivery(input)],
               { concurrency: 'unbounded' }
             )
             expect(retried.map((row) => row.deliveryId)).toEqual([
@@ -142,7 +146,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
       function recordAttempt(input: WebhookDeliveryAttemptInput) {
         return inWorkspace(
           'live-lab',
-          Effect.flatMap(WebhookEndpoints, (webhooks) =>
+          Effect.flatMap(WebhookDispatch, (webhooks) =>
             webhooks.recordDeliveryAttempt(input)
           )
         )
@@ -276,11 +280,12 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             'live-lab',
             Effect.gen(function* () {
               const webhooks = yield* WebhookEndpoints
+              const dispatch = yield* WebhookDispatch
               const feed = yield* NotificationFeed
               const sent = yield* webhooks.sendTestEvent({
                 endpointId: WebhookEndpointId.make('wh_live')
               })
-              yield* webhooks.recordTerminalDeliveryAttempt({
+              yield* dispatch.recordTerminalDeliveryAttempt({
                 deliveryId: sent.deliveryId,
                 endpointId: WebhookEndpointId.make('wh_live'),
                 workspaceId: 'wrk_live',
@@ -315,9 +320,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         inWorkspace(
           'live-lab',
           Effect.gen(function* () {
-            const webhooks = yield* WebhookEndpoints
+            const dispatch = yield* WebhookDispatch
             // First attempt of the message: retryable failure...
-            yield* webhooks.recordDeliveryAttempt({
+            yield* dispatch.recordDeliveryAttempt({
               id: WebhookDeliveryId.make('whd_live_same_id'),
               endpointId: WebhookEndpointId.make('wh_live'),
               workspaceId: 'wrk_live',
@@ -329,7 +334,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             })
             // ...the platform redelivers the same message id: the row must
             // resolve, not fork (and not die on the primary key).
-            yield* webhooks.recordDeliveryAttempt({
+            yield* dispatch.recordDeliveryAttempt({
               id: WebhookDeliveryId.make('whd_live_same_id'),
               endpointId: WebhookEndpointId.make('wh_live'),
               workspaceId: 'wrk_live',
@@ -419,6 +424,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             'live-lab',
             Effect.gen(function* () {
               const webhooks = yield* WebhookEndpoints
+              const dispatch = yield* WebhookDispatch
               const first = yield* webhooks.rotateSecret({
                 endpointId: WebhookEndpointId.make('wh_live')
               })
@@ -429,7 +435,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
 
               // While the grace window is open, a dispatch signs with the new
               // secret AND the one it replaced.
-              const during = yield* webhooks.getDispatchTarget(
+              const during = yield* dispatch.getDispatchTarget(
                 WebhookEndpointId.make('wh_live'),
                 'wrk_live',
                 sent.deliveryId
@@ -443,7 +449,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 endpointId: WebhookEndpointId.make('wh_live')
               })
               const secondSecret = second.signingSecret
-              const afterSecond = yield* webhooks.getDispatchTarget(
+              const afterSecond = yield* dispatch.getDispatchTarget(
                 WebhookEndpointId.make('wh_live'),
                 'wrk_live',
                 sent.deliveryId

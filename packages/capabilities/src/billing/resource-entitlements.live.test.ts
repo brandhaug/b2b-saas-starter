@@ -1,4 +1,4 @@
-import { WorkspaceContext, testWorkspaceContext } from '../workspace-context.ts'
+import { WorkspaceContext, testResolvedWorkspaceContext } from '../workspace-context.ts'
 import { WebhookEndpoints } from '../developer-platform/webhook-endpoints.ts'
 import { Deferred, Effect, Layer, Ref } from 'effect'
 import { expect, layer } from '@effect/vitest'
@@ -27,6 +27,7 @@ import {
   resourceAdmissionContract,
   resourceDeadlineCases
 } from './resource-entitlements.contract.ts'
+import { WebhookDispatch } from '../developer-platform/webhook-dispatch.ts'
 
 layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
   'Live resource authority',
@@ -120,6 +121,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             const selection = yield* ResourceEntitlements
             const tokens = yield* ApiTokenRegistry
             const endpoints = yield* WebhookEndpoints
+            const dispatch = yield* WebhookDispatch
             const ctx = yield* WorkspaceContext
             const foreignContext = {
               ...ctx,
@@ -127,26 +129,10 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             }
             const foreignToken = yield* tokens
               .create({ name: 'foreign credential', scopes: ['read'] })
-              .pipe(
-                Effect.provide(
-                  testWorkspaceContext(
-                    foreignContext.workspace,
-                    foreignContext.actor,
-                    foreignContext.actorType
-                  )
-                )
-              )
+              .pipe(Effect.provide(testResolvedWorkspaceContext(foreignContext)))
             const foreignEndpoint = yield* endpoints
               .create({ url: 'https://example.com/foreign', events: [] })
-              .pipe(
-                Effect.provide(
-                  testWorkspaceContext(
-                    foreignContext.workspace,
-                    foreignContext.actor,
-                    foreignContext.actorType
-                  )
-                )
-              )
+              .pipe(Effect.provide(testResolvedWorkspaceContext(foreignContext)))
             expect(
               failureTag(
                 yield* Effect.exit(
@@ -179,15 +165,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                     const sent = yield* endpoints
                       .sendTestEvent({ endpointId: foreignEndpoint.endpoint.id })
                       .pipe(
-                        Effect.provide(
-                          testWorkspaceContext(
-                            foreignContext.workspace,
-                            foreignContext.actor,
-                            foreignContext.actorType
-                          )
-                        )
+                        Effect.provide(testResolvedWorkspaceContext(foreignContext))
                       )
-                    return yield* endpoints.getDispatchTarget(
+                    return yield* dispatch.getDispatchTarget(
                       foreignEndpoint.endpoint.id,
                       'wrk_other',
                       sent.deliveryId

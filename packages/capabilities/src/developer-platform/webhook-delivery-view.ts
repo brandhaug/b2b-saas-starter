@@ -1,6 +1,6 @@
 import { Option, Result, Schema } from 'effect'
 import { Base64 } from 'effect/encoding'
-import { type GlobalWebhookDelivery } from './webhook-endpoints.ts'
+import { type GlobalWebhookDelivery } from './webhook-delivery-admin.ts'
 import {
   clampPageLimit,
   type ListPageInput,

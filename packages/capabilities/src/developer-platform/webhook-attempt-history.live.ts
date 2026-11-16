@@ -13,28 +13,23 @@ import {
   webhookDeliveryAttempts,
   webhookEndpoints
 } from '@b2b-saas-starter/db/schema/developer-platform'
-import { and, asc, eq, inArray, sql } from 'drizzle-orm'
-import { DateTime, Duration, Effect, Schema } from 'effect'
+import { and, eq, inArray, sql } from 'drizzle-orm'
+import { DateTime, Effect, Schema } from 'effect'
 
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import { orUnavailable } from '@b2b-saas-starter/failure/capability'
 import { NotificationFeed } from '../notifications/notification-feed.ts'
-import { WorkspaceContext } from '../workspace-context.ts'
 import {
   deadLetteredDeliveryStatus,
-  DELIVERY_HISTORY_CLEANUP_LIMIT,
-  DELIVERY_HISTORY_RETENTION_DAYS,
   deadLetterNotification,
   deliveredDeliveryStatus,
   dispatchableDeliveryStatuses,
   failureLadderAction,
   failedPermanentDeliveryStatus,
   pendingDeliveryStatus,
-  settledDeliveryStatuses,
   terminalDeliveryAuditEventType,
   WEBHOOK_FAILURE_AUTO_DISABLE_AT,
-  WebhookDeliveryAttempt,
   type WebhookDeliveryAttemptInput
 } from './webhook-delivery-plan.ts'
 import {
@@ -42,9 +37,10 @@ import {
   type QueuedTerminalAttempt,
   type WebhookAttemptObservation
 } from './webhook-attempt-history.ts'
-import { type RecordedWebhookAttempt } from './webhook-endpoints.ts'
+import { type RecordedWebhookAttempt } from './webhook-dispatch.ts'
 
-const unavailable = orUnavailable('webhook-endpoints')
+// Only `WebhookDispatch` records attempts, so its failures carry that label.
+const unavailable = orUnavailable('webhook-dispatch')
 const Recorded = Schema.Struct({
   recorded: Schema.Number,
   ladderChanged: Schema.Number,
@@ -55,7 +51,6 @@ const Recorded = Schema.Struct({
 })
 
 const decodeRecorded = Schema.decodeUnknownEffect(Schema.Array(Recorded))
-const decodeAttempts = Schema.decodeUnknownEffect(Schema.Array(WebhookDeliveryAttempt))
 
 /** One D1 transaction owns acceptance, immutable evidence, summary, streak and audit. */
 export const makeLiveAttemptHistory = Effect.gen(function* () {
@@ -64,7 +59,7 @@ export const makeLiveAttemptHistory = Effect.gen(function* () {
   const audit = yield* AuditEventLog
   const notifications = yield* NotificationFeed
 
-  const recordObservation = Effect.fn('WebhookEndpoints.recordObservation')(function* (
+  const recordObservation = Effect.fn('WebhookDispatch.recordObservation')(function* (
     observation: WebhookAttemptObservation
   ) {
     let input = observation.input
@@ -321,54 +316,6 @@ export const makeLiveAttemptHistory = Effect.gen(function* () {
       consecutiveFailures: row?.consecutiveFailures ?? 0
     }
   })
-  const listDeliveryAttempts = Effect.fn('WebhookEndpoints.listDeliveryAttempts')(
-    function* (input: { readonly deliveryId: WebhookDeliveryId }) {
-      const ctx = yield* WorkspaceContext
-      const rows = yield* unavailable(
-        db
-          .select({ attempt: webhookDeliveryAttempts })
-          .from(webhookDeliveryAttempts)
-          .innerJoin(
-            webhookDeliveries,
-            eq(webhookDeliveries.id, webhookDeliveryAttempts.deliveryId)
-          )
-          .innerJoin(
-            webhookEndpoints,
-            eq(webhookEndpoints.id, webhookDeliveries.endpointId)
-          )
-          .where(
-            and(
-              eq(webhookDeliveries.id, input.deliveryId),
-              eq(webhookEndpoints.workspaceId, ctx.workspace.id)
-            )
-          )
-          .orderBy(
-            asc(webhookDeliveryAttempts.attempts),
-            asc(webhookDeliveryAttempts.phase)
-          )
-      )
-      return yield* unavailable(decodeAttempts(rows.map((row) => row.attempt)))
-    }
-  )
-  const cleanupDeliveryHistory = Effect.fn('WebhookEndpoints.cleanupDeliveryHistory')(
-    function* () {
-      const cutoff = DateTime.formatIso(
-        DateTime.subtractDuration(
-          yield* DateTime.now,
-          Duration.days(DELIVERY_HISTORY_RETENTION_DAYS)
-        )
-      )
-      const deleted = yield* unavailable(
-        db
-          .delete(webhookDeliveries)
-          .where(
-            sql`${webhookDeliveries.id} in (select id from ${webhookDeliveries} where ${webhookDeliveries.lastAttemptAt} < ${cutoff} and ${inArray(webhookDeliveries.status, settledDeliveryStatuses)} order by ${webhookDeliveries.lastAttemptAt} limit ${DELIVERY_HISTORY_CLEANUP_LIMIT})`
-          )
-          .returning({ id: webhookDeliveries.id })
-      )
-      return deleted.length
-    }
-  )
   function recordAttempt(input: WebhookDeliveryAttemptInput) {
     return recordObservation({ kind: 'trusted_attempt', input })
   }
@@ -377,8 +324,6 @@ export const makeLiveAttemptHistory = Effect.gen(function* () {
   }
   return {
     recordAttempt,
-    recordTerminalAttempt,
-    listDeliveryAttempts,
-    cleanupDeliveryHistory
+    recordTerminalAttempt
   }
 })

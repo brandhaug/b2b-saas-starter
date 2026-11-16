@@ -1,6 +1,7 @@
 import { WebhookInvestigationTasks } from '@b2b-saas-starter/capabilities/developer-platform/webhook-investigation-tasks'
 import { Effect } from 'effect'
 import { runWorkspaceCapabilities } from '../capabilities'
+import { WorkspaceCaller } from '@b2b-saas-starter/capabilities/workspace-context'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
 import { type CreateTaskInput, type TaskInput } from './assistant-tasks'
@@ -18,7 +19,7 @@ export async function createAssistantTaskHandler(input: CreateTaskInput) {
         question: input.question
       })
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }
 
@@ -32,7 +33,7 @@ export async function getAssistantTaskHandler(input: TaskInput) {
       const tasks = yield* WebhookInvestigationTasks
       return yield* tasks.get({ taskId: input.taskId })
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }
 
@@ -47,7 +48,7 @@ export async function approveAssistantTaskHandler(input: TaskInput) {
       const tasks = yield* WebhookInvestigationTasks
       return yield* tasks.approve({ taskId: input.taskId })
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }
 
@@ -62,6 +63,6 @@ export async function cancelAssistantTaskHandler(input: TaskInput) {
       const tasks = yield* WebhookInvestigationTasks
       return yield* tasks.cancel({ taskId: input.taskId })
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }

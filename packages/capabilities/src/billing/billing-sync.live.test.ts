@@ -41,8 +41,8 @@ import {
   BillingNotificationLayer,
   BillingWebhookLayer
 } from '../billing-adapters.ts'
-import { WebhookEndpoints } from '../developer-platform/webhook-endpoints.ts'
 import { type WebhookQueueMessage } from '../developer-platform/webhook-publisher.ts'
+import { WebhookDeliveries } from '../developer-platform/webhook-deliveries.ts'
 
 const workspaceId = 'wrk_live'
 const customerId = 'cus_sync'
@@ -361,8 +361,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               yield* billing.processProviderEvent(event('evt_webhook_plan_change'))
               yield* billing.reconcileWorkspace({ workspaceId })
               yield* billing.reconcileWorkspace({ workspaceId })
-              const webhooks = yield* WebhookEndpoints
-              return yield* webhooks.listDeliveries({
+              const deliveryLog = yield* WebhookDeliveries
+              return yield* deliveryLog.listDeliveries({
                 endpointId: WebhookEndpointId.make('wh_live')
               })
             }),

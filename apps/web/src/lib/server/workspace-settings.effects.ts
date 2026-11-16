@@ -2,6 +2,7 @@ import { SsoConnections } from '@b2b-saas-starter/capabilities/governance/worksp
 import { Effect } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
+import { WorkspaceCaller } from '@b2b-saas-starter/capabilities/workspace-context'
 import { whenPermitted } from './authorize'
 import { requireRequestSession } from './auth'
 import { workspacePage, type WorkspacePageFrame } from './page-frame'
@@ -36,7 +37,9 @@ export async function loadWorkspaceSettingsHandler(
   input: WorkspaceSettingsInput
 ): Promise<WorkspaceSettingsPayload> {
   const session = await requireRequestSession()
-  return runWorkspaceCapabilities(input.workspaceSlug, settingsPayload, {
-    userId: session.user.id
-  })
+  return runWorkspaceCapabilities(
+    input.workspaceSlug,
+    settingsPayload,
+    WorkspaceCaller.user(session.user.id)
+  )
 }

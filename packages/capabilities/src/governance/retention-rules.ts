@@ -1,5 +1,9 @@
 import { invitationStatuses } from '@b2b-saas-starter/db/enums'
 
+import {
+  DELIVERY_HISTORY_RETENTION_DAYS,
+  settledDeliveryStatuses
+} from '../developer-platform/webhook-delivery-plan.ts'
 import { iso } from '../internal/timestamps.ts'
 
 import { type RetentionPolicy, type RetentionRecordClass } from './retention.ts'
@@ -137,8 +141,8 @@ export function retentionRules(
       table: 'webhook_deliveries',
       index: 'webhook_deliveries_retention_idx',
       clock: 'last_attempt_at',
-      ...history(30),
-      eligible: "status IN ('delivered', 'failed_permanent', 'dead_lettered')"
+      ...history(DELIVERY_HISTORY_RETENTION_DAYS),
+      eligible: `status IN (${sqlIn(settledDeliveryStatuses)})`
     },
     {
       key: 'webhook_secrets',

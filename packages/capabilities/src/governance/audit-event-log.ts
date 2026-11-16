@@ -1,3 +1,4 @@
+import { workspaceAuditAttribution } from '@b2b-saas-starter/billing/ports'
 import { type JsonObject } from '@b2b-saas-starter/db/schema/json'
 import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { type SQL } from 'drizzle-orm'
@@ -206,9 +207,7 @@ export function recordInWorkspace(
     const ctx = yield* WorkspaceContext
     yield* audit.record({
       ...event,
-      workspaceId: ctx.workspace.id,
-      actorUserId: ctx.actor?.userId ?? null,
-      actorType: ctx.actorType
+      ...workspaceAuditAttribution(ctx)
     })
   })
 }
@@ -266,9 +265,7 @@ export function recordCompletedMutationAudit(
       audit,
       {
         ...event,
-        workspaceId: ctx.workspace.id,
-        actorUserId: ctx.actor?.userId ?? null,
-        actorType: ctx.actorType
+        ...workspaceAuditAttribution(ctx)
       },
       operation
     )

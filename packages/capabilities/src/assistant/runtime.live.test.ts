@@ -9,7 +9,7 @@ import {
   webhookEndpoints
 } from '@b2b-saas-starter/db/schema/developer-platform'
 import { TestDatabase, LIVE_SUITE_TIMEOUT } from '../testing/live-harness.ts'
-import { liveWorkspaceContext } from '../workspace-context.ts'
+import { liveWorkspaceContext, WorkspaceCaller } from '../workspace-context.ts'
 import { AssistantAdmission } from './admission.ts'
 import { AssistantAuthority } from '../developer-platform/assistant-authority.ts'
 import { AssistantDirectory } from './directory.ts'
@@ -142,7 +142,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             Effect.provide(
               Layer.merge(
                 LiveConversationHost(),
-                liveWorkspaceContext('live-lab', { userId: 'usr_owner' }, 'user')
+                liveWorkspaceContext('live-lab', WorkspaceCaller.user('usr_owner'))
               )
             )
           )
@@ -152,7 +152,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             Effect.provide(
               Layer.merge(
                 LiveConversationHost(),
-                liveWorkspaceContext('other-lab', undefined, 'system')
+                liveWorkspaceContext('other-lab', WorkspaceCaller.system)
               )
             )
           )

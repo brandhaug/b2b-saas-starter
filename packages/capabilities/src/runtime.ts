@@ -5,7 +5,6 @@ import {
   type ConversationNamespace
 } from './developer-platform/assistant-conversation-transport.ts'
 import { layerFromD1 } from '@b2b-saas-starter/db/service'
-import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { Effect, Layer } from 'effect'
 import { PlatformUserAdmin } from './governance/platform-user-admin.ts'
 import { type SeatSyncQueueBinding } from '@b2b-saas-starter/billing/seat-sync'
@@ -26,8 +25,9 @@ import { seedMembers, seedWorkspaceRecord } from './seed-fixture.ts'
 import {
   liveWorkspaceContext,
   seedWorkspaceContext,
-  type WorkspaceServices,
-  type ActorRef
+  type ActorlessWorkspaceCaller,
+  type WorkspaceCaller,
+  type WorkspaceServices
 } from './workspace-context.ts'
 import { type WorkspaceNotFound } from './errors.ts'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -151,14 +151,12 @@ export function selectCapabilitiesLayer(env: StarterEnv): CapabilitiesLayer {
 export function selectWorkspaceContextLayer(
   env: StarterEnv,
   slug: string,
-  actor: undefined,
-  actorType: AuditActorTypeValue
+  caller: ActorlessWorkspaceCaller
 ): Layer.Layer<WorkspaceServices, WorkspaceNotFound | CapabilityUnavailable>
 export function selectWorkspaceContextLayer(
   env: StarterEnv,
   slug: string,
-  actor: ActorRef | undefined,
-  actorType: AuditActorTypeValue
+  caller: WorkspaceCaller
 ): Layer.Layer<
   WorkspaceServices,
   WorkspaceNotFound | CapabilityUnavailable,
@@ -167,47 +165,35 @@ export function selectWorkspaceContextLayer(
 export function selectWorkspaceContextLayer(
   env: StarterEnv,
   slug: string,
-  actor: ActorRef | undefined,
-  actorType: AuditActorTypeValue
+  caller: WorkspaceCaller
 ): Layer.Layer<
   WorkspaceServices,
   WorkspaceNotFound | CapabilityUnavailable,
   PlatformUserAdmin
 > {
   if (env.DB === undefined) {
-    if (actor === undefined) {
-      return seedWorkspaceContext(
-        seedWorkspaceRecord,
-        slug,
-        actor,
-        seedMembers,
-        actorType
-      )
+    if (caller.actorType !== 'user') {
+      return seedWorkspaceContext(seedWorkspaceRecord, slug, caller, seedMembers)
     }
+    const { userId } = caller.actor
     // Account restrictions come from the same mutable service administration
     // writes, rather than the initial fixture copied into seedMembers.
     return Layer.unwrap(
       Effect.gen(function* () {
         const admin = yield* PlatformUserAdmin
         const accounts = yield* admin.listUsers
-        const account = accounts.find((candidate) => candidate.id === actor.userId)
-        const member = seedMembers.find((candidate) => candidate.id === actor.userId)
+        const account = accounts.find((candidate) => candidate.id === userId)
+        const member = seedMembers.find((candidate) => candidate.id === userId)
         if (!account || !member) {
-          return seedWorkspaceContext(seedWorkspaceRecord, slug, actor, [], actorType)
+          return seedWorkspaceContext(seedWorkspaceRecord, slug, caller, [])
         }
-        return seedWorkspaceContext(
-          seedWorkspaceRecord,
-          slug,
-          actor,
-          [{ ...member, banned: account.banned, systemRole: account.systemRole }],
-          actorType
-        )
+        return seedWorkspaceContext(seedWorkspaceRecord, slug, caller, [
+          { ...member, banned: account.banned, systemRole: account.systemRole }
+        ])
       })
     )
   }
-  return liveWorkspaceContext(slug, actor, actorType).pipe(
-    Layer.provide(layerFromD1(env.DB))
-  )
+  return liveWorkspaceContext(slug, caller).pipe(Layer.provide(layerFromD1(env.DB)))
 }
 
 /**
@@ -219,19 +205,18 @@ export function selectWorkspaceContextLayer(
 export function selectWorkspaceLayer(
   env: StarterEnv,
   slug: string,
-  actor: ActorRef | undefined,
-  actorType: AuditActorTypeValue
+  caller: WorkspaceCaller
 ): Layer.Layer<
   CapabilityServices | WorkspaceServices,
   WorkspaceNotFound | CapabilityUnavailable
 > {
   if (env.DB === undefined) {
-    return selectWorkspaceContextLayer(env, slug, actor, actorType).pipe(
+    return selectWorkspaceContextLayer(env, slug, caller).pipe(
       Layer.provideMerge(SeedLayer)
     )
   }
   return Layer.mergeAll(
     makeLiveCapabilitiesLayer(liveCapabilitiesOptions(env)),
-    liveWorkspaceContext(slug, actor, actorType)
+    liveWorkspaceContext(slug, caller)
   ).pipe(Layer.provide(layerFromD1(env.DB)))
 }

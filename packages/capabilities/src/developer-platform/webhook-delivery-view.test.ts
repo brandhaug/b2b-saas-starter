@@ -1,8 +1,8 @@
 import { describe, expect, it } from '@effect/vitest'
 import { Effect, Exit, Layer, Schema } from 'effect'
 import { SeedLayer } from '../layers.ts'
-import { SeedWebhookEndpoints } from './webhook-endpoints.seed.ts'
-import { adminDeliveryFixtures } from './webhook-endpoints.admin.contract.ts'
+import { SeedWebhooks } from './webhooks.seed.ts'
+import { adminDeliveryFixtures } from './webhook-delivery-admin.contract.ts'
 import {
   deliveryViewEndpoints,
   deliveryViewFilterContract,
@@ -16,7 +16,7 @@ describe('Seed delivery view filters', () => {
   it.effect('interprets filters with the shared table-filter semantics', () =>
     deliveryViewFilterContract(expect).pipe(
       Effect.provide(
-        SeedWebhookEndpoints(
+        SeedWebhooks(
           deliveryViewEndpoints,
           adminDeliveryFixtures,
           deliveryViewWorkspaces

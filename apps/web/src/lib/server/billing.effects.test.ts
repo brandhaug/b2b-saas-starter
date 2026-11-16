@@ -16,7 +16,7 @@ import { StrongAuthentication } from '@b2b-saas-starter/capabilities/governance/
 import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import {
-  testWorkspaceContext,
+  testResolvedWorkspaceContext,
   type WorkspaceContextInterface
 } from '@b2b-saas-starter/capabilities/workspace-context'
 import { planById } from '@b2b-saas-starter/billing/plan-catalog'
@@ -142,11 +142,7 @@ vi.mock('../capabilities', () => ({
           suspensionOperations.push(operation)
         })
     })
-    const contextLayer = testWorkspaceContext(
-      context.workspace,
-      context.actor,
-      context.actorType
-    )
+    const contextLayer = testResolvedWorkspaceContext(context)
     // oxlint-disable-next-line starter/no-run-promise-in-tests -- this mock is the Promise boundary replacing runWorkspaceCapabilities
     return Effect.runPromise(
       Effect.scoped(

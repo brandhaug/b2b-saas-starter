@@ -9,8 +9,8 @@ import {
 } from '@b2b-saas-starter/capabilities/governance/strong-authentication'
 import { type WorkspaceExportRecipient } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import {
+  WorkspaceCaller,
   WorkspaceContext,
-  type ActorRef,
   type WorkspaceContextInterface
 } from '@b2b-saas-starter/capabilities/workspace-context'
 import { annotateWideEvent } from '@b2b-saas-starter/logger'
@@ -32,7 +32,6 @@ import {
   AUTHORIZATION_DENIED_REASONS,
   AuthorizationDenied
 } from '@b2b-saas-starter/authz/errors'
-import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type ApiPrincipalValue } from '@b2b-saas-starter/api'
 import { type Unauthorized } from '@b2b-saas-starter/api/errors'
@@ -64,10 +63,11 @@ type McpScope = typeof MCP_READ_SCOPE | typeof MCP_WRITE_SCOPE
 
 /** Everything that differs between caller kinds, decided in one place. */
 type McpCallerPolicy<Token> = {
-  /** Audit provenance written by the mutations this caller performs. */
-  readonly actorType: AuditActorTypeValue
-  /** The Member the workspace layer resolves and re-verifies, if any. */
-  readonly actor: (token: Token) => ActorRef | undefined
+  /**
+   * The audit provenance and the Member the workspace layer resolves and
+   * re-verifies, if any, as one value.
+   */
+  readonly caller: (token: Token) => WorkspaceCaller
   /**
    * Whom the call authorizes as. Consent and the required MCP scope bind only
    * where a client acts for a Member; an API Token's scopes are its authority.
@@ -114,15 +114,13 @@ type McpCallerPolicies = {
 /** A new credential kind is a compile error here until each policy is chosen. */
 const MCP_CALLER_POLICIES: McpCallerPolicies = {
   token: {
-    actorType: 'api_token',
-    actor: () => undefined,
+    caller: () => WorkspaceCaller.apiToken,
     principal: (token) => Effect.succeed(tokenPrincipal(token.scopes)),
     assurance: () => Effect.void,
     exportRecipient: () => Effect.succeed({ type: 'api_token' })
   },
   oauth: {
-    actorType: 'user',
-    actor: (token) => ({ userId: token.userId }),
+    caller: (token) => WorkspaceCaller.user(token.userId),
     principal: (token, ctx, requiredScope) =>
       Effect.gen(function* () {
         if (ctx.actor === null) {
@@ -195,8 +193,7 @@ export function mcpCallerPolicy<K extends McpCallerKind>(caller: McpCallerOf<K>)
   const policy = MCP_CALLER_POLICIES[caller.kind]
   const token = caller.token
   return {
-    actorType: policy.actorType,
-    actor: policy.actor(token),
+    caller: policy.caller(token),
     principal: (ctx: WorkspaceContextInterface, requiredScope: McpScope) =>
       policy.principal(token, ctx, requiredScope),
     assurance: (ctx: WorkspaceContextInterface, permission: PermissionRequest) =>
@@ -255,13 +252,7 @@ export function provideMcpWorkspace<A, E, R>(
   body: Effect.Effect<A, E, R>
 ) {
   const policy = mcpCallerPolicy(caller)
-  return provideWorkspace(
-    env,
-    caller.token.workspaceSlug,
-    body,
-    policy.actor,
-    policy.actorType
-  )
+  return provideWorkspace(env, caller.token.workspaceSlug, body, policy.caller)
 }
 
 /** Current Workspace identity, role, and consent constrain every MCP operation. */

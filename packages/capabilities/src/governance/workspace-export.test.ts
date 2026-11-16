@@ -29,7 +29,7 @@ import {
   SeedAuditEventLog
 } from './audit-event-log.ts'
 import { SeedApiTokenRegistry } from '../developer-platform/api-token-registry.seed.ts'
-import { SeedWebhookEndpoints } from '../developer-platform/webhook-endpoints.seed.ts'
+import { SeedWebhooks } from '../developer-platform/webhooks.seed.ts'
 import { SeedWebhookPublisher } from '../developer-platform/webhook-publisher.ts'
 import { SeedNotificationFeed } from '../notifications/notification-feed.seed.ts'
 import { SeedNotificationPreferences } from '../notifications/notification-preferences.ts'
@@ -493,7 +493,7 @@ describe('collectWorkspaceExportSnapshot — the audit walk bound', () => {
           Layer.provide(SeedLayer),
           Layer.provide(entitlements)
         ),
-        SeedWebhookEndpoints([]).pipe(
+        SeedWebhooks([]).pipe(
           Layer.provide(audit),
           Layer.provide(SeedWebhookPublisher),
           Layer.provide(SeedLayer),

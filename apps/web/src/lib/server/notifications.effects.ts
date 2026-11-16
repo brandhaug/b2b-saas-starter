@@ -5,6 +5,7 @@ import {
 import { Effect } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
+import { WorkspaceCaller } from '@b2b-saas-starter/capabilities/workspace-context'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
 import {
@@ -27,7 +28,7 @@ export async function listNotificationsHandler(
     Effect.flatMap(NotificationFeed, (feed) =>
       Effect.map(feed.list, presentNotifications)
     ),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }
 
@@ -46,6 +47,6 @@ export async function markNotificationsReadHandler(
       const feed = yield* NotificationFeed
       return yield* feed.markRead(input.ids)
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }

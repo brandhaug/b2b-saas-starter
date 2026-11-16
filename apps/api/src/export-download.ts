@@ -4,7 +4,10 @@ import {
   type WorkspaceExportHumanRecipient
 } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { StrongAuthentication } from '@b2b-saas-starter/capabilities/governance/strong-authentication'
-import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
+import {
+  WorkspaceCaller,
+  WorkspaceContext
+} from '@b2b-saas-starter/capabilities/workspace-context'
 import { memberPrincipal } from '@b2b-saas-starter/authz/client'
 import { requirePermission } from '@b2b-saas-starter/authz/guard'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -90,8 +93,7 @@ export function exportDownloadLayer(env: ApiEnv) {
                 workspaceExport: ['download']
               })
             }),
-            { userId: user },
-            'user'
+            WorkspaceCaller.user(user)
           )
         }
         const exports = yield* WorkspaceExports
