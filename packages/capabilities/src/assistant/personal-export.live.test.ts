@@ -19,9 +19,9 @@ const decodeArchive = Schema.decodeUnknownEffect(
 )
 const host: AssistantLifecycleBinding = {
   exportConversation: () =>
-    Promise.resolve({ json: '{"savedAnswer":"private answer"}' }),
-  revalidateConversation: () => Promise.resolve(true),
-  destroyConversation: () => Promise.resolve()
+    Effect.succeed({ json: '{"savedAnswer":"private answer"}' }),
+  revalidateConversation: () => Effect.succeed(true),
+  destroyConversation: () => Effect.void
 }
 
 describe('personal conversation archive invalidation', () => {

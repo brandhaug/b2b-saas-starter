@@ -215,6 +215,20 @@ export async function runWorkspaceCapabilities<A, E>(
 }
 
 /**
+ * Provides the capability services from the app's one environment mapping,
+ * without leaving Effect. For callers already running in a fiber of their
+ * own — the auth catch-all's sign-in gates compose their read into the auth
+ * request — where `runCapabilities` would start a second run and fold the
+ * typed failure into a thrown UI error.
+ */
+export function provideCapabilities<A, E, R>(
+  effect: Effect.Effect<A, E, R>,
+  bindings?: CapabilityBindings
+): Effect.Effect<A, E, Exclude<R, CapabilityServices>> {
+  return Effect.provide(effect, selectCapabilitiesLayer({ ...starterEnv, ...bindings }))
+}
+
+/**
  * Runs a capability effect that is not scoped to a single workspace — system
  * surfaces (`/admin`'s global audit log) and cross-workspace projections
  * (`listWorkspacesForUser`). Provides the capability services WITHOUT
@@ -228,7 +242,7 @@ export async function runCapabilities<A, E>(
   const exit = await webRuntime.runPromiseExit(
     withWebRequestScope(
       { event: 'capability.global' },
-      Effect.provide(effect, selectCapabilitiesLayer({ ...starterEnv, ...bindings }))
+      provideCapabilities(effect, bindings)
     )
   )
   if (Exit.isSuccess(exit)) {

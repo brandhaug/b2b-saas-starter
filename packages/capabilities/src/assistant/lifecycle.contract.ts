@@ -1,5 +1,4 @@
-// oxlint-disable effect/noNewPromise -- The host port returns promises; these deterministic fixtures exercise its rejection and lifecycle contract.
-import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
+import { ConversationUnavailable } from '../developer-platform/assistant-conversation.ts'
 import { Effect } from 'effect'
 import { type ContractExpect } from '../governance/contract-expect.ts'
 import { AssistantDirectory } from './directory.ts'
@@ -50,11 +49,11 @@ export function assistantLifecycleContractCases(expect: ContractExpect) {
         })
         const host: AssistantLifecycleBinding = {
           exportConversation: () =>
-            Promise.resolve({
+            Effect.succeed({
               json: '{"questions":[{"id":"question","attempts":[{"id":"interrupted","status":"Interrupted","text":"partial"},{"id":"completed","status":"Completed","text":"answer"}],"taskId":"task-reference"}]}'
             }),
-          revalidateConversation: () => Promise.resolve(true),
-          destroyConversation: () => Promise.resolve()
+          revalidateConversation: () => Effect.succeed(true),
+          destroyConversation: () => Effect.void
         }
         yield* Effect.gen(function* () {
           const lifecycle = yield* AssistantConversationLifecycle
@@ -95,9 +94,9 @@ export function assistantLifecycleContractCases(expect: ContractExpect) {
         })
         let authorized = true
         const host: AssistantLifecycleBinding = {
-          exportConversation: () => Promise.resolve({ json: '[]' }),
-          revalidateConversation: () => Promise.resolve(authorized),
-          destroyConversation: () => Promise.resolve()
+          exportConversation: () => Effect.succeed({ json: '[]' }),
+          revalidateConversation: () => Effect.sync(() => authorized),
+          destroyConversation: () => Effect.void
         }
         yield* Effect.gen(function* () {
           const lifecycle = yield* AssistantConversationLifecycle
@@ -135,19 +134,15 @@ export function assistantLifecycleContractCases(expect: ContractExpect) {
         let shouldFail = true
         const deleted: Array<string> = []
         const host: AssistantLifecycleBinding = {
-          exportConversation: () => Promise.resolve({ json: '[]' }),
-          revalidateConversation: () => Promise.resolve(false),
+          exportConversation: () => Effect.succeed({ json: '[]' }),
+          revalidateConversation: () => Effect.succeed(false),
           destroyConversation: ({ conversationId }) => {
             if (shouldFail) {
-              return Promise.reject(
-                new CapabilityUnavailable({
-                  capability: 'assistant-host-fixture',
-                  reason: 'injected_failure'
-                })
-              )
+              return Effect.fail(new ConversationUnavailable({ reason: 'storage' }))
             }
-            deleted.push(conversationId)
-            return Promise.resolve()
+            return Effect.sync(() => {
+              deleted.push(conversationId)
+            })
           }
         }
         yield* Effect.gen(function* () {

@@ -6,6 +6,7 @@ import { authorize, memberPrincipal } from '@b2b-saas-starter/authz/client'
 import { requireEmailVerification } from '@b2b-saas-starter/env/server'
 import { runCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
+import { displayedPlansOrUnavailable } from './billing.effects'
 import { type PurchaseInput, type PurchasePayload } from './purchase'
 
 export async function loadPurchaseHandler(
@@ -19,13 +20,13 @@ export async function loadPurchaseHandler(
       const [workspaces, plans] = yield* Effect.all(
         [
           membership.listWorkspacesForUser(session.user.id),
-          billing.displayedPlans.pipe(Effect.orElseSucceed(() => []))
+          displayedPlansOrUnavailable(billing)
         ],
         { concurrency: 'unbounded' }
       )
       return {
         plan:
-          plans.find(
+          (plans ?? []).find(
             (plan) => plan.id === input.planId && plan.purchase === 'self_serve'
           ) ?? null,
         stripeConfigured: yield* billing.configured,

@@ -95,9 +95,7 @@ export const finishConversationAttempt = Effect.fn('AssistantConversation.finish
     }
     const row = yield* directory.get(conversationId)
     if (row !== null) {
-      yield* recordConversationOutcome(row.id, row.workspaceId, terminal).pipe(
-        Effect.catch(() => Effect.void)
-      )
+      yield* recordConversationOutcome(row.id, row.workspaceId, terminal)
     }
     return terminal
   }

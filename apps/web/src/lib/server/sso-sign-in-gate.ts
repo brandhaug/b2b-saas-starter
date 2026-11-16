@@ -2,9 +2,16 @@ import {
   SsoConnections,
   type SsoSignInTarget
 } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
+import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
+import { annotateWideEvent, currentTraceId } from '@b2b-saas-starter/logger'
+import {
+  captureMonitoringSignal,
+  readWideEventEnvironment
+} from '@b2b-saas-starter/logger/providers'
+import { env } from 'cloudflare:workers'
 import { Effect, Option, Schema } from 'effect'
 
-import { runCapabilities } from '../capabilities'
+import { provideCapabilities } from '../capabilities'
 import { authRefusal } from './auth-refusal'
 
 /**
@@ -34,6 +41,13 @@ import { authRefusal } from './auth-refusal'
  * redirected is the worst case), the disabled-connection refusal fails
  * **closed** (starting the IdP flow for a connection nobody could read is
  * exactly what "a disabled connection never intercepts sign-ins" forbids).
+ * The fail-open half records each skipped enforcement on the request's wide
+ * event and as the `sso_enforcement_unavailable` operational signal, so a
+ * persistent outage cannot silently disable require-SSO.
+ *
+ * Only a typed `CapabilityUnavailable` takes the fail-open path. A defect in
+ * the lookup is not an outage to tolerate: it fails the gate, and with it the
+ * auth request, so neither half lets a sign-in through on a bug.
  */
 
 /** Whether an auth-catchall exchange is the credential sign-in this gates. */
@@ -134,38 +148,55 @@ type RoutingKeys = {
 }
 
 /**
- * The resolution the capability answers, or the read's own failure — which the
- * two wrappers below treat differently on purpose.
+ * The resolution the capability answers. It runs in the auth request's own
+ * fiber, so the read's span, interruption and typed failure stay on that
+ * request; the two wrappers below treat the failure differently on purpose.
  */
-// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
-export class SsoResolutionUnavailable extends Schema.TaggedError<SsoResolutionUnavailable>()(
-  'SsoResolutionUnavailable',
-  {}
-) {}
-
-function resolveTarget(
-  body: RoutingKeys
-): Effect.Effect<Option.Option<SsoSignInTarget>, SsoResolutionUnavailable> {
-  return Effect.tryPromise({
-    try: () =>
-      runCapabilities(
-        Effect.flatMap(SsoConnections, (sso) => sso.resolveSignInTarget(body))
-      ),
-    catch: () => new SsoResolutionUnavailable()
-  })
-}
+const resolveTarget = Effect.fn('SsoSignInGate.resolveTarget')(
+  function* (body: RoutingKeys) {
+    const sso = yield* SsoConnections
+    return yield* sso.resolveSignInTarget(body)
+  },
+  (effect) => provideCapabilities(effect)
+)
 
 /**
  * The require-SSO half's read: an unavailable capability folds to `null` ("no
  * decision") rather than locking every credential sign-in behind one table
  * read. Fail-open is the deliberate choice here — the worst case is a
  * password sign-in the routing rule would have redirected, and the IdP path
- * stays available either way.
+ * stays available either way — but never a silent one.
  */
 function resolveTargetOrNull(
   body: RoutingKeys
 ): Effect.Effect<Option.Option<SsoSignInTarget> | null> {
-  return resolveTarget(body).pipe(Effect.catch(() => Effect.succeed(null)))
+  return resolveTarget(body).pipe(
+    Effect.catchTag('CapabilityUnavailable', (error) =>
+      recordSkippedEnforcement(error).pipe(Effect.as(null))
+    )
+  )
+}
+
+function recordSkippedEnforcement(error: CapabilityUnavailable): Effect.Effect<void> {
+  return Effect.gen(function* () {
+    yield* annotateWideEvent({
+      skipReason: 'sso_required_unavailable',
+      capability: error.capability,
+      reason: error.reason
+    })
+    const traceId = yield* currentTraceId
+    yield* Effect.promise(() =>
+      captureMonitoringSignal(
+        'sso_enforcement_unavailable',
+        {
+          operation: 'SsoSignInGate.enforceSsoRequired',
+          capability: error.capability,
+          reason: error.reason
+        },
+        { service: 'web', ...readWideEventEnvironment(env), traceId }
+      )
+    )
+  })
 }
 
 /** The credential half: refuse `POST /sign-in/email` for a require-SSO domain. */
@@ -214,7 +245,11 @@ export function refuseDisabledConnection(
   }).pipe(
     // Fail closed: an SSO sign-in whose connection could not be read must not
     // start the IdP flow on the chance that the connection is enabled.
-    Effect.catch(() => Effect.succeed(unresolvedConnectionResponse()))
+    Effect.catchTag('CapabilityUnavailable', (error) =>
+      annotateWideEvent({ capability: error.capability, reason: error.reason }).pipe(
+        Effect.as(unresolvedConnectionResponse())
+      )
+    )
   )
 }
 

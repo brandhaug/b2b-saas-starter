@@ -74,8 +74,8 @@ export function LiveAssistantDirectory(
           const rows = yield* unavailable(
             db.select().from(conversations).where(scopeCondition(scope))
           )
-          yield* Effect.tryPromise(() => notify(rows)).pipe(
-            Effect.catch(() =>
+          yield* notify(rows).pipe(
+            Effect.catchTag('ConversationUnavailable', () =>
               annotateWideEvent({
                 assistantAuthorityNotification: 'host_unavailable',
                 assistantAffectedConversations: rows.length

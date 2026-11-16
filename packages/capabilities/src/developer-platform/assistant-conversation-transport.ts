@@ -4,7 +4,10 @@ import {
   type ConversationDirectoryEntry,
   type ConversationInvalidationBinding
 } from '../assistant/directory.ts'
-import { type AssistantLifecycleBinding } from '../assistant/lifecycle.ts'
+import {
+  type AssistantLifecycleBinding,
+  type ExportAuthority
+} from '../assistant/lifecycle.ts'
 import {
   ConversationUnavailable,
   type ConversationSend,
@@ -43,6 +46,7 @@ export type AssistantConversationTransport = {
     readonly attemptId?: string | undefined
     readonly lastEventId?: string | undefined
     readonly request?: Request | undefined
+    readonly signal?: AbortSignal | undefined
   }) => Promise<Response>
 }
 const encodeAddress = Schema.encodeSync(
@@ -92,6 +96,9 @@ export function conversationTransport(
         headers.set('last-event-id', input.lastEventId)
       }
       const init: RequestInit = { method: 'GET', headers }
+      if (input.signal !== undefined) {
+        init.signal = input.signal
+      }
       if (input.body !== undefined) {
         headers.set('content-type', 'application/json')
         init.method = 'POST'
@@ -111,16 +118,24 @@ function requireSuccess(response: Response) {
   return Effect.succeed(response)
 }
 
+/**
+ * The Durable Object stub is the one Promise edge. The signal carries the
+ * caller's interruption into the object request; a rejection is storage.
+ */
+function objectCall<A>(call: (signal: AbortSignal) => Promise<A>) {
+  return Effect.tryPromise({
+    try: call,
+    catch: () => new ConversationUnavailable({ reason: 'storage' })
+  })
+}
+
 /** Parent lifecycle/export callers pass identities from the directory, never from browser input. */
 export function conversationLifecycleBinding(
   namespace: ConversationNamespace
 ): AssistantLifecycleBinding {
   const transport = conversationTransport(namespace)
-  function requestExport(
-    input: Parameters<AssistantLifecycleBinding['exportConversation']>[0],
-    action: 'read' | 'export'
-  ) {
-    return Effect.tryPromise(() =>
+  function requestExport(input: ExportAuthority, action: 'read' | 'export') {
+    return objectCall((signal) =>
       transport.request({
         address: {
           id: input.conversationId,
@@ -133,52 +148,53 @@ export function conversationLifecycleBinding(
           sessionId: input.sessionId,
           expiresAt: Number.MAX_SAFE_INTEGER
         },
-        action
+        action,
+        signal
       })
     )
   }
   return {
-    exportConversation: (input) =>
-      Effect.runPromise(
-        requestExport(input, 'export').pipe(
-          Effect.flatMap(requireSuccess),
-          Effect.flatMap((response) => Effect.tryPromise(() => response.text())),
-          Effect.map((json) => ({ json }))
+    exportConversation: Effect.fn('AssistantConversationHost.export')(function* (
+      input: ExportAuthority
+    ) {
+      const response = yield* requireSuccess(yield* requestExport(input, 'export'))
+      return { json: yield* objectCall(() => response.text()) }
+    }),
+    revalidateConversation: Effect.fn('AssistantConversationHost.revalidate')(
+      function* (input: ExportAuthority) {
+        const response = yield* requestExport(input, 'read')
+        if ([401, 403, 404].includes(response.status)) {
+          return false
+        }
+        yield* requireSuccess(response)
+        const value = yield* objectCall(() => response.json()).pipe(
+          Effect.flatMap(decodeRevision),
+          Effect.mapError(() => new ConversationUnavailable({ reason: 'storage' }))
         )
-      ),
-    revalidateConversation: (input) =>
-      Effect.runPromise(
-        Effect.gen(function* () {
-          const response = yield* requestExport(input, 'read')
-          if ([401, 403, 404].includes(response.status)) {
-            return false
-          }
-          yield* requireSuccess(response)
-          const value = yield* Effect.tryPromise(() => response.json()).pipe(
-            Effect.flatMap(decodeRevision)
+        return value.policyRevision === input.policyRevision
+      }
+    ),
+    destroyConversation: Effect.fn('AssistantConversationHost.destroy')(function* (
+      input: Parameters<AssistantLifecycleBinding['destroyConversation']>[0]
+    ) {
+      yield* objectCall((signal) =>
+        namespace
+          .getByName(
+            conversationObjectName({
+              id: input.conversationId,
+              workspaceId: input.workspaceId,
+              creatorUserId: input.creatorUserId
+            })
           )
-          return value.policyRevision === input.policyRevision
-        })
-      ),
-    destroyConversation: (input) =>
-      Effect.runPromise(
-        Effect.tryPromise(() =>
-          namespace
-            .getByName(
-              conversationObjectName({
-                id: input.conversationId,
-                workspaceId: input.workspaceId,
-                creatorUserId: input.creatorUserId
-              })
-            )
-            .fetch(
-              new Request('https://conversation.internal/cleanup', {
-                method: 'POST',
-                headers: { 'x-starter-assistant-cleanup': input.conversationId }
-              })
-            )
-        ).pipe(Effect.flatMap(requireSuccess), Effect.asVoid)
-      )
+          .fetch(
+            new Request('https://conversation.internal/cleanup', {
+              method: 'POST',
+              headers: { 'x-starter-assistant-cleanup': input.conversationId },
+              signal
+            })
+          )
+      ).pipe(Effect.flatMap(requireSuccess))
+    })
   }
 }
 
@@ -186,20 +202,22 @@ export function conversationLifecycleBinding(
 export function conversationInvalidationBinding(
   namespace: ConversationNamespace
 ): ConversationInvalidationBinding {
-  return (addresses) =>
-    Effect.runPromise(
-      Effect.forEach(
-        addresses,
-        (address) =>
-          Effect.tryPromise(() =>
-            namespace.getByName(conversationObjectName(address)).fetch(
-              new Request('https://assistant.internal/invalidate', {
-                method: 'POST',
-                headers: { 'x-starter-assistant-invalidate': address.id }
-              })
-            )
-          ).pipe(Effect.flatMap(requireSuccess)),
-        { concurrency: 8, discard: true }
-      )
+  return Effect.fn('AssistantConversationHost.invalidate')(function* (
+    addresses: Parameters<ConversationInvalidationBinding>[0]
+  ) {
+    yield* Effect.forEach(
+      addresses,
+      (address) =>
+        objectCall((signal) =>
+          namespace.getByName(conversationObjectName(address)).fetch(
+            new Request('https://assistant.internal/invalidate', {
+              method: 'POST',
+              headers: { 'x-starter-assistant-invalidate': address.id },
+              signal
+            })
+          )
+        ).pipe(Effect.flatMap(requireSuccess)),
+      { concurrency: 8, discard: true }
     )
+  })
 }

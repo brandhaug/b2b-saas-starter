@@ -4,6 +4,7 @@ import {
   CapabilityUnavailable,
   orUnavailable
 } from '@b2b-saas-starter/failure/capability'
+import { type ConversationUnavailable } from '../developer-platform/assistant-conversation.ts'
 import { AssistantDirectory, isDeletedConversation } from './directory.ts'
 
 export const ConversationExportManifest = Schema.Array(
@@ -17,7 +18,7 @@ export const ExportedConversation = Schema.Struct({
 })
 export type ExportedConversation = typeof ExportedConversation.Type
 
-type ExportAuthority = {
+export type ExportAuthority = {
   readonly conversationId: string
   readonly workspaceId: string
   readonly creatorUserId: string
@@ -25,17 +26,23 @@ type ExportAuthority = {
   readonly sessionId: string
   readonly policyRevision: number
 }
-/** The host revalidates current identity, membership, permissions and assurance before returning content. */
+/**
+ * The host revalidates current identity, membership, permissions and assurance
+ * before returning content. Calls compose into the caller's fiber, so its span,
+ * interruption and typed host failure reach the lifecycle operation.
+ */
 export type AssistantLifecycleBinding = {
   readonly exportConversation: (
     input: ExportAuthority
-  ) => Promise<{ readonly json: string }>
-  readonly revalidateConversation: (input: ExportAuthority) => Promise<boolean>
+  ) => Effect.Effect<{ readonly json: string }, ConversationUnavailable>
+  readonly revalidateConversation: (
+    input: ExportAuthority
+  ) => Effect.Effect<boolean, ConversationUnavailable>
   readonly destroyConversation: (input: {
     readonly conversationId: string
     readonly workspaceId: string
     readonly creatorUserId: string
-  }) => Promise<void>
+  }) => Effect.Effect<void, ConversationUnavailable>
 }
 type AssistantConversationLifecycleInterface = {
   readonly collectForExport: (
@@ -65,6 +72,14 @@ export class AssistantConversationLifecycle extends Context.Service<
 >()('@b2b-saas-starter/capabilities/AssistantConversationLifecycle') {}
 
 const decodeHistory = Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Json))
+
+/** A host failure keeps its typed reason on the lifecycle's unavailable error. */
+function hostUnavailable(error: ConversationUnavailable): CapabilityUnavailable {
+  return new CapabilityUnavailable({
+    capability: 'assistant-lifecycle',
+    reason: `conversation_host_${error.reason}`
+  })
+}
 
 export function AssistantConversationLifecycleLayer(
   binding?: AssistantLifecycleBinding
@@ -104,18 +119,16 @@ export function AssistantConversationLifecycleLayer(
               })
             }
             const host = yield* requireHost()
-            const authorized = yield* unavailable(
-              Effect.tryPromise(() =>
-                host.revalidateConversation({
-                  conversationId: row.id,
-                  workspaceId: row.workspaceId,
-                  creatorUserId: row.creatorUserId,
-                  userId,
-                  sessionId,
-                  policyRevision: entry.policyRevision
-                })
-              )
-            )
+            const authorized = yield* host
+              .revalidateConversation({
+                conversationId: row.id,
+                workspaceId: row.workspaceId,
+                creatorUserId: row.creatorUserId,
+                userId,
+                sessionId,
+                policyRevision: entry.policyRevision
+              })
+              .pipe(Effect.mapError(hostUnavailable))
             if (
               !authorized ||
               !(yield* directory.policyMatches(row.id, entry.policyRevision))
@@ -146,15 +159,15 @@ export function AssistantConversationLifecycleLayer(
                 policyRevision: row.policyRevision
               }
               if (
-                !(yield* unavailable(
-                  Effect.tryPromise(() => host.revalidateConversation(authority))
-                ))
+                !(yield* host
+                  .revalidateConversation(authority)
+                  .pipe(Effect.mapError(hostUnavailable)))
               ) {
                 continue
               }
-              const exported = yield* unavailable(
-                Effect.tryPromise(() => host.exportConversation(authority))
-              )
+              const exported = yield* host
+                .exportConversation(authority)
+                .pipe(Effect.mapError(hostUnavailable))
               const history = yield* unavailable(decodeHistory(exported.json))
               conversations.push({ id: row.id, workspaceId: row.workspaceId, history })
               manifest.push({ id: row.id, policyRevision: row.policyRevision })
@@ -179,15 +192,13 @@ export function AssistantConversationLifecycleLayer(
           for (const row of rows) {
             const result = yield* Effect.gen(function* () {
               const host = yield* requireHost()
-              yield* unavailable(
-                Effect.tryPromise(() =>
-                  host.destroyConversation({
-                    conversationId: row.id,
-                    workspaceId: row.workspaceId,
-                    creatorUserId: row.creatorUserId
-                  })
-                )
-              )
+              yield* host
+                .destroyConversation({
+                  conversationId: row.id,
+                  workspaceId: row.workspaceId,
+                  creatorUserId: row.creatorUserId
+                })
+                .pipe(Effect.mapError(hostUnavailable))
               yield* directory.completeCleanup(row.id)
             }).pipe(Effect.result)
             if (Result.isFailure(result)) {

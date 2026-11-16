@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { Effect, Layer } from 'effect'
-import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
+import { withWideEventFacts } from '@b2b-saas-starter/logger'
 import {
   Billing,
   type BillingLifecycle,
@@ -12,6 +12,8 @@ import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platf
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { seedMembers } from '@b2b-saas-starter/capabilities/governance/workspace-identity.seed'
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
+import { StrongAuthentication } from '@b2b-saas-starter/capabilities/governance/strong-authentication'
+import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import {
   testWorkspaceContext,
@@ -19,28 +21,39 @@ import {
 } from '@b2b-saas-starter/capabilities/workspace-context'
 import { planById } from '@b2b-saas-starter/billing/plan-catalog'
 
-type TestState = { role: 'owner' | 'admin'; denyPermission: boolean }
-const state = vi.hoisted<TestState>(() => ({ role: 'owner', denyPermission: false }))
+type Role = 'owner' | 'admin' | 'member'
+type TestState = { role: Role; facts: Readonly<Record<string, unknown>> }
+const state = vi.hoisted<TestState>(() => ({ role: 'owner', facts: {} }))
 const reconcileCalls = vi.hoisted<
   Array<{ workspaceId: string; reason: string | undefined }>
 >(() => [])
-const permissionCalls = vi.hoisted<Array<unknown>>(() => [])
+const portalReturnUrls = vi.hoisted<Array<string>>(() => [])
+const suspensionOperations = vi.hoisted<Array<string>>(() => [])
 const roles: ReadonlyArray<'owner' | 'admin'> = ['owner', 'admin']
 
-vi.mock('./auth', () => ({
-  requireRequestSession: async () => ({ user: { id: `usr_${state.role}` } })
-}))
-
-vi.mock('./authorize', () => ({
-  requireWorkspacePermission: (permission: unknown) => {
-    permissionCalls.push(permission)
-    if (state.denyPermission) {
-      return Effect.fail(new AuthorizationDenied({ reason: 'insufficient_permission' }))
+// The real permission guard runs; only the session read and the deployment's
+// base URL are fixed here.
+vi.mock('./auth', async () => {
+  const effect = await import('effect')
+  function session() {
+    return {
+      user: { id: `usr_${state.role}` },
+      session: { id: `ses_${state.role}` }
     }
-    return Effect.succeed(undefined)
-  },
-  whenPermitted: (_permission: unknown, effect: Effect.Effect<unknown>) => effect
-}))
+  }
+  return {
+    requireRequestSession: async () => session(),
+    requireRequestSessionEffect: () => effect.Effect.sync(session)
+  }
+})
+
+vi.mock('cloudflare:workers', async (importOriginal) => {
+  const original = await importOriginal<{ readonly env: object }>()
+  return {
+    ...original,
+    env: { ...original.env, BETTER_AUTH_URL: 'https://app.example.test/' }
+  }
+})
 
 vi.mock('../capabilities', () => ({
   runWorkspaceCapabilities: async (_slug: string, effect: Effect.Effect<unknown>) => {
@@ -79,11 +92,14 @@ vi.mock('../capabilities', () => ({
       displayedPlans: Effect.fail(
         new CapabilityUnavailable({
           capability: 'billing',
-          reason: 'price_lookup_failed'
+          reason: 'price_not_configured'
         })
       ),
-      startPortalSession: (_input: { readonly returnUrl: string }) =>
-        Effect.succeed({ url: 'https://billing.stripe.com/p/session/test' }),
+      startPortalSession: (input: { readonly returnUrl: string }) =>
+        Effect.sync(() => {
+          portalReturnUrls.push(input.returnUrl)
+          return { url: 'https://billing.stripe.com/p/session/test' }
+        }),
       reconcileWorkspace: (input) => {
         reconcileCalls.push({ workspaceId: input.workspaceId, reason: input.reason })
         return Effect.succeed({
@@ -116,6 +132,16 @@ vi.mock('../capabilities', () => ({
       listMembers: Effect.succeed(seedMembers)
     })
     const feed = Layer.mock(NotificationFeed, { unreadCount: Effect.succeed(0) })
+    const authentication = Layer.mock(StrongAuthentication, {
+      require: () => Effect.void,
+      requireRecent: () => Effect.void
+    })
+    const suspension = Layer.mock(WorkspaceSuspensionService, {
+      requireAllowed: (_workspaceId, operation) =>
+        Effect.sync(() => {
+          suspensionOperations.push(operation)
+        })
+    })
     const contextLayer = testWorkspaceContext(
       context.workspace,
       context.actor,
@@ -124,7 +150,11 @@ vi.mock('../capabilities', () => ({
     // oxlint-disable-next-line starter/no-run-promise-in-tests -- this mock is the Promise boundary replacing runWorkspaceCapabilities
     return Effect.runPromise(
       Effect.scoped(
-        effect.pipe(
+        withWideEventFacts(effect, (facts) =>
+          Effect.sync(() => {
+            state.facts = { ...facts }
+          })
+        ).pipe(
           Effect.provide(
             Layer.mergeAll(
               billing,
@@ -133,6 +163,8 @@ vi.mock('../capabilities', () => ({
               webhooks,
               membership,
               feed,
+              authentication,
+              suspension,
               contextLayer
             )
           )
@@ -151,9 +183,10 @@ const {
 describe('billing loader recovery controls', () => {
   beforeEach(() => {
     state.role = 'owner'
-    state.denyPermission = false
+    state.facts = {}
     reconcileCalls.length = 0
-    permissionCalls.length = 0
+    portalReturnUrls.length = 0
+    suspensionOperations.length = 0
   })
 
   it('reconciles the verified workspace on checkout return', async () => {
@@ -163,11 +196,10 @@ describe('billing loader recovery controls', () => {
     expect(reconcileCalls).toEqual([
       { workspaceId: 'wrk_starter', reason: 'checkout_return' }
     ])
-    expect(permissionCalls).toEqual([{ organization: ['update'] }])
   })
 
-  it('does not reconcile when the workspace permission is denied', async () => {
-    state.denyPermission = true
+  it('does not reconcile for a member without organization:update', async () => {
+    state.role = 'member'
     await expect(
       reconcileCheckoutReturnHandler({ workspaceSlug: 'starter-lab' })
     ).rejects.toMatchObject({ _tag: 'AuthorizationDenied' })
@@ -183,15 +215,34 @@ describe('billing loader recovery controls', () => {
       })
       expect(payload.pricingUnavailable).toBe(true)
       expect(payload.plans).toEqual([])
+      expect(state.facts).toMatchObject({
+        billingOutcome: 'pricing_unavailable',
+        billingFailureReason: 'price_not_configured'
+      })
       expect(payload.currentPlanId).toBe('starter')
       expect(payload.seatUsage.used).toBe(seedMembers.length)
     }
   )
 
-  it.each(roles)('keeps the portal handoff available for %s', async (role) => {
-    state.role = role
+  it.each(roles)(
+    'hands %s to the portal with a server-composed return URL under billing recovery',
+    async (role) => {
+      state.role = role
+      await expect(
+        startPortalSessionHandler({ workspaceSlug: 'starter-lab' })
+      ).resolves.toEqual({ url: 'https://billing.stripe.com/p/session/test' })
+      expect(portalReturnUrls).toEqual([
+        'https://app.example.test/workspaces/starter-lab/billing'
+      ])
+      expect(suspensionOperations).toEqual(['billing_recovery'])
+    }
+  )
+
+  it('refuses the portal handoff to a member without organization:update', async () => {
+    state.role = 'member'
     await expect(
       startPortalSessionHandler({ workspaceSlug: 'starter-lab' })
-    ).resolves.toEqual({ url: 'https://billing.stripe.com/p/session/test' })
+    ).rejects.toMatchObject({ _tag: 'AuthorizationDenied' })
+    expect(portalReturnUrls).toEqual([])
   })
 })

@@ -144,6 +144,7 @@ Keep logs unsampled when using event counts to evaluate these policies.
 | Email event processing      | `operations.failure`, `signal=email_event_processing_failed`; >=3 events in five minutes                                                         | Processing resumes and window clears                                          |
 | Security evidence gap       | `operations.failure`, `signal=security_evidence_gap`; any occurrence                                                                             | Evidence recovered or uncertain access revoked/reset                          |
 | Completed action audit gap  | `operations.failure`, `signal=audit_write_gap`; any occurrence                                                                                   | Authoritative state reviewed and audit repaired or affected access restricted |
+| SSO enforcement unavailable | `operations.failure`, `signal=sso_enforcement_unavailable`; any occurrence                                                                       | SSO connection lookup succeeds; require-SSO domains enforced again            |
 
 Snapshot values are fields inside `values`, including explicit zeros after
 recovery. Failure details are inside sanitized `evidence`; snapshot service is

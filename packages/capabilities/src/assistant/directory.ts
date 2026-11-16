@@ -1,5 +1,6 @@
 import { Context, type Effect, Schema } from 'effect'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
+import { type ConversationUnavailable } from '../developer-platform/assistant-conversation.ts'
 import { type ListPageInput, type Page } from '../internal/keyset-cursor.ts'
 
 export const ConversationDirectoryEntry = Schema.Struct({
@@ -78,11 +79,12 @@ export function matchesDeletionScope(
   return row.creatorUserId === scope.creatorUserId
 }
 
+/** Notifies each conversation host in the caller's fiber; hosts recheck authority themselves. */
 export type ConversationInvalidationBinding = (
   addresses: ReadonlyArray<
     Pick<ConversationDirectoryEntry, 'id' | 'workspaceId' | 'creatorUserId'>
   >
-) => Promise<void>
+) => Effect.Effect<void, ConversationUnavailable>
 
 /**
  * The owner of the `assistant_conversations` tombstone machine (ADR 0077).
@@ -102,6 +104,9 @@ export type ConversationInvalidationBinding = (
  *   `deleted_at is null` and cleanup with `deleted_at is not null and
  *   cleaned_at is null`; the admission reserve INSERT in `admission.live.ts`
  *   requires `deleted_at is null`.
+ *
+ * `directory.seed.ts` applies the same writes through
+ * `nextConversationLifecycleStatus`; the shared contract pins both adapters.
  */
 export type ConversationLifecycleStatus = 'live' | 'deleted' | 'cleaned'
 

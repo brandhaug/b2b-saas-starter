@@ -9,6 +9,7 @@ import {
 } from '@/lib/server/strong-authentication'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { deferred } from './auth-deferred.test-support'
+import { CapabilityUnavailableError } from '@/lib/capability-error'
 
 vi.mock('@/lib/auth-client', async () => {
   const { authClientDouble } = await import('@/test/fake-auth-client')
@@ -68,4 +69,33 @@ it('prevents competing verification and skips subsequent steps after unmount', a
   unmount()
   await act(async () => result.resolve(true))
   expect(fake.twoFactor.verifyTotp).not.toHaveBeenCalled()
+})
+
+it('tells the user the check is unavailable instead of blaming the password during an outage', async () => {
+  vi.clearAllMocks()
+  vi.mocked(verifyCurrentPasswordServerFn).mockRejectedValueOnce(
+    new CapabilityUnavailableError(
+      'strong-authentication',
+      'password_check_unavailable'
+    )
+  )
+  await renderWithRouter(
+    <VerifyAuthenticationPage
+      status={{
+        qualified: false,
+        recent: false,
+        recovering: false,
+        hasFactors: false,
+        passwordVerified: false
+      }}
+      twoFactorEnabled={false}
+    />
+  )
+  fireEvent.change(screen.getByLabelText(m.form_password()), {
+    target: { value: 'password123' }
+  })
+  fireEvent.click(screen.getByRole('button', { name: m.security_confirm_password() }))
+  const alert = await screen.findByRole('alert')
+  expect(alert.textContent).toContain(m.shell_unavailable_description())
+  expect(screen.queryByText(m.security_verification_failed())).toBeNull()
 })

@@ -1,7 +1,11 @@
 import { requireEmailVerification } from '@b2b-saas-starter/env/server'
 import { UnverifiedEmailError } from '../capability-error'
 import { type PurchaseIntent } from '../purchase-intent'
-import { Billing, type ReconcileResult } from '@b2b-saas-starter/billing/billing'
+import {
+  Billing,
+  type BillingInterface,
+  type ReconcileResult
+} from '@b2b-saas-starter/billing/billing'
 import { ResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
@@ -28,6 +32,24 @@ import {
   type PublicPricingPayload
 } from './billing'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
+import { annotateWideEvent } from '@b2b-saas-starter/logger'
+
+/**
+ * The displayed plans, or `null` when provider pricing cannot be shown. Pages
+ * render "pricing unavailable" either way; the wide event keeps the code-owned
+ * reason (`price_not_configured`, `unsupported_price`, …) so a missing price ID
+ * is distinguishable from a provider outage.
+ */
+export function displayedPlansOrUnavailable(billing: BillingInterface) {
+  return billing.displayedPlans.pipe(
+    Effect.catchTag('CapabilityUnavailable', (error) =>
+      annotateWideEvent({
+        billingOutcome: 'pricing_unavailable',
+        billingFailureReason: error.reason
+      }).pipe(Effect.as(null))
+    )
+  )
+}
 
 /** The billing route's loader effect. Hard-gated like the other pages. */
 const billingPayload: WorkspacePageFrame<WorkspaceBillingPayload> = workspacePage(
@@ -45,10 +67,7 @@ const billingPayload: WorkspacePageFrame<WorkspaceBillingPayload> = workspacePag
             stripeConfigured: billing.configured,
             synchronization: billing.synchronizationStatus,
             lifecycle: billing.lifecycleStatus,
-            plans: Effect.match(billing.displayedPlans, {
-              onFailure: () => null,
-              onSuccess: (plans) => plans
-            }),
+            plans: displayedPlansOrUnavailable(billing),
             resourceSelection: Effect.flatMap(ResourceEntitlements, (resources) =>
               resources.getSelection()
             ),
@@ -141,10 +160,7 @@ export async function loadPublicPricingHandler(): Promise<PublicPricingPayload> 
       Effect.map(
         Effect.all(
           {
-            plans: Effect.match(billing.displayedPlans, {
-              onFailure: () => null,
-              onSuccess: (plans) => plans
-            }),
+            plans: displayedPlansOrUnavailable(billing),
             stripeConfigured: billing.configured
           },
           { concurrency: 'unbounded' }

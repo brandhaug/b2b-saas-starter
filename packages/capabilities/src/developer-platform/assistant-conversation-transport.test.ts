@@ -1,5 +1,11 @@
 import { expect, it } from '@effect/vitest'
-import { Effect } from 'effect'
+import { Deferred, Effect, Fiber, Layer } from 'effect'
+import { AssistantDirectory } from '../assistant/directory.ts'
+import { SeedAssistantDirectory } from '../assistant/directory.seed.ts'
+import {
+  AssistantConversationLifecycle,
+  AssistantConversationLifecycleLayer
+} from '../assistant/lifecycle.ts'
 import {
   conversationTransport,
   conversationLifecycleBinding,
@@ -111,35 +117,23 @@ it.effect(
           }
         })
       })
-      expect(
-        yield* Effect.promise(() => binding.revalidateConversation(authority))
-      ).toBe(true)
+      expect(yield* binding.revalidateConversation(authority)).toBe(true)
       revision = 8
-      expect(
-        yield* Effect.promise(() => binding.revalidateConversation(authority))
-      ).toBe(false)
+      expect(yield* binding.revalidateConversation(authority)).toBe(false)
       for (const refusal of [401, 403, 404]) {
         status = refusal
-        expect(
-          yield* Effect.promise(() => binding.revalidateConversation(authority))
-        ).toBe(false)
+        expect(yield* binding.revalidateConversation(authority)).toBe(false)
       }
       status = 503
       expect(
-        (yield* Effect.tryPromise(() => binding.revalidateConversation(authority)).pipe(
-          Effect.result
-        ))._tag
+        (yield* binding.revalidateConversation(authority).pipe(Effect.result))._tag
       ).toBe('Failure')
       expect(
-        (yield* Effect.tryPromise(() => binding.exportConversation(authority)).pipe(
-          Effect.result
-        ))._tag
+        (yield* binding.exportConversation(authority).pipe(Effect.result))._tag
       ).toBe('Failure')
       status = 200
-      expect(
-        (yield* Effect.promise(() => binding.exportConversation(authority))).json
-      ).toContain('items')
-      yield* Effect.promise(() => binding.destroyConversation(authority))
+      expect((yield* binding.exportConversation(authority)).json).toContain('items')
+      yield* binding.destroyConversation(authority)
       expect(requests.at(-1)?.headers.get('x-starter-assistant-cleanup')).toBe(
         'conversation'
       )
@@ -163,7 +157,7 @@ it.effect('notifies every immutable address and reports a failed invalidation', 
         }
       }
     })
-    yield* Effect.promise(() => invalidate([address, { ...address, id: 'second' }]))
+    yield* invalidate([address, { ...address, id: 'second' }])
     expect(names).toEqual([
       '["workspace","user","conversation"]',
       '["workspace","user","second"]'
@@ -172,8 +166,83 @@ it.effect('notifies every immutable address and reports a failed invalidation', 
       'conversation'
     )
     status = 503
-    expect(
-      (yield* Effect.tryPromise(() => invalidate([address])).pipe(Effect.result))._tag
-    ).toBe('Failure')
+    expect((yield* invalidate([address]).pipe(Effect.result))._tag).toBe('Failure')
   })
+)
+
+/**
+ * How the lifecycle port can lose a host failure on its way to the caller:
+ * - a host 503 arrives as an untyped rejection, so the export refusal names
+ *   the Promise wrapper instead of the conversation host;
+ * - the object request runs detached, so interrupting the export leaves it
+ *   in flight.
+ */
+function lifecycleOver(namespace: ConversationNamespace) {
+  return AssistantConversationLifecycleLayer(
+    conversationLifecycleBinding(namespace)
+  ).pipe(Layer.provideMerge(SeedAssistantDirectory))
+}
+
+it.effect(
+  'reports a conversation host outage to export callers with its typed reason',
+  () =>
+    Effect.gen(function* () {
+      const directory = yield* AssistantDirectory
+      yield* directory.create(address)
+      const lifecycle = yield* AssistantConversationLifecycle
+      expect(
+        yield* lifecycle.collectForExport('user', 'session').pipe(Effect.result)
+      ).toMatchObject({
+        _tag: 'Failure',
+        failure: {
+          _tag: 'CapabilityUnavailable',
+          capability: 'assistant-lifecycle',
+          reason: 'conversation_host_storage'
+        }
+      })
+    }).pipe(
+      Effect.provide(
+        lifecycleOver({
+          getByName: () => ({
+            fetch: () => Promise.resolve(new Response(null, { status: 503 }))
+          })
+        })
+      )
+    )
+)
+
+it.effect(
+  'interrupting an export revalidation aborts the in-flight object request',
+  () => {
+    const started = Deferred.makeUnsafe<boolean>()
+    const aborted = Deferred.makeUnsafe<boolean>()
+    return Effect.gen(function* () {
+      const directory = yield* AssistantDirectory
+      const row = yield* directory.create(address)
+      const lifecycle = yield* AssistantConversationLifecycle
+      const validation = yield* lifecycle
+        .validateExport('user', 'session', [
+          { id: row.id, policyRevision: row.policyRevision }
+        ])
+        .pipe(Effect.forkChild)
+      yield* Deferred.await(started)
+      yield* Fiber.interrupt(validation)
+      yield* Deferred.await(aborted)
+    }).pipe(
+      Effect.provide(
+        lifecycleOver({
+          getByName: () => ({
+            fetch: (request) => {
+              request.signal.addEventListener('abort', () =>
+                Deferred.doneUnsafe(aborted, Effect.succeed(true))
+              )
+              Deferred.doneUnsafe(started, Effect.succeed(true))
+              // Never settles: only the caller's interruption can end this request.
+              return new Promise<Response>(() => {})
+            }
+          })
+        })
+      )
+    )
+  }
 )

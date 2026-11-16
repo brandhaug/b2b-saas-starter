@@ -199,7 +199,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                   memberBinding: binding,
                   assistantInvalidation: (addresses) => {
                     notifications.push(addresses.map((address) => address.id))
-                    return Promise.resolve()
+                    return Effect.void
                   }
                 }
               )

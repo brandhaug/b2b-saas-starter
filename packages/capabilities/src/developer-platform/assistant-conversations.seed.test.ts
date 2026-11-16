@@ -19,6 +19,8 @@ import { conversationObservationContract } from './assistant-conversation-observ
 import { makeSeedAssistantConversationHost } from './assistant-conversations.seed.ts'
 import { AssistantConversationLifecycle } from '../assistant/lifecycle.ts'
 import { AssistantDirectory } from '../assistant/directory.ts'
+import { AssistantAuthority } from './assistant-authority.ts'
+import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { SeedLayer, makeSeedCapabilitiesLayer } from '../layers.ts'
 import { seedWorkspaceRecord } from '../seed-fixture.ts'
 import {
@@ -632,18 +634,15 @@ it.live(
         _tag: 'ConversationInputRejected',
         reason: 'current_context_budget'
       })
+      expect(yield* host.lifecycle.revalidateConversation(authority)).toBe(true)
       expect(
-        yield* Effect.promise(() => host.lifecycle.revalidateConversation(authority))
-      ).toBe(true)
-      expect(
-        yield* Effect.promise(() =>
-          host.lifecycle.revalidateConversation({ ...authority, policyRevision: 1 })
-        )
+        yield* host.lifecycle.revalidateConversation({
+          ...authority,
+          policyRevision: 1
+        })
       ).toBe(false)
       expect(
-        (yield* Effect.tryPromise(() =>
-          host.lifecycle.destroyConversation(authority)
-        ).pipe(Effect.result))._tag
+        (yield* host.lifecycle.destroyConversation(authority).pipe(Effect.result))._tag
       ).toBe('Failure')
       yield* directory.fence({ conversationId: row.id })
       for (const invalid of [
@@ -652,21 +651,15 @@ it.live(
         { ...authority, creatorUserId: 'another-user' }
       ]) {
         expect(
-          (yield* Effect.tryPromise(() =>
-            host.lifecycle.destroyConversation(invalid)
-          ).pipe(Effect.result))._tag
+          (yield* host.lifecycle.destroyConversation(invalid).pipe(Effect.result))._tag
         ).toBe('Failure')
       }
+      expect(yield* host.lifecycle.revalidateConversation(authority)).toBe(false)
       expect(
-        yield* Effect.promise(() => host.lifecycle.revalidateConversation(authority))
-      ).toBe(false)
-      expect(
-        (yield* Effect.tryPromise(() =>
-          host.lifecycle.exportConversation(authority)
-        ).pipe(Effect.result))._tag
+        (yield* host.lifecycle.exportConversation(authority).pipe(Effect.result))._tag
       ).toBe('Failure')
-      yield* Effect.promise(() => host.lifecycle.destroyConversation(authority))
-      yield* Effect.promise(() => host.lifecycle.destroyConversation(authority))
+      yield* host.lifecycle.destroyConversation(authority)
+      yield* host.lifecycle.destroyConversation(authority)
     }).pipe(
       Effect.scoped,
       Effect.provideService(WorkspaceContext, workspace),
@@ -682,6 +675,60 @@ it.live(
         })
       )
     )
+)
+
+/**
+ * How Seed revalidation can drift from Live: Live answers `false` only for the
+ * object's 401/403/404 (missing conversation, denied authority) and fails
+ * with `ConversationUnavailable` for anything else. A Seed host that folds an
+ * unavailable authority read into `false` tells export callers the archive is
+ * stale when the store is down.
+ */
+it.live('Seed revalidation fails on unavailable authority, as Live does', () =>
+  Effect.gen(function* () {
+    const directory = yield* AssistantDirectory
+    const row = yield* directory.create({
+      id: 'revalidate-unavailable',
+      workspaceId: seedWorkspaceRecord.id,
+      creatorUserId: credential.userId
+    })
+    const authority = {
+      conversationId: row.id,
+      workspaceId: row.workspaceId,
+      creatorUserId: row.creatorUserId,
+      userId: credential.userId,
+      sessionId: credential.sessionId,
+      policyRevision: row.policyRevision
+    }
+    const host = yield* makeSeedAssistantConversationHost().pipe(
+      Effect.provideService(
+        AssistantAuthority,
+        AssistantAuthority.of({
+          authorize: () =>
+            Effect.fail(
+              new CapabilityUnavailable({
+                capability: 'assistant-authority',
+                reason: 'storage'
+              })
+            )
+        })
+      )
+    )
+    expect(
+      yield* host.lifecycle.revalidateConversation(authority).pipe(Effect.flip)
+    ).toMatchObject({ _tag: 'ConversationUnavailable', reason: 'storage' })
+    expect(
+      yield* host.lifecycle.revalidateConversation({
+        ...authority,
+        conversationId: 'absent'
+      })
+    ).toBe(false)
+  }).pipe(
+    Effect.scoped,
+    Effect.provideService(WorkspaceContext, workspace),
+    Effect.provide(SeedLayer),
+    Effect.provide(MockConversationModelLayer)
+  )
 )
 
 it.live(
