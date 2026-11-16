@@ -1,5 +1,6 @@
 import { type AIChatAgent } from '@cloudflare/ai-chat'
 import { type Connection } from 'agents'
+import { Result } from 'effect'
 import { type AssistantCredentialReference } from '@b2b-saas-starter/authz/assistant-access-token'
 import {
   allowedConversationRequest,
@@ -56,7 +57,7 @@ export function installConversationProtocol(
         return
       }
       const frame = decodeFrame(data)
-      if (frame._tag === 'Failure') {
+      if (Result.isFailure(frame)) {
         connection.close(1003, 'Unsupported response')
         return
       }
@@ -91,7 +92,7 @@ export function installConversationProtocol(
     return ports
       .authorize(connection)
       .then(async () => {
-        if (decodeObservation(frame)._tag === 'Success') {
+        if (Result.isSuccess(decodeObservation(frame))) {
           await message(connection, frame)
         }
         return

@@ -446,14 +446,15 @@ describe('Stripe webhook signature verification', () => {
   it('preserves platform crypto rejection instead of reporting a verified signature', async () => {
     const payload = 'p'
     const valid = await signature('whsec_test', payload, nowSeconds)
-    vi.spyOn(crypto.subtle, 'sign').mockRejectedValue(new Error('sign refused'))
+    const refusal = new Error('sign refused')
+    vi.spyOn(crypto.subtle, 'sign').mockRejectedValue(refusal)
     try {
       await expect(
         verifyStripeSignature(
           { secret: 'whsec_test', payload, header: `t=${nowSeconds},v1=${valid}` },
           fixedNow
         )
-      ).rejects.toBeDefined()
+      ).rejects.toBe(refusal)
     } finally {
       vi.restoreAllMocks()
     }

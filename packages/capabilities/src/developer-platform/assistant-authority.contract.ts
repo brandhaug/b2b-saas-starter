@@ -1,4 +1,4 @@
-import { DateTime, Effect } from 'effect'
+import { DateTime, Effect, Result } from 'effect'
 import { type AssistantCredentialReference } from '@b2b-saas-starter/authz/assistant-access-token'
 import { type ContractExpect } from '../governance/contract-expect.ts'
 import {
@@ -377,7 +377,7 @@ export function assistantAuthorityContractCases(expect: ContractExpect) {
       const authority = yield* AssistantAuthority
       // The case literals are checked against the public contract below.
       const result = yield* Effect.result(authority.authorize(scenario.input))
-      expect(result._tag === 'Success').toBe(scenario.allowed)
+      expect(Result.isSuccess(result)).toBe(scenario.allowed)
     })
   }))
 }

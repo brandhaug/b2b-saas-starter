@@ -90,7 +90,10 @@ describe('durable invitation resend', () => {
         workspaceSlug: 'starter-lab',
         invitationId: sent.invitation.id
       })
-    ).rejects.toBeDefined()
+    ).rejects.toMatchObject({
+      _tag: 'CapabilityUnavailable',
+      reason: 'provider_refused_recipient'
+    })
     expect(sendCount).toBe(1)
   })
 

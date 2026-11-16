@@ -1,5 +1,5 @@
 import { workspaceRoles } from '@b2b-saas-starter/db/enums'
-import { Schema } from 'effect'
+import { Result, Schema } from 'effect'
 
 /**
  * The access-token contract between the web worker (the OAuth 2.1
@@ -101,7 +101,7 @@ export function mcpAccessTokenPrincipal(
   | { readonly ok: true; readonly principal: McpAccessTokenPrincipal }
   | { readonly ok: false; readonly reason: McpAccessTokenRejection } {
   const decoded = decodeClaims(payload)
-  if (decoded._tag === 'Failure') {
+  if (Result.isFailure(decoded)) {
     return { ok: false, reason: 'malformed_claims' }
   }
   // `cnf` means the token is DPoP-bound: it must ride a DPoP proof, which no

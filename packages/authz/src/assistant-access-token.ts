@@ -1,5 +1,5 @@
 import { type PermissionRequest } from './principal.ts'
-import { Schema } from 'effect'
+import { Result, Schema } from 'effect'
 import {
   MCP_CONSENT_CLAIM,
   MCP_SESSION_ID_CLAIM,
@@ -59,7 +59,7 @@ export function assistantAccessTokenPrincipal(
   payload: Record<string, unknown>
 ): AssistantOAuthPrincipal | null {
   const result = decodeClaims(payload)
-  if (result._tag === 'Failure' || result.success.cnf !== undefined) {
+  if (Result.isFailure(result) || result.success.cnf !== undefined) {
     return null
   }
   const claims = result.success

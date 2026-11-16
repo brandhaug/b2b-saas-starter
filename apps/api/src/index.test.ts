@@ -8,7 +8,7 @@ import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platfor
 import { signWorkspaceExportDownload } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { seedWorkspaceExportFixture } from '@b2b-saas-starter/capabilities/seed-fixture'
 import { describe, expect, it, vi } from '@effect/vitest'
-import { DateTime, Effect, Schema } from 'effect'
+import { DateTime, Effect, Schema, Result } from 'effect'
 import { StarterApi } from '@b2b-saas-starter/api'
 import { Unauthorized } from '@b2b-saas-starter/api/errors'
 import { FetchHttpClient } from 'effect/http'
@@ -126,8 +126,8 @@ describe('contract-served routes', () => {
       const outcome = yield* client.workspace
         .overview({ params: { slug: 'starter-lab' } })
         .pipe(Effect.result)
-      expect(outcome._tag).toBe('Failure')
-      if (outcome._tag === 'Failure') {
+      expect(Result.isFailure(outcome)).toBe(true)
+      if (Result.isFailure(outcome)) {
         expect(outcome.failure).toBeInstanceOf(Unauthorized)
       }
     }).pipe(

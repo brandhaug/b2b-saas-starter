@@ -1,4 +1,4 @@
-import { Effect, Layer } from 'effect'
+import { Effect, Layer, Result } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 
 import { AccountPreferencesRejected } from '../errors.ts'
@@ -72,8 +72,8 @@ describe('account preferences', () => {
       const result = yield* Effect.result(
         preferences.set({ userId: 'usr_demo', timeZone: 'Not/A-Timezone' })
       )
-      expect(result._tag).toBe('Failure')
-      if (result._tag === 'Failure') {
+      expect(Result.isFailure(result)).toBe(true)
+      if (Result.isFailure(result)) {
         expect(result.failure).toBeInstanceOf(AccountPreferencesRejected)
       }
       expect(yield* preferences.get('usr_demo')).toEqual({
