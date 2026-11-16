@@ -231,16 +231,15 @@ export function LiveWebhookPublisher(
       const recordEnqueueFailure = yield* makeLiveWebhookEnqueueFailure
 
       return {
-        publish: (input) =>
-          Effect.gen(function* () {
-            // Provider-light: without a queue binding the publisher no-ops
-            // instead of failing the app.
-            if (!queue) {
-              return
-            }
-            const ctx = yield* WorkspaceContext
-            yield* publishForWorkspace(input, ctx.workspace.id)
-          }),
+        publish: Effect.fn('WebhookPublisher.publish')(function* (input) {
+          // Provider-light: without a queue binding the publisher no-ops
+          // instead of failing the app.
+          if (!queue) {
+            return
+          }
+          const ctx = yield* WorkspaceContext
+          yield* publishForWorkspace(input, ctx.workspace.id)
+        }),
         publishForWorkspace: (workspaceId, input) =>
           publishForWorkspace(input, workspaceId),
         enqueue: (message) => {

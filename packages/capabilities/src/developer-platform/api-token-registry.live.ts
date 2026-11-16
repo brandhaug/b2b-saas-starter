@@ -92,7 +92,7 @@ export function LiveApiTokenRegistry(
       })
 
       return {
-        list: Effect.gen(function* () {
+        list: Effect.fn('ApiTokenRegistry.list')(function* () {
           const ctx = yield* WorkspaceContext
           const rows = yield* unavailable(
             db
@@ -102,42 +102,41 @@ export function LiveApiTokenRegistry(
               .orderBy(desc(apiTokens.createdAt))
           )
           return rows.map(toTokenProjection)
+        })(),
+        listPage: Effect.fn('ApiTokenRegistry.listPage')(function* (input) {
+          const ctx = yield* WorkspaceContext
+          const limit = clampPageLimit(input?.limit)
+          const conditions: Array<SQL | undefined> = [
+            activeTokenWhere(undefined, ctx.workspace.id)
+          ]
+          // The SQL half of the keyset recipe lives in `keyset-query.ts`,
+          // shared with every other paged Live read.
+          const resume = keysetResume(
+            'desc',
+            { key: apiTokens.createdAt, id: apiTokens.id },
+            input?.cursor
+          )
+          if (resume.kind === 'empty') {
+            return { items: [], nextCursor: null }
+          }
+          if (resume.kind === 'resume') {
+            conditions.push(resume.condition)
+          }
+          // One row past the page cap, so `cutKeysetPage` can see whether
+          // the cap actually cut rows off before offering a cursor.
+          const rows = yield* unavailable(
+            db
+              .select()
+              .from(apiTokens)
+              .where(and(...conditions))
+              .orderBy(desc(apiTokens.createdAt), desc(apiTokens.id))
+              .limit(limit + 1)
+          )
+          return cutKeysetPage(rows.map(toTokenProjection), limit, (token) => ({
+            key: token.createdAt,
+            id: token.id
+          }))
         }),
-        listPage: (input) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            const limit = clampPageLimit(input?.limit)
-            const conditions: Array<SQL | undefined> = [
-              activeTokenWhere(undefined, ctx.workspace.id)
-            ]
-            // The SQL half of the keyset recipe lives in `keyset-query.ts`,
-            // shared with every other paged Live read.
-            const resume = keysetResume(
-              'desc',
-              { key: apiTokens.createdAt, id: apiTokens.id },
-              input?.cursor
-            )
-            if (resume.kind === 'empty') {
-              return { items: [], nextCursor: null }
-            }
-            if (resume.kind === 'resume') {
-              conditions.push(resume.condition)
-            }
-            // One row past the page cap, so `cutKeysetPage` can see whether
-            // the cap actually cut rows off before offering a cursor.
-            const rows = yield* unavailable(
-              db
-                .select()
-                .from(apiTokens)
-                .where(and(...conditions))
-                .orderBy(desc(apiTokens.createdAt), desc(apiTokens.id))
-                .limit(limit + 1)
-            )
-            return cutKeysetPage(rows.map(toTokenProjection), limit, (token) => ({
-              key: token.createdAt,
-              id: token.id
-            }))
-          }),
         create: Effect.fn('ApiTokenRegistry.create')(function* (input) {
           const ctx = yield* WorkspaceContext
           const now = yield* DateTime.now
@@ -315,54 +314,53 @@ export function LiveApiTokenRegistry(
             previousTokenExpiresAt: plan.previousTokenExpiresAt
           }
         }),
-        revoke: (input) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            const revokedAt = yield* DateTime.now
-            // Update + audit insert as one batch; a token that is absent,
-            // foreign, or already revoked matches nothing and skips both — no
-            // phantom revocation.
-            const applied = yield* auditedMutation({
-              matched: unavailable(
-                db
-                  .select({ id: apiTokens.id })
-                  .from(apiTokens)
-                  .where(activeTokenWhere(input.tokenId, ctx.workspace.id))
-                  .limit(1)
-              ).pipe(Effect.map((rows) => rows.length > 0)),
-              auditEvent: {
-                ...workspaceAuditAttribution(ctx),
-                eventType: 'api_token.revoked',
-                targetType: 'api_token',
-                targetId: input.tokenId,
-                metadata: {}
-              },
-              write: () => [
-                db
-                  .update(apiTokens)
-                  .set({ revokedAt: DateTime.formatIso(revokedAt) })
-                  .where(activeTokenWhere(input.tokenId, ctx.workspace.id))
-              ]
-            })
-            if (!applied) {
-              return false
-            }
-            yield* recordSecurityEvidence(
-              {
-                kind: 'api_token_revoked',
-                subjectId: input.tokenId,
-                workspaceId: ctx.workspace.id
-              },
-              securityEvidence
-            )
-            yield* publishWebhookEventWith(publisher, {
+        revoke: Effect.fn('ApiTokenRegistry.revoke')(function* (input) {
+          const ctx = yield* WorkspaceContext
+          const revokedAt = yield* DateTime.now
+          // Update + audit insert as one batch; a token that is absent,
+          // foreign, or already revoked matches nothing and skips both — no
+          // phantom revocation.
+          const applied = yield* auditedMutation({
+            matched: unavailable(
+              db
+                .select({ id: apiTokens.id })
+                .from(apiTokens)
+                .where(activeTokenWhere(input.tokenId, ctx.workspace.id))
+                .limit(1)
+            ).pipe(Effect.map((rows) => rows.length > 0)),
+            auditEvent: {
+              ...workspaceAuditAttribution(ctx),
               eventType: 'api_token.revoked',
-              payload: { tokenId: input.tokenId }
-            })
-            return true
-          }),
-        verifyBearerToken: (token) =>
-          Effect.gen(function* () {
+              targetType: 'api_token',
+              targetId: input.tokenId,
+              metadata: {}
+            },
+            write: () => [
+              db
+                .update(apiTokens)
+                .set({ revokedAt: DateTime.formatIso(revokedAt) })
+                .where(activeTokenWhere(input.tokenId, ctx.workspace.id))
+            ]
+          })
+          if (!applied) {
+            return false
+          }
+          yield* recordSecurityEvidence(
+            {
+              kind: 'api_token_revoked',
+              subjectId: input.tokenId,
+              workspaceId: ctx.workspace.id
+            },
+            securityEvidence
+          )
+          yield* publishWebhookEventWith(publisher, {
+            eventType: 'api_token.revoked',
+            payload: { tokenId: input.tokenId }
+          })
+          return true
+        }),
+        verifyBearerToken: Effect.fn('ApiTokenRegistry.verifyBearerToken')(
+          function* (token) {
             const tokenHash = yield* hashSha256(token)
             const row = yield* unavailable(
               db
@@ -437,7 +435,8 @@ export function LiveApiTokenRegistry(
               workspaceSlug: row.workspace.slug,
               scopes: row.token.scopes
             }
-          })
+          }
+        )
       }
     })
   )

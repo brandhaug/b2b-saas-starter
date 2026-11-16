@@ -159,78 +159,76 @@ export function SeedWorkspaceLifecycle(options: {
       })
 
       return {
-        create: (input) =>
-          Effect.gen(function* () {
-            const existing = yield* Ref.get(catalog)
-            yield* requireAvailableSlug(
-              input.slug,
-              existing.map((each) => each.slug)
-            )
-            const id = yield* newCapabilityId('wrk')
-            const workspace: CreatedWorkspace = {
-              id,
-              slug: input.slug,
-              name: input.name,
-              planId: 'starter'
-            }
-            yield* Ref.update(catalog, (rows) => [...rows, workspace])
-            if (options.roster) {
-              yield* Ref.update(options.roster, (members) => [
-                ...members,
-                // Fabricates the identity fields the fixture has no `user`
-                // table to join; the creator enters as owner.
-                fabricateSeedMember(input.userId, 'owner')
-              ])
-            }
-            // Identity-keyed: no `WorkspaceContext` to read the attribution
-            // from, so the event names the created workspace and its creator
-            // directly — the exact shape the Live adapter records.
-            const audit = yield* Effect.serviceOption(AuditEventLog)
-            if (Option.isSome(audit)) {
-              yield* audit.value.record({
-                workspaceId: workspace.id,
-                actorUserId: input.userId,
-                actorType: 'user',
-                eventType: 'workspace.created',
-                targetType: 'workspace',
-                targetId: workspace.id,
-                metadata: { name: workspace.name, slug: workspace.slug }
-              })
-            }
-            return workspace
-          }),
-        rename: (input) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            yield* suspension.requireAllowed(ctx.workspace.id, 'product')
-            const renamed: Workspace = { ...ctx.workspace, name: input.name }
-            yield* Ref.update(catalog, (rows) => {
-              const next: Array<Workspace> = []
-              for (const each of rows) {
-                if (each.id === ctx.workspace.id) {
-                  next.push({ ...each, name: input.name })
-                } else {
-                  next.push(each)
-                }
-              }
-              return next
+        create: Effect.fn('WorkspaceLifecycle.create')(function* (input) {
+          const existing = yield* Ref.get(catalog)
+          yield* requireAvailableSlug(
+            input.slug,
+            existing.map((each) => each.slug)
+          )
+          const id = yield* newCapabilityId('wrk')
+          const workspace: CreatedWorkspace = {
+            id,
+            slug: input.slug,
+            name: input.name,
+            planId: 'starter'
+          }
+          yield* Ref.update(catalog, (rows) => [...rows, workspace])
+          if (options.roster) {
+            yield* Ref.update(options.roster, (members) => [
+              ...members,
+              // Fabricates the identity fields the fixture has no `user`
+              // table to join; the creator enters as owner.
+              fabricateSeedMember(input.userId, 'owner')
+            ])
+          }
+          // Identity-keyed: no `WorkspaceContext` to read the attribution
+          // from, so the event names the created workspace and its creator
+          // directly — the exact shape the Live adapter records.
+          const audit = yield* Effect.serviceOption(AuditEventLog)
+          if (Option.isSome(audit)) {
+            yield* audit.value.record({
+              workspaceId: workspace.id,
+              actorUserId: input.userId,
+              actorType: 'user',
+              eventType: 'workspace.created',
+              targetType: 'workspace',
+              targetId: workspace.id,
+              metadata: { name: workspace.name, slug: workspace.slug }
             })
-            const audit = yield* Effect.serviceOption(AuditEventLog)
-            if (Option.isSome(audit)) {
-              yield* recordCompletedMutationAudit(
-                audit.value,
-                {
-                  eventType: 'workspace.renamed',
-                  targetType: 'workspace',
-                  targetId: ctx.workspace.id,
-                  metadata: { name: input.name }
-                },
-                'workspace_lifecycle.rename'
-              )
+          }
+          return workspace
+        }),
+        rename: Effect.fn('WorkspaceLifecycle.rename')(function* (input) {
+          const ctx = yield* WorkspaceContext
+          yield* suspension.requireAllowed(ctx.workspace.id, 'product')
+          const renamed: Workspace = { ...ctx.workspace, name: input.name }
+          yield* Ref.update(catalog, (rows) => {
+            const next: Array<Workspace> = []
+            for (const each of rows) {
+              if (each.id === ctx.workspace.id) {
+                next.push({ ...each, name: input.name })
+              } else {
+                next.push(each)
+              }
             }
-            return renamed
-          }),
-        remove: Effect.gen(function* () {
+            return next
+          })
+          const audit = yield* Effect.serviceOption(AuditEventLog)
+          if (Option.isSome(audit)) {
+            yield* recordCompletedMutationAudit(
+              audit.value,
+              {
+                eventType: 'workspace.renamed',
+                targetType: 'workspace',
+                targetId: ctx.workspace.id,
+                metadata: { name: input.name }
+              },
+              'workspace_lifecycle.rename'
+            )
+          }
+          return renamed
+        }),
+        remove: Effect.fn('WorkspaceLifecycle.remove')(function* () {
           const ctx = yield* WorkspaceContext
           yield* suspension.requireAllowed(ctx.workspace.id, 'product')
           if (!(yield* billing.workspaceDeletionAllowed(ctx.workspace.id))) {
@@ -264,7 +262,7 @@ export function SeedWorkspaceLifecycle(options: {
               metadata: {}
             })
           }
-        })
+        })()
       }
     })
   )
@@ -305,65 +303,63 @@ export function LiveWorkspaceLifecycle(
       })
 
       return {
-        create: (input) =>
-          Effect.gen(function* () {
-            yield* callBinding(binding, (bound) => bound.create(input))
-            const workspace = yield* readBySlug(input.slug)
-            // Identity-keyed: no `WorkspaceContext` to read the attribution
-            // from, so this one names the created workspace and its creator
-            // directly. The ADR 0051 non-atomicity `recordInWorkspace`
-            // documents applies here too.
-            yield* recordCompletedAudit(
-              audit,
-              {
-                workspaceId: workspace.id,
-                actorUserId: input.userId,
-                actorType: 'user',
-                eventType: 'workspace.created',
-                targetType: 'workspace',
-                targetId: workspace.id,
-                metadata: { name: workspace.name, slug: workspace.slug }
-              },
-              'workspace_lifecycle.create'
+        create: Effect.fn('WorkspaceLifecycle.create')(function* (input) {
+          yield* callBinding(binding, (bound) => bound.create(input))
+          const workspace = yield* readBySlug(input.slug)
+          // Identity-keyed: no `WorkspaceContext` to read the attribution
+          // from, so this one names the created workspace and its creator
+          // directly. The ADR 0051 non-atomicity `recordInWorkspace`
+          // documents applies here too.
+          yield* recordCompletedAudit(
+            audit,
+            {
+              workspaceId: workspace.id,
+              actorUserId: input.userId,
+              actorType: 'user',
+              eventType: 'workspace.created',
+              targetType: 'workspace',
+              targetId: workspace.id,
+              metadata: { name: workspace.name, slug: workspace.slug }
+            },
+            'workspace_lifecycle.create'
+          )
+          return workspace
+        }),
+        rename: Effect.fn('WorkspaceLifecycle.rename')(function* (input) {
+          const ctx = yield* WorkspaceContext
+          yield* suspension.requireAllowed(ctx.workspace.id, 'product')
+          yield* callBinding(binding, (bound) =>
+            bound.rename({ workspaceId: ctx.workspace.id, name: input.name })
+          )
+          // The plugin's response shape is not this package's contract; the
+          // rename is read back through the same table every read uses.
+          const rows = yield* unavailable(
+            db
+              .select()
+              .from(workspaces)
+              .where(eq(workspaces.id, ctx.workspace.id))
+              .limit(1)
+          )
+          const row = rows[0]
+          if (!row) {
+            return yield* Effect.fail(
+              new WorkspaceChangeRejected({ reason: 'workspace_missing' })
             )
-            return workspace
-          }),
-        rename: (input) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            yield* suspension.requireAllowed(ctx.workspace.id, 'product')
-            yield* callBinding(binding, (bound) =>
-              bound.rename({ workspaceId: ctx.workspace.id, name: input.name })
-            )
-            // The plugin's response shape is not this package's contract; the
-            // rename is read back through the same table every read uses.
-            const rows = yield* unavailable(
-              db
-                .select()
-                .from(workspaces)
-                .where(eq(workspaces.id, ctx.workspace.id))
-                .limit(1)
-            )
-            const row = rows[0]
-            if (!row) {
-              return yield* Effect.fail(
-                new WorkspaceChangeRejected({ reason: 'workspace_missing' })
-              )
-            }
-            const renamed: Workspace = toWorkspace(row)
-            yield* recordCompletedMutationAudit(
-              audit,
-              {
-                eventType: 'workspace.renamed',
-                targetType: 'workspace',
-                targetId: ctx.workspace.id,
-                metadata: { name: input.name }
-              },
-              'workspace_lifecycle.rename'
-            )
-            return renamed
-          }),
-        remove: Effect.gen(function* () {
+          }
+          const renamed: Workspace = toWorkspace(row)
+          yield* recordCompletedMutationAudit(
+            audit,
+            {
+              eventType: 'workspace.renamed',
+              targetType: 'workspace',
+              targetId: ctx.workspace.id,
+              metadata: { name: input.name }
+            },
+            'workspace_lifecycle.rename'
+          )
+          return renamed
+        }),
+        remove: Effect.fn('WorkspaceLifecycle.remove')(function* () {
           const ctx = yield* WorkspaceContext
           yield* suspension.requireAllowed(ctx.workspace.id, 'product')
           if (!(yield* billing.workspaceDeletionAllowed(ctx.workspace.id))) {
@@ -403,7 +399,7 @@ export function LiveWorkspaceLifecycle(
             },
             'workspace_lifecycle.remove'
           )
-        })
+        })()
       }
     })
   )

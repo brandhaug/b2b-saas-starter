@@ -178,7 +178,8 @@ export function LiveSsoConnections(
        * to the workspace in context — never the plugin's response, which is
        * exactly the shape this package refuses to name.
        */
-      const readInWorkspace = Effect.fn('SsoConnections.readInWorkspace')(function* (
+      // oxlint-disable-next-line starter/named-effect-operation -- shared row read; every caller is a named SsoConnections operation span
+      const readInWorkspace = Effect.fnUntraced(function* (
         workspaceId: string,
         providerId: string
       ) {
@@ -198,7 +199,7 @@ export function LiveSsoConnections(
       })
 
       return {
-        list: Effect.gen(function* () {
+        list: Effect.fn('SsoConnections.list')(function* () {
           const ctx = yield* WorkspaceContext
           const rows = yield* unavailable(
             db
@@ -208,128 +209,121 @@ export function LiveSsoConnections(
               .orderBy(desc(workspaceSsoConnections.createdAt))
           )
           return rows.map(toConnection)
+        })(),
+        get: Effect.fn('SsoConnections.get')(function* ({ providerId }) {
+          const ctx = yield* WorkspaceContext
+          const row = yield* readInWorkspace(ctx.workspace.id, providerId)
+          return Option.map(row, toConnection)
         }),
-        get: ({ providerId }) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            const row = yield* readInWorkspace(ctx.workspace.id, providerId)
-            return Option.map(row, toConnection)
-          }),
-        describe: ({ providerId }) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            const row = yield* readInWorkspace(ctx.workspace.id, providerId)
-            return Option.map(row, toDetail)
-          }),
-        create: (input) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            const providerId = yield* newCapabilityId('sso')
-            yield* callBinding(binding, (bound) =>
-              bound.create({ ...input, workspaceId: ctx.workspace.id, providerId })
+        describe: Effect.fn('SsoConnections.describe')(function* ({ providerId }) {
+          const ctx = yield* WorkspaceContext
+          const row = yield* readInWorkspace(ctx.workspace.id, providerId)
+          return Option.map(row, toDetail)
+        }),
+        create: Effect.fn('SsoConnections.create')(function* (input) {
+          const ctx = yield* WorkspaceContext
+          const providerId = yield* newCapabilityId('sso')
+          yield* callBinding(binding, (bound) =>
+            bound.create({ ...input, workspaceId: ctx.workspace.id, providerId })
+          )
+          const row = yield* readInWorkspace(ctx.workspace.id, providerId)
+          if (Option.isNone(row)) {
+            return yield* Effect.fail(
+              new MembershipChangeRejected({ reason: 'connection_not_created' })
             )
-            const row = yield* readInWorkspace(ctx.workspace.id, providerId)
-            if (Option.isNone(row)) {
-              return yield* Effect.fail(
-                new MembershipChangeRejected({ reason: 'connection_not_created' })
-              )
-            }
-            const connection = toConnection(row.value)
+          }
+          const connection = toConnection(row.value)
+          yield* recordCompletedMutationAudit(
+            audit,
+            {
+              ...ssoAuditEvent('created', connection),
+              targetId: connection.id
+            },
+            'workspace_sso.create'
+          )
+          return connection
+        }),
+        update: Effect.fn('SsoConnections.update')(function* (input) {
+          const ctx = yield* WorkspaceContext
+          const existing = yield* readInWorkspace(ctx.workspace.id, input.providerId)
+          if (Option.isNone(existing)) {
+            return Option.none<SsoConnection>()
+          }
+          yield* requireProtocolMatch(toConnection(existing.value), input)
+          // The plugin merges a partial body over the stored row, so the
+          // port's optional fields are exactly the fields being changed.
+          const update = {
+            providerId: input.providerId,
+            ...(input.enabled !== undefined && { enabled: input.enabled }),
+            ...(input.requireSso !== undefined && { requireSso: input.requireSso }),
+            ...(input.defaultWorkspaceRole !== undefined && {
+              defaultWorkspaceRole: input.defaultWorkspaceRole
+            }),
+            ...(input.oidcCredentials !== undefined && {
+              oidcCredentials: input.oidcCredentials
+            })
+          }
+          yield* callBinding(binding, (bound) => bound.update(update))
+          const row = yield* readInWorkspace(ctx.workspace.id, input.providerId)
+          const connection = Option.map(row, toConnection)
+          if (Option.isSome(connection)) {
             yield* recordCompletedMutationAudit(
               audit,
               {
-                ...ssoAuditEvent('created', connection),
-                targetId: connection.id
+                ...ssoAuditEvent('updated', connection.value),
+                targetId: connection.value.id
               },
-              'workspace_sso.create'
+              'workspace_sso.update'
             )
-            return connection
-          }),
-        update: (input) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            const existing = yield* readInWorkspace(ctx.workspace.id, input.providerId)
-            if (Option.isNone(existing)) {
-              return Option.none<SsoConnection>()
-            }
-            yield* requireProtocolMatch(toConnection(existing.value), input)
-            // The plugin merges a partial body over the stored row, so the
-            // port's optional fields are exactly the fields being changed.
-            const update = {
-              providerId: input.providerId,
-              ...(input.enabled !== undefined && { enabled: input.enabled }),
-              ...(input.requireSso !== undefined && { requireSso: input.requireSso }),
-              ...(input.defaultWorkspaceRole !== undefined && {
-                defaultWorkspaceRole: input.defaultWorkspaceRole
-              }),
-              ...(input.oidcCredentials !== undefined && {
-                oidcCredentials: input.oidcCredentials
-              })
-            }
-            yield* callBinding(binding, (bound) => bound.update(update))
-            const row = yield* readInWorkspace(ctx.workspace.id, input.providerId)
-            const connection = Option.map(row, toConnection)
-            if (Option.isSome(connection)) {
-              yield* recordCompletedMutationAudit(
-                audit,
-                {
-                  ...ssoAuditEvent('updated', connection.value),
-                  targetId: connection.value.id
-                },
-                'workspace_sso.update'
-              )
-            }
-            return connection
-          }),
-        remove: ({ providerId }) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            const existing = yield* readInWorkspace(ctx.workspace.id, providerId)
-            if (Option.isNone(existing)) {
-              return false
-            }
-            const connection = toConnection(existing.value)
-            yield* callBinding(binding, (bound) => bound.remove({ providerId }))
-            yield* recordCompletedMutationAudit(
-              audit,
-              {
-                ...ssoAuditEvent('removed', connection),
-                targetId: connection.id
-              },
-              'workspace_sso.remove'
-            )
-            return true
-          }),
-        resolveRouting: (email) =>
-          Effect.gen(function* () {
-            // Only enabled connections route — a disabled row persists for the
-            // settings UI without intercepting sign-ins (the seeded example
-            // connection depends on exactly this; the auth gate enforces the
-            // same rule for direct `/sign-in/sso` calls).
-            const rows = yield* unavailable(
-              db
-                .select()
-                .from(workspaceSsoConnections)
-                .where(eq(workspaceSsoConnections.enabled, true))
-            )
-            return Option.map(
-              Option.fromNullishOr(
-                pickSignInTarget(rows.map(routingFields), { email })
-              ),
-              toRoutingDecision
-            )
-          }),
-        resolveSignInTarget: (input) =>
-          Effect.gen(function* () {
+          }
+          return connection
+        }),
+        remove: Effect.fn('SsoConnections.remove')(function* ({ providerId }) {
+          const ctx = yield* WorkspaceContext
+          const existing = yield* readInWorkspace(ctx.workspace.id, providerId)
+          if (Option.isNone(existing)) {
+            return false
+          }
+          const connection = toConnection(existing.value)
+          yield* callBinding(binding, (bound) => bound.remove({ providerId }))
+          yield* recordCompletedMutationAudit(
+            audit,
+            {
+              ...ssoAuditEvent('removed', connection),
+              targetId: connection.id
+            },
+            'workspace_sso.remove'
+          )
+          return true
+        }),
+        resolveRouting: Effect.fn('SsoConnections.resolveRouting')(function* (email) {
+          // Only enabled connections route — a disabled row persists for the
+          // settings UI without intercepting sign-ins (the seeded example
+          // connection depends on exactly this; the auth gate enforces the
+          // same rule for direct `/sign-in/sso` calls).
+          const rows = yield* unavailable(
+            db
+              .select()
+              .from(workspaceSsoConnections)
+              .where(eq(workspaceSsoConnections.enabled, true))
+          )
+          return Option.map(
+            Option.fromNullishOr(pickSignInTarget(rows.map(routingFields), { email })),
+            toRoutingDecision
+          )
+        }),
+        resolveSignInTarget: Effect.fn('SsoConnections.resolveSignInTarget')(
+          function* (input) {
             // Deliberately unfiltered by `enabled`: the gate needs to see a
             // disabled resolution to refuse it.
             const rows = yield* unavailable(db.select().from(workspaceSsoConnections))
             return Option.fromNullishOr(
               pickSignInTarget(rows.map(routingFields), input)
             )
-          }),
-        resolveProvider: (providerId) =>
-          Effect.gen(function* () {
+          }
+        ),
+        resolveProvider: Effect.fn('SsoConnections.resolveProvider')(
+          function* (providerId) {
             const rows = yield* unavailable(
               db
                 .select({
@@ -341,7 +335,8 @@ export function LiveSsoConnections(
                 .limit(1)
             )
             return Option.fromNullishOr(rows[0])
-          })
+          }
+        )
       }
     })
   )

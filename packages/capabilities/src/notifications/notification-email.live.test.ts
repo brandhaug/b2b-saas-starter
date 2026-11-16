@@ -134,9 +134,14 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
         )
         expect(created.kind).toBe('api_token.created')
         expect(created.read).toBe(false)
-        // `wrk_live` has one member in the fixture: usr_owner.
+        // `wrk_live` has one member in the fixture: usr_owner. The message
+        // carries the `NotificationFeed.create` span's trace context.
         expect(enqueued).toEqual([
-          { notificationId: created.id, recipientUserId: 'usr_owner' }
+          {
+            notificationId: created.id,
+            recipientUserId: 'usr_owner',
+            traceparent: expect.stringMatching(/^00-[\da-f]{32}-[\da-f]{16}-0[01]$/u)
+          }
         ])
 
         // The row is visible through the workspace-scoped read.

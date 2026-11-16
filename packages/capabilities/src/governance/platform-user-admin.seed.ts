@@ -74,38 +74,36 @@ export function SeedPlatformUserAdmin(
 
       return {
         listUsers: Ref.get(roster),
-        banUser: (input) =>
-          Effect.gen(function* () {
-            yield* requireAccount(input.userId)
-            yield* setBanned(input.userId, true)
-            yield* recordSecurityEvidence(
-              { kind: 'account_banned', subjectId: input.userId },
-              evidenceSink,
-              'seed'
-            )
-            // Same events as Live, recorded after the in-memory write.
-            yield* audit.record({
-              actorUserId: input.actorUserId,
-              actorType: 'user',
-              eventType: 'system_admin.user_banned',
-              targetType: 'user',
-              targetId: input.userId
-            })
-          }),
-        unbanUser: (input) =>
-          Effect.gen(function* () {
-            yield* requireAccount(input.userId)
-            yield* setBanned(input.userId, false)
-            yield* audit.record({
-              actorUserId: input.actorUserId,
-              actorType: 'user',
-              eventType: 'system_admin.user_unbanned',
-              targetType: 'user',
-              targetId: input.userId
-            })
-          }),
-        changeWorkspaceRole: (input) =>
-          Effect.gen(function* () {
+        banUser: Effect.fn('PlatformUserAdmin.banUser')(function* (input) {
+          yield* requireAccount(input.userId)
+          yield* setBanned(input.userId, true)
+          yield* recordSecurityEvidence(
+            { kind: 'account_banned', subjectId: input.userId },
+            evidenceSink,
+            'seed'
+          )
+          // Same events as Live, recorded after the in-memory write.
+          yield* audit.record({
+            actorUserId: input.actorUserId,
+            actorType: 'user',
+            eventType: 'system_admin.user_banned',
+            targetType: 'user',
+            targetId: input.userId
+          })
+        }),
+        unbanUser: Effect.fn('PlatformUserAdmin.unbanUser')(function* (input) {
+          yield* requireAccount(input.userId)
+          yield* setBanned(input.userId, false)
+          yield* audit.record({
+            actorUserId: input.actorUserId,
+            actorType: 'user',
+            eventType: 'system_admin.user_unbanned',
+            targetType: 'user',
+            targetId: input.userId
+          })
+        }),
+        changeWorkspaceRole: Effect.fn('PlatformUserAdmin.changeWorkspaceRole')(
+          function* (input) {
             const account = yield* requireAccount(input.userId)
             const key = `${input.workspaceId}:${input.userId}`
             const current = yield* Ref.get(overrides)
@@ -143,9 +141,10 @@ export function SeedPlatformUserAdmin(
               metadata: { role: input.role }
             })
             return member
-          }),
-        startImpersonation: (input) =>
-          Effect.gen(function* () {
+          }
+        ),
+        startImpersonation: Effect.fn('PlatformUserAdmin.startImpersonation')(
+          function* (input) {
             const target = yield* requireAccount(input.userId)
             yield* refuseImpersonationTarget(target, input.actorUserId)
             const admin = yield* requireAccount(input.actorUserId)
@@ -166,9 +165,10 @@ export function SeedPlatformUserAdmin(
               userId: input.userId,
               expiresInSeconds: IMPERSONATION_SESSION_SECONDS
             }
-          }),
-        stopImpersonation: (input) =>
-          Effect.gen(function* () {
+          }
+        ),
+        stopImpersonation: Effect.fn('PlatformUserAdmin.stopImpersonation')(
+          function* (input) {
             const current = yield* Ref.get(impersonating)
             if (current !== input.userId) {
               // Mirrors the plugin's 400 "not impersonating anyone".
@@ -184,7 +184,8 @@ export function SeedPlatformUserAdmin(
               targetType: 'user',
               targetId: input.userId
             })
-          })
+          }
+        )
       }
     })
   )

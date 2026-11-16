@@ -63,50 +63,49 @@ export const LiveWebhookDeliveries: Layer.Layer<
 
     return {
       listDeliveryAttempts,
-      listDeliveries: (input) =>
-        Effect.gen(function* () {
-          const ctx = yield* WorkspaceContext
-          // The join scopes to the calling workspace: a foreign endpoint id
-          // matches no row of its own and yields an empty list.
-          return yield* unavailable(
-            db
-              .select({
-                id: webhookDeliveries.id,
-                endpointId: webhookDeliveries.endpointId,
-                eventType: webhookDeliveries.eventType,
-                status: webhookDeliveries.status,
-                attempts: webhookDeliveries.attempts,
-                lastAttemptAt: webhookDeliveries.lastAttemptAt,
-                nextAttemptAt: webhookDeliveries.nextAttemptAt,
-                responseStatus: webhookDeliveries.responseStatus,
-                payload: webhookDeliveries.payload,
-                requestHeaders: webhookDeliveries.requestHeaders,
-                responseBody: webhookDeliveries.responseBody,
-                replayedFrom: webhookDeliveries.replayedFrom
-              })
-              .from(webhookDeliveries)
-              .innerJoin(
-                webhookEndpoints,
-                eq(webhookEndpoints.id, webhookDeliveries.endpointId)
+      listDeliveries: Effect.fn('WebhookDeliveries.listDeliveries')(function* (input) {
+        const ctx = yield* WorkspaceContext
+        // The join scopes to the calling workspace: a foreign endpoint id
+        // matches no row of its own and yields an empty list.
+        return yield* unavailable(
+          db
+            .select({
+              id: webhookDeliveries.id,
+              endpointId: webhookDeliveries.endpointId,
+              eventType: webhookDeliveries.eventType,
+              status: webhookDeliveries.status,
+              attempts: webhookDeliveries.attempts,
+              lastAttemptAt: webhookDeliveries.lastAttemptAt,
+              nextAttemptAt: webhookDeliveries.nextAttemptAt,
+              responseStatus: webhookDeliveries.responseStatus,
+              payload: webhookDeliveries.payload,
+              requestHeaders: webhookDeliveries.requestHeaders,
+              responseBody: webhookDeliveries.responseBody,
+              replayedFrom: webhookDeliveries.replayedFrom
+            })
+            .from(webhookDeliveries)
+            .innerJoin(
+              webhookEndpoints,
+              eq(webhookEndpoints.id, webhookDeliveries.endpointId)
+            )
+            .where(
+              and(
+                eq(webhookDeliveries.endpointId, input.endpointId),
+                eq(webhookEndpoints.workspaceId, ctx.workspace.id)
               )
-              .where(
-                and(
-                  eq(webhookDeliveries.endpointId, input.endpointId),
-                  eq(webhookEndpoints.workspaceId, ctx.workspace.id)
-                )
-              )
-              // Newest first, with the row id as the tie-break so the order is
-              // total even when attempts share a timestamp — the same order
-              // the Seed adapter sorts by, asserted by the shared contract.
-              .orderBy(
-                sql`${webhookDeliveries.lastAttemptAt} desc`,
-                desc(webhookDeliveries.id)
-              )
-              .limit(DELIVERIES_PAGE_SIZE)
-          )
-        }),
-      inspectDelivery: (input) =>
-        Effect.gen(function* () {
+            )
+            // Newest first, with the row id as the tie-break so the order is
+            // total even when attempts share a timestamp — the same order
+            // the Seed adapter sorts by, asserted by the shared contract.
+            .orderBy(
+              sql`${webhookDeliveries.lastAttemptAt} desc`,
+              desc(webhookDeliveries.id)
+            )
+            .limit(DELIVERIES_PAGE_SIZE)
+        )
+      }),
+      inspectDelivery: Effect.fn('WebhookDeliveries.inspectDelivery')(
+        function* (input) {
           const ctx = yield* WorkspaceContext
           const rows = yield* unavailable(
             db
@@ -144,7 +143,8 @@ export const LiveWebhookDeliveries: Layer.Layer<
               deliveryId: input.deliveryId
             })
           }
-        }),
+        }
+      ),
       replayDelivery: makeWebhookReplay(
         {
           source: (deliveryId, workspaceId) =>

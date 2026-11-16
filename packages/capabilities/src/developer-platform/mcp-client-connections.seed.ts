@@ -133,39 +133,37 @@ export function SeedMcpClientConnections(
               })
           ),
         recordGrant: (input) => audit.record(consentGrantedAuditEvent(input)),
-        revoke: (input) =>
-          Effect.gen(function* () {
-            const index = connections.findIndex(
-              (connection) =>
-                connection.id === input.connectionId &&
-                connection.userId === input.userId
-            )
-            const connection = connections[index]
-            if (connection === undefined) {
-              return false
-            }
-            connections.splice(index, 1)
-            yield* recordSecurityEvidence(
-              {
-                kind: 'oauth_grant_revoked',
-                subjectId: connection.id,
-                workspaceId: connection.workspace?.id ?? undefined
-              },
-              securityEvidence,
-              'seed'
-            )
-            yield* audit.record(
-              consentRevokedAuditEvent({
-                userId: input.userId,
-                clientId: connection.client.clientId,
-                scopes: connection.scopes,
-                // Same rule as Live: a consent outliving its workspace audits
-                // with no workspace, never a dangling id.
-                workspaceId: connection.workspace?.id ?? null
-              })
-            )
-            return true
-          })
+        revoke: Effect.fn('McpClientConnections.revoke')(function* (input) {
+          const index = connections.findIndex(
+            (connection) =>
+              connection.id === input.connectionId && connection.userId === input.userId
+          )
+          const connection = connections[index]
+          if (connection === undefined) {
+            return false
+          }
+          connections.splice(index, 1)
+          yield* recordSecurityEvidence(
+            {
+              kind: 'oauth_grant_revoked',
+              subjectId: connection.id,
+              workspaceId: connection.workspace?.id ?? undefined
+            },
+            securityEvidence,
+            'seed'
+          )
+          yield* audit.record(
+            consentRevokedAuditEvent({
+              userId: input.userId,
+              clientId: connection.client.clientId,
+              scopes: connection.scopes,
+              // Same rule as Live: a consent outliving its workspace audits
+              // with no workspace, never a dangling id.
+              workspaceId: connection.workspace?.id ?? null
+            })
+          )
+          return true
+        })
       }
     })
   )

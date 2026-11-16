@@ -82,16 +82,18 @@ export function SeedWorkspaceOnboarding(
       )
 
       return {
-        dismissedAt: Effect.gen(function* () {
+        dismissedAt: Effect.fn('WorkspaceOnboarding.dismissedAt')(function* () {
           const ctx = yield* WorkspaceContext
           const map = yield* Ref.get(dismissals)
           return map.get(ctx.workspace.id) ?? null
-        }),
-        actorTwoFactorEnabled: Effect.gen(function* () {
-          const ctx = yield* WorkspaceContext
-          return ctx.actor !== null && twoFactorUserIds.has(ctx.actor.userId)
-        }),
-        dismiss: Effect.gen(function* () {
+        })(),
+        actorTwoFactorEnabled: Effect.fn('WorkspaceOnboarding.actorTwoFactorEnabled')(
+          function* () {
+            const ctx = yield* WorkspaceContext
+            return ctx.actor !== null && twoFactorUserIds.has(ctx.actor.userId)
+          }
+        )(),
+        dismiss: Effect.fn('WorkspaceOnboarding.dismiss')(function* () {
           const ctx = yield* WorkspaceContext
           const current = yield* Ref.get(dismissals)
           if (current.has(ctx.workspace.id)) {
@@ -111,7 +113,7 @@ export function SeedWorkspaceOnboarding(
             metadata: {}
           })
           return true
-        })
+        })()
       }
     })
   )
@@ -150,29 +152,31 @@ export const LiveWorkspaceOnboarding: Layer.Layer<
     }
 
     return {
-      dismissedAt: Effect.gen(function* () {
+      dismissedAt: Effect.fn('WorkspaceOnboarding.dismissedAt')(function* () {
         const ctx = yield* WorkspaceContext
         const dismissedAt = yield* readDismissedAt(ctx.workspace.id)
         if (dismissedAt === null) {
           return null
         }
         return dismissedAt.toISOString()
-      }),
-      actorTwoFactorEnabled: Effect.gen(function* () {
-        const ctx = yield* WorkspaceContext
-        if (ctx.actor === null) {
-          return false
+      })(),
+      actorTwoFactorEnabled: Effect.fn('WorkspaceOnboarding.actorTwoFactorEnabled')(
+        function* () {
+          const ctx = yield* WorkspaceContext
+          if (ctx.actor === null) {
+            return false
+          }
+          const rows = yield* unavailable(
+            db
+              .select({ enabled: user.twoFactorEnabled })
+              .from(user)
+              .where(eq(user.id, ctx.actor.userId))
+              .limit(1)
+          )
+          return rows[0]?.enabled ?? false
         }
-        const rows = yield* unavailable(
-          db
-            .select({ enabled: user.twoFactorEnabled })
-            .from(user)
-            .where(eq(user.id, ctx.actor.userId))
-            .limit(1)
-        )
-        return rows[0]?.enabled ?? false
-      }),
-      dismiss: Effect.gen(function* () {
+      )(),
+      dismiss: Effect.fn('WorkspaceOnboarding.dismiss')(function* () {
         const ctx = yield* WorkspaceContext
         const now = yield* DateTime.now
         // The pre-check is "still showing": an already-dismissed workspace
@@ -200,7 +204,7 @@ export const LiveWorkspaceOnboarding: Layer.Layer<
               )
           ]
         })
-      })
+      })()
     }
   })
 )

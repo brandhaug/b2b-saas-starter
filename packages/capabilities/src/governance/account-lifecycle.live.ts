@@ -311,11 +311,11 @@ export function LiveAccountLifecycle(
         return plan
       })
 
-      function recordDeleted(input: {
-        readonly userId: string
-        readonly plan: AccountDeletionPlan
-      }) {
-        return Effect.gen(function* () {
+      const recordDeleted = Effect.fn('AccountLifecycle.recordDeleted')(
+        function* (input: {
+          readonly userId: string
+          readonly plan: AccountDeletionPlan
+        }) {
           yield* recordSecurityEvidence(
             { kind: 'account_deleted', subjectId: input.userId },
             securityEvidence
@@ -335,30 +335,29 @@ export function LiveAccountLifecycle(
             },
             'account_lifecycle.account_deleted'
           )
-        })
-      }
+        }
+      )
 
       return {
         planDeletion,
         prepareDeletion,
         recordDeleted,
-        deleteAccount: (input) =>
-          Effect.gen(function* () {
-            // The plan gate runs here, before the password is asked for, so a
-            // blocked user learns the blocking workspaces without a doomed
-            // round trip. The store re-checks in its own hook: the check is
-            // cheap and fail-closed wins over a stale plan.
-            const plan = yield* planDeletion(input.userId)
-            if (!plan.canDelete) {
-              return yield* Effect.fail(
-                new AccountDeletionBlocked({ workspaces: blockingWorkspaces(plan) })
-              )
-            }
-            yield* callBinding(binding, (bound) =>
-              bound.deleteUser({ password: input.password })
+        deleteAccount: Effect.fn('AccountLifecycle.deleteAccount')(function* (input) {
+          // The plan gate runs here, before the password is asked for, so a
+          // blocked user learns the blocking workspaces without a doomed
+          // round trip. The store re-checks in its own hook: the check is
+          // cheap and fail-closed wins over a stale plan.
+          const plan = yield* planDeletion(input.userId)
+          if (!plan.canDelete) {
+            return yield* Effect.fail(
+              new AccountDeletionBlocked({ workspaces: blockingWorkspaces(plan) })
             )
-            return plan
-          })
+          }
+          yield* callBinding(binding, (bound) =>
+            bound.deleteUser({ password: input.password })
+          )
+          return plan
+        })
       }
     })
   )

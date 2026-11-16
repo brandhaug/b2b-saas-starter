@@ -174,94 +174,87 @@ export function LiveMcpClientConnections(
             consentGrantedAuditEvent(input),
             'mcp_client_connections.grant'
           ),
-        revoke: (input) =>
-          Effect.gen(function* () {
-            // Ownership is part of the lookup, so another user's consent id
-            // matches nothing — and nothing is written. The workspace join
-            // resolves the consent's workspace in the same read: a consent can
-            // outlive its workspace (referenceId is deliberately FK-free), and
-            // the audit row must then carry no workspace — a dangling id would
-            // violate audit_events' FK and roll the whole revoke back.
-            const rows = yield* unavailable(
-              db
-                .select({ consent: oauthConsent, workspaceId: workspaces.id })
-                .from(oauthConsent)
-                .leftJoin(workspaces, eq(oauthConsent.referenceId, workspaces.id))
-                .where(
-                  and(
-                    eq(oauthConsent.id, input.connectionId),
-                    eq(oauthConsent.userId, input.userId)
-                  )
+        revoke: Effect.fn('McpClientConnections.revoke')(function* (input) {
+          // Ownership is part of the lookup, so another user's consent id
+          // matches nothing — and nothing is written. The workspace join
+          // resolves the consent's workspace in the same read: a consent can
+          // outlive its workspace (referenceId is deliberately FK-free), and
+          // the audit row must then carry no workspace — a dangling id would
+          // violate audit_events' FK and roll the whole revoke back.
+          const rows = yield* unavailable(
+            db
+              .select({ consent: oauthConsent, workspaceId: workspaces.id })
+              .from(oauthConsent)
+              .leftJoin(workspaces, eq(oauthConsent.referenceId, workspaces.id))
+              .where(
+                and(
+                  eq(oauthConsent.id, input.connectionId),
+                  eq(oauthConsent.userId, input.userId)
                 )
-                .limit(1)
-            )
-            const row = rows[0]
-            if (row === undefined) {
-              return false
-            }
-            const { consent, workspaceId } = row
-            const revokedAt = DateTime.toDate(yield* DateTime.now)
-            // The pre-check matched on this exact user, so the token revocations
-            // key off `input.userId` rather than the (typed-nullable) column.
-            const tokenScope = {
-              clientId: consent.clientId,
-              userId: input.userId,
-              referenceId: consent.referenceId
-            }
-            // Consent delete, token revocations and the audit row commit
-            // together: a client must not keep a working refresh token after
-            // the user revoked it, and the trail must say the revocation
-            // happened.
-            const revoked = yield* auditedMutation({
-              matched: Effect.succeed(true),
-              auditEvent: consentRevokedAuditEvent({
-                userId: input.userId,
-                clientId: consent.clientId,
-                scopes: consent.scopes,
-                workspaceId
-              }),
-              transition: {
-                writeIndex: 2,
-                condition: sql`changes() > 0`,
-                alongside: []
-              },
-              write: () => {
-                const consentExists = sql`exists (select 1 from ${oauthConsent} where ${oauthConsent.id} = ${consent.id})`
-                return [
-                  db
-                    .update(oauthRefreshToken)
-                    .set({ revoked: revokedAt })
-                    .where(
-                      and(
-                        consentTokenWhere(oauthRefreshToken, tokenScope),
-                        consentExists
-                      )
-                    ),
-                  db
-                    .update(oauthAccessToken)
-                    .set({ revoked: revokedAt })
-                    .where(
-                      and(
-                        consentTokenWhere(oauthAccessToken, tokenScope),
-                        consentExists
-                      )
-                    ),
-                  db.delete(oauthConsent).where(eq(oauthConsent.id, consent.id))
-                ]
-              }
-            })
-            if (revoked) {
-              yield* recordSecurityEvidence(
-                {
-                  kind: 'oauth_grant_revoked',
-                  subjectId: consent.id,
-                  workspaceId: consent.referenceId ?? undefined
-                },
-                securityEvidence
               )
+              .limit(1)
+          )
+          const row = rows[0]
+          if (row === undefined) {
+            return false
+          }
+          const { consent, workspaceId } = row
+          const revokedAt = DateTime.toDate(yield* DateTime.now)
+          // The pre-check matched on this exact user, so the token revocations
+          // key off `input.userId` rather than the (typed-nullable) column.
+          const tokenScope = {
+            clientId: consent.clientId,
+            userId: input.userId,
+            referenceId: consent.referenceId
+          }
+          // Consent delete, token revocations and the audit row commit
+          // together: a client must not keep a working refresh token after
+          // the user revoked it, and the trail must say the revocation
+          // happened.
+          const revoked = yield* auditedMutation({
+            matched: Effect.succeed(true),
+            auditEvent: consentRevokedAuditEvent({
+              userId: input.userId,
+              clientId: consent.clientId,
+              scopes: consent.scopes,
+              workspaceId
+            }),
+            transition: {
+              writeIndex: 2,
+              condition: sql`changes() > 0`,
+              alongside: []
+            },
+            write: () => {
+              const consentExists = sql`exists (select 1 from ${oauthConsent} where ${oauthConsent.id} = ${consent.id})`
+              return [
+                db
+                  .update(oauthRefreshToken)
+                  .set({ revoked: revokedAt })
+                  .where(
+                    and(consentTokenWhere(oauthRefreshToken, tokenScope), consentExists)
+                  ),
+                db
+                  .update(oauthAccessToken)
+                  .set({ revoked: revokedAt })
+                  .where(
+                    and(consentTokenWhere(oauthAccessToken, tokenScope), consentExists)
+                  ),
+                db.delete(oauthConsent).where(eq(oauthConsent.id, consent.id))
+              ]
             }
-            return revoked
           })
+          if (revoked) {
+            yield* recordSecurityEvidence(
+              {
+                kind: 'oauth_grant_revoked',
+                subjectId: consent.id,
+                workspaceId: consent.referenceId ?? undefined
+              },
+              securityEvidence
+            )
+          }
+          return revoked
+        })
       }
     })
   )

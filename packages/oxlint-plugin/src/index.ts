@@ -1,5 +1,6 @@
 import { definePlugin } from 'vite-plus/lint/plugins'
 import namedEffectOperation from './rules/named-effect-operation.ts'
+import namedServiceOperation from './rules/named-service-operation.ts'
 import noBrowserTestInflation from './rules/no-browser-test-inflation.ts'
 import noDarkPrefix from './rules/no-dark-prefix.ts'
 import noEffectInternalTags from './rules/no-effect-internal-tags.ts'
@@ -21,6 +22,7 @@ export default definePlugin({
   meta: { name: 'starter' },
   rules: {
     'named-effect-operation': namedEffectOperation,
+    'named-service-operation': namedServiceOperation,
     'no-browser-test-inflation': noBrowserTestInflation,
     'no-dark-prefix': noDarkPrefix,
     'no-effect-internal-tags': noEffectInternalTags,

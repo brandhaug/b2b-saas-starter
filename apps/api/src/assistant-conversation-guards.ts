@@ -47,6 +47,7 @@ export function assistantBearerAuth() {
       const authority = yield* AssistantAuthority
       const limiter = yield* RateLimiter
       return AssistantBearerAuth.of({
+        // oxlint-disable-next-line starter/named-service-operation -- HttpApiMiddleware, not a service operation: it runs the handler effect it receives, so a span here would enclose the whole request
         assistantBearer: (httpEffect, { credential, endpoint, group }) =>
           Effect.gen(function* () {
             const request = yield* HttpServerRequest.HttpServerRequest

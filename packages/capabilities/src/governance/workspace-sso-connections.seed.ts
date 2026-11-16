@@ -56,7 +56,7 @@ export function SeedSsoConnections(
       })
 
       return {
-        list: Effect.gen(function* () {
+        list: Effect.fn('SsoConnections.list')(function* () {
           const ctx = yield* WorkspaceContext
           const visible: Array<SsoConnection> = []
           for (const row of rows) {
@@ -65,109 +65,104 @@ export function SeedSsoConnections(
             }
           }
           return visible.toSorted(byNewestFirst)
+        })(),
+        get: Effect.fn('SsoConnections.get')(function* ({ providerId }) {
+          const row = yield* findInWorkspace(providerId)
+          return Option.fromNullishOr(row).pipe(Option.map(toDto))
         }),
-        get: ({ providerId }) =>
-          Effect.gen(function* () {
-            const row = yield* findInWorkspace(providerId)
-            return Option.fromNullishOr(row).pipe(Option.map(toDto))
-          }),
-        describe: ({ providerId }) =>
-          Effect.gen(function* () {
-            const row = yield* findInWorkspace(providerId)
-            return Option.fromNullishOr(row).pipe(Option.map(toDetail))
-          }),
-        create: (input) =>
-          Effect.gen(function* () {
-            const ctx = yield* WorkspaceContext
-            // New connections start disabled: an owner enables one after a
-            // successful test, so a half-configured IdP never intercepts.
-            const base: SsoConnection & { readonly workspaceId: string } = {
-              id: yield* newCapabilityId('sso'),
-              protocol: input.protocol,
-              domain: input.domain,
-              issuer: input.issuer,
-              enabled: false,
-              requireSso: false,
-              defaultWorkspaceRole: input.defaultWorkspaceRole,
-              clientIdLastFour: lastFour(input),
-              createdAt: DateTime.formatIso(yield* DateTime.now),
-              workspaceId: ctx.workspace.id
-            }
-            // The same detail Live parses out of the stored config blobs, so
-            // a seed-layer `describe` answers the test step identically.
-            let row: SeedSsoConnection
-            if (input.protocol === 'oidc') {
-              row = {
-                ...base,
-                protocol: 'oidc',
-                oidc: {
-                  authorizationEndpoint: input.endpoints.authorizationEndpoint,
-                  tokenEndpoint: input.endpoints.tokenEndpoint,
-                  jwksEndpoint: input.endpoints.jwksEndpoint,
-                  userInfoEndpoint: input.endpoints.userInfoEndpoint ?? null
-                }
-              }
-            } else {
-              row = {
-                ...base,
-                protocol: 'saml',
-                saml: {
-                  metadataXml: input.metadataXml,
-                  entryPoint: input.entryPoint
-                }
+        describe: Effect.fn('SsoConnections.describe')(function* ({ providerId }) {
+          const row = yield* findInWorkspace(providerId)
+          return Option.fromNullishOr(row).pipe(Option.map(toDetail))
+        }),
+        create: Effect.fn('SsoConnections.create')(function* (input) {
+          const ctx = yield* WorkspaceContext
+          // New connections start disabled: an owner enables one after a
+          // successful test, so a half-configured IdP never intercepts.
+          const base: SsoConnection & { readonly workspaceId: string } = {
+            id: yield* newCapabilityId('sso'),
+            protocol: input.protocol,
+            domain: input.domain,
+            issuer: input.issuer,
+            enabled: false,
+            requireSso: false,
+            defaultWorkspaceRole: input.defaultWorkspaceRole,
+            clientIdLastFour: lastFour(input),
+            createdAt: DateTime.formatIso(yield* DateTime.now),
+            workspaceId: ctx.workspace.id
+          }
+          // The same detail Live parses out of the stored config blobs, so
+          // a seed-layer `describe` answers the test step identically.
+          let row: SeedSsoConnection
+          if (input.protocol === 'oidc') {
+            row = {
+              ...base,
+              protocol: 'oidc',
+              oidc: {
+                authorizationEndpoint: input.endpoints.authorizationEndpoint,
+                tokenEndpoint: input.endpoints.tokenEndpoint,
+                jwksEndpoint: input.endpoints.jwksEndpoint,
+                userInfoEndpoint: input.endpoints.userInfoEndpoint ?? null
               }
             }
-            rows.push(row)
-            const dto = toDto(row)
-            yield* recordCompletedMutationAudit(
-              audit,
-              { ...ssoAuditEvent('created', dto), targetId: dto.id },
-              'workspace_sso.create'
-            )
-            return dto
-          }),
-        update: (input) =>
-          Effect.gen(function* () {
-            const row = yield* findInWorkspace(input.providerId)
-            if (row === undefined) {
-              return Option.none<SsoConnection>()
+          } else {
+            row = {
+              ...base,
+              protocol: 'saml',
+              saml: {
+                metadataXml: input.metadataXml,
+                entryPoint: input.entryPoint
+              }
             }
-            yield* requireProtocolMatch(row, input)
-            let clientIdLastFour = row.clientIdLastFour
-            if (input.oidcCredentials !== undefined) {
-              clientIdLastFour = input.oidcCredentials.clientId.slice(-4)
-            }
-            const updated: SeedSsoConnection = {
-              ...row,
-              enabled: input.enabled ?? row.enabled,
-              requireSso: input.requireSso ?? row.requireSso,
-              defaultWorkspaceRole:
-                input.defaultWorkspaceRole ?? row.defaultWorkspaceRole,
-              clientIdLastFour
-            }
-            rows[rows.indexOf(row)] = updated
-            const dto = toDto(updated)
-            yield* recordCompletedMutationAudit(
-              audit,
-              { ...ssoAuditEvent('updated', dto), targetId: dto.id },
-              'workspace_sso.update'
-            )
-            return Option.some(dto)
-          }),
-        remove: ({ providerId }) =>
-          Effect.gen(function* () {
-            const row = yield* findInWorkspace(providerId)
-            if (row === undefined) {
-              return false
-            }
-            rows.splice(rows.indexOf(row), 1)
-            yield* recordCompletedMutationAudit(
-              audit,
-              { ...ssoAuditEvent('removed', row), targetId: row.id },
-              'workspace_sso.remove'
-            )
-            return true
-          }),
+          }
+          rows.push(row)
+          const dto = toDto(row)
+          yield* recordCompletedMutationAudit(
+            audit,
+            { ...ssoAuditEvent('created', dto), targetId: dto.id },
+            'workspace_sso.create'
+          )
+          return dto
+        }),
+        update: Effect.fn('SsoConnections.update')(function* (input) {
+          const row = yield* findInWorkspace(input.providerId)
+          if (row === undefined) {
+            return Option.none<SsoConnection>()
+          }
+          yield* requireProtocolMatch(row, input)
+          let clientIdLastFour = row.clientIdLastFour
+          if (input.oidcCredentials !== undefined) {
+            clientIdLastFour = input.oidcCredentials.clientId.slice(-4)
+          }
+          const updated: SeedSsoConnection = {
+            ...row,
+            enabled: input.enabled ?? row.enabled,
+            requireSso: input.requireSso ?? row.requireSso,
+            defaultWorkspaceRole:
+              input.defaultWorkspaceRole ?? row.defaultWorkspaceRole,
+            clientIdLastFour
+          }
+          rows[rows.indexOf(row)] = updated
+          const dto = toDto(updated)
+          yield* recordCompletedMutationAudit(
+            audit,
+            { ...ssoAuditEvent('updated', dto), targetId: dto.id },
+            'workspace_sso.update'
+          )
+          return Option.some(dto)
+        }),
+        remove: Effect.fn('SsoConnections.remove')(function* ({ providerId }) {
+          const row = yield* findInWorkspace(providerId)
+          if (row === undefined) {
+            return false
+          }
+          rows.splice(rows.indexOf(row), 1)
+          yield* recordCompletedMutationAudit(
+            audit,
+            { ...ssoAuditEvent('removed', row), targetId: row.id },
+            'workspace_sso.remove'
+          )
+          return true
+        }),
         resolveRouting: (email) =>
           Effect.sync(() => {
             // Only enabled connections route — a disabled row persists for the
