@@ -1,5 +1,5 @@
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
-import { Effect, Fiber, Schema, Semaphore } from 'effect'
+import { Effect, Fiber, Result, Schema, Semaphore } from 'effect'
 import { type ConversationModel } from '@b2b-saas-starter/ai/conversation'
 import { type AssistantCredentialReference } from '@b2b-saas-starter/authz/assistant-access-token'
 import { type AuditEventLog } from '../governance/audit-event-log.ts'
@@ -54,7 +54,7 @@ const decodeFailure = Schema.decodeUnknownResult(
 const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Json))
 
 function failure(decoded: ReturnType<typeof decodeFailure>): Response {
-  if (decoded._tag === 'Failure') {
+  if (Result.isFailure(decoded)) {
     return Response.json(
       { _tag: 'ConversationUnavailable', reason: 'storage' },
       { status: 503 }
@@ -101,20 +101,21 @@ function exportCredential(
   }
 }
 
+type SeedHostServices =
+  | AssistantDirectory
+  | AssistantAuthority
+  | AssistantAdmission
+  | ConversationModel
+  | AssistantTaskEvidence
+  | AuditEventLog
+
 /** In-memory host for Seed composition. Its model is supplied explicitly by the layer. */
 export const makeSeedAssistantConversationHost = Effect.fn('SeedConversationHost.make')(
   function* () {
     const directory = yield* AssistantDirectory
     const admission = yield* AssistantAdmission
     const scope = yield* Effect.scope
-    const context = yield* Effect.context<
-      | AssistantDirectory
-      | AssistantAuthority
-      | AssistantAdmission
-      | ConversationModel
-      | AssistantTaskEvidence
-      | AuditEventLog
-    >()
+    const context = yield* Effect.context<SeedHostServices>()
     const run = Effect.runPromiseWith(context)
     type State = ReturnType<typeof makeSeedConversationLedger> & {
       id: string
@@ -344,22 +345,35 @@ export const makeSeedAssistantConversationHost = Effect.fn('SeedConversationHost
         )
     }
 
+    // Any host refusal reaches the lifecycle as storage, as the object's
+    // non-2xx answers do through the Live binding.
+    function hostCall<A, E>(effect: Effect.Effect<A, E, SeedHostServices>) {
+      return effect.pipe(
+        Effect.mapError(() => new ConversationUnavailable({ reason: 'storage' })),
+        Effect.provideContext(context)
+      )
+    }
     const lifecycle: AssistantLifecycleBinding = {
       exportConversation: (input) =>
-        run(
+        hostCall(
           history(input.conversationId, exportCredential(input), undefined, true).pipe(
             Effect.map((page) => ({ json: encodeJson(page) }))
           )
         ),
       revalidateConversation: (input) =>
-        run(
+        hostCall(
           authorized(input.conversationId, exportCredential(input), 'read').pipe(
             Effect.map((row) => row.policyRevision === input.policyRevision),
-            Effect.catch(() => Effect.succeed(false))
+            // Live's 404 and 403: a missing conversation or a denied authority
+            // is a stale archive. Anything else is the host failing, as in Live.
+            Effect.catchTags({
+              ConversationNotFound: () => Effect.succeed(false),
+              AssistantAuthorityDenied: () => Effect.succeed(false)
+            })
           )
         ),
       destroyConversation: (input) =>
-        run(
+        hostCall(
           Effect.gen(function* () {
             const row = yield* directory.get(input.conversationId)
             if (

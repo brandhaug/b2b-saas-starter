@@ -25,7 +25,6 @@ const state = vi.hoisted(() => ({
   /** Whether a connection resolves at all, and the row it resolves to. */
   sso: {
     resolves: false,
-    unavailable: false,
     saml: false,
     providerId: 'sso_test',
     workspaceId: 'wrk_test',
@@ -92,14 +91,10 @@ vi.mock('../capabilities', async () => {
       requireRecent: () => effect.Effect.void
     }),
     effect.Layer.succeed(Connections)({
-      resolveSignInTarget: () => {
-        if (state.sso.unavailable) {
-          return effect.Effect.die('sso connections unavailable')
-        }
-        return effect.Effect.succeed(
+      resolveSignInTarget: () =>
+        effect.Effect.succeed(
           state.sso.resolves ? effect.Option.some(signInTarget()) : effect.Option.none()
-        )
-      },
+        ),
       // The sign-in gate reads exactly one method; the rest of the
       // capability's surface belongs to the settings form, and a guard that
       // reached for it here would be a defect, not a refusal.
@@ -114,9 +109,13 @@ vi.mock('../capabilities', async () => {
     })
   )
   return {
-    // This mock IS runCapabilities: the guards' Promise-returning runtime boundary.
+    // The guards' two capability boundaries: the Promise-returning run, and
+    // the in-fiber provide the SSO gate composes its read with.
     runCapabilities: (guarded: Effect.Effect<unknown, unknown, never>) =>
-      effect.Effect.runPromise(effect.Effect.provide(guarded, layer))
+      // oxlint-disable-next-line starter/no-run-promise-in-tests -- stands in for the runCapabilities Promise port the guards call
+      Effect.runPromise(Effect.provide(guarded, layer)),
+    provideCapabilities: (guarded: Effect.Effect<unknown, unknown, never>) =>
+      Effect.provide(guarded, layer)
   }
 })
 
@@ -164,7 +163,6 @@ beforeEach(() => {
   })
   Object.assign(state.sso, {
     resolves: false,
-    unavailable: false,
     enabled: true,
     requireSso: false
   })

@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { authClient } from '@/lib/auth-client'
 import { authErrorCopy } from '@/lib/auth-error-copy'
+import { causeMessage } from '@/lib/cause-message'
 import {
   strongAuthenticationStatusServerFn,
   verifyCurrentPasswordServerFn,
@@ -62,14 +63,20 @@ function VerifyAuthenticationContent({
           return m.security_verification_failed()
         }
       } else {
-        const checked = await verifyCurrentPasswordServerFn({
+        // `false` is a refused password; a rejection is the check itself failing,
+        // and an outage must not read as a wrong password.
+        const failure = await verifyCurrentPasswordServerFn({
           data: { password: value.password }
-        })
+        }).then(
+          (checked) => (checked ? null : m.security_verification_failed()),
+          // oxlint-disable-next-line anti-slop/no-unknown-parameters -- a rejected promise is untrusted input at the UI boundary; causeMessage parses it
+          (error: unknown) => causeMessage(error, m.security_verification_failed())
+        )
         if (!request.current()) {
           return
         }
-        if (!checked) {
-          return m.security_verification_failed()
+        if (failure !== null) {
+          return failure
         }
         form.setFieldValue('password', '')
         if (!twoFactorEnabled && !recent) {

@@ -102,6 +102,32 @@ export function assistantDirectoryContractCases(expect: ContractExpect) {
       })
     },
     {
+      name: 'never rewrites a tombstone timestamp: fencing and cleanup apply once',
+      assert: Effect.gen(function* () {
+        const directory = yield* AssistantDirectory
+        yield* directory.create({
+          id: 'tombstone-once',
+          workspaceId: 'workspace',
+          creatorUserId: 'other'
+        })
+        yield* directory.fence({ conversationId: 'tombstone-once' })
+        const fenced = yield* directory.get('tombstone-once')
+        yield* TestClock.adjust('1 minute')
+        yield* directory.fence({ conversationId: 'tombstone-once' })
+        expect(yield* directory.get('tombstone-once')).toEqual(fenced)
+        yield* directory.completeCleanup('tombstone-once')
+        const cleaned = yield* directory.get('tombstone-once')
+        expect(cleaned).toMatchObject({ id: 'tombstone-once' })
+        expect(cleaned?.cleanedAt === null).toBe(false)
+        yield* TestClock.adjust('1 minute')
+        yield* directory.completeCleanup('tombstone-once')
+        expect(yield* directory.get('tombstone-once')).toEqual(cleaned)
+        expect(
+          (yield* directory.pendingCleanup()).some((row) => row.id === 'tombstone-once')
+        ).toBe(false)
+      })
+    },
+    {
       name: 'unions concurrent evidence policies and refuses stale snapshot revisions',
       assert: Effect.gen(function* () {
         const directory = yield* AssistantDirectory

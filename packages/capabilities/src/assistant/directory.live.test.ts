@@ -14,6 +14,7 @@ import { LiveAuditEventLog } from '../governance/audit-event-log.live.ts'
 import { assistantDirectoryContractCases } from './directory.contract.ts'
 import { LiveAssistantDirectory } from './directory.live.ts'
 import { LiveAssistantAdmission } from './admission.live.ts'
+import { ConversationUnavailable } from '../developer-platform/assistant-conversation.ts'
 
 const database = Layer.unwrap(
   Effect.gen(function* () {
@@ -112,7 +113,7 @@ describe('Live assistant directory and admission contract', () => {
         const notified: Array<ReadonlyArray<string>> = []
         const notifying = LiveAssistantDirectory(undefined, (addresses) => {
           notified.push(addresses.map((address) => address.id))
-          return Promise.reject(new Error('Host unavailable'))
+          return Effect.fail(new ConversationUnavailable({ reason: 'storage' }))
         }).pipe(Layer.provide(LiveAuditEventLog))
         yield* Effect.gen(function* () {
           const directory = yield* AssistantDirectory

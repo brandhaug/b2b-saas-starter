@@ -325,18 +325,19 @@ service, environment and failure kind, preserving request/job/provider IDs as
 evidence rather than incident keys. A missing check-in or deactivated monitor
 is not a healthy result.
 
-| Condition                  | Initial policy                                                        | Evidence and first action                                                                                                 |
-| -------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Web/API readiness          | Failure continuously for 5 minutes                                    | URL, dependency result, release, first/last failure; inspect bindings/D1, then evaluate code rollback                     |
-| Worker server errors       | More than 5% in 5 minutes, at least 20 requests                       | Numerator, denominator, service, release, trace IDs; identify failing route and dependency                                |
-| Billing synchronization    | Unresolved for 15 minutes                                             | Workspace, provider event and reconciliation outcome; inspect current Stripe state and use audited recovery               |
-| Queue backlog              | Oldest pending work exceeds the deployment's agreed processing budget | Queue name, age, count, retry/DLQ counts; inspect consumer and provider health before resuming                            |
-| Exhausted background work  | Any terminal exhausted job                                            | Job/delivery ID, queue, attempts, sanitized cause; repair cause, then review explicit retry                               |
-| Scheduled work             | Failed, missed or timed-out completion                                | Monitor slug, scheduled time, check-in ID; inspect invocation and overlapping executions                                  |
-| Nightly backup             | Failed run or no successful backup in 26 hours                        | Object key, completion time, encrypted object verification, export duration; repair credentials/store and run backup      |
-| Systemic email failures    | Repeated transport or event-consumer failures                         | Purpose, sanitized outcome, provider/message IDs; inspect sender/provider and event subscription                          |
-| Recovery evidence gap      | Any failed independent security-record write                          | Mutation category, safe identity reference, time; preserve live revocation and resolve recovery evidence                  |
-| Completed action audit gap | Any `audit_write_gap` signal after a plugin or provider mutation      | Operation, capability, safe identity reference and trace; inspect authoritative external state, repair or restrict access |
+| Condition                   | Initial policy                                                        | Evidence and first action                                                                                                     |
+| --------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Web/API readiness           | Failure continuously for 5 minutes                                    | URL, dependency result, release, first/last failure; inspect bindings/D1, then evaluate code rollback                         |
+| Worker server errors        | More than 5% in 5 minutes, at least 20 requests                       | Numerator, denominator, service, release, trace IDs; identify failing route and dependency                                    |
+| Billing synchronization     | Unresolved for 15 minutes                                             | Workspace, provider event and reconciliation outcome; inspect current Stripe state and use audited recovery                   |
+| Queue backlog               | Oldest pending work exceeds the deployment's agreed processing budget | Queue name, age, count, retry/DLQ counts; inspect consumer and provider health before resuming                                |
+| Exhausted background work   | Any terminal exhausted job                                            | Job/delivery ID, queue, attempts, sanitized cause; repair cause, then review explicit retry                                   |
+| Scheduled work              | Failed, missed or timed-out completion                                | Monitor slug, scheduled time, check-in ID; inspect invocation and overlapping executions                                      |
+| Nightly backup              | Failed run or no successful backup in 26 hours                        | Object key, completion time, encrypted object verification, export duration; repair credentials/store and run backup          |
+| Systemic email failures     | Repeated transport or event-consumer failures                         | Purpose, sanitized outcome, provider/message IDs; inspect sender/provider and event subscription                              |
+| Recovery evidence gap       | Any failed independent security-record write                          | Mutation category, safe identity reference, time; preserve live revocation and resolve recovery evidence                      |
+| Completed action audit gap  | Any `audit_write_gap` signal after a plugin or provider mutation      | Operation, capability, safe identity reference and trace; inspect authoritative external state, repair or restrict access     |
+| SSO enforcement unavailable | Any `sso_enforcement_unavailable` signal                              | Capability, reason and trace; restore the SSO connection lookup, since require-SSO domains accept passwords until it succeeds |
 
 Individual recipient bounces remain delivery diagnostics. They should not page
 operators as systemic email outages. Never attach raw email bodies, tokens,

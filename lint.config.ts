@@ -638,9 +638,8 @@ const { lint = {} } = defineConfig({
           'apps/web/src/lib/capabilities.ts',
           'apps/web/src/lib/server/{oauth-discovery,two-factor-sign-in-gate,env-gate,workspace-sso.effects,auth-http,auth-session-read,plugin-call,admin.effects}.ts',
           'apps/web/src/lib/server/auth-audit/target.ts',
-          // Cloudflare Promise binding ports and the scoped Seed host implementing
-          // the same interface. Their callers supply the owning environment/scope.
-          'packages/capabilities/src/developer-platform/assistant-conversation-transport.ts',
+          // The scoped Seed host implementing the conversation transport port. Its
+          // callers supply the owning scope.
           'packages/capabilities/src/developer-platform/assistant-conversations.seed.ts'
         ],
         rules: { 'effect/noRunPromise': 'off' }

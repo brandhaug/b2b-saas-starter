@@ -2,14 +2,27 @@ import { Clock, Effect, Layer } from 'effect'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import {
   AssistantDirectory,
+  conversationLifecycleStatus,
   type ConversationDirectoryEntry,
+  type ConversationLifecycleEvent,
   isCleanedConversation,
   isDeletedConversation,
   isLiveConversation,
-  matchesDeletionScope
+  matchesDeletionScope,
+  nextConversationLifecycleStatus
 } from './directory.ts'
 import { seedKeysetPage } from '../internal/keyset-cursor.ts'
 import { iso } from '../internal/timestamps.ts'
+
+/** The Seed writes ask the tombstone owner, as Live's guarded SQL mirrors it. */
+function permits(
+  row: ConversationDirectoryEntry,
+  event: ConversationLifecycleEvent
+): boolean {
+  return (
+    nextConversationLifecycleStatus(conversationLifecycleStatus(row), event) !== null
+  )
+}
 
 export const SeedAssistantDirectory = Layer.sync(AssistantDirectory)(() => {
   const rows = new Map<string, ConversationDirectoryEntry>()
@@ -119,7 +132,7 @@ export const SeedAssistantDirectory = Layer.sync(AssistantDirectory)(() => {
     fence: Effect.fn('AssistantDirectory.fence')(function* (scope) {
       const now = yield* Clock.currentTimeMillis
       for (const [id, row] of rows) {
-        if (isLiveConversation(row) && matchesDeletionScope(row, scope)) {
+        if (matchesDeletionScope(row, scope) && permits(row, { kind: 'fenced' })) {
           rows.set(id, {
             ...row,
             deletedAt: iso(now),
@@ -140,7 +153,7 @@ export const SeedAssistantDirectory = Layer.sync(AssistantDirectory)(() => {
     completeCleanup: Effect.fn('AssistantDirectory.completeCleanup')(function* (id) {
       const now = yield* Clock.currentTimeMillis
       const row = rows.get(id)
-      if (row !== undefined && isDeletedConversation(row)) {
+      if (row !== undefined && permits(row, { kind: 'cleaned' })) {
         rows.set(id, { ...row, requiredPermissions: [], cleanedAt: iso(now) })
       }
     })
