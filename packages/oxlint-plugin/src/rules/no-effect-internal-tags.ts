@@ -7,9 +7,13 @@ import { getPropertyName, getStringValue, unwrapExpression } from '../internal/a
  * are internal, the public guards are not, and a renamed tag would break the
  * comparison silently while `Option.isSome` keeps compiling.
  *
- * The rule only fires when the matching module is imported, so the starter's own
- * tagged unions keep their `_tag` checks. It reads both `import { Option } from
- * 'effect'` and `import * as Option from 'effect/Option'`.
+ * `Some`, `None`, `Success` and `Failure` fire in any file that imports from
+ * `effect` or `effect/*`: values from `Schema.decodeUnknownOption`,
+ * `Schema.decodeUnknownResult` or `Effect.exit` carry them without the file
+ * importing Option, Result or Exit, and no starter union uses those four tags.
+ * Every other tag fires only when its owning module is imported, so the
+ * starter's own tagged unions keep their `_tag` checks. Both `import { Option }
+ * from 'effect'` and `import * as Option from 'effect/Option'` count.
  *
  * Ported from oxlint-plugin-executor/rules/no-effect-internal-tags.js (MIT).
  */
@@ -50,6 +54,9 @@ const TAG_OWNERS = new Map<string, TagOwner>([
   ['Empty', { modules: ['Cause'], guard: 'Cause.match' }]
 ])
 
+/** Tags that name an Effect data type whenever the file uses Effect at all. */
+const EFFECT_CLAIMED_TAGS = new Set(['Some', 'None', 'Success', 'Failure'])
+
 const EQUALITY_OPERATORS = new Set(['===', '!==', '==', '!='])
 
 export default defineRule({
@@ -59,15 +66,19 @@ export default defineRule({
   },
   create(context) {
     const imported = new Set<string>()
+    let importsEffect = false
 
     return {
       ImportDeclaration(node) {
+        if (isEffectSource(node.source.value)) {
+          importsEffect = true
+        }
         for (const moduleName of importedEffectModules(node)) {
           imported.add(moduleName)
         }
       },
       BinaryExpression(node) {
-        if (imported.size === 0 || !EQUALITY_OPERATORS.has(node.operator)) {
+        if (!importsEffect || !EQUALITY_OPERATORS.has(node.operator)) {
           return
         }
 
@@ -90,7 +101,7 @@ export default defineRule({
         return
       }
 
-      const owner = ownerForImportedModules(tag, imported)
+      const owner = ownerForTag(tag, imported)
       if (owner === undefined) {
         return
       }
@@ -150,13 +161,17 @@ function getTagAccess(node: ESTree.Node): ESTree.MemberExpression | undefined {
   return expression
 }
 
-function ownerForImportedModules(
-  tag: string,
-  imported: ReadonlySet<string>
-): TagOwner | undefined {
+function isEffectSource(source: string): boolean {
+  return source === 'effect' || source.startsWith('effect/')
+}
+
+function ownerForTag(tag: string, imported: ReadonlySet<string>): TagOwner | undefined {
   const owner = TAG_OWNERS.get(tag)
   if (owner === undefined) {
     return undefined
+  }
+  if (EFFECT_CLAIMED_TAGS.has(tag)) {
+    return owner
   }
   if (!owner.modules.some((moduleName) => imported.has(moduleName))) {
     return undefined

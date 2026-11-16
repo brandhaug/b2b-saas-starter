@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Schema, Stream } from 'effect'
+import { Context, Effect, Layer, Result, Schema, Stream } from 'effect'
 import { LanguageModel, Model, Prompt, Response } from 'effect/ai'
 import { selectProvider, type ProviderEnv } from './provider-selection.ts'
 import {
@@ -310,7 +310,7 @@ export function selectConversationModelLayer(
     ...defaults,
     ...overrides
   })
-  if (decoded._tag === 'Failure') {
+  if (Result.isFailure(decoded)) {
     return unavailableLayer(
       unavailable('configuration', 'Model token limits must be positive integers.')
     )

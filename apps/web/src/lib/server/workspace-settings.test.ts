@@ -27,8 +27,10 @@ describe('loadWorkspaceSettingsHandler', () => {
   it('names the workspace and badges unread for an owner', async () => {
     const payload = await loadWorkspaceSettingsHandler({ workspaceSlug: 'starter-lab' })
     expect(payload.viewer).toEqual({ role: 'owner' })
-    expect(payload.workspaceName).toBeTypeOf('string')
-    expect(payload.unreadCount).toBeTypeOf('number')
+    expect(payload.workspaceName).toBe('Starter Lab')
+    // The fixture's four unread workspace-wide notices; the impersonation
+    // notice targets `usr_dev` only.
+    expect(payload.unreadCount).toBe(4)
     // The SSO segment carries the disabled seeded example connection, and no
     // secret: the sanitized DTO is all there is (ADR 0069).
     expect(payload.ssoConnections).toHaveLength(1)
@@ -54,8 +56,10 @@ describe('loadWorkspaceSettingsHandler', () => {
     actor.userId = 'usr_dev'
     const payload = await loadWorkspaceSettingsHandler({ workspaceSlug: 'starter-lab' })
     expect(payload.viewer).toEqual({ role: 'member' })
-    expect(payload.workspaceName).toBeTypeOf('string')
-    expect(payload.unreadCount).toBeTypeOf('number')
+    expect(payload.workspaceName).toBe('Starter Lab')
+    // The four workspace-wide notices plus the impersonation notice that
+    // targets this member.
+    expect(payload.unreadCount).toBe(5)
     // SSO connections are security posture: the member's payload carries no
     // connection list at all, not an empty one.
     expect(payload.ssoConnections).toBeNull()

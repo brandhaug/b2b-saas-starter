@@ -5,7 +5,7 @@ import {
 } from '@cloudflare/ai-chat'
 import { type AgentContext, type Connection } from 'agents'
 import { createUIMessageStream, createUIMessageStreamResponse } from 'ai'
-import { Effect, Layer, ManagedRuntime, Semaphore } from 'effect'
+import { Effect, Layer, ManagedRuntime, Semaphore, Result } from 'effect'
 import {
   WideEventLoggerLive,
   withHttpInvocation,
@@ -767,7 +767,7 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
             Effect.catch((error) =>
               Effect.sync(() => {
                 const tagged = decodeFailure(error)
-                if (tagged._tag === 'Failure') {
+                if (Result.isFailure(tagged)) {
                   return Response.json(
                     { error: 'ConversationUnavailable' },
                     { status: 503 }

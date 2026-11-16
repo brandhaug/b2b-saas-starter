@@ -19,10 +19,10 @@ import { type AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import {
   type InvalidApiTokenInput,
   type ApiTokenNotRotatable,
-  type PlanLimitExceeded,
   type WorkspaceSuspended,
   type WorkspaceNotFound
 } from '@b2b-saas-starter/capabilities/errors'
+import { type PlanLimitExceeded } from '@b2b-saas-starter/billing/errors'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type ListPageInput } from '@b2b-saas-starter/capabilities/internal/keyset-cursor'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'

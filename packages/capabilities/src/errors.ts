@@ -91,29 +91,6 @@ export class UserAdminRejected extends Schema.TaggedError<UserAdminRejected>()(
 ) {}
 
 /**
- * An entitlement ceiling the workspace's current plan refuses to cross: a
- * second webhook endpoint on Starter, a third API token. The request was
- * answerable and the plan says no — an upgrade, not a retry, resolves it.
- */
-// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
-export class PlanLimitExceeded extends Schema.TaggedError<PlanLimitExceeded>()(
-  'PlanLimitExceeded',
-  {
-    planId: Schema.String,
-    resource: Schema.String,
-    limit: Schema.Number
-  },
-  { httpApiStatus: 402 }
-) {}
-
-// oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
-export class ResourceSelectionRejected extends Schema.TaggedError<ResourceSelectionRejected>()(
-  'ResourceSelectionRejected',
-  { resource: Schema.String, reason: Schema.String },
-  { httpApiStatus: 400 }
-) {}
-
-/**
  * An account action refused because the acting session is a System Admin
  * impersonation session: changing the password, the second factor, or the
  * email address, or deleting the account. The request was answerable and the

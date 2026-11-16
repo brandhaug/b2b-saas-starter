@@ -1,5 +1,5 @@
 import { ConversationInputRejected } from '@b2b-saas-starter/ai/conversation-context'
-import { Context, Effect, Layer, Schema, Predicate } from 'effect'
+import { Context, Effect, Layer, Schema, Predicate, Result } from 'effect'
 import { type AssistantCredentialReference } from '@b2b-saas-starter/authz/assistant-access-token'
 import { AssistantDirectory } from '../assistant/directory.ts'
 import { AssistantAdmissionRefused } from '../assistant/admission.ts'
@@ -171,7 +171,7 @@ export function AssistantConversationsLayer(
           catch: () => new ConversationUnavailable({ reason: 'storage' })
         })
         const failure = decodeFailure(body)
-        if (failure._tag === 'Success') {
+        if (Result.isSuccess(failure)) {
           return yield* Effect.fail(failure.success)
         }
         return yield* new ConversationUnavailable({ reason: 'storage' })

@@ -322,7 +322,11 @@ describe('workspace export transitions', () => {
   })
 
   it('refuses every settlement against a settled export', () => {
-    for (const status of settledWorkspaceExportStatuses) {
+    // Pinned, not read from the set under test: an emptied set would let the
+    // loop run zero times, and retention's SQL reads the same set.
+    const settled = ['ready', 'failed'] as const
+    expect(settledWorkspaceExportStatuses).toEqual(settled)
+    for (const status of settled) {
       expect(nextWorkspaceExportStatus(status, 'completed')).toBeNull()
       expect(nextWorkspaceExportStatus(status, 'failed')).toBeNull()
     }

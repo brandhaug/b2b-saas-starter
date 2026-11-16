@@ -1,4 +1,4 @@
-import { Effect, Schema } from 'effect'
+import { Effect, Schema, Result } from 'effect'
 import { type Response, type MessageEvent, type CloseEvent } from 'miniflare'
 
 const decodeText = Schema.decodeUnknownResult(Schema.String)
@@ -15,7 +15,7 @@ export const nativeObserver = Effect.fn('ConversationHostTest.nativeObserver')(
     let closed: number | undefined
     socket.addEventListener('message', (event) => {
       const decoded = decodeText(event.data)
-      if (decoded._tag === 'Success') {
+      if (Result.isSuccess(decoded)) {
         frames.push(decoded.success)
       }
     })
@@ -41,7 +41,7 @@ export const nativeObserver = Effect.fn('ConversationHostTest.nativeObserver')(
           }
           function receive(event: MessageEvent) {
             const decoded = decodeText(event.data)
-            if (decoded._tag === 'Success' && decoded.success.includes(includes)) {
+            if (Result.isSuccess(decoded) && decoded.success.includes(includes)) {
               resume(Effect.succeed(decoded.success))
             }
           }

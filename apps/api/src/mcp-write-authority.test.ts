@@ -17,7 +17,7 @@ import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platfor
 import { WideEventLoggerLive, withHttpInvocation } from '@b2b-saas-starter/logger'
 import { vi } from 'vite-plus/test'
 import { expect, it } from '@effect/vitest'
-import { Effect, Layer, Logger, Schema } from 'effect'
+import { Effect, Layer, Logger, Schema, Result } from 'effect'
 import { HttpRouter, HttpServerRequest } from 'effect/http'
 import { mcpProtocolLayer } from './mcp.ts'
 import { authorizeMcpOperation, webRequest, type McpCaller } from './request-guards.ts'
@@ -405,8 +405,8 @@ it.effect(
         )
       }
       const denied = yield* authorize('admin')
-      expect(denied._tag).toBe('Failure')
-      if (denied._tag === 'Failure') {
+      expect(Result.isFailure(denied)).toBe(true)
+      if (Result.isFailure(denied)) {
         expect(denied.failure._tag).toBe('StrongAuthenticationRequired')
       }
       const member = yield* authorize('user')

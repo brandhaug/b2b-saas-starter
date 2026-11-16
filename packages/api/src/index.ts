@@ -17,10 +17,10 @@ import { AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit-even
 import {
   InvalidApiTokenInput,
   ApiTokenNotRotatable,
-  PlanLimitExceeded,
   WorkspaceSuspended,
   WorkspaceNotFound
 } from '@b2b-saas-starter/capabilities/errors'
+import { PlanLimitExceeded } from '@b2b-saas-starter/billing/errors'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import {
   CreateWebhookEndpointPayload,

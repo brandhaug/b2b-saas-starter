@@ -146,6 +146,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           Effect.gen(function* () {
             const sso = yield* SsoConnections
             const saml = yield* sso.describe({ providerId: 'sso_live_saml' })
+            expect(Option.isSome(saml)).toBe(true)
             if (Option.isSome(saml)) {
               expect(saml.value.protocol).toBe('saml')
               expect(saml.value.saml).toEqual({
@@ -157,6 +158,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             // The disabled example's blob carries no endpoints: the detail
             // segment degrades to null rather than failing the read.
             const partial = yield* sso.describe({ providerId: 'sso_live_disabled' })
+            expect(Option.isSome(partial)).toBe(true)
             if (Option.isSome(partial)) {
               expect(partial.value.oidc).toBeNull()
             }

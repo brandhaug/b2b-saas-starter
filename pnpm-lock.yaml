@@ -395,6 +395,9 @@ importers:
       '@b2b-saas-starter/authz':
         specifier: workspace:*
         version: link:../../packages/authz
+      '@b2b-saas-starter/billing':
+        specifier: workspace:*
+        version: link:../../packages/billing
       '@b2b-saas-starter/capabilities':
         specifier: workspace:*
         version: link:../../packages/capabilities
@@ -825,6 +828,9 @@ importers:
       '@b2b-saas-starter/authz':
         specifier: workspace:*
         version: link:../authz
+      '@b2b-saas-starter/billing':
+        specifier: workspace:*
+        version: link:../billing
       '@b2b-saas-starter/capabilities':
         specifier: workspace:*
         version: link:../capabilities
