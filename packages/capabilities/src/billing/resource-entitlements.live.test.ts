@@ -1,6 +1,6 @@
 import { WorkspaceContext, testResolvedWorkspaceContext } from '../workspace-context.ts'
 import { WebhookEndpoints } from '../developer-platform/webhook-endpoints.ts'
-import { Deferred, Effect, Layer, Ref } from 'effect'
+import { Deferred, Effect, Layer, Ref, Redacted } from 'effect'
 import { expect, layer } from '@effect/vitest'
 import { eq } from 'drizzle-orm'
 import { Database, RawD1 } from '@b2b-saas-starter/db/service'
@@ -155,7 +155,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             ).toBe('ResourceSelectionRejected')
             expect(
               failureTag(
-                yield* Effect.exit(tokens.verifyBearerToken(foreignToken.token))
+                yield* Effect.exit(
+                  tokens.verifyBearerToken(Redacted.value(foreignToken.token))
+                )
               )
             ).toBe('CapabilityUnavailable')
             expect(

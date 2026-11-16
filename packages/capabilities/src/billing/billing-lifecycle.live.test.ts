@@ -9,7 +9,7 @@ import {
 import { notifications } from '@b2b-saas-starter/db/schema/notifications'
 import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database, RawD1 } from '@b2b-saas-starter/db/service'
-import { Effect } from 'effect'
+import { Effect, Redacted } from 'effect'
 import { expect, layer } from '@effect/vitest'
 import { vi } from 'vite-plus/test'
 import { eq, like } from 'drizzle-orm'
@@ -30,7 +30,7 @@ import { wireHttpClient } from '@b2b-saas-starter/failure/http-client'
 const workspaceId = 'wrk_live'
 const bindings = {
   billing: {
-    secretKey: 'sk_lifecycle',
+    secretKey: Redacted.make('sk_lifecycle'),
     priceIds: { team: 'price_team', enterprise: 'price_enterprise' },
     annualPriceIds: { team: 'price_team_annual', enterprise: 'price_enterprise_annual' }
   }

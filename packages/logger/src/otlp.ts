@@ -1,4 +1,4 @@
-import { Duration, Layer } from 'effect'
+import { Duration, Layer, Redacted } from 'effect'
 import { FetchHttpClient } from 'effect/http'
 import { Otlp } from 'effect/observability'
 
@@ -15,8 +15,14 @@ export type ObservabilityEnv = ProviderEnvOf<
   | 'GIT_COMMIT_SHA'
 >
 
-/** Parses the OTLP `key=value,key=value` header form used by the OTel spec. */
-function otlpHeaders(value: string | undefined): Record<string, string> | undefined {
+/**
+ * Parses the OTLP `key=value,key=value` header form used by the OTel spec at
+ * the env read. The values are collector credentials, so the record stays
+ * `Redacted` until the exporter's `headers` option.
+ */
+function otlpHeaders(
+  value: string | undefined
+): Redacted.Redacted<Record<string, string>> | undefined {
   if (!hasValue(value)) {
     return undefined
   }
@@ -35,7 +41,7 @@ function otlpHeaders(value: string | undefined): Record<string, string> | undefi
   if (Object.keys(headers).length === 0) {
     return undefined
   }
-  return headers
+  return Redacted.make(headers)
 }
 
 /** OTel resource attributes, from the same env fields the wide event reads. */
@@ -81,9 +87,11 @@ export function makeOtlpLayer(
   if (!endpoint) {
     return Layer.empty
   }
+  const headers = otlpHeaders(env.OTEL_EXPORTER_OTLP_HEADERS)
   return Otlp.layer({
     baseUrl: endpoint,
-    headers: otlpHeaders(env.OTEL_EXPORTER_OTLP_HEADERS),
+    // The one place the collector credentials are unwrapped: the exporter's own option.
+    ...(headers !== undefined && { headers: Redacted.value(headers) }),
     resource: {
       serviceName,
       serviceVersion: env.SERVICE_VERSION,

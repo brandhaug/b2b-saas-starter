@@ -1,5 +1,5 @@
 import { adminSystemRole } from '@b2b-saas-starter/db/enums'
-import { Effect } from 'effect'
+import { Effect, Redacted } from 'effect'
 import { describe, expect, it, vi } from '@effect/vitest'
 import {
   type AuthConfigInterface,
@@ -26,7 +26,7 @@ const baseConfig: AuthConfigInterface = {
   // forwarded into `drizzleAdapter`'s closure and no property of it is read.
   // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- an empty sentinel stands in for the promise client, which the adapter alone would touch
   db: {} as AuthConfigInterface['db'],
-  secret: 'test-secret-at-least-32-characters-long',
+  secret: Redacted.make('test-secret-at-least-32-characters-long'),
   baseURL: 'http://localhost:3071',
   trustedOrigins: [],
   emails: {
@@ -173,11 +173,45 @@ describe('makeAuthOptions', () => {
       const options = makeAuthOptions({
         ...baseConfig,
         socialProviders: {
-          github: { clientId: 'client-id', clientSecret: 'client-secret' }
+          github: {
+            clientId: 'client-id',
+            clientSecret: Redacted.make('client-secret')
+          }
         }
       })
       expect(options.socialProviders).toEqual({
         github: { clientId: 'client-id', clientSecret: 'client-secret' }
+      })
+    })
+  })
+
+  describe('secrets', () => {
+    it('keeps AuthConfig secrets redacted and unwraps them only into Better Auth options', () => {
+      const config: AuthConfigInterface = {
+        ...baseConfig,
+        secret: Redacted.make('auth-secret-plaintext-at-least-32-chars'),
+        socialProviders: {
+          github: { clientId: 'gh-id', clientSecret: Redacted.make('gh-plaintext') },
+          google: {
+            clientId: 'google-id',
+            clientSecret: Redacted.make('google-plaintext')
+          }
+        }
+      }
+      // oxlint-disable-next-line effect/noGlobals -- the assertion is what JSON serialization (logs, spans, causes) exposes
+      const serialized = JSON.stringify(config)
+      for (const plaintext of [
+        'auth-secret-plaintext-at-least-32-chars',
+        'gh-plaintext',
+        'google-plaintext'
+      ]) {
+        expect(serialized).not.toContain(plaintext)
+      }
+      const options = makeAuthOptions(config)
+      expect(options.secret).toBe('auth-secret-plaintext-at-least-32-chars')
+      expect(options.socialProviders).toEqual({
+        github: { clientId: 'gh-id', clientSecret: 'gh-plaintext' },
+        google: { clientId: 'google-id', clientSecret: 'google-plaintext' }
       })
     })
   })

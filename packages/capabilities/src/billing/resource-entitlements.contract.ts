@@ -1,5 +1,5 @@
 import { AuditEventLog } from '../governance/audit-event-log.ts'
-import { Effect, Array } from 'effect'
+import { Effect, Array, Redacted } from 'effect'
 import * as TestClock from 'effect/testing/TestClock'
 import { type expect as VitestExpect } from 'vite-plus/test'
 import { ApiTokenRegistry } from '../developer-platform/api-token-registry.ts'
@@ -93,10 +93,10 @@ export function resourceEntitlementsContract(expect: typeof VitestExpect) {
         )
       )
     ).toBe('PlanLimitExceeded')
-    yield* tokens.verifyBearerToken(a.token)
-    expect(failureTag(yield* Effect.exit(tokens.verifyBearerToken(c.token)))).toBe(
-      'AuthorizationDenied'
-    )
+    yield* tokens.verifyBearerToken(Redacted.value(a.token))
+    expect(
+      failureTag(yield* Effect.exit(tokens.verifyBearerToken(Redacted.value(c.token))))
+    ).toBe('AuthorizationDenied')
     // A queued delivery retains its identity; dispatch re-reads authority.
     expect(
       yield* dispatch.getDispatchTarget(
@@ -122,7 +122,7 @@ export function resourceEntitlementsContract(expect: typeof VitestExpect) {
       new Set(replacements.map((token) => token.id))
     )
     for (const token of replacements) {
-      yield* tokens.verifyBearerToken(token.token)
+      yield* tokens.verifyBearerToken(Redacted.value(token.token))
     }
     const replacement = Array.getUnsafe(replacements, 0)
     yield* tokens.revoke({ tokenId: replacement.id })
@@ -183,7 +183,7 @@ export function resourceEntitlementsContract(expect: typeof VitestExpect) {
     })
     expect(selected.apiTokenIds).toEqual([c.id])
     expect(selected.webhookEndpointIds).toEqual([second.endpoint.id])
-    yield* tokens.verifyBearerToken(c.token)
+    yield* tokens.verifyBearerToken(Redacted.value(c.token))
     expect(
       yield* dispatch.getDispatchTarget(
         second.endpoint.id,
@@ -193,9 +193,9 @@ export function resourceEntitlementsContract(expect: typeof VitestExpect) {
     ).not.toBeNull()
     yield* TestClock.setTime(Date.parse('2026-09-03T00:00:00.000Z'))
     expect((yield* entitlements.getSelection()).apiTokenIds).toEqual([])
-    expect(failureTag(yield* Effect.exit(tokens.verifyBearerToken(c.token)))).toBe(
-      'AuthorizationDenied'
-    )
+    expect(
+      failureTag(yield* Effect.exit(tokens.verifyBearerToken(Redacted.value(c.token))))
+    ).toBe('AuthorizationDenied')
     expect(yield* entitlements.getSelectionForWorkspace('foreign-workspace')).toEqual({
       apiTokenIds: [],
       webhookEndpointIds: []

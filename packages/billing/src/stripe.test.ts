@@ -4,14 +4,17 @@ import {
   testSubscriptionFields
 } from './provider-test-fixtures.ts'
 import { describe, expect, it, vi } from '@effect/vitest'
-import { Deferred, Effect, Fiber } from 'effect'
+import { Deferred, Effect, Fiber, Redacted } from 'effect'
 import { TestClock } from 'effect/testing'
 import { wireHttpClient, type WireRequest } from '@b2b-saas-starter/failure/http-client'
+
+import { billingOptionsFromEnv } from './billing-config.ts'
 
 import {
   createStripeCheckoutSession,
   createStripeCustomer,
   retrieveStripeCheckoutSession,
+  retrieveStripeCustomer,
   retrieveStripeSubscription,
   updateStripeSubscriptionItemQuantity,
   verifyStripeSignature
@@ -44,7 +47,7 @@ describe('Stripe provider adapter', () => {
         )
       })
       const fiber = yield* retrieveStripeCheckoutSession({
-        secretKey: 'secret',
+        secretKey: Redacted.make('secret'),
         sessionId: 'cs_held'
       }).pipe(Effect.flip, Effect.provide(wireHttpClient(wire)), Effect.forkChild)
       yield* Deferred.await(reading)
@@ -62,11 +65,33 @@ describe('Stripe provider adapter', () => {
     })
     return Effect.gen(function* () {
       const error = yield* retrieveStripeCheckoutSession({
-        secretKey: 'secret',
+        secretKey: Redacted.make('secret'),
         sessionId: 'cs_redirect'
       }).pipe(Effect.flip)
       expect(error.reason).toBe('stripe http:307')
       expect(wire).toHaveBeenCalledTimes(1)
+    }).pipe(Effect.provide(wireHttpClient(wire)))
+  })
+
+  it.effect('keeps the env key redacted in operation inputs until the header', () => {
+    // oxlint-disable-next-line react-doctor/no-secrets-in-client-code -- inert test key whose leak the test detects
+    const plaintext = 'sk_test_must_not_leak'
+    const requests: Array<SentRequest> = []
+    function wire(url: string, request: WireRequest) {
+      requests.push({ ...request, url })
+      return jsonResponse({ error: 'provider down' }, 500)
+    }
+    return Effect.gen(function* () {
+      const options = billingOptionsFromEnv({ STRIPE_SECRET_KEY: plaintext })
+      if (options?.secretKey === undefined) {
+        return expect.fail('a set STRIPE_SECRET_KEY must configure the provider')
+      }
+      const input = { secretKey: options.secretKey, customerId: 'cus_1' }
+      // Options and operation inputs reach spans, logs and causes serialized.
+      // oxlint-disable-next-line effect/noGlobals -- the assertion is what JSON serialization (logs, spans, causes) exposes
+      expect(JSON.stringify({ options, input })).not.toContain(plaintext)
+      yield* retrieveStripeCustomer(input).pipe(Effect.flip)
+      expect(requests[0]?.headers.authorization).toBe(`Bearer ${plaintext}`)
     }).pipe(Effect.provide(wireHttpClient(wire)))
   })
 
@@ -86,7 +111,7 @@ describe('Stripe provider adapter', () => {
 
     return Effect.gen(function* () {
       const session = yield* createStripeCheckoutSession({
-        secretKey: 'sk_test_secret',
+        secretKey: Redacted.make('sk_test_secret'),
         priceId: 'price_team',
         quantity: 3,
         workspaceId: 'wrk_1',
@@ -102,6 +127,7 @@ describe('Stripe provider adapter', () => {
       expect(requests).toHaveLength(1)
       expect(requests[0]?.headers).toMatchObject({
         authorization: 'Bearer sk_test_secret',
+        'content-type': 'application/x-www-form-urlencoded',
         'idempotency-key': 'checkout-wrk_1-team-v1'
       })
       const checkoutBody = requests[0]?.body
@@ -130,7 +156,7 @@ describe('Stripe provider adapter', () => {
 
     return Effect.gen(function* () {
       const session = yield* retrieveStripeCheckoutSession({
-        secretKey: 'sk_test_secret',
+        secretKey: Redacted.make('sk_test_secret'),
         sessionId: 'cs_complete'
       })
       expect(session.status).toBe('complete')
@@ -152,7 +178,7 @@ describe('Stripe provider adapter', () => {
     return Effect.gen(function* () {
       const error = yield* Effect.flip(
         createStripeCheckoutSession({
-          secretKey: 'sk_test_secret',
+          secretKey: Redacted.make('sk_test_secret'),
           priceId: 'price_team',
           quantity: 1,
           workspaceId: 'wrk_1',
@@ -185,7 +211,7 @@ describe('Stripe provider adapter', () => {
 
     return Effect.gen(function* () {
       const subscription = yield* retrieveStripeSubscription({
-        secretKey: 'sk_test_secret',
+        secretKey: Redacted.make('sk_test_secret'),
         subscriptionId: 'sub_1'
       })
       expect(subscription.id).toBe('sub_1')
@@ -207,7 +233,7 @@ describe('Stripe provider adapter', () => {
       }
       return Effect.gen(function* () {
         yield* updateStripeSubscriptionItemQuantity({
-          secretKey: 'sk_test_secret',
+          secretKey: Redacted.make('sk_test_secret'),
           subscriptionItemId: 'si_1',
           quantity: 5,
           idempotencyKey: 'seat-sync-wrk_1-5'
@@ -241,13 +267,13 @@ describe('Stripe provider adapter', () => {
 
       return Effect.gen(function* () {
         const customer = yield* createStripeCustomer({
-          secretKey: 'sk_test_secret',
+          secretKey: Redacted.make('sk_test_secret'),
           workspaceId: 'wrk_1',
           idempotencyKey: 'customer-wrk_1-v1',
           email: 'billing@example.test'
         })
         const session = yield* retrieveStripeCheckoutSession({
-          secretKey: 'sk_test_secret',
+          secretKey: Redacted.make('sk_test_secret'),
           sessionId: 'cs_test_1'
         })
         expect(customer.id).toBe('cus_1')
@@ -299,7 +325,7 @@ describe('Stripe webhook signature verification', () => {
       await expect(
         verifyStripeSignature(
           {
-            secret: 'whsec_test',
+            secret: Redacted.make('whsec_test'),
             payload,
             header: `t=${nowSeconds},${v1s.map((value) => `v1=${value}`).join(',')}`
           },
@@ -315,7 +341,7 @@ describe('Stripe webhook signature verification', () => {
     await expect(
       verifyStripeSignature(
         {
-          secret: 'whsec_test',
+          secret: Redacted.make('whsec_test'),
           payload,
           header: `t=${nowSeconds},v1=${'0'.repeat(valid.length)},v1=${'f'.repeat(valid.length)}`
         },
@@ -327,7 +353,7 @@ describe('Stripe webhook signature verification', () => {
     await expect(
       verifyStripeSignature(
         {
-          secret: 'whsec_test',
+          secret: Redacted.make('whsec_test'),
           payload,
           header: `t=${staleTimestamp},v1=${staleSignature}`
         },
@@ -341,7 +367,10 @@ describe('Stripe webhook signature verification', () => {
       `t=abc,v1=${valid}`
     ]) {
       await expect(
-        verifyStripeSignature({ secret: 'whsec_test', payload, header }, fixedNow)
+        verifyStripeSignature(
+          { secret: Redacted.make('whsec_test'), payload, header },
+          fixedNow
+        )
       ).resolves.toBe(false)
     }
   })
@@ -360,7 +389,7 @@ describe('Stripe webhook signature verification', () => {
       await expect(
         verifyStripeSignature(
           {
-            secret: 'whsec_test',
+            secret: Redacted.make('whsec_test'),
             payload,
             header: `t=${timestamp},v1=${valid}`
           },
@@ -376,32 +405,36 @@ describe('Stripe webhook signature verification', () => {
     const header = ` t = ${nowSeconds} , v1 = ${valid} `
     await expect(
       verifyStripeSignature(
-        { secret: 'whsec_test', payload, header, toleranceSeconds: 0 },
+        { secret: Redacted.make('whsec_test'), payload, header, toleranceSeconds: 0 },
         fixedNow
       )
     ).resolves.toBe(true)
     await expect(
       verifyStripeSignature(
-        { secret: 'whsec_test', payload: payload.trim(), header },
+        { secret: Redacted.make('whsec_test'), payload: payload.trim(), header },
         fixedNow
       )
     ).resolves.toBe(false)
     await expect(
       verifyStripeSignature(
-        { secret: 'whsec_test', payload, header, toleranceSeconds: 0 },
+        { secret: Redacted.make('whsec_test'), payload, header, toleranceSeconds: 0 },
         () => fixedNow() + 1000
       )
     ).resolves.toBe(false)
     await expect(
       verifyStripeSignature(
-        { secret: 'whsec_test', payload, header, toleranceSeconds: 0 },
+        { secret: Redacted.make('whsec_test'), payload, header, toleranceSeconds: 0 },
         () => fixedNow() - 1000
       )
     ).resolves.toBe(false)
     for (const timestamp of [`${nowSeconds}junk`, 'NaN', 'Infinity']) {
       await expect(
         verifyStripeSignature(
-          { secret: 'whsec_test', payload, header: `t=${timestamp},v1=${valid}` },
+          {
+            secret: Redacted.make('whsec_test'),
+            payload,
+            header: `t=${timestamp},v1=${valid}`
+          },
           fixedNow
         )
       ).resolves.toBe(false)
@@ -416,7 +449,11 @@ describe('Stripe webhook signature verification', () => {
     try {
       await expect(
         verifyStripeSignature(
-          { secret: 'whsec_test', payload, header: `t=${nowSeconds},v1=${valid}` },
+          {
+            secret: Redacted.make('whsec_test'),
+            payload,
+            header: `t=${nowSeconds},v1=${valid}`
+          },
           fixedNow
         )
       ).rejects.toBe(refusal)

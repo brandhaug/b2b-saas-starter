@@ -4,7 +4,7 @@ import {
   type SecurityEvidenceKind,
   type SecurityEvidenceSink
 } from '@b2b-saas-starter/capabilities/governance/security-recovery-evidence'
-import { Effect } from 'effect'
+import { Effect, Redacted } from 'effect'
 import { hasValue } from '@b2b-saas-starter/env/server'
 import {
   captureMonitoringSignal,
@@ -19,7 +19,7 @@ export function makeSecurityEvidenceSink(): SecurityEvidenceSink | undefined {
   }
   return makeHttpSecurityEvidenceSink({
     url: env.SECURITY_EVIDENCE_URL,
-    token: env.SECURITY_EVIDENCE_TOKEN,
+    token: Redacted.make(env.SECURITY_EVIDENCE_TOKEN),
     reportGap: (gap) =>
       captureMonitoringSignal(
         'security_evidence_gap',

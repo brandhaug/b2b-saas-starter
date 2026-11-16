@@ -1,7 +1,7 @@
 import { billingCheckoutClaims } from '@b2b-saas-starter/db/schema/billing'
 import { type BillingCheckoutStatus } from '@b2b-saas-starter/db/enums'
 import { type EffectDatabase } from '@b2b-saas-starter/db/service'
-import { DateTime, Effect } from 'effect'
+import { DateTime, Effect, type Redacted } from 'effect'
 import { type HttpClient } from 'effect/http'
 import { and, eq, inArray } from 'drizzle-orm'
 
@@ -83,7 +83,7 @@ export const recoverCheckoutClaim = Effect.fn('Billing.recoverCheckoutClaim')(
     deps: CheckoutDependencies,
     input: {
       readonly workspaceId: string
-      readonly secretKey: string
+      readonly secretKey: Redacted.Redacted<string>
       readonly lease: BillingLease
       readonly customerId?: string | undefined
       readonly checkoutSessionId?: string | undefined

@@ -1,7 +1,7 @@
 import { createHmac } from 'node:crypto'
 import { gzipSync } from 'node:zlib'
 import { expect, layer } from '@effect/vitest'
-import { DateTime, Effect, Option, Schema } from 'effect'
+import { DateTime, Effect, Option, Schema, Redacted } from 'effect'
 import { and, eq } from 'drizzle-orm'
 import { Database } from '@b2b-saas-starter/db/service'
 import { workspaceExports } from '@b2b-saas-starter/db/schema/governance'
@@ -149,8 +149,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT, excludeTestServices: true })(
           }
           const pathA = `/workspaces/${a.slug}/exports/${a.job.id}/download-link`
           const pathB = `/workspaces/${b.slug}/exports/${b.job.id}/download-link`
-          const issueA = yield* request(pathA, a.token.token)
-          const issueB = yield* request(pathB, b.token.token)
+          const issueA = yield* request(pathA, Redacted.value(a.token.token))
+          const issueB = yield* request(pathB, Redacted.value(b.token.token))
           expect(issueA.status).toBe(200)
           expect(issueB.status).toBe(200)
           const linkA = yield* jsonBody(issueA, DownloadLink)
@@ -169,10 +169,12 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT, excludeTestServices: true })(
           expect(
             (yield* request(
               `/workspaces/${a.slug}/exports/${b.job.id}/download-link`,
-              a.token.token
+              Redacted.value(a.token.token)
             )).status
           ).toBe(404)
-          expect((yield* request(pathB, a.token.token)).status).toBe(403)
+          expect((yield* request(pathB, Redacted.value(a.token.token))).status).toBe(
+            403
+          )
           const substituted = new URL(linkA.url)
           substituted.pathname = `/exports/${b.job.id}/download`
           const tampered = new URL(linkA.url)
@@ -216,7 +218,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT, excludeTestServices: true })(
             { userId: a.userId },
             bindings
           )
-          expect((yield* request(pathA, a.token.token)).status).toBe(401)
+          expect((yield* request(pathA, Redacted.value(a.token.token))).status).toBe(
+            401
+          )
           // A minted URL is an independent bearer credential until its expiry.
           expect((yield* request(linkA.url)).status).toBe(200)
           for (const action of suspensionActions) {

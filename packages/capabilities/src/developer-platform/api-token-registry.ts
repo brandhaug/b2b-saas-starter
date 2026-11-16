@@ -40,10 +40,6 @@ export const ApiToken = Schema.Struct({
 })
 export type ApiToken = typeof ApiToken.Type
 
-export type CreatedApiToken = ApiToken & {
-  readonly token: string
-}
-
 type VerifiedApiToken = {
   readonly id: string
   readonly workspaceId: string
@@ -92,10 +88,16 @@ export type ReplaceApiTokenInput = ReplaceApiTokenPayload & {
   readonly tokenId: ApiTokenId
 }
 
+/**
+ * The one-time reveal. `token` is `Redacted` from mint onward; the schema
+ * encodes it to the same JSON string, so the REST response encoder is where it
+ * becomes plaintext, and web and MCP reveal it explicitly.
+ */
 export const CreatedApiTokenSchema = Schema.Struct({
   ...ApiToken.fields,
-  token: Schema.String
+  token: Schema.RedactedFromValue(Schema.String)
 })
+export type CreatedApiToken = typeof CreatedApiTokenSchema.Type
 export const ReplacedApiTokenSchema = Schema.Struct({
   ...CreatedApiTokenSchema.fields,
   previousTokenId: ApiTokenId,

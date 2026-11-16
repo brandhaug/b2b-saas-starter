@@ -12,6 +12,7 @@ import { type NotificationFeed } from '../notifications/notification-feed.ts'
 import { makeLiveAttemptHistory } from './webhook-attempt-history.live.ts'
 import {
   activeSigningSecrets,
+  readSigningSecretRotation,
   settledDeliveryStatuses
 } from './webhook-delivery-plan.ts'
 import { WebhookDispatch } from './webhook-dispatch.ts'
@@ -94,11 +95,7 @@ export const LiveWebhookDispatch: Layer.Layer<
             id: endpoint.id,
             url: endpoint.url,
             signingSecrets: activeSigningSecrets(
-              {
-                signingSecret: endpoint.signingSecret,
-                previousSigningSecret: endpoint.previousSigningSecret,
-                previousSecretExpiresAt: endpoint.previousSecretExpiresAt
-              },
+              readSigningSecretRotation(endpoint),
               yield* DateTime.now
             ),
             eventType: queued.eventType,

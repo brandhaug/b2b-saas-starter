@@ -1,6 +1,6 @@
 import { type DrizzleDatabase } from './ports.ts'
 import { account, user } from '@b2b-saas-starter/db/schema/auth'
-import { Effect, type Layer } from 'effect'
+import { Effect, type Layer, Redacted } from 'effect'
 import { cookiePairs, cookieHeader } from 'effectful-better-auth'
 import { and, eq } from 'drizzle-orm'
 import {
@@ -140,7 +140,7 @@ beforeAll(
           socialProviders: {
             github: {
               clientId: 'mock-client-id',
-              clientSecret: 'mock-client-secret'
+              clientSecret: Redacted.make('mock-client-secret')
             }
           },
           accountHooks: capturingAccountHooks,

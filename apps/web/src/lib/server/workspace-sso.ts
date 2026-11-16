@@ -19,7 +19,8 @@ const CreateOidcInput = Schema.Struct({
   domain: Domain,
   issuer: Schema.String.check(Schema.isMinLength(8), Schema.isPattern(/^https:\/\//)),
   clientId: Schema.NonEmptyString,
-  clientSecret: Schema.NonEmptyString,
+  // Decoded server-side into `Redacted`; only the plugin call's body unwraps it.
+  clientSecret: Schema.RedactedFromValue(Schema.NonEmptyString),
   defaultWorkspaceRole: Schema.Literals(['member', 'admin'])
 })
 
@@ -49,7 +50,10 @@ const CreateSamlInput = Schema.Struct({
 
 const CreateSsoConnectionInput = Schema.Union([CreateOidcInput, CreateSamlInput])
 
-export type CreateSsoConnectionInput = typeof CreateSsoConnectionInput.Type
+/** What the browser sends: the client secret as typed. */
+export type CreateSsoConnectionInput = typeof CreateSsoConnectionInput.Encoded
+/** What the handler receives once decoded: the client secret `Redacted`. */
+export type CreateSsoConnectionRequest = typeof CreateSsoConnectionInput.Type
 
 const UpdateSsoConnectionInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
@@ -58,7 +62,7 @@ const UpdateSsoConnectionInput = Schema.Struct({
   requireSso: Schema.optional(Schema.Boolean),
   defaultWorkspaceRole: Schema.optional(Schema.Literals(['member', 'admin'])),
   clientId: Schema.optional(Schema.NonEmptyString),
-  clientSecret: Schema.optional(Schema.NonEmptyString)
+  clientSecret: Schema.optional(Schema.RedactedFromValue(Schema.NonEmptyString))
 }).check(
   Schema.makeFilter((input) => {
     // Credential rotation is both-or-neither: the plugin merges a partial
@@ -77,7 +81,10 @@ const UpdateSsoConnectionInput = Schema.Struct({
   })
 )
 
-export type UpdateSsoConnectionInput = typeof UpdateSsoConnectionInput.Type
+/** What the browser sends: the client secret as typed. */
+export type UpdateSsoConnectionInput = typeof UpdateSsoConnectionInput.Encoded
+/** What the handler receives once decoded: the client secret `Redacted`. */
+export type UpdateSsoConnectionRequest = typeof UpdateSsoConnectionInput.Type
 
 /** Remove and test both address one connection, by provider id. */
 const RemoveSsoConnectionInput = Schema.Struct({

@@ -1,5 +1,5 @@
 import { expect, it, vi } from '@effect/vitest'
-import { Deferred, Effect, Fiber, Exit, Layer } from 'effect'
+import { Deferred, Effect, Fiber, Exit, Layer, Redacted } from 'effect'
 import { TestClock } from 'effect/testing'
 import { AssistantService, selectAssistantLayer } from './index.ts'
 import { wireHttpClient, type WireRequest } from '@b2b-saas-starter/failure/http-client'
@@ -8,7 +8,7 @@ import { askFails, assistantOn } from './test-ask.ts'
 
 /** The OpenAI adapter over a fixture transport. */
 function openAIOn(respond: Parameters<typeof wireHttpClient>[0]) {
-  return makeOpenAIModel({ apiKey: 'test' }).pipe(
+  return makeOpenAIModel({ apiKey: Redacted.make('test') }).pipe(
     Layer.provide(wireHttpClient(respond))
   )
 }

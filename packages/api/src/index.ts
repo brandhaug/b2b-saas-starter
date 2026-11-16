@@ -313,8 +313,10 @@ const RevokedResponse = Schema.Struct({ status: Schema.Literal('revoked') })
 /** Contract response literals for the webhook operator surface. */
 const DeletedResponse = Schema.Struct({ status: Schema.Literal('deleted') })
 export type DeletedResponse = typeof DeletedResponse.Type
+// Encodes to the same JSON string; the handler's value stays `Redacted` until
+// the response body is encoded.
 const RotatedWebhookSecret = Schema.Struct({
-  signingSecret: Schema.String
+  signingSecret: Schema.RedactedFromValue(Schema.String)
 })
 export type RotatedWebhookSecret = typeof RotatedWebhookSecret.Type
 export const QueuedDeliveryResponse = Schema.Struct({

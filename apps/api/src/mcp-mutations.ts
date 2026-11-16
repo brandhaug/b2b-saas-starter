@@ -11,7 +11,7 @@ import {
   CreateWebhookEndpointPayload,
   UpdateWebhookEndpointPayload
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
-import { Effect, Schema, type Scope } from 'effect'
+import { Effect, Redacted, Schema, type Scope } from 'effect'
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import {
   MUTATION_OPERATIONS,
@@ -22,8 +22,14 @@ import {
   type OperationPrincipal
 } from './operations.ts'
 
-type MutationInvocation = Effect.Effect<
-  unknown,
+type CatalogOperation<Options, A = unknown> = {
+  readonly endpoint: (typeof MUTATION_OPERATIONS)[keyof typeof MUTATION_OPERATIONS]['endpoint']
+  readonly permission: (typeof MUTATION_OPERATIONS)[keyof typeof MUTATION_OPERATIONS]['permission']
+  readonly run: (options: Options) => MutationInvocation<A>
+}
+
+type MutationInvocation<A = unknown> = Effect.Effect<
+  A,
   CapabilityMutationError,
   | CapabilityMutationServices
   | WorkspaceContext
@@ -35,11 +41,7 @@ type MutationInvocation = Effect.Effect<
 
 /** JSON arguments are decoded before a typed adapter calls the shared operation. */
 function projection<S extends Schema.Constraint, Options>(
-  operation: {
-    readonly endpoint: (typeof MUTATION_OPERATIONS)[keyof typeof MUTATION_OPERATIONS]['endpoint']
-    readonly permission: (typeof MUTATION_OPERATIONS)[keyof typeof MUTATION_OPERATIONS]['permission']
-    readonly run: (options: Options) => MutationInvocation
-  },
+  operation: CatalogOperation<Options>,
   input: S,
   adapt: (input: S['Type']) => NoInfer<Options>,
   metadata: {
@@ -67,10 +69,37 @@ function projection<S extends Schema.Constraint, Options>(
 
 const endpointInput = Schema.Struct({ endpointId: WebhookEndpointId })
 
+/**
+ * A tool whose result is a one-time reveal. `reveal` unwraps exactly the
+ * field the tool exists to hand over; the result encoder never unwraps, so any
+ * other `Redacted` in a tool result stays `<redacted>`.
+ */
+function revealing<Options, A, B>(
+  operation: CatalogOperation<Options, A>,
+  reveal: (result: A) => B
+): CatalogOperation<Options, B> {
+  return {
+    ...operation,
+    run: (options) => operation.run(options).pipe(Effect.map(reveal))
+  }
+}
+
+function revealToken<T extends { readonly token: Redacted.Redacted<string> }>(
+  created: T
+) {
+  return { ...created, token: Redacted.value(created.token) }
+}
+
+function revealSigningSecret(rotated: {
+  readonly signingSecret: Redacted.Redacted<string>
+}) {
+  return { signingSecret: Redacted.value(rotated.signingSecret) }
+}
+
 /** Exhaustive over the catalog: removing a projection leaves a type error. */
 const projections = {
   'api-tokens.create': projection(
-    MUTATION_OPERATIONS['api-tokens.create'],
+    revealing(MUTATION_OPERATIONS['api-tokens.create'], revealToken),
     CreateApiTokenPayload,
     (payload) => ({ params: {}, payload }),
     {
@@ -86,7 +115,7 @@ const projections = {
     }
   ),
   'api-tokens.replace': projection(
-    MUTATION_OPERATIONS['api-tokens.replace'],
+    revealing(MUTATION_OPERATIONS['api-tokens.replace'], revealToken),
     Schema.Struct({ tokenId: ApiTokenId, ...ReplaceApiTokenPayload.fields }),
     ({ tokenId, ...payload }) => ({ params: { tokenId }, payload }),
     {
@@ -169,7 +198,7 @@ const projections = {
     }
   ),
   'webhooks.rotate-secret': projection(
-    MUTATION_OPERATIONS['webhooks.rotate-secret'],
+    revealing(MUTATION_OPERATIONS['webhooks.rotate-secret'], revealSigningSecret),
     endpointInput,
     (args) => ({ params: args }),
     {

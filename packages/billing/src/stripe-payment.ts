@@ -1,4 +1,4 @@
-import { DateTime, Effect, Option, Schema, Stream } from 'effect'
+import { DateTime, Effect, Option, type Redacted, Schema, Stream } from 'effect'
 import { type HttpClient } from 'effect/http'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type SubscriptionState } from './billing.ts'
@@ -49,7 +49,7 @@ function unavailable(reason: string) {
 /** Missed webhook failures are recovered from verified provider history. */
 export const retrievePaymentEvidence = Effect.fn('Stripe.retrievePaymentEvidence')(
   function* (
-    secretKey: string,
+    secretKey: Redacted.Redacted<string>,
     subscription: StripeSubscriptionResponse,
     previous: SubscriptionState | null,
     now: string

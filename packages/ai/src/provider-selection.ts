@@ -1,5 +1,5 @@
 import { hasValue, type ProviderEnvOf } from '@b2b-saas-starter/env/server'
-import { Layer } from 'effect'
+import { Layer, Redacted } from 'effect'
 import { type LanguageModel, type Model } from 'effect/ai'
 import { MockAssistantModel } from './mock.ts'
 import { PlatformHttpClientLive } from '@b2b-saas-starter/failure/http-client'
@@ -34,7 +34,7 @@ export function selectProvider(env: ProviderEnv): ProviderChoice {
     // Set only when present so the layer's own defaults (api.openai.com,
     // gpt-4o-mini) still apply for absent vars.
     const config: OpenAIConfig = {
-      apiKey: env.OPENAI_API_KEY,
+      apiKey: Redacted.make(env.OPENAI_API_KEY),
       ...(hasValue(env.OPENAI_BASE_URL) && { baseUrl: env.OPENAI_BASE_URL }),
       ...(hasValue(env.OPENAI_MODEL_ID) && { modelId: env.OPENAI_MODEL_ID })
     }

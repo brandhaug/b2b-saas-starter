@@ -1,5 +1,5 @@
 import { Database } from '@b2b-saas-starter/db/service'
-import { Effect, Option } from 'effect'
+import { Effect, Option, Redacted } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'
 
 import {
@@ -178,7 +178,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 providerId: 'sso_live_oidc',
                 oidcCredentials: {
                   clientId: 'client-rotated-9999',
-                  clientSecret: 'new-secret'
+                  clientSecret: Redacted.make('new-secret')
                 }
               })
             ),
@@ -247,7 +247,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 domain: 'northwind.test',
                 issuer: 'https://login.northwind.test',
                 clientId: 'client-nw-1234',
-                clientSecret: 'nw-secret',
+                clientSecret: Redacted.make('nw-secret'),
                 endpoints: {
                   authorizationEndpoint: 'https://login.northwind.test/authorize',
                   tokenEndpoint: 'https://login.northwind.test/token',

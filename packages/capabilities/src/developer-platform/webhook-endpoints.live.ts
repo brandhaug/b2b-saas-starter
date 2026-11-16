@@ -2,7 +2,7 @@ import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { type RawD1, type Database } from '@b2b-saas-starter/db/service'
 import { type JsonObject, type JsonValue } from '@b2b-saas-starter/db/schema/json'
 import { webhookEndpoints } from '@b2b-saas-starter/db/schema/developer-platform'
-import { DateTime, Effect, Layer } from 'effect'
+import { DateTime, Effect, Layer, Redacted } from 'effect'
 import { and, asc, eq, sql, type SQL } from 'drizzle-orm'
 
 import {
@@ -169,7 +169,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
           })
           return {
             endpoint: toEndpointProjection(endpoint),
-            signingSecret
+            signingSecret: Redacted.make(signingSecret)
           }
         }),
       update: (input) =>
@@ -337,7 +337,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
               new WebhookEndpointNotFound({ endpointId: input.endpointId })
             )
           }
-          return { signingSecret }
+          return { signingSecret: Redacted.make(signingSecret) }
         })
     }
   })

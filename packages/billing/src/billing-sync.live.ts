@@ -17,7 +17,7 @@ import {
 } from '@b2b-saas-starter/db/schema/billing'
 import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database } from '@b2b-saas-starter/db/service'
-import { DateTime, Effect, Schema } from 'effect'
+import { DateTime, Effect, type Redacted, Schema } from 'effect'
 import { type HttpClient } from 'effect/http'
 import { annotateWideEvent } from '@b2b-saas-starter/logger'
 import { and, asc, count, eq, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm'
@@ -109,7 +109,7 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
     })
 
     const providerKey = Effect.fn('Billing.requireProvider')((): Effect.Effect<
-      string,
+      Redacted.Redacted<string>,
       CapabilityUnavailable
     > => {
       const secretKey = options.secretKey

@@ -11,8 +11,9 @@ import {
   billingConfigured,
   billingOptionsFromEnv
 } from '@b2b-saas-starter/billing/billing-config'
+import { hasValue } from '@b2b-saas-starter/env/server'
 import { annotateWideEvent } from '@b2b-saas-starter/logger'
-import { Effect, Result, Schema } from 'effect'
+import { Effect, Redacted, Result, Schema } from 'effect'
 import { selectCapabilitiesLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { billingCapabilitiesEnv } from './billing-runtime.ts'
 import { runHttpInvocation, type Env } from './queue-consumer.ts'
@@ -165,10 +166,10 @@ export const processStripeRequest = Effect.fn('Stripe.ingest')(function* (
   if (request.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 })
   }
-  const secret = env.STRIPE_WEBHOOK_SECRET
-  if (secret === undefined || secret.length === 0) {
+  if (!hasValue(env.STRIPE_WEBHOOK_SECRET)) {
     return Response.json({ error: 'billing_not_configured' }, { status: 503 })
   }
+  const secret = Redacted.make(env.STRIPE_WEBHOOK_SECRET)
   const billing = billingOptionsFromEnv(env)
   if (
     !billingConfigured(billing ?? {}) ||

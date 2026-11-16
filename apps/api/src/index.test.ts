@@ -280,8 +280,11 @@ describe('contract-served routes', () => {
         )
       )
       expect(res.status).toBe(201)
+      const text = yield* Effect.promise(() => res.clone().text())
       const body = yield* jsonBody(res, CreatedTokenBody)
-      expect(body.token).toBeTruthy()
+      // The one-time reveal: the contract encoder writes the plaintext once.
+      expect(body.token).toMatch(/^bsk_/)
+      expect(text.split(body.token)).toHaveLength(2)
       expect(body.scopes).toEqual(['read'])
       const auditResponse = yield* send(
         get('/workspaces/starter-lab/audit-events?eventType=api_token.created', bearer)
@@ -493,8 +496,12 @@ describe('contract-served routes', () => {
         post('/workspaces/starter-lab/webhooks/wh_release/rotate-secret', {}, bearer)
       )
       expect(res.status).toBe(200)
+      const text = yield* Effect.promise(() => res.clone().text())
       const body = yield* jsonBody(res, RotatedSecretBody)
+      // The capability hands the secret over Redacted; the contract's encoder
+      // is the one place it becomes plaintext, exactly once in the body.
       expect(body.signingSecret).toMatch(/^whsec_/)
+      expect(text.split(body.signingSecret)).toHaveLength(2)
       const missing = yield* send(
         post('/workspaces/starter-lab/webhooks/wh_missing/rotate-secret', {}, bearer)
       )

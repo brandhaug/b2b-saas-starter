@@ -13,6 +13,14 @@ import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
 import { type WorkspacePagePayload } from '@/lib/workspace-frame'
 
+/**
+ * The create response: the capability's `CreatedWebhookEndpoint` with its
+ * secret unwrapped by the handler, because this body is the one-time reveal.
+ */
+export type RevealedWebhookEndpoint = Omit<CreatedWebhookEndpoint, 'signingSecret'> & {
+  readonly signingSecret: string
+}
+
 const CreateWebhookInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
   url: CreateWebhookEndpointPayload.fields.url,
@@ -48,7 +56,7 @@ export type ReplayDeliveryInput = typeof ReplayDeliveryInput.Type
 
 export const createWebhookEndpointServerFn = createServerFn({ method: 'POST' })
   .validator(Schema.decodeUnknownSync(CreateWebhookInput))
-  .handler(async ({ data }): Promise<CreatedWebhookEndpoint> => {
+  .handler(async ({ data }): Promise<RevealedWebhookEndpoint> => {
     const { createWebhookEndpointHandler } = await import('./webhooks.effects')
     return createWebhookEndpointHandler(data)
   })

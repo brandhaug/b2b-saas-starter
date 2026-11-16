@@ -1,6 +1,6 @@
 // oxlint-disable effect/noAsyncFunction, effect/noGlobals -- these fixtures exercise native Promise/fetch callers as well as Effect consumers
 import { expect, it, vi } from '@effect/vitest'
-import { Effect, Layer } from 'effect'
+import { Effect, Layer, Redacted } from 'effect'
 import { FetchHttpClient, HttpClient } from 'effect/http'
 import { PlatformHttpClientLive } from '@b2b-saas-starter/failure/http-client'
 import { makeOpenAIModel } from '../src/openai.ts'
@@ -23,7 +23,9 @@ it.effect('catches Effect fetch', () =>
 it('catches production adapter failure', () =>
   askFails(
     assistantOn(
-      makeOpenAIModel({ apiKey: 'fake' }).pipe(Layer.provide(PlatformHttpClientLive))
+      makeOpenAIModel({ apiKey: Redacted.make('fake') }).pipe(
+        Layer.provide(PlatformHttpClientLive)
+      )
     ),
     (error) => {
       expect(error.reason).toContain('Provider connection failed')

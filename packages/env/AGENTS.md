@@ -4,7 +4,8 @@
 
 ## Contracts
 
-- The two alchemy forwarding lists are `satisfies ReadonlyArray<keyof ServerEnv>`, so a dropped var fails to compile. Secret keys get `Redacted`.
+- The two alchemy forwarding lists are `satisfies ReadonlyArray<keyof ServerEnv>`, so a dropped var fails to compile. Secret keys get `Redacted` at deploy time.
+- `ServerEnv` types every var as `string`, so the reader of a secret key (`optionalModuleEnvSecretKeys`, `BETTER_AUTH_SECRET`) applies `hasValue`, then `Redacted.make`, at the read, and passes only the `Redacted` on. `activeSocialProviders` is such a reader: it returns each `clientSecret` `Redacted` (the reason `./server` depends on `effect`; `./social` stays effect-free for the browser). `Redacted.value` happens once, at the I/O call that needs the plaintext (HTTP header, request body, HMAC or SDK argument).
 - `ProviderEnvOf<K>` keys are explicitly `| undefined`, because `exactOptionalPropertyTypes` makes a bare `?:` reject the `undefined` a worker env bag passes for an unset var.
 - `auditRequiredEnv` reports, never throws. It rejects placeholders by value rather than absence (including the shipped `.env.example` secret), short secrets, localhost, example, or non-`https` production URLs, and unparsable trusted origins (which silently lose their CSRF carve-out). `apps/web`'s `enforceRequiredEnvOnce` throws on a production verdict and otherwise emits one `config.insecure` event. `requireEmailVerification` gates on production alone. The `prod` alchemy stage defaults `ENVIRONMENT` to `production` (preview forces `preview`; unset stays local).
 

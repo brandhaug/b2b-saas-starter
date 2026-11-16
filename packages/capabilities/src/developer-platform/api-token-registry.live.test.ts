@@ -1,4 +1,4 @@
-import { DateTime, Effect, Exit, Layer } from 'effect'
+import { DateTime, Effect, Exit, Layer, Redacted } from 'effect'
 import { Database, RawD1 } from '@b2b-saas-starter/db/service'
 import { apiTokens } from '@b2b-saas-starter/db/schema/developer-platform'
 import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
@@ -97,13 +97,13 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               'dev-contract-lab',
               Effect.gen(function* () {
                 const registry = yield* ApiTokenRegistry
-                yield* registry.verifyBearerToken(created.token)
+                yield* registry.verifyBearerToken(Redacted.value(created.token))
                 const retry = yield* registry.replace({
                   tokenId: created.id,
                   scopes: ['read'],
                   overlapSeconds: 0
                 })
-                yield* registry.verifyBearerToken(retry.token)
+                yield* registry.verifyBearerToken(Redacted.value(retry.token))
               })
             )
           })
@@ -201,7 +201,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               expect(yield* db.select().from(auditEvents)).toEqual(beforeAudit)
               expect(
                 failureTag(
-                  yield* Effect.exit(registry.verifyBearerToken(original.token))
+                  yield* Effect.exit(
+                    registry.verifyBearerToken(Redacted.value(original.token))
+                  )
                 )
               ).toBe('AuthorizationDenied')
             })
@@ -255,9 +257,11 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               expect(
                 rows.find((row) => row.id === original.id)?.replacedByTokenId
               ).toBe(winner.value.id)
-              expect(rows.every((row) => row.tokenHash !== winner.value.token)).toBe(
-                true
-              )
+              expect(
+                rows.every(
+                  (row) => row.tokenHash !== Redacted.value(winner.value.token)
+                )
+              ).toBe(true)
               const events = yield* db
                 .select()
                 .from(auditEvents)
@@ -270,7 +274,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                   replacementTokenId: winner.value.id
                 }
               })
-              yield* registry.verifyBearerToken(winner.value.token)
+              yield* registry.verifyBearerToken(Redacted.value(winner.value.token))
             })
           )
         })
@@ -289,14 +293,15 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             }),
             { userId: 'usr_owner' }
           )
-          expect(created.token.startsWith('bsk_live_')).toBe(true)
-          expect(created.prefix).toBe(created.token.slice(0, 17))
+          const plaintext = Redacted.value(created.token)
+          expect(plaintext.startsWith('bsk_live_')).toBe(true)
+          expect(created.prefix).toBe(plaintext.slice(0, 17))
 
           const verified = yield* inWorkspace(
             'live-lab',
             Effect.gen(function* () {
               const registry = yield* ApiTokenRegistry
-              return yield* registry.verifyBearerToken(created.token)
+              return yield* registry.verifyBearerToken(Redacted.value(created.token))
             })
           )
           expect(verified.workspaceSlug).toBe('live-lab')
@@ -316,7 +321,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           expect(listedToken?.prefix).toBe(created.prefix)
           // The raw token is returned once at creation and never listed.
           const listedValues = listed.flatMap((token) => Object.values(token).flat())
-          expect(listedValues).not.toContain(created.token)
+          expect(listedValues).not.toContain(plaintext)
 
           const revoked = yield* inWorkspace(
             'live-lab',
@@ -334,7 +339,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             'live-lab',
             Effect.gen(function* () {
               const registry = yield* ApiTokenRegistry
-              return yield* Effect.flip(registry.verifyBearerToken(created.token))
+              return yield* Effect.flip(
+                registry.verifyBearerToken(Redacted.value(created.token))
+              )
             })
           )
           expect(afterRevoke.reason).toBe('invalid_token')

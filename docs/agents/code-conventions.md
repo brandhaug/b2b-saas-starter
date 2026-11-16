@@ -64,6 +64,11 @@ decision function, and the predicate sets (`open`, `terminal`, `replayable`,
   rejection; a write without an idempotency key turns it into a duplicate.
 - Check a provider response's status before decoding its body, so an error
   response cannot decode as a business answer.
+- Keep a secret `Redacted.Redacted<string>` from the point that reads it (the env
+  reader after `hasValue`, or the D1 read) through every config, service and
+  operation input. Call `Redacted.value` only inside the I/O call that needs the
+  plaintext (HTTP header or body, HMAC key, SDK argument); never build plaintext
+  headers or option bags ahead of time.
 
 ### Execution ownership
 

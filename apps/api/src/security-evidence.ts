@@ -3,6 +3,7 @@ import {
   type SecurityEvidenceSink
 } from '@b2b-saas-starter/capabilities/governance/security-recovery-evidence'
 import { hasValue } from '@b2b-saas-starter/env/server'
+import { Redacted } from 'effect'
 import {
   captureMonitoringSignal,
   readWideEventEnvironment
@@ -17,7 +18,7 @@ export function securityEvidenceSink(env: ApiEnv): SecurityEvidenceSink | undefi
   }
   return makeHttpSecurityEvidenceSink({
     url: env.SECURITY_EVIDENCE_URL,
-    token: env.SECURITY_EVIDENCE_TOKEN,
+    token: Redacted.make(env.SECURITY_EVIDENCE_TOKEN),
     reportGap: (gap) =>
       captureMonitoringSignal(
         'security_evidence_gap',

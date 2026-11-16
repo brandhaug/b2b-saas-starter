@@ -1,5 +1,5 @@
 import { ApiTokenId } from '@b2b-saas-starter/db/ids'
-import { Effect } from 'effect'
+import { Effect, Redacted } from 'effect'
 import { TestClock } from 'effect/testing'
 import { type ContractExpect } from '../governance/contract-expect.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
@@ -20,6 +20,29 @@ const HOUR = '2027-01-15T09:00:00.000Z'
 export function apiTokenRegistryContractCases(expect: ContractExpect) {
   return [
     {
+      name: 'create and replace hand the plaintext credential back redacted',
+      assert: Effect.gen(function* () {
+        yield* TestClock.setTime(START)
+        const registry = yield* ApiTokenRegistry
+        const created = yield* registry.create({ name: 'reveal', scopes: ['read'] })
+        const replaced = yield* registry.replace({
+          tokenId: created.id,
+          scopes: ['read'],
+          overlapSeconds: 60
+        })
+        const plaintexts = [
+          Redacted.value(created.token),
+          Redacted.value(replaced.token)
+        ]
+        // oxlint-disable-next-line effect/noGlobals -- the assertion is what JSON serialization (logs, spans, causes) exposes
+        const serialized = JSON.stringify({ created, replaced })
+        for (const plaintext of plaintexts) {
+          expect(serialized.includes(plaintext)).toBe(false)
+          yield* registry.verifyBearerToken(plaintext)
+        }
+      })
+    },
+    {
       name: 'verifies a created credential until the exact expiry instant',
       assert: Effect.gen(function* () {
         yield* TestClock.setTime(START)
@@ -31,14 +54,20 @@ export function apiTokenRegistryContractCases(expect: ContractExpect) {
           expiresAt: MINUTE
         })
         yield* TestClock.adjust(59_999)
-        expect(yield* registry.verifyBearerToken(created.token)).toMatchObject({
+        expect(
+          yield* registry.verifyBearerToken(Redacted.value(created.token))
+        ).toMatchObject({
           id: created.id,
           workspaceId: ctx.workspace.id,
           scopes: ['read']
         })
         yield* TestClock.adjust(1)
         expect(
-          failureTag(yield* Effect.exit(registry.verifyBearerToken(created.token)))
+          failureTag(
+            yield* Effect.exit(
+              registry.verifyBearerToken(Redacted.value(created.token))
+            )
+          )
         ).toBe('AuthorizationDenied')
         expect(
           (yield* registry.list).find((token) => token.id === created.id)?.expiresAt
@@ -69,13 +98,21 @@ export function apiTokenRegistryContractCases(expect: ContractExpect) {
           previousTokenId: original.id,
           previousTokenExpiresAt: START_ISO
         })
-        expect(replacement.token === original.token).toBe(false)
-        expect(yield* registry.verifyBearerToken(replacement.token)).toMatchObject({
+        expect(
+          Redacted.value(replacement.token) === Redacted.value(original.token)
+        ).toBe(false)
+        expect(
+          yield* registry.verifyBearerToken(Redacted.value(replacement.token))
+        ).toMatchObject({
           workspaceId: ctx.workspace.id,
           scopes: ['read']
         })
         expect(
-          failureTag(yield* Effect.exit(registry.verifyBearerToken(original.token)))
+          failureTag(
+            yield* Effect.exit(
+              registry.verifyBearerToken(Redacted.value(original.token))
+            )
+          )
         ).toBe('AuthorizationDenied')
         const listed = yield* registry.list
         expect(listed.find((token) => token.id === original.id)).toMatchObject({
@@ -84,7 +121,7 @@ export function apiTokenRegistryContractCases(expect: ContractExpect) {
         })
         expect(
           new Set(listed.flatMap((token) => Object.values(token))).has(
-            replacement.token
+            Redacted.value(replacement.token)
           )
         ).toBe(false)
         expect(
@@ -108,13 +145,17 @@ export function apiTokenRegistryContractCases(expect: ContractExpect) {
         expect(replacement.expiresAt).toBe(null)
         expect(replacement.previousTokenExpiresAt).toBe(MINUTE)
         yield* TestClock.adjust(59_999)
-        yield* registry.verifyBearerToken(original.token)
-        yield* registry.verifyBearerToken(replacement.token)
+        yield* registry.verifyBearerToken(Redacted.value(original.token))
+        yield* registry.verifyBearerToken(Redacted.value(replacement.token))
         yield* TestClock.adjust(1)
         expect(
-          failureTag(yield* Effect.exit(registry.verifyBearerToken(original.token)))
+          failureTag(
+            yield* Effect.exit(
+              registry.verifyBearerToken(Redacted.value(original.token))
+            )
+          )
         ).toBe('AuthorizationDenied')
-        yield* registry.verifyBearerToken(replacement.token)
+        yield* registry.verifyBearerToken(Redacted.value(replacement.token))
       })
     },
     {
@@ -145,19 +186,25 @@ export function apiTokenRegistryContractCases(expect: ContractExpect) {
           expiresAt: MINUTE,
           replacedByTokenId: first.id
         })
-        yield* registry.verifyBearerToken(original.token)
-        yield* registry.verifyBearerToken(first.token)
-        yield* registry.verifyBearerToken(second.token)
+        yield* registry.verifyBearerToken(Redacted.value(original.token))
+        yield* registry.verifyBearerToken(Redacted.value(first.token))
+        yield* registry.verifyBearerToken(Redacted.value(second.token))
         yield* TestClock.adjust(30_000)
         expect(
-          failureTag(yield* Effect.exit(registry.verifyBearerToken(original.token)))
+          failureTag(
+            yield* Effect.exit(
+              registry.verifyBearerToken(Redacted.value(original.token))
+            )
+          )
         ).toBe('AuthorizationDenied')
-        yield* registry.verifyBearerToken(first.token)
+        yield* registry.verifyBearerToken(Redacted.value(first.token))
         yield* registry.revoke({ tokenId: first.id })
         expect(
-          failureTag(yield* Effect.exit(registry.verifyBearerToken(first.token)))
+          failureTag(
+            yield* Effect.exit(registry.verifyBearerToken(Redacted.value(first.token)))
+          )
         ).toBe('AuthorizationDenied')
-        yield* registry.verifyBearerToken(second.token)
+        yield* registry.verifyBearerToken(Redacted.value(second.token))
       })
     },
     {
@@ -179,10 +226,18 @@ export function apiTokenRegistryContractCases(expect: ContractExpect) {
         expect(replacement.expiresAt).toBe(MINUTE)
         yield* TestClock.adjust(60_000)
         expect(
-          failureTag(yield* Effect.exit(registry.verifyBearerToken(original.token)))
+          failureTag(
+            yield* Effect.exit(
+              registry.verifyBearerToken(Redacted.value(original.token))
+            )
+          )
         ).toBe('AuthorizationDenied')
         expect(
-          failureTag(yield* Effect.exit(registry.verifyBearerToken(replacement.token)))
+          failureTag(
+            yield* Effect.exit(
+              registry.verifyBearerToken(Redacted.value(replacement.token))
+            )
+          )
         ).toBe('AuthorizationDenied')
         yield* TestClock.setTime(START)
         const second = yield* registry.create({
@@ -229,7 +284,7 @@ export function apiTokenRegistryContractCases(expect: ContractExpect) {
             )
           ).toBe('InvalidApiTokenInput')
         }
-        yield* registry.verifyBearerToken(original.token)
+        yield* registry.verifyBearerToken(Redacted.value(original.token))
         expect(
           (yield* registry.list).find((token) => token.id === original.id)
         ).toMatchObject({ expiresAt: MINUTE, replacedByTokenId: null })
@@ -285,8 +340,8 @@ export function apiTokenRegistryContractCases(expect: ContractExpect) {
             scopes: ['read'],
             overlapSeconds: 60
           })
-          yield* registry.verifyBearerToken(first.token)
-          yield* registry.verifyBearerToken(replacement.token)
+          yield* registry.verifyBearerToken(Redacted.value(first.token))
+          yield* registry.verifyBearerToken(Redacted.value(replacement.token))
           expect(
             failureTag(
               yield* Effect.exit(
@@ -299,7 +354,7 @@ export function apiTokenRegistryContractCases(expect: ContractExpect) {
             name: 'free slot',
             scopes: ['read']
           })
-          yield* registry.verifyBearerToken(available.token)
+          yield* registry.verifyBearerToken(Redacted.value(available.token))
         }).pipe(
           Effect.provideService(WorkspaceContext, {
             ...ctx,
@@ -359,7 +414,7 @@ export function apiTokenRegistryContractCases(expect: ContractExpect) {
             )
         )
         expect(failureTag(foreignResult)).toBe('ApiTokenNotRotatable')
-        yield* registry.verifyBearerToken(foreign.token)
+        yield* registry.verifyBearerToken(Redacted.value(foreign.token))
       })
     }
   ]

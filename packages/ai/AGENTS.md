@@ -16,6 +16,7 @@ Effect `LanguageModel` adapters own inference. `AssistantService.ask` retains th
 ## Boundaries
 
 - Runtime callers supply `ProviderEnv`; application code reads no process environment or Worker binding directly. The opt-in evaluation CLI owns its credential environment.
+- `selectProvider` wraps `OPENAI_API_KEY` in `Redacted` as it reads it, and `OpenAIConfig.apiKey` stays `Redacted`. Each OpenAI request hands it to `HttpClientRequest.bearerToken`; never build a plaintext headers object.
 - Adapter failures use `AiError`. The stateless boundary maps them to `AssistantUnavailable`; the conversation boundary exposes safe `ConversationModelFailure` data without raw provider diagnostics.
 - `makeOpenAIModel` takes `HttpClient` from its layer environment; `selectModel` and `selectConversationModelLayer` provide `PlatformHttpClientLive` (`@b2b-saas-starter/failure/http-client`) once. OpenAI uses `HttpClient.withScope` so cancellation owns the request through response consumption, including streaming. Keep manual redirects and no automatic inference retry. Workers AI cancels its response reader; its binding provides no provider billing or cancellation guarantee before the response stream exists.
 - Keep SDK UI-message types beside the host. This package exports application events and Effect streams.

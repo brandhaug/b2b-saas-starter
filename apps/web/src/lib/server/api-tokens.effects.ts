@@ -4,12 +4,8 @@ import {
   WorkspaceContext,
   WorkspaceCaller
 } from '@b2b-saas-starter/capabilities/workspace-context'
-import {
-  ApiTokenRegistry,
-  type ReplacedApiToken,
-  type CreatedApiToken
-} from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
-import { Effect } from 'effect'
+import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+import { Effect, Redacted } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
@@ -18,6 +14,8 @@ import { workspacePage, type WorkspacePageFrame } from './page-frame'
 import {
   type CreateApiTokenInput,
   type LoadApiTokensInput,
+  type RevealedApiToken,
+  type RevealedReplacedApiToken,
   type RevokeApiTokenInput,
   type ReplaceApiTokenInput,
   type WorkspaceApiTokensPayload
@@ -53,7 +51,7 @@ export async function loadWorkspaceApiTokensHandler(
 export async function createApiTokenHandler({
   workspaceSlug,
   ...input
-}: CreateApiTokenInput): Promise<CreatedApiToken> {
+}: CreateApiTokenInput): Promise<RevealedApiToken> {
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
     workspaceSlug,
@@ -66,7 +64,9 @@ export async function createApiTokenHandler({
       const tokens = yield* ApiTokenRegistry
       // The entitlement gate and webhook fan-out live inside the capability,
       // below the interface — identical for every surface.
-      return yield* tokens.create(input)
+      const created = yield* tokens.create(input)
+      // The server-function result is the response body: the one-time reveal.
+      return { ...created, token: Redacted.value(created.token) }
     }),
     WorkspaceCaller.user(session.user.id)
   )
@@ -94,7 +94,7 @@ export async function revokeApiTokenHandler(
 export async function replaceApiTokenHandler({
   workspaceSlug,
   ...input
-}: ReplaceApiTokenInput): Promise<ReplacedApiToken> {
+}: ReplaceApiTokenInput): Promise<RevealedReplacedApiToken> {
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
     workspaceSlug,
@@ -104,7 +104,9 @@ export async function replaceApiTokenHandler({
       const principal = ctx.actor ? memberPrincipal(ctx.actor.role) : null
       yield* requireTokenScopes(principal, input.scopes)
       const tokens = yield* ApiTokenRegistry
-      return yield* tokens.replace(input)
+      const replaced = yield* tokens.replace(input)
+      // The server-function result is the response body: the one-time reveal.
+      return { ...replaced, token: Redacted.value(replaced.token) }
     }),
     WorkspaceCaller.user(session.user.id)
   )

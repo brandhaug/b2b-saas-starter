@@ -3,7 +3,7 @@ import { assertWithinPlanLimit } from '@b2b-saas-starter/billing/resource-admiss
 import { SeedNotificationFeed } from '../notifications/notification-feed.seed.ts'
 import { SeedNotificationPreferences } from '../notifications/notification-preferences.ts'
 import { SeedAccountPreferences } from '../governance/account-preferences.ts'
-import { Effect, Layer, Ref, Result } from 'effect'
+import { Effect, Layer, Redacted, Ref, Result } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -1031,20 +1031,26 @@ describe('stripe signature verification', () => {
     const payload = '{"type":"checkout.session.completed"}'
     const header = await signedHeader('whsec_test', payload, nowSeconds)
     expect(
-      await verifyStripeSignature({ secret: 'whsec_test', payload, header }, fixedNow)
+      await verifyStripeSignature(
+        { secret: Redacted.make('whsec_test'), payload, header },
+        fixedNow
+      )
     ).toBe(true)
     expect(
-      await verifyStripeSignature({ secret: 'whsec_other', payload, header }, fixedNow)
-    ).toBe(false)
-    expect(
       await verifyStripeSignature(
-        { secret: 'whsec_test', payload: '{"type":"tampered"}', header },
+        { secret: Redacted.make('whsec_other'), payload, header },
         fixedNow
       )
     ).toBe(false)
     expect(
       await verifyStripeSignature(
-        { secret: 'whsec_test', payload, header: null },
+        { secret: Redacted.make('whsec_test'), payload: '{"type":"tampered"}', header },
+        fixedNow
+      )
+    ).toBe(false)
+    expect(
+      await verifyStripeSignature(
+        { secret: Redacted.make('whsec_test'), payload, header: null },
         fixedNow
       )
     ).toBe(false)
@@ -1054,7 +1060,11 @@ describe('stripe signature verification', () => {
     const payload = 'p'
     for (const header of ['', 'garbage', 'v1=abc', 't=123', 't=abc,v1=zz']) {
       expect(
-        await verifyStripeSignature({ secret: 'whsec_test', payload, header })
+        await verifyStripeSignature({
+          secret: Redacted.make('whsec_test'),
+          payload,
+          header
+        })
       ).toBe(false)
     }
   })
@@ -1064,14 +1074,14 @@ describe('stripe signature verification', () => {
     const atTolerance = await signedHeader('whsec_test', payload, nowSeconds - 300)
     expect(
       await verifyStripeSignature(
-        { secret: 'whsec_test', payload, header: atTolerance },
+        { secret: Redacted.make('whsec_test'), payload, header: atTolerance },
         fixedNow
       )
     ).toBe(true)
     const pastTolerance = await signedHeader('whsec_test', payload, nowSeconds - 301)
     expect(
       await verifyStripeSignature(
-        { secret: 'whsec_test', payload, header: pastTolerance },
+        { secret: Redacted.make('whsec_test'), payload, header: pastTolerance },
         fixedNow
       )
     ).toBe(false)

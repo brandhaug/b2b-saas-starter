@@ -19,7 +19,7 @@ import { SeedNotificationFeed } from '@b2b-saas-starter/capabilities/notificatio
 import { SeedNotificationPreferences } from '@b2b-saas-starter/capabilities/notifications/notification-preferences'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
-import { Effect, Layer } from 'effect'
+import { Effect, Layer, Redacted } from 'effect'
 
 import { fixtureAuthModule } from '@/test/fixture-session'
 import {
@@ -67,7 +67,7 @@ describe('workspace SSO handlers — settings form permissions', () => {
         domain: 'northwind.test',
         issuer: 'https://login.northwind.test',
         clientId: 'client-x',
-        clientSecret: 'secret-x',
+        clientSecret: Redacted.make('secret-x'),
         defaultWorkspaceRole: 'member'
       })
     ).rejects.toMatchObject({ name: 'ForbiddenError' })
@@ -116,7 +116,7 @@ describe('workspace SSO handlers — create-time IdP validation', () => {
         domain: 'northwind.test',
         issuer: 'https://login.northwind.test',
         clientId: 'client-x',
-        clientSecret: 'secret-x',
+        clientSecret: Redacted.make('secret-x'),
         defaultWorkspaceRole: 'member'
       })
     ).rejects.toMatchObject({ code: 'discovery_unreachable' })

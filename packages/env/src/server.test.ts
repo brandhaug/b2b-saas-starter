@@ -1,3 +1,4 @@
+import { Redacted } from 'effect'
 import { describe, expect, it } from 'vite-plus/test'
 import {
   activeSocialProviders,
@@ -36,8 +37,28 @@ describe('activeSocialProviders', () => {
         GOOGLE_CLIENT_ID: 'google-id'
       })
     ).toEqual({
-      github: { clientId: 'id', clientSecret: 'secret' }
+      github: { clientId: 'id', clientSecret: expect.anything() }
     })
+  })
+
+  it('carries each client secret redacted, so the resolved bag serializes no plaintext', () => {
+    const providers = activeSocialProviders({
+      GITHUB_CLIENT_ID: 'gh-id',
+      GITHUB_CLIENT_SECRET: 'gh-plaintext',
+      GOOGLE_CLIENT_ID: 'google-id',
+      GOOGLE_CLIENT_SECRET: 'google-plaintext'
+    })
+    // oxlint-disable-next-line effect/noGlobals -- the assertion is what JSON serialization (logs, spans, causes) exposes
+    const serialized = JSON.stringify(providers)
+    expect(serialized).not.toContain('gh-plaintext')
+    expect(serialized).not.toContain('google-plaintext')
+    const github = providers.github
+    const google = providers.google
+    if (github === undefined || google === undefined) {
+      return expect.fail('both configured providers must resolve')
+    }
+    expect(Redacted.value(github.clientSecret)).toBe('gh-plaintext')
+    expect(Redacted.value(google.clientSecret)).toBe('google-plaintext')
   })
 
   it('treats unset, empty, and explicitly null as unconfigured — never half-configured', () => {
@@ -57,14 +78,8 @@ describe('activeSocialProviders', () => {
       GOOGLE_CLIENT_ID: 'google-id',
       GOOGLE_CLIENT_SECRET: 'google-secret'
     })
-    expect(providers.github).toEqual({
-      clientId: 'gh-id',
-      clientSecret: 'gh-secret'
-    })
-    expect(providers.google).toEqual({
-      clientId: 'google-id',
-      clientSecret: 'google-secret'
-    })
+    expect(providers.github?.clientId).toBe('gh-id')
+    expect(providers.google?.clientId).toBe('google-id')
   })
 })
 

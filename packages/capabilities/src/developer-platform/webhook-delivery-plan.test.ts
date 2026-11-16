@@ -3,11 +3,12 @@ import {
   WebhookDeliveryId,
   WebhookEndpointId
 } from '@b2b-saas-starter/db/ids'
-import { DateTime } from 'effect'
+import { DateTime, Redacted } from 'effect'
 import { describe, expect, it } from 'vite-plus/test'
 
 import {
   activeSigningSecrets,
+  readSigningSecretRotation,
   classifyResponseStatus,
   deadLetteredDeliveryStatus,
   deliveredDeliveryStatus,
@@ -230,14 +231,22 @@ describe('delivery predicate sets', () => {
 })
 
 describe('secret rotation grace', () => {
+  // Plaintext out of the Redacted results, so the assertions read the secrets.
+  function signing(
+    stored: Parameters<typeof readSigningSecretRotation>[0],
+    at: DateTime.Utc
+  ) {
+    return activeSigningSecrets(readSigningSecretRotation(stored), at).map((secret) =>
+      Redacted.value(secret)
+    )
+  }
+
   it('schedules the replaced secret to expire exactly 24 hours out', () => {
     expect(planSecretRotation(now)).toBe('2026-09-02T12:00:00.000Z')
   })
 
   it('signs with the current secret alone when nothing was rotated', () => {
-    expect(activeSigningSecrets({ signingSecret: 'whsec_current' }, now)).toEqual([
-      'whsec_current'
-    ])
+    expect(signing({ signingSecret: 'whsec_current' }, now)).toEqual(['whsec_current'])
   })
 
   it('dual-signs while the grace window is open', () => {
@@ -246,21 +255,19 @@ describe('secret rotation grace', () => {
       previousSigningSecret: 'whsec_previous',
       previousSecretExpiresAt: '2026-09-02T12:00:00.000Z'
     }
-    expect(activeSigningSecrets(rotation, hourLater)).toEqual([
+    expect(signing(rotation, hourLater)).toEqual(['whsec_current', 'whsec_previous'])
+    // One second before the boundary the old secret still signs.
+    expect(signing(rotation, DateTime.makeUnsafe('2026-09-02T11:59:59.000Z'))).toEqual([
       'whsec_current',
       'whsec_previous'
     ])
-    // One second before the boundary the old secret still signs.
-    expect(
-      activeSigningSecrets(rotation, DateTime.makeUnsafe('2026-09-02T11:59:59.000Z'))
-    ).toEqual(['whsec_current', 'whsec_previous'])
   })
 
   it('stops signing with the previous secret at the expiry instant', () => {
     // The window is [rotatedAt, expiresAt): the boundary itself is closed, so
     // "valid for 24 hours" cannot quietly stretch to 24h + ε.
     expect(
-      activeSigningSecrets(
+      signing(
         {
           signingSecret: 'whsec_current',
           previousSigningSecret: 'whsec_previous',
@@ -273,16 +280,13 @@ describe('secret rotation grace', () => {
 
   it('treats a missing expiry or secret as no grace, not as an eternal one', () => {
     expect(
-      activeSigningSecrets(
+      signing(
         { signingSecret: 'whsec_current', previousSigningSecret: 'whsec_previous' },
         now
       )
     ).toEqual(['whsec_current'])
     expect(
-      activeSigningSecrets(
-        { signingSecret: 'whsec_current', previousSecretExpiresAt: 'bogus' },
-        now
-      )
+      signing({ signingSecret: 'whsec_current', previousSecretExpiresAt: 'bogus' }, now)
     ).toEqual(['whsec_current'])
   })
 })

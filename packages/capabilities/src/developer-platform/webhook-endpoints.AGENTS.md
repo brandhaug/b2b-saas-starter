@@ -17,7 +17,7 @@ Background fan-out is [`webhook-publisher`](./webhook-publisher.AGENTS.md); age-
 - [Resource entitlements](../../../billing/src/resource-entitlements.AGENTS.md) owns creation admission; creation publishes a best-effort projection without the secret.
 - `webhook-delivery-plan.ts` owns the delivery status machine (ADR 0077) for all four services: the transition map, the dispatchable/terminal/replayable/settled predicate sets, the single-status names adapters compose SQL from, and the failure-ladder counter transitions. Adapters never write a status literal inline.
 - Test sends use their delivery row as the record; no audit event.
-- Signing secrets are plaintext in D1 by design (HMAC needs them back); only `rotateSecret` here and `WebhookDispatch.getDispatchTarget` return them.
+- Signing secrets are plaintext in D1 by design (HMAC needs them back); only `create`/`rotateSecret` here and `WebhookDispatch.getDispatchTarget` return them, always `Redacted` (both adapters wrap at the read or mint). The one-time reveal is unwrapped only where the response body is encoded: the REST contract's `Schema.RedactedFromValue`, the MCP tool's own `revealing` projection (the tool-result encoder never unwraps) and the web server-function handlers.
 
 ## Shared storage
 

@@ -1,5 +1,5 @@
 import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
-import { DateTime, Effect, Layer } from 'effect'
+import { DateTime, Effect, Layer, Redacted } from 'effect'
 import {
   WorkspaceContext as BillingWorkspaceContext,
   workspaceAuditAttribution
@@ -117,7 +117,7 @@ export const SeedWebhookEndpoints: Layer.Layer<
         })
         return {
           endpoint: store.projection(endpoint),
-          signingSecret: endpoint.signingSecret
+          signingSecret: Redacted.make(endpoint.signingSecret)
         }
       }, inventory.lock.withPermits(1)),
       update: (input) =>
@@ -258,7 +258,7 @@ export const SeedWebhookEndpoints: Layer.Layer<
             targetId: endpoint.id,
             metadata: { previousSecretExpiresAt: expiresAt }
           })
-          return { signingSecret: endpoint.signingSecret }
+          return { signingSecret: Redacted.make(endpoint.signingSecret) }
         })
     }
   })

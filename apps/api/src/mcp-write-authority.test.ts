@@ -660,6 +660,9 @@ it.effect('one-time secrets and signed URLs never enter invocation telemetry', (
     expect(replaced.isError).not.toBe(true)
     const replacement = yield* decodeCreated(replaced.content[0]?.text)
     const secret = yield* decodeRotated(rotated.content[0]?.text)
+    // The tool result is the one-time reveal: plaintext on the wire, once.
+    expect(secret.signingSecret).toMatch(/^whsec_/)
+    expect(rotated.content[0]?.text.split(secret.signingSecret)).toHaveLength(2)
     const signed = yield* decodeLink(link.content[0]?.text)
     expect(harness.telemetry.length).toBeGreaterThan(0)
     const telemetry = harness.telemetry.join('\n')

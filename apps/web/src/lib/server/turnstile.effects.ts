@@ -4,12 +4,15 @@ import {
 } from '@b2b-saas-starter/capabilities/governance/turnstile-verification'
 import { hasValue } from '@b2b-saas-starter/env/server'
 import { env } from 'cloudflare:workers'
-import { Layer } from 'effect'
+import { Layer, Redacted } from 'effect'
 
 /** Per-request verifier layer, built from worker env like the rate limiter's. */
 export function makeTurnstileLayer() {
+  const secretKey = env.TURNSTILE_SECRET_KEY
   return Layer.succeed(TurnstileVerifier)(
-    makeTurnstileVerifier({ secretKey: env.TURNSTILE_SECRET_KEY })
+    makeTurnstileVerifier({
+      secretKey: hasValue(secretKey) ? Redacted.make(secretKey) : undefined
+    })
   )
 }
 

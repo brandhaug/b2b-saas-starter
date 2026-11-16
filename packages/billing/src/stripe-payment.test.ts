@@ -1,4 +1,4 @@
-import { Effect, Schema } from 'effect'
+import { Effect, Redacted, Schema } from 'effect'
 import { expect, it } from '@effect/vitest'
 import { vi } from 'vite-plus/test'
 import { emptySubscription } from './billing-state.ts'
@@ -75,7 +75,7 @@ it.effect(
     })
     return Effect.gen(function* () {
       const evidence = yield* retrievePaymentEvidence(
-        'sk_test',
+        Redacted.make('sk_test'),
         subscription,
         null,
         '2026-09-04T00:00:00.000Z'
@@ -89,7 +89,7 @@ it.effect(
       }
       paths.length = 0
       const retry = yield* retrievePaymentEvidence(
-        'sk_test',
+        Redacted.make('sk_test'),
         subscription,
         previous,
         '2026-09-05T00:00:00.000Z'
@@ -122,7 +122,7 @@ it.effect(
     })
     return Effect.gen(function* () {
       const paid = yield* retrievePaymentEvidence(
-        'sk_test',
+        Redacted.make('sk_test'),
         { ...subscription, status: 'active' },
         null,
         '2026-09-04T00:00:00.000Z'
@@ -132,7 +132,7 @@ it.effect(
       expect(paid.lastPaymentAt).toBe('2026-09-02T00:00:00.000Z')
       history = false
       const trial = yield* retrievePaymentEvidence(
-        'sk_test',
+        Redacted.make('sk_test'),
         { ...subscription, status: 'trialing' },
         null,
         '2026-09-04T00:00:00.000Z'
@@ -174,7 +174,7 @@ it.effect(
         status: 'active'
       } satisfies StripeSubscriptionResponse
       const rebuilt = yield* retrievePaymentEvidence(
-        'sk_test',
+        Redacted.make('sk_test'),
         active,
         null,
         '2026-09-05T00:00:00.000Z'
@@ -184,7 +184,7 @@ it.effect(
         true
       )
       const retained = yield* retrievePaymentEvidence(
-        'sk_test',
+        Redacted.make('sk_test'),
         active,
         {
           ...emptySubscription(subscription.customer),
@@ -239,7 +239,7 @@ it.effect(
     })
     return Effect.gen(function* () {
       const evidence = yield* retrievePaymentEvidence(
-        'sk_test',
+        Redacted.make('sk_test'),
         subscription,
         {
           ...emptySubscription(subscription.customer),
@@ -259,7 +259,12 @@ it.effect('fails visibly when a paid-history page cannot advance', () => {
   const wire = vi.fn(() => Promise.resolve(Response.json({ data: [], has_more: true })))
   return Effect.gen(function* () {
     const error = yield* Effect.flip(
-      retrievePaymentEvidence('sk_test', subscription, null, '2026-09-06T00:00:00.000Z')
+      retrievePaymentEvidence(
+        Redacted.make('sk_test'),
+        subscription,
+        null,
+        '2026-09-06T00:00:00.000Z'
+      )
     )
     expect(error.reason).toBe('payment_history_incomplete')
   }).pipe(Effect.provide(wireHttpClient(wire)))

@@ -1,3 +1,5 @@
+import { Redacted } from 'effect'
+
 import { classifyTrustedOrigin, trustedOriginEntries } from './trusted-origin.ts'
 
 // Single source of truth for server env vars. Add a new var HERE
@@ -289,7 +291,8 @@ export { SOCIAL_PROVIDER_IDS, type SocialProviderId } from './social.ts'
 /** One configured social provider — present only when both halves are set. */
 export type SocialProviderCredentials = {
   readonly clientId: string
-  readonly clientSecret: string
+  /** Unwrapped only where Better Auth's options are built (`packages/auth`). */
+  readonly clientSecret: Redacted.Redacted<string>
 }
 
 /**
@@ -318,14 +321,14 @@ export function activeSocialProviders(source: RawEnvSource): ActiveSocialProvide
       hasValue(source.GITHUB_CLIENT_SECRET) && {
         github: {
           clientId: source.GITHUB_CLIENT_ID,
-          clientSecret: source.GITHUB_CLIENT_SECRET
+          clientSecret: Redacted.make(source.GITHUB_CLIENT_SECRET)
         }
       }),
     ...(hasValue(source.GOOGLE_CLIENT_ID) &&
       hasValue(source.GOOGLE_CLIENT_SECRET) && {
         google: {
           clientId: source.GOOGLE_CLIENT_ID,
-          clientSecret: source.GOOGLE_CLIENT_SECRET
+          clientSecret: Redacted.make(source.GOOGLE_CLIENT_SECRET)
         }
       })
   }

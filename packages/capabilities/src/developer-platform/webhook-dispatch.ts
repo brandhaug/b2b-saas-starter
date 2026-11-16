@@ -2,7 +2,7 @@ import {
   type WebhookDeliveryId,
   type WebhookEndpointId
 } from '@b2b-saas-starter/db/ids'
-import { Context, type Effect } from 'effect'
+import { Context, type Effect, type Redacted } from 'effect'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import {
   type FailureLadderAction,
@@ -24,7 +24,8 @@ export type RecordedWebhookAttempt = {
 export type WebhookDispatchTarget = {
   readonly id: WebhookEndpointId
   readonly url: string
-  readonly signingSecrets: ReadonlyArray<string>
+  /** Unwrapped only by the worker's signing call. */
+  readonly signingSecrets: ReadonlyArray<Redacted.Redacted<string>>
   /** Authoritative queued delivery contents, present for queue execution. */
   readonly eventType: string
   readonly payload: Json

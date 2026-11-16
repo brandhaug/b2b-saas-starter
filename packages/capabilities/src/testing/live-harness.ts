@@ -15,7 +15,7 @@ import {
   type RawD1
 } from '@b2b-saas-starter/db/service'
 import { provisionTestD1 } from '@b2b-saas-starter/db/testing'
-import { Context, Effect, Layer, Option, Schema } from 'effect'
+import { Context, Effect, Layer, Option, Redacted, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
 
 import { auditEventContractDataset } from '../governance/audit-event-log.contract.ts'
@@ -735,7 +735,8 @@ function oidcBlob(input: BindingCreateInput): string | null {
   }
   return JSON.stringify({
     clientId: input.clientId,
-    clientSecret: input.clientSecret,
+    // Stands in for the plugin body, the one place the secret is unwrapped.
+    clientSecret: Redacted.value(input.clientSecret),
     authorizationEndpoint: input.endpoints.authorizationEndpoint,
     tokenEndpoint: input.endpoints.tokenEndpoint,
     jwksEndpoint: input.endpoints.jwksEndpoint
@@ -848,7 +849,7 @@ export function fakeSsoBinding(db: EffectDatabase) {
                     oidcConfig: JSON.stringify({
                       ...existing,
                       clientId: input.oidcCredentials.clientId,
-                      clientSecret: input.oidcCredentials.clientSecret
+                      clientSecret: Redacted.value(input.oidcCredentials.clientSecret)
                     })
                   })
                 })

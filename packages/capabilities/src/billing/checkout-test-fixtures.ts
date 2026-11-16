@@ -17,7 +17,7 @@ import {
 } from '@b2b-saas-starter/db/schema/billing'
 import { workspaceMembers } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database, type EffectDatabase, type RawD1 } from '@b2b-saas-starter/db/service'
-import { Effect, Layer } from 'effect'
+import { Effect, Layer, Redacted } from 'effect'
 import { HttpClient } from 'effect/http'
 import { and, eq } from 'drizzle-orm'
 import { vi } from 'vite-plus/test'
@@ -38,8 +38,7 @@ import {
 } from '@b2b-saas-starter/billing/checkout.live'
 
 export const workspaceId = 'wrk_live'
-// oxlint-disable-next-line react-doctor/no-secrets-in-client-code -- provider key is an inert live-test fixture
-export const secretKey = 'sk_test_checkout'
+export const secretKey = Redacted.make('sk_test_checkout')
 
 export type FixtureOptions = {
   readonly checkoutExpiresAt?: number
