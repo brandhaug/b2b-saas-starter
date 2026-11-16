@@ -50,6 +50,20 @@ decision function, and the predicate sets (`open`, `terminal`, `replayable`,
 - Decode untrusted data at its owning boundary. Recheck authorization, current state
   invariants and data arriving through another external boundary.
 - Keep failure, cancellation and concurrency policy visible.
+- Turn a failure into success only through an owner that records it:
+  [`bestEffort`](../../packages/capabilities/src/internal/best-effort.ts) for
+  side channels, `recordCompletedAudit` for audit rows written after the action.
+  A bare `Effect.catch(() => Effect.void)`, `Effect.ignore` or `orElseSucceed`
+  leaves an outage indistinguishable from success.
+- Bound fan-out over a runtime-sized collection with a numeric `concurrency`;
+  keep `'unbounded'` for a fixed set of effects. A Worker invocation holds six
+  outbound connections, and a request's timeout runs while it waits for one.
+- Count with a query, not by loading rows and measuring their length.
+- Retry only typed transient failures of idempotent calls. A provider that
+  consumes its input on receipt (a Turnstile token) turns the retry into a
+  rejection; a write without an idempotency key turns it into a duplicate.
+- Check a provider response's status before decoding its body, so an error
+  response cannot decode as a business answer.
 
 ### Execution ownership
 
@@ -106,7 +120,15 @@ and preserve meaningful existing assertions during cleanup.
 custom checks follow the [plugin guidance](../../packages/oxlint-plugin/AGENTS.md).
 
 Syntax checks cannot prove ownership, meaningful extraction or deterministic waits.
-Review indirect aliases, wrappers and dynamic access too. See the
+Review indirect aliases, wrappers and dynamic access too. Reviewers also ask what
+no rule can answer:
+
+- Would this test fail if the behavior broke? Assertions inside an unchecked
+  branch (`if (Option.isSome(x))`) run zero times when the value is missing, and a
+  test of a transition function proves nothing when no adapter calls it.
+- Does a write guard on the state it read, or can a concurrent writer land between?
+
+See the
 [style-rule limits](../../packages/oxlint-plugin/test/style-rule-matrix.md) and
 [suppression/browser fixtures](../../packages/oxlint-plugin/test/conventions-failure-matrix.md).
 Do not impose blanket bans on loops, aliases, destructuring or `else`, or arbitrary

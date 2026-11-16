@@ -148,7 +148,12 @@ function fixtureLayer(fixture: Fixture) {
 }
 
 function completedIds(steps: ReadonlyArray<{ id: string; complete: boolean }>) {
-  return steps.filter((step) => step.complete).map((step) => step.id)
+  return steps.flatMap((step) => {
+    if (!step.complete) {
+      return []
+    }
+    return [step.id]
+  })
 }
 
 describe('workspaceProgress', () => {
