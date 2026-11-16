@@ -35,7 +35,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for boundaries and the security model.
 ## Development
 
 ```bash
-pnpm run check       # types, lint, formatting, dead code, and tests
+pnpm run check       # migrations, types, lint, formatting, dead code, and tests
 pnpm run check:fix   # apply lint and formatting fixes; run check afterwards
 pnpm run validate   # check, build, generated configs, local DB setup, and E2E
 ```

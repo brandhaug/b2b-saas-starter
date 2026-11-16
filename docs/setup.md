@@ -162,7 +162,7 @@ conversations; generation needs a configured provider. D1 and conversation data
 survive restarts under `.alchemy/local`. The compiled E2E preview keeps its
 separate native host and storage under `packages/db/.wrangler/state/v3`.
 
-Schema changes: edit `packages/db/src/schema.ts`, then `pnpm run db:generate` to emit a migration.
+Schema changes: edit the owning file in `packages/db/src/schema/`, then `pnpm run db:generate` to emit a migration.
 
 To discard disposable Alchemy development data after a schema reset or migration
 squash, stop development, remove `.alchemy/local` and `.alchemy/state/b2b-saas-starter/local`,

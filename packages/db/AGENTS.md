@@ -4,13 +4,25 @@ Owns domain-organized Drizzle tables in `src/schema/`, migrations, and D1 servic
 
 ## Migration changes
 
-Edit the owning file in `src/schema/`, run `db:generate`, and commit schema and generated migration together. `scripts/migrate.ts`, `scripts/baseline.ts`, `./testing`, and the background pool share `migrations-fs.ts` for folder names and ordering. Use repository migration scripts to preserve those bookkeeping identities. Current Wrangler and the Vitest plugin support nested patterns but name migrations by relative SQL path; the pool adapter restores the shared folder names.
+Edit the owning file in `src/schema/`, run `db:generate` (agents follow the Drizzle Kit rules below), and commit schema and generated migration together. `scripts/migrate.ts`, `scripts/baseline.ts`, `./testing`, and the background pool share `migrations-fs.ts` for folder names and ordering. Use repository migration scripts to preserve those bookkeeping identities. Current Wrangler and the Vitest plugin support nested patterns but name migrations by relative SQL path; the pool adapter restores the shared folder names.
 
 After a squash, obsolete local D1 state still names deleted migrations. Follow [local reset setup](../../docs/setup.md): Alchemy development uses `.alchemy/local` and `.alchemy/state/b2b-saas-starter/local`; the compiled E2E preview uses `packages/db/.wrangler/state/v3/d1` and the `db:migrate:local` / `db:seed` commands. Reset the store used by the failing runtime (ADR 0049).
 
 Deploy workflows run `scripts/baseline.ts` before Alchemy to reconcile migration bookkeeping. It records a table-creating migration only when every created table exists; missing remote databases are skipped and created during deploy. It cannot apply missing schema changes, so squashes containing undeployed work cannot converge. Pre-production resets require explicit target confirmation. Customer-data deployments keep incremental migrations and follow [operations recovery](../../docs/operations.md); never destroy or reseed customer data as migration repair.
 
 Drizzle is pinned to a prerelease in the workspace catalog. Before changing APIs, check current v1 docs and the installed driver source; stable-version examples may differ. Verify Effect D1 behavior separately from `drizzle-orm/d1`.
+
+### Drizzle Kit rules
+
+`pnpm run check:migrations` runs in `check` and CI. It fails when a snapshot names a parent no folder holds or sorts before it, when `drizzle-kit check` rejects the folder, or when `generate --explain` finds schema changes without a migration.
+
+- Generate migrations only. Never run `drizzle-kit push` or `migrate`: both change D1 outside the `scripts/migrate.ts` bookkeeping. Never run `pull`: it reads remote D1 and writes schema files into `migrations/`.
+- Agents run Drizzle Kit from this package with `--output json` and read the envelope `status`; `missing_hints` exits 2, `error` exits 1. Before writing, run `generate --explain` in text mode to read the planned SQL; JSON mode returns structured statements instead.
+- Resolve `missing_hints` with `--hints '<json>'` and rerun. Choose `rename` when a column or table keeps its data under a new name; `create` drops the old one and loses its data.
+- Generate warns about nothing else. A new `NOT NULL` column needs a default, or `ALTER TABLE ADD` fails on any table with rows. SQLite turns most other `ALTER`s into a table rebuild (`__new_<table>`, copy, drop, rename); review rebuilds of tables with cascading children.
+- Never edit `snapshot.json` or rename migration folders; the migrator runs folders in name order. To change migrations no shared database has run, delete the newest one, or one together with every later one, and regenerate. Deleting a middle folder skips its SQL on fresh databases.
+- When `check_error` reports `conflicts`, delete your branch's migration folders, merge, and regenerate. Preview D1s are discarded per PR, so a branch's migrations have not run on a shared database. Never pass `--ignore-conflicts`: the merge migration hides the conflict from `check`, and both branches' SQL still runs on fresh databases. On `migrations_outdated_error` or `check_error` with `kind: "non_latest"` after a Drizzle Kit bump, commit, run `drizzle-kit up`, and review the rewritten folder.
+- Use `generate --custom --name <name>` for hand-written SQL such as triggers. Drizzle Kit does not read custom SQL, so `check` cannot see what it changes.
 
 ## Storage invariants
 
