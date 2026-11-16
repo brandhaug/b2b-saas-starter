@@ -1,7 +1,10 @@
 import { Context, DateTime, Effect } from 'effect'
 
 import { ApiTokenRegistry } from '../developer-platform/api-token-registry.ts'
-import { WebhookEndpoints } from '../developer-platform/webhook-endpoints.ts'
+import {
+  WEBHOOK_DELIVERY_READ_CONCURRENCY,
+  WebhookEndpoints
+} from '../developer-platform/webhook-endpoints.ts'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { walkKeysetPages } from '../internal/keyset-cursor.ts'
 import { NotificationFeed } from '../notifications/notification-feed.ts'
@@ -123,7 +126,7 @@ export const collectWorkspaceExportSnapshot = Effect.fn(
         webhooks.listDeliveries({ endpointId: endpoint.id }),
         (deliveries) => ({ ...endpoint, deliveries })
       ),
-    { concurrency: 'unbounded' }
+    { concurrency: WEBHOOK_DELIVERY_READ_CONCURRENCY }
   )
 
   return {

@@ -76,6 +76,21 @@ describe('seed notification preferences', () => {
     }).pipe(Effect.provide(layer))
   )
 
+  it.effect('resolves one kind for many users, defaults included', () =>
+    Effect.gen(function* () {
+      const preferences = yield* NotificationPreferences
+      const strangers = Array.from({ length: 150 }, (_, index) => `usr_none_${index}`)
+      const channels = yield* preferences.resolveForUsers(
+        ['usr_demo', 'usr_dev', ...strangers],
+        'webhook.delivery_failed'
+      )
+      expect(channels.size).toBe(152)
+      expect(channels.get('usr_demo')).toBe('instant')
+      expect(channels.get('usr_dev')).toBe('digest')
+      expect(channels.get('usr_none_149')).toBe('digest')
+    }).pipe(Effect.provide(layer))
+  )
+
   it.effect('stores a choice, reads it back, and audits it against the user', () =>
     Effect.gen(function* () {
       const preferences = yield* NotificationPreferences

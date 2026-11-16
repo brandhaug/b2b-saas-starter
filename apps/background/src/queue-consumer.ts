@@ -227,10 +227,19 @@ export function consumerInvocation<R>(
 }
 
 /**
+ * A Worker invocation holds six outbound connections waiting for response
+ * headers and queues the rest. A message's deadline (the webhook POST's 10 s
+ * timeout) runs while it waits for one, so more messages in flight than
+ * connections would time out receivers that were never contacted.
+ */
+const MESSAGE_CONCURRENCY = 6
+
+/**
  * One batch loop for every queue this worker consumes: run `perMessage` over
- * each message concurrently, then ack or retry (`backoffSeconds(attempts)`
- * delay) per its outcome. Callers whose outcome is already settled — the DLQ
- * entry folds its own — simply pass their entry through.
+ * the messages, at most {@link MESSAGE_CONCURRENCY} at once, then ack or
+ * retry (`backoffSeconds(attempts)` delay) per its outcome. Callers whose
+ * outcome is already settled — the DLQ entry folds its own — simply pass
+ * their entry through.
  */
 export function consumeBatch(
   env: Env,
@@ -269,7 +278,7 @@ export function consumeBatch(
             })
           )
         ),
-      { concurrency: 'unbounded', discard: true }
+      { concurrency: MESSAGE_CONCURRENCY, discard: true }
     )
   )
 }

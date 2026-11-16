@@ -38,6 +38,26 @@ const publicationFailureFields = new Set([
   'webhookFailureLadderNotification'
 ])
 
+// Each degraded-provider reason key accepts only the labels its owner emits.
+const providerReasonFields = new Map<string, ReadonlySet<string>>([
+  [
+    'notificationEmailEnqueueReason',
+    new Set(['preferences_unavailable', 'queue_rejected'])
+  ],
+  [
+    'turnstileUnavailable',
+    new Set([
+      'no_response',
+      'timeout',
+      'status_3xx',
+      'status_4xx',
+      'status_5xx',
+      'unparseable_body',
+      'no_verdict'
+    ])
+  ]
+])
+
 const configurationFields = new Set([
   'config.BETTER_AUTH_SECRET',
   'config.BETTER_AUTH_URL',
@@ -56,6 +76,7 @@ const allowedFields = new Set([
   ...countFields,
   ...publicationFailureFields,
   ...configurationFields,
+  ...providerReasonFields.keys(),
   'assistantAuthorityNotification',
   'emailTransport',
   'service',
@@ -112,6 +133,7 @@ const allowedFields = new Set([
   'rateLimitDegraded',
   'rateLimitFallback',
   'rateLimitBucket',
+  'rateLimitCapacityRefused',
   'durationMs',
   'statusCode',
   'responseStatus',
@@ -201,7 +223,9 @@ export function diagnosticFields(fields: object) {
       continue
     }
     if (
-      (key === 'billingTerminalFailure' || key === 'billingLeaseReleaseFailed') &&
+      (key === 'billingTerminalFailure' ||
+        key === 'billingLeaseReleaseFailed' ||
+        key === 'rateLimitCapacityRefused') &&
       typeof value !== 'boolean'
     ) {
       continue
@@ -216,6 +240,13 @@ export function diagnosticFields(fields: object) {
       continue
     }
     if (publicationFailureFields.has(key) && value !== 'failed') {
+      continue
+    }
+    const providerReasons = providerReasonFields.get(key)
+    if (
+      providerReasons !== undefined &&
+      (typeof value !== 'string' || !providerReasons.has(value))
+    ) {
       continue
     }
     if (key === 'authAuditBodyErrorTag' && value !== 'AuthAuditBodyUnreadable') {

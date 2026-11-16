@@ -51,6 +51,7 @@ function stubFeed(
     list: Effect.die('unused'),
     listPage: () => Effect.die('unused'),
     unreadCount: Effect.die('unused'),
+    countVisibleToUser: () => Effect.die('unused'),
     markRead: () => Effect.die('unused'),
     notifyUser: () => Effect.die('unused'),
     prepareWorkspaceOwners: () =>

@@ -4,7 +4,7 @@ import { type MembershipChangeRejected } from '../errors.ts'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { failureTag } from '../internal/failure-tag.ts'
 import { walkKeysetPages } from '../internal/keyset-cursor.ts'
-import { type WorkspaceContext } from '../workspace-context.ts'
+import { WorkspaceContext } from '../workspace-context.ts'
 import { AuditEventLog } from './audit-event-log.ts'
 import { WorkspaceMembership } from './workspace-membership.ts'
 
@@ -66,6 +66,18 @@ export function workspaceMembershipContractCases(
   expect: ContractExpect
 ): ReadonlyArray<MembershipContractCase> {
   return [
+    {
+      name: 'counts members per requested workspace, matching listMembers',
+      assert: Effect.gen(function* () {
+        const membership = yield* WorkspaceMembership
+        const ctx = yield* WorkspaceContext
+        const members = yield* membership.listMembers
+        const counts = yield* membership.countMembers([ctx.workspace.id, 'wrk_absent'])
+        expect(counts.get(ctx.workspace.id)).toBe(members.length)
+        expect(counts.get('wrk_absent')).toBe(0)
+        expect(yield* membership.countMembers([])).toEqual(new Map())
+      })
+    },
     {
       name: 'removes a member who then disappears from listMembers',
       assert: Effect.gen(function* () {

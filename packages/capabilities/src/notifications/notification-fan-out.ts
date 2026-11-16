@@ -1,4 +1,4 @@
-import { Effect, Result } from 'effect'
+import { Array as Arr, Effect, Result } from 'effect'
 import { annotateWideEvent } from '@b2b-saas-starter/logger'
 
 import { bestEffort } from '../internal/best-effort.ts'
@@ -28,15 +28,23 @@ type InstantFanOutInput = {
 }
 
 /**
+ * Cloudflare Queues `sendBatch` accepts at most 100 messages and 256 KB. A
+ * message carries ids and a traceparent (well under 1 KB), so the count is
+ * the binding limit.
+ */
+const QUEUE_BATCH_LIMIT = 100
+
+/**
  * The instant half of a Notification's email fan-out, shared by both feed
- * adapters: resolve each recipient's channel for the kind and enqueue one
- * message per `instant` recipient.
+ * adapters: resolve the recipients' channel for the kind and enqueue one
+ * message per `instant` recipient, one preference read and one `sendBatch`
+ * per batch of at most {@link QUEUE_BATCH_LIMIT} recipients.
  *
  * Provider-light and best-effort, like `publishWebhookEventWith`: no binding
- * means nothing is enqueued, and a queue rejection annotates the wide event
+ * means nothing is enqueued, and a failed batch annotates the wide event
  * instead of failing the producer — the Notification row is already the
  * durable record, and the digest still covers a recipient whose instant
- * email was lost.
+ * email was lost. One failed batch does not drop the others.
  */
 export const enqueueInstantEmails = Effect.fn('NotificationFeed.enqueueInstantEmails')(
   function* (
@@ -47,49 +55,82 @@ export const enqueueInstantEmails = Effect.fn('NotificationFeed.enqueueInstantEm
     if (queue === undefined || input.recipients.length === 0) {
       return
     }
-    const recipientMessages = yield* Effect.forEach(
-      input.recipients,
-      (recipient) =>
-        Effect.gen(function* () {
-          const channel = yield* Effect.result(
-            preferences.resolve(recipient.userId, input.kind)
-          )
-          // An unreadable preference store means no instant email for this
-          // recipient — the digest job re-reads preferences on its own schedule.
-          if (Result.isSuccess(channel) && channel.success === 'instant') {
-            return [
-              {
-                body: withTraceparent(
-                  {
-                    notificationId: input.notificationId,
-                    recipientUserId: recipient.userId
-                  },
-                  input.traceparent
-                )
-              } satisfies { readonly body: NotificationEmailQueueMessage }
-            ]
-          }
-          return []
-        }),
+    const outcomes = yield* Effect.forEach(
+      Arr.chunksOf(input.recipients, QUEUE_BATCH_LIMIT),
+      (batch) => enqueueBatch(queue, preferences, input, batch),
       { concurrency: 4 }
     )
-    const messages = recipientMessages.flat()
-    if (messages.length === 0) {
-      return
+    let enqueued = 0
+    let failedRecipients = 0
+    for (const outcome of outcomes) {
+      enqueued += outcome.enqueued
+      failedRecipients += outcome.failed
     }
-    const sent = yield* bestEffort(
-      Effect.tryPromise({
-        try: () => queue.sendBatch(messages),
-        catch: (cause) => cause
-      }),
-      () => ({
-        notificationEmailEnqueue: 'failed',
-        notificationEmailRecipients: messages.length
-      })
-    )
-    if (Result.isFailure(sent)) {
-      return
+    // Totals, written once: concurrent batches would overwrite each other's
+    // count on the one wide event.
+    if (failedRecipients > 0) {
+      yield* annotateWideEvent({ notificationEmailRecipients: failedRecipients })
     }
-    yield* annotateWideEvent({ notificationEmailEnqueued: messages.length })
+    if (enqueued > 0) {
+      yield* annotateWideEvent({ notificationEmailEnqueued: enqueued })
+    }
   }
 )
+
+type EnqueueFailureReason = 'preferences_unavailable' | 'queue_rejected'
+
+function enqueueFailure(reason: EnqueueFailureReason) {
+  return { notificationEmailEnqueue: 'failed', notificationEmailEnqueueReason: reason }
+}
+
+/**
+ * One batch, reported as counts. An unreadable preference store counts the
+ * whole batch as failed (any of them may have been instant); a rejected
+ * `sendBatch` counts its messages. The digest re-reads both on its own schedule.
+ */
+// oxlint-disable-next-line starter/named-effect-operation -- one call per 100-recipient batch inside the traced NotificationFeed.enqueueInstantEmails operation
+const enqueueBatch = Effect.fnUntraced(function* (
+  queue: NotificationEmailQueueBinding,
+  preferences: NotificationPreferencesInterface,
+  input: InstantFanOutInput,
+  batch: ReadonlyArray<EmailQueueRecipient>
+) {
+  const channels = yield* bestEffort(
+    preferences.resolveForUsers(
+      batch.map((recipient) => recipient.userId),
+      input.kind
+    ),
+    () => enqueueFailure('preferences_unavailable')
+  )
+  if (Result.isFailure(channels)) {
+    return { enqueued: 0, failed: batch.length }
+  }
+  const messages = batch.flatMap((recipient) => {
+    if (channels.success.get(recipient.userId) !== 'instant') {
+      return []
+    }
+    const message = {
+      body: withTraceparent(
+        { notificationId: input.notificationId, recipientUserId: recipient.userId },
+        input.traceparent
+      )
+    } satisfies { readonly body: NotificationEmailQueueMessage }
+    return [message]
+  })
+  if (messages.length === 0) {
+    return { enqueued: 0, failed: 0 }
+  }
+  // The rejection's message is provider text; only the code-owned reason
+  // reaches the wide event.
+  const sent = yield* bestEffort(
+    Effect.tryPromise({
+      try: () => queue.sendBatch(messages),
+      catch: (): EnqueueFailureReason => 'queue_rejected'
+    }),
+    enqueueFailure
+  )
+  if (Result.isFailure(sent)) {
+    return { enqueued: 0, failed: messages.length }
+  }
+  return { enqueued: messages.length, failed: 0 }
+})

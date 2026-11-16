@@ -1,4 +1,5 @@
-import { Effect } from 'effect'
+import { Effect, References } from 'effect'
+import { TestClock } from 'effect/testing'
 import { describe, expect, it } from '@effect/vitest'
 import {
   clientKey,
@@ -63,6 +64,83 @@ describe('makeRateLimiter fallback (no Cloudflare bindings)', () => {
         const fresh = makeRateLimiter(config())
         expect(yield* fresh.take({ bucket: 'write', key })).toBe(false)
       })
+  )
+})
+
+describe('makeRateLimiter fallback capacity', () => {
+  // Each case owns its bucket name: the store is per bucket at module scope.
+  function capped(bucket: string) {
+    return makeRateLimiter<string>({
+      binding: () => undefined,
+      fallbackLimits: { [bucket]: 2, other: 2 },
+      fallbackCapacity: 3
+    })
+  }
+
+  it.effect(
+    'refuses new keys once a bucket is full, without forgetting tracked ones',
+    () =>
+      Effect.gen(function* () {
+        const limiter = capped('capacity-full')
+        for (const key of ['a', 'b', 'c']) {
+          expect(yield* limiter.take({ bucket: 'capacity-full', key })).toBe(true)
+        }
+        // Full: a fourth caller is refused rather than growing the store or
+        // evicting a tracked caller's count.
+        expect(yield* limiter.take({ bucket: 'capacity-full', key: 'd' })).toBe(false)
+        expect(yield* limiter.take({ bucket: 'capacity-full', key: 'a' })).toBe(true)
+        expect(yield* limiter.take({ bucket: 'capacity-full', key: 'a' })).toBe(false)
+        // Another bucket keeps its own room.
+        expect(yield* limiter.take({ bucket: 'other', key: uniqueKey() })).toBe(true)
+      })
+  )
+
+  it.effect('records a capacity refusal, unlike a tracked caller over its limit', () =>
+    Effect.gen(function* () {
+      const limiter = capped('capacity-evidence')
+      for (const key of ['a', 'b', 'c']) {
+        expect(yield* limiter.take({ bucket: 'capacity-evidence', key })).toBe(true)
+      }
+      const overLimit = yield* Effect.scoped(
+        Effect.gen(function* () {
+          yield* limiter.take({ bucket: 'capacity-evidence', key: 'a' })
+          expect(yield* limiter.take({ bucket: 'capacity-evidence', key: 'a' })).toBe(
+            false
+          )
+          return yield* References.CurrentLogAnnotations
+        })
+      )
+      expect(overLimit).toMatchObject({ rateLimitFallback: 'missing_binding' })
+      expect(overLimit).not.toHaveProperty('rateLimitCapacityRefused')
+      const refused = yield* Effect.scoped(
+        Effect.gen(function* () {
+          expect(yield* limiter.take({ bucket: 'capacity-evidence', key: 'd' })).toBe(
+            false
+          )
+          return yield* References.CurrentLogAnnotations
+        })
+      )
+      expect(refused).toMatchObject({
+        rateLimitDegraded: true,
+        rateLimitFallback: 'missing_binding',
+        rateLimitBucket: 'capacity-evidence',
+        rateLimitCapacityRefused: true
+      })
+    })
+  )
+
+  it.effect('frees room as the window expires', () =>
+    Effect.gen(function* () {
+      const limiter = capped('capacity-expiry')
+      for (const key of ['a', 'b', 'c']) {
+        expect(yield* limiter.take({ bucket: 'capacity-expiry', key })).toBe(true)
+      }
+      yield* TestClock.adjust('61 seconds')
+      expect(yield* limiter.take({ bucket: 'capacity-expiry', key: 'd' })).toBe(true)
+      expect(yield* limiter.take({ bucket: 'capacity-expiry', key: 'e' })).toBe(true)
+      expect(yield* limiter.take({ bucket: 'capacity-expiry', key: 'a' })).toBe(true)
+      expect(yield* limiter.take({ bucket: 'capacity-expiry', key: 'f' })).toBe(false)
+    })
   )
 })
 

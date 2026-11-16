@@ -3,7 +3,7 @@ import { Database } from '@b2b-saas-starter/db/service'
 import { user } from '@b2b-saas-starter/db/schema/auth'
 import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Effect, Layer } from 'effect'
-import { and, asc, eq, type SQL } from 'drizzle-orm'
+import { and, asc, count, eq, inArray, type SQL } from 'drizzle-orm'
 
 import { MembershipChangeRejected } from '../errors.ts'
 import {
@@ -12,6 +12,7 @@ import {
   type ListPageInput
 } from '../internal/keyset-cursor.ts'
 import { keysetResume } from '../internal/keyset-query.ts'
+import { countInIdChunks } from '../internal/d1-id-list.ts'
 import { orUnavailable } from '@b2b-saas-starter/failure/capability'
 import { WorkspaceContext } from '../workspace-context.ts'
 import {
@@ -184,6 +185,19 @@ export function LiveWorkspaceMembership(
             (member) => ({ key: member.id, id: member.id })
           )
         }),
+        countMembers: Effect.fn('WorkspaceMembership.countMembers')(
+          (workspaceIds: ReadonlyArray<string>) =>
+            countInIdChunks(workspaceIds, 0, (chunk) =>
+              unavailable(
+                db
+                  .select({ id: workspaceMembers.workspaceId, value: count() })
+                  .from(workspaceMembers)
+                  .innerJoin(user, eq(user.id, workspaceMembers.userId))
+                  .where(inArray(workspaceMembers.workspaceId, chunk))
+                  .groupBy(workspaceMembers.workspaceId)
+              )
+            )
+        ),
         listWorkspacesForUser: Effect.fn('WorkspaceMembership.listWorkspacesForUser')(
           (userId: string) =>
             unavailable(

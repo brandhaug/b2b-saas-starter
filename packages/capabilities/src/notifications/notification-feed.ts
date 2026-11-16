@@ -187,6 +187,18 @@ export type NotificationFeedInterface = {
   readonly unreadCount: Effect.Effect<number, CapabilityUnavailable, WorkspaceContext>
 
   /**
+   * How many rows `userId` can see in each workspace: broadcasts plus rows
+   * addressed to them, read or unread. An entry (possibly 0) for every
+   * requested id. Keyed by workspace ids the caller already proved the user
+   * belongs to ("my workspaces"); Live answers with one grouped query per 99
+   * ids.
+   */
+  readonly countVisibleToUser: (
+    userId: string,
+    workspaceIds: ReadonlyArray<string>
+  ) => Effect.Effect<ReadonlyMap<string, number>, CapabilityUnavailable>
+
+  /**
    * Stamps the given unread ids read for the current context and returns how
    * many rows changed. Ids that are unknown, foreign, invisible to the actor,
    * or already read are ignored — the call is idempotent. Marking a broadcast
@@ -277,7 +289,15 @@ export function visibleToActor(
   userId: SeedNotification['userId'],
   actor: Actor | null
 ): boolean {
-  return userId === undefined || userId === null || userId === actor?.userId
+  return visibleToUser(userId, actor?.userId)
+}
+
+/** A broadcast reaches everyone; an addressed row reaches its addressee. */
+export function visibleToUser(
+  rowUserId: SeedNotification['userId'],
+  viewerUserId: string | undefined
+): boolean {
+  return rowUserId === undefined || rowUserId === null || rowUserId === viewerUserId
 }
 
 /** Whether `createdAt` falls inside `[since, until)`; ISO strings compare lexically. */

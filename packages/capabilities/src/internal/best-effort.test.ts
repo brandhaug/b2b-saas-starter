@@ -21,6 +21,8 @@ function capture() {
 const preferences: NotificationPreferencesInterface = {
   list: () => Effect.succeed([]),
   resolve: () => Effect.succeed('instant'),
+  resolveForUsers: (userIds) =>
+    Effect.succeed(new Map(userIds.map((userId) => [userId, 'instant'] as const))),
   set: (input) => Effect.succeed({ ...input, isDefault: false })
 }
 const notification = {
@@ -84,8 +86,49 @@ describe('best-effort publication evidence', () => {
         expect(records[0]).toMatchObject({
           status: 'ok',
           notificationEmailEnqueue: 'failed',
+          notificationEmailEnqueueReason: 'queue_rejected',
           notificationEmailRecipients: 1
         })
+        expect(Object.values(records[0] ?? {})).not.toContain(
+          'private-provider-diagnostic'
+        )
+      }).pipe(Effect.provide(layer))
+    }
+  )
+
+  it.effect(
+    'retains an unreadable preference store as a failed instant email enqueue',
+    () => {
+      const { records, layer } = capture()
+      return Effect.gen(function* () {
+        yield* withRequestScope(
+          { service: 'web', event: 'notification.create' },
+          enqueueInstantEmails(
+            { send: () => Promise.resolve(), sendBatch: () => Promise.resolve() },
+            {
+              ...preferences,
+              resolveForUsers: () =>
+                Effect.fail(
+                  new CapabilityUnavailable({
+                    capability: 'notification-preferences',
+                    reason: 'private-provider-diagnostic'
+                  })
+                )
+            },
+            notification
+          )
+        )
+        expect(records).toHaveLength(1)
+        expect(records[0]).toMatchObject({
+          status: 'ok',
+          notificationEmailEnqueue: 'failed',
+          notificationEmailEnqueueReason: 'preferences_unavailable',
+          notificationEmailRecipients: 1
+        })
+        expect(records[0]).not.toHaveProperty('notificationEmailEnqueued')
+        expect(Object.values(records[0] ?? {})).not.toContain(
+          'private-provider-diagnostic'
+        )
       }).pipe(Effect.provide(layer))
     }
   )

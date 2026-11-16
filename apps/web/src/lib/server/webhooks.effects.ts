@@ -1,5 +1,6 @@
 import { type WebhookDeliveryId } from '@b2b-saas-starter/db/ids'
 import {
+  WEBHOOK_DELIVERY_READ_CONCURRENCY,
   WebhookEndpoints,
   type WebhookEndpoint,
   type CreatedWebhookEndpoint
@@ -39,7 +40,7 @@ const webhooksPayload: WorkspacePageFrame<WorkspaceWebhooksPayload> = workspaceP
                     webhooks.listDeliveries({ endpointId: endpoint.id }),
                     (deliveries) => ({ ...endpoint, deliveries })
                   ),
-                { concurrency: 4 }
+                { concurrency: WEBHOOK_DELIVERY_READ_CONCURRENCY }
               )
             )
           )

@@ -1,4 +1,4 @@
-import { Effect, Layer } from 'effect'
+import { Effect } from 'effect'
 import { Billing } from '@b2b-saas-starter/billing/billing'
 import { STARTER_PLAN } from '@b2b-saas-starter/billing/plan-catalog'
 import { ApiTokenRegistry } from './developer-platform/api-token-registry.ts'
@@ -11,11 +11,7 @@ import {
   type Notification
 } from './notifications/notification-feed.ts'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
-import {
-  memberToActor,
-  WorkspaceContext,
-  type WorkspaceServices
-} from './workspace-context.ts'
+import { WorkspaceContext, type WorkspaceServices } from './workspace-context.ts'
 
 /**
  * Named read projections over the per-capability services.
@@ -88,9 +84,10 @@ export type WorkspaceListItemProjection = {
  * "My workspaces": every workspace the user is a member of, with the counts
  * the workspace list page renders. Possibly empty — no `WorkspaceNotFound`
  * here; a user with no memberships gets `[]`, not an error. Unlike the other
- * projections this takes no ambient `WorkspaceContext`: it resolves the
- * user's memberships first and scopes each per-workspace read itself, using
- * the membership row the query already proved as the actor.
+ * projections this takes no ambient `WorkspaceContext`: the membership query
+ * proves which workspaces are the user's, and the two counts are grouped
+ * reads over exactly those ids, so the query count does not grow with the
+ * number of memberships.
  */
 export const listWorkspacesForUser = Effect.fn('WorkspaceProjection.listForUser')(
   function* (
@@ -103,29 +100,22 @@ export const listWorkspacesForUser = Effect.fn('WorkspaceProjection.listForUser'
     const membership = yield* WorkspaceMembership
     const feed = yield* NotificationFeed
     const memberships = yield* membership.listWorkspacesForUser(userId)
-    return yield* Effect.forEach(
-      memberships,
-      ({ workspace, member }) =>
-        Effect.all([membership.listMembers, feed.list], {
-          concurrency: 'unbounded'
-        }).pipe(
-          Effect.map(([members, notifications]) => ({
-            workspace,
-            memberCount: members.length,
-            notificationCount: notifications.length
-          })),
-          Effect.provide(
-            Layer.succeed(WorkspaceContext)({
-              workspace,
-              actor: memberToActor(member),
-              // The membership row this projection already proved *is* the
-              // session user — there is no other caller kind here.
-              actorType: 'user'
-            })
-          )
-        ),
+    if (memberships.length === 0) {
+      return []
+    }
+    const workspaceIds = memberships.map(({ workspace }) => workspace.id)
+    const [memberCounts, notificationCounts] = yield* Effect.all(
+      [
+        membership.countMembers(workspaceIds),
+        feed.countVisibleToUser(userId, workspaceIds)
+      ],
       { concurrency: 'unbounded' }
     )
+    return memberships.map(({ workspace }) => ({
+      workspace,
+      memberCount: memberCounts.get(workspace.id) ?? 0,
+      notificationCount: notificationCounts.get(workspace.id) ?? 0
+    }))
   }
 )
 

@@ -13,8 +13,10 @@ authority.
 - `create` is keyed by `workspaceId`, since background producers hold an id. It persists the row, then enqueues one `NotificationEmailQueueMessage` per recipient whose channel resolves to `instant`; `userId: null` broadcasts.
 - `notifyUser` is identity-keyed and inserts one row per workspace the user belongs to, but enqueues at most one email: the extra rows are copies of one event.
 - `loadForEmail` and the digest skip a read row, so marking read in the app also stops its email.
+- `countVisibleToUser` is the "my workspaces" count: one grouped query over the user's workspace ids, applying the same visibility as `list` for that user.
 - `userId = NULL` rows are broadcasts; a `userId` restricts the row to that actor, and with no actor in context only broadcasts return (`visibleToActor`, shared by the reads and `markRead`).
 - The enqueue never fails `create`: no binding means no enqueue, a rejection annotates the wide event.
+- Recipients go out in batches of at most 100 (the Queues `sendBatch` limit), one `resolveForUsers` read per batch. A failed batch does not drop the others. Each batch runs through `bestEffort`: a failure sets `notificationEmailEnqueue: 'failed'` and `notificationEmailEnqueueReason` (`preferences_unavailable` or `queue_rejected`; the last failing batch wins). The totals land once at the end: `notificationEmailRecipients` counts recipients whose instant email was not enqueued, `notificationEmailEnqueued` the messages sent.
 
 ## Pitfalls
 
