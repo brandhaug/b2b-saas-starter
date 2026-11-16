@@ -3,7 +3,10 @@ import {
   SeedResourceInventory,
   SeedResourceInventoryLayer
 } from '@b2b-saas-starter/billing/resource-inventory.seed'
-import { WorkspaceContext as BillingWorkspaceContext } from '@b2b-saas-starter/billing/ports'
+import {
+  WorkspaceContext as BillingWorkspaceContext,
+  workspaceAuditAttribution
+} from '@b2b-saas-starter/billing/ports'
 import { Billing } from '@b2b-saas-starter/billing/billing'
 import { DateTime, Effect, Layer } from 'effect'
 
@@ -160,9 +163,7 @@ export function SeedApiTokenRegistry(
           }
           const tokenHash = yield* hashSha256(token)
           yield* audit.record({
-            workspaceId: ctx.workspace.id,
-            actorUserId: ctx.actor?.userId ?? null,
-            actorType: ctx.actorType,
+            ...workspaceAuditAttribution(ctx),
             eventType: 'api_token.created',
             targetType: 'api_token',
             targetId: created.id,
@@ -216,9 +217,7 @@ export function SeedApiTokenRegistry(
           }
           const tokenHash = yield* hashSha256(token)
           yield* audit.record({
-            workspaceId: ctx.workspace.id,
-            actorUserId: ctx.actor?.userId ?? null,
-            actorType: ctx.actorType,
+            ...workspaceAuditAttribution(ctx),
             eventType: 'api_token.replaced',
             targetType: 'api_token',
             targetId: created.id,
@@ -265,9 +264,7 @@ export function SeedApiTokenRegistry(
           }
           const revokedAt = DateTime.formatIso(yield* DateTime.now)
           yield* audit.record({
-            workspaceId: ctx.workspace.id,
-            actorUserId: ctx.actor?.userId ?? null,
-            actorType: ctx.actorType,
+            ...workspaceAuditAttribution(ctx),
             eventType: 'api_token.revoked',
             targetType: 'api_token',
             targetId: input.tokenId,

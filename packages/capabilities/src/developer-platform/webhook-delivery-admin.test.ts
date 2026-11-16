@@ -11,14 +11,14 @@ import {
 import { TestDatabase, LIVE_SUITE_TIMEOUT } from '../testing/live-harness.ts'
 import { SeedLayer, makeLiveCapabilitiesLayer } from '../layers.ts'
 import { AuditEventLog, SeedAuditEventLog } from '../governance/audit-event-log.ts'
-import { planAdminReplay, WebhookEndpoints } from './webhook-endpoints.ts'
+import { planAdminReplay, WebhookDeliveryAdmin } from './webhook-delivery-admin.ts'
 import { failureTag } from '../internal/failure-tag.ts'
-import { SeedWebhookEndpoints } from './webhook-endpoints.seed.ts'
+import { SeedWebhooks } from './webhooks.seed.ts'
 import { WebhookPublisher, type WebhookQueueMessage } from './webhook-publisher.ts'
 import {
   adminDeliveryFixtures,
-  adminWebhookContract
-} from './webhook-endpoints.admin.contract.ts'
+  webhookDeliveryAdminContract
+} from './webhook-delivery-admin.contract.ts'
 
 const endpoints = [
   {
@@ -86,13 +86,11 @@ describe('Seed admin webhooks without WorkspaceContext', () => {
         })
     })
     const audit = SeedAuditEventLog([], [{ id: 'usr_sysadmin', name: 'Sys Admin' }])
-    const seed = SeedWebhookEndpoints(
-      endpoints,
-      adminDeliveryFixtures,
-      workspaces
-    ).pipe(Layer.provideMerge(Layer.mergeAll(SeedLayer, publisher, audit)))
+    const seed = SeedWebhooks(endpoints, adminDeliveryFixtures, workspaces).pipe(
+      Layer.provideMerge(Layer.mergeAll(SeedLayer, publisher, audit))
+    )
     return Effect.gen(function* () {
-      const replay = yield* adminWebhookContract(expect)
+      const replay = yield* webhookDeliveryAdminContract(expect)
       const log = yield* AuditEventLog
       expect(
         (yield* log.listGlobal).find(
@@ -130,7 +128,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           }
           yield* db.insert(webhookDeliveries).values(adminDeliveryFixtures)
           const messages: Array<WebhookQueueMessage> = []
-          const replay = yield* adminWebhookContract(expect).pipe(
+          const replay = yield* webhookDeliveryAdminContract(expect).pipe(
             Effect.provide(
               makeLiveCapabilitiesLayer({
                 webhookQueue: {
@@ -186,7 +184,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             .delete(webhookEndpoints)
             .where(eq(webhookEndpoints.id, WebhookEndpointId.make('wh_admin_a')))
           const gone = yield* Effect.exit(
-            Effect.flatMap(WebhookEndpoints, (webhooks) =>
+            Effect.flatMap(WebhookDeliveryAdmin, (webhooks) =>
               webhooks.replayDeliveryAsAdmin({
                 deliveryId: WebhookDeliveryId.make('whd_admin_z'),
                 actorUserId: 'usr_sysadmin'
@@ -223,7 +221,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           payload: { outage: true }
         })
         const outcome = yield* Effect.exit(
-          Effect.flatMap(WebhookEndpoints, (webhooks) =>
+          Effect.flatMap(WebhookDeliveryAdmin, (webhooks) =>
             webhooks.replayDeliveryAsAdmin({
               deliveryId: WebhookDeliveryId.make('whd_outage'),
               actorUserId: 'usr_sysadmin'

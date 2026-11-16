@@ -35,6 +35,31 @@ export type Actor = typeof Actor.Type
 export type ActorRef = { readonly userId: string }
 
 /**
+ * Who asks for a workspace at a request boundary, before membership resolves.
+ * The audit provenance and the identity travel as one value, so a user
+ * provenance always names its user and a token or platform caller never
+ * claims one. Resolution turns `actor` into a verified `Actor`.
+ */
+export type WorkspaceCaller = UserWorkspaceCaller | ActorlessWorkspaceCaller
+export type UserWorkspaceCaller = {
+  readonly actorType: 'user'
+  readonly actor: ActorRef
+}
+/** A bearer token or the platform: the resolved context has `actor: null`. */
+export type ActorlessWorkspaceCaller = {
+  readonly actorType: Exclude<AuditActorTypeValue, 'user'>
+}
+
+export const WorkspaceCaller = {
+  user: (userId: string): UserWorkspaceCaller => ({
+    actorType: 'user',
+    actor: { userId }
+  }),
+  apiToken: { actorType: 'api_token' } satisfies ActorlessWorkspaceCaller,
+  system: { actorType: 'system' } satisfies ActorlessWorkspaceCaller
+} as const
+
+/**
  * Projects a resolved member onto the acting identity. Exported because
  * `workspace-projections.ts` builds a context of its own from a membership row
  * the query already proved.
@@ -48,16 +73,22 @@ export function memberToActor(member: Member): Actor {
   }
 }
 
-export type WorkspaceContextInterface = {
+/**
+ * The resolved workspace and caller, read by every capability call and by the
+ * audit writes a mutating capability performs. `actorType` says what kind of
+ * caller made the request: a session user, the platform, or a bearer API token
+ * driving the REST/MCP surface. Only a user caller carries a verified `Actor`.
+ */
+export type WorkspaceContextInterface = UserWorkspaceContext | ActorlessWorkspaceContext
+export type UserWorkspaceContext = {
   readonly workspace: Workspace
-  readonly actor: Actor | null
-  /**
-   * What kind of caller made the request, read by the audit writes a
-   * mutating capability performs: a session user, the platform, or a bearer
-   * API token driving the REST/MCP surface. Independent of whether a user
-   * identity is available; the request boundary must supply provenance.
-   */
-  readonly actorType: AuditActorTypeValue
+  readonly actorType: 'user'
+  readonly actor: Actor
+}
+export type ActorlessWorkspaceContext = {
+  readonly workspace: Workspace
+  readonly actorType: ActorlessWorkspaceCaller['actorType']
+  readonly actor: null
 }
 
 export class WorkspaceContext extends Context.Service<
@@ -75,8 +106,7 @@ const BillingWorkspaceContextLayer = Layer.effect(
 
 export function liveWorkspaceContext(
   slug: string,
-  actor: ActorRef | undefined,
-  actorType: AuditActorTypeValue
+  caller: WorkspaceCaller
 ): Layer.Layer<WorkspaceServices, WorkspaceNotFound | CapabilityUnavailable, Database> {
   return Layer.effect(WorkspaceContext)(
     Effect.gen(function* () {
@@ -87,57 +117,52 @@ export function liveWorkspaceContext(
       if (!row) {
         return yield* Effect.fail(new WorkspaceNotFound({ slug }))
       }
-      let resolvedActor: Actor | null = null
-      if (actor) {
-        const member = yield* findWorkspaceMember(db, {
-          workspaceId: row.id,
-          userId: actor.userId
-        })
-        // Non-members get the same WorkspaceNotFound as unknown slugs so a
-        // probing user cannot learn whether a workspace exists.
-        if (!member) {
-          return yield* Effect.fail(new WorkspaceNotFound({ slug }))
-        }
-        resolvedActor = memberToActor(member)
+      const workspace = toWorkspace(row)
+      if (caller.actorType !== 'user') {
+        return { workspace, actor: null, actorType: caller.actorType }
       }
-      return {
-        workspace: toWorkspace(row),
-        actor: resolvedActor,
-        actorType
+      const member = yield* findWorkspaceMember(db, {
+        workspaceId: row.id,
+        userId: caller.actor.userId
+      })
+      // Non-members get the same WorkspaceNotFound as unknown slugs so a
+      // probing user cannot learn whether a workspace exists.
+      if (!member) {
+        return yield* Effect.fail(new WorkspaceNotFound({ slug }))
       }
+      return { workspace, actor: memberToActor(member), actorType: caller.actorType }
     })
   ).pipe((context) => BillingWorkspaceContextLayer.pipe(Layer.provideMerge(context)))
 }
 
 /**
  * Seed counterpart of `liveWorkspaceContext`, mirroring its semantics: the
- * slug must match the seed workspace, and an `ActorRef` must resolve to one
+ * slug must match the seed workspace, and a user caller must resolve to one
  * of `members` — unknown user ids fail with the same non-disclosing
  * `WorkspaceNotFound` as the live layer (an empty `members` list therefore
- * fails closed for any actor). Omitting `actor` yields a trusted `actor: null`
- * context. Tests that already hold a fully resolved `Actor` should use
+ * fails closed for any actor). An actorless caller yields a trusted
+ * `actor: null` context. Tests that already hold a fully resolved `Actor` should use
  * `testWorkspaceContext` instead.
  */
 export function seedWorkspaceContext(
   seedWorkspace: Workspace,
   slug: string,
-  actor: ActorRef | undefined,
-  members: ReadonlyArray<Member>,
-  actorType: AuditActorTypeValue
+  caller: WorkspaceCaller,
+  members: ReadonlyArray<Member>
 ): Layer.Layer<WorkspaceServices, WorkspaceNotFound> {
   return Layer.effect(WorkspaceContext)(
     Effect.suspend((): Effect.Effect<WorkspaceContextInterface, WorkspaceNotFound> => {
       if (slug !== seedWorkspace.slug) {
         return Effect.fail(new WorkspaceNotFound({ slug }))
       }
-      if (!actor) {
+      if (caller.actorType !== 'user') {
         return Effect.succeed({
           workspace: seedWorkspace,
           actor: null,
-          actorType
+          actorType: caller.actorType
         })
       }
-      const member = members.find((candidate) => candidate.id === actor.userId)
+      const member = members.find((candidate) => candidate.id === caller.actor.userId)
       if (!member) {
         return Effect.fail(new WorkspaceNotFound({ slug }))
       }
@@ -145,21 +170,37 @@ export function seedWorkspaceContext(
       return Effect.succeed({
         workspace: seedWorkspace,
         actor: resolved,
-        actorType
+        actorType: caller.actorType
       })
     })
   ).pipe((context) => BillingWorkspaceContextLayer.pipe(Layer.provideMerge(context)))
 }
 
-/** Test injection: a context built from already-resolved values, no membership checks. */
+/**
+ * Test injection: a context built from already-resolved values, no membership
+ * checks. A resolved `Actor` acts as a user; without one the caller is actorless
+ * (`system` unless the test names another provenance), never a user without
+ * an identity.
+ */
 export function testWorkspaceContext(
   workspace: Workspace,
-  actor: Actor | null = null,
-  actorType: AuditActorTypeValue = 'user'
+  caller: Actor | ActorlessWorkspaceCaller = WorkspaceCaller.system
 ): Layer.Layer<WorkspaceServices> {
-  return Layer.succeed(WorkspaceContext)({
-    workspace,
-    actor,
-    actorType
-  }).pipe((context) => BillingWorkspaceContextLayer.pipe(Layer.provideMerge(context)))
+  if ('actorType' in caller) {
+    return testResolvedWorkspaceContext({
+      workspace,
+      actor: null,
+      actorType: caller.actorType
+    })
+  }
+  return testResolvedWorkspaceContext({ workspace, actor: caller, actorType: 'user' })
+}
+
+/** Test injection of a whole resolved context, e.g. one read back and re-scoped. */
+export function testResolvedWorkspaceContext(
+  context: WorkspaceContextInterface
+): Layer.Layer<WorkspaceServices> {
+  return Layer.succeed(WorkspaceContext)(context).pipe((layer) =>
+    BillingWorkspaceContextLayer.pipe(Layer.provideMerge(layer))
+  )
 }

@@ -1,3 +1,4 @@
+import { workspaceAuditAttribution } from '@b2b-saas-starter/billing/ports'
 import { WebhookDeliveryId, type WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { Effect } from 'effect'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -11,14 +12,15 @@ import {
   type WebhookDeliveryStatus,
   type PendingDispatchPlan
 } from './webhook-delivery-plan.ts'
+import { WebhookDispatchRejected } from './webhook-endpoints.ts'
 import {
-  WebhookDeliveryNotFound,
-  WebhookDispatchRejected,
-  type WebhookEndpoints
-} from './webhook-endpoints.ts'
+  type ReplayWebhookDeliveryInput,
+  type WebhookDeliveries,
+  WebhookDeliveryNotFound
+} from './webhook-deliveries.ts'
 import { type WebhookPublisher } from './webhook-publisher.ts'
 
-type ReplayInput = Parameters<WebhookEndpoints['Service']['replayDelivery']>[0]
+type ReplayInput = ReplayWebhookDeliveryInput
 
 type ReplaySource = {
   readonly id: WebhookDeliveryId
@@ -75,8 +77,8 @@ function replayRefusal(source: ReplaySource, input: ReplayInput): string | null 
 export function makeWebhookReplay(
   store: ReplayStore,
   publisher: Pick<WebhookPublisher['Service'], 'enqueue'>
-): WebhookEndpoints['Service']['replayDelivery'] {
-  return Effect.fn('WebhookEndpoints.replayDelivery')(function* (input: ReplayInput) {
+): WebhookDeliveries['Service']['replayDelivery'] {
+  return Effect.fn('WebhookDeliveries.replayDelivery')(function* (input: ReplayInput) {
     const ctx = yield* WorkspaceContext
     const source = yield* store.source(input.deliveryId, ctx.workspace.id)
     if (source === null) {
@@ -97,9 +99,7 @@ export function makeWebhookReplay(
       approvedEndpointUrl: input.expectedEndpointUrl,
       plan: planReplayedDelivery(source),
       auditEvent: {
-        workspaceId: ctx.workspace.id,
-        actorUserId: ctx.actor?.userId ?? null,
-        actorType: ctx.actorType,
+        ...workspaceAuditAttribution(ctx),
         eventType: 'webhook.delivery_replayed',
         targetType: 'webhook_endpoint',
         targetId: source.endpointId,

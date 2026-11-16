@@ -3,6 +3,7 @@ import { webhookInvestigationTaskStatuses } from '@b2b-saas-starter/db/enums'
 import { describe, expect, it } from '@effect/vitest'
 import { Effect } from 'effect'
 import { selectWorkspaceLayer } from '../runtime.ts'
+import { WorkspaceCaller } from '../workspace-context.ts'
 import { webhookInvestigationTaskContractCases } from './webhook-investigation-tasks.contract.ts'
 import {
   initialInvestigationTaskStatus,
@@ -91,7 +92,7 @@ describe('webhook investigation tasks', () => {
         expect(saved.replayDeliveryId).toBeNull()
       }).pipe(
         Effect.provide(
-          selectWorkspaceLayer({}, 'starter-lab', { userId: 'usr_demo' }, 'user')
+          selectWorkspaceLayer({}, 'starter-lab', WorkspaceCaller.user('usr_demo'))
         )
       )
   )
@@ -102,7 +103,7 @@ describe('seed webhook investigation tasks contract', () => {
     it.effect(contractCase.name, () =>
       contractCase.assert.pipe(
         Effect.provide(
-          selectWorkspaceLayer({}, 'starter-lab', { userId: 'usr_demo' }, 'user')
+          selectWorkspaceLayer({}, 'starter-lab', WorkspaceCaller.user('usr_demo'))
         )
       )
     )

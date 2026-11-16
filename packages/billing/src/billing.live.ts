@@ -2,7 +2,8 @@ import {
   type NotificationFeed,
   WorkspaceContext,
   AuditEventLog,
-  type BillingWebhookPublisher
+  type BillingWebhookPublisher,
+  workspaceAuditAttribution
 } from './ports.ts'
 import {
   billingSynchronization,
@@ -302,15 +303,13 @@ export function LiveBilling(
             { concurrency: 2 }
           )
           return yield* checkout({
+            ...workspaceAuditAttribution(ctx),
             secretKey,
             priceId,
             quantity,
-            workspaceId: ctx.workspace.id,
             planId: input.planId,
             successUrl: input.successUrl,
-            cancelUrl: input.cancelUrl,
-            actorUserId: ctx.actor?.userId ?? null,
-            actorType: ctx.actorType
+            cancelUrl: input.cancelUrl
           })
         }, provideHttp),
         startPortalSession: Effect.fn('Billing.startPortalSession')(function* (input: {
@@ -322,11 +321,9 @@ export function LiveBilling(
             return yield* Effect.fail(providerNotConfigured())
           }
           return yield* portal({
-            workspaceId: ctx.workspace.id,
+            ...workspaceAuditAttribution(ctx),
             secretKey,
-            returnUrl: input.returnUrl,
-            actorUserId: ctx.actor?.userId ?? null,
-            actorType: ctx.actorType
+            returnUrl: input.returnUrl
           })
         }, provideHttp),
         syncSeats: Effect.fn('Billing.syncSeats')(function* (input: {

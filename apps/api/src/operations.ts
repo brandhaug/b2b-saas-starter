@@ -29,7 +29,6 @@ import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platf
 import {
   type UpdateWebhookEndpointInput,
   WebhookEndpoints,
-  type WebhookDeliveryNotFound,
   type WebhookDispatchRejected,
   type WebhookEndpointNotFound
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
@@ -40,9 +39,9 @@ import {
   type WorkspaceExportRecipient
 } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
-import { type WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
+import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import {
-  type StrongAuthentication,
+  StrongAuthentication,
   type StrongAuthenticationRequired
 } from '@b2b-saas-starter/capabilities/governance/strong-authentication'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
@@ -50,6 +49,10 @@ import { workspaceOverview } from '@b2b-saas-starter/capabilities/workspace-proj
 import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
 import { Context, Effect, Option, type Schema, type Scope } from 'effect'
 import { type HttpApiEndpoint } from 'effect/http-api'
+import {
+  WebhookDeliveries,
+  type WebhookDeliveryNotFound
+} from '@b2b-saas-starter/capabilities/developer-platform/webhook-deliveries'
 
 /**
  * Workspace reads and mutations share this catalog (ADR 0072). REST binds each
@@ -74,17 +77,22 @@ export type CapabilityReadError =
 /**
  * The capability services a table row reads through, minus `WorkspaceContext`:
  * these are request-independent and live on the worker's isolate-level layer.
- * Named so the MCP route can capture exactly them from the request context and
- * carry them across the SDK's promise seam (see `mcp.ts`).
+ * A value as well as a type so the MCP route can capture exactly them from the
+ * request context and carry them across the SDK's promise seam (see `mcp.ts`).
  */
-export type CapabilityReadServices =
-  | WorkspaceSuspensionService
-  | NotificationFeed
-  | WorkspaceMembership
-  | ApiTokenRegistry
-  | WebhookEndpoints
-  | AuditEventLog
-  | StrongAuthentication
+export const capabilityReadServices = [
+  WorkspaceSuspensionService,
+  NotificationFeed,
+  WorkspaceMembership,
+  ApiTokenRegistry,
+  WebhookEndpoints,
+  WebhookDeliveries,
+  AuditEventLog,
+  StrongAuthentication
+] as const
+export type CapabilityReadServices = Context.Service.Identifier<
+  (typeof capabilityReadServices)[number]
+>
 
 export type CapabilityRead = Effect.Effect<
   unknown,
@@ -236,8 +244,8 @@ export const READ_OPERATIONS = {
     input: 'endpointId',
     param: { sample: WebhookEndpointId.make('wh_release') },
     read: (_page, args) =>
-      Effect.flatMap(WebhookEndpoints, (webhooks) =>
-        webhooks.listDeliveries({ endpointId: args.endpointId })
+      Effect.flatMap(WebhookDeliveries, (deliveryLog) =>
+        deliveryLog.listDeliveries({ endpointId: args.endpointId })
       ),
     toolName: 'list_webhook_deliveries',
     toolDescription:
@@ -249,8 +257,8 @@ export const READ_OPERATIONS = {
     input: 'deliveryId',
     param: { sample: WebhookDeliveryId.make('whd_seed_failed') },
     read: (_page, args) =>
-      Effect.flatMap(WebhookEndpoints, (webhooks) =>
-        webhooks.listDeliveryAttempts({ deliveryId: args.deliveryId })
+      Effect.flatMap(WebhookDeliveries, (deliveryLog) =>
+        deliveryLog.listDeliveryAttempts({ deliveryId: args.deliveryId })
       ),
     toolName: 'list_webhook_delivery_attempts',
     toolDescription:
@@ -287,12 +295,17 @@ export type CapabilityMutationError =
   | WorkspaceExportNotDownloadable
 
 /** Stable services, separate from the request's workspace, actor and scope. */
-export type CapabilityMutationServices =
-  | WorkspaceSuspensionService
-  | ApiTokenRegistry
-  | WebhookEndpoints
-  | WorkspaceExports
-  | StrongAuthentication
+export const capabilityMutationServices = [
+  WorkspaceSuspensionService,
+  ApiTokenRegistry,
+  WebhookEndpoints,
+  WebhookDeliveries,
+  WorkspaceExports,
+  StrongAuthentication
+] as const
+export type CapabilityMutationServices = Context.Service.Identifier<
+  (typeof capabilityMutationServices)[number]
+>
 
 /** Rows narrow this to their decoded path parameters and payload. */
 export type MutationRequestOptions = {
@@ -507,8 +520,8 @@ export const MUTATION_OPERATIONS = {
     param: { sample: WebhookDeliveryId.make('whd_seed_failed') },
     run: (options: OperationInput<(typeof WebhookApi.endpoints)['replay-delivery']>) =>
       Effect.gen(function* () {
-        const webhooks = yield* WebhookEndpoints
-        const replayed = yield* webhooks.replayDelivery({
+        const deliveryLog = yield* WebhookDeliveries
+        const replayed = yield* deliveryLog.replayDelivery({
           deliveryId: options.params.deliveryId
         })
         yield* annotateWideEvent({ deliveryId: replayed.deliveryId })

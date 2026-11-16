@@ -5,6 +5,7 @@ import { describe, expect, layer } from '@effect/vitest'
 import { WorkspaceInvitations } from './governance/workspace-invitations.ts'
 import { WorkspaceMembership } from './governance/workspace-membership.ts'
 import { selectCapabilitiesLayer, selectWorkspaceLayer } from './runtime.ts'
+import { WorkspaceCaller } from './workspace-context.ts'
 import {
   fakeInvitationBinding,
   LIVE_SUITE_TIMEOUT,
@@ -38,10 +39,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             selectWorkspaceLayer(
               { DB: d1, invitationBinding: binding },
               'live-lab',
-              {
-                userId: 'usr_owner'
-              },
-              'user'
+              WorkspaceCaller.user('usr_owner')
             )
           )
 

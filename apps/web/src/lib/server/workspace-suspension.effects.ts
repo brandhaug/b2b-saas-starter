@@ -1,5 +1,8 @@
 import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
-import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
+import {
+  WorkspaceContext,
+  WorkspaceCaller
+} from '@b2b-saas-starter/capabilities/workspace-context'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { SsoConnections } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
 import { Billing } from '@b2b-saas-starter/billing/billing'
@@ -37,7 +40,7 @@ export async function loadWorkspaceSuspensionHandler(input: {
   return runWorkspaceCapabilities(
     input.workspaceSlug,
     workspaceSuspensionGate(session.session.id),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }
 
@@ -92,9 +95,11 @@ export async function loadWorkspaceRecoveryHandler(input: {
   readonly workspaceSlug: string
 }): Promise<WorkspaceRecoveryPayload> {
   const session = await requireRequestSession()
-  return runWorkspaceCapabilities(input.workspaceSlug, workspaceRecoveryPayload, {
-    userId: session.user.id
-  })
+  return runWorkspaceCapabilities(
+    input.workspaceSlug,
+    workspaceRecoveryPayload,
+    WorkspaceCaller.user(session.user.id)
+  )
 }
 
 /** Narrow recovery projection, exported at the Effect seam for policy tests. */

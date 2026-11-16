@@ -25,7 +25,7 @@ import {
 } from '../governance/strong-authentication.ts'
 import { toWorkspace } from '../governance/workspace-identity.ts'
 import { isSuspendedWorkspace } from '../governance/workspace-suspension.ts'
-import { type Actor, type WorkspaceContextInterface } from '../workspace-context.ts'
+import { type UserWorkspaceContext } from '../workspace-context.ts'
 import { McpClientConnections } from './mcp-client-connections.ts'
 
 export type AssistantAuthorityInput = {
@@ -52,9 +52,7 @@ export class AssistantAuthorityDenied extends Schema.TaggedError<AssistantAuthor
   }
 ) {}
 
-export type AssistantAuthorizedContext = WorkspaceContextInterface & {
-  readonly actor: Actor
-}
+export type AssistantAuthorizedContext = UserWorkspaceContext
 
 export class AssistantAuthority extends Context.Service<
   AssistantAuthority,

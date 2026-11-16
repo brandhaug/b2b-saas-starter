@@ -4,6 +4,7 @@ import { vi } from 'vite-plus/test'
 import { SeedStrongAuthentication } from '@b2b-saas-starter/capabilities/governance/strong-authentication'
 import {
   testWorkspaceContext,
+  WorkspaceCaller,
   type Actor
 } from '@b2b-saas-starter/capabilities/workspace-context'
 import {
@@ -72,7 +73,9 @@ function decide(
   return requireWorkspacePermission(permission).pipe(
     Effect.as('allowed'),
     Effect.catchTag('AuthorizationDenied', (error) => Effect.succeed(error.reason)),
-    Effect.provide(testWorkspaceContext(workspace, actorOrNull)),
+    Effect.provide(
+      testWorkspaceContext(workspace, actorOrNull ?? WorkspaceCaller.system)
+    ),
     Effect.provide(suspensionLayer)
   )
 }

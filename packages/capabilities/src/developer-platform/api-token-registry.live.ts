@@ -1,6 +1,9 @@
 import { ApiTokenId } from '@b2b-saas-starter/db/ids'
 import { prepareTokenSelectionRotation } from '@b2b-saas-starter/billing/resource-entitlements.live'
-import { WorkspaceContext as BillingWorkspaceContext } from '@b2b-saas-starter/billing/ports'
+import {
+  WorkspaceContext as BillingWorkspaceContext,
+  workspaceAuditAttribution
+} from '@b2b-saas-starter/billing/ports'
 import { Billing } from '@b2b-saas-starter/billing/billing'
 import { apiTokens } from '@b2b-saas-starter/db/schema/developer-platform'
 import { workspaces } from '@b2b-saas-starter/db/schema/workspaces'
@@ -165,9 +168,7 @@ export function LiveApiTokenRegistry(
           const created = yield* auditedMutation({
             matched: Effect.succeed(true),
             auditEvent: {
-              workspaceId: ctx.workspace.id,
-              actorUserId: ctx.actor?.userId ?? null,
-              actorType: ctx.actorType,
+              ...workspaceAuditAttribution(ctx),
               eventType: 'api_token.created',
               targetType: 'api_token',
               targetId: row.id,
@@ -276,9 +277,7 @@ export function LiveApiTokenRegistry(
           yield* auditedMutation({
             matched: Effect.succeed(true),
             auditEvent: {
-              workspaceId: ctx.workspace.id,
-              actorUserId: ctx.actor?.userId ?? null,
-              actorType: ctx.actorType,
+              ...workspaceAuditAttribution(ctx),
               eventType: 'api_token.replaced',
               targetType: 'api_token',
               targetId: row.id,
@@ -332,9 +331,7 @@ export function LiveApiTokenRegistry(
                   .limit(1)
               ).pipe(Effect.map((rows) => rows.length > 0)),
               auditEvent: {
-                workspaceId: ctx.workspace.id,
-                actorUserId: ctx.actor?.userId ?? null,
-                actorType: ctx.actorType,
+                ...workspaceAuditAttribution(ctx),
                 eventType: 'api_token.revoked',
                 targetType: 'api_token',
                 targetId: input.tokenId,

@@ -5,21 +5,53 @@ import { Context, type Effect } from 'effect'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 
 export type BillingWorkspace = { readonly id: string; readonly planId: string }
-export type BillingActor = { readonly userId: string } | null
-export type BillingWorkspaceContext = {
-  readonly workspace: BillingWorkspace
-  readonly actor: BillingActor
-  readonly actorType: AuditActorTypeValue
-}
+/**
+ * The resolved request context. A user provenance always carries its user and
+ * a token or platform caller never claims one, so an audit row cannot record
+ * `user` without an `actorUserId`.
+ */
+export type BillingWorkspaceContext =
+  | {
+      readonly workspace: BillingWorkspace
+      readonly actorType: 'user'
+      readonly actor: { readonly userId: string }
+    }
+  | {
+      readonly workspace: BillingWorkspace
+      readonly actorType: Exclude<AuditActorTypeValue, 'user'>
+      readonly actor: null
+    }
 export class WorkspaceContext extends Context.Service<
   WorkspaceContext,
   BillingWorkspaceContext
 >()('@b2b-saas-starter/billing/WorkspaceContext') {}
 
-export type AuditRecordInput = {
-  readonly workspaceId?: string | null
-  readonly actorUserId?: string | null
+/** The attribution columns every workspace-scoped audit row carries. */
+export type AuditAttribution = {
+  readonly workspaceId: string
+  readonly actorUserId: string | null
   readonly actorType: AuditActorTypeValue
+}
+
+/**
+ * Derives an audit row's attribution from the request context: its workspace,
+ * the resolved user (if any) and the caller's provenance. The one owner for
+ * both packages, since this module is the request-context contract and the
+ * capabilities `WorkspaceContext` satisfies it structurally; a new attribution
+ * column changes this function, not every audited write.
+ */
+export function workspaceAuditAttribution(
+  ctx: BillingWorkspaceContext
+): AuditAttribution {
+  return {
+    workspaceId: ctx.workspace.id,
+    actorUserId: ctx.actor?.userId ?? null,
+    actorType: ctx.actorType
+  }
+}
+
+/** Billing audits are always workspace-scoped, so they carry the full attribution. */
+export type AuditRecordInput = AuditAttribution & {
   readonly eventType:
     | 'billing.checkout_started'
     | 'billing.plan_changed'

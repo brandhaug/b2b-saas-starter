@@ -20,6 +20,7 @@ import {
   LIVE_SUITE_TIMEOUT,
   TestDatabase
 } from '../testing/live-harness.ts'
+import { WebhookDeliveries } from './webhook-deliveries.ts'
 
 layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('publisher', (it) => {
   it.effect('token creation retains granted scopes without publishing the secret', () =>
@@ -112,7 +113,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('publisher', (it) => {
       })
       const rows = yield* inWorkspace(
         'live-lab',
-        Effect.flatMap(WebhookEndpoints, (endpoints) =>
+        Effect.flatMap(WebhookDeliveries, (endpoints) =>
           endpoints.listDeliveries({ endpointId: WebhookEndpointId.make('wh_live') })
         )
       )

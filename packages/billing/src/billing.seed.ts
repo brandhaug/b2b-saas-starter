@@ -3,7 +3,8 @@ import {
   WorkspaceContext,
   AuditEventLog,
   BillingWebhookPublisher,
-  type BillingMember as Member
+  type BillingMember as Member,
+  workspaceAuditAttribution
 } from './ports.ts'
 import { lifecycleNotices } from './billing-notices.ts'
 import { DateTime, Effect, Layer, Ref, Semaphore } from 'effect'
@@ -714,9 +715,7 @@ export function SeedBilling(options?: {
                   isCurrentSubscriptionStatus(provider.status ?? 'active')
                 ) {
                   yield* audit.record({
-                    workspaceId: ctx.workspace.id,
-                    actorUserId: ctx.actor?.userId ?? null,
-                    actorType: ctx.actorType,
+                    ...workspaceAuditAttribution(ctx),
                     eventType: 'billing.portal_opened',
                     targetType: 'workspace',
                     targetId: ctx.workspace.id,
@@ -756,9 +755,7 @@ export function SeedBilling(options?: {
                 // Record evidence before publishing the in-memory claim. A
                 // failed audit leaves no claim that could return an unverified URL.
                 yield* audit.record({
-                  workspaceId: ctx.workspace.id,
-                  actorUserId: ctx.actor?.userId ?? null,
-                  actorType: ctx.actorType,
+                  ...workspaceAuditAttribution(ctx),
                   eventType: 'billing.checkout_started',
                   targetType: 'workspace',
                   targetId: ctx.workspace.id,
@@ -796,9 +793,7 @@ export function SeedBilling(options?: {
             )
           }
           yield* audit.record({
-            workspaceId: ctx.workspace.id,
-            actorUserId: ctx.actor?.userId ?? null,
-            actorType: ctx.actorType,
+            ...workspaceAuditAttribution(ctx),
             eventType: 'billing.portal_opened',
             targetType: 'workspace',
             targetId: ctx.workspace.id,

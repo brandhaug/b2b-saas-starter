@@ -1,6 +1,5 @@
 import { type WebhookDeliveryId } from '@b2b-saas-starter/db/ids'
 import {
-  WEBHOOK_DELIVERY_READ_CONCURRENCY,
   WebhookEndpoints,
   type WebhookEndpoint,
   type CreatedWebhookEndpoint
@@ -8,6 +7,7 @@ import {
 import { Effect } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
+import { WorkspaceCaller } from '@b2b-saas-starter/capabilities/workspace-context'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
 import { workspacePage, type WorkspacePageFrame } from './page-frame'
@@ -19,6 +19,10 @@ import {
   type WorkspaceWebhooksInput,
   type WorkspaceWebhooksPayload
 } from './webhooks'
+import {
+  WEBHOOK_DELIVERY_READ_CONCURRENCY,
+  WebhookDeliveries
+} from '@b2b-saas-starter/capabilities/developer-platform/webhook-deliveries'
 
 /**
  * `webhook:list` is the page's own read permission and a hard gate.
@@ -28,11 +32,12 @@ const webhooksPayload: WorkspacePageFrame<WorkspaceWebhooksPayload> = workspaceP
   () =>
     Effect.gen(function* () {
       const webhooks = yield* WebhookEndpoints
+      const deliveryLog = yield* WebhookDeliveries
       const endpoints = yield* Effect.forEach(
         yield* webhooks.list,
         (endpoint) =>
           Effect.map(
-            webhooks.listDeliveries({ endpointId: endpoint.id }),
+            deliveryLog.listDeliveries({ endpointId: endpoint.id }),
             (deliveries) => ({
               ...endpoint,
               deliveries
@@ -48,9 +53,11 @@ export async function loadWorkspaceWebhooksHandler(
   input: WorkspaceWebhooksInput
 ): Promise<WorkspaceWebhooksPayload> {
   const session = await requireRequestSession()
-  return runWorkspaceCapabilities(input.workspaceSlug, webhooksPayload, {
-    userId: session.user.id
-  })
+  return runWorkspaceCapabilities(
+    input.workspaceSlug,
+    webhooksPayload,
+    WorkspaceCaller.user(session.user.id)
+  )
 }
 
 export async function createWebhookEndpointHandler(
@@ -70,7 +77,7 @@ export async function createWebhookEndpointHandler(
         events: input.events
       })
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }
 
@@ -93,7 +100,7 @@ export async function updateWebhookEndpointHandler(
       const webhooks = yield* WebhookEndpoints
       return yield* webhooks.update(patch)
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }
 
@@ -112,7 +119,7 @@ export async function rotateWebhookSecretHandler(
       const rotated = yield* webhooks.rotateSecret({ endpointId: input.endpointId })
       return rotated.signingSecret
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }
 
@@ -127,10 +134,10 @@ export async function replayWebhookDeliveryHandler(
       // (`WebhookDeliveryNotFound` 404, `WebhookDispatchRejected` 409) which
       // `callServerFn` folds into the drawer's failure message.
       yield* requireWorkspacePermission({ webhook: ['replay'] })
-      const webhooks = yield* WebhookEndpoints
-      return yield* webhooks.replayDelivery({ deliveryId: input.deliveryId })
+      const deliveryLog = yield* WebhookDeliveries
+      return yield* deliveryLog.replayDelivery({ deliveryId: input.deliveryId })
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }
 
@@ -145,7 +152,7 @@ export async function sendTestEventHandler(
       const webhooks = yield* WebhookEndpoints
       return yield* webhooks.sendTestEvent({ endpointId: input.endpointId })
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }
 
@@ -155,9 +162,9 @@ export async function listWebhookDeliveryAttemptsHandler(input: ReplayDeliveryIn
     input.workspaceSlug,
     Effect.gen(function* () {
       yield* requireWorkspacePermission({ webhook: ['list'] })
-      const webhooks = yield* WebhookEndpoints
-      return yield* webhooks.listDeliveryAttempts({ deliveryId: input.deliveryId })
+      const deliveryLog = yield* WebhookDeliveries
+      return yield* deliveryLog.listDeliveryAttempts({ deliveryId: input.deliveryId })
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }

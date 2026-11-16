@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { Deferred, Effect, Layer, ManagedRuntime } from 'effect'
 import * as TestClock from 'effect/testing/TestClock'
 import { selectWorkspaceLayer } from '@b2b-saas-starter/capabilities/runtime'
+import { WorkspaceCaller } from '@b2b-saas-starter/capabilities/workspace-context'
 import { listInvitationEmailHistory } from '@b2b-saas-starter/capabilities/governance/invitation-email-history'
 import { EmailDispatcher, EmailSendError } from '@b2b-saas-starter/email'
 import { fixtureAuthModule } from '@/test/fixture-session'
@@ -13,7 +14,7 @@ import type * as CapabilitiesModule from '../capabilities'
 function makeRuntime() {
   return ManagedRuntime.make(
     Layer.merge(
-      selectWorkspaceLayer({}, 'starter-lab', { userId: 'usr_demo' }, 'user'),
+      selectWorkspaceLayer({}, 'starter-lab', WorkspaceCaller.user('usr_demo')),
       TestClock.layer()
     )
   )

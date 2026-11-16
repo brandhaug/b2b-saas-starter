@@ -31,7 +31,7 @@ import { makeLiveWebhookEnqueueFailure } from './webhook-enqueue-failure.live.ts
  * Message enqueued per endpoint. The queue consumer in `apps/background`
  * imports this schema, so producer and consumer share one wire shape.
  * `workspaceId` is stamped from the producing request's `WorkspaceContext`
- * and re-verified by `WebhookEndpoints.getDispatchTarget` before the
+ * and re-verified by `WebhookDispatch.getDispatchTarget` before the
  * endpoint's signing secret is released to the consumer.
  */
 export const WebhookQueueMessage = Schema.Struct({

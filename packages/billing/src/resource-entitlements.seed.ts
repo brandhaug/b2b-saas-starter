@@ -1,6 +1,6 @@
 import { DateTime, Effect, Layer } from 'effect'
 import { Billing } from './billing.ts'
-import { AuditEventLog, WorkspaceContext } from './ports.ts'
+import { AuditEventLog, WorkspaceContext, workspaceAuditAttribution } from './ports.ts'
 import {
   EMPTY_RESOURCE_SELECTION,
   resourceEntitlement,
@@ -81,9 +81,7 @@ export function SeedResourceEntitlements() {
             )
           )
           yield* audit.record({
-            workspaceId: ctx.workspace.id,
-            actorUserId: ctx.actor?.userId ?? null,
-            actorType: ctx.actorType,
+            ...workspaceAuditAttribution(ctx),
             eventType: 'billing.resource_selection_updated',
             targetType: 'workspace',
             targetId: ctx.workspace.id,

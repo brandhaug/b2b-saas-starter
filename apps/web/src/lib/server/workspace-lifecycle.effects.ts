@@ -9,6 +9,7 @@ import { Effect } from 'effect'
 
 import { UnverifiedEmailError } from '../capability-error'
 import { runCapabilities, runWorkspaceCapabilities } from '../capabilities'
+import { WorkspaceCaller } from '@b2b-saas-starter/capabilities/workspace-context'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
 import { webWorkspaceLifecycleBinding } from './workspace-binding'
@@ -89,7 +90,7 @@ export async function renameWorkspaceHandler(
       const lifecycle = yield* WorkspaceLifecycle
       return yield* lifecycle.rename({ name: input.name })
     }),
-    { userId: session.user.id },
+    WorkspaceCaller.user(session.user.id),
     {
       lifecycleBinding: webWorkspaceLifecycleBinding,
       securityEvidence: makeSecurityEvidenceSink()
@@ -108,7 +109,7 @@ export async function deleteWorkspaceHandler(
       const lifecycle = yield* WorkspaceLifecycle
       yield* lifecycle.remove
     }),
-    { userId: session.user.id },
+    WorkspaceCaller.user(session.user.id),
     {
       lifecycleBinding: webWorkspaceLifecycleBinding,
       securityEvidence: makeSecurityEvidenceSink()

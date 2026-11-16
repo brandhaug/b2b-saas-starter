@@ -3,13 +3,17 @@ import '@/test/qualified-session'
 import { fixtureAuthModule } from '@/test/fixture-session'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { Effect } from 'effect'
-import { describe, expect, it, vi } from 'vite-plus/test'
+import { assertType, describe, expect, it, vi } from 'vite-plus/test'
 import { ForbiddenError } from './capability-error'
 import { runWorkspaceCapabilities } from './capabilities'
 import { requireWorkspacePermission } from './server/authorize'
 import { WorkspaceChangeRejected } from '@b2b-saas-starter/capabilities/errors'
 import { causeMessage } from './cause-message'
 import { uiErrorAdapter } from './ui-error'
+import {
+  WorkspaceCaller,
+  WorkspaceContext
+} from '@b2b-saas-starter/capabilities/workspace-context'
 
 vi.mock('./server/auth', () => fixtureAuthModule({}, { userId: 'usr_martin' }))
 
@@ -30,7 +34,7 @@ function createToken(userId: string) {
         scopes: ['read']
       })
     }),
-    { userId }
+    WorkspaceCaller.user(userId)
   )
 }
 
@@ -38,9 +42,11 @@ describe('runWorkspaceCapabilities authorization', () => {
   it('emits immutable workspace and actor identity without the workspace slug', async () => {
     const output = vi.spyOn(console, 'log').mockImplementation(() => {})
     try {
-      await runWorkspaceCapabilities('starter-lab', Effect.void, {
-        userId: 'usr_martin'
-      })
+      await runWorkspaceCapabilities(
+        'starter-lab',
+        Effect.void,
+        WorkspaceCaller.user('usr_martin')
+      )
       expect(output).toHaveBeenCalledTimes(1)
       const serialized = String(output.mock.calls[0]?.[0])
       expect(JSON.parse(serialized)).toMatchObject({
@@ -59,7 +65,7 @@ describe('runWorkspaceCapabilities authorization', () => {
     const refusal = await runWorkspaceCapabilities(
       'starter-lab',
       Effect.fail(new WorkspaceChangeRejected({ reason: 'billing_obligations' })),
-      { userId: 'usr_martin' }
+      WorkspaceCaller.user('usr_martin')
     ).catch((error: unknown) => error)
     expect(refusal).toMatchObject({
       code: 'workspace_billing_obligations',
@@ -73,6 +79,23 @@ describe('runWorkspaceCapabilities authorization', () => {
         'This workspace has unresolved billing activity. Review billing or contact support before deleting it.'
       )
     }
+  })
+
+  it('attributes a run with no signed-in user to the system, never to a user', async () => {
+    // The public showcase read runs with no session. Its context must not
+    // claim a user provenance it cannot name: audit rows read both fields.
+    const context = await runWorkspaceCapabilities(
+      'starter-lab',
+      Effect.map(WorkspaceContext, (ctx) => ({
+        actor: ctx.actor,
+        actorType: ctx.actorType
+      })),
+      WorkspaceCaller.system
+    )
+    expect(context).toEqual({ actor: null, actorType: 'system' })
+    // The pair that recorded `'user'` with no user before no longer compiles.
+    // @ts-expect-error -- a user provenance must name its user
+    assertType<WorkspaceCaller>({ actorType: 'user' })
   })
 
   it('lets the workspace owner create a token', async () => {

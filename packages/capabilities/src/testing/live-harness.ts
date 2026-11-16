@@ -36,7 +36,11 @@ import {
   type CapabilityServices
 } from '../layers.ts'
 import { type StarterEnv } from '../runtime.ts'
-import { liveWorkspaceContext, type WorkspaceServices } from '../workspace-context.ts'
+import {
+  liveWorkspaceContext,
+  WorkspaceCaller,
+  type WorkspaceServices
+} from '../workspace-context.ts'
 import { type WorkspaceNotFound } from '../errors.ts'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 
@@ -400,12 +404,13 @@ export function inWorkspace<A, E>(
   actor?: { readonly userId: string },
   bindings: CapabilityBindings = {}
 ): Effect.Effect<A, E | WorkspaceNotFound | CapabilityUnavailable, Database | RawD1> {
+  let caller: WorkspaceCaller = WorkspaceCaller.system
+  if (actor !== undefined) {
+    caller = WorkspaceCaller.user(actor.userId)
+  }
   return Effect.provide(
     effect,
-    Layer.merge(
-      makeLiveCapabilitiesLayer(bindings),
-      liveWorkspaceContext(slug, actor, 'user')
-    )
+    Layer.merge(makeLiveCapabilitiesLayer(bindings), liveWorkspaceContext(slug, caller))
   )
 }
 

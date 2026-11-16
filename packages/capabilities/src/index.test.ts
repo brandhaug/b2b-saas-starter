@@ -42,7 +42,7 @@ import {
   SEED_READONLY_API_TOKEN,
   shouldBumpLastUsedAt
 } from './developer-platform/api-token-registry.ts'
-import { SeedWebhookEndpoints } from './developer-platform/webhook-endpoints.seed.ts'
+import { SeedWebhooks } from './developer-platform/webhooks.seed.ts'
 import { failureTag } from './internal/failure-tag.ts'
 import {
   developerPlatformContractCases,
@@ -123,7 +123,7 @@ describe('seed developer-platform contract', () => {
         )
       )
     ),
-    SeedWebhookEndpoints([]).pipe(
+    SeedWebhooks([]).pipe(
       Layer.provide(auditLog),
       Layer.provide(publisher),
       Layer.provide(notificationFeed),
@@ -426,10 +426,7 @@ describe('notification feed actor scoping', () => {
   }
 
   function feedFor(actor?: Actor) {
-    return Layer.merge(
-      scopedFeed,
-      testWorkspaceContext(seedWorkspaceRecord, actor ?? null)
-    )
+    return Layer.merge(scopedFeed, testWorkspaceContext(seedWorkspaceRecord, actor))
   }
 
   it.effect('shows broadcast plus own notifications to the actor', () =>

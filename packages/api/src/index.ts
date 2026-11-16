@@ -27,9 +27,9 @@ import {
   UpdateWebhookEndpointPayload,
   WebhookEndpoint,
   WebhookDispatchRejected,
-  WebhookEndpointNotFound,
-  WebhookDeliveryNotFound
+  WebhookEndpointNotFound
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+import { WebhookDeliveryNotFound } from '@b2b-saas-starter/capabilities/developer-platform/webhook-deliveries'
 import {
   WebhookDelivery,
   WebhookDeliveryAttempt

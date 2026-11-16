@@ -915,8 +915,9 @@ the note and then independently write its audit event.
 Add `workspace_note.created` and `workspace_note` to
 `governance/audit-event-taxonomy.ts`. Mark the new event `audit-only` in
 `developer-platform/webhook-events.ts`. The event stores the note ID and actor
-provenance, never the note text. API Token writes retain `actorType: 'api_token'`;
-web writes retain the authenticated user.
+provenance, never the note text: spread `workspaceAuditAttribution(ctx)` into the
+audit event. API Token writes retain `actorType: 'api_token'`; web writes retain
+the authenticated user.
 
 The Live list query always includes
 `eq(workspaceNotes.workspaceId, ctx.workspace.id)`. It orders by `createdAt` and
@@ -2114,7 +2115,8 @@ domain webhook.
 * URLs are validated at creation and on every update (and re-checked at dispatch): https only, no embedded credentials, no `localhost` or single-label hostnames, and no private, loopback, or link-local IP literals. Invalid URLs fail with `InvalidWebhookUrl` (400). DNS-rebinding protection is out of scope for the starter.
 * Disabling an endpoint stops delivery without losing history; updating it with `enabled: true` (PATCH) re-enables it
 * Updating (`PATCH`) changes the URL, the event subscriptions, or the enabled flag (only the fields you send)
-* Deleting an endpoint removes it and its delivery history (the deliveries cascade); rotation, updates, deletions, and replays all write Audit Events through `WebhookEndpoints` in `@b2b-saas-starter/capabilities`
+* Deleting an endpoint removes it and its delivery history (the deliveries cascade)
+* Rotation, updates, and deletions write Audit Events through `WebhookEndpoints` in `@b2b-saas-starter/capabilities`; workspace replays write them through `WebhookDeliveries`, and `/admin` replays through `WebhookDeliveryAdmin`
 
 ## Delivery
 
@@ -2209,8 +2211,10 @@ Network delivery remains at-least-once. A crash or concurrent processing can POS
 twice even though stored evidence is duplicate-safe. Receivers must deduplicate
 `webhook-id` durably.
 
-The daily schedule deletes at most 100 summaries older than 30 days per
-pass, cascading their attempts. A large backlog takes multiple passes to drain.
+Scheduled retention cleanup deletes settled summaries (delivered or terminally
+failed) 30 days after their last attempt, cascading their attempts.
+Each run works within the approved batch size and work budget, so a large
+backlog takes several runs to drain.
 Digest delivery and history cleanup settle independently. Replay provenance keeps
 the source ID even after the source expires.
 

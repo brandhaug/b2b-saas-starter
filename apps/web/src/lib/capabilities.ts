@@ -21,7 +21,7 @@ import {
 } from '@b2b-saas-starter/capabilities/runtime'
 import {
   WorkspaceContext,
-  type ActorRef,
+  type WorkspaceCaller,
   type WorkspaceServices
 } from '@b2b-saas-starter/capabilities/workspace-context'
 import { type CapabilityServices } from '@b2b-saas-starter/capabilities/layers'
@@ -166,10 +166,11 @@ function rethrowCapabilityFailure(cause: Cause.Cause<unknown>): never {
  * Runs a workspace-scoped capability effect for a route loader or server
  * function.
  *
- * - `actor` is the signed-in user (from `requireSession`); the capabilities
- *   layer verifies workspace membership and fails with `WorkspaceNotFound`
- *   for non-members (non-disclosing). Omit it only for trusted server-side
- *   reads of the public showcase workspace.
+ * - `caller` is the signed-in user (`WorkspaceCaller.user`, from
+ *   `requireSession`); the capabilities layer verifies workspace membership
+ *   and fails with `WorkspaceNotFound` for non-members (non-disclosing).
+ *   Only trusted server-side reads of the public showcase workspace pass
+ *   `WorkspaceCaller.system`.
  * - `WorkspaceNotFound` becomes TanStack's `notFound()` so routes render the
  *   404 component.
  * - `CapabilityUnavailable` becomes `CapabilityUnavailableError` so the
@@ -184,14 +185,16 @@ function rethrowCapabilityFailure(cause: Cause.Cause<unknown>): never {
 export async function runWorkspaceCapabilities<A, E>(
   workspaceSlug: string,
   effect: Effect.Effect<A, E, CapabilityServices | WorkspaceServices | Scope.Scope>,
-  actor?: ActorRef,
+  caller: WorkspaceCaller,
   bindings?: CapabilityBindings
 ): Promise<A> {
   const exit = await webRuntime.runPromiseExit(
     withWebRequestScope(
       {
         event: 'capability.workspace',
-        metadata: { actorUserId: actor?.userId }
+        metadata: {
+          actorUserId: caller.actorType === 'user' ? caller.actor.userId : undefined
+        }
       },
       Effect.provide(
         Effect.gen(function* () {
@@ -199,12 +202,7 @@ export async function runWorkspaceCapabilities<A, E>(
           yield* annotateWideEvent({ workspaceId: context.workspace.id })
           return yield* effect
         }),
-        selectWorkspaceLayer(
-          { ...starterEnv, ...bindings },
-          workspaceSlug,
-          actor,
-          'user'
-        )
+        selectWorkspaceLayer({ ...starterEnv, ...bindings }, workspaceSlug, caller)
       )
     )
   )

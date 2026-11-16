@@ -21,7 +21,10 @@ import { env as cloudflareEnv } from 'cloudflare:workers'
 import { runCapabilities, runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission, whenPermitted } from './authorize'
-import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
+import {
+  WorkspaceContext,
+  WorkspaceCaller
+} from '@b2b-saas-starter/capabilities/workspace-context'
 import { workspacePage, type WorkspacePageFrame } from './page-frame'
 import {
   type PortalInput,
@@ -129,9 +132,11 @@ export async function loadWorkspaceBillingHandler(
   input: WorkspaceBillingInput
 ): Promise<WorkspaceBillingPayload> {
   const session = await requireRequestSession()
-  return runWorkspaceCapabilities(input.workspaceSlug, billingPayload, {
-    userId: session.user.id
-  })
+  return runWorkspaceCapabilities(
+    input.workspaceSlug,
+    billingPayload,
+    WorkspaceCaller.user(session.user.id)
+  )
 }
 
 export async function selectBillingResourcesHandler(
@@ -148,7 +153,7 @@ export async function selectBillingResourcesHandler(
         webhookEndpointIds: input.webhookEndpointIds
       })
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }
 
@@ -208,7 +213,7 @@ export async function startCheckoutHandler(
         cancelUrl: `${backTo}?checkout=canceled${purchase ? `&purchase=${purchase.planId}` : ''}`
       })
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }
 
@@ -235,7 +240,7 @@ export async function startPortalSessionHandler(
         returnUrl: `${base}/workspaces/${encodeURIComponent(input.workspaceSlug)}/billing`
       })
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }
 
@@ -267,6 +272,6 @@ export async function reconcileCheckoutReturnHandler(
           )
         )
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }

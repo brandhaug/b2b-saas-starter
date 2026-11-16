@@ -4,7 +4,10 @@ import {
   WorkspaceExports,
   type WorkspaceExport
 } from '@b2b-saas-starter/capabilities/governance/workspace-export'
-import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
+import {
+  type WorkspaceContext,
+  WorkspaceCaller
+} from '@b2b-saas-starter/capabilities/workspace-context'
 import { hasValue } from '@b2b-saas-starter/env/server'
 import { env as cloudflareEnv } from 'cloudflare:workers'
 import { Effect, Option } from 'effect'
@@ -65,7 +68,7 @@ export async function downloadWorkspaceExportHandler(
         onSome: (issued) => new URL(issued.path, apiPublicUrl()).toString()
       })
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }
 
@@ -82,6 +85,6 @@ export async function requestWorkspaceExportHandler(
       const exports = yield* WorkspaceExports
       return yield* exports.request
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }

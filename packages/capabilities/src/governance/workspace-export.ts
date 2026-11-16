@@ -2,6 +2,7 @@ import { workspaceExportStatuses } from '@b2b-saas-starter/db/enums'
 import { Context, DateTime, Effect, Option, Schema } from 'effect'
 
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
+import { type AuditAttribution } from '@b2b-saas-starter/billing/ports'
 import { type WorkspaceSuspended } from '../errors.ts'
 import { hmacSha256Hex } from '../crypto.ts'
 import { type WorkspaceContext } from '../workspace-context.ts'
@@ -337,6 +338,20 @@ export function signWorkspaceExportDownload(
   // defect policy for an unusable key without executing a nested runtime.
   // oxlint-disable-next-line no-restricted-properties -- invalid stored signing material was already a defect at this boundary
   return hmacSha256Hex(downloadSecret, message).pipe(Effect.orDie)
+}
+
+/**
+ * Who a download's audit row names. A human-bound link carries its signed-in
+ * user; an unbound link was minted for a bearer API token. The download runs
+ * without a `WorkspaceContext`, so this replaces `workspaceAuditAttribution`.
+ */
+export function workspaceExportDownloadAttribution(
+  human: WorkspaceExportHumanRecipient | undefined
+): Omit<AuditAttribution, 'workspaceId'> {
+  if (human) {
+    return { actorUserId: human.userId, actorType: 'user' }
+  }
+  return { actorUserId: null, actorType: 'api_token' }
 }
 
 /** The link's path on the API worker, for a signature already computed. */

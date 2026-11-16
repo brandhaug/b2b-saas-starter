@@ -5,12 +5,11 @@ import {
 import { annotateWideEvent } from '@b2b-saas-starter/logger'
 import { requirePermission } from '@b2b-saas-starter/authz/guard'
 import { tokenPrincipal, type PermissionRequest } from '@b2b-saas-starter/authz/client'
-import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { type WorkspaceSuspended } from '@b2b-saas-starter/capabilities/errors'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { selectWorkspaceContextLayer } from '@b2b-saas-starter/capabilities/runtime'
-import { type ActorRef } from '@b2b-saas-starter/capabilities/workspace-context'
+import { type WorkspaceCaller } from '@b2b-saas-starter/capabilities/workspace-context'
 import {
   AUTHORIZATION_DENIED_REASONS,
   AuthorizationDenied
@@ -212,20 +211,19 @@ export function webRequest(request: HttpServerRequest.HttpServerRequest): Reques
  * `HttpRouter.provideRequest`, so a request pays for the workspace lookup and
  * nothing else.
  *
- * `actorType` names what kind of caller made the request — it is what the
- * audit writes a mutating capability performs read to label their rows. The
- * REST groups are bearer-token-only, so they pass `'api_token'`; MCP callers
- * take theirs from their caller-kind policy (`provideMcpWorkspace`).
+ * `caller` names who made the request — the audit writes a mutating
+ * capability performs label their rows with it. The REST groups are
+ * bearer-token-only, so they pass `WorkspaceCaller.apiToken`; MCP callers take
+ * theirs from their caller-kind policy (`provideMcpWorkspace`).
  */
 export function provideWorkspace<A, E, R>(
   env: ApiEnv,
   slug: string,
   body: Effect.Effect<A, E, R>,
-  actor: ActorRef | undefined,
-  actorType: AuditActorTypeValue
+  caller: WorkspaceCaller
 ) {
   return body.pipe(
-    Effect.provide(selectWorkspaceContextLayer(starterEnv(env), slug, actor, actorType))
+    Effect.provide(selectWorkspaceContextLayer(starterEnv(env), slug, caller))
   )
 }
 

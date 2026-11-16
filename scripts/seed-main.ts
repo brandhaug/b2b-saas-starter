@@ -36,7 +36,10 @@ import { NotificationPreferences } from '@b2b-saas-starter/capabilities/notifica
 import { PlatformUserAdmin } from '@b2b-saas-starter/capabilities/governance/platform-user-admin'
 import { selectWorkspaceLayer } from '@b2b-saas-starter/capabilities/runtime'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
-import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
+import {
+  WorkspaceCaller,
+  WorkspaceContext
+} from '@b2b-saas-starter/capabilities/workspace-context'
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 
 import { getColumns, getTableName, type Table } from 'drizzle-orm'
@@ -47,6 +50,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
+import { WebhookDeliveries } from '@b2b-saas-starter/capabilities/developer-platform/webhook-deliveries'
 
 // The seed writes `.context/…` and targets `packages/db/wrangler.jsonc` with
 // root-relative paths, so it pins its own cwd instead of trusting the caller's.
@@ -134,6 +138,7 @@ const collectFixture = Effect.gen(function* () {
   const membership = yield* WorkspaceMembership
   const tokens = yield* ApiTokenRegistry
   const webhooks = yield* WebhookEndpoints
+  const deliveryLog = yield* WebhookDeliveries
   const notificationFeed = yield* NotificationFeed
   const notificationPrefs = yield* NotificationPreferences
   const userAdmin = yield* PlatformUserAdmin
@@ -149,7 +154,7 @@ const collectFixture = Effect.gen(function* () {
     tokens: yield* tokens.list,
     webhooks: endpoints,
     deliveries: yield* Effect.forEach(endpoints, (endpoint) =>
-      webhooks.listDeliveries({ endpointId: endpoint.id })
+      deliveryLog.listDeliveries({ endpointId: endpoint.id })
     ),
     notifications: yield* notificationFeed.list,
     // The demo owner's explicit email choices — only the non-default rows are
@@ -645,7 +650,7 @@ const program = collectFixture.pipe(
   ),
   Effect.flatMap(writeAndExecute),
   // The seed is the platform writing fixture data; no human actor initiates it.
-  Effect.provide(selectWorkspaceLayer({}, workspaceSlug, undefined, 'system'))
+  Effect.provide(selectWorkspaceLayer({}, workspaceSlug, WorkspaceCaller.system))
 )
 
 // Script entrypoint: the top-level await is what makes a failed seed reject

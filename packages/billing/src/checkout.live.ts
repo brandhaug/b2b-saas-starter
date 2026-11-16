@@ -3,7 +3,7 @@ import {
   billingSynchronization,
   workspaceSubscriptions
 } from '@b2b-saas-starter/db/schema/billing'
-import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
+import { type AuditAttribution } from './ports.ts'
 import { DateTime, Effect } from 'effect'
 import { eq, sql } from 'drizzle-orm'
 
@@ -31,10 +31,7 @@ import {
   validateStripeCustomerForWorkspace
 } from './stripe.ts'
 
-type Actor = {
-  readonly actorUserId: string | null
-  readonly actorType: AuditActorTypeValue
-}
+type Actor = Omit<AuditAttribution, 'workspaceId'>
 export type DurableCheckoutInput = CheckoutClaimInput &
   Actor & {
     readonly secretKey: string

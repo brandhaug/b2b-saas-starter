@@ -300,7 +300,7 @@ describe('notifyOwnersOfFailedTest — the owner fan-out rule', () => {
               Effect.provideService(WorkspaceContext, {
                 workspace,
                 actor: null,
-                actorType: 'user'
+                actorType: 'system'
               })
             )
             const counts: Record<string, number> = {}

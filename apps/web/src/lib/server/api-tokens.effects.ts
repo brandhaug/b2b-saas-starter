@@ -1,6 +1,9 @@
 import { requireTokenScopes } from '@b2b-saas-starter/authz/guard'
 import { memberPrincipal } from '@b2b-saas-starter/authz/client'
-import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
+import {
+  WorkspaceContext,
+  WorkspaceCaller
+} from '@b2b-saas-starter/capabilities/workspace-context'
 import {
   ApiTokenRegistry,
   type ReplacedApiToken,
@@ -40,9 +43,11 @@ export async function loadWorkspaceApiTokensHandler(
   // proved membership, and `runWorkspaceCapabilities` re-proves it
   // server-side.
   const session = await requireRequestSession()
-  return runWorkspaceCapabilities(input.workspaceSlug, apiTokensPayload, {
-    userId: session.user.id
-  })
+  return runWorkspaceCapabilities(
+    input.workspaceSlug,
+    apiTokensPayload,
+    WorkspaceCaller.user(session.user.id)
+  )
 }
 
 export async function createApiTokenHandler({
@@ -63,7 +68,7 @@ export async function createApiTokenHandler({
       // below the interface — identical for every surface.
       return yield* tokens.create(input)
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }
 
@@ -81,7 +86,7 @@ export async function revokeApiTokenHandler(
       const tokens = yield* ApiTokenRegistry
       return yield* tokens.revoke({ tokenId: input.tokenId })
     }),
-    { userId: session.user.id },
+    WorkspaceCaller.user(session.user.id),
     { securityEvidence: makeSecurityEvidenceSink() }
   )
 }
@@ -101,6 +106,6 @@ export async function replaceApiTokenHandler({
       const tokens = yield* ApiTokenRegistry
       return yield* tokens.replace(input)
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }

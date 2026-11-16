@@ -2,7 +2,7 @@
 
 ## Purpose & Scope
 
-Stripe lifecycle, checkout recovery, seat billing, and resource entitlements (ADR 0060). `ports.ts` owns the request-context, audit, and notification interfaces supplied by `capabilities/src/billing-adapters.ts` and its workspace-context layers. The package has no dependency on capabilities. Provider setup and operator policy live in [the runbook](../../docs/billing-operator-runbook.md).
+Stripe lifecycle, checkout recovery, seat billing, and resource entitlements (ADR 0060). `ports.ts` owns the request-context, audit, and notification interfaces supplied by `capabilities/src/billing-adapters.ts` and its workspace-context layers. The package has no dependency on capabilities. `ports.ts` also owns audit attribution for capabilities (`AuditAttribution`, `workspaceAuditAttribution`): billing cannot import capabilities, and the capabilities `WorkspaceContext` satisfies this request-context contract structurally, so the lower package holds the one derivation both sides use. Provider setup and operator policy live in [the runbook](../../docs/billing-operator-runbook.md).
 
 ## Entry Points & Contracts
 

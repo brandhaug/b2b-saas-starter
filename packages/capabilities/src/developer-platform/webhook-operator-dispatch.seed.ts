@@ -1,10 +1,11 @@
+import { workspaceAuditAttribution } from '@b2b-saas-starter/billing/ports'
 import { type WebhookDeliveryId } from '@b2b-saas-starter/db/ids'
 import { DateTime, Effect } from 'effect'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
 import { type PendingDispatchPlan } from './webhook-delivery-plan.ts'
 import { WebhookDispatchRejected } from './webhook-endpoints.ts'
-import { type SeedDeliveryFixture } from './webhook-endpoints.seed.ts'
+import { type SeedDeliveryFixture } from './webhook-store.seed.ts'
 
 /** Reserves one operator delivery and records its audit once per stable identity. */
 export function seedOperatorDispatch(deliveries: Array<SeedDeliveryFixture>) {
@@ -47,9 +48,8 @@ export function seedOperatorDispatch(deliveries: Array<SeedDeliveryFixture>) {
       if (input.auditEventType !== undefined) {
         const ctx = yield* WorkspaceContext
         yield* audit.record({
+          ...workspaceAuditAttribution(ctx),
           workspaceId: input.workspaceId,
-          actorUserId: ctx.actor?.userId ?? null,
-          actorType: ctx.actorType,
           eventType: input.auditEventType,
           targetType: 'webhook_endpoint',
           targetId: input.plan.endpointId,

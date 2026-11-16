@@ -6,7 +6,7 @@ import { and, eq } from 'drizzle-orm'
 
 import { LiveAuditEventLog } from '../governance/audit-event-log.live.ts'
 import { LIVE_SUITE_TIMEOUT, TestDatabase } from '../testing/live-harness.ts'
-import { liveWorkspaceContext } from '../workspace-context.ts'
+import { liveWorkspaceContext, WorkspaceCaller } from '../workspace-context.ts'
 import { type NotificationEmailQueueMessage } from './notification-email-queue.ts'
 import { LiveNotificationFeed } from './notification-feed.live.ts'
 import { NotificationFeed } from './notification-feed.ts'
@@ -144,7 +144,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
           Effect.flatMap(NotificationFeed, (feed) => feed.list),
           Layer.merge(
             feedLayer([]),
-            liveWorkspaceContext('live-lab', { userId: 'usr_owner' }, 'user')
+            liveWorkspaceContext('live-lab', WorkspaceCaller.user('usr_owner'))
           )
         )
         expect(listed.map((row) => row.id)).toContain(created.id)

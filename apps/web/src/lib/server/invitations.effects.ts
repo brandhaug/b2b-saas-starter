@@ -1,5 +1,8 @@
 import { latestInvitationEmailHistory } from '@b2b-saas-starter/capabilities/governance/invitation-email-history'
-import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
+import {
+  WorkspaceContext,
+  WorkspaceCaller
+} from '@b2b-saas-starter/capabilities/workspace-context'
 import { AccountPreferencesService } from '@b2b-saas-starter/capabilities/governance/account-preferences'
 import {
   requirePending,
@@ -71,7 +74,7 @@ export async function sendInvitationHandler(
         `invitation:${invitation.id}:0`
       )
     }).pipe(Effect.provide(emailDispatcherLayer())),
-    { userId: session.user.id },
+    WorkspaceCaller.user(session.user.id),
     { invitationBinding: webInvitationBinding }
   )
 }
@@ -178,7 +181,7 @@ export async function resendInvitationHandler(
       }
       return yield* dispatchInvitation(invitation, ctx.workspace, deliveryId)
     }).pipe(Effect.provide(emailDispatcherLayer())),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }
 
@@ -193,7 +196,7 @@ export async function cancelInvitationHandler(
       const invitations = yield* WorkspaceInvitations
       yield* invitations.cancel({ invitationId: input.invitationId })
     }),
-    { userId: session.user.id },
+    WorkspaceCaller.user(session.user.id),
     { invitationBinding: webInvitationBinding }
   )
 }

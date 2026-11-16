@@ -2,6 +2,7 @@ import { DateTime, Deferred, Effect, Fiber, Layer, Queue } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 import { WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 
+import { WebhookDeliveries } from '../developer-platform/webhook-deliveries.ts'
 import { WebhookEndpoints } from '../developer-platform/webhook-endpoints.ts'
 import { SeedLayer } from '../layers.ts'
 import { seedWorkspaceRecord } from '../seed-fixture.ts'
@@ -12,6 +13,7 @@ describe('collectWorkspaceExportSnapshot — per-endpoint delivery reads', () =>
   it.effect('reads at most four endpoints’ deliveries at once', () =>
     Effect.gen(function* () {
       const webhooks = yield* WebhookEndpoints
+      const deliveryLog = yield* WebhookDeliveries
       const [template] = yield* webhooks.list
       if (template === undefined) {
         return yield* Effect.die('the seed fixture carries a webhook endpoint')
@@ -28,9 +30,12 @@ describe('collectWorkspaceExportSnapshot — per-endpoint delivery reads', () =>
       let started = 0
       let inFlight = 0
       let peak = 0
-      const gated = WebhookEndpoints.of({
+      const listed = WebhookEndpoints.of({
         ...webhooks,
-        list: Effect.succeed(endpoints),
+        list: Effect.succeed(endpoints)
+      })
+      const gated = WebhookDeliveries.of({
+        ...deliveryLog,
         listDeliveries: ({ endpointId }) =>
           Effect.gen(function* () {
             started += 1
@@ -46,7 +51,10 @@ describe('collectWorkspaceExportSnapshot — per-endpoint delivery reads', () =>
         collectWorkspaceExportSnapshot({
           exportId: 'exp_bounded',
           generatedAt: DateTime.makeUnsafe(0)
-        }).pipe(Effect.provideService(WebhookEndpoints, gated))
+        }).pipe(
+          Effect.provideService(WebhookEndpoints, listed),
+          Effect.provideService(WebhookDeliveries, gated)
+        )
       )
       for (let index = 0; index < 4; index += 1) {
         yield* Queue.take(starts)

@@ -12,7 +12,7 @@ import {
   deliveredDeliveryStatus,
   isDispatchableDeliveryStatus
 } from './webhook-delivery-plan.ts'
-import { WebhookEndpoints } from './webhook-endpoints.ts'
+import { WebhookDeliveries } from './webhook-deliveries.ts'
 
 /**
  * The owner of the `webhook_investigation_tasks.status` machine (ADR 0077).
@@ -237,7 +237,7 @@ function cancellationRefused(status: WebhookInvestigationTaskStatus) {
 
 export function makeInvestigationTasks(store: InvestigationTaskStore) {
   return Effect.gen(function* () {
-    const webhooks = yield* WebhookEndpoints
+    const webhooks = yield* WebhookDeliveries
     const read = Effect.fn('WebhookInvestigationTasks.read')(function* (
       taskId: string
     ) {

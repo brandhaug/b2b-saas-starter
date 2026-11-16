@@ -1,3 +1,4 @@
+import { workspaceAuditAttribution } from '@b2b-saas-starter/billing/ports'
 import { workspaceExports } from '@b2b-saas-starter/db/schema/governance'
 import { workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
@@ -34,7 +35,8 @@ import {
   type WorkspaceExport,
   type WorkspaceExportAvailability,
   type WorkspaceExportBucketBinding,
-  type WorkspaceExportQueueBinding
+  type WorkspaceExportQueueBinding,
+  workspaceExportDownloadAttribution
 } from './workspace-export.ts'
 
 const CAPABILITY = 'workspace-exports'
@@ -236,9 +238,7 @@ export function LiveWorkspaceExports(
           yield* auditedMutation({
             matched: Effect.succeed(true),
             auditEvent: {
-              workspaceId: ctx.workspace.id,
-              actorUserId: ctx.actor?.userId ?? null,
-              actorType: ctx.actorType,
+              ...workspaceAuditAttribution(ctx),
               eventType: 'workspace.export_requested',
               targetType: 'workspace_export',
               targetId: id,
@@ -407,14 +407,9 @@ export function LiveWorkspaceExports(
               catch: (cause) => cause
             })
           )
-          let actorType: 'user' | 'api_token' = 'api_token'
-          if (input.human) {
-            actorType = 'user'
-          }
           yield* audit.record({
             workspaceId: found.row.workspaceId,
-            actorUserId: input.human?.userId ?? null,
-            actorType,
+            ...workspaceExportDownloadAttribution(input.human),
             eventType: 'workspace.export_downloaded',
             targetType: 'workspace_export',
             targetId: found.row.id,

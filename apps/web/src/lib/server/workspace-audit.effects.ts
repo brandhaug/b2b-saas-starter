@@ -9,6 +9,7 @@ import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/w
 import { Effect } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
+import { WorkspaceCaller } from '@b2b-saas-starter/capabilities/workspace-context'
 import { requireRequestSession } from './auth'
 import { requestPresentation } from './i18n-context'
 import { workspacePage } from './page-frame'
@@ -99,6 +100,6 @@ export async function loadWorkspaceAuditEventsHandler(
         }
       })
     ),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }

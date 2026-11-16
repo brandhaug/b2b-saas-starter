@@ -2,6 +2,7 @@ import { WorkspaceOnboarding } from '@b2b-saas-starter/capabilities/governance/w
 import { Effect } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
+import { WorkspaceCaller } from '@b2b-saas-starter/capabilities/workspace-context'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
 import { type DismissInput } from './workspace-onboarding'
@@ -21,6 +22,6 @@ export async function dismissOnboardingChecklistHandler(
       const onboarding = yield* WorkspaceOnboarding
       return yield* onboarding.dismiss
     }),
-    { userId: session.user.id }
+    WorkspaceCaller.user(session.user.id)
   )
 }

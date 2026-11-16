@@ -20,12 +20,17 @@ import {
   WEBHOOK_TEST_EVENT_TYPE,
   type WebhookDispatchRejected,
   type WebhookEndpointNotFound,
-  type WebhookDeliveryNotFound,
   WebhookEndpoints
 } from './webhook-endpoints.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { walkKeysetPages } from '../internal/keyset-cursor.ts'
 import { WEBHOOK_FAILURE_AUTO_DISABLE_AT } from './webhook-delivery-plan.ts'
+import {
+  WebhookDeliveries,
+  type WebhookDeliveryNotFound
+} from './webhook-deliveries.ts'
+import { WebhookDeliveryAdmin } from './webhook-delivery-admin.ts'
+import { WebhookDispatch } from './webhook-dispatch.ts'
 
 /**
  * The developer-platform mutation contract, written once and run against both
@@ -59,6 +64,9 @@ export type DeveloperPlatformContractCase = {
     | WebhookDispatchRejected,
     | ApiTokenRegistry
     | WebhookEndpoints
+    | WebhookDeliveries
+    | WebhookDeliveryAdmin
+    | WebhookDispatch
     | AuditEventLog
     | WorkspaceContext
     | NotificationFeed
@@ -175,6 +183,7 @@ export function developerPlatformContractCases(
       name: 'a created webhook endpoint lists back and resolves a dispatch target',
       assert: Effect.gen(function* () {
         const webhooks = yield* WebhookEndpoints
+        const dispatch = yield* WebhookDispatch
         const { endpoint } = yield* webhooks.create({
           url: 'https://example.com/contract-hook',
           events: ['demo.event']
@@ -185,7 +194,7 @@ export function developerPlatformContractCases(
 
         const ctx = yield* WorkspaceContext
         const sent = yield* webhooks.sendTestEvent({ endpointId: endpoint.id })
-        const target = yield* webhooks.getDispatchTarget(
+        const target = yield* dispatch.getDispatchTarget(
           endpoint.id,
           ctx.workspace.id,
           sent.deliveryId
@@ -197,6 +206,7 @@ export function developerPlatformContractCases(
       name: 'an endpoint disabled through update stops resolving dispatch targets',
       assert: Effect.gen(function* () {
         const webhooks = yield* WebhookEndpoints
+        const dispatch = yield* WebhookDispatch
         const ctx = yield* WorkspaceContext
         const { endpoint } = yield* webhooks.create({
           url: 'https://example.com/disable-hook',
@@ -206,7 +216,7 @@ export function developerPlatformContractCases(
         const sent = yield* webhooks.sendTestEvent({ endpointId: endpoint.id })
         yield* webhooks.update({ endpointId: endpoint.id, enabled: false })
         expect(
-          yield* webhooks.getDispatchTarget(
+          yield* dispatch.getDispatchTarget(
             endpoint.id,
             ctx.workspace.id,
             sent.deliveryId
@@ -218,6 +228,8 @@ export function developerPlatformContractCases(
       name: 'recorded delivery attempts list newest first without audit events',
       assert: Effect.gen(function* () {
         const webhooks = yield* WebhookEndpoints
+        const dispatch = yield* WebhookDispatch
+        const deliveryLog = yield* WebhookDeliveries
         const log = yield* AuditEventLog
         const { endpoint } = yield* webhooks.create({
           url: 'https://example.com/deliveries-hook',
@@ -228,7 +240,7 @@ export function developerPlatformContractCases(
         ).length
 
         const ctx = yield* WorkspaceContext
-        yield* webhooks.recordDeliveryAttempt({
+        yield* dispatch.recordDeliveryAttempt({
           id: WebhookDeliveryId.make('whd_contract_first'),
           endpointId: endpoint.id,
           workspaceId: ctx.workspace.id,
@@ -239,7 +251,7 @@ export function developerPlatformContractCases(
           nextAttemptAt: null,
           payload: { tokenId: ApiTokenId.make('tok_first') }
         })
-        yield* webhooks.recordDeliveryAttempt({
+        yield* dispatch.recordDeliveryAttempt({
           id: WebhookDeliveryId.make('whd_contract_second'),
           endpointId: endpoint.id,
           workspaceId: ctx.workspace.id,
@@ -251,7 +263,7 @@ export function developerPlatformContractCases(
           payload: { tokenId: ApiTokenId.make('tok_second') }
         })
 
-        const deliveries = yield* webhooks.listDeliveries({
+        const deliveries = yield* deliveryLog.listDeliveries({
           endpointId: endpoint.id
         })
         // Newest first is a total order both adapters keep: `lastAttemptAt`
@@ -273,6 +285,8 @@ export function developerPlatformContractCases(
       name: 'a dead-lettered terminal attempt batches its webhook.delivery_dead_lettered audit event',
       assert: Effect.gen(function* () {
         const webhooks = yield* WebhookEndpoints
+        const dispatch = yield* WebhookDispatch
+        const deliveryLog = yield* WebhookDeliveries
         const log = yield* AuditEventLog
         const { endpoint } = yield* webhooks.create({
           url: 'https://example.com/dead-letter-hook',
@@ -281,7 +295,7 @@ export function developerPlatformContractCases(
         const ctx = yield* WorkspaceContext
 
         const sent = yield* webhooks.sendTestEvent({ endpointId: endpoint.id })
-        const { deliveryId } = yield* webhooks.recordTerminalDeliveryAttempt({
+        const { deliveryId } = yield* dispatch.recordTerminalDeliveryAttempt({
           deliveryId: sent.deliveryId,
           endpointId: endpoint.id,
           workspaceId: ctx.workspace.id,
@@ -302,7 +316,7 @@ export function developerPlatformContractCases(
         ).toBe('system')
         // The audit metadata points back at the row it committed with, and the
         // row itself is listable through the same interface.
-        const rows = yield* webhooks.listDeliveries({ endpointId: endpoint.id })
+        const rows = yield* deliveryLog.listDeliveries({ endpointId: endpoint.id })
         expect(rows.some((row) => row.id === deliveryId)).toBe(true)
       })
     },
@@ -310,6 +324,7 @@ export function developerPlatformContractCases(
       name: 'recorded failures climb the endpoint streak and a delivered attempt resets it',
       assert: Effect.gen(function* () {
         const webhooks = yield* WebhookEndpoints
+        const dispatch = yield* WebhookDispatch
         const ctx = yield* WorkspaceContext
         const { endpoint } = yield* webhooks.create({
           url: 'https://example.com/ladder-hook',
@@ -319,7 +334,7 @@ export function developerPlatformContractCases(
         // Each recorded failure climbs; the returned streak is what the
         // queue consumer reacts to (ADR 0062 addendum's failure ladder).
         function attempt(status: 'failed' | 'delivered', index: number) {
-          return webhooks.recordDeliveryAttempt({
+          return dispatch.recordDeliveryAttempt({
             id: WebhookDeliveryId.make(`whd_contract_ladder_${index}`),
             endpointId: endpoint.id,
             workspaceId: ctx.workspace.id,
@@ -341,7 +356,7 @@ export function developerPlatformContractCases(
         expect((yield* attempt('failed', 5)).consecutiveFailures).toBe(1)
         // A climb alone never disables: the dispatch target still resolves.
         expect(
-          (yield* webhooks.getDispatchTarget(
+          (yield* dispatch.getDispatchTarget(
             endpoint.id,
             ctx.workspace.id,
             WebhookDeliveryId.make('whd_contract_ladder_5')
@@ -353,6 +368,7 @@ export function developerPlatformContractCases(
       name: 'the disable rung auto-disables the endpoint, audits it, and update re-enables',
       assert: Effect.gen(function* () {
         const webhooks = yield* WebhookEndpoints
+        const dispatch = yield* WebhookDispatch
         const log = yield* AuditEventLog
         const ctx = yield* WorkspaceContext
         const { endpoint } = yield* webhooks.create({
@@ -365,7 +381,7 @@ export function developerPlatformContractCases(
         // returned streak is what trips the rung the consumer reacts to.
         let streak = 0
         for (let index = 1; index < WEBHOOK_FAILURE_AUTO_DISABLE_AT; index++) {
-          streak = (yield* webhooks.recordDeliveryAttempt({
+          streak = (yield* dispatch.recordDeliveryAttempt({
             id: WebhookDeliveryId.make(`whd_contract_disable_${index}`),
             endpointId: endpoint.id,
             workspaceId: ctx.workspace.id,
@@ -379,7 +395,7 @@ export function developerPlatformContractCases(
         }
         expect(streak).toBe(WEBHOOK_FAILURE_AUTO_DISABLE_AT - 1)
         const sent = yield* webhooks.sendTestEvent({ endpointId: endpoint.id })
-        const twentieth = yield* webhooks.recordTerminalDeliveryAttempt({
+        const twentieth = yield* dispatch.recordTerminalDeliveryAttempt({
           deliveryId: sent.deliveryId,
           endpointId: endpoint.id,
           workspaceId: ctx.workspace.id,
@@ -392,7 +408,7 @@ export function developerPlatformContractCases(
 
         // Disabled: no dispatch target, and the governance log says why.
         expect(
-          (yield* webhooks.getDispatchTarget(
+          (yield* dispatch.getDispatchTarget(
             endpoint.id,
             ctx.workspace.id,
             sent.deliveryId
@@ -407,7 +423,7 @@ export function developerPlatformContractCases(
         ).toBe('system')
 
         // A duplicate terminal observation creates no phantom audit.
-        yield* webhooks.recordTerminalDeliveryAttempt({
+        yield* dispatch.recordTerminalDeliveryAttempt({
           deliveryId: sent.deliveryId,
           endpointId: endpoint.id,
           workspaceId: ctx.workspace.id,
@@ -430,7 +446,7 @@ export function developerPlatformContractCases(
         })
         expect(reEnabled.enabled).toBe(true)
         expect(
-          (yield* webhooks.getDispatchTarget(
+          (yield* dispatch.getDispatchTarget(
             endpoint.id,
             ctx.workspace.id,
             sent.deliveryId
@@ -483,12 +499,14 @@ export function developerPlatformContractCases(
       name: 'delete removes the endpoint, its deliveries, and its dispatch target',
       assert: Effect.gen(function* () {
         const webhooks = yield* WebhookEndpoints
+        const dispatch = yield* WebhookDispatch
+        const deliveryLog = yield* WebhookDeliveries
         const ctx = yield* WorkspaceContext
         const { endpoint } = yield* webhooks.create({
           url: 'https://example.com/delete-hook',
           events: ['demo.event']
         })
-        yield* webhooks.recordDeliveryAttempt({
+        yield* dispatch.recordDeliveryAttempt({
           id: WebhookDeliveryId.make('whd_contract_delete'),
           endpointId: endpoint.id,
           workspaceId: ctx.workspace.id,
@@ -505,10 +523,10 @@ export function developerPlatformContractCases(
         )
         // The delivery rows cascaded with the endpoint row.
         expect(
-          yield* webhooks.listDeliveries({ endpointId: endpoint.id })
+          yield* deliveryLog.listDeliveries({ endpointId: endpoint.id })
         ).toHaveLength(0)
         expect(
-          yield* webhooks.getDispatchTarget(
+          yield* dispatch.getDispatchTarget(
             endpoint.id,
             ctx.workspace.id,
             WebhookDeliveryId.make('whd_contract_delete')
@@ -523,6 +541,8 @@ export function developerPlatformContractCases(
       name: 'terminal deliveries list globally, newest first, with endpoint and workspace',
       assert: Effect.gen(function* () {
         const webhooks = yield* WebhookEndpoints
+        const dispatch = yield* WebhookDispatch
+        const deliveryAdmin = yield* WebhookDeliveryAdmin
         const ctx = yield* WorkspaceContext
         const { endpoint: healthy } = yield* webhooks.create({
           url: 'https://example.com/global-deliveries-hook',
@@ -535,7 +555,7 @@ export function developerPlatformContractCases(
         yield* webhooks.update({ endpointId: turnedOff.id, enabled: false })
 
         // Fixed ids break timestamp ties in the same order in both adapters.
-        yield* webhooks.recordDeliveryAttempt({
+        yield* dispatch.recordDeliveryAttempt({
           id: WebhookDeliveryId.make('whd_contract_global_za'),
           endpointId: turnedOff.id,
           workspaceId: ctx.workspace.id,
@@ -546,7 +566,7 @@ export function developerPlatformContractCases(
           nextAttemptAt: null,
           payload: { rung: 'za' }
         })
-        yield* webhooks.recordDeliveryAttempt({
+        yield* dispatch.recordDeliveryAttempt({
           id: WebhookDeliveryId.make('whd_contract_global_zb'),
           endpointId: healthy.id,
           workspaceId: ctx.workspace.id,
@@ -558,7 +578,7 @@ export function developerPlatformContractCases(
           payload: { rung: 'zb' }
         })
         // A delivered row is not terminal — the global read must not serve it.
-        yield* webhooks.recordDeliveryAttempt({
+        yield* dispatch.recordDeliveryAttempt({
           id: WebhookDeliveryId.make('whd_contract_global_ok'),
           endpointId: healthy.id,
           workspaceId: ctx.workspace.id,
@@ -571,7 +591,7 @@ export function developerPlatformContractCases(
         })
 
         const walk = yield* walkKeysetPages(
-          (input) => webhooks.listGlobalDeliveries(input),
+          (input) => deliveryAdmin.listGlobalDeliveries(input),
           { limit: 1 }
         )
         expect(walk.exhausted).toBe(true)
@@ -612,13 +632,15 @@ export function developerPlatformContractCases(
       name: 'replay creates a pending copy with attempts reset and a replayedFrom link',
       assert: Effect.gen(function* () {
         const webhooks = yield* WebhookEndpoints
+        const dispatch = yield* WebhookDispatch
+        const deliveryLog = yield* WebhookDeliveries
         const log = yield* AuditEventLog
         const ctx = yield* WorkspaceContext
         const { endpoint } = yield* webhooks.create({
           url: 'https://example.com/replay-hook',
           events: ['demo.event']
         })
-        yield* webhooks.recordDeliveryAttempt({
+        yield* dispatch.recordDeliveryAttempt({
           id: WebhookDeliveryId.make('whd_contract_failed'),
           endpointId: endpoint.id,
           // Terminal statuses batch an audit event scoped to this workspace,
@@ -634,11 +656,11 @@ export function developerPlatformContractCases(
           (event) => event.eventType === 'webhook.delivery_replayed'
         ).length
 
-        const replayed = yield* webhooks.replayDelivery({
+        const replayed = yield* deliveryLog.replayDelivery({
           deliveryId: WebhookDeliveryId.make('whd_contract_failed')
         })
 
-        const rows = yield* webhooks.listDeliveries({ endpointId: endpoint.id })
+        const rows = yield* deliveryLog.listDeliveries({ endpointId: endpoint.id })
         const copy = rows.find((row) => row.id === replayed.deliveryId)
         expect(copy).toMatchObject({
           status: 'pending',
@@ -659,13 +681,13 @@ export function developerPlatformContractCases(
         ).length
         expect(auditsAfter).toBe(auditsBefore + 1)
 
-        const stable = yield* webhooks.replayDelivery({
+        const stable = yield* deliveryLog.replayDelivery({
           deliveryId: WebhookDeliveryId.make('whd_contract_failed'),
           replayDeliveryId: WebhookDeliveryId.make('whr_contract_replay'),
           expectedEndpointUrl: endpoint.url,
           expectedStatus: 'dead_lettered'
         })
-        const stableAgain = yield* webhooks.replayDelivery({
+        const stableAgain = yield* deliveryLog.replayDelivery({
           deliveryId: WebhookDeliveryId.make('whd_contract_failed'),
           replayDeliveryId: WebhookDeliveryId.make('whr_contract_replay'),
           expectedEndpointUrl: endpoint.url,
@@ -673,11 +695,11 @@ export function developerPlatformContractCases(
         })
         expect(stableAgain.deliveryId).toBe(stable.deliveryId)
         expect(
-          (yield* webhooks.listDeliveries({ endpointId: endpoint.id })).filter(
+          (yield* deliveryLog.listDeliveries({ endpointId: endpoint.id })).filter(
             (row) => row.id === stable.deliveryId
           )
         ).toHaveLength(1)
-        const conflictingApproval = yield* webhooks
+        const conflictingApproval = yield* deliveryLog
           .replayDelivery({
             deliveryId: WebhookDeliveryId.make('whd_contract_failed'),
             replayDeliveryId: WebhookDeliveryId.make('whr_contract_replay')
@@ -687,7 +709,7 @@ export function developerPlatformContractCases(
           _tag: 'WebhookDispatchRejected',
           reason: 'replay identity does not match the approved delivery'
         })
-        const inspected = yield* webhooks.inspectDelivery({
+        const inspected = yield* deliveryLog.inspectDelivery({
           deliveryId: WebhookDeliveryId.make('whd_contract_failed')
         })
         expect(inspected.delivery.id).toBe(
@@ -695,7 +717,7 @@ export function developerPlatformContractCases(
         )
         expect(inspected.endpoint.url).toBe(endpoint.url)
 
-        const drifted = yield* webhooks
+        const drifted = yield* deliveryLog
           .replayDelivery({
             deliveryId: WebhookDeliveryId.make('whd_contract_failed'),
             expectedEndpointUrl: 'https://example.com/previous-destination',
@@ -709,11 +731,13 @@ export function developerPlatformContractCases(
 
         // A delivered row offers no replay, and a foreign id reads as not found.
         const deliveredOutcome = yield* Effect.exit(
-          webhooks.replayDelivery({ deliveryId: replayed.deliveryId })
+          deliveryLog.replayDelivery({ deliveryId: replayed.deliveryId })
         )
         expect(failureTag(deliveredOutcome)).toBe('WebhookDispatchRejected')
         const missingOutcome = yield* Effect.exit(
-          webhooks.replayDelivery({ deliveryId: WebhookDeliveryId.make('whd_missing') })
+          deliveryLog.replayDelivery({
+            deliveryId: WebhookDeliveryId.make('whd_missing')
+          })
         )
         expect(failureTag(missingOutcome)).toBe('WebhookDeliveryNotFound')
       })
@@ -722,6 +746,7 @@ export function developerPlatformContractCases(
       name: 'sendTestEvent queues a pending webhook.test_event to one endpoint',
       assert: Effect.gen(function* () {
         const webhooks = yield* WebhookEndpoints
+        const deliveryLog = yield* WebhookDeliveries
         const { endpoint } = yield* webhooks.create({
           url: 'https://example.com/test-hook',
           events: ['demo.event']
@@ -729,7 +754,7 @@ export function developerPlatformContractCases(
 
         const sent = yield* webhooks.sendTestEvent({ endpointId: endpoint.id })
 
-        const rows = yield* webhooks.listDeliveries({ endpointId: endpoint.id })
+        const rows = yield* deliveryLog.listDeliveries({ endpointId: endpoint.id })
         const row = rows.find((candidate) => candidate.id === sent.deliveryId)
         expect(row).toMatchObject({
           status: 'pending',

@@ -4,9 +4,10 @@ import { type ContractExpect } from '../governance/contract-expect.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { walkKeysetPages } from '../internal/keyset-cursor.ts'
 import { failureTag } from '../internal/failure-tag.ts'
-import { WebhookEndpoints } from './webhook-endpoints.ts'
-import { type SeedDeliveryFixture } from './webhook-endpoints.seed.ts'
+import { type SeedDeliveryFixture } from './webhook-store.seed.ts'
 import { type DeliveryView } from './webhook-delivery-view.ts'
+import { WebhookDeliveryAdmin } from './webhook-delivery-admin.ts'
+import { WebhookDispatch } from './webhook-dispatch.ts'
 
 // Both adapters receive these rows, including nullable attempt times and ties.
 export const adminDeliveryFixtures = [
@@ -78,12 +79,13 @@ export const adminDeliveryFixtures = [
   }
 ] satisfies ReadonlyArray<SeedDeliveryFixture>
 
-export function adminWebhookContract(expect: ContractExpect) {
+export function webhookDeliveryAdminContract(expect: ContractExpect) {
   return Effect.gen(function* () {
-    const webhooks = yield* WebhookEndpoints
+    const deliveryAdmin = yield* WebhookDeliveryAdmin
+    const dispatch = yield* WebhookDispatch
     const log = yield* AuditEventLog
     const walk = yield* walkKeysetPages(
-      (input) => webhooks.listGlobalDeliveries(input),
+      (input) => deliveryAdmin.listGlobalDeliveries(input),
       { limit: 1 }
     )
     expect(walk.exhausted).toBe(true)
@@ -99,12 +101,12 @@ export function adminWebhookContract(expect: ContractExpect) {
       'wrk_other',
       'wrk_live'
     ])
-    const first = yield* webhooks.listGlobalDeliveries({ limit: 2 })
+    const first = yield* deliveryAdmin.listGlobalDeliveries({ limit: 2 })
     expect(first.items.map((row) => row.id)).toEqual([
       WebhookDeliveryId.make('whd_admin_z'),
       WebhookDeliveryId.make('whd_admin_y')
     ])
-    const last = yield* webhooks.listGlobalDeliveries({
+    const last = yield* deliveryAdmin.listGlobalDeliveries({
       limit: 2,
       cursor: first.nextCursor ?? undefined
     })
@@ -113,8 +115,10 @@ export function adminWebhookContract(expect: ContractExpect) {
       WebhookDeliveryId.make('whd_admin_null_a')
     ])
     expect(last.nextCursor).toBe(null)
-    expect((yield* webhooks.listGlobalDeliveries({ limit: 0 })).items).toHaveLength(1)
-    expect(yield* webhooks.listGlobalDeliveries({ cursor: 'invalid' })).toEqual({
+    expect(
+      (yield* deliveryAdmin.listGlobalDeliveries({ limit: 0 })).items
+    ).toHaveLength(1)
+    expect(yield* deliveryAdmin.listGlobalDeliveries({ cursor: 'invalid' })).toEqual({
       items: [],
       nextCursor: null
     })
@@ -131,7 +135,7 @@ export function adminWebhookContract(expect: ContractExpect) {
       ]
     }
     const advanced = yield* walkKeysetPages(
-      (input) => webhooks.listGlobalDeliveries({ ...input, view }),
+      (input) => deliveryAdmin.listGlobalDeliveries({ ...input, view }),
       { limit: 1 }
     )
     expect(advanced.exhausted).toBe(true)
@@ -140,17 +144,17 @@ export function adminWebhookContract(expect: ContractExpect) {
       WebhookDeliveryId.make('whd_admin_null_a'),
       WebhookDeliveryId.make('whd_admin_z')
     ])
-    const all = yield* webhooks.listGlobalDeliveries({
+    const all = yield* deliveryAdmin.listGlobalDeliveries({
       view: { ...view, match: 'all' }
     })
     expect(all.items).toHaveLength(0)
-    const advancedFirst = yield* webhooks.listGlobalDeliveries({ view, limit: 1 })
-    const changed = yield* webhooks.listGlobalDeliveries({
+    const advancedFirst = yield* deliveryAdmin.listGlobalDeliveries({ view, limit: 1 })
+    const changed = yield* deliveryAdmin.listGlobalDeliveries({
       view: { ...view, match: 'all' },
       cursor: advancedFirst.nextCursor ?? undefined
     })
     expect(changed).toEqual({ items: [], nextCursor: null })
-    const literal = yield* webhooks.listGlobalDeliveries({
+    const literal = yield* deliveryAdmin.listGlobalDeliveries({
       view: {
         match: 'all',
         sorts: [],
@@ -158,7 +162,7 @@ export function adminWebhookContract(expect: ContractExpect) {
       }
     })
     expect(literal.items).toHaveLength(0)
-    const nullAttempts = yield* webhooks.listGlobalDeliveries({
+    const nullAttempts = yield* deliveryAdmin.listGlobalDeliveries({
       view: {
         match: 'all',
         sorts: [],
@@ -169,7 +173,7 @@ export function adminWebhookContract(expect: ContractExpect) {
       WebhookDeliveryId.make('whd_admin_null_z'),
       WebhookDeliveryId.make('whd_admin_null_a')
     ])
-    const fractional = yield* webhooks.listGlobalDeliveries({
+    const fractional = yield* deliveryAdmin.listGlobalDeliveries({
       view: {
         match: 'all',
         sorts: [],
@@ -180,13 +184,13 @@ export function adminWebhookContract(expect: ContractExpect) {
       WebhookDeliveryId.make('whd_admin_z')
     ])
 
-    const replay = yield* webhooks.replayDeliveryAsAdmin({
+    const replay = yield* deliveryAdmin.replayDeliveryAsAdmin({
       deliveryId: WebhookDeliveryId.make('whd_admin_z'),
       actorUserId: 'usr_sysadmin'
     })
     expect(replay.deliveryId === WebhookDeliveryId.make('whd_admin_z')).toBe(false)
     // Replay neither changes nor removes the terminal source.
-    expect((yield* webhooks.listGlobalDeliveries()).items).toEqual(walk.items)
+    expect((yield* deliveryAdmin.listGlobalDeliveries()).items).toEqual(walk.items)
     const audits = yield* log.listGlobal
     expect(
       audits.filter((row) => row.eventType === 'webhook.delivery_replayed')
@@ -202,14 +206,14 @@ export function adminWebhookContract(expect: ContractExpect) {
       replay.deliveryId
     ]) {
       const refused = yield* Effect.exit(
-        webhooks.replayDeliveryAsAdmin({ deliveryId, actorUserId: 'usr_sysadmin' })
+        deliveryAdmin.replayDeliveryAsAdmin({ deliveryId, actorUserId: 'usr_sysadmin' })
       )
       expect(failureTag(refused)).toBe('WebhookDispatchRejected')
     }
     yield* Effect.forEach(
       Array.from({ length: 20 }, (_, index) => index),
       (index) =>
-        webhooks.recordDeliveryAttempt({
+        dispatch.recordDeliveryAttempt({
           id: WebhookDeliveryId.make(`whd_admin_disable_${index}`),
           endpointId: WebhookEndpointId.make('wh_admin_b'),
           workspaceId: 'wrk_other',
@@ -220,7 +224,7 @@ export function adminWebhookContract(expect: ContractExpect) {
         })
     )
     const disabled = yield* Effect.exit(
-      webhooks.replayDeliveryAsAdmin({
+      deliveryAdmin.replayDeliveryAsAdmin({
         deliveryId: WebhookDeliveryId.make('whd_admin_y'),
         actorUserId: 'usr_sysadmin'
       })

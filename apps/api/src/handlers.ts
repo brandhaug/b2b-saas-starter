@@ -6,8 +6,10 @@ import { tokenPrincipal, type PermissionRequest } from '@b2b-saas-starter/authz/
 import { annotateWideEvent } from '@b2b-saas-starter/logger'
 import { type ListPageInput } from '@b2b-saas-starter/capabilities/internal/keyset-cursor'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+import { WebhookDeliveries } from '@b2b-saas-starter/capabilities/developer-platform/webhook-deliveries'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { WorkspaceExports } from '@b2b-saas-starter/capabilities/governance/workspace-export'
+import { WorkspaceCaller } from '@b2b-saas-starter/capabilities/workspace-context'
 import { ApiPrincipal, StarterApi } from '@b2b-saas-starter/api'
 import { AssistantService, isAssistantConfigured } from '@b2b-saas-starter/ai'
 import { Context, Effect } from 'effect'
@@ -64,7 +66,7 @@ function workspaceOperation<A, E, R>(
     Effect.gen(function* () {
       yield* enforcePermission(permission, slug)
       const principal = yield* ApiPrincipal
-      return yield* provideWorkspace(env, slug, body, undefined, 'api_token').pipe(
+      return yield* provideWorkspace(env, slug, body, WorkspaceCaller.apiToken).pipe(
         Effect.provideService(OperationExportRecipient, { type: 'api_token' }),
         Effect.provideService(OperationPrincipal, tokenPrincipal(principal.scopes)),
         Effect.provideService(OperationOrigin, new URL(webRequest(request).url).origin)
@@ -211,10 +213,11 @@ export function apiTokenGroup(env: ApiEnv) {
 export function webhookGroup(env: ApiEnv) {
   return HttpApiBuilder.group(StarterApi, 'webhook-endpoints', (handlers) =>
     Effect.gen(function* () {
-      const webhooks = yield* WebhookEndpoints
       const write = workspaceWrites(
         env,
-        Context.make(WebhookEndpoints, webhooks),
+        Context.make(WebhookEndpoints, yield* WebhookEndpoints).pipe(
+          Context.add(WebhookDeliveries, yield* WebhookDeliveries)
+        ),
         'webhooks'
       )
       return handlers.handleAll({

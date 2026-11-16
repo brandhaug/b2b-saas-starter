@@ -1,52 +1,24 @@
 import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
-import { makeWebhookReplay } from './webhook-replay.ts'
-import { deliveryView, cutDeliveryViewPage } from './webhook-delivery-view.ts'
-import { deliveryViewQuery } from './webhook-delivery-view.live.ts'
-import { makeLiveAttemptHistory } from './webhook-attempt-history.live.ts'
-import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
+import { type RawD1, type Database } from '@b2b-saas-starter/db/service'
 import { type JsonObject, type JsonValue } from '@b2b-saas-starter/db/schema/json'
-import {
-  webhookDeliveries,
-  webhookEndpoints
-} from '@b2b-saas-starter/db/schema/developer-platform'
-import { workspaces } from '@b2b-saas-starter/db/schema/workspaces'
+import { webhookEndpoints } from '@b2b-saas-starter/db/schema/developer-platform'
 import { DateTime, Effect, Layer } from 'effect'
-import { and, asc, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm'
+import { and, asc, eq, sql, type SQL } from 'drizzle-orm'
 
-import { ResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements'
-import { WorkspaceContext as BillingWorkspaceContext } from '@b2b-saas-starter/billing/ports'
+import {
+  WorkspaceContext as BillingWorkspaceContext,
+  workspaceAuditAttribution
+} from '@b2b-saas-starter/billing/ports'
 import { Billing } from '@b2b-saas-starter/billing/billing'
 import { prepareResourceAdmission } from '@b2b-saas-starter/billing/resource-admission'
-import { auditedMutations } from '../governance/audited-mutation.ts'
-import {
-  AuditEventLog,
-  type RecordAuditEventInput
-} from '../governance/audit-event-log.ts'
-import {
-  type CapabilityUnavailable,
-  orUnavailable
-} from '@b2b-saas-starter/failure/capability'
-import {
-  activeSigningSecrets,
-  DELIVERIES_PAGE_SIZE,
-  deliveredDeliveryStatus,
-  deliverySuccessRate,
-  planPendingDispatch,
-  planSecretRotation,
-  settledDeliveryStatuses,
-  terminalDeliveryStatuses,
-  WEBHOOK_FAILURE_AUTO_DISABLE_AT,
-  type PendingDispatchPlan
-} from './webhook-delivery-plan.ts'
-import { type NotificationFeed } from '../notifications/notification-feed.ts'
+import { type AuditEventLog } from '../governance/audit-event-log.ts'
+import { planPendingDispatch, planSecretRotation } from './webhook-delivery-plan.ts'
 import {
   ensureValidWebhookUrl,
-  planAdminReplay,
   type UpdateWebhookEndpointInput,
   WEBHOOK_TEST_EVENT_TYPE,
   WebhookDispatchRejected,
   WebhookEndpointNotFound,
-  WebhookDeliveryNotFound,
   WebhookEndpoints,
   type WebhookEndpoint
 } from './webhook-endpoints.ts'
@@ -55,143 +27,33 @@ import { newCapabilityId } from '../internal/ids.ts'
 import { clampPageLimit, cutKeysetPage } from '../internal/keyset-cursor.ts'
 import { keysetResume } from '../internal/keyset-query.ts'
 import { publishWebhookEventWith, WebhookPublisher } from './webhook-publisher.ts'
+import {
+  makeLiveWebhookStorage,
+  projectionFromAggregate,
+  scopedEndpointWhere
+} from './webhook-storage.live.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
-
-const unavailable = orUnavailable('webhook-endpoints')
 
 export const LiveWebhookEndpoints: Layer.Layer<
   WebhookEndpoints,
   never,
-  | Database
-  | RawD1
-  | Billing
-  | AuditEventLog
-  | WebhookPublisher
-  | NotificationFeed
-  | ResourceEntitlements
+  Database | RawD1 | Billing | AuditEventLog | WebhookPublisher
 > = Layer.effect(WebhookEndpoints)(
   Effect.gen(function* () {
-    const db = yield* Database
     const billing = yield* Billing
-    const audit = yield* AuditEventLog
     const publisher = yield* WebhookPublisher
-    const entitlements = yield* ResourceEntitlements
-    const history = yield* makeLiveAttemptHistory
-
-    const auditedMutation = yield* auditedMutations({
-      prepareAuditRecord: audit.prepareRecord,
-      unavailable
-    })
-
-    function endpointExists(endpointId: WebhookEndpointId, workspaceId: string) {
-      return unavailable(
-        db
-          .select({ id: webhookEndpoints.id })
-          .from(webhookEndpoints)
-          .where(scopedEndpointWhere(endpointId, workspaceId))
-          .limit(1)
-      ).pipe(Effect.map((rows) => rows.length > 0))
-    }
-
-    function endpointRow(endpointId: WebhookEndpointId, workspaceId: string) {
-      return unavailable(
-        db
-          .select()
-          .from(webhookEndpoints)
-          .where(scopedEndpointWhere(endpointId, workspaceId))
-          .limit(1)
-      ).pipe(Effect.map((rows) => rows[0] ?? null))
-    }
-
-    // Aggregate once per read rather than scanning deliveries for each endpoint.
-    function aggregateQuery() {
-      return db
-        .select({
-          id: webhookEndpoints.id,
-          url: webhookEndpoints.url,
-          enabled: webhookEndpoints.enabled,
-          events: webhookEndpoints.events,
-          total: count(webhookDeliveries.id),
-          delivered: sql<number>`coalesce(sum(case when ${webhookDeliveries.status} = ${deliveredDeliveryStatus} then 1 else 0 end), 0)`
-        })
-        .from(webhookEndpoints)
-        .leftJoin(
-          webhookDeliveries,
-          eq(webhookDeliveries.endpointId, webhookEndpoints.id)
-        )
-    }
-
-    function endpointProjection(
-      endpointId: WebhookEndpointId,
-      workspaceId: string
-    ): Effect.Effect<WebhookEndpoint | null, CapabilityUnavailable> {
-      return unavailable(
-        aggregateQuery()
-          .where(scopedEndpointWhere(endpointId, workspaceId))
-          .groupBy(webhookEndpoints.id)
-      ).pipe(
-        Effect.map((rows) => {
-          const row = rows[0]
-          if (!row) {
-            return null
-          }
-          return projectionFromAggregate(row)
-        })
-      )
-    }
-
-    /**
-     * Creates the `pending` row an operator dispatch (replay, test send)
-     * starts from, batching its audit event when there is one. The row shape
-     * is the caller's plan (`planReplayedDelivery` / `planPendingDispatch`),
-     * so the two dispatch flows share everything and differ only in
-     * provenance.
-     */
-    function recordOperatorDispatch(input: {
-      readonly deliveryId: WebhookDeliveryId
-      readonly workspaceId: string
-      readonly plan: PendingDispatchPlan
-      readonly auditEvent?: RecordAuditEventInput | undefined
-      readonly approvedEndpointUrl?: string | undefined
-    }) {
-      return Effect.gen(function* () {
-        const now = yield* DateTime.now
-        const insert = db
-          .insert(webhookDeliveries)
-          .values({
-            id: input.deliveryId,
-            endpointId: input.plan.endpointId,
-            eventType: input.plan.eventType,
-            status: input.plan.status,
-            attempts: input.plan.attempts,
-            lastAttemptAt: DateTime.formatIso(now),
-            nextAttemptAt: input.plan.nextAttemptAt,
-            responseStatus: input.plan.responseStatus,
-            payload: input.plan.payload,
-            requestHeaders: null,
-            responseBody: null,
-            replayedFrom: input.plan.replayedFrom,
-            approvedEndpointUrl: input.approvedEndpointUrl ?? null
-          })
-          .onConflictDoNothing()
-        if (input.auditEvent === undefined) {
-          yield* unavailable(insert)
-          return
-        }
-        yield* auditedMutation({
-          matched: Effect.succeed(true),
-          auditEvent: input.auditEvent,
-          write: () => [insert],
-          // The audit immediately follows this insert in one D1 batch. A duplicate
-          // stable replay identity changes zero rows and must record no new replay.
-          transition: { condition: sql`changes() = 1`, alongside: [] }
-        })
-      })
-    }
+    const {
+      db,
+      unavailable,
+      auditedMutation,
+      endpointExists,
+      endpointRow,
+      aggregateQuery,
+      endpointProjection,
+      recordOperatorDispatch
+    } = yield* makeLiveWebhookStorage('webhook-endpoints')
 
     return {
-      listDeliveryAttempts: history.listDeliveryAttempts,
-      cleanupDeliveryHistory: history.cleanupDeliveryHistory,
       list: Effect.gen(function* () {
         const ctx = yield* WorkspaceContext
         const rows = yield* unavailable(
@@ -261,9 +123,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
           const created = yield* auditedMutation({
             matched: Effect.succeed(true),
             auditEvent: {
-              workspaceId: ctx.workspace.id,
-              actorUserId: ctx.actor?.userId ?? null,
-              actorType: ctx.actorType,
+              ...workspaceAuditAttribution(ctx),
               eventType: 'webhook_endpoint.created',
               targetType: 'webhook_endpoint',
               targetId: endpoint.id,
@@ -312,134 +172,6 @@ export const LiveWebhookEndpoints: Layer.Layer<
             signingSecret
           }
         }),
-      listDeliveries: (input) =>
-        Effect.gen(function* () {
-          const ctx = yield* WorkspaceContext
-          // The join scopes to the calling workspace: a foreign endpoint id
-          // matches no row of its own and yields an empty list.
-          return yield* unavailable(
-            db
-              .select({
-                id: webhookDeliveries.id,
-                endpointId: webhookDeliveries.endpointId,
-                eventType: webhookDeliveries.eventType,
-                status: webhookDeliveries.status,
-                attempts: webhookDeliveries.attempts,
-                lastAttemptAt: webhookDeliveries.lastAttemptAt,
-                nextAttemptAt: webhookDeliveries.nextAttemptAt,
-                responseStatus: webhookDeliveries.responseStatus,
-                payload: webhookDeliveries.payload,
-                requestHeaders: webhookDeliveries.requestHeaders,
-                responseBody: webhookDeliveries.responseBody,
-                replayedFrom: webhookDeliveries.replayedFrom
-              })
-              .from(webhookDeliveries)
-              .innerJoin(
-                webhookEndpoints,
-                eq(webhookEndpoints.id, webhookDeliveries.endpointId)
-              )
-              .where(
-                and(
-                  eq(webhookDeliveries.endpointId, input.endpointId),
-                  eq(webhookEndpoints.workspaceId, ctx.workspace.id)
-                )
-              )
-              // Newest first, with the row id as the tie-break so the order is
-              // total even when attempts share a timestamp — the same order
-              // the Seed adapter sorts by, asserted by the shared contract.
-              .orderBy(
-                sql`${webhookDeliveries.lastAttemptAt} desc`,
-                desc(webhookDeliveries.id)
-              )
-              .limit(DELIVERIES_PAGE_SIZE)
-          )
-        }),
-      inspectDelivery: (input) =>
-        Effect.gen(function* () {
-          const ctx = yield* WorkspaceContext
-          const rows = yield* unavailable(
-            db
-              .select({
-                delivery: webhookDeliveries,
-                endpoint: webhookEndpoints
-              })
-              .from(webhookDeliveries)
-              .innerJoin(
-                webhookEndpoints,
-                eq(webhookEndpoints.id, webhookDeliveries.endpointId)
-              )
-              .where(
-                and(
-                  eq(webhookDeliveries.id, input.deliveryId),
-                  eq(webhookEndpoints.workspaceId, ctx.workspace.id)
-                )
-              )
-              .limit(1)
-          )
-          const row = rows[0]
-          if (!row) {
-            return yield* Effect.fail(
-              new WebhookDeliveryNotFound({ deliveryId: input.deliveryId })
-            )
-          }
-          const endpoint = yield* endpointProjection(row.endpoint.id, ctx.workspace.id)
-          if (endpoint === null) {
-            return yield* new WebhookDeliveryNotFound({ deliveryId: input.deliveryId })
-          }
-          return {
-            endpoint,
-            delivery: row.delivery,
-            attempts: yield* history.listDeliveryAttempts({
-              deliveryId: input.deliveryId
-            })
-          }
-        }),
-      listGlobalDeliveries: Effect.fn('WebhookEndpoints.listGlobalDeliveries')(
-        function* (input) {
-          const limit = clampPageLimit(input?.limit)
-          const conditions: Array<SQL> = [
-            inArray(webhookDeliveries.status, [...terminalDeliveryStatuses])
-          ]
-          const view = deliveryView(input)
-          const query = deliveryViewQuery(view, input?.cursor)
-          conditions.push(...query.conditions)
-          const rows = yield* unavailable(
-            db
-              .select({
-                id: webhookDeliveries.id,
-                endpointId: webhookDeliveries.endpointId,
-                eventType: webhookDeliveries.eventType,
-                status: webhookDeliveries.status,
-                attempts: webhookDeliveries.attempts,
-                lastAttemptAt: webhookDeliveries.lastAttemptAt,
-                responseStatus: webhookDeliveries.responseStatus,
-                endpointUrl: webhookEndpoints.url,
-                endpointEnabled: webhookEndpoints.enabled,
-                endpointConsecutiveFailures: webhookEndpoints.consecutiveFailures,
-                endpointFailureLimitReached:
-                  sql<boolean>`${webhookEndpoints.consecutiveFailures} >= ${WEBHOOK_FAILURE_AUTO_DISABLE_AT}`.mapWith(
-                    Boolean
-                  ),
-                workspace: {
-                  id: workspaces.id,
-                  slug: workspaces.slug,
-                  name: workspaces.name,
-                  planId: workspaces.planId
-                }
-              })
-              .from(webhookDeliveries)
-              .innerJoin(
-                webhookEndpoints,
-                eq(webhookEndpoints.id, webhookDeliveries.endpointId)
-              )
-              .innerJoin(workspaces, eq(workspaces.id, webhookEndpoints.workspaceId))
-              .where(and(...conditions))
-              .orderBy(...query.order)
-              .limit(limit + 1)
-          )
-          return cutDeliveryViewPage(rows, limit, view)
-        }
-      ),
       update: (input) =>
         Effect.gen(function* () {
           if (input.url !== undefined) {
@@ -461,9 +193,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
           const applied = yield* auditedMutation({
             matched: endpointExists(input.endpointId, ctx.workspace.id),
             auditEvent: {
-              workspaceId: ctx.workspace.id,
-              actorUserId: ctx.actor?.userId ?? null,
-              actorType: ctx.actorType,
+              ...workspaceAuditAttribution(ctx),
               eventType: 'webhook_endpoint.updated',
               targetType: 'webhook_endpoint',
               targetId: input.endpointId,
@@ -507,9 +237,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
           const applied = yield* auditedMutation({
             matched: Effect.succeed(true),
             auditEvent: {
-              workspaceId: ctx.workspace.id,
-              actorUserId: ctx.actor?.userId ?? null,
-              actorType: ctx.actorType,
+              ...workspaceAuditAttribution(ctx),
               eventType: 'webhook_endpoint.deleted',
               targetType: 'webhook_endpoint',
               targetId: input.endpointId,
@@ -527,89 +255,6 @@ export const LiveWebhookEndpoints: Layer.Layer<
             )
           }
         }),
-      replayDeliveryAsAdmin: Effect.fn('WebhookEndpoints.replayDeliveryAsAdmin')(
-        function* (input) {
-          const rows = yield* unavailable(
-            db
-              .select({
-                id: webhookDeliveries.id,
-                endpointId: webhookDeliveries.endpointId,
-                eventType: webhookDeliveries.eventType,
-                status: webhookDeliveries.status,
-                payload: webhookDeliveries.payload,
-                enabled: webhookEndpoints.enabled,
-                workspaceId: webhookEndpoints.workspaceId
-              })
-              .from(webhookDeliveries)
-              .innerJoin(
-                webhookEndpoints,
-                eq(webhookEndpoints.id, webhookDeliveries.endpointId)
-              )
-              .where(eq(webhookDeliveries.id, input.deliveryId))
-              .limit(1)
-          )
-          const replay = yield* planAdminReplay(rows[0], input.actorUserId)
-          yield* recordOperatorDispatch(replay)
-          yield* publisher.enqueue({
-            endpointId: replay.plan.endpointId,
-            workspaceId: replay.workspaceId,
-            eventType: replay.plan.eventType,
-            deliveryId: replay.deliveryId,
-            payload: replay.plan.payload
-          })
-          return { deliveryId: replay.deliveryId }
-        }
-      ),
-      replayDelivery: makeWebhookReplay(
-        {
-          source: (deliveryId, workspaceId) =>
-            Effect.gen(function* () {
-              const rows = yield* unavailable(
-                db
-                  .select({
-                    id: webhookDeliveries.id,
-                    endpointId: webhookDeliveries.endpointId,
-                    eventType: webhookDeliveries.eventType,
-                    status: webhookDeliveries.status,
-                    payload: webhookDeliveries.payload,
-                    enabled: webhookEndpoints.enabled,
-                    endpointUrl: webhookEndpoints.url
-                  })
-                  .from(webhookDeliveries)
-                  .innerJoin(
-                    webhookEndpoints,
-                    eq(webhookEndpoints.id, webhookDeliveries.endpointId)
-                  )
-                  .where(
-                    and(
-                      eq(webhookDeliveries.id, deliveryId),
-                      eq(webhookEndpoints.workspaceId, workspaceId)
-                    )
-                  )
-                  .limit(1)
-              )
-              return rows[0] ?? null
-            }),
-          reserve: (input) =>
-            Effect.gen(function* () {
-              yield* recordOperatorDispatch(input)
-              const rows = yield* unavailable(
-                db
-                  .select({
-                    endpointId: webhookDeliveries.endpointId,
-                    replayedFrom: webhookDeliveries.replayedFrom,
-                    approvedEndpointUrl: webhookDeliveries.approvedEndpointUrl,
-                    status: webhookDeliveries.status
-                  })
-                  .from(webhookDeliveries)
-                  .where(eq(webhookDeliveries.id, input.deliveryId))
-                  .limit(1)
-              )
-              return rows[0] ?? null
-            })
-        },
-        publisher
-      ),
       sendTestEvent: (input) =>
         Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
@@ -667,9 +312,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
           const applied = yield* auditedMutation({
             matched: Effect.succeed(true),
             auditEvent: {
-              workspaceId: ctx.workspace.id,
-              actorUserId: ctx.actor?.userId ?? null,
-              actorType: ctx.actorType,
+              ...workspaceAuditAttribution(ctx),
               eventType: 'webhook_endpoint.secret_rotated',
               targetType: 'webhook_endpoint',
               targetId: input.endpointId,
@@ -695,121 +338,10 @@ export const LiveWebhookEndpoints: Layer.Layer<
             )
           }
           return { signingSecret }
-        }),
-      isDeliverySettled: (input) =>
-        Effect.gen(function* () {
-          const rows = yield* unavailable(
-            db
-              .select({ id: webhookDeliveries.id })
-              .from(webhookDeliveries)
-              .innerJoin(
-                webhookEndpoints,
-                eq(webhookEndpoints.id, webhookDeliveries.endpointId)
-              )
-              .where(
-                and(
-                  eq(webhookDeliveries.id, input.deliveryId),
-                  eq(webhookEndpoints.id, input.endpointId),
-                  eq(webhookEndpoints.workspaceId, input.workspaceId),
-                  inArray(webhookDeliveries.status, [...settledDeliveryStatuses])
-                )
-              )
-              .limit(1)
-          )
-          return rows.length > 0
-        }),
-      getDispatchTarget: (endpointId, workspaceId, deliveryId) =>
-        Effect.gen(function* () {
-          const endpoint = yield* endpointRow(endpointId, workspaceId)
-          if (!endpoint || !endpoint.enabled) {
-            return null
-          }
-          const delivery = yield* unavailable(
-            db
-              .select({
-                id: webhookDeliveries.id,
-                eventType: webhookDeliveries.eventType,
-                payload: webhookDeliveries.payload,
-                approvedEndpointUrl: webhookDeliveries.approvedEndpointUrl
-              })
-              .from(webhookDeliveries)
-              .where(
-                and(
-                  eq(webhookDeliveries.id, deliveryId),
-                  eq(webhookDeliveries.endpointId, endpointId)
-                )
-              )
-              .limit(1)
-          )
-          const queued = delivery[0]
-          if (
-            !queued ||
-            (queued.approvedEndpointUrl !== null &&
-              queued.approvedEndpointUrl !== endpoint.url)
-          ) {
-            return null
-          }
-          const allowed = yield* entitlements.isActiveForWorkspace({
-            workspaceId,
-            resource: 'webhook_endpoint',
-            resourceId: endpoint.id
-          })
-          if (!allowed) {
-            return null
-          }
-          return {
-            id: endpoint.id,
-            url: endpoint.url,
-            signingSecrets: activeSigningSecrets(
-              {
-                signingSecret: endpoint.signingSecret,
-                previousSigningSecret: endpoint.previousSigningSecret,
-                previousSecretExpiresAt: endpoint.previousSecretExpiresAt
-              },
-              yield* DateTime.now
-            ),
-            eventType: queued.eventType,
-            payload: queued.payload
-          }
-        }),
-      recordDeliveryAttempt: (input) => history.recordAttempt(input),
-      recordTerminalDeliveryAttempt: (input) =>
-        // Resolve the producer's existing row and stored contents before
-        // terminal bookkeeping. Keep response evidence and clear retry timing.
-        history.recordTerminalAttempt({
-          ...input,
-          id: input.deliveryId,
-          phase: 'terminal',
-          nextAttemptAt: null
         })
     }
   })
 )
-
-function projectionFromAggregate(
-  row: Pick<
-    typeof webhookEndpoints.$inferSelect,
-    'id' | 'url' | 'enabled' | 'events'
-  > & { total: number; delivered: number }
-): WebhookEndpoint {
-  return {
-    id: row.id,
-    url: row.url,
-    enabled: row.enabled,
-    events: row.events,
-    // `sql<number>` does not guarantee the driver's runtime type for SUM.
-    // oxlint-disable-next-line typescript/no-unnecessary-type-conversion -- see above
-    successRate: deliverySuccessRate(row.total, Number(row.delivered))
-  }
-}
-
-// Always pair endpoint identity with its owning workspace.
-function scopedEndpointWhere(endpointId: WebhookEndpointId, workspaceId: string) {
-  return and(
-    eq(webhookEndpoints.id, endpointId),
-    eq(webhookEndpoints.workspaceId, workspaceId)
-  )
-}
 
 // Audit only fields supplied by the caller; omit absent fields.
 function updateMetadata(input: {

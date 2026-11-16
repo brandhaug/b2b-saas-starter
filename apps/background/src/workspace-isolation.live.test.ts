@@ -30,6 +30,7 @@ import {
 } from '@b2b-saas-starter/capabilities/testing/live-harness'
 import { buildWorkspaceExport } from './export-consumer.ts'
 import { deliverWebhook, recordDeadLetter } from './webhook-consumer.ts'
+import { WebhookDeliveries } from '@b2b-saas-starter/capabilities/developer-platform/webhook-deliveries'
 
 const decodeJson = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Json))
 const suspensionActions: ReadonlyArray<'suspend' | 'unsuspend'> = [
@@ -238,9 +239,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           const replayed = yield* inWorkspace(
             a.slug,
             Effect.gen(function* () {
-              const endpoints = yield* WebhookEndpoints
+              const deliveryLog = yield* WebhookDeliveries
               expect(
-                yield* endpoints.listDeliveries({ endpointId: endpoint.id })
+                yield* deliveryLog.listDeliveries({ endpointId: endpoint.id })
               ).toMatchObject([
                 {
                   id: failed.deliveryId,
@@ -250,7 +251,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 }
               ])
               expect(
-                yield* endpoints.listDeliveryAttempts({ deliveryId: failed.deliveryId })
+                yield* deliveryLog.listDeliveryAttempts({
+                  deliveryId: failed.deliveryId
+                })
               ).toMatchObject([
                 {
                   phase: 'terminal',
@@ -268,7 +271,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 targetId: endpoint.id,
                 metadata: {}
               })
-              return yield* endpoints.replayDelivery({ deliveryId: failed.deliveryId })
+              return yield* deliveryLog.replayDelivery({
+                deliveryId: failed.deliveryId
+              })
             }),
             { userId: a.userId },
             ports.bindings
@@ -276,13 +281,13 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           yield* inWorkspace(
             b.slug,
             Effect.gen(function* () {
-              const endpoints = yield* WebhookEndpoints
+              const deliveryLog = yield* WebhookDeliveries
               const foreign = yield* Effect.result(
-                endpoints.replayDelivery({ deliveryId: failed.deliveryId })
+                deliveryLog.replayDelivery({ deliveryId: failed.deliveryId })
               )
               expect(Result.isFailure(foreign)).toBe(true)
               expect(
-                yield* endpoints.listDeliveries({ endpointId: messageB.endpointId })
+                yield* deliveryLog.listDeliveries({ endpointId: messageB.endpointId })
               ).toMatchObject([
                 {
                   id: messageB.deliveryId,
@@ -382,14 +387,14 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           yield* inWorkspace(
             a.slug,
             Effect.gen(function* () {
-              const endpoints = yield* WebhookEndpoints
+              const deliveryLog = yield* WebhookDeliveries
               for (const { message, status, attempts } of [
                 { message: retried, status: 'failed', attempts: 1 },
                 { message: delivered, status: 'delivered', attempts: 1 },
                 { message: pending, status: 'failed_permanent', attempts: 0 }
               ]) {
                 expect(
-                  yield* endpoints.listDeliveries({ endpointId: message.endpointId })
+                  yield* deliveryLog.listDeliveries({ endpointId: message.endpointId })
                 ).toMatchObject([
                   {
                     id: message.deliveryId,
@@ -399,7 +404,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                   }
                 ])
                 expect(
-                  yield* endpoints.listDeliveryAttempts({
+                  yield* deliveryLog.listDeliveryAttempts({
                     deliveryId: message.deliveryId
                   })
                 ).toHaveLength(1)
@@ -491,7 +496,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         ]) {
           const deliveries = yield* inWorkspace(
             workspace.slug,
-            Effect.flatMap(WebhookEndpoints, (endpoints) =>
+            Effect.flatMap(WebhookDeliveries, (endpoints) =>
               endpoints.listDeliveries({ endpointId: message.endpointId })
             ),
             { userId: workspace.userId },
@@ -547,7 +552,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         ).toBe('ack')
         const beforeB = yield* inWorkspace(
           b.slug,
-          Effect.flatMap(WebhookEndpoints, (endpoints) =>
+          Effect.flatMap(WebhookDeliveries, (endpoints) =>
             endpoints.listDeliveries({ endpointId: messageB.endpointId })
           ),
           { userId: b.userId },
@@ -576,8 +581,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         const replayed = yield* inWorkspace(
           a.slug,
           Effect.gen(function* () {
-            const endpoints = yield* WebhookEndpoints
-            const history = yield* endpoints.listDeliveries({
+            const deliveryLog = yield* WebhookDeliveries
+            const history = yield* deliveryLog.listDeliveries({
               endpointId: messageA.endpointId
             })
             expect(history).toMatchObject([
@@ -588,7 +593,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 payload: tokenPayload('retry-a')
               }
             ])
-            return yield* endpoints.replayDelivery({
+            return yield* deliveryLog.replayDelivery({
               deliveryId: messageA.deliveryId
             })
           }),

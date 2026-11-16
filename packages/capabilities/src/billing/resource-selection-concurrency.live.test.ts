@@ -1,4 +1,4 @@
-import { WorkspaceContext, testWorkspaceContext } from '../workspace-context.ts'
+import { WorkspaceContext, testResolvedWorkspaceContext } from '../workspace-context.ts'
 import { Array, Effect, Layer } from 'effect'
 import { expect, layer } from '@effect/vitest'
 import { Database } from '@b2b-saas-starter/db/service'
@@ -53,9 +53,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                     }
                     return yield* audit.prepareRecord(input)
                   }).pipe(
-                    Effect.provide(
-                      testWorkspaceContext(ctx.workspace, ctx.actor, ctx.actorType)
-                    ),
+                    Effect.provide(testResolvedWorkspaceContext(ctx)),
                     Effect.orDie
                   )
               })
@@ -113,9 +111,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                     }
                     return yield* audit.prepareRecord(input)
                   }).pipe(
-                    Effect.provide(
-                      testWorkspaceContext(ctx.workspace, ctx.actor, ctx.actorType)
-                    ),
+                    Effect.provide(testResolvedWorkspaceContext(ctx)),
                     Effect.orDie
                   )
               })

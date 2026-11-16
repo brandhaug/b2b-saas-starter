@@ -18,7 +18,7 @@ import { type SeedAuditEventRow } from './governance/audit-event-log.ts'
 import { type SeedNotification } from './notifications/notification-feed.ts'
 import { type SeedNotificationPreference } from './notifications/notification-preferences.ts'
 import { type SeedAccountPreference } from './governance/account-preferences.ts'
-import { type SeedWebhookEndpointFixture } from './developer-platform/webhook-endpoints.seed.ts'
+import { type SeedWebhookEndpointFixture } from './developer-platform/webhook-store.seed.ts'
 import {
   type SeedWebhookDeliveryFixture,
   type WebhookDeliveryAttempt,

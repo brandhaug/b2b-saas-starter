@@ -43,6 +43,7 @@ export function resourceEntitlementsContract(expect: typeof VitestExpect) {
     yield* TestClock.setTime(Date.parse(RESOURCE_BEFORE_EXPIRY))
     const tokens = yield* ApiTokenRegistry
     const endpoints = yield* WebhookEndpoints
+    const dispatch = yield* WebhookDispatch
     const entitlements = yield* ResourceEntitlements
     const billing = yield* Billing
     const audit = yield* AuditEventLog
@@ -98,14 +99,14 @@ export function resourceEntitlementsContract(expect: typeof VitestExpect) {
     )
     // A queued delivery retains its identity; dispatch re-reads authority.
     expect(
-      yield* endpoints.getDispatchTarget(
+      yield* dispatch.getDispatchTarget(
         first.endpoint.id,
         ctx.workspace.id,
         firstSend.deliveryId
       )
     ).not.toBeNull()
     expect(
-      yield* endpoints.getDispatchTarget(
+      yield* dispatch.getDispatchTarget(
         second.endpoint.id,
         ctx.workspace.id,
         secondSend.deliveryId
@@ -140,7 +141,7 @@ export function resourceEntitlementsContract(expect: typeof VitestExpect) {
       )
     ).toBe('PlanLimitExceeded')
     expect(
-      yield* endpoints.getDispatchTarget(
+      yield* dispatch.getDispatchTarget(
         first.endpoint.id,
         ctx.workspace.id,
         firstSend.deliveryId
@@ -148,7 +149,7 @@ export function resourceEntitlementsContract(expect: typeof VitestExpect) {
     ).toBeNull()
     yield* endpoints.update({ endpointId: first.endpoint.id, enabled: true })
     expect(
-      yield* endpoints.getDispatchTarget(
+      yield* dispatch.getDispatchTarget(
         first.endpoint.id,
         ctx.workspace.id,
         firstSend.deliveryId
@@ -184,7 +185,7 @@ export function resourceEntitlementsContract(expect: typeof VitestExpect) {
     expect(selected.webhookEndpointIds).toEqual([second.endpoint.id])
     yield* tokens.verifyBearerToken(c.token)
     expect(
-      yield* endpoints.getDispatchTarget(
+      yield* dispatch.getDispatchTarget(
         second.endpoint.id,
         ctx.workspace.id,
         secondSend.deliveryId
@@ -270,3 +271,4 @@ export function resourceAdmissionContract(expect: typeof VitestExpect) {
   })
 }
 import { ApiTokenId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import { WebhookDispatch } from '../developer-platform/webhook-dispatch.ts'
