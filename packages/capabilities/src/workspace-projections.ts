@@ -29,9 +29,18 @@ export type WorkspaceOverviewProjection = {
 }
 
 /**
- * The workspace overview served by the REST `overview` endpoint (matches
- * `WorkspaceOverviewDto` in `@b2b-saas-starter/api`) and embedded in the
- * dashboard projection below.
+ * The workspace overview: served by the REST `overview` endpoint (matches
+ * `WorkspaceOverviewDto` in `@b2b-saas-starter/api`) and the core of the web
+ * dashboard payload. `notification:read` covers all of it.
+ *
+ * Webhook endpoints are deliberately NOT here: `webhook:list` is a separate
+ * permission a `member` does not hold, and a projection cannot check
+ * authorization (see this package's intent node). The caller reads them as its
+ * own segment and drops the segment when the actor may not have it — see
+ * `apps/web/src/lib/server/workspace-dashboard.ts`. Folding them back in would
+ * mean the read runs for every actor and the numbers ship in the page payload.
+ * The unread badge count is the web page frame's (`workspacePage`), not this
+ * projection's.
  */
 export const workspaceOverview: Effect.Effect<
   WorkspaceOverviewProjection,
@@ -46,33 +55,6 @@ export const workspaceOverview: Effect.Effect<
     notifications
   }
 })
-
-export type WorkspaceDashboardProjection = WorkspaceOverviewProjection & {
-  readonly unreadCount: number
-}
-
-/**
- * Everything the workspace dashboard renders under one permission, aggregates
- * pre-computed. `notification:read` covers all of it.
- *
- * Webhook endpoints are deliberately NOT here: `webhook:list` is a separate
- * permission a `member` does not hold, and a projection cannot check
- * authorization (see this package's intent node). The caller reads them as its
- * own segment and drops the segment when the actor may not have it — see
- * `apps/web/src/lib/server/workspace-dashboard.ts`. Folding them back in would
- * mean the read runs for every actor and the numbers ship in the page payload.
- */
-export const workspaceDashboard: Effect.Effect<
-  WorkspaceDashboardProjection,
-  CapabilityUnavailable,
-  WorkspaceContext | NotificationFeed
-> = workspaceOverview.pipe(
-  Effect.map((overview) => ({
-    ...overview,
-    unreadCount: overview.notifications.filter((notification) => !notification.read)
-      .length
-  }))
-)
 
 export type WorkspaceListItemProjection = {
   readonly workspace: Workspace

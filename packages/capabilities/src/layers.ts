@@ -146,6 +146,7 @@ import { LiveResourceEntitlements } from '@b2b-saas-starter/billing/resource-ent
 import { SeedResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements.seed'
 import { type BillingOptions } from '@b2b-saas-starter/billing/billing-config'
 import { LiveBilling } from '@b2b-saas-starter/billing/billing.live'
+import { PlatformHttpClientLive } from '@b2b-saas-starter/failure/http-client'
 import { SeedBilling } from '@b2b-saas-starter/billing/billing.seed'
 import {
   LiveSeatSyncPublisher,
@@ -596,7 +597,8 @@ export function makeLiveCapabilitiesLayer(
     BillingNotificationLayer.pipe(Layer.provideMerge(notificationLayer))
   )
   const billing = LiveBilling(options.billing).pipe(
-    Layer.provide(BillingWebhookLayer.pipe(Layer.provideMerge(publisher)))
+    Layer.provide(BillingWebhookLayer.pipe(Layer.provideMerge(publisher))),
+    Layer.provide(PlatformHttpClientLive)
   )
   const entitlements = LiveResourceEntitlements.pipe(Layer.provide(billing))
   const suspension = LiveWorkspaceSuspension.pipe(

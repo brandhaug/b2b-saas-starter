@@ -22,8 +22,10 @@ const fields: ReadonlyArray<TableViewField> = [
 ]
 
 describe('table view model', () => {
-  it('keeps nulls out of negative contains and uses case-insensitive text predicates', () => {
+  it('treats negative contains as the complement and uses case-insensitive text predicates', () => {
     const rows = [{ name: null }, { name: 'Alpha' }, { name: 'BETA' }]
+    // The server adapters share these semantics (capabilities
+    // `internal/table-filter.ts`): an empty value does not contain the text.
     expect(
       applyTableView(
         rows,
@@ -33,7 +35,7 @@ describe('table view model', () => {
         },
         (row) => row.name
       )
-    ).toEqual([rows[2]])
+    ).toEqual([rows[0], rows[2]])
     expect(
       applyTableView(
         rows,
@@ -44,6 +46,33 @@ describe('table view model', () => {
         (row) => row.name
       )
     ).toEqual([rows[2]])
+  })
+
+  it('folds text case the way the quick search does, beyond ASCII', () => {
+    const rows = [{ name: 'Øyvind Hansen' }, { name: 'Oyvind' }]
+    const view: TableView = {
+      ...defaultTableView,
+      filters: [{ field: 'name', operator: 'contains', value: 'øyvind' }]
+    }
+    expect(applyTableView(rows, view, (row) => row.name, fields)).toEqual([rows[0]])
+    expect(
+      applyTableView(
+        rows,
+        { ...defaultTableView, query: 'øyvind' },
+        () => '',
+        fields,
+        (row) => row.name
+      )
+    ).toEqual([rows[0]])
+  })
+
+  it('filters a text field by its declared kind when the cell holds a number', () => {
+    const rows = [{ name: 101 }, { name: 22 }]
+    const view: TableView = {
+      ...defaultTableView,
+      filters: [{ field: 'name', operator: 'contains', value: '1' }]
+    }
+    expect(applyTableView(rows, view, (row) => row.name, fields)).toEqual([rows[0]])
   })
 
   it('preserves any/all, null inequality, and stable sort priority', () => {

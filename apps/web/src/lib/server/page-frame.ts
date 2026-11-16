@@ -5,7 +5,6 @@ import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability
 import { type WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { type CapabilityServices } from '@b2b-saas-starter/capabilities/layers'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
-import { type WorkspaceViewer } from '@/lib/permissions'
 import {
   WorkspaceContext,
   type WorkspaceContextInterface,
@@ -15,6 +14,7 @@ import { Effect, type Scope } from 'effect'
 
 import { type UnauthorizedError } from './auth'
 import { requireWorkspacePermission } from './authorize'
+import { type WorkspacePagePayload } from '@/lib/workspace-frame'
 import {
   type StrongAuthentication,
   type StrongAuthenticationRequired
@@ -40,6 +40,13 @@ export type WorkspacePageFrame<Payload> = Effect.Effect<
   CapabilityServices | WorkspaceServices | WorkspaceSuspensionService | Scope.Scope
 >
 
+/** The unread-notification count the workspace shell badges. */
+const unreadCount: Effect.Effect<
+  number,
+  CapabilityUnavailable,
+  NotificationFeed | WorkspaceServices
+> = Effect.flatMap(NotificationFeed, (feed) => feed.unreadCount)
+
 /**
  * The opening and closing every workspace page shares, in one place.
  *
@@ -49,11 +56,14 @@ export type WorkspacePageFrame<Payload> = Effect.Effect<
  * those in `whenPermitted` (`./authorize.ts`), which yields `null` so the
  * read never runs and the number never reaches the SSR payload.
  *
- * The frame closes by attaching `viewer` — the actor's workspace role, the one
- * thing every payload carries and the value `viewerCan` re-decides on the
- * client. It is declared here rather than in `@b2b-saas-starter/capabilities`
- * because which segments exist is an authorization decision, and a capability
- * does not make those (see that package's intent node).
+ * The frame closes by attaching the `WorkspaceFrame` (`../workspace-frame.ts`):
+ * `viewer` — the actor's workspace role, the value `viewerCan` re-decides on
+ * the client — and `unreadCount`, the shell's notification badge, read
+ * concurrently with the segment. The frame owns both so no page can forget
+ * them: a page that omitted the count once lost its badge silently. `viewer`
+ * is declared here rather than in `@b2b-saas-starter/capabilities` because
+ * which segments exist is an authorization decision, and a capability does
+ * not make those (see that package's intent node).
  *
  * `segment` receives the resolved context, so a page that renders the
  * workspace's own name (settings, billing) can read it without a second
@@ -63,7 +73,7 @@ export function workspacePage<Segment, E, R>(
   gate: PermissionRequest,
   segment: (ctx: WorkspaceContextInterface) => Effect.Effect<Segment, E, R>
 ): Effect.Effect<
-  Segment & { readonly viewer: WorkspaceViewer | null },
+  WorkspacePagePayload<Segment>,
   | E
   | AuthorizationDenied
   | CapabilityUnavailable
@@ -71,6 +81,7 @@ export function workspacePage<Segment, E, R>(
   | StrongAuthenticationRequired
   | UnauthorizedError,
   | R
+  | NotificationFeed
   | WorkspaceServices
   | WorkspaceSuspensionService
   | StrongAuthentication
@@ -79,19 +90,13 @@ export function workspacePage<Segment, E, R>(
   return Effect.gen(function* () {
     yield* requireWorkspacePermission(gate)
     const ctx = yield* WorkspaceContext
-    const assembled = yield* segment(ctx)
-    return { ...assembled, viewer: ctx.actor ? { role: ctx.actor.role } : null }
+    const [assembled, unread] = yield* Effect.all([segment(ctx), unreadCount], {
+      concurrency: 'unbounded'
+    })
+    return {
+      ...assembled,
+      viewer: ctx.actor ? { role: ctx.actor.role } : null,
+      unreadCount: unread
+    }
   })
 }
-
-/**
- * The unread-notification count the workspace shell badges. Every page reads
- * it concurrently with its own segment, so it is a value to compose into
- * `Effect.all` rather than a step of the frame: the dashboard already derives
- * the count from its overview projection, and a frame step would read it twice.
- */
-export const unreadCount: Effect.Effect<
-  number,
-  CapabilityUnavailable,
-  NotificationFeed | WorkspaceServices
-> = Effect.flatMap(NotificationFeed, (feed) => feed.unreadCount)

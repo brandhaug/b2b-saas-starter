@@ -1,9 +1,9 @@
 import { type WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { type WebhookInvestigationTask } from '@b2b-saas-starter/capabilities/developer-platform/webhook-investigation-tasks'
 import { type AssistantProvider } from '@b2b-saas-starter/ai'
-import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
+import { type WorkspacePagePayload } from '@/lib/workspace-frame'
 
 /**
  * The assistant page payload: who is viewing and whether a real provider is
@@ -16,9 +16,7 @@ import { Schema } from 'effect'
  * answer. The worker env is passed straight to `packages/ai`: its `ProviderEnv`
  * picks the assistant's keys off `ServerEnv`, so there is nothing to copy.
  */
-export type AssistantPagePayload = {
-  readonly viewer: WorkspaceViewer | null
-  readonly unreadCount: number
+export type AssistantPagePayload = WorkspacePagePayload<{
   readonly configured: boolean
   readonly investigations?: {
     readonly tasks: ReadonlyArray<WebhookInvestigationTask>
@@ -30,7 +28,7 @@ export type AssistantPagePayload = {
       readonly status: string
     }>
   } | null
-}
+}>
 
 const AssistantPageInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString

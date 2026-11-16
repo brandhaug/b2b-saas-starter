@@ -5,9 +5,10 @@ import { Effect, Layer, Schema, Stream } from 'effect'
 import { McpProtocol, McpServer, McpTest } from 'effect/ai'
 import { Sse } from 'effect/encoding'
 import { expect } from 'vite-plus/test'
-import { CurrentMcpRequest, mcpRegistrations } from './mcp.ts'
+import { mcpRegistrations } from './mcp.ts'
+import { CurrentMcpRequest } from './mcp-credential-gate.ts'
 import { makeOAuthTokenVerifierLayer } from './oauth-access-token.ts'
-import { verifyMcpCredential } from './request-guards.ts'
+import { verifyMcpCredential } from './mcp-caller.ts'
 
 const decodeJsonObject = Schema.decodeUnknownEffect(
   Schema.fromJsonString(Schema.JsonObject)

@@ -153,27 +153,13 @@ function useEmailCodeExchange({
     defaultValues: { email: '' },
     onSubmit: async ({ value }) =>
       sending.run(async (request) => {
-        setSubmitError(null)
-        if (challenge.missing) {
-          setSubmitError(challenge.missingMessage)
-          return
-        }
-        const result = await send({
-          email: value.email,
-          purpose,
-          turnstileToken: challenge.token
-        }).finally(() => {
-          if (request.current()) {
-            challenge.consume()
-          }
+        const sent = await challenge.send(request, {
+          call: (turnstileToken) =>
+            send({ email: value.email, purpose, turnstileToken }),
+          failure: m.public_auth_send_code_failed(),
+          report: setSubmitError
         })
-        if (!request.current()) {
-          return
-        }
-        // The token is single-use: the resend below needs a fresh challenge
-        // whether this send landed or not.
-        if (result.error) {
-          setSubmitError(authErrorCopy(result.error, m.public_auth_send_code_failed()))
+        if (!sent) {
           return
         }
         setSentEmail(value.email)
@@ -214,28 +200,14 @@ function useEmailCodeExchange({
       if (sentEmail === null) {
         return
       }
-      setSubmitError(null)
-      if (challenge.missing) {
-        setSubmitError(challenge.missingMessage)
-        return
-      }
-      const result = await send({
-        email: sentEmail,
-        purpose,
-        turnstileToken: challenge.token
-      }).finally(() => {
-        if (request.current()) {
-          challenge.consume()
-        }
+      const sent = await challenge.send(request, {
+        call: (turnstileToken) => send({ email: sentEmail, purpose, turnstileToken }),
+        failure: m.public_auth_resend_code_failed(),
+        report: setSubmitError
       })
-      if (!request.current()) {
-        return
+      if (sent) {
+        cooldown.start()
       }
-      if (result.error) {
-        setSubmitError(authErrorCopy(result.error, m.public_auth_resend_code_failed()))
-        return
-      }
-      cooldown.start()
     })
   }
 

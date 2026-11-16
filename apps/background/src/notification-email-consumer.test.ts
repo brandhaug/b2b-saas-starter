@@ -16,6 +16,7 @@ import {
 } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { SeedEmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery.seed'
 import { EmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery'
+import { fixedJitter } from '@b2b-saas-starter/email-delivery/email-delivery.contract'
 import {
   EmailDispatcher,
   type EmailDeliveryResult,
@@ -24,7 +25,7 @@ import {
 } from '@b2b-saas-starter/email'
 import { render } from 'react-email'
 import { describe, expect, it } from '@effect/vitest'
-import { Duration, Effect, Layer } from 'effect'
+import { Duration, Effect, Layer, Random } from 'effect'
 import { TestClock } from 'effect/testing'
 
 import { processNotificationEmailMessage } from './notification-email-consumer.ts'
@@ -160,6 +161,7 @@ function run(
         stubDispatcher(sent, options.fail)
       )
     ),
+    Effect.provideService(Random.Random, fixedJitter(0)),
     Effect.map((outcome) => ({ outcome, sent }))
   )
 }
@@ -373,6 +375,7 @@ describe('processNotificationEmailMessage', () => {
       expect(second).toBe('ack')
       expect(sent).toHaveLength(0)
     }).pipe(
+      Effect.provideService(Random.Random, fixedJitter(0)),
       Effect.provide(
         withEligibility(
           stubFeed(context),

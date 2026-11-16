@@ -4,7 +4,7 @@ import { Effect } from 'effect'
 import { runWorkspaceCapabilities } from '../capabilities'
 import { whenPermitted } from './authorize'
 import { requireRequestSession } from './auth'
-import { unreadCount, workspacePage, type WorkspacePageFrame } from './page-frame'
+import { workspacePage, type WorkspacePageFrame } from './page-frame'
 import {
   type WorkspaceSettingsInput,
   type WorkspaceSettingsPayload
@@ -17,7 +17,6 @@ const settingsPayload: WorkspacePageFrame<WorkspaceSettingsPayload> = workspaceP
     Effect.map(
       Effect.all(
         {
-          unreadCount,
           ssoConnections: whenPermitted(
             { sso: ['list'] },
             Effect.flatMap(SsoConnections, (sso) => sso.list)

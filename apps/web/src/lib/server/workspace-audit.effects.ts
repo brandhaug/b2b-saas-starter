@@ -11,7 +11,7 @@ import { Effect } from 'effect'
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requestPresentation } from './i18n-context'
-import { unreadCount, workspacePage } from './page-frame'
+import { workspacePage } from './page-frame'
 import { type WorkspaceAuditInput, type WorkspaceAuditPayload } from './workspace-audit'
 import { zonedDayBoundary } from './zoned-day-boundary'
 
@@ -49,7 +49,11 @@ export async function loadWorkspaceAuditEventsHandler(
             const start = yield* zonedDayBoundary(filter.value, 'start', timeZone)
             const end = yield* zonedDayBoundary(filter.value, 'end', timeZone)
             if (filter.operator === 'is' || filter.operator === 'isNot') {
-              return { ...filter, value: `${start}|${end}` } satisfies AuditViewFilter
+              return {
+                ...filter,
+                value: start,
+                endValue: end
+              } satisfies AuditViewFilter
             }
             if (filter.operator === 'before') {
               return { ...filter, value: start }
@@ -77,18 +81,16 @@ export async function loadWorkspaceAuditEventsHandler(
         // No second gate here: the hard `auditLog` read above already decided
         // who reaches this payload (owner/admin only), and the role table has no
         // separate member-list statement to compose.
-        const [page, members, selectedEvent, unread] = yield* Effect.all(
+        const [page, members, selectedEvent] = yield* Effect.all(
           [
             log.list(listInput),
             membership.listMembers,
-            input.event ? log.get(input.event) : Effect.succeed(null),
-            unreadCount
+            input.event ? log.get(input.event) : Effect.succeed(null)
           ],
           { concurrency: 'unbounded' }
         )
         return {
           selectedEvent,
-          unreadCount: unread,
           events: page.items,
           nextCursor: page.nextCursor,
           filters: input.filters,

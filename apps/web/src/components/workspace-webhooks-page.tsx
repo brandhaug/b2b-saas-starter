@@ -30,15 +30,14 @@ export function WorkspaceWebhooksPage({
   readonly systemRole?: string | null
   readonly ports?: { readonly listDeliveryAttempts?: ListDeliveryAttempts }
 }) {
-  const { viewer, unreadCount, endpoints } = data
+  const { viewer, endpoints } = data
 
   return (
     <WorkspaceShell
       layout="wide"
       workspaceSlug={workspaceSlug}
       systemRole={systemRole}
-      unreadCount={unreadCount}
-      viewer={viewer}
+      frame={data}
     >
       <PageHeader
         breadcrumb={<WorkspaceCrumb workspaceSlug={workspaceSlug} />}

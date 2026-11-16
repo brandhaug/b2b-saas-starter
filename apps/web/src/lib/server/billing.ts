@@ -10,7 +10,6 @@ import {
   type ResourceEntitlement,
   type SeatUsage
 } from '@b2b-saas-starter/billing/plan-catalog'
-import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
 
@@ -22,10 +21,8 @@ import { Schema } from 'effect'
  * is not configured" honestly instead of rendering a button that can only
  * fail.
  */
-export type WorkspaceBillingPayload = {
-  readonly viewer: WorkspaceViewer | null
+export type WorkspaceBillingPayload = WorkspacePagePayload<{
   readonly workspaceName: string
-  readonly unreadCount: number
   readonly plans: ReadonlyArray<DisplayedPlan>
   /** True when configured provider pricing could not be read or validated. */
   readonly pricingUnavailable: boolean
@@ -46,7 +43,7 @@ export type WorkspaceBillingPayload = {
     readonly id: string
     readonly url: string
   }>
-}
+}>
 
 export type PublicPricingPayload = {
   readonly plans: ReadonlyArray<DisplayedPlan>
@@ -124,3 +121,4 @@ export const selectBillingResourcesServerFn = createServerFn({ method: 'POST' })
     return selectBillingResourcesHandler(data)
   })
 import { ApiTokenId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import { type WorkspacePagePayload } from '@/lib/workspace-frame'

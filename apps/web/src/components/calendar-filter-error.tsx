@@ -3,6 +3,7 @@ import { m } from '@b2b-saas-starter/i18n/messages'
 import { type UiError } from '@/lib/ui-error'
 import { causeMessage } from '@/lib/cause-message'
 import { WorkspaceShell } from './workspace-shell'
+import { noWorkspaceFrame } from '@/lib/workspace-frame'
 import { Button } from './ui/button'
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from './ui/empty'
 
@@ -11,7 +12,7 @@ export function CalendarFilterError({ error }: { readonly error: UiError }) {
   const router = useRouter()
   const { workspaceSlug } = useParams({ strict: false })
   return (
-    <WorkspaceShell workspaceSlug={workspaceSlug ?? null} viewer={null}>
+    <WorkspaceShell workspaceSlug={workspaceSlug ?? null} frame={noWorkspaceFrame}>
       <Empty>
         <EmptyHeader>
           <EmptyTitle>

@@ -4,6 +4,7 @@ import { renderWithRouter } from '@/test/router-harness'
 import { authClientDouble } from '@/test/fake-auth-client'
 import { WorkspaceShell, type StopImpersonating } from './workspace-shell'
 import { PreviewProvider } from '@/components/preview-provider'
+import { noWorkspaceFrame } from '@/lib/workspace-frame'
 
 // The identity line reads the live Better Auth client, whose session hook
 // fetches a relative URL no jsdom test can answer — the shared double's
@@ -37,7 +38,8 @@ function sessionContext(impersonatedBy: string | null) {
 
 async function renderShell(props?: {
   readonly workspaceSlug?: string | null
-  readonly unreadCount?: number
+  /** The frame's unread count; `null` stands for a surface without a feed. */
+  readonly unreadCount?: number | null
   /** The viewer's role; defaults to a member. */
   readonly role?: 'owner' | 'admin' | 'member'
   /** The Better Auth system role of the signed-in user. */
@@ -53,9 +55,15 @@ async function renderShell(props?: {
       workspaceSlug={
         props?.workspaceSlug === undefined ? 'starter-lab' : props.workspaceSlug
       }
-      viewer={props?.workspaceSlug === null ? null : { role: props?.role ?? 'member' }}
+      frame={
+        props?.workspaceSlug === null
+          ? noWorkspaceFrame
+          : {
+              viewer: { role: props?.role ?? 'member' },
+              unreadCount: props?.unreadCount === undefined ? 0 : props.unreadCount
+            }
+      }
       {...(props?.systemRole === undefined ? {} : { systemRole: props.systemRole })}
-      {...(props?.unreadCount === undefined ? {} : { unreadCount: props.unreadCount })}
     >
       <p>Dashboard content</p>
     </WorkspaceShell>,
@@ -88,8 +96,7 @@ describe('WorkspaceShell', () => {
       <PreviewProvider>
         <WorkspaceShell
           workspaceSlug="starter-lab"
-          viewer={{ role: 'owner' }}
-          unreadCount={2}
+          frame={{ viewer: { role: 'owner' }, unreadCount: 2 }}
         >
           <p>Preview content</p>
         </WorkspaceShell>
@@ -241,7 +248,7 @@ describe('WorkspaceShell', () => {
     expect(badge.getAttribute('href')).toBe('/account/notifications')
     screen.getByText('4')
     unmount()
-    await renderShell()
-    expect(screen.queryByRole('link', { name: '4 unread notifications' })).toBeNull()
+    await renderShell({ unreadCount: null })
+    expect(screen.queryByRole('link', { name: /unread notifications/ })).toBeNull()
   })
 })

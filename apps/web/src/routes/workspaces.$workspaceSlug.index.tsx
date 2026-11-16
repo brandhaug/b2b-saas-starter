@@ -16,7 +16,7 @@ function dashboardQuery(actorId: string, workspaceSlug: string) {
 }
 
 export const Route = createFileRoute('/workspaces/$workspaceSlug/')({
-  // The `workspaceDashboard` projection — shared with the REST `overview`
+  // The `workspaceOverview` projection — shared with the REST `overview`
   // endpoint so app and Capability Interface views cannot drift — plus the
   // soft segments the attention feed reads, each dropped (null) for an actor
   // without its permission, plus the onboarding checklist.

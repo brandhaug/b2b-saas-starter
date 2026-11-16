@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@/components/ui/empty'
 import { FORBIDDEN_ERROR_NAME } from '@/lib/capability-error'
 import { WorkspaceShell } from '@/components/workspace-shell'
+import { noWorkspaceFrame } from '@/lib/workspace-frame'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { StrongAuthenticationNotice } from './strong-authentication-notice'
 
@@ -63,7 +64,7 @@ export function workspaceRouteError(copy: WorkspaceRouteErrorCopy) {
       'name' in error &&
       error.name === FORBIDDEN_ERROR_NAME
     return (
-      <WorkspaceShell workspaceSlug={workspaceSlug ?? null} viewer={null}>
+      <WorkspaceShell workspaceSlug={workspaceSlug ?? null} frame={noWorkspaceFrame}>
         <Empty>
           <EmptyHeader>
             <EmptyTitle>

@@ -2,6 +2,7 @@ import { billingCheckoutClaims } from '@b2b-saas-starter/db/schema/billing'
 import { type BillingCheckoutStatus } from '@b2b-saas-starter/db/enums'
 import { type EffectDatabase } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect } from 'effect'
+import { type HttpClient } from 'effect/http'
 import { and, eq, inArray } from 'drizzle-orm'
 
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -87,7 +88,7 @@ export const recoverCheckoutClaim = Effect.fn('Billing.recoverCheckoutClaim')(
       readonly customerId?: string | undefined
       readonly checkoutSessionId?: string | undefined
     }
-  ): Effect.fn.Return<CheckoutRecovery, CapabilityUnavailable> {
+  ): Effect.fn.Return<CheckoutRecovery, CapabilityUnavailable, HttpClient.HttpClient> {
     const claim = yield* readCheckoutClaim(deps, input.workspaceId)
     let customerId = input.customerId
     if (claim === undefined) {

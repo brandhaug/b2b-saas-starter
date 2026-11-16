@@ -24,6 +24,7 @@ import {
 import { PageHeader } from '@/components/page/page-header'
 import { Panel } from '@/components/page/panel'
 import { WorkspaceShell } from '@/components/workspace-shell'
+import { noWorkspaceFrame } from '@/lib/workspace-frame'
 import { Badge } from '@/components/ui/badge'
 import { RoutePending } from '@/components/route-pending'
 import { formatTimestamp } from '@/lib/format-date'
@@ -213,7 +214,11 @@ function AdminPage() {
   } = useSuspenseQuery(adminQuery(session.user.id, Route.useLoaderDeps()))
 
   return (
-    <WorkspaceShell viewer={null} systemRole={session.user.role} workspaceSlug={null}>
+    <WorkspaceShell
+      frame={noWorkspaceFrame}
+      systemRole={session.user.role}
+      workspaceSlug={null}
+    >
       <PageHeader
         title={m.nav_system_admin()}
         description={m.page_admin_description()}

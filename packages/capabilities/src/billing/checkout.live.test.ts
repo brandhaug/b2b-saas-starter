@@ -38,6 +38,7 @@ import {
   reset,
   secretKey,
   stripeFixture,
+  withHttpClient,
   withStripe,
   workspaceId
 } from './checkout-test-fixtures.ts'
@@ -96,75 +97,78 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('durable checkout', (it) =>
       const fixture = stripeFixture()
       return withStripe(
         fixture,
-        inWorkspace(
-          'live-lab',
-          Effect.gen(function* () {
-            yield* reset
-            const db = yield* Database
-            const audit = yield* AuditEventLog
-            const leases = yield* makeBillingLease()
-            const syncStore = yield* makeBillingSyncStore()
-            let fencedCalls = 0
-            const flakyLease = {
-              ...leases,
-              fencedBatch: (
-                lease: Parameters<typeof leases.fencedBatch>[0],
-                statements: ReadonlyArray<BatchStatement>
-              ) => {
-                fencedCalls += 1
-                if (fencedCalls === 3) {
-                  return Effect.fail(
-                    new CapabilityUnavailable({
-                      capability: 'billing',
-                      reason: 'stripe_request_timed_out'
-                    })
-                  )
+        withHttpClient((provideHttp) =>
+          inWorkspace(
+            'live-lab',
+            Effect.gen(function* () {
+              yield* reset
+              const db = yield* Database
+              const audit = yield* AuditEventLog
+              const leases = yield* makeBillingLease()
+              const syncStore = yield* makeBillingSyncStore()
+              let fencedCalls = 0
+              const flakyLease = {
+                ...leases,
+                fencedBatch: (
+                  lease: Parameters<typeof leases.fencedBatch>[0],
+                  statements: ReadonlyArray<BatchStatement>
+                ) => {
+                  fencedCalls += 1
+                  if (fencedCalls === 3) {
+                    return Effect.fail(
+                      new CapabilityUnavailable({
+                        capability: 'billing',
+                        reason: 'stripe_request_timed_out'
+                      })
+                    )
+                  }
+                  return leases.fencedBatch(lease, statements)
                 }
-                return leases.fencedBatch(lease, statements)
               }
-            }
-            const checkout = makeDurableCheckout({
-              db,
-              audit,
-              lease: flakyLease,
-              unavailable: orUnavailable('billing'),
-              recordFailure: syncStore.fail
-            })
-            const first = checkoutInput({
-              quantity: 2,
-              successUrl: 'https://example.test/original-success',
-              cancelUrl: 'https://example.test/original-cancel'
-            })
-            yield* Effect.flip(checkout(first))
-            const second = yield* checkout(
-              checkoutInput({
-                quantity: 99,
-                successUrl: 'https://attacker.example/success',
-                cancelUrl: 'https://attacker.example/cancel'
+              const checkout = makeDurableCheckout({
+                db,
+                audit,
+                lease: flakyLease,
+                unavailable: orUnavailable('billing'),
+                recordFailure: syncStore.fail
               })
-            )
-            expect(second.url).toBe('https://checkout.stripe.com/c/pay/checkout')
-            expect(fixture.state.checkoutCreates).toBe(2)
-            const secondBody = new URLSearchParams(fixture.state.checkoutBodies[1])
-            expect(secondBody.get('line_items[0][quantity]')).toBe('2')
-            expect(secondBody.get('success_url')).toBe(
-              'https://example.test/original-success'
-            )
-            expect(secondBody.get('cancel_url')).toBe(
-              'https://example.test/original-cancel'
-            )
-            expect(fixture.state.checkoutIdempotencyKeys[1]).toBe(
-              fixture.state.checkoutIdempotencyKeys[0]
-            )
-          }).pipe(
-            Effect.provide(
-              Layer.merge(
-                Layer.merge(BillingAuditLayer, BillingNotificationLayer),
-                BillingWebhookLayer
+              const first = checkoutInput({
+                quantity: 2,
+                successUrl: 'https://example.test/original-success',
+                cancelUrl: 'https://example.test/original-cancel'
+              })
+              yield* Effect.flip(checkout(first))
+              const second = yield* checkout(
+                checkoutInput({
+                  quantity: 99,
+                  successUrl: 'https://attacker.example/success',
+                  cancelUrl: 'https://attacker.example/cancel'
+                })
               )
-            )
-          ),
-          { userId: 'usr_owner' }
+              expect(second.url).toBe('https://checkout.stripe.com/c/pay/checkout')
+              expect(fixture.state.checkoutCreates).toBe(2)
+              const secondBody = new URLSearchParams(fixture.state.checkoutBodies[1])
+              expect(secondBody.get('line_items[0][quantity]')).toBe('2')
+              expect(secondBody.get('success_url')).toBe(
+                'https://example.test/original-success'
+              )
+              expect(secondBody.get('cancel_url')).toBe(
+                'https://example.test/original-cancel'
+              )
+              expect(fixture.state.checkoutIdempotencyKeys[1]).toBe(
+                fixture.state.checkoutIdempotencyKeys[0]
+              )
+            }).pipe(
+              Effect.provide(
+                Layer.merge(
+                  Layer.merge(BillingAuditLayer, BillingNotificationLayer),
+                  BillingWebhookLayer
+                )
+              ),
+              provideHttp
+            ),
+            { userId: 'usr_owner' }
+          )
         )
       )
     }
@@ -176,71 +180,74 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('durable checkout', (it) =>
       const fixture = stripeFixture({ exposeCreatedSessionOnList: true })
       return withStripe(
         fixture,
-        inWorkspace(
-          'live-lab',
-          Effect.gen(function* () {
-            yield* reset
-            const db = yield* Database
-            const audit = yield* AuditEventLog
-            const leases = yield* makeBillingLease()
-            const syncStore = yield* makeBillingSyncStore()
-            let fencedCalls = 0
-            const flakyLease = {
-              ...leases,
-              fencedBatch: (
-                lease: Parameters<typeof leases.fencedBatch>[0],
-                statements: ReadonlyArray<BatchStatement>
-              ) => {
-                fencedCalls += 1
-                if (fencedCalls === 3) {
-                  return Effect.fail(
-                    new CapabilityUnavailable({
-                      capability: 'billing',
-                      reason: 'stripe_request_timed_out'
-                    })
-                  )
+        withHttpClient((provideHttp) =>
+          inWorkspace(
+            'live-lab',
+            Effect.gen(function* () {
+              yield* reset
+              const db = yield* Database
+              const audit = yield* AuditEventLog
+              const leases = yield* makeBillingLease()
+              const syncStore = yield* makeBillingSyncStore()
+              let fencedCalls = 0
+              const flakyLease = {
+                ...leases,
+                fencedBatch: (
+                  lease: Parameters<typeof leases.fencedBatch>[0],
+                  statements: ReadonlyArray<BatchStatement>
+                ) => {
+                  fencedCalls += 1
+                  if (fencedCalls === 3) {
+                    return Effect.fail(
+                      new CapabilityUnavailable({
+                        capability: 'billing',
+                        reason: 'stripe_request_timed_out'
+                      })
+                    )
+                  }
+                  return leases.fencedBatch(lease, statements)
                 }
-                return leases.fencedBatch(lease, statements)
               }
-            }
-            const checkout = makeDurableCheckout({
-              db,
-              audit,
-              lease: flakyLease,
-              unavailable: orUnavailable('billing'),
-              recordFailure: syncStore.fail
-            })
-            yield* Effect.flip(checkout(checkoutInput()))
-            expect(fixture.state.checkoutCreates).toBe(1)
-            expect(fixture.state.recoverySessions).toHaveLength(1)
-
-            const retry = yield* checkout(
-              checkoutInput({
-                quantity: 99,
-                successUrl: 'https://attacker.example/success',
-                cancelUrl: 'https://attacker.example/cancel'
+              const checkout = makeDurableCheckout({
+                db,
+                audit,
+                lease: flakyLease,
+                unavailable: orUnavailable('billing'),
+                recordFailure: syncStore.fail
               })
-            )
-            expect(retry.url).toBe('https://checkout.stripe.com/c/pay/checkout')
-            expect(fixture.state.checkoutCreates).toBe(1)
-            expect(fixture.state.checkoutListReads).toBe(1)
-            const claim = (yield* db
-              .select()
-              .from(billingCheckoutClaims)
-              .where(eq(billingCheckoutClaims.workspaceId, workspaceId)))[0]
-            expect(claim?.status).toBe('created')
-            expect(claim?.stripeSessionId).toBe('cs_checkout')
-            expect(claim?.quantity).toBe(1)
-            expect(claim?.successUrl).toBe('https://example.test/success')
-          }).pipe(
-            Effect.provide(
-              Layer.merge(
-                Layer.merge(BillingAuditLayer, BillingNotificationLayer),
-                BillingWebhookLayer
+              yield* Effect.flip(checkout(checkoutInput()))
+              expect(fixture.state.checkoutCreates).toBe(1)
+              expect(fixture.state.recoverySessions).toHaveLength(1)
+
+              const retry = yield* checkout(
+                checkoutInput({
+                  quantity: 99,
+                  successUrl: 'https://attacker.example/success',
+                  cancelUrl: 'https://attacker.example/cancel'
+                })
               )
-            )
-          ),
-          { userId: 'usr_owner' }
+              expect(retry.url).toBe('https://checkout.stripe.com/c/pay/checkout')
+              expect(fixture.state.checkoutCreates).toBe(1)
+              expect(fixture.state.checkoutListReads).toBe(1)
+              const claim = (yield* db
+                .select()
+                .from(billingCheckoutClaims)
+                .where(eq(billingCheckoutClaims.workspaceId, workspaceId)))[0]
+              expect(claim?.status).toBe('created')
+              expect(claim?.stripeSessionId).toBe('cs_checkout')
+              expect(claim?.quantity).toBe(1)
+              expect(claim?.successUrl).toBe('https://example.test/success')
+            }).pipe(
+              Effect.provide(
+                Layer.merge(
+                  Layer.merge(BillingAuditLayer, BillingNotificationLayer),
+                  BillingWebhookLayer
+                )
+              ),
+              provideHttp
+            ),
+            { userId: 'usr_owner' }
+          )
         )
       )
     }

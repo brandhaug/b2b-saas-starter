@@ -1,4 +1,5 @@
 import { DateTime, Effect, Option, Schema, Stream } from 'effect'
+import { type HttpClient } from 'effect/http'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type SubscriptionState } from './billing.ts'
 import { type PaymentEvidence } from './billing-state.ts'
@@ -52,7 +53,7 @@ export const retrievePaymentEvidence = Effect.fn('Stripe.retrievePaymentEvidence
     subscription: StripeSubscriptionResponse,
     previous: SubscriptionState | null,
     now: string
-  ): Effect.fn.Return<PaymentEvidence, CapabilityUnavailable> {
+  ): Effect.fn.Return<PaymentEvidence, CapabilityUnavailable, HttpClient.HttpClient> {
     function owns(invoice: typeof Invoice.Type) {
       return (
         invoice.customer === subscription.customer &&

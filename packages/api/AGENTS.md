@@ -24,7 +24,7 @@ The HTTP contract and nothing that serves it: paths, payloads, statuses, error u
 
 ## Pitfalls
 
-- Divergence documented on both sides: the Effect v4 query codec reads an undecodable optional as absent, so `?limit=abc` serves the default page, while the MCP tools' Effect `PAGED_TOOL_INPUT` (`apps/api/src/mcp.ts`) rejects it with an invalid-params tool-call error. Keep both in sync.
+- Divergence documented on both sides: the Effect v4 query codec reads an undecodable optional as absent, so `?limit=abc` serves the default page, while the MCP tools' Effect `PAGED_TOOL_INPUT` (`apps/api/src/mcp-catalog.ts`) rejects it with an invalid-params tool-call error. Keep both in sync.
 
 ## Private conversations
 

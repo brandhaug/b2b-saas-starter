@@ -21,7 +21,7 @@ import {
   provideWorkspace,
   webRequest
 } from './request-guards.ts'
-import { scopedMcpDiscovery } from './mcp.ts'
+import { scopedMcpDiscovery } from './mcp-discovery.ts'
 import {
   type MutationRequestOptions,
   MUTATION_OPERATIONS,

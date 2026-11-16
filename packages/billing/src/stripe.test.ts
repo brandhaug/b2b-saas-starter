@@ -3,9 +3,10 @@ import {
   testItem,
   testSubscriptionFields
 } from './provider-test-fixtures.ts'
-import { afterEach, describe, expect, it, vi } from '@effect/vitest'
+import { describe, expect, it, vi } from '@effect/vitest'
 import { Deferred, Effect, Fiber } from 'effect'
 import { TestClock } from 'effect/testing'
+import { wireHttpClient, type WireRequest } from '@b2b-saas-starter/failure/http-client'
 
 import {
   createStripeCheckoutSession,
@@ -16,10 +17,8 @@ import {
   verifyStripeSignature
 } from './stripe.ts'
 
-// oxlint-disable-next-line effect/noTestLifecycleHooks -- each test replaces the platform fetch double
-afterEach(() => {
-  vi.unstubAllGlobals()
-})
+/** What the adapter put on the wire, with the URL it went to. */
+type SentRequest = WireRequest & { readonly url: string }
 
 function jsonResponse(body: unknown, status = 200): Response {
   // oxlint-disable-next-line effect/noGlobals -- this is a wire-level provider double
@@ -30,9 +29,9 @@ describe('Stripe provider adapter', () => {
   it.effect('keeps the deadline and cancellation active while reading the body', () =>
     Effect.gen(function* () {
       const reading = yield* Deferred.make<undefined>()
-      let signal: AbortSignal | null | undefined
-      const fetch = vi.fn((_url: unknown, init: RequestInit) => {
-        signal = init.signal
+      let signal: AbortSignal | undefined
+      const wire = vi.fn((_url: string, request: WireRequest) => {
+        signal = request.signal
         return Promise.resolve(
           new Response(
             new ReadableStream({
@@ -44,61 +43,46 @@ describe('Stripe provider adapter', () => {
           )
         )
       })
-      vi.stubGlobal('fetch', fetch)
       const fiber = yield* retrieveStripeCheckoutSession({
         secretKey: 'secret',
         sessionId: 'cs_held'
-      }).pipe(Effect.flip, Effect.forkChild)
+      }).pipe(Effect.flip, Effect.provide(wireHttpClient(wire)), Effect.forkChild)
       yield* Deferred.await(reading)
       yield* TestClock.adjust('10 seconds')
       expect((yield* Fiber.join(fiber)).reason).toBe('stripe request timed out')
       expect(signal?.aborted).toBe(true)
-      expect(fetch).toHaveBeenCalledTimes(1)
+      expect(wire).toHaveBeenCalledTimes(1)
     })
   )
 
   it.effect('refuses redirects without retrying or exposing the provider body', () => {
-    const fetch = vi.fn((_url: unknown, init: RequestInit) => {
-      expect(init.redirect).toBe('manual')
+    const wire = vi.fn((_url: string, request: WireRequest) => {
+      expect(request.redirect).toBe('manual')
       return Promise.resolve(jsonResponse({ error: 'private provider details' }, 307))
     })
-    vi.stubGlobal('fetch', fetch)
     return Effect.gen(function* () {
       const error = yield* retrieveStripeCheckoutSession({
         secretKey: 'secret',
         sessionId: 'cs_redirect'
       }).pipe(Effect.flip)
       expect(error.reason).toBe('stripe http:307')
-      expect(fetch).toHaveBeenCalledTimes(1)
-    })
+      expect(wire).toHaveBeenCalledTimes(1)
+    }).pipe(Effect.provide(wireHttpClient(wire)))
   })
 
   it.effect('uses a stable idempotency key and sends ownership metadata', () => {
-    const requests: Array<{
-      url: string
-      init: { readonly headers?: Record<string, string>; readonly body?: string }
-    }> = []
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(
-        (
-          url: string | URL,
-          init: { readonly headers?: Record<string, string>; readonly body?: string }
-        ) => {
-          requests.push({ url: String(url), init })
-          return Promise.resolve(
-            jsonResponse({
-              id: 'cs_test_1',
-              url: 'https://checkout.stripe.com/c/pay/1',
-              status: 'open',
-              customer: 'cus_1',
-              subscription: null,
-              expires_at: 1_800_000_000
-            })
-          )
-        }
-      )
-    )
+    const requests: Array<SentRequest> = []
+    function wire(url: string, request: WireRequest) {
+      requests.push({ ...request, url })
+      return jsonResponse({
+        id: 'cs_test_1',
+        url: 'https://checkout.stripe.com/c/pay/1',
+        status: 'open',
+        customer: 'cus_1',
+        subscription: null,
+        expires_at: 1_800_000_000
+      })
+    }
 
     return Effect.gen(function* () {
       const session = yield* createStripeCheckoutSession({
@@ -114,36 +98,33 @@ describe('Stripe provider adapter', () => {
       })
 
       expect(session.url).toBe('https://checkout.stripe.com/c/pay/1')
-      expect(requests[0]?.init.headers?.['stripe-version']).toBe('2025-03-31.basil')
+      expect(requests[0]?.headers['stripe-version']).toBe('2025-03-31.basil')
       expect(requests).toHaveLength(1)
-      expect(requests[0]?.init.headers).toMatchObject({
+      expect(requests[0]?.headers).toMatchObject({
         authorization: 'Bearer sk_test_secret',
         'idempotency-key': 'checkout-wrk_1-team-v1'
       })
-      const checkoutBody = requests[0]?.init.body
-      if (checkoutBody === undefined) {
+      const checkoutBody = requests[0]?.body
+      if (checkoutBody === undefined || checkoutBody === '') {
         return expect.fail('the checkout request must carry a form body')
       }
       expect(checkoutBody).toContain('metadata%5BworkspaceId%5D=wrk_1')
       expect(checkoutBody).toContain('metadata%5BclaimId%5D=claim_1')
       expect(checkoutBody).not.toContain('after_expiration')
-    })
+    }).pipe(Effect.provide(wireHttpClient(wire)))
   })
 
   it.effect('decodes terminal sessions whose hosted URL is null', () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() =>
-        Promise.resolve(
-          jsonResponse({
-            id: 'cs_complete',
-            url: null,
-            status: 'complete',
-            expires_at: 1_800_000_000,
-            customer: 'cus_1',
-            subscription: 'sub_1'
-          })
-        )
+    const wire = vi.fn(() =>
+      Promise.resolve(
+        jsonResponse({
+          id: 'cs_complete',
+          url: null,
+          status: 'complete',
+          expires_at: 1_800_000_000,
+          customer: 'cus_1',
+          subscription: 'sub_1'
+        })
       )
     )
 
@@ -155,18 +136,15 @@ describe('Stripe provider adapter', () => {
       expect(session.status).toBe('complete')
       expect(session.url).toBeNull()
       expect(session.subscription).toBe('sub_1')
-    })
+    }).pipe(Effect.provide(wireHttpClient(wire)))
   })
 
   it.effect('sanitizes provider errors and checks HTTP status before decoding', () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() =>
-        Promise.resolve(
-          jsonResponse(
-            { error: { message: 'secret account details must never escape' } },
-            402
-          )
+    const wire = vi.fn(() =>
+      Promise.resolve(
+        jsonResponse(
+          { error: { message: 'secret account details must never escape' } },
+          402
         )
       )
     )
@@ -186,25 +164,22 @@ describe('Stripe provider adapter', () => {
       )
       expect(error.reason).toBe('stripe http:402')
       expect(error.reason).not.toContain('secret account details')
-    })
+    }).pipe(Effect.provide(wireHttpClient(wire)))
   })
 
   it.effect('reads authoritative subscription price and seat quantity', () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() =>
-        Promise.resolve(
-          jsonResponse({
-            id: 'sub_1',
-            customer: 'cus_1',
-            ...testSubscriptionFields,
-            status: 'active',
-            items: {
-              data: [{ ...testItem, id: 'si_1', quantity: 4, price: testPrice }]
-            },
-            metadata: { workspaceId: 'wrk_1' }
-          })
-        )
+    const wire = vi.fn(() =>
+      Promise.resolve(
+        jsonResponse({
+          id: 'sub_1',
+          customer: 'cus_1',
+          ...testSubscriptionFields,
+          status: 'active',
+          items: {
+            data: [{ ...testItem, id: 'si_1', quantity: 4, price: testPrice }]
+          },
+          metadata: { workspaceId: 'wrk_1' }
+        })
       )
     )
 
@@ -219,20 +194,17 @@ describe('Stripe provider adapter', () => {
         price: testPrice
       })
       expect(subscription.metadata).toEqual({ workspaceId: 'wrk_1' })
-    })
+    }).pipe(Effect.provide(wireHttpClient(wire)))
   })
 
   it.effect(
     'makes seat quantity writes idempotent and rejects provider status failures',
     () => {
-      const requests: Array<{ url: string; init: RequestInit }> = []
-      vi.stubGlobal(
-        'fetch',
-        vi.fn((url: string | URL, init: RequestInit) => {
-          requests.push({ url: String(url), init })
-          return Promise.resolve(jsonResponse({ id: 'si_1' }))
-        })
-      )
+      const requests: Array<SentRequest> = []
+      function wire(url: string, request: WireRequest) {
+        requests.push({ ...request, url })
+        return jsonResponse({ id: 'si_1' })
+      }
       return Effect.gen(function* () {
         yield* updateStripeSubscriptionItemQuantity({
           secretKey: 'sk_test_secret',
@@ -240,39 +212,32 @@ describe('Stripe provider adapter', () => {
           quantity: 5,
           idempotencyKey: 'seat-sync-wrk_1-5'
         })
-        expect(requests[0]?.init.headers).toMatchObject({
+        expect(requests[0]?.headers).toMatchObject({
           'idempotency-key': 'seat-sync-wrk_1-5'
         })
         expect(requests[0]?.url).toContain('/subscription_items/si_1')
-      })
+      }).pipe(Effect.provide(wireHttpClient(wire)))
     }
   )
 
   it.effect(
     'creates a customer with idempotent workspace ownership metadata and reads expiry',
     () => {
-      const requests: Array<{ url: string; init: RequestInit }> = []
-      vi.stubGlobal(
-        'fetch',
-        vi.fn((url: string | URL, init: RequestInit) => {
-          requests.push({ url: String(url), init })
-          if (String(url).includes('/customers')) {
-            return Promise.resolve(
-              jsonResponse({ id: 'cus_1', metadata: { workspaceId: 'wrk_1' } })
-            )
-          }
-          return Promise.resolve(
-            jsonResponse({
-              id: 'cs_test_1',
-              status: 'open',
-              customer: 'cus_1',
-              subscription: null,
-              expires_at: 1_800_000_000,
-              url: 'https://checkout.stripe.com/c/pay/1'
-            })
-          )
+      const requests: Array<SentRequest> = []
+      function wire(url: string, request: WireRequest) {
+        requests.push({ ...request, url })
+        if (url.includes('/customers')) {
+          return jsonResponse({ id: 'cus_1', metadata: { workspaceId: 'wrk_1' } })
+        }
+        return jsonResponse({
+          id: 'cs_test_1',
+          status: 'open',
+          customer: 'cus_1',
+          subscription: null,
+          expires_at: 1_800_000_000,
+          url: 'https://checkout.stripe.com/c/pay/1'
         })
-      )
+      }
 
       return Effect.gen(function* () {
         const customer = yield* createStripeCustomer({
@@ -287,10 +252,10 @@ describe('Stripe provider adapter', () => {
         })
         expect(customer.id).toBe('cus_1')
         expect(session.expiresAt).toBe(1_800_000_000)
-        expect(requests[0]?.init.headers).toMatchObject({
+        expect(requests[0]?.headers).toMatchObject({
           'idempotency-key': 'customer-wrk_1-v1'
         })
-      })
+      }).pipe(Effect.provide(wireHttpClient(wire)))
     }
   )
 })

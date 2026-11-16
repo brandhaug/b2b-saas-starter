@@ -2,6 +2,7 @@ import { billingProviderEvents } from '@b2b-saas-starter/db/schema/billing'
 import { Database } from '@b2b-saas-starter/db/service'
 import { type SeatSyncQueueBinding } from '@b2b-saas-starter/billing/seat-sync'
 import { Effect } from 'effect'
+import { wireHttpClient } from '@b2b-saas-starter/failure/http-client'
 import { eq } from 'drizzle-orm'
 import { expect, layer } from '@effect/vitest'
 import { vi } from 'vite-plus/test'
@@ -12,7 +13,7 @@ import {
   TestDatabase
 } from '@b2b-saas-starter/capabilities/testing/live-harness'
 import { type Env } from './queue-consumer.ts'
-import { handleStripeRequest } from './stripe-endpoint.ts'
+import { handleStripeRequest, processStripeRequest } from './stripe-endpoint.ts'
 
 const webhookSecret = 'whsec_live_ingress_test'
 // oxlint-disable-next-line effect/noGlobals -- fixed provider fixture is the independent raw-body test vector
@@ -120,44 +121,39 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('Stripe webhook ingress', (
         const d1 = yield* TestD1
         const queue = queueBinding()
         const header = yield* Effect.promise(() => signedHeader(payload))
-        const originalFetch = globalThis.fetch
-        vi.stubGlobal(
-          'fetch',
-          vi.fn(() => Promise.reject(new Error('unexpected Stripe fetch')))
+        const stripeWire = vi.fn(() =>
+          Promise.reject(new Error('unexpected Stripe fetch'))
         )
-        try {
-          const response = yield* Effect.promise(() =>
-            handleStripeRequest(request(header), configuredEnv(d1, queue))
-          )
-          expect(response.status).toBe(200)
-          expect(queue.send).toHaveBeenCalledTimes(1)
-          expect(queue.send).toHaveBeenCalledWith(
-            expect.objectContaining({
-              kind: 'billing.provider_event',
-              providerEventId: 'evt_live_ingress',
-              eventType: 'customer.subscription.created',
-              providerCreatedAt: '2026-09-21T14:13:20.000Z',
-              workspaceId: 'wrk_live',
-              subscription: {
-                customerId: 'cus_live_ingress',
-                subscriptionId: 'sub_live_ingress',
-                subscriptionItemId: 'si_live_ingress',
-                quantity: 3
-              }
-            })
-          )
-          expect(yield* storedEvents).toMatchObject([
-            {
-              providerEventId: 'evt_live_ingress',
-              eventType: 'customer.subscription.created',
-              stripeCustomerId: 'cus_live_ingress',
-              stripeSubscriptionId: 'sub_live_ingress'
+        const response = yield* processStripeRequest(
+          request(header),
+          configuredEnv(d1, queue)
+        ).pipe(Effect.provide(wireHttpClient(stripeWire)))
+        expect(response.status).toBe(200)
+        expect(queue.send).toHaveBeenCalledTimes(1)
+        expect(queue.send).toHaveBeenCalledWith(
+          expect.objectContaining({
+            kind: 'billing.provider_event',
+            providerEventId: 'evt_live_ingress',
+            eventType: 'customer.subscription.created',
+            providerCreatedAt: '2026-09-21T14:13:20.000Z',
+            workspaceId: 'wrk_live',
+            subscription: {
+              customerId: 'cus_live_ingress',
+              subscriptionId: 'sub_live_ingress',
+              subscriptionItemId: 'si_live_ingress',
+              quantity: 3
             }
-          ])
-          expect(globalThis.fetch).not.toHaveBeenCalled()
-        } finally {
-          vi.stubGlobal('fetch', originalFetch)
-        }
+          })
+        )
+        expect(yield* storedEvents).toMatchObject([
+          {
+            providerEventId: 'evt_live_ingress',
+            eventType: 'customer.subscription.created',
+            stripeCustomerId: 'cus_live_ingress',
+            stripeSubscriptionId: 'sub_live_ingress'
+          }
+        ])
+        expect(stripeWire).not.toHaveBeenCalled()
       })
   )
 

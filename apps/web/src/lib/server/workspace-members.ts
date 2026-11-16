@@ -2,9 +2,10 @@ import { type SeatUsage } from '@b2b-saas-starter/billing/plan-catalog'
 import { type Member } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { type Invitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import { type EmailDeliveryRow } from './email-delivery'
-import { workspaceRoles, type WorkspaceViewer } from '@/lib/permissions'
+import { workspaceRoles } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
+import { type WorkspacePagePayload } from '@/lib/workspace-frame'
 
 /**
  * The workspace members payload: the roster plus, for the roles that manage
@@ -19,9 +20,7 @@ import { Schema } from 'effect'
  * it (`invitation:create` has no `read` action), so it stays a soft segment:
  * `null` for a viewer who may not manage invitations, and the read never runs.
  */
-export type WorkspaceMembersPayload = {
-  readonly viewer: WorkspaceViewer | null
-  readonly unreadCount: number
+export type WorkspaceMembersPayload = WorkspacePagePayload<{
   readonly members: ReadonlyArray<Member>
   readonly invitations: ReadonlyArray<Invitation> | null
   readonly emailDeliveries: ReadonlyArray<EmailDeliveryRow> | null
@@ -31,7 +30,7 @@ export type WorkspaceMembersPayload = {
    * so it follows `workspaces.planId` with no second read.
    */
   readonly seatUsage: SeatUsage
-}
+}>
 
 const LoadWorkspaceMembersInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString

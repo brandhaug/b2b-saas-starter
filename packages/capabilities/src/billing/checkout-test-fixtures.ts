@@ -4,6 +4,7 @@ import {
   testSubscriptionFields,
   paidInvoice
 } from '@b2b-saas-starter/billing/provider-test-fixtures'
+import { wireHttpClient } from '@b2b-saas-starter/failure/http-client'
 // Stripe fetch doubles return native Promises and throw transport failures;
 // vi.fn infers the callback's fetch signature.
 // oxlint-disable effect/noNewPromise, effect/noThrowStatement, effect/noNewError, vitest/require-mock-type-parameters
@@ -17,6 +18,7 @@ import {
 import { workspaceMembers } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database, type EffectDatabase, type RawD1 } from '@b2b-saas-starter/db/service'
 import { Effect, Layer } from 'effect'
+import { HttpClient } from 'effect/http'
 import { and, eq } from 'drizzle-orm'
 import { vi } from 'vite-plus/test'
 
@@ -410,42 +412,61 @@ export function durable<A, E>(
   run: (
     checkout: ReturnType<typeof makeDurableCheckout>,
     db: EffectDatabase
-  ) => Effect.Effect<A, E, Database | RawD1>
+  ) => Effect.Effect<A, E, Database | RawD1 | HttpClient.HttpClient>
 ) {
-  return inWorkspace(
-    'live-lab',
-    Effect.gen(function* () {
-      const db = yield* Database
-      const audit = yield* BillingAuditEventLog
-      const leases = yield* makeBillingLease()
-      const syncStore = yield* makeBillingSyncStore()
-      const checkout = makeDurableCheckout({
-        db,
-        audit,
-        lease: leases,
-        unavailable: orUnavailable('billing'),
-        recordFailure: syncStore.fail
-      })
-      return yield* run(checkout, db)
-    }).pipe(
-      Effect.provide(
-        Layer.merge(
-          Layer.merge(BillingAuditLayer, BillingNotificationLayer),
-          BillingWebhookLayer
+  return withHttpClient((provideHttp) =>
+    inWorkspace(
+      'live-lab',
+      Effect.gen(function* () {
+        const db = yield* Database
+        const audit = yield* BillingAuditEventLog
+        const leases = yield* makeBillingLease()
+        const syncStore = yield* makeBillingSyncStore()
+        const checkout = makeDurableCheckout({
+          db,
+          audit,
+          lease: leases,
+          unavailable: orUnavailable('billing'),
+          recordFailure: syncStore.fail
+        })
+        return yield* run(checkout, db).pipe(provideHttp)
+      }).pipe(
+        Effect.provide(
+          Layer.merge(
+            Layer.merge(BillingAuditLayer, BillingNotificationLayer),
+            BillingWebhookLayer
+          )
         )
-      )
-    ),
-    { userId: 'usr_owner' }
+      ),
+      { userId: 'usr_owner' }
+    )
   )
 }
 
+/**
+ * Carries the Stripe transport across `inWorkspace`, whose effect may only
+ * require workspace and capability services: the caller's client is read
+ * outside and provided again inside.
+ */
+export function withHttpClient<A, E, R>(
+  use: (
+    provideHttp: <B, F, S>(
+      effect: Effect.Effect<B, F, S>
+    ) => Effect.Effect<B, F, Exclude<S, HttpClient.HttpClient>>
+  ) => Effect.Effect<A, E, R>
+): Effect.Effect<A, E, R | HttpClient.HttpClient> {
+  return Effect.gen(function* () {
+    const client = yield* HttpClient.HttpClient
+    return yield* use((effect) =>
+      Effect.provideService(effect, HttpClient.HttpClient, client)
+    )
+  })
+}
+
+/** Runs `effect` against the fixture's Stripe wire instead of the platform fetch. */
 export function withStripe<A, E, R>(
   fixture: ReturnType<typeof stripeFixture>,
   effect: Effect.Effect<A, E, R>
 ) {
-  return Effect.acquireUseRelease(
-    Effect.sync(() => vi.stubGlobal('fetch', fixture.fetch)),
-    () => effect,
-    () => Effect.sync(() => vi.unstubAllGlobals())
-  )
+  return effect.pipe(Effect.provide(wireHttpClient(fixture.fetch)))
 }

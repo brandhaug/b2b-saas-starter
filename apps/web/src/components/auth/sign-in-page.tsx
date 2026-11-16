@@ -298,30 +298,16 @@ function SignInPageContent({
     defaultValues: { email: '' },
     onSubmit: async ({ value }) =>
       linkRequest.run(async (request) => {
-        setSubmitError(null)
-        if (challenge.missing) {
-          setSubmitError(m.complete_bot_check_link())
-          return
-        }
-        const result = await sendMagicLink({
-          email: value.email,
-          turnstileToken: challenge.token
-        }).finally(() => {
-          if (request.current()) {
-            challenge.consume()
-          }
+        const sent = await challenge.send(request, {
+          call: (turnstileToken) =>
+            sendMagicLink({ email: value.email, turnstileToken }),
+          failure: m.auth_send_link_failed(),
+          report: setSubmitError,
+          missingMessage: m.complete_bot_check_link()
         })
-        if (!request.current()) {
-          return
+        if (sent) {
+          setStage('link-sent')
         }
-        if (result.error) {
-          // The captcha refusals (`captcha_rejected`, `captcha_unavailable`)
-          // are codes in the shared table, so the challenge-reset below is the
-          // only thing this branch adds to the mapped copy.
-          setSubmitError(authErrorCopy(result.error, m.auth_send_link_failed()))
-          return
-        }
-        setStage('link-sent')
       })
   })
 

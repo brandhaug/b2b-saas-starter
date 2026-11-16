@@ -12,6 +12,7 @@ import { SeedLayer } from './layers.ts'
 import { SeedBilling } from '@b2b-saas-starter/billing/billing.seed'
 import { SeedResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements.seed'
 import { LiveBilling } from '@b2b-saas-starter/billing/billing.live'
+import { wireHttpClient } from '@b2b-saas-starter/failure/http-client'
 import { LiveResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements.live'
 import {
   demoMemberIdentity,
@@ -94,7 +95,7 @@ import {
   CONTRACT_UNEXPIRED_AT,
   workspaceInvitationsContractCases
 } from './governance/workspace-invitations.contract.ts'
-import { listWorkspacesForUser, workspaceDashboard } from './workspace-projections.ts'
+import { listWorkspacesForUser } from './workspace-projections.ts'
 
 const seedWorkspaceLayer = Layer.merge(
   SeedLayer,
@@ -366,19 +367,6 @@ describe('seed notification feed contract', () => {
         })
       )
     )
-  )
-})
-
-describe('workspace read projections', () => {
-  it.effect(
-    'pre-computes the dashboard aggregates consistently with its own data',
-    () =>
-      Effect.gen(function* () {
-        const dashboard = yield* workspaceDashboard
-        expect(dashboard.unreadCount).toBe(
-          dashboard.notifications.filter((notification) => !notification.read).length
-        )
-      }).pipe(Effect.provide(seedWorkspaceLayer))
   )
 })
 
@@ -917,6 +905,10 @@ describe('bearer verification write throttling', () => {
       Layer.provide(layerFromD1(fake.binding))
     )
     const billing = LiveBilling().pipe(
+      // Token verification never reaches Stripe; a call would fail loudly.
+      Layer.provide(
+        wireHttpClient(() => Promise.reject(new Error('unexpected Stripe call')))
+      ),
       Layer.provide(BillingAuditLayer),
       Layer.provide(BillingNotificationLayer),
       Layer.provide(

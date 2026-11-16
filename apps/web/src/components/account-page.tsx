@@ -20,6 +20,7 @@ import { PageHeader } from '@/components/page/page-header'
 import { Panel } from '@/components/page/panel'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { WorkspaceShell } from '@/components/workspace-shell'
+import { noWorkspaceFrame } from '@/lib/workspace-frame'
 import { PersonalDataExportPanel } from '@/components/personal-data-export-panel'
 import { type McpClientConnection } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
 import { type RouteSession } from '@/lib/server/auth'
@@ -64,7 +65,7 @@ export function AccountPage({
   return (
     <WorkspaceShell
       key={session.user.id}
-      viewer={null}
+      frame={noWorkspaceFrame}
       systemRole={session.user.role}
       workspaceSlug={null}
     >

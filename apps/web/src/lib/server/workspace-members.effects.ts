@@ -13,7 +13,7 @@ import { requireRecentAuthentication } from './strong-authentication.effects'
 import { requireWorkspacePermission, whenPermitted } from './authorize'
 import { webMemberBinding } from './member-binding'
 import { makeSecurityEvidenceSink } from './security-evidence-sink'
-import { unreadCount, workspacePage, type WorkspacePageFrame } from './page-frame'
+import { workspacePage, type WorkspacePageFrame } from './page-frame'
 import {
   type ChangeMemberRoleInput,
   type LeaveWorkspaceInput,
@@ -33,7 +33,6 @@ const membersPayload: WorkspacePageFrame<WorkspaceMembersPayload> = workspacePag
     Effect.flatMap(
       Effect.all(
         {
-          unreadCount,
           plan: Effect.flatMap(Billing, (billing) => billing.currentPlan),
           members: Effect.flatMap(WorkspaceMembership, (roster) => roster.listMembers),
           invitations: whenPermitted(

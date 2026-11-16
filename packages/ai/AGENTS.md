@@ -17,7 +17,7 @@ Effect `LanguageModel` adapters own inference. `AssistantService.ask` retains th
 
 - Runtime callers supply `ProviderEnv`; application code reads no process environment or Worker binding directly. The opt-in evaluation CLI owns its credential environment.
 - Adapter failures use `AiError`. The stateless boundary maps them to `AssistantUnavailable`; the conversation boundary exposes safe `ConversationModelFailure` data without raw provider diagnostics.
-- OpenAI uses `HttpClient.withScope` so cancellation owns the request through response consumption, including streaming. Keep manual redirects and no automatic inference retry. Workers AI cancels its response reader; its binding provides no provider billing or cancellation guarantee before the response stream exists.
+- `makeOpenAIModel` takes `HttpClient` from its layer environment; `selectModel` and `selectConversationModelLayer` provide `PlatformHttpClientLive` (`@b2b-saas-starter/failure/http-client`) once. OpenAI uses `HttpClient.withScope` so cancellation owns the request through response consumption, including streaming. Keep manual redirects and no automatic inference retry. Workers AI cancels its response reader; its binding provides no provider billing or cancellation guarantee before the response stream exists.
 - Keep SDK UI-message types beside the host. This package exports application events and Effect streams.
 - Provider token limits use `max_tokens`, usage and finish reasons. The separate response byte cap detects a malformed/oversized provider response; it is not a token counter.
 
@@ -27,6 +27,6 @@ The caller rechecks task permissions and constructs bounded evidence without pay
 
 ## Verification
 
-Run isolated tests through this package's `test` command so `vite.config.ts` installs the fetch refusal hooks. Tests are sequential within each worker because fetch is global. Explicit transport stubs remain supported; unstubbed external attempts fail teardown even after application recovery. Loopback fetch is allowed, with automatic redirects refused. This is fetch isolation, not a firewall for arbitrary sockets or provider bindings.
+Run isolated tests through this package's `test` command so `vite.config.ts` installs the fetch refusal hooks. Adapter tests pass their wire fixture through `wireHttpClient(respond)`, which also reaches a selector's composed transport, or through the request's `FetchHttpClient.Fetch`, never by patching the global. Tests stay sequential within each worker because the refusal guard replaces global fetch around every test; unstubbed external attempts fail teardown even after application recovery. Loopback fetch is allowed, with automatic redirects refused. This is fetch isolation, not a firewall for arbitrary sockets or provider bindings.
 
 Instruction changes use the opt-in [evaluation procedure](eval/README.md). Standard tests make no paid calls and do not establish model quality.

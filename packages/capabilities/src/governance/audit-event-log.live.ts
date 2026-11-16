@@ -16,7 +16,6 @@ import {
   type AuditView
 } from './audit-event-log.ts'
 import {
-  type AuditViewFilter,
   type AuditViewSort,
   auditViewKey,
   normalizeAuditView,
@@ -24,6 +23,7 @@ import {
   encodeAuditCursor
 } from './audit-event-view.ts'
 import { clampPageLimit, type Page } from '../internal/keyset-cursor.ts'
+import { tableFilterSql } from '../internal/table-filter-query.ts'
 import { newCapabilityId } from '../internal/ids.ts'
 import {
   CapabilityUnavailable,
@@ -101,56 +101,6 @@ function columnFor(field: AuditViewSort['field']): SQL {
     }
   }
   return sql`''`
-}
-
-function filterSql(filter: AuditViewFilter): SQL {
-  const column = columnFor(filter.field)
-  const value = filter.value
-  if (
-    filter.field === 'createdAt' &&
-    (filter.operator === 'is' || filter.operator === 'isNot')
-  ) {
-    const [start, end] = value.split('|')
-    if (start && end) {
-      const range = sql`${column} >= ${start} and ${column} <= ${end}`
-      if (filter.operator === 'isNot') {
-        return sql`not (${range})`
-      }
-      return range
-    }
-  }
-  switch (filter.operator) {
-    case 'contains': {
-      return sql`instr(${column}, ${value}) > 0`
-    }
-    case 'notContains': {
-      return sql`instr(${column}, ${value}) = 0`
-    }
-    case 'is': {
-      return sql`${column} = ${value}`
-    }
-    case 'isNot': {
-      return sql`${column} <> ${value}`
-    }
-    case 'before': {
-      return sql`${column} < ${value}`
-    }
-    case 'after': {
-      return sql`${column} > ${value}`
-    }
-    case 'gt': {
-      return sql`${column} > ${value}`
-    }
-    case 'lt': {
-      return sql`${column} < ${value}`
-    }
-    case 'isEmpty': {
-      return sql`(${column} is null or ${column} = '')`
-    }
-    case 'isNotEmpty': {
-      return sql`(${column} is not null and ${column} <> '')`
-    }
-  }
 }
 
 function cursorComparison(
@@ -236,7 +186,9 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
         if (input?.until !== undefined) {
           conditions.push(lte(auditEvents.createdAt, input.until))
         }
-        const predicates = view.filters.map(filterSql)
+        const predicates = view.filters.map((filter) =>
+          tableFilterSql(filter, 'text', columnFor(filter.field))
+        )
         if (predicates.length > 0) {
           if (view.match === 'all') {
             conditions.push(and(...predicates) ?? sql`false`)

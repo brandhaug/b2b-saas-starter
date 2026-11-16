@@ -4,6 +4,7 @@ import { vi } from 'vite-plus/test'
 import { emptySubscription } from './billing-state.ts'
 import { retrievePaymentEvidence } from './stripe-payment.ts'
 import { testItem, testSubscriptionFields } from './provider-test-fixtures.ts'
+import { wireHttpClient } from '@b2b-saas-starter/failure/http-client'
 import { StripeTimestamp, type StripeSubscriptionResponse } from './stripe.ts'
 
 const subscription: StripeSubscriptionResponse = {
@@ -37,44 +38,41 @@ it.effect(
   'recovers the earliest actual failure across provider pages and skips retry history once persisted',
   () => {
     const paths: Array<string> = []
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((input: string) => {
-        const url = new URL(input)
-        paths.push(url.pathname + url.search)
-        if (url.pathname === '/v1/invoices') {
-          return Promise.resolve(
-            Response.json({
-              data: [invoice('in_previous', 1200, paymentAt)],
-              has_more: false
-            })
-          )
-        }
-        if (url.pathname === '/v1/invoices/in_current') {
-          return Promise.resolve(Response.json(invoice('in_current', 0, null)))
-        }
-        const second = url.searchParams.has('starting_after')
-        let eventId = 'evt_retry'
-        let created = firstFailure + 86_400
-        if (second) {
-          eventId = 'evt_first'
-          created = firstFailure
-        }
+    const wire = vi.fn((input: string | URL | Request) => {
+      const url = new URL(new Request(input).url)
+      paths.push(url.pathname + url.search)
+      if (url.pathname === '/v1/invoices') {
         return Promise.resolve(
           Response.json({
-            has_more: !second,
-            data: [
-              {
-                id: eventId,
-                type: 'invoice.payment_failed',
-                created,
-                data: { object: invoice('in_current', 0, null) }
-              }
-            ]
+            data: [invoice('in_previous', 1200, paymentAt)],
+            has_more: false
           })
         )
-      })
-    )
+      }
+      if (url.pathname === '/v1/invoices/in_current') {
+        return Promise.resolve(Response.json(invoice('in_current', 0, null)))
+      }
+      const second = url.searchParams.has('starting_after')
+      let eventId = 'evt_retry'
+      let created = firstFailure + 86_400
+      if (second) {
+        eventId = 'evt_first'
+        created = firstFailure
+      }
+      return Promise.resolve(
+        Response.json({
+          has_more: !second,
+          data: [
+            {
+              id: eventId,
+              type: 'invoice.payment_failed',
+              created,
+              data: { object: invoice('in_current', 0, null) }
+            }
+          ]
+        })
+      )
+    })
     return Effect.gen(function* () {
       const evidence = yield* retrievePaymentEvidence(
         'sk_test',
@@ -98,7 +96,7 @@ it.effect(
       )
       expect(retry.firstFailedAt).toBe(evidence.firstFailedAt)
       expect(paths.some((path) => path.startsWith('/v1/events'))).toBe(false)
-    }).pipe(Effect.ensuring(Effect.sync(() => vi.unstubAllGlobals())))
+    }).pipe(Effect.provide(wireHttpClient(wire)))
   }
 )
 
@@ -106,25 +104,22 @@ it.effect(
   'accepts a settled credit-covered renewal while a zero-value trial establishes no payment history',
   () => {
     let history = true
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((input: string) => {
-        const current = invoice('in_current', 0, paymentAt + 86_400)
-        const data = [current]
-        if (history) {
-          data.push(invoice('in_previous', 1200, paymentAt))
-        }
-        if (new URL(input).pathname === '/v1/invoices') {
-          return Promise.resolve(
-            Response.json({
-              data,
-              has_more: false
-            })
-          )
-        }
-        return Promise.resolve(Response.json(current))
-      })
-    )
+    const wire = vi.fn((input: string | URL | Request) => {
+      const current = invoice('in_current', 0, paymentAt + 86_400)
+      const data = [current]
+      if (history) {
+        data.push(invoice('in_previous', 1200, paymentAt))
+      }
+      if (new URL(new Request(input).url).pathname === '/v1/invoices') {
+        return Promise.resolve(
+          Response.json({
+            data,
+            has_more: false
+          })
+        )
+      }
+      return Promise.resolve(Response.json(current))
+    })
     return Effect.gen(function* () {
       const paid = yield* retrievePaymentEvidence(
         'sk_test',
@@ -143,7 +138,7 @@ it.effect(
         '2026-09-04T00:00:00.000Z'
       )
       expect(trial.lastPaymentAt).toBeNull()
-    }).pipe(Effect.ensuring(Effect.sync(() => vi.unstubAllGlobals())))
+    }).pipe(Effect.provide(wireHttpClient(wire)))
   }
 )
 
@@ -151,31 +146,28 @@ it.effect(
   'rebuilds paying history past a full zero-due page and keeps the latest settlement monotonic',
   () => {
     const paths: Array<string> = []
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((input: string) => {
-        const url = new URL(input)
-        paths.push(url.pathname + url.search)
-        if (url.pathname === '/v1/invoices') {
-          const second = url.searchParams.has('starting_after')
-          let data = Array.from({ length: 100 }, (_, i) =>
-            invoice(`in_credit_${i}`, 0, paymentAt + 2 * 86_400)
-          )
-          if (second) {
-            data = [invoice('in_positive', 1200, paymentAt)]
-          }
-          return Promise.resolve(
-            Response.json({
-              data,
-              has_more: !second
-            })
-          )
+    const wire = vi.fn((input: string | URL | Request) => {
+      const url = new URL(new Request(input).url)
+      paths.push(url.pathname + url.search)
+      if (url.pathname === '/v1/invoices') {
+        const second = url.searchParams.has('starting_after')
+        let data = Array.from({ length: 100 }, (_, i) =>
+          invoice(`in_credit_${i}`, 0, paymentAt + 2 * 86_400)
+        )
+        if (second) {
+          data = [invoice('in_positive', 1200, paymentAt)]
         }
         return Promise.resolve(
-          Response.json({ ...invoice('in_current', 0, null), status: 'draft' })
+          Response.json({
+            data,
+            has_more: !second
+          })
         )
-      })
-    )
+      }
+      return Promise.resolve(
+        Response.json({ ...invoice('in_current', 0, null), status: 'draft' })
+      )
+    })
     return Effect.gen(function* () {
       const active = {
         ...subscription,
@@ -202,52 +194,49 @@ it.effect(
         '2026-09-05T00:00:00.000Z'
       )
       expect(retained.lastPaymentAt).toBe('2026-09-04T00:00:00.000Z')
-    }).pipe(Effect.ensuring(Effect.sync(() => vi.unstubAllGlobals())))
+    }).pipe(Effect.provide(wireHttpClient(wire)))
   }
 )
 
 it.effect(
   'finds a new failure episode after a missed credit settlement with another latest invoice',
   () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((input: string) => {
-        const url = new URL(input)
-        if (url.pathname === '/v1/invoices') {
-          return Promise.resolve(
-            Response.json({
-              data: [
-                invoice('in_positive', 1200, paymentAt),
-                invoice('in_credit', 0, paymentAt + 3 * 86_400)
-              ],
-              has_more: false
-            })
-          )
-        }
-        if (url.pathname === '/v1/events') {
-          return Promise.resolve(
-            Response.json({
-              data: [
-                {
-                  id: 'evt_unrelated',
-                  type: 'invoice.payment_failed',
-                  created: paymentAt + 3 * 86_400 + 1,
-                  data: { object: { id: 'in_other_subscription' } }
-                },
-                {
-                  id: 'evt_new_failure',
-                  type: 'invoice.payment_failed',
-                  created: paymentAt + 4 * 86_400,
-                  data: { object: { id: 'in_current' } }
-                }
-              ],
-              has_more: false
-            })
-          )
-        }
-        return Promise.resolve(Response.json(invoice('in_current', 0, null)))
-      })
-    )
+    const wire = vi.fn((input: string | URL | Request) => {
+      const url = new URL(new Request(input).url)
+      if (url.pathname === '/v1/invoices') {
+        return Promise.resolve(
+          Response.json({
+            data: [
+              invoice('in_positive', 1200, paymentAt),
+              invoice('in_credit', 0, paymentAt + 3 * 86_400)
+            ],
+            has_more: false
+          })
+        )
+      }
+      if (url.pathname === '/v1/events') {
+        return Promise.resolve(
+          Response.json({
+            data: [
+              {
+                id: 'evt_unrelated',
+                type: 'invoice.payment_failed',
+                created: paymentAt + 3 * 86_400 + 1,
+                data: { object: { id: 'in_other_subscription' } }
+              },
+              {
+                id: 'evt_new_failure',
+                type: 'invoice.payment_failed',
+                created: paymentAt + 4 * 86_400,
+                data: { object: { id: 'in_current' } }
+              }
+            ],
+            has_more: false
+          })
+        )
+      }
+      return Promise.resolve(Response.json(invoice('in_current', 0, null)))
+    })
     return Effect.gen(function* () {
       const evidence = yield* retrievePaymentEvidence(
         'sk_test',
@@ -262,21 +251,18 @@ it.effect(
       )
       expect(evidence.lastPaymentAt).toBe('2026-09-04T00:00:00.000Z')
       expect(evidence.firstFailedAt).toBe('2026-09-05T00:00:00.000Z')
-    }).pipe(Effect.ensuring(Effect.sync(() => vi.unstubAllGlobals())))
+    }).pipe(Effect.provide(wireHttpClient(wire)))
   }
 )
 
 it.effect('fails visibly when a paid-history page cannot advance', () => {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(() => Promise.resolve(Response.json({ data: [], has_more: true })))
-  )
+  const wire = vi.fn(() => Promise.resolve(Response.json({ data: [], has_more: true })))
   return Effect.gen(function* () {
     const error = yield* Effect.flip(
       retrievePaymentEvidence('sk_test', subscription, null, '2026-09-06T00:00:00.000Z')
     )
     expect(error.reason).toBe('payment_history_incomplete')
-  }).pipe(Effect.ensuring(Effect.sync(() => vi.unstubAllGlobals())))
+  }).pipe(Effect.provide(wireHttpClient(wire)))
 })
 
 const decodeTimestamp = Schema.decodeUnknownResult(StripeTimestamp)

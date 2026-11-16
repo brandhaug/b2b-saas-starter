@@ -2,7 +2,8 @@ import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platfor
 import { describe, expect, it } from '@effect/vitest'
 import { Effect, Schema } from 'effect'
 import { buildWebHandler } from './http.ts'
-import { PAGED_TOOL_INPUT, mcpDiscoveryDocument } from './mcp.ts'
+import { PAGED_TOOL_INPUT } from './mcp-catalog.ts'
+import { mcpDiscoveryDocument } from './mcp-discovery.ts'
 import { readOperations } from './operations.ts'
 import { jsonBody, mcpClient, mcpProtocolClient } from './test-utils.ts'
 

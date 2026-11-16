@@ -1,8 +1,9 @@
-import { Clock, DateTime, Effect, Metric, Schedule, Schema } from 'effect'
+import { Clock, DateTime, Effect, Metric, Random, Schedule, Schema } from 'effect'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { randomHex } from '@b2b-saas-starter/failure/crypto'
 import {
   deliveryClaimLeaseMs,
+  deliveryRetryDelayMs,
   deliveryRetryWindow,
   initialDeliveryStatus,
   isClaimableDelivery,
@@ -49,7 +50,6 @@ export type DeliveryStore = {
     email: string
   ) => Effect.Effect<string | null, CapabilityUnavailable>
 }
-const hour = 3_600_000
 const outcomes = Metric.counter('starter.email.send.outcomes')
 
 /**
@@ -201,7 +201,7 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
         let acceptedAt: string | null = old.acceptedAt
         let providerMessageId = old.providerMessageId
         let reason: string | null = null
-        let delay = Math.min(hour, 60_000 * 2 ** Math.min(old.attemptCount - 1, 6))
+        let delay = deliveryRetryDelayMs(old.attemptCount, yield* Random.next)
         if (outcome.status === 'accepted') {
           acceptedAt = iso(now)
           providerMessageId = outcome.providerMessageId
@@ -225,7 +225,9 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
             old.uncertain ||
             outcome.status === 'ambiguous' ||
             (confirmed && old.token !== token),
-          nextAttemptAt: iso(now + delay)
+          // Never past the window: claim expires a row only once its lease
+          // is due, so a later due time would wake the queue early and spin.
+          nextAttemptAt: iso(Math.min(now + delay, Date.parse(old.retryUntil)))
         }
         if (yield* store.put(row, old.revision)) {
           return

@@ -1,16 +1,14 @@
 // oxlint-disable-next-line effect/noNodeBuiltinImport -- reads a captured SSE test fixture; never enters a Worker bundle
 import { readFile } from 'node:fs/promises'
 import { failureMessage } from '@b2b-saas-starter/failure'
-import { afterEach, describe, expect, it, vi } from '@effect/vitest'
+import { describe, expect, it, vi } from '@effect/vitest'
 import { Deferred, Effect, Fiber, Stream } from 'effect'
+import { FetchHttpClient } from 'effect/http'
 import {
   ConversationModel,
   selectConversationModelLayer,
   type ConversationModelEvent
 } from './conversation.ts'
-
-// oxlint-disable-next-line effect/noTestLifecycleHooks -- each test owns its provider fetch fixture
-afterEach(() => vi.unstubAllGlobals())
 
 function streamResponse(events: ReadonlyArray<string>) {
   return new Response(events.map((event) => `data: ${event}\n\n`).join(''), {
@@ -18,11 +16,18 @@ function streamResponse(events: ReadonlyArray<string>) {
   })
 }
 
-function stubResponse(events: ReadonlyArray<string>) {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(() => Promise.resolve(streamResponse(events)))
+function respondWith(events: ReadonlyArray<string>) {
+  return vi.fn((_url: string | URL | Request, _init?: RequestInit) =>
+    Promise.resolve(streamResponse(events))
   )
+}
+
+/**
+ * The provider fixture for one run. The request's own context overrides the
+ * platform fetch the selected layer carries, so no global is patched.
+ */
+function withFetch(fetch: typeof globalThis.fetch) {
+  return Effect.provideService(FetchHttpClient.Fetch, fetch)
 }
 
 const layer = selectConversationModelLayer(
@@ -53,14 +58,16 @@ describe('conversation model streaming', () => {
             'unsupported'
           ]
         ] as const) {
-          stubResponse(events)
+          const fetch = respondWith(events)
           const model = yield* ConversationModel
           const prompt = yield* model.prepare({
             workspaceSlug: 'starter-lab',
             question: 'Explain',
             history: []
           })
-          const error = yield* model.stream(prompt).pipe(Stream.runCollect, Effect.flip)
+          const error = yield* model
+            .stream(prompt)
+            .pipe(Stream.runCollect, withFetch(fetch), Effect.flip)
           expect(error).toMatchObject({ _tag: 'ConversationModelFailure', reason })
           expect(fetch).toHaveBeenCalledTimes(1)
         }
@@ -69,7 +76,7 @@ describe('conversation model streaming', () => {
   it.effect(
     'preserves partial output and token usage when the provider reaches its output limit',
     () => {
-      stubResponse([
+      const fetch = respondWith([
         '{"id":"response-1","model":"gpt-4o-mini-snapshot","choices":[{"delta":{"content":"Saved partial answer"},"finish_reason":null}]}',
         '{"choices":[{"delta":{},"finish_reason":"length"}]}',
         '{"choices":[],"usage":{"prompt_tokens":40,"completion_tokens":100}}',
@@ -108,14 +115,14 @@ describe('conversation model streaming', () => {
           outputTokens: 100
         })
         expect(error.reason).toBe('output-limit')
-      }).pipe(Effect.provide(layer))
+      }).pipe(Effect.provide(layer), withFetch(fetch))
     }
   )
 
   it.effect('does not confuse output bytes with tokens', () => {
     const answer =
       'This answer has more than one hundred bytes of ordinary text, but the provider reports only twenty four tokens in the completed response.'
-    stubResponse([
+    const fetch = respondWith([
       // oxlint-disable-next-line effect/noGlobals -- serialized provider fixture
       JSON.stringify({
         choices: [{ delta: { content: answer }, finish_reason: 'stop' }],
@@ -133,13 +140,13 @@ describe('conversation model streaming', () => {
       const events = yield* model.stream(prompt).pipe(Stream.runCollect)
       expect(events).toContainEqual({ type: 'text-delta', text: answer })
       expect(events.at(-1)).toMatchObject({ type: 'finish', outputTokens: 24 })
-    }).pipe(Effect.provide(layer))
+    }).pipe(Effect.provide(layer), withFetch(fetch))
   })
 
   it.effect(
     'fails explicitly on non-text provider content and never retries inference',
     () => {
-      stubResponse([
+      const fetch = respondWith([
         '{"choices":[{"delta":{"content":"prefix","tool_calls":[{"name":"replay"}]},"finish_reason":null}]}',
         '[DONE]'
       ])
@@ -153,12 +160,12 @@ describe('conversation model streaming', () => {
         const error = yield* Effect.flip(model.stream(prompt).pipe(Stream.runCollect))
         expect(error._tag).toBe('ConversationModelFailure')
         expect(fetch).toHaveBeenCalledTimes(1)
-      }).pipe(Effect.provide(layer))
+      }).pipe(Effect.provide(layer), withFetch(fetch))
     }
   )
 
   it.effect('does not treat a severed stream as a completed answer', () => {
-    stubResponse([
+    const fetch = respondWith([
       '{"choices":[{"delta":{"content":"Partial answer"},"finish_reason":null}]}'
     ])
     return Effect.gen(function* () {
@@ -171,7 +178,7 @@ describe('conversation model streaming', () => {
       const error = yield* Effect.flip(model.stream(prompt).pipe(Stream.runCollect))
       expect(error.reason).toBe('provider')
       expect(failureMessage(error)).not.toContain('test-key')
-    }).pipe(Effect.provide(layer))
+    }).pipe(Effect.provide(layer), withFetch(fetch))
   })
 
   it.effect('interrupts the request and cancels the response reader when stopped', () =>
@@ -179,29 +186,26 @@ describe('conversation model streaming', () => {
       const firstText = yield* Deferred.make<undefined>()
       let cancelled = false
       let requestSignal: AbortSignal | null | undefined
-      vi.stubGlobal(
-        'fetch',
-        vi.fn((_url: string, init: RequestInit) => {
-          requestSignal = init.signal
-          return Promise.resolve(
-            new Response(
-              new ReadableStream<Uint8Array>({
-                start(controller) {
-                  controller.enqueue(
-                    new TextEncoder().encode(
-                      'data: {"choices":[{"delta":{"content":"Partial answer"},"finish_reason":null}]}\n\n'
-                    )
+      const fetch = vi.fn((_url: string | URL | Request, init?: RequestInit) => {
+        requestSignal = init?.signal
+        return Promise.resolve(
+          new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                controller.enqueue(
+                  new TextEncoder().encode(
+                    'data: {"choices":[{"delta":{"content":"Partial answer"},"finish_reason":null}]}\n\n'
                   )
-                },
-                cancel() {
-                  cancelled = true
-                }
-              }),
-              { headers: { 'content-type': 'text/event-stream' } }
-            )
+                )
+              },
+              cancel() {
+                cancelled = true
+              }
+            }),
+            { headers: { 'content-type': 'text/event-stream' } }
           )
-        })
-      )
+        )
+      })
       const model = yield* ConversationModel
       const prompt = yield* model.prepare({
         workspaceSlug: 'starter-lab',
@@ -215,6 +219,7 @@ describe('conversation model streaming', () => {
           }
           return Effect.void
         }),
+        withFetch(fetch),
         Effect.forkChild
       )
       yield* Deferred.await(firstText)
@@ -235,12 +240,9 @@ it.effect(
           'utf8'
         )
       )
-      vi.stubGlobal(
-        'fetch',
-        vi.fn(() =>
-          Promise.resolve(
-            new Response(captured, { headers: { 'content-type': 'text/event-stream' } })
-          )
+      const fetch = vi.fn(() =>
+        Promise.resolve(
+          new Response(captured, { headers: { 'content-type': 'text/event-stream' } })
         )
       )
       const model = yield* ConversationModel
@@ -249,7 +251,9 @@ it.effect(
         question: 'Streaming test',
         history: []
       })
-      const events = yield* model.stream(prompt).pipe(Stream.runCollect)
+      const events = yield* model
+        .stream(prompt)
+        .pipe(Stream.runCollect, withFetch(fetch))
       expect(
         events
           .filter((event) => event.type === 'text-delta')
@@ -272,7 +276,7 @@ it.effect(
         '{"choices":[{"delta":{"content":"late text"},"finish_reason":"stop"}],"usage":{"completion_tokens":5}}'
       ]
       for (const terminal of invalidTerminals) {
-        stubResponse([
+        const fetch = respondWith([
           '{"choices":[{"delta":{"content":"prefix"},"finish_reason":"stop"}]}',
           terminal,
           '[DONE]'
@@ -283,7 +287,9 @@ it.effect(
           question: 'Streaming test',
           history: []
         })
-        const error = yield* model.stream(prompt).pipe(Stream.runCollect, Effect.flip)
+        const error = yield* model
+          .stream(prompt)
+          .pipe(Stream.runCollect, withFetch(fetch), Effect.flip)
         expect(error).toMatchObject({
           _tag: 'ConversationModelFailure',
           reason: 'provider'
@@ -335,7 +341,7 @@ it.effect(
         })
         expect(error.reason).toBe('output-limit')
       }).pipe(Effect.provide(native))
-      stubResponse([
+      const fetch = respondWith([
         '{"choices":[{"delta":{"content":"Complete answer"},"finish_reason":"stop"}],"usage":{"completion_tokens":100}}',
         '[DONE]'
       ])
@@ -349,6 +355,7 @@ it.effect(
         const events: Array<ConversationModelEvent> = []
         const error = yield* model.stream(prompt).pipe(
           Stream.runForEach((event) => Effect.sync(() => events.push(event))),
+          withFetch(fetch),
           Effect.flip
         )
         expect(error.reason).toBe('output-limit')

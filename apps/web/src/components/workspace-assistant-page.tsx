@@ -190,12 +190,7 @@ function AssistantPage({
     setTranscript((items) => [...items, item])
   }
   return (
-    <WorkspaceShell
-      workspaceSlug={workspaceSlug}
-      systemRole={systemRole}
-      viewer={data.viewer}
-      unreadCount={data.unreadCount}
-    >
+    <WorkspaceShell workspaceSlug={workspaceSlug} systemRole={systemRole} frame={data}>
       <PageHeader
         breadcrumb={<WorkspaceCrumb workspaceSlug={workspaceSlug} />}
         title={m.ai_assistant()}

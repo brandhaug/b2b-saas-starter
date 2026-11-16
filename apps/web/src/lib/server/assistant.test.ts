@@ -65,6 +65,9 @@ describe('assistant handlers', () => {
   it('loads the page payload with configured false on an unconfigured deployment', async () => {
     const payload = await loadAssistantPageHandler({ workspaceSlug: 'starter-lab' })
     expect(payload.viewer).toEqual({ role: 'owner' })
+    // The page frame's badge count: the fixture's four unread workspace-wide
+    // notices. This page once shipped without it.
+    expect(payload.unreadCount).toBe(4)
     // The shim carries no WORKERS_AI_ENABLED / OPENAI_API_KEY, so the honest
     // not-enabled state is exactly what ships.
     expect(payload.configured).toBe(false)

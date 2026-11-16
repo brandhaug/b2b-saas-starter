@@ -3,16 +3,16 @@
 import { failureMessage } from '@b2b-saas-starter/failure'
 // oxlint-disable-next-line effect/noNodeBuiltinImport -- loopback server verifies native fetch redirect behavior
 import { createServer } from 'node:http'
-import { afterEach, describe, expect, it, vi } from '@effect/vitest'
-import { Effect, Schema, Stream } from 'effect'
+import { describe, expect, it, vi } from '@effect/vitest'
+import { Effect, Layer, Schema, Stream } from 'effect'
 import { LanguageModel, Prompt } from 'effect/ai'
+import {
+  PlatformHttpClientLive,
+  wireHttpClient,
+  type WireRequest
+} from '@b2b-saas-starter/failure/http-client'
 import { type OpenAIConfig, makeOpenAIModel } from './openai.ts'
 import { ask, askFails, assistantOn } from './test-ask.ts'
-
-// oxlint-disable-next-line effect/noTestLifecycleHooks -- restores the global fetch each stub replaced
-afterEach(() => {
-  vi.unstubAllGlobals()
-})
 
 /** The wire body the adapter reads; one place for the platform's Response. */
 function jsonResponse(body: unknown, status = 200) {
@@ -21,36 +21,39 @@ function jsonResponse(body: unknown, status = 200) {
 }
 
 /** Captures what the adapter posted, so assertions read the real call. */
-function stubFetch(respond: () => Response) {
+function stubWire(respond: () => Response) {
   const posted: Array<{
     url: string
-    headers: Record<string, string>
+    headers: Readonly<Record<string, string>>
     body: string
   }> = []
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(
-      (url: string | URL, init: { headers: Record<string, string>; body: string }) => {
-        posted.push({ url: String(url), headers: init.headers, body: init.body })
-        return Promise.resolve(respond())
-      }
-    )
-  )
-  return posted
+  const wire = vi.fn((url: string, request: WireRequest) => {
+    posted.push({ url, headers: request.headers, body: request.body })
+    return respond()
+  })
+  return { posted, wire }
+}
+
+/** The adapter over a fixture transport: the wire never leaves the test. */
+function modelOn(
+  respond: Parameters<typeof wireHttpClient>[0],
+  config: OpenAIConfig = TEST_CONFIG
+) {
+  return makeOpenAIModel(config).pipe(Layer.provide(wireHttpClient(respond)))
 }
 
 const TEST_CONFIG: OpenAIConfig = { apiKey: 'test-key' }
 
 describe('openai-compatible model', () => {
   it('posts the normalized prompt and answers with the first choice', () => {
-    const posted = stubFetch(() =>
+    const { posted, wire } = stubWire(() =>
       jsonResponse({
         choices: [
           { message: { content: 'The onboarding checklist.' }, finish_reason: 'stop' }
         ]
       })
     )
-    return ask(assistantOn(makeOpenAIModel(TEST_CONFIG)), (reply) => {
+    return ask(assistantOn(modelOn(wire)), (reply) => {
       expect(reply.answer).toBe('The onboarding checklist.')
       expect(reply.provider).toBe('openai-compatible')
       expect(reply.modelId).toBe('gpt-4o-mini')
@@ -77,12 +80,12 @@ describe('openai-compatible model', () => {
   })
 
   it('honors baseUrl and modelId overrides', () => {
-    const posted = stubFetch(() =>
+    const { posted, wire } = stubWire(() =>
       jsonResponse({ choices: [{ message: { content: 'x' } }] })
     )
     return ask(
       assistantOn(
-        makeOpenAIModel({
+        modelOn(wire, {
           apiKey: 'test-key',
           baseUrl: 'https://proxy.example.com/v1',
           modelId: 'other-model'
@@ -96,7 +99,7 @@ describe('openai-compatible model', () => {
   })
 
   it.effect('refuses a prompt carrying a part it cannot send as plain chat', () => {
-    const posted = stubFetch(() =>
+    const { posted, wire } = stubWire(() =>
       jsonResponse({ choices: [{ message: { content: 'never read' } }] })
     )
     return Effect.gen(function* () {
@@ -117,11 +120,11 @@ describe('openai-compatible model', () => {
       expect(error._tag).toBe('AiError')
       expect(error.reason._tag).toBe('InvalidUserInputError')
       expect(posted).toHaveLength(0)
-    }).pipe(Effect.provide(makeOpenAIModel(TEST_CONFIG)))
+    }).pipe(Effect.provide(modelOn(wire)))
   })
 
   it.effect('refuses structured-output requests before any request is sent', () => {
-    const posted = stubFetch(() =>
+    const { posted, wire } = stubWire(() =>
       jsonResponse({ choices: [{ message: { content: 'never read' } }] })
     )
     return Effect.gen(function* () {
@@ -135,12 +138,12 @@ describe('openai-compatible model', () => {
       )
       expect(failureMessage(error)).toContain('structured output')
       expect(posted).toHaveLength(0)
-    }).pipe(Effect.provide(makeOpenAIModel(TEST_CONFIG)))
+    }).pipe(Effect.provide(modelOn(wire)))
   })
 
   it('maps a rate-limited provider onto AssistantUnavailable', () => {
-    stubFetch(() => jsonResponse({ error: 'slow down' }, 429))
-    return askFails(assistantOn(makeOpenAIModel(TEST_CONFIG)), (error) => {
+    const { wire } = stubWire(() => jsonResponse({ error: 'slow down' }, 429))
+    return askFails(assistantOn(modelOn(wire)), (error) => {
       expect(error._tag).toBe('AssistantUnavailable')
       expect(error.reason).toContain('openai-compatible')
       expect(error.reason).toContain('Rate limit exceeded')
@@ -148,11 +151,8 @@ describe('openai-compatible model', () => {
   })
 
   it('fails unavailable on a transport failure, without the credential', () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() => Promise.reject(new Error('network down')))
-    )
-    return askFails(assistantOn(makeOpenAIModel(TEST_CONFIG)), (error) => {
+    const wire = vi.fn(() => Promise.reject(new Error('network down')))
+    return askFails(assistantOn(modelOn(wire)), (error) => {
       expect(error._tag).toBe('AssistantUnavailable')
       expect(error.reason).toContain('Provider connection failed.')
       expect(error.reason).not.toContain('test-key')
@@ -160,20 +160,19 @@ describe('openai-compatible model', () => {
   })
 
   it('does not retry or expose transport diagnostics', () => {
-    const fetch = vi.fn(() =>
+    const wire = vi.fn(() =>
       Promise.reject(new Error('Bearer test-key private payload'))
     )
-    vi.stubGlobal('fetch', fetch)
-    return askFails(assistantOn(makeOpenAIModel(TEST_CONFIG)), (error) => {
-      expect(fetch).toHaveBeenCalledTimes(1)
+    return askFails(assistantOn(modelOn(wire)), (error) => {
+      expect(wire).toHaveBeenCalledTimes(1)
       expect(error.reason).not.toContain('test-key')
       expect(error.reason).not.toContain('private payload')
     })
   })
 
   it('fails unavailable when the response body has no usable choice', () => {
-    stubFetch(() => jsonResponse({ choices: [] }))
-    return askFails(assistantOn(makeOpenAIModel(TEST_CONFIG)), (error) => {
+    const { wire } = stubWire(() => jsonResponse({ choices: [] }))
+    return askFails(assistantOn(modelOn(wire)), (error) => {
       expect(error._tag).toBe('AssistantUnavailable')
       expect(error.reason).toContain('does not match the chat shape')
     })
@@ -223,7 +222,7 @@ describe('openai-compatible model', () => {
             makeOpenAIModel({
               apiKey: 'test-key',
               baseUrl: `http://127.0.0.1:${address.port}/v1`
-            })
+            }).pipe(Layer.provide(PlatformHttpClientLive))
           ),
           (error) => expect(error._tag).toBe('AssistantUnavailable')
         )
@@ -236,7 +235,7 @@ describe('openai-compatible model', () => {
 it.effect(
   'streams assistant history and records actual model, finish reason and usage',
   () => {
-    const posted = stubFetch(
+    const { posted, wire } = stubWire(
       () =>
         new Response(
           [
@@ -278,6 +277,6 @@ it.effect(
       })
       expect(posted[0]?.body).toContain('Earlier answer')
       expect(posted[0]?.body).toContain('"stream":true')
-    }).pipe(Effect.provide(makeOpenAIModel(TEST_CONFIG)))
+    }).pipe(Effect.provide(modelOn(wire)))
   }
 )

@@ -8,7 +8,6 @@ import {
 import { useTurnstileChallenge } from '@/components/auth/turnstile-challenge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { authErrorCopy } from '@/lib/auth-error-copy'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 export { type SendVerificationEmail }
@@ -66,28 +65,15 @@ function EmailVerificationBannerContent({
 
   async function resend() {
     await request.run(async (attempt) => {
-      setSendError(null)
-      if (challenge.missing) {
-        setSendError(challenge.missingMessage)
-        return
-      }
-      const result = await sendVerificationEmail({
-        email,
-        callbackPath,
-        turnstileToken: challenge.token
-      }).finally(() => {
-        if (attempt.current()) {
-          challenge.consume()
-        }
+      const landed = await challenge.send(attempt, {
+        call: (turnstileToken) =>
+          sendVerificationEmail({ email, callbackPath, turnstileToken }),
+        failure: m.public_auth_send_email_failed(),
+        report: setSendError
       })
-      if (!attempt.current()) {
-        return
+      if (landed) {
+        setSent(true)
       }
-      if (result.error) {
-        setSendError(authErrorCopy(result.error, m.public_auth_send_email_failed()))
-        return
-      }
-      setSent(true)
     })
   }
 

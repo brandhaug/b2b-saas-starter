@@ -44,15 +44,10 @@ export function WorkspaceDashboardPage({
     readonly dismissOnboardingChecklist?: DismissOnboardingChecklist
   }
 }) {
-  const { workspace, notifications, webhooks, unreadCount, viewer, progress } = data
+  const { workspace, notifications, webhooks, viewer, progress } = data
 
   return (
-    <WorkspaceShell
-      workspaceSlug={workspace.slug}
-      systemRole={systemRole}
-      unreadCount={unreadCount}
-      viewer={viewer}
-    >
+    <WorkspaceShell workspaceSlug={workspace.slug} systemRole={systemRole} frame={data}>
       <PageHeader
         title={workspace.name}
         description={m.dashboard_attention_description()}

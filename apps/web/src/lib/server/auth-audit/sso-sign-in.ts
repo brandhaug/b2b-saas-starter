@@ -6,6 +6,7 @@ import { SsoConnections } from '@b2b-saas-starter/capabilities/governance/worksp
 import { Effect, Option, type Scope } from 'effect'
 
 import { readSessionForCookie } from '../auth-session-read'
+import { responseSessionCookies } from '../response-session-cookie'
 import { runCapabilities } from '../../capabilities'
 import { type RunAuditCapabilities } from './shared'
 
@@ -38,21 +39,6 @@ export function ssoCallbackProviderId(exchange: {
     return decodeURIComponent(acs[1] ?? '')
   }
   return null
-}
-
-/** The session token Better Auth set on the response, as a cookie header. */
-function responseSessionCookie(response: Response): string | null {
-  const pairs: Array<string> = []
-  for (const cookie of response.headers.getSetCookie()) {
-    const pair = cookie.split(';')[0]
-    if (cookie.includes('session_token') && pair !== undefined) {
-      pairs.push(pair)
-    }
-  }
-  if (pairs.length === 0) {
-    return null
-  }
-  return pairs.join('; ')
 }
 
 /** A redirect without an `error` param is the plugin's success shape. */
@@ -103,7 +89,7 @@ export const recordSsoSignInAudit = Effect.fn('AuthAudit.recordSsoSignIn')(funct
   }
 
   // Success: attribute the event to the user the response just signed in.
-  const cookie = responseSessionCookie(response)
+  const cookie = responseSessionCookies(response)
   if (cookie === null) {
     return
   }
