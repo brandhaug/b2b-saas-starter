@@ -23,6 +23,7 @@ export {
   WideEventLoggerLive,
   annotateWideEvent,
   annotateWideEventCause,
+  failureFacts,
   withWideEventFacts,
   withRequestScope,
   withTriggerScope,

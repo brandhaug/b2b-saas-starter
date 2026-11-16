@@ -1,3 +1,4 @@
+import { narrowedFrom } from '@b2b-saas-starter/failure/narrowing'
 import { requireEmailVerification } from '@b2b-saas-starter/env/server'
 import { UnverifiedEmailError } from '../capability-error'
 import { type PurchaseIntent } from '../purchase-intent'
@@ -262,12 +263,15 @@ export async function reconcileCheckoutReturnHandler(
         })
         .pipe(
           Effect.timeout('8 seconds'),
-          Effect.catchTag('TimeoutError', () =>
+          Effect.catchTag('TimeoutError', (timeout) =>
             Effect.fail(
-              new CapabilityUnavailable({
-                capability: 'billing',
-                reason: 'reconciliation_timeout'
-              })
+              narrowedFrom(
+                timeout,
+                new CapabilityUnavailable({
+                  capability: 'billing',
+                  reason: 'reconciliation_timeout'
+                })
+              )
             )
           )
         )

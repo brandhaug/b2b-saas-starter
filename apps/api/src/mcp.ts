@@ -58,7 +58,7 @@ import {
   type CapabilityReadServices
 } from './operations.ts'
 import { OAuthTokenVerifier } from './oauth-access-token.ts'
-import { enforceRateLimitKey } from './request-guards.ts'
+import { annotateRequestFailure, enforceRateLimitKey } from './request-guards.ts'
 
 /**
  * MCP protocol wiring: the Streamable HTTP transport and the tool and resource
@@ -145,6 +145,33 @@ function bridgedRead(
   return Effect.result(provideMcpWorkspace(env, caller, body))
 }
 
+/** A typed tool failure becomes an `isError` result; its safe facts stay on the wide event. */
+function observedToolResult(outcome: ToolOutcome): Effect.Effect<CallToolResult> {
+  if (Result.isSuccess(outcome)) {
+    return Effect.succeed(outcomeToToolResult(outcome))
+  }
+  return annotateRequestFailure(outcome.failure).pipe(
+    Effect.as(outcomeToToolResult(outcome))
+  )
+}
+
+/**
+ * Defects at the tool seam answer with the generic body, the way a rejected
+ * promise did at the old SDK callback boundary, after their summary is recorded.
+ */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- a defect is any thrown value; the logger keeps only its scrubbed summary
+function toolDefect(defect: unknown): Effect.Effect<CallToolResult> {
+  // oxlint-disable-next-line eslint/no-restricted-properties -- preserve an existing defect before translating it to a protocol response
+  return annotateWideEventCause(Cause.die(defect)).pipe(
+    Effect.as(
+      new CallToolResult({
+        content: [{ type: 'text', text: TOOL_FAILED_MESSAGE }],
+        isError: true
+      })
+    )
+  )
+}
+
 /**
  * Registers the tool-projecting rows of the operation table as MCP tools —
  * here the existing reads. Mutation registration uses typed JSON adapters
@@ -189,20 +216,8 @@ function registerTools(env: ApiEnv) {
             }).pipe(Effect.scoped)
 
             const outcome = yield* bridgedRead(env, caller, guarded)
-            return outcomeToToolResult(outcome)
-          }).pipe(
-            // Defects at this seam answer with the generic body, the way a
-            // rejected promise did at the old SDK callback boundary.
-            Effect.catchDefect(() =>
-              Effect.succeed(
-                new CallToolResult({
-                  content: [{ type: 'text', text: TOOL_FAILED_MESSAGE }],
-                  isError: true
-                })
-              )
-            ),
-            Effect.provideContext(services)
-          )
+            return yield* observedToolResult(outcome)
+          }).pipe(Effect.catchDefect(toolDefect), Effect.provideContext(services))
       })
     }
   })
@@ -245,7 +260,7 @@ function registerMutationTools(env: ApiEnv) {
               }).pipe(Effect.scoped)
             )
             if (Result.isFailure(verified)) {
-              return outcomeToToolResult(verified)
+              return yield* observedToolResult(verified)
             }
             const caller = verified.success
             const invoke = yield* operation.decode(payload ?? {}).pipe(invalidParams)
@@ -265,23 +280,8 @@ function registerMutationTools(env: ApiEnv) {
             const outcome = yield* Effect.result(
               provideMcpWorkspace(env, caller, guarded)
             )
-            return outcomeToToolResult(outcome)
-          }).pipe(
-            Effect.catchDefect((defect) =>
-              // oxlint-disable-next-line eslint/no-restricted-properties -- preserve an existing defect before translating it to a protocol response
-              annotateWideEventCause(Cause.die(defect)).pipe(
-                Effect.andThen(
-                  Effect.succeed(
-                    new CallToolResult({
-                      content: [{ type: 'text', text: TOOL_FAILED_MESSAGE }],
-                      isError: true
-                    })
-                  )
-                )
-              )
-            ),
-            Effect.provideContext(services)
-          )
+            return yield* observedToolResult(outcome)
+          }).pipe(Effect.catchDefect(toolDefect), Effect.provideContext(services))
       })
     }
   })

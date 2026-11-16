@@ -1,4 +1,5 @@
 import {
+  failureFacts,
   makeOtlpLayer,
   WideEventLoggerLive,
   withHttpInvocation,
@@ -314,6 +315,7 @@ function record(
       event: options.event,
       ...Object.fromEntries(own),
       ...facts,
+      ...(Exit.isFailure(exit) && failureFacts(exit.cause)),
       status: Exit.isSuccess(exit) ? 'ok' : 'error'
     })
   })

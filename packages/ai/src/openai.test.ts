@@ -1,5 +1,6 @@
 /// <reference types="node" />
 
+import { narrowedCauseTag } from '@b2b-saas-starter/failure/narrowing'
 import { failureMessage } from '@b2b-saas-starter/failure'
 // oxlint-disable-next-line effect/noNodeBuiltinImport -- loopback server verifies native fetch redirect behavior
 import { createServer } from 'node:http'
@@ -163,8 +164,8 @@ describe('openai-compatible model', () => {
     const { wire } = stubWire(() => jsonResponse({ error: 'slow down' }, 429))
     return askFails(assistantOn(modelOn(wire)), (error) => {
       expect(error._tag).toBe('AssistantUnavailable')
-      expect(error.reason).toContain('openai-compatible')
-      expect(error.reason).toContain('Rate limit exceeded')
+      expect(error.reason).toBe('Assistant provider request failed.')
+      expect(narrowedCauseTag(error)).toBe('RateLimitError')
     })
   })
 
@@ -172,7 +173,7 @@ describe('openai-compatible model', () => {
     const wire = vi.fn(() => Promise.reject(new Error('network down')))
     return askFails(assistantOn(modelOn(wire)), (error) => {
       expect(error._tag).toBe('AssistantUnavailable')
-      expect(error.reason).toContain('Provider connection failed.')
+      expect(error.reason).toBe('Assistant provider request failed.')
       expect(error.reason).not.toContain('test-key')
     })
   })
@@ -192,7 +193,7 @@ describe('openai-compatible model', () => {
     const { wire } = stubWire(() => jsonResponse({ choices: [] }))
     return askFails(assistantOn(modelOn(wire)), (error) => {
       expect(error._tag).toBe('AssistantUnavailable')
-      expect(error.reason).toContain('does not match the chat shape')
+      expect(error.reason).toBe('Assistant provider request failed.')
     })
   })
 

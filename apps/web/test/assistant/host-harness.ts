@@ -11,7 +11,7 @@ import {
   convertV4MiniflareOptions,
   Response as MiniflareResponse
 } from 'miniflare'
-import { Effect, Schema, Schedule } from 'effect'
+import { Effect, Option, Schema, Schedule } from 'effect'
 import { PreparedConversationPrompt } from '@b2b-saas-starter/ai/conversation-context'
 import { ConversationPage } from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversation'
 import { AssistantReservation } from '@b2b-saas-starter/capabilities/assistant/admission'
@@ -29,6 +29,14 @@ const decodeProbe = Schema.decodeUnknownEffect(
   })
 )
 const decodeHistory = Schema.decodeUnknownEffect(ConversationPage)
+const decodeRequestEvent = Schema.decodeUnknownOption(
+  Schema.fromJsonString(
+    Schema.Struct({
+      message: Schema.Literal('assistant.request'),
+      annotations: Schema.Record(Schema.String, Schema.Unknown)
+    })
+  )
+)
 const decodeReservations = Schema.decodeUnknownEffect(
   Schema.Array(AssistantReservation)
 )
@@ -68,6 +76,7 @@ export const provisionConversationHost = Effect.fn('ConversationHostTest.provisi
   function* (configured: boolean, maxInputTokens = 64_000) {
     const script = yield* bundle()
     const requests: Array<string> = []
+    const logs: Array<string> = []
     const outputs: Array<ReadableStreamDefaultController<Uint8Array>> = []
     const directory = yield* Effect.acquireRelease(
       Effect.promise(() => mkdtemp(join(tmpdir(), 'assistant-host-'))),
@@ -97,6 +106,10 @@ export const provisionConversationHost = Effect.fn('ConversationHostTest.provisi
       },
       d1Databases: { DB: 'assistant-host-db' },
       bindings,
+      // The host's canonical wide events, as the Workers console receives them.
+      handleStructuredLogs: (log) => {
+        logs.push(log.message)
+      },
       outboundService: (request) => {
         requests.push(request.url)
         return new MiniflareResponse(
@@ -254,17 +267,44 @@ export const provisionConversationHost = Effect.fn('ConversationHostTest.provisi
         Effect.timeout('10 seconds')
       )
     )
+    const storage = Effect.fn('ConversationHostTest.storage')((id: string) =>
+      Effect.promise(() =>
+        runtime.current.unsafeGetDurableObjectStorage(
+          'assistant-host-test',
+          'WorkspaceAssistantConversation',
+          { name: encodeJson(['wrk_do', 'usr_do', id]) }
+        )
+      )
+    )
+    const executeInConversation = Effect.fn(
+      'ConversationHostTest.executeInConversation'
+    )(function* (id: string, sql: string) {
+      const handle = yield* storage(id)
+      yield* Effect.promise(() => handle.exec(sql))
+    })
+    const failedRequestEvents = Effect.fn('ConversationHostTest.failedRequestEvents')(
+      (count: number) =>
+        Effect.sync(() =>
+          logs.flatMap((line) => {
+            const event = decodeRequestEvent(line)
+            if (Option.isNone(event) || event.value.annotations['statusCode'] !== 503) {
+              return []
+            }
+            return [event.value.annotations]
+          })
+        ).pipe(
+          Effect.repeat({
+            while: (events) => events.length < count,
+            schedule: Schedule.spaced('20 millis')
+          }),
+          Effect.timeout('5 seconds')
+        )
+    )
     const waitForPersistedText = Effect.fn('ConversationHostTest.waitForPersistedText')(
       function* (id: string, text: string) {
-        const storage = yield* Effect.promise(() =>
-          runtime.current.unsafeGetDurableObjectStorage(
-            'assistant-host-test',
-            'WorkspaceAssistantConversation',
-            { name: encodeJson(['wrk_do', 'usr_do', id]) }
-          )
-        )
+        const handle = yield* storage(id)
         yield* Effect.promise(() =>
-          storage.exec(
+          handle.exec(
             'SELECT 1 FROM cf_agents_stream_blocks WHERE body LIKE ? LIMIT 1',
             `%${text}%`
           )
@@ -307,6 +347,8 @@ export const provisionConversationHost = Effect.fn('ConversationHostTest.provisi
     )
     return {
       transcriptProbe,
+      executeInConversation,
+      failedRequestEvents,
       waitForRelease,
       waitForPersistedText,
       create,

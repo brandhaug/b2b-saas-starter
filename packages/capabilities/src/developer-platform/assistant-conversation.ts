@@ -1,3 +1,4 @@
+import { narrowFailure } from '@b2b-saas-starter/failure/narrowing'
 import { DateTime, Effect, Schema } from 'effect'
 
 export type ConversationStatus = ConversationAttempt['status']
@@ -202,6 +203,14 @@ export class ConversationUnavailable extends Schema.TaggedError<ConversationUnav
   },
   { httpApiStatus: 503 }
 ) {}
+
+/** The storage refusal a narrowing builds; the replaced failure becomes its `causeTag`. */
+export function conversationStorageFailure(): ConversationUnavailable {
+  return new ConversationUnavailable({ reason: 'storage' })
+}
+
+/** Narrows any failure into the storage refusal. */
+export const storageUnavailable = narrowFailure(conversationStorageFailure)
 
 export const ConversationAcceptance = Schema.Struct({
   question: ConversationQuestion,

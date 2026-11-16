@@ -2,7 +2,8 @@
 // oxlint-disable-next-line effect/noNodeBuiltinImport -- loopback server verifies native fetch redirect behavior
 import { createServer } from 'node:http'
 import { it } from '@effect/vitest'
-import { Effect, Redacted } from 'effect'
+import { Effect, Logger, Redacted } from 'effect'
+import { withRequestScope } from '@b2b-saas-starter/logger'
 import { describe, expect, vi } from 'vite-plus/test'
 
 import {
@@ -17,6 +18,10 @@ const input = {
   kind: 'api_token_revoked',
   subjectId: 'token-1'
 } satisfies SecurityEvidenceInput
+
+async function failing(): Promise<void> {
+  throw new Error('independent store unavailable')
+}
 
 describe('security recovery evidence', () => {
   it.live('revokes before writing evidence and succeeds when the sink is healthy', () =>
@@ -59,6 +64,37 @@ describe('security recovery evidence', () => {
         workspaceId: null
       })
     })
+  )
+
+  it.live(
+    'marks an evidence gap on the successful revocation event without a cause tag',
+    () =>
+      Effect.gen(function* () {
+        const records: Array<Readonly<Record<string, unknown>>> = []
+        const logger = Logger.layer([
+          Logger.map(Logger.formatStructured, (structured) => {
+            records.push(structured.annotations)
+          })
+        ])
+        for (const reportGap of [async () => undefined, failing]) {
+          yield* withRequestScope(
+            { service: 'api', event: 'api.request' },
+            revokeWithEvidence(Effect.succeed(true), input, {
+              append: failing,
+              reportGap
+            })
+          ).pipe(Effect.provide(logger))
+        }
+        const events = records.filter((record) => record['event'] === 'api.request')
+        expect(events.map((event) => event['securityEvidence'])).toEqual([
+          'gap',
+          'gap_alert_failed'
+        ])
+        for (const event of events) {
+          expect(event).toMatchObject({ status: 'ok' })
+          expect(event).not.toHaveProperty('causeTag')
+        }
+      })
   )
 
   it.live('does not create evidence when there was nothing to revoke', () =>

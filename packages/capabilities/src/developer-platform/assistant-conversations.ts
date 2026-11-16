@@ -1,3 +1,4 @@
+import { attemptPromise } from '@b2b-saas-starter/failure/narrowing'
 import { ConversationInputRejected } from '@b2b-saas-starter/ai/conversation-context'
 import { Context, Effect, Layer, Schema, Predicate, Result } from 'effect'
 import { type AssistantCredentialReference } from '@b2b-saas-starter/authz/assistant-access-token'
@@ -20,6 +21,8 @@ import {
   ConversationNotFound,
   ConversationConflict,
   ConversationUnavailable,
+  conversationStorageFailure,
+  storageUnavailable,
   type ConversationList,
   type ConversationSend,
   type ConversationRetry
@@ -87,13 +90,10 @@ const decodeFailure = Schema.decodeUnknownResult(
   ])
 )
 function decode<A>(schema: Schema.Codec<A>, response: Response) {
-  return Effect.tryPromise({
+  return attemptPromise({
     try: () => response.json(),
-    catch: () => new ConversationUnavailable({ reason: 'storage' })
-  }).pipe(
-    Effect.flatMap(Schema.decodeUnknownEffect(schema)),
-    Effect.mapError(() => new ConversationUnavailable({ reason: 'storage' }))
-  )
+    narrow: conversationStorageFailure
+  }).pipe(Effect.flatMap(Schema.decodeUnknownEffect(schema)), storageUnavailable)
 }
 
 export function AssistantConversationsLayer(
@@ -153,7 +153,7 @@ export function AssistantConversationsLayer(
         if (transport === undefined) {
           return yield* new ConversationUnavailable({ reason: 'configuration' })
         }
-        const response = yield* Effect.tryPromise({
+        const response = yield* attemptPromise({
           try: () =>
             transport.request({
               address,
@@ -161,14 +161,14 @@ export function AssistantConversationsLayer(
               action,
               ...options
             }),
-          catch: () => new ConversationUnavailable({ reason: 'storage' })
+          narrow: conversationStorageFailure
         })
         if (response.ok || response.status === 101) {
           return response
         }
-        const body = yield* Effect.tryPromise({
+        const body = yield* attemptPromise({
           try: () => response.json(),
-          catch: () => new ConversationUnavailable({ reason: 'storage' })
+          narrow: conversationStorageFailure
         })
         const failure = decodeFailure(body)
         if (Result.isSuccess(failure)) {

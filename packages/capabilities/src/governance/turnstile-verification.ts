@@ -1,3 +1,4 @@
+import { attemptPromise } from '@b2b-saas-starter/failure/narrowing'
 import { Context, Effect, Redacted, Result, Schedule, Schema } from 'effect'
 import { SecureRandom } from 'effect/crypto'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -99,7 +100,7 @@ const decodeSiteverifyResponse = Schema.decodeUnknownResult(SiteverifyResponse)
 function fetchSiteverify(
   request: SiteverifyRequest
 ): Effect.Effect<Response, SiteverifyNoResponse> {
-  return Effect.tryPromise({
+  return attemptPromise({
     try: (signal) =>
       // oxlint-disable-next-line effect/noGlobals -- the Workers global fetch is the platform adapter here; JSON body encoding included; see the Stripe twin in billing.ts
       fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
@@ -109,7 +110,7 @@ function fetchSiteverify(
         body: JSON.stringify({ ...request, secret: Redacted.value(request.secret) }),
         signal
       }),
-    catch: () => new SiteverifyNoResponse()
+    narrow: () => new SiteverifyNoResponse()
   })
 }
 
@@ -164,9 +165,9 @@ const siteverifyOnce = Effect.fn('TurnstileVerifier.siteverify')(function* (
     }
     return yield* unavailableBecause(statusClass(response.status))
   }
-  const json: unknown = yield* Effect.tryPromise({
+  const json: unknown = yield* attemptPromise({
     try: () => response.json(),
-    catch: () => unavailableBecause('unparseable_body')
+    narrow: () => unavailableBecause('unparseable_body')
   })
   const decoded = decodeSiteverifyResponse(json)
   if (Result.isFailure(decoded)) {

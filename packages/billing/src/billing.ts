@@ -1,6 +1,7 @@
+import { narrowFailure } from '@b2b-saas-starter/failure/narrowing'
 import { billingLifecycleStatuses, billingIntervals } from '@b2b-saas-starter/db/enums'
 import { type JsonObject } from '@b2b-saas-starter/db/schema/json'
-import { Context, DateTime, Effect, Schema, type Effect as EffectType } from 'effect'
+import { Context, DateTime, Schema, type Effect } from 'effect'
 
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type WorkspaceContext } from './ports.ts'
@@ -8,10 +9,10 @@ import { type Plan, type BillingInterval } from './plan-catalog.ts'
 
 /** Maps billing storage failures to a stable public reason. */
 export function billingStoreUnavailable<A, E, R>(
-  effect: EffectType.Effect<A, E, R>
-): EffectType.Effect<A, CapabilityUnavailable, R> {
+  effect: Effect.Effect<A, E, R>
+): Effect.Effect<A, CapabilityUnavailable, R> {
   return effect.pipe(
-    Effect.mapError(
+    narrowFailure(
       () =>
         new CapabilityUnavailable({
           capability: 'billing',

@@ -209,14 +209,15 @@ describe('runWebRequestScope', () => {
       statusCode: 201
     })
     // Each nested run reports its own annotations and its own status; a failing
-    // nested run does not change the request's own outcome.
+    // nested run carries the scope's failure facts (never its message) and does
+    // not change the request's own outcome.
     expect(nestedEntries(record)).toEqual([
       {
         event: 'capability.workspace',
         unreadCount: 42,
         status: 'ok'
       },
-      { event: 'capability.global', status: 'error' }
+      { event: 'capability.global', errorKind: 'fail', status: 'error' }
     ])
   })
 

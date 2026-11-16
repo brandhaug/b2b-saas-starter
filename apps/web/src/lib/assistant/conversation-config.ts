@@ -1,5 +1,6 @@
+import { narrowFailure } from '@b2b-saas-starter/failure/narrowing'
 import { type ServerEnv } from '@b2b-saas-starter/env/server'
-import { Effect, Schema } from 'effect'
+import { Schema } from 'effect'
 import { ConversationUnavailable } from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversation'
 
 const Positive = Schema.Int.check(
@@ -38,6 +39,6 @@ export function conversationLimits(env: Partial<ServerEnv>) {
     })
   }
   return decodeLimits(limits).pipe(
-    Effect.mapError(() => new ConversationUnavailable({ reason: 'configuration' }))
+    narrowFailure(() => new ConversationUnavailable({ reason: 'configuration' }))
   )
 }

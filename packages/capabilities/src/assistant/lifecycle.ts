@@ -1,3 +1,4 @@
+import { narrowFailure } from '@b2b-saas-starter/failure/narrowing'
 import { annotateWideEvent } from '@b2b-saas-starter/logger'
 import { Context, Effect, Layer, Schema, Result } from 'effect'
 import {
@@ -128,7 +129,7 @@ export function AssistantConversationLifecycleLayer(
                 sessionId,
                 policyRevision: entry.policyRevision
               })
-              .pipe(Effect.mapError(hostUnavailable))
+              .pipe(narrowFailure(hostUnavailable))
             if (
               !authorized ||
               !(yield* directory.policyMatches(row.id, entry.policyRevision))
@@ -161,13 +162,13 @@ export function AssistantConversationLifecycleLayer(
               if (
                 !(yield* host
                   .revalidateConversation(authority)
-                  .pipe(Effect.mapError(hostUnavailable)))
+                  .pipe(narrowFailure(hostUnavailable)))
               ) {
                 continue
               }
               const exported = yield* host
                 .exportConversation(authority)
-                .pipe(Effect.mapError(hostUnavailable))
+                .pipe(narrowFailure(hostUnavailable))
               const history = yield* unavailable(decodeHistory(exported.json))
               conversations.push({ id: row.id, workspaceId: row.workspaceId, history })
               manifest.push({ id: row.id, policyRevision: row.policyRevision })
@@ -198,7 +199,7 @@ export function AssistantConversationLifecycleLayer(
                   workspaceId: row.workspaceId,
                   creatorUserId: row.creatorUserId
                 })
-                .pipe(Effect.mapError(hostUnavailable))
+                .pipe(narrowFailure(hostUnavailable))
               yield* directory.completeCleanup(row.id)
             }).pipe(Effect.result)
             if (Result.isFailure(result)) {

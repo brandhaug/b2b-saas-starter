@@ -1,4 +1,4 @@
-import { failureMessage } from '@b2b-saas-starter/failure'
+import { narrowFailure } from '@b2b-saas-starter/failure/narrowing'
 import { Context, Effect, Layer, Schema } from 'effect'
 import { LanguageModel, Model, Prompt } from 'effect/ai'
 
@@ -85,7 +85,7 @@ export const AssistantLive = Layer.effect(AssistantService)(
 
     const ask = Effect.fn('AssistantService.ask')(function* (prompt: AssistantPrompt) {
       yield* decodeAssistantPrompt(prompt).pipe(
-        Effect.mapError(
+        narrowFailure(
           () =>
             new AssistantUnavailable({
               reason: 'Assistant input exceeds the supported bounds.'
@@ -119,8 +119,12 @@ export const AssistantLive = Layer.effect(AssistantService)(
           toolChoice: 'none'
         })
         .pipe(
-          Effect.mapError(
-            (error) => new AssistantUnavailable({ reason: failureMessage(error) })
+          // The provider's message stays out of the HTTP-encoded reason; the
+          // inner AI error's tag (`RateLimitError`, `NetworkError`) is the `causeTag`.
+          Effect.mapError((error) => error.reason),
+          narrowFailure(
+            () =>
+              new AssistantUnavailable({ reason: 'Assistant provider request failed.' })
           ),
           Effect.timeoutOrElse({
             duration: '60 seconds',

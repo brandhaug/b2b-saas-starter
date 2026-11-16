@@ -10,10 +10,12 @@ import {
 import {
   withHttpRequestScope,
   annotateWideEvent,
+  annotateWideEventCause,
   withRequestScope,
   withTriggerScope
 } from './wide-event.ts'
 import { withHttpInvocation } from './invocation.ts'
+import { narrowFailure } from '@b2b-saas-starter/failure/narrowing'
 
 /** One captured log record, in the shape `Logger.consoleJson` would print. */
 type Captured = {
@@ -372,3 +374,130 @@ it.effect(
     }).pipe(Effect.provide(layer))
   }
 )
+
+class Unavailable extends Data.TaggedError('Unavailable') {}
+class StorageUnavailable extends Data.TaggedError('StorageUnavailable') {}
+
+describe('narrowed failure identity', () => {
+  it.effect(
+    'keeps the first replaced tag through later narrowings of the same failure',
+    () => {
+      const { layer, records } = collector()
+      return Effect.gen(function* () {
+        yield* Effect.exit(
+          withRequestScope(
+            { service: 'assistant', event: 'assistant.request' },
+            Effect.fail(new Boom({ why: 'SELECT secret' })).pipe(
+              narrowFailure(() => new Unavailable()),
+              narrowFailure(() => new StorageUnavailable())
+            )
+          )
+        )
+        expect(only(records).annotations).toMatchObject({
+          errorTag: 'StorageUnavailable',
+          causeTag: 'Boom'
+        })
+      }).pipe(Effect.provide(layer))
+    }
+  )
+
+  it.effect('names a thrown value without a tag as untagged', () => {
+    const { layer, records } = collector()
+    return Effect.gen(function* () {
+      yield* Effect.exit(
+        withRequestScope(
+          { service: 'assistant', event: 'assistant.request' },
+          Effect.try({
+            try: () => {
+              throw new Error('no such table: assistant_questions')
+            },
+            catch: (thrown) => thrown
+          }).pipe(narrowFailure(() => new StorageUnavailable()))
+        )
+      )
+      expect(only(records).annotations).toMatchObject({ causeTag: 'untagged' })
+    }).pipe(Effect.provide(layer))
+  })
+
+  it.effect(
+    'does not report an absorbed narrowing on a later unrelated failure',
+    () => {
+      const { layer, records } = collector()
+      return Effect.gen(function* () {
+        yield* Effect.exit(
+          withRequestScope(
+            { service: 'assistant', event: 'assistant.request' },
+            Effect.gen(function* () {
+              yield* Effect.exit(
+                Effect.fail({ _tag: 'SchemaError' }).pipe(
+                  narrowFailure(() => new Unavailable())
+                )
+              )
+              return yield* Effect.fail(new Boom({ why: 'unrelated' }))
+            })
+          )
+        )
+        const { annotations } = only(records)
+        expect(annotations).toMatchObject({ errorTag: 'Boom' })
+        expect(annotations).not.toHaveProperty('causeTag')
+      }).pipe(Effect.provide(layer))
+    }
+  )
+
+  it.effect('emits no cause tag when the request succeeds after absorbing one', () => {
+    const { layer, records } = collector()
+    return Effect.gen(function* () {
+      yield* withRequestScope(
+        { service: 'assistant', event: 'assistant.request' },
+        Effect.exit(
+          Effect.fail({ _tag: 'SchemaError' }).pipe(
+            narrowFailure(() => new Unavailable())
+          )
+        )
+      )
+      const { annotations } = only(records)
+      expect(annotations).toMatchObject({ status: 'ok' })
+      expect(annotations).not.toHaveProperty('causeTag')
+    }).pipe(Effect.provide(layer))
+  })
+
+  it.effect('keeps the final failure tag when an HTTP adapter translates it', () => {
+    const { layer, records } = collector()
+    return Effect.gen(function* () {
+      yield* withHttpInvocation(
+        {
+          service: 'assistant',
+          event: 'assistant.request',
+          request: new Request('https://assistant.example/read'),
+          env: {}
+        },
+        Effect.fail({ _tag: 'SqlError' }).pipe(
+          narrowFailure(() => new StorageUnavailable()),
+          Effect.tapCause(annotateWideEventCause),
+          Effect.catch(() => Effect.succeed(new Response(null, { status: 503 })))
+        )
+      )
+      expect(only(records).annotations).toMatchObject({
+        status: 'error',
+        statusCode: 503,
+        errorTag: 'StorageUnavailable',
+        causeTag: 'SqlError'
+      })
+    }).pipe(Effect.provide(layer))
+  })
+
+  it.effect('leaves defects and their scope without a cause tag', () => {
+    const { layer, records } = collector()
+    return Effect.gen(function* () {
+      yield* Effect.exit(
+        withRequestScope(
+          { service: 'assistant', event: 'assistant.request' },
+          Effect.die('programming bug').pipe(narrowFailure(() => new Unavailable()))
+        )
+      )
+      const { annotations } = only(records)
+      expect(annotations).toMatchObject({ errorKind: 'defect' })
+      expect(annotations).not.toHaveProperty('causeTag')
+    }).pipe(Effect.provide(layer))
+  })
+})

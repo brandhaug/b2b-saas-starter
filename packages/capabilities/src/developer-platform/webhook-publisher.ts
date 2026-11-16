@@ -1,3 +1,4 @@
+import { narrowFailure } from '@b2b-saas-starter/failure/narrowing'
 import {
   ApiTokenId,
   WebhookDeliveryId,
@@ -120,20 +121,22 @@ export type WebhookEventInput = {
   }
 }[WebhookEventType]
 
-const decodeJson = Schema.decodeUnknownSync(Schema.Json)
+const decodeJson = Schema.decodeUnknownEffect(Schema.Json)
 
 function sanitizeWebhookPayload(
   input: PublishWebhookEventInput
 ): Effect.Effect<typeof Schema.Json.Type, CapabilityUnavailable> {
   const schema = WebhookEventPayloads[input.eventType]
-  return Effect.try({
-    try: () => decodeJson(Schema.decodeUnknownSync(schema)(input.payload)),
-    catch: () =>
-      new CapabilityUnavailable({
-        capability: 'webhook-publisher',
-        reason: 'payload_schema_invalid'
-      })
-  })
+  return Schema.decodeUnknownEffect(schema)(input.payload).pipe(
+    Effect.flatMap(decodeJson),
+    narrowFailure(
+      () =>
+        new CapabilityUnavailable({
+          capability: 'webhook-publisher',
+          reason: 'payload_schema_invalid'
+        })
+    )
+  )
 }
 export type PublishWebhookEventInput = WebhookEventInput
 
@@ -260,7 +263,7 @@ export function LiveWebhookPublisher(
               deliveryId: input.deliveryId
             })
           )(message).pipe(
-            Effect.mapError(
+            narrowFailure(
               () =>
                 new CapabilityUnavailable({
                   capability: 'webhook-publisher',

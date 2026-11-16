@@ -1,3 +1,4 @@
+import { attemptPromise } from '@b2b-saas-starter/failure/narrowing'
 import { AssistantCredentialReference } from '@b2b-saas-starter/authz/assistant-access-token'
 import { Effect, Schema } from 'effect'
 import {
@@ -10,6 +11,8 @@ import {
 } from '../assistant/lifecycle.ts'
 import {
   ConversationUnavailable,
+  conversationStorageFailure,
+  storageUnavailable,
   type ConversationSend,
   type ConversationRetry
 } from './assistant-conversation.ts'
@@ -123,9 +126,9 @@ function requireSuccess(response: Response) {
  * caller's interruption into the object request; a rejection is storage.
  */
 function objectCall<A>(call: (signal: AbortSignal) => Promise<A>) {
-  return Effect.tryPromise({
+  return attemptPromise({
     try: call,
-    catch: () => new ConversationUnavailable({ reason: 'storage' })
+    narrow: conversationStorageFailure
   })
 }
 
@@ -169,7 +172,7 @@ export function conversationLifecycleBinding(
         yield* requireSuccess(response)
         const value = yield* objectCall(() => response.json()).pipe(
           Effect.flatMap(decodeRevision),
-          Effect.mapError(() => new ConversationUnavailable({ reason: 'storage' }))
+          storageUnavailable
         )
         return value.policyRevision === input.policyRevision
       }

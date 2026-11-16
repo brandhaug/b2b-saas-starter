@@ -1,3 +1,4 @@
+import { attemptPromise } from '@b2b-saas-starter/failure/narrowing'
 import { type Session } from '@b2b-saas-starter/auth'
 import {
   StrongAuthentication,
@@ -112,6 +113,14 @@ function pluginFailure(statusCode: number): PasswordCheckFailure {
   return { reason: 'plugin_failed' }
 }
 
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- the plugin rejects with an unknown value; only its decoded status is read
+function passwordCheckFailure(thrown: unknown): PasswordCheckFailure {
+  return Option.match(decodePluginStatus(thrown), {
+    onNone: () => ({ reason: 'auth_store_unavailable' }),
+    onSome: ({ statusCode }) => pluginFailure(statusCode)
+  })
+}
+
 /**
  * Only the plugin's `INVALID_PASSWORD` is a wrong password. Every other
  * failure — its 5xx, its own 429, a 401 for a session that expired
@@ -121,7 +130,7 @@ function pluginFailure(statusCode: number): PasswordCheckFailure {
 function checkCurrentPassword(
   password: string
 ): Effect.Effect<boolean, CapabilityUnavailable> {
-  return Effect.tryPromise({
+  return attemptPromise({
     try: () =>
       sessionCall((api, headers) =>
         api.verifyPassword({ body: { password }, headers }).pipe(
@@ -132,18 +141,14 @@ function checkCurrentPassword(
           )
         )
       ),
-    catch: (cause): PasswordCheckFailure =>
-      Option.match(decodePluginStatus(cause), {
-        onNone: () => ({ reason: 'auth_store_unavailable' }),
-        onSome: ({ statusCode }) => pluginFailure(statusCode)
+    narrow: (thrown) =>
+      new CapabilityUnavailable({
+        capability: STRONG_AUTHENTICATION,
+        reason: passwordCheckFailure(thrown).reason
       })
   }).pipe(
-    Effect.tapError((failure) =>
-      annotateWideEvent({ capability: STRONG_AUTHENTICATION, ...failure })
-    ),
-    Effect.mapError(
-      ({ reason }) =>
-        new CapabilityUnavailable({ capability: STRONG_AUTHENTICATION, reason })
+    Effect.tapError((error) =>
+      annotateWideEvent({ capability: error.capability, reason: error.reason })
     )
   )
 }

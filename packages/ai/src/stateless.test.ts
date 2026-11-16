@@ -150,6 +150,6 @@ it('rejects explicit Workers AI length termination', () =>
       }
     }),
     (error) => {
-      expect(error.reason).toContain('length')
+      expect(error.reason).toBe('Assistant provider request failed.')
     }
   ))

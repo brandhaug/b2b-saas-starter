@@ -997,7 +997,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
           )
           expect(listed.find((row) => row.id === requested.id)).toMatchObject({
             status: 'failed',
-            failureReason: 'unavailable: bucket unavailable'
+            failureReason: 'unavailable: unavailable'
           })
         })
     )

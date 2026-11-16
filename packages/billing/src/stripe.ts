@@ -1,3 +1,4 @@
+import { narrowFailure } from '@b2b-saas-starter/failure/narrowing'
 import { Effect, Redacted, Result, Schema } from 'effect'
 import { FetchHttpClient, HttpBody, HttpClient, HttpClientRequest } from 'effect/http'
 import { Stripe } from 'stripe'
@@ -168,13 +169,15 @@ const stripeRequest = Effect.fn('Stripe.request')(
   },
   Effect.scoped,
   Effect.provideService(FetchHttpClient.RequestInit, { redirect: 'manual' }),
-  Effect.mapError(() => stripeUnavailable('stripe request failed')),
   Effect.timeout(PROVIDER_TIMEOUT),
   // The deadline is the same "provider unreachable" failure the transport
   // path reports — never leak `TimeoutError` into the interface channel.
-  Effect.catchTag('TimeoutError', () =>
-    Effect.fail(stripeUnavailable('stripe request timed out'))
-  )
+  narrowFailure((error) => {
+    if (error._tag === 'TimeoutError') {
+      return stripeUnavailable('stripe request timed out')
+    }
+    return stripeUnavailable('stripe request failed')
+  })
 )
 
 function stripeJson(response: StripeHttpResponse) {

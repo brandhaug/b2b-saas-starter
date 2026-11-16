@@ -1,4 +1,5 @@
 // oxlint-disable effect/noGlobals -- D1 SQL parameters require serialized typed JSON at this adapter boundary.
+import { narrowFailure } from '@b2b-saas-starter/failure/narrowing'
 import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
 import { user } from '@b2b-saas-starter/db/schema/auth'
 import { auditActorTypes } from '@b2b-saas-starter/db/enums'
@@ -252,7 +253,7 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
         // has no CHECK constraint, so a caller the type system did not reach
         // would otherwise write an actor type nobody can interpret.
         yield* decodeAuditActorType(input.actorType).pipe(
-          Effect.mapError(
+          narrowFailure(
             () =>
               new CapabilityUnavailable({
                 capability: 'audit-event-log',

@@ -1,8 +1,8 @@
+import { attemptPromise } from '@b2b-saas-starter/failure/narrowing'
 import { Context, DateTime, Effect, Layer, Result, type Scope } from 'effect'
 
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type WorkspaceNotFound } from '../errors.ts'
-import { errorMessage } from '@b2b-saas-starter/failure'
 import {
   buildWorkspaceExportArchive,
   type WorkspaceExportSnapshot
@@ -70,12 +70,12 @@ export const buildWorkspaceExportArchiveEffect = Effect.fn(
   WorkspaceExportSnapshotServices | WorkspaceContext
 > {
   const snapshot = yield* collectWorkspaceExportSnapshot(input)
-  const archive = yield* Effect.tryPromise({
+  const archive = yield* attemptPromise({
     try: () => buildWorkspaceExportArchive(snapshot),
-    catch: (cause) =>
+    narrow: () =>
       new CapabilityUnavailable({
         capability: 'workspace-export-archive',
-        reason: errorMessage(cause) ?? 'the archive build failed'
+        reason: 'archive_build_failed'
       })
   })
   return { snapshot, archive }
