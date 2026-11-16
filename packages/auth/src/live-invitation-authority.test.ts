@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { workspaceInvitations } from '@b2b-saas-starter/db/schema/workspaces'
 import { eq } from 'drizzle-orm'
 import { expect, it } from '@effect/vitest'
@@ -45,7 +46,9 @@ it.live(
             fixture.db
               .select()
               .from(workspaceInvitations)
-              .where(eq(workspaceInvitations.workspaceId, workspace.id))
+              .where(
+                eq(workspaceInvitations.workspaceId, WorkspaceId.make(workspace.id))
+              )
           )
         ).toEqual([])
         const allowed = yield* auth.api.createInvitation({

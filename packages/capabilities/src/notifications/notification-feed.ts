@@ -1,3 +1,4 @@
+import { type UserId, type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Context, type Effect, Schema } from 'effect'
 import { type SQL } from 'drizzle-orm'
 import { type BatchStatement } from '@b2b-saas-starter/db/service'
@@ -37,7 +38,7 @@ export type MarkNotificationsReadInput = typeof MarkNotificationsReadInput.Type
  * same actor scoping the Live layer applies. It is stripped from the DTO.
  */
 export type SeedNotification = Notification & {
-  readonly userId?: string | null
+  readonly userId?: UserId | null
   readonly event?: SystemNotificationEvent | undefined
 }
 
@@ -52,8 +53,8 @@ export type SeedNotification = Notification & {
 export type CreateNotificationInput = {
   /** Stable producer identity makes durable outbox retries idempotent. */
   readonly deduplicationKey?: string | undefined
-  readonly workspaceId: string
-  readonly userId?: string | null
+  readonly workspaceId: WorkspaceId
+  readonly userId?: UserId | null
   readonly kind: NotificationKind
   readonly title: string
   readonly message: string
@@ -66,7 +67,7 @@ type RecordNotificationInput = {
   readonly message: string
   readonly event?: SystemNotificationEvent | undefined
   /** The member the message is for. */
-  readonly userId: string
+  readonly userId: UserId
 }
 
 /**
@@ -79,7 +80,7 @@ type RecordNotificationInput = {
  * copies of the same event.
  */
 export type NotifyUserInput = {
-  readonly userId: string
+  readonly userId: UserId
   readonly kind: NotificationKind
   readonly title: string
   readonly message: string
@@ -91,7 +92,7 @@ export type NotifyUserInput = {
  * of a workspace, keyed by the workspace id the background producers hold.
  */
 export type NotifyWorkspaceOwnersInput = {
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   /** Defaults to owners for existing producers; suspension notices include admins. */
   readonly audience?: 'owners' | 'owners_and_admins' | undefined
   readonly kind: NotificationKind
@@ -132,7 +133,7 @@ export type PreparedWorkspaceOwnerNotifications = {
 
 /** Who an email about a Notification goes to. */
 export type NotificationRecipient = {
-  readonly userId: string
+  readonly userId: UserId
   readonly email: string
   readonly name: string
   readonly locale?: Locale | null | undefined
@@ -141,7 +142,7 @@ export type NotificationRecipient = {
 
 export type NotificationWorkspace = {
   /** Stable identity for actorless background policy checks. */
-  readonly id: string
+  readonly id: WorkspaceId
   readonly slug: string
   readonly name: string
 }
@@ -194,8 +195,8 @@ export type NotificationFeedInterface = {
    * ids.
    */
   readonly countVisibleToUser: (
-    userId: string,
-    workspaceIds: ReadonlyArray<string>
+    userId: UserId,
+    workspaceIds: ReadonlyArray<WorkspaceId>
   ) => Effect.Effect<ReadonlyMap<string, number>, CapabilityUnavailable>
 
   /**
@@ -266,7 +267,7 @@ export type NotificationFeedInterface = {
   /** The instant-email consumer's read. */
   readonly loadForEmail: (
     notificationId: string,
-    recipientUserId: string
+    recipientUserId: UserId
   ) => Effect.Effect<NotificationEmailContext | null, CapabilityUnavailable>
 
   /** The digest job's read: every unread pair inside the window. */
@@ -295,7 +296,7 @@ export function visibleToActor(
 /** A broadcast reaches everyone; an addressed row reaches its addressee. */
 export function visibleToUser(
   rowUserId: SeedNotification['userId'],
-  viewerUserId: string | undefined
+  viewerUserId: UserId | undefined
 ): boolean {
   return rowUserId === undefined || rowUserId === null || rowUserId === viewerUserId
 }

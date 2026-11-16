@@ -26,7 +26,7 @@ export class ConversationLedger implements ConversationAdmissionLedger {
   }
 
   private read<A>(
-    schema: Schema.Codec<A>,
+    schema: Schema.Codec<A, unknown>,
     query: string,
     ...bindings: Array<SqlStorageValue>
   ) {
@@ -235,7 +235,7 @@ export class ConversationLedger implements ConversationAdmissionLedger {
     })
   }
 
-  input<A>(id: string, schema: Schema.Codec<A>) {
+  input<A>(id: string, schema: Schema.Codec<A, unknown>) {
     return this.read(
       schema,
       'SELECT input AS data FROM assistant_attempts WHERE id=?',

@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { Effect } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 import {
@@ -5,7 +6,7 @@ import {
   impersonationGuardResponse
 } from './impersonation-guard'
 
-const impersonated = { impersonatedBy: 'usr_admin' }
+const impersonated = { impersonatedBy: UserId.make('usr_admin') }
 const ordinary = { impersonatedBy: null }
 
 function post(pathname: string) {

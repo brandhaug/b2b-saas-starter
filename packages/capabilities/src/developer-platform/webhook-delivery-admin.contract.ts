@@ -1,4 +1,9 @@
-import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import {
+  UserId,
+  WebhookDeliveryId,
+  WebhookEndpointId,
+  WorkspaceId
+} from '@b2b-saas-starter/db/ids'
 import { Effect, Exit } from 'effect'
 import { type ContractExpect } from '../governance/contract-expect.ts'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
@@ -14,7 +19,7 @@ export const adminDeliveryFixtures = [
   {
     id: WebhookDeliveryId.make('whd_admin_z'),
     endpointId: WebhookEndpointId.make('wh_admin_a'),
-    workspaceId: 'wrk_live',
+    workspaceId: WorkspaceId.make('wrk_live'),
     eventType: 'demo.event',
     status: 'dead_lettered',
     attempts: 6,
@@ -25,7 +30,7 @@ export const adminDeliveryFixtures = [
   {
     id: WebhookDeliveryId.make('whd_admin_y'),
     endpointId: WebhookEndpointId.make('wh_admin_b'),
-    workspaceId: 'wrk_other',
+    workspaceId: WorkspaceId.make('wrk_other'),
     eventType: 'demo.event',
     status: 'failed_permanent',
     attempts: 1,
@@ -36,7 +41,7 @@ export const adminDeliveryFixtures = [
   {
     id: WebhookDeliveryId.make('whd_admin_null_z'),
     endpointId: WebhookEndpointId.make('wh_admin_b'),
-    workspaceId: 'wrk_other',
+    workspaceId: WorkspaceId.make('wrk_other'),
     eventType: 'demo.event',
     status: 'dead_lettered',
     attempts: 1,
@@ -47,7 +52,7 @@ export const adminDeliveryFixtures = [
   {
     id: WebhookDeliveryId.make('whd_admin_null_a'),
     endpointId: WebhookEndpointId.make('wh_admin_a'),
-    workspaceId: 'wrk_live',
+    workspaceId: WorkspaceId.make('wrk_live'),
     eventType: 'demo.event',
     status: 'failed_permanent',
     attempts: 1,
@@ -58,7 +63,7 @@ export const adminDeliveryFixtures = [
   {
     id: WebhookDeliveryId.make('whd_admin_ok'),
     endpointId: WebhookEndpointId.make('wh_admin_a'),
-    workspaceId: 'wrk_live',
+    workspaceId: WorkspaceId.make('wrk_live'),
     eventType: 'demo.event',
     status: 'delivered',
     attempts: 1,
@@ -69,7 +74,7 @@ export const adminDeliveryFixtures = [
   {
     id: WebhookDeliveryId.make('whd_admin_retry'),
     endpointId: WebhookEndpointId.make('wh_admin_a'),
-    workspaceId: 'wrk_live',
+    workspaceId: WorkspaceId.make('wrk_live'),
     eventType: 'demo.event',
     status: 'failed',
     attempts: 1,
@@ -96,10 +101,10 @@ export function webhookDeliveryAdminContract(expect: ContractExpect) {
       WebhookDeliveryId.make('whd_admin_null_a')
     ])
     expect(walk.items.map((row) => row.workspace.id)).toEqual([
-      'wrk_live',
-      'wrk_other',
-      'wrk_other',
-      'wrk_live'
+      WorkspaceId.make('wrk_live'),
+      WorkspaceId.make('wrk_other'),
+      WorkspaceId.make('wrk_other'),
+      WorkspaceId.make('wrk_live')
     ])
     const first = yield* deliveryAdmin.listGlobalDeliveries({ limit: 2 })
     expect(first.items.map((row) => row.id)).toEqual([
@@ -186,7 +191,7 @@ export function webhookDeliveryAdminContract(expect: ContractExpect) {
 
     const replay = yield* deliveryAdmin.replayDeliveryAsAdmin({
       deliveryId: WebhookDeliveryId.make('whd_admin_z'),
-      actorUserId: 'usr_sysadmin'
+      actorUserId: UserId.make('usr_sysadmin')
     })
     expect(replay.deliveryId === WebhookDeliveryId.make('whd_admin_z')).toBe(false)
     // Replay neither changes nor removes the terminal source.
@@ -206,7 +211,10 @@ export function webhookDeliveryAdminContract(expect: ContractExpect) {
       replay.deliveryId
     ]) {
       const refused = yield* Effect.exit(
-        deliveryAdmin.replayDeliveryAsAdmin({ deliveryId, actorUserId: 'usr_sysadmin' })
+        deliveryAdmin.replayDeliveryAsAdmin({
+          deliveryId,
+          actorUserId: UserId.make('usr_sysadmin')
+        })
       )
       expect(failureTag(refused)).toBe('WebhookDispatchRejected')
     }
@@ -216,7 +224,7 @@ export function webhookDeliveryAdminContract(expect: ContractExpect) {
         dispatch.recordDeliveryAttempt({
           id: WebhookDeliveryId.make(`whd_admin_disable_${index}`),
           endpointId: WebhookEndpointId.make('wh_admin_b'),
-          workspaceId: 'wrk_other',
+          workspaceId: WorkspaceId.make('wrk_other'),
           eventType: 'demo.event',
           status: 'failed',
           attempts: 1,
@@ -226,7 +234,7 @@ export function webhookDeliveryAdminContract(expect: ContractExpect) {
     const disabled = yield* Effect.exit(
       deliveryAdmin.replayDeliveryAsAdmin({
         deliveryId: WebhookDeliveryId.make('whd_admin_y'),
-        actorUserId: 'usr_sysadmin'
+        actorUserId: UserId.make('usr_sysadmin')
       })
     )
     expect(Exit.isFailure(disabled)).toBe(true)

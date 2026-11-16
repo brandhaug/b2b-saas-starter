@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import {
   isSecurityNotificationKind,
   notificationKindDescription,
@@ -43,7 +44,7 @@ export function toPreferenceRow(
  * read.
  */
 export function notificationPreferencesPayload(input: {
-  readonly userId: string
+  readonly userId: UserId
   readonly locale?: Locale | undefined
 }): Effect.Effect<
   NotificationPreferencesPayload,

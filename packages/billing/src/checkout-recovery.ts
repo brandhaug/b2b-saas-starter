@@ -1,3 +1,4 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { billingCheckoutClaims } from '@b2b-saas-starter/db/schema/billing'
 import { type BillingCheckoutStatus } from '@b2b-saas-starter/db/enums'
 import { type EffectDatabase } from '@b2b-saas-starter/db/service'
@@ -60,7 +61,7 @@ function expiredByAbsence(
 
 const readCheckoutClaim = Effect.fn('Billing.readCheckoutClaim')(function* (
   deps: CheckoutDependencies,
-  workspaceId: string
+  workspaceId: WorkspaceId
 ) {
   const rows = yield* deps.unavailable(
     deps.db
@@ -82,7 +83,7 @@ export const recoverCheckoutClaim = Effect.fn('Billing.recoverCheckoutClaim')(
   function* (
     deps: CheckoutDependencies,
     input: {
-      readonly workspaceId: string
+      readonly workspaceId: WorkspaceId
       readonly secretKey: Redacted.Redacted<string>
       readonly lease: BillingLease
       readonly customerId?: string | undefined

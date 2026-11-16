@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { workspaceSuspensionStatuses } from '@b2b-saas-starter/db/enums'
 import { Context, type Effect, Schema } from 'effect'
 import { type PermissionRequest } from '@b2b-saas-starter/authz/client'
@@ -92,16 +93,16 @@ export function workspaceSuspensionExplanation(
 }
 
 export const WorkspaceSuspension = Schema.Struct({
-  workspaceId: Schema.String,
+  workspaceId: WorkspaceId,
   status: WorkspaceSuspensionStatus,
   customerExplanation: Schema.NullOr(Schema.String),
   changedAt: Schema.NullOr(Schema.String),
-  changedByUserId: Schema.NullOr(Schema.String)
+  changedByUserId: Schema.NullOr(UserId)
 })
 export type WorkspaceSuspension = typeof WorkspaceSuspension.Type
 
 export type WorkspaceSuspensionSummary = {
-  readonly id: string
+  readonly id: WorkspaceId
   readonly slug: string
   readonly name: string
   readonly suspension: WorkspaceSuspension
@@ -145,13 +146,13 @@ export function workspaceSuspensionOperationForPermission(
 }
 
 export type WorkspaceSuspensionActor = {
-  readonly userId: string
+  readonly userId: UserId
   /** Set from the current session; an impersonated admin cannot transition suspension. */
-  readonly impersonatedBy?: string | null | undefined
+  readonly impersonatedBy?: UserId | null | undefined
 }
 
 export type WorkspaceSuspensionTransitionInput = {
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   readonly action: WorkspaceSuspensionAction
   readonly actor: WorkspaceSuspensionActor
   /** Retained for platform operators only; never included in customer notifications. */
@@ -166,10 +167,10 @@ export type WorkspaceSuspensionInterface = {
     CapabilityUnavailable
   >
   readonly get: (
-    workspaceId: string
+    workspaceId: WorkspaceId
   ) => Effect.Effect<WorkspaceSuspension, CapabilityUnavailable | WorkspaceSuspended>
   readonly requireAllowed: (
-    workspaceId: string,
+    workspaceId: WorkspaceId,
     operation: WorkspaceSuspensionOperation
   ) => Effect.Effect<void, CapabilityUnavailable | WorkspaceSuspended>
   readonly transition: (

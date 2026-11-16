@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
 import { user } from '@b2b-saas-starter/db/schema/auth'
 import { Database } from '@b2b-saas-starter/db/service'
@@ -22,14 +23,14 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           yield* db
             .update(user)
             .set({ twoFactorEnabled: true })
-            .where(eq(user.id, 'usr_owner'))
+            .where(eq(user.id, UserId.make('usr_owner')))
           const read = Effect.flatMap(
             WorkspaceOnboarding,
             (onboarding) => onboarding.actorTwoFactorEnabled
           )
-          expect(yield* inWorkspace('live-lab', read, { userId: 'usr_owner' })).toBe(
-            true
-          )
+          expect(
+            yield* inWorkspace('live-lab', read, { userId: UserId.make('usr_owner') })
+          ).toBe(true)
           expect(yield* inWorkspace('live-lab', read)).toBe(false)
         })
       )
@@ -46,7 +47,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             return { before, first, second, after }
           })
           const result = yield* inWorkspace('live-lab', program, {
-            userId: 'usr_owner'
+            userId: UserId.make('usr_owner')
           })
           expect(result.before).toBeNull()
           expect(result.first).toBe(true)
@@ -58,7 +59,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             .from(auditEvents)
             .where(
               and(
-                eq(auditEvents.workspaceId, 'wrk_live'),
+                eq(auditEvents.workspaceId, WorkspaceId.make('wrk_live')),
                 eq(auditEvents.eventType, 'workspace.onboarding_dismissed')
               )
             )

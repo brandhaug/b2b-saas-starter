@@ -1,3 +1,5 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
+import { type WorkspaceSuspensionRequest } from '@/lib/server/admin'
 import { useForm } from '@tanstack/react-form'
 
 import { ActionFeedback } from '@/components/page/action-feedback'
@@ -17,14 +19,17 @@ export type WorkspaceSuspension = {
 
 export type SuspendWorkspace = (input: {
   readonly data: {
-    readonly workspaceId: string
+    readonly workspaceId: WorkspaceSuspensionRequest['workspaceId']
     readonly internalReason: string
     readonly customerExplanation: string
   }
 }) => Promise<WorkspaceSuspensionResult | undefined>
 
 export type ReactivateWorkspace = (input: {
-  readonly data: { readonly workspaceId: string; readonly internalReason: string }
+  readonly data: {
+    readonly workspaceId: WorkspaceSuspensionRequest['workspaceId']
+    readonly internalReason: string
+  }
 }) => Promise<WorkspaceSuspensionResult | undefined>
 
 /**
@@ -39,7 +44,7 @@ export function WorkspaceSuspensionPanel({
   suspend,
   reactivate
 }: {
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   readonly workspaceName: string
   readonly suspension: WorkspaceSuspension
   readonly suspend: SuspendWorkspace

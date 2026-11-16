@@ -1,3 +1,4 @@
+import { type UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { narrowFailure } from '@b2b-saas-starter/failure/narrowing'
 import { annotateWideEvent } from '@b2b-saas-starter/logger'
 import { Context, Effect, Layer, Schema, Result } from 'effect'
@@ -14,16 +15,16 @@ export const ConversationExportManifest = Schema.Array(
 export type ConversationExportManifest = typeof ConversationExportManifest.Type
 export const ExportedConversation = Schema.Struct({
   id: Schema.String,
-  workspaceId: Schema.String,
+  workspaceId: WorkspaceId,
   history: Schema.Json
 })
 export type ExportedConversation = typeof ExportedConversation.Type
 
 export type ExportAuthority = {
   readonly conversationId: string
-  readonly workspaceId: string
-  readonly creatorUserId: string
-  readonly userId: string
+  readonly workspaceId: WorkspaceId
+  readonly creatorUserId: UserId
+  readonly userId: UserId
   readonly sessionId: string
   readonly policyRevision: number
 }
@@ -41,13 +42,13 @@ export type AssistantLifecycleBinding = {
   ) => Effect.Effect<boolean, ConversationUnavailable>
   readonly destroyConversation: (input: {
     readonly conversationId: string
-    readonly workspaceId: string
-    readonly creatorUserId: string
+    readonly workspaceId: WorkspaceId
+    readonly creatorUserId: UserId
   }) => Effect.Effect<void, ConversationUnavailable>
 }
 type AssistantConversationLifecycleInterface = {
   readonly collectForExport: (
-    userId: string,
+    userId: UserId,
     sessionId: string
   ) => Effect.Effect<
     {
@@ -57,12 +58,12 @@ type AssistantConversationLifecycleInterface = {
     CapabilityUnavailable
   >
   readonly validateExport: (
-    userId: string,
+    userId: UserId,
     sessionId: string,
     manifest: ConversationExportManifest
   ) => Effect.Effect<void, CapabilityUnavailable>
   readonly deleteOwned: (
-    userId: string,
+    userId: UserId,
     conversationId: string
   ) => Effect.Effect<void, CapabilityUnavailable>
   readonly cleanup: (limit?: number) => Effect.Effect<number, CapabilityUnavailable>
@@ -102,7 +103,7 @@ export function AssistantConversationLifecycleLayer(
       )
       const validateExport = Effect.fn('AssistantConversationLifecycle.validateExport')(
         function* (
-          userId: string,
+          userId: UserId,
           sessionId: string,
           manifest: ConversationExportManifest
         ) {

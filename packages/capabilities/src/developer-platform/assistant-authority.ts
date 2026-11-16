@@ -1,3 +1,4 @@
+import { type UserId, type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import {
   ASSISTANT_READ_SCOPE,
   ASSISTANT_WRITE_SCOPE,
@@ -30,8 +31,8 @@ import { McpClientConnections } from './mcp-client-connections.ts'
 
 export type AssistantAuthorityInput = {
   readonly credential: AssistantCredentialReference
-  readonly workspaceId: string
-  readonly creatorUserId?: string
+  readonly workspaceId: WorkspaceId
+  readonly creatorUserId?: UserId
   readonly requiredPermissions: ReadonlyArray<string>
   readonly operation: 'read' | 'write'
 } & (

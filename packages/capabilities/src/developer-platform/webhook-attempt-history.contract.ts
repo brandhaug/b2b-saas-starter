@@ -1,4 +1,8 @@
-import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import {
+  WebhookDeliveryId,
+  WebhookEndpointId,
+  WorkspaceId
+} from '@b2b-saas-starter/db/ids'
 import { type WebhookDeliveryAttemptInput } from './webhook-delivery-plan.ts'
 import { Effect } from 'effect'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
@@ -50,7 +54,10 @@ export function webhookAttemptHistoryCases(
         yield* service.update({ endpointId: endpoint.id, enabled: true })
         expect(yield* dispatch.isDeliverySettled(identity)).toBe(true)
         expect(
-          yield* dispatch.isDeliverySettled({ ...identity, workspaceId: 'wrk_other' })
+          yield* dispatch.isDeliverySettled({
+            ...identity,
+            workspaceId: WorkspaceId.make('wrk_other')
+          })
         ).toBe(false)
         expect(
           yield* dispatch.isDeliverySettled({
@@ -450,7 +457,7 @@ export function webhookAttemptHistoryCases(
         const foreign = yield* dispatch.recordTerminalDeliveryAttempt({
           ...input,
           deliveryId: WebhookDeliveryId.make('whd_history_foreign'),
-          workspaceId: 'wrk_foreign'
+          workspaceId: WorkspaceId.make('wrk_foreign')
         })
         expect(foreign.recorded).toBe(false)
         expect(

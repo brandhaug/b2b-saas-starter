@@ -1,4 +1,4 @@
-import { ApiTokenId } from '@b2b-saas-starter/db/ids'
+import { ApiTokenId, UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Effect } from 'effect'
 import { count, eq, getTableName, is, Table } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest'
@@ -191,13 +191,13 @@ describe('column modes over live D1', () => {
       Effect.gen(function* () {
         const database = yield* Database
         yield* database.insert(workspaces).values({
-          id: 'wrk_json_check',
+          id: WorkspaceId.make('wrk_json_check'),
           slug: 'json-check',
           name: 'JSON check'
         })
         yield* database.insert(apiTokens).values({
           id: ApiTokenId.make('tok_json_check'),
-          workspaceId: 'wrk_json_check',
+          workspaceId: WorkspaceId.make('wrk_json_check'),
           name: 'JSON check',
           tokenPrefix: 'bsk_live_json',
           tokenHash: 'hash_json_check',
@@ -224,7 +224,7 @@ describe('workspace timestamps over live D1', () => {
         const database = yield* Database
         const createdAt = createdAtFixture
         yield* database.insert(workspaces).values({
-          id: 'wrk_epoch',
+          id: WorkspaceId.make('wrk_epoch'),
           slug: 'epoch-check',
           name: 'Epoch check',
           createdAt,
@@ -233,7 +233,7 @@ describe('workspace timestamps over live D1', () => {
         const rows = yield* database
           .select()
           .from(workspaces)
-          .where(eq(workspaces.id, 'wrk_epoch'))
+          .where(eq(workspaces.id, WorkspaceId.make('wrk_epoch')))
         expect(rows[0]?.createdAt).toEqual(createdAt)
 
         // Read around Drizzle to prove the stored value is a number, not text.
@@ -255,13 +255,15 @@ describe('workspace timestamps over live D1', () => {
     run(
       Effect.gen(function* () {
         const database = yield* Database
-        yield* database
-          .insert(workspaces)
-          .values({ id: 'wrk_default', slug: 'default-check', name: 'Default check' })
+        yield* database.insert(workspaces).values({
+          id: WorkspaceId.make('wrk_default'),
+          slug: 'default-check',
+          name: 'Default check'
+        })
         const rows = yield* database
           .select()
           .from(workspaces)
-          .where(eq(workspaces.id, 'wrk_default'))
+          .where(eq(workspaces.id, WorkspaceId.make('wrk_default')))
         expect(rows[0]?.planId).toBe('starter')
         expect(rows[0]?.createdAt).toBeInstanceOf(Date)
       })
@@ -275,32 +277,34 @@ describe('referential integrity over live D1', () => {
       Effect.gen(function* () {
         const database = yield* Database
         yield* database.insert(workspaces).values({
-          id: 'wrk_cascade',
+          id: WorkspaceId.make('wrk_cascade'),
           slug: 'cascade-check',
           name: 'Cascade check'
         })
-        yield* database
-          .insert(user)
-          .values({ id: 'usr_cascade', email: 'cascade@live.test', name: 'Cascade' })
+        yield* database.insert(user).values({
+          id: UserId.make('usr_cascade'),
+          email: 'cascade@live.test',
+          name: 'Cascade'
+        })
         // Both tables changed owner in this migration, so their cascade edge is
         // new — assert it alongside the ones that only changed shape.
         yield* database.insert(workspaceMembers).values({
-          id: 'mem_cascade',
-          workspaceId: 'wrk_cascade',
-          userId: 'usr_cascade',
+          id: UserId.make('mem_cascade'),
+          workspaceId: WorkspaceId.make('wrk_cascade'),
+          userId: UserId.make('usr_cascade'),
           role: 'owner'
         })
         yield* database.insert(workspaceInvitations).values({
           id: 'inv_cascade',
-          workspaceId: 'wrk_cascade',
+          workspaceId: WorkspaceId.make('wrk_cascade'),
           email: 'invitee@live.test',
           role: 'member',
           expiresAt: expiresAtFixture,
-          inviterId: 'usr_cascade'
+          inviterId: UserId.make('usr_cascade')
         })
         yield* database.insert(apiTokens).values({
           id: ApiTokenId.make('tok_cascade'),
-          workspaceId: 'wrk_cascade',
+          workspaceId: WorkspaceId.make('wrk_cascade'),
           name: 'Cascade token',
           tokenPrefix: 'bsk_live_casc',
           tokenHash: 'hash_cascade',
@@ -309,28 +313,30 @@ describe('referential integrity over live D1', () => {
         })
         yield* database.insert(notifications).values({
           id: 'not_cascade',
-          workspaceId: 'wrk_cascade',
+          workspaceId: WorkspaceId.make('wrk_cascade'),
           title: 'Cascade notification',
           message: 'gone with the workspace',
           createdAt: iso
         })
-        yield* database.delete(workspaces).where(eq(workspaces.id, 'wrk_cascade'))
+        yield* database
+          .delete(workspaces)
+          .where(eq(workspaces.id, WorkspaceId.make('wrk_cascade')))
         const tokens = yield* database
           .select({ value: count() })
           .from(apiTokens)
-          .where(eq(apiTokens.workspaceId, 'wrk_cascade'))
+          .where(eq(apiTokens.workspaceId, WorkspaceId.make('wrk_cascade')))
         const feed = yield* database
           .select({ value: count() })
           .from(notifications)
-          .where(eq(notifications.workspaceId, 'wrk_cascade'))
+          .where(eq(notifications.workspaceId, WorkspaceId.make('wrk_cascade')))
         const members = yield* database
           .select({ value: count() })
           .from(workspaceMembers)
-          .where(eq(workspaceMembers.workspaceId, 'wrk_cascade'))
+          .where(eq(workspaceMembers.workspaceId, WorkspaceId.make('wrk_cascade')))
         const invitations = yield* database
           .select({ value: count() })
           .from(workspaceInvitations)
-          .where(eq(workspaceInvitations.workspaceId, 'wrk_cascade'))
+          .where(eq(workspaceInvitations.workspaceId, WorkspaceId.make('wrk_cascade')))
         expect({
           tokens: tokens[0]?.value,
           notifications: feed[0]?.value,
@@ -350,31 +356,35 @@ describe('workspace membership over live D1', () => {
     run(
       Effect.gen(function* () {
         const database = yield* Database
-        yield* database
-          .insert(user)
-          .values({ id: 'usr_dup', email: 'dup@live.test', name: 'Duplicate' })
-        yield* database
-          .insert(workspaces)
-          .values({ id: 'wrk_dup', slug: 'dup-check', name: 'Duplicate check' })
+        yield* database.insert(user).values({
+          id: UserId.make('usr_dup'),
+          email: 'dup@live.test',
+          name: 'Duplicate'
+        })
+        yield* database.insert(workspaces).values({
+          id: WorkspaceId.make('wrk_dup'),
+          slug: 'dup-check',
+          name: 'Duplicate check'
+        })
         yield* database.insert(workspaceMembers).values({
-          id: 'mem_dup_first',
-          workspaceId: 'wrk_dup',
-          userId: 'usr_dup',
+          id: UserId.make('mem_dup_first'),
+          workspaceId: WorkspaceId.make('wrk_dup'),
+          userId: UserId.make('usr_dup'),
           role: 'owner'
         })
         // A different surrogate id, so only the unique index can refuse it.
         const error = yield* Effect.flip(
           database.insert(workspaceMembers).values({
             id: 'mem_dup_second',
-            workspaceId: 'wrk_dup',
-            userId: 'usr_dup',
+            workspaceId: WorkspaceId.make('wrk_dup'),
+            userId: UserId.make('usr_dup'),
             role: 'member'
           })
         )
         const rows = yield* database
           .select({ value: count() })
           .from(workspaceMembers)
-          .where(eq(workspaceMembers.workspaceId, 'wrk_dup'))
+          .where(eq(workspaceMembers.workspaceId, WorkspaceId.make('wrk_dup')))
         expect(error).toBeDefined()
         expect(rows[0]?.value).toBe(1)
       })
@@ -390,20 +400,24 @@ describe('workspace invitations over live D1', () => {
     run(
       Effect.gen(function* () {
         const database = yield* Database
-        yield* database
-          .insert(user)
-          .values({ id: 'usr_inviter', email: 'inviter@live.test', name: 'Inviter' })
-        yield* database
-          .insert(workspaces)
-          .values({ id: 'wrk_invite', slug: 'invite-check', name: 'Invite check' })
+        yield* database.insert(user).values({
+          id: UserId.make('usr_inviter'),
+          email: 'inviter@live.test',
+          name: 'Inviter'
+        })
+        yield* database.insert(workspaces).values({
+          id: WorkspaceId.make('wrk_invite'),
+          slug: 'invite-check',
+          name: 'Invite check'
+        })
         const expiresAt = expiresAtFixture
         yield* database.insert(workspaceInvitations).values({
-          id: 'inv_pending',
-          workspaceId: 'wrk_invite',
+          id: UserId.make('inv_pending'),
+          workspaceId: WorkspaceId.make('wrk_invite'),
           email: 'invitee@live.test',
           role: 'member',
           expiresAt,
-          inviterId: 'usr_inviter'
+          inviterId: UserId.make('usr_inviter')
         })
         const rows = yield* database
           .select()
@@ -419,21 +433,25 @@ describe('workspace invitations over live D1', () => {
     run(
       Effect.gen(function* () {
         const database = yield* Database
-        yield* database
-          .insert(user)
-          .values({ id: 'usr_gone', email: 'gone@live.test', name: 'Gone' })
-        yield* database
-          .insert(workspaces)
-          .values({ id: 'wrk_gone', slug: 'gone-check', name: 'Gone check' })
+        yield* database.insert(user).values({
+          id: UserId.make('usr_gone'),
+          email: 'gone@live.test',
+          name: 'Gone'
+        })
+        yield* database.insert(workspaces).values({
+          id: WorkspaceId.make('wrk_gone'),
+          slug: 'gone-check',
+          name: 'Gone check'
+        })
         yield* database.insert(workspaceInvitations).values({
-          id: 'inv_orphan',
-          workspaceId: 'wrk_gone',
+          id: UserId.make('inv_orphan'),
+          workspaceId: WorkspaceId.make('wrk_gone'),
           email: 'orphan@live.test',
           role: 'member',
           expiresAt: expiresAtFixture,
-          inviterId: 'usr_gone'
+          inviterId: UserId.make('usr_gone')
         })
-        yield* database.delete(user).where(eq(user.id, 'usr_gone'))
+        yield* database.delete(user).where(eq(user.id, UserId.make('usr_gone')))
         const rows = yield* database
           .select({ value: count() })
           .from(workspaceInvitations)
@@ -450,7 +468,7 @@ describe('batch atomicity over live D1', () => {
       Effect.gen(function* () {
         const database = yield* Database
         yield* database.insert(workspaces).values({
-          id: 'wrk_batch_existing',
+          id: WorkspaceId.make('wrk_batch_existing'),
           slug: 'batch-existing',
           name: 'Batch existing'
         })
@@ -459,12 +477,12 @@ describe('batch atomicity over live D1', () => {
         const error = yield* Effect.flip(
           batch([
             database.insert(workspaces).values({
-              id: 'wrk_batch_new',
+              id: WorkspaceId.make('wrk_batch_new'),
               slug: 'batch-new',
               name: 'Batch new'
             }),
             database.insert(workspaces).values({
-              id: 'wrk_batch_existing',
+              id: WorkspaceId.make('wrk_batch_existing'),
               slug: 'batch-duplicate',
               name: 'Batch duplicate'
             })
@@ -473,7 +491,7 @@ describe('batch atomicity over live D1', () => {
         const rows = yield* database
           .select()
           .from(workspaces)
-          .where(eq(workspaces.id, 'wrk_batch_new'))
+          .where(eq(workspaces.id, WorkspaceId.make('wrk_batch_new')))
         expect(error).toBeInstanceOf(DbBatchError)
         expect(rows).toHaveLength(0)
       })

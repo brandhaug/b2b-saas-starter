@@ -1,4 +1,8 @@
-import { WebhookDeliveryId, type WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import {
+  WebhookDeliveryId,
+  type WebhookEndpointId,
+  WorkspaceId
+} from '@b2b-saas-starter/db/ids'
 import { Effect, Exit } from 'effect'
 
 import { type PlanLimitExceeded } from '@b2b-saas-starter/billing/errors'
@@ -47,7 +51,7 @@ type WebhookInvestigationTaskContractCase = {
 type PreparedDelivery = {
   readonly endpointId: WebhookEndpointId
   readonly deliveryId: WebhookDeliveryId
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   readonly eventType: string
 }
 
@@ -102,7 +106,7 @@ export function prepareInvestigationDelivery(
 }
 
 const foreignWorkspace = {
-  id: 'wrk_investigation_foreign',
+  id: WorkspaceId.make('wrk_investigation_foreign'),
   slug: 'investigation-foreign-lab',
   name: 'Investigation Foreign Lab',
   planId: 'team'

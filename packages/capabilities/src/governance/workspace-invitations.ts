@@ -1,3 +1,4 @@
+import { type UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { invitationStatuses } from '@b2b-saas-starter/db/enums'
 import { Context, DateTime, Effect, Option, Schema } from 'effect'
 
@@ -119,7 +120,7 @@ export type InvitationRef = {
  * look one up in.
  */
 export type AcceptInvitationInput = InvitationRef & {
-  readonly userId: string
+  readonly userId: UserId
   readonly email: string
 }
 
@@ -131,7 +132,7 @@ export type AcceptInvitationInput = InvitationRef & {
  */
 const InvitationDetail = Schema.Struct({
   ...Invitation.fields,
-  workspaceId: Schema.String,
+  workspaceId: WorkspaceId,
   workspaceSlug: Schema.String,
   workspaceName: Schema.String
 })
@@ -214,7 +215,7 @@ export class WorkspaceInvitations extends Context.Service<
  */
 export type WorkspaceInvitationBinding = {
   readonly create: (input: {
-    readonly workspaceId: string
+    readonly workspaceId: WorkspaceId
     readonly email: string
     readonly role: WorkspaceRole
   }) => Promise<void>

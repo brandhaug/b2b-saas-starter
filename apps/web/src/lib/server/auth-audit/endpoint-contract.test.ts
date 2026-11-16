@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { revokeSession, revokeSessions, revokeOtherSessions } from 'better-auth/api'
 import { admin } from 'better-auth/plugins/admin'
 import { describe, expect, it } from 'vite-plus/test'
@@ -12,13 +13,18 @@ describe('installed Better Auth endpoint contract', () => {
   ])('records target-user evidence for $endpoint.path', ({ endpoint, kind }) => {
     const exchange = { method: 'POST', pathname: `/api/auth${endpoint.path}` }
     expect(
-      recoveryEvidence(exchange, { actorUserId: 'admin', targetUserId: 'target' })
+      recoveryEvidence(exchange, {
+        actorUserId: UserId.make('admin'),
+        targetUserId: UserId.make('target')
+      })
     ).toEqual({ kind, subjectId: 'target' })
-    expect(recoveryEvidence(exchange, { actorUserId: 'admin' })).toBeUndefined()
+    expect(
+      recoveryEvidence(exchange, { actorUserId: UserId.make('admin') })
+    ).toBeUndefined()
     expect(
       recoveryEvidence(
         { ...exchange, method: 'GET' },
-        { actorUserId: 'admin', targetUserId: 'target' }
+        { actorUserId: UserId.make('admin'), targetUserId: UserId.make('target') }
       )
     ).toBeUndefined()
   })
@@ -27,7 +33,7 @@ describe('installed Better Auth endpoint contract', () => {
     expect(
       recoveryEvidence(
         { method: 'POST', pathname: `/api/auth${admin().endpoints.unbanUser.path}` },
-        { actorUserId: 'admin', targetUserId: 'target' }
+        { actorUserId: UserId.make('admin'), targetUserId: UserId.make('target') }
       )
     ).toBeUndefined()
   })
@@ -38,12 +44,17 @@ describe('installed Better Auth endpoint contract', () => {
       const exchange = { method: 'POST', pathname: `/api/auth${endpoint.path}` }
       expect(needsPreHandlerActor(exchange)).toBe(true)
       expect(exchangeRow(exchange)?.success).toBe('auth.session_revoked')
-      expect(recoveryEvidence(exchange, { actorUserId: 'actor' })).toEqual({
-        kind: 'sessions_revoked',
-        subjectId: 'actor'
-      })
+      expect(recoveryEvidence(exchange, { actorUserId: UserId.make('actor') })).toEqual(
+        {
+          kind: 'sessions_revoked',
+          subjectId: 'actor'
+        }
+      )
       expect(
-        recoveryEvidence({ ...exchange, method: 'GET' }, { actorUserId: 'actor' })
+        recoveryEvidence(
+          { ...exchange, method: 'GET' },
+          { actorUserId: UserId.make('actor') }
+        )
       ).toBeUndefined()
     }
   )
@@ -56,7 +67,10 @@ describe('installed Better Auth endpoint contract', () => {
     })
     expect(exchangeRow(exchange)?.targetFrom).toEqual(['session-token'])
     expect(
-      recoveryEvidence(exchange, { actorUserId: 'admin', targetUserId: 'target' })
+      recoveryEvidence(exchange, {
+        actorUserId: UserId.make('admin'),
+        targetUserId: UserId.make('target')
+      })
     ).toEqual({
       kind: 'sessions_revoked',
       subjectId: 'target'

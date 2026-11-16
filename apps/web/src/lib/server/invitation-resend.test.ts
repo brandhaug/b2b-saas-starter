@@ -1,5 +1,6 @@
 // oxlint-disable-next-line import/no-unassigned-import -- Installs the explicit authenticated-session test fixture.
 import '@/test/qualified-session'
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { Deferred, Effect, Layer, ManagedRuntime } from 'effect'
 import * as TestClock from 'effect/testing/TestClock'
@@ -14,7 +15,11 @@ import type * as CapabilitiesModule from '../capabilities'
 function makeRuntime() {
   return ManagedRuntime.make(
     Layer.merge(
-      selectWorkspaceLayer({}, 'starter-lab', WorkspaceCaller.user('usr_demo')),
+      selectWorkspaceLayer(
+        {},
+        'starter-lab',
+        WorkspaceCaller.user(UserId.make('usr_demo'))
+      ),
       TestClock.layer()
     )
   )

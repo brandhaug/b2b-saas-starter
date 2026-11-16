@@ -7,7 +7,10 @@ import {
   defaultAuditView
 } from '@b2b-saas-starter/capabilities/governance/audit-event-view'
 import { Option, Schema } from 'effect'
-import { type WorkspaceAuditPayload } from '@/lib/server/workspace-audit'
+import {
+  type WorkspaceAuditFilterInput,
+  type WorkspaceAuditPayload
+} from '@/lib/server/workspace-audit'
 import { parseTableView, type TableViewField } from '@/lib/table-view'
 
 /**
@@ -120,8 +123,8 @@ export function auditFiltersFromSearch(search: {
   readonly eventType?: string | undefined
   readonly since?: string | undefined
   readonly until?: string | undefined
-}): WorkspaceAuditPayload['filters'] {
-  const filters: WorkspaceAuditPayload['filters'] = {}
+}): WorkspaceAuditFilterInput {
+  const filters: WorkspaceAuditFilterInput = {}
   if (search.actor !== undefined) {
     filters.actorUserId = search.actor
   }

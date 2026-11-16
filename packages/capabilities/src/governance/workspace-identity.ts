@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { systemRoles, workspaceRoles } from '@b2b-saas-starter/db/enums'
 import { user } from '@b2b-saas-starter/db/schema/auth'
 import { workspaceMembers } from '@b2b-saas-starter/db/schema/workspaces'
@@ -29,7 +30,7 @@ export const SystemRole = Schema.Literals(SYSTEM_ROLES)
 export type SystemRole = typeof SystemRole.Type
 
 export const Workspace = Schema.Struct({
-  id: Schema.String,
+  id: WorkspaceId,
   slug: Schema.String,
   name: Schema.String,
   planId: Schema.String
@@ -37,7 +38,7 @@ export const Workspace = Schema.Struct({
 export type Workspace = typeof Workspace.Type
 
 export const Member = Schema.Struct({
-  id: Schema.String,
+  id: UserId,
   name: Schema.String,
   email: Schema.String,
   role: WorkspaceRole,
@@ -53,7 +54,7 @@ export type Member = typeof Member.Type
  * address.
  */
 export function fabricateSeedMember(
-  userId: string,
+  userId: UserId,
   role: WorkspaceRole,
   email?: string
 ): Member {
@@ -74,7 +75,7 @@ export function fabricateSeedMember(
  * columns are decided once.
  */
 export function toWorkspace(row: {
-  readonly id: string
+  readonly id: WorkspaceId
   readonly slug: string
   readonly name: string
   readonly planId: string
@@ -114,7 +115,7 @@ export function toMember(row: MemberRow): Member {
  */
 export function findWorkspaceMember(
   db: EffectDatabase,
-  input: { readonly workspaceId: string; readonly userId: string }
+  input: { readonly workspaceId: WorkspaceId; readonly userId: UserId }
 ): Effect.Effect<Member | undefined, CapabilityUnavailable> {
   return orUnavailable('workspace-membership')(
     db
@@ -139,7 +140,7 @@ export function findWorkspaceMember(
  */
 export function countWorkspaceOwners(
   db: EffectDatabase,
-  workspaceId: string
+  workspaceId: WorkspaceId
 ): Effect.Effect<number, CapabilityUnavailable> {
   return orUnavailable('workspace-membership')(
     db
@@ -158,7 +159,7 @@ export function countWorkspaceOwners(
  */
 export function requireMemberRowId<E>(
   db: EffectDatabase,
-  input: { readonly workspaceId: string; readonly userId: string },
+  input: { readonly workspaceId: WorkspaceId; readonly userId: UserId },
   makeRejection: () => E
 ): Effect.Effect<string, E | CapabilityUnavailable> {
   return orUnavailable('workspace-membership')(

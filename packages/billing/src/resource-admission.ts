@@ -1,3 +1,4 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { DateTime, Effect } from 'effect'
 import {
   apiTokens,
@@ -42,7 +43,7 @@ export function activeLeafTokenWhere(now: string) {
 }
 
 /** Current replacement leaves count for both admission and execution. */
-export function eligibleTokenWhere(workspaceId: string, now: string) {
+export function eligibleTokenWhere(workspaceId: WorkspaceId, now: string) {
   return and(eq(apiTokens.workspaceId, workspaceId), activeLeafTokenWhere(now))
 }
 

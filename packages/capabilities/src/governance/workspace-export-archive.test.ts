@@ -1,7 +1,9 @@
 import {
   ApiTokenId,
+  UserId,
   WebhookDeliveryId,
-  WebhookEndpointId
+  WebhookEndpointId,
+  WorkspaceId
 } from '@b2b-saas-starter/db/ids'
 // oxlint-disable effect/noAsyncFunction -- the gzip round-trip is promise-based by construction; the suite drives bytes, not Effects
 import { describe, expect, it } from 'vite-plus/test'
@@ -18,10 +20,15 @@ import {
 const snapshot: WorkspaceExportSnapshot = {
   exportId: 'exp_fixed',
   generatedAt: '2026-08-25T10:30:44.000Z',
-  workspace: { id: 'wrk_fixed', slug: 'fixed-lab', name: 'Fixed Lab', planId: 'team' },
+  workspace: {
+    id: WorkspaceId.make('wrk_fixed'),
+    slug: 'fixed-lab',
+    name: 'Fixed Lab',
+    planId: 'team'
+  },
   members: [
     {
-      id: 'usr_a',
+      id: UserId.make('usr_a'),
       name: 'Ada',
       email: 'ada@example.com',
       role: 'owner',

@@ -1,3 +1,4 @@
+import { type UserId, type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { workspaceAuditAttribution } from '@b2b-saas-starter/billing/ports'
 import { user } from '@b2b-saas-starter/db/schema/auth'
 import { workspaces } from '@b2b-saas-starter/db/schema/workspaces'
@@ -63,7 +64,7 @@ export class WorkspaceOnboarding extends Context.Service<
 
 export type SeedWorkspaceOnboardingOptions = {
   /** User ids whose fixture account has two-factor enabled. */
-  readonly twoFactorUserIds?: ReadonlyArray<string> | undefined
+  readonly twoFactorUserIds?: ReadonlyArray<UserId> | undefined
   /** Workspaces whose checklist starts dismissed, keyed by workspace id. */
   readonly dismissedAt?: ReadonlyMap<string, string> | undefined
 }
@@ -140,7 +141,7 @@ export const LiveWorkspaceOnboarding: Layer.Layer<
 
     /** `null` when the checklist is still showing; the column is nullable. */
     function readDismissedAt(
-      workspaceId: string
+      workspaceId: WorkspaceId
     ): Effect.Effect<Date | null, CapabilityUnavailable> {
       return unavailable(
         db

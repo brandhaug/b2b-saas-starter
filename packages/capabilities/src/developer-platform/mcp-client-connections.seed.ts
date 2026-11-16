@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { Effect, Layer } from 'effect'
 
 import { AuditEventLog } from '../governance/audit-event-log.ts'
@@ -53,7 +54,7 @@ export function SeedMcpClientConnections(
       const audit = yield* AuditEventLog
       const connections: Array<
         McpClientConnection & {
-          readonly userId: string
+          readonly userId: UserId
           readonly grantVersion: number
         }
       > = seed.connections.map((connection) => ({

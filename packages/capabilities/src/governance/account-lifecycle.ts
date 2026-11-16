@@ -1,3 +1,4 @@
+import { type UserId, type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Context, type Effect, Schema } from 'effect'
 
 import { type AccountDeletionBlocked, type AccountDeletionRejected } from '../errors.ts'
@@ -142,7 +143,7 @@ export function deletionMetadata(plan: AccountDeletionPlan): DeletionMetadata {
 }
 
 export type DeleteAccountInput = {
-  readonly userId: string
+  readonly userId: UserId
   /**
    * The user's current password. Re-authentication is the store's job — the
    * Live binding hands it to Better Auth's `deleteUser`, which verifies it
@@ -158,7 +159,7 @@ export type AccountLifecycleInterface = {
    * new owner before they try.
    */
   readonly planDeletion: (
-    userId: string
+    userId: UserId
   ) => Effect.Effect<AccountDeletionPlan, CapabilityUnavailable>
 
   /**
@@ -175,7 +176,7 @@ export type AccountLifecycleInterface = {
    * (see `AccountLifecycleBinding`). Seed runs it inline from `deleteAccount`.
    */
   readonly prepareDeletion: (
-    userId: string
+    userId: UserId
   ) => Effect.Effect<
     AccountDeletionPlan,
     CapabilityUnavailable | AccountDeletionBlocked | AccountDeletionRejected
@@ -187,7 +188,7 @@ export type AccountLifecycleInterface = {
    * be referenced, so the target names them instead.
    */
   readonly recordDeleted: (input: {
-    readonly userId: string
+    readonly userId: UserId
     readonly plan: AccountDeletionPlan
   }) => Effect.Effect<void, CapabilityUnavailable>
 
@@ -228,7 +229,7 @@ export class AccountLifecycle extends Context.Service<
  */
 export type AccountLifecycleBinding = {
   readonly leaveWorkspace: (input: {
-    readonly workspaceId: string
+    readonly workspaceId: WorkspaceId
     /**
      * The membership row's own id — kept for the Seed adapter, which resolves
      * members by row id. The Live binding uses the plugin's session-resolved
@@ -237,6 +238,8 @@ export type AccountLifecycleBinding = {
      */
     readonly memberId: string
   }) => Promise<void>
-  readonly deleteWorkspace: (input: { readonly workspaceId: string }) => Promise<void>
+  readonly deleteWorkspace: (input: {
+    readonly workspaceId: WorkspaceId
+  }) => Promise<void>
   readonly deleteUser: (input: { readonly password: string }) => Promise<void>
 }

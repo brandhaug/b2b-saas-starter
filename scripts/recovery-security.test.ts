@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { execFile } from 'node:child_process'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -26,7 +27,7 @@ const bundle: SecurityEvidenceBundle = {
       id: 'sec_1',
       kind: 'workspace_access_removed',
       subjectId: "usr_'quoted",
-      workspaceId: 'wrk_1',
+      workspaceId: WorkspaceId.make('wrk_1'),
       occurredAt: '2026-09-07T12:00:00.000Z',
       source: 'live'
     },
@@ -51,8 +52,8 @@ describe('recovery security sanitation', () => {
             id: 'sec_conversation',
             kind: 'assistant_conversation_deleted',
             subjectId: 'conversation',
-            workspaceId: 'workspace',
-            creatorUserId: 'creator',
+            workspaceId: WorkspaceId.make('workspace'),
+            creatorUserId: UserId.make('creator'),
             occurredAt: '2026-09-07T12:00:00.000Z',
             source: 'live'
           }
@@ -189,7 +190,7 @@ describe('recovery security sanitation', () => {
             id: 'workspace-demote',
             kind: 'workspace_access_removed',
             subjectId: 'usr_admin',
-            workspaceId: 'wrk_restore',
+            workspaceId: WorkspaceId.make('wrk_restore'),
             occurredAt: '2026-09-07T12:00:00Z',
             source: 'live'
           },
@@ -197,7 +198,7 @@ describe('recovery security sanitation', () => {
             id: 'workspace-promote',
             kind: 'workspace_access_removed',
             subjectId: 'usr_admin',
-            workspaceId: 'wrk_restore',
+            workspaceId: WorkspaceId.make('wrk_restore'),
             occurredAt: '2026-09-07T13:00:00Z',
             source: 'live'
           },
@@ -365,7 +366,7 @@ describe('recovery security sanitation', () => {
               id: 'sec_invalid_time',
               kind: 'workspace_access_removed',
               subjectId: 'usr_invalid_time',
-              workspaceId: 'wrk_1',
+              workspaceId: WorkspaceId.make('wrk_1'),
               occurredAt: 'not-a-timestamp',
               source: 'live'
             }

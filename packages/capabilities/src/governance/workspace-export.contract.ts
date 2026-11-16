@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Effect } from 'effect'
 
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -100,7 +101,7 @@ export function workspaceExportContractCases(
         expect(
           yield* exports.fail({
             exportId: requested.id,
-            workspaceId: 'wrk_not_this_one',
+            workspaceId: WorkspaceId.make('wrk_not_this_one'),
             reason: 'contract_foreign'
           })
         ).toBe(false)

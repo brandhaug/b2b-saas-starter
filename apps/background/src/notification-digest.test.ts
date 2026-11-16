@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import {
   NotificationFeed,
   type NotificationEmailContext,
@@ -25,9 +26,21 @@ import { TestClock } from 'effect/testing'
 
 import { buildDigests, runNotificationDigest } from './notification-digest.ts'
 
-const owner = { userId: 'usr_owner', email: 'owner@example.com', name: 'Owner' }
-const member = { userId: 'usr_member', email: 'member@example.com', name: 'Member' }
-const workspace = { id: 'wrk_1', slug: 'starter-lab', name: 'Starter Lab' }
+const owner = {
+  userId: UserId.make('usr_owner'),
+  email: 'owner@example.com',
+  name: 'Owner'
+}
+const member = {
+  userId: UserId.make('usr_member'),
+  email: 'member@example.com',
+  name: 'Member'
+}
+const workspace = {
+  id: WorkspaceId.make('wrk_1'),
+  slug: 'starter-lab',
+  name: 'Starter Lab'
+}
 
 function candidate(
   recipient: typeof owner,
@@ -141,7 +154,11 @@ describe('runNotificationDigest', () => {
 
   const preferences = SeedNotificationPreferences([
     // The member turned webhook failures off; everything else is on defaults.
-    { userId: member.userId, kind: 'webhook.delivery_failed', channel: 'off' }
+    {
+      userId: UserId.make(member.userId),
+      kind: 'webhook.delivery_failed',
+      channel: 'off'
+    }
   ]).pipe(Layer.provide(SeedAuditEventLog([])))
   const activeSuspension = Layer.succeed(WorkspaceSuspensionService)({
     list: Effect.succeed([]),
@@ -176,7 +193,9 @@ describe('runNotificationDigest', () => {
         get: () => Effect.die('unused'),
         requireAllowed: () => {
           if (suspended) {
-            return Effect.fail(new WorkspaceSuspended({ workspaceId: 'wrk_1' }))
+            return Effect.fail(
+              new WorkspaceSuspended({ workspaceId: WorkspaceId.make('wrk_1') })
+            )
           }
           return Effect.void
         },

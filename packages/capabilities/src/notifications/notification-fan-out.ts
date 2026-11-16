@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { Array as Arr, Effect, Result } from 'effect'
 import { annotateWideEvent } from '@b2b-saas-starter/logger'
 
@@ -12,7 +13,7 @@ import { type Locale } from '@b2b-saas-starter/i18n/locale'
 import { type NotificationPreferencesInterface } from './notification-preferences.ts'
 
 export type EmailQueueRecipient = {
-  readonly userId: string
+  readonly userId: UserId
   readonly email: string
   readonly name: string
   /** Saved account locale, when the recipient has selected one. */

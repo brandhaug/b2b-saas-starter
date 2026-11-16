@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import {
   readPluginBindingFailure,
   type PluginBindingFailure
@@ -57,17 +58,20 @@ const CALLS: ReadonlyArray<BindingCall> = [
   {
     name: 'removeMember',
     call: () =>
-      webMemberBinding.removeMember({ workspaceId: 'ws_1', memberId: 'mbr_1' })
+      webMemberBinding.removeMember({
+        workspaceId: WorkspaceId.make('ws_1'),
+        memberId: 'mbr_1'
+      })
   },
   {
     name: 'leave',
-    call: () => webMemberBinding.leave({ workspaceId: 'ws_1' })
+    call: () => webMemberBinding.leave({ workspaceId: WorkspaceId.make('ws_1') })
   },
   {
     name: 'changeRole',
     call: () =>
       webMemberBinding.changeRole({
-        workspaceId: 'ws_1',
+        workspaceId: WorkspaceId.make('ws_1'),
         memberId: 'mbr_1',
         role: 'member'
       })

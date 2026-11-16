@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { WorkspaceContext, testResolvedWorkspaceContext } from '../workspace-context.ts'
 import { WebhookEndpoints } from '../developer-platform/webhook-endpoints.ts'
 import { Deferred, Effect, Layer, Ref, Redacted } from 'effect'
@@ -38,18 +39,27 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         () =>
           Effect.gen(function* () {
             const db = yield* Database
-            yield* db.delete(apiTokens).where(eq(apiTokens.workspaceId, 'wrk_live'))
+            yield* db
+              .delete(apiTokens)
+              .where(eq(apiTokens.workspaceId, WorkspaceId.make('wrk_live')))
             yield* db
               .delete(webhookEndpoints)
-              .where(eq(webhookEndpoints.workspaceId, 'wrk_live'))
+              .where(eq(webhookEndpoints.workspaceId, WorkspaceId.make('wrk_live')))
             yield* db
               .delete(workspaceResourceSelections)
-              .where(eq(workspaceResourceSelections.workspaceId, 'wrk_live'))
+              .where(
+                eq(
+                  workspaceResourceSelections.workspaceId,
+                  WorkspaceId.make('wrk_live')
+                )
+              )
             yield* db
               .delete(workspaceSubscriptions)
-              .where(eq(workspaceSubscriptions.workspaceId, 'wrk_live'))
+              .where(
+                eq(workspaceSubscriptions.workspaceId, WorkspaceId.make('wrk_live'))
+              )
             yield* db.insert(workspaceSubscriptions).values({
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               stripeCustomerId: 'cus_resources',
               stripeSubscriptionId: 'sub_resources',
               subscribedPlanId: 'team',
@@ -60,7 +70,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               'live-lab',
               resourceEntitlementsContract(expect),
               {
-                userId: 'usr_owner'
+                userId: UserId.make('usr_owner')
               },
               {
                 webhookQueue: {
@@ -80,18 +90,22 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
       () =>
         Effect.gen(function* () {
           const db = yield* Database
-          yield* db.delete(apiTokens).where(eq(apiTokens.workspaceId, 'wrk_live'))
+          yield* db
+            .delete(apiTokens)
+            .where(eq(apiTokens.workspaceId, WorkspaceId.make('wrk_live')))
           yield* db
             .delete(webhookEndpoints)
-            .where(eq(webhookEndpoints.workspaceId, 'wrk_live'))
+            .where(eq(webhookEndpoints.workspaceId, WorkspaceId.make('wrk_live')))
           yield* db
             .delete(workspaceResourceSelections)
-            .where(eq(workspaceResourceSelections.workspaceId, 'wrk_live'))
+            .where(
+              eq(workspaceResourceSelections.workspaceId, WorkspaceId.make('wrk_live'))
+            )
           yield* db
             .delete(workspaceSubscriptions)
-            .where(eq(workspaceSubscriptions.workspaceId, 'wrk_live'))
+            .where(eq(workspaceSubscriptions.workspaceId, WorkspaceId.make('wrk_live')))
           yield* db.insert(workspaceSubscriptions).values({
-            workspaceId: 'wrk_live',
+            workspaceId: WorkspaceId.make('wrk_live'),
             stripeCustomerId: 'cus_admission',
             stripeSubscriptionId: 'sub_admission',
             subscribedPlanId: 'starter',
@@ -101,7 +115,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             lastPaymentAt: '2026-09-01T00:00:00.000Z'
           })
           yield* inWorkspace('live-lab', resourceAdmissionContract(expect), {
-            userId: 'usr_owner'
+            userId: UserId.make('usr_owner')
           })
         })
     )
@@ -125,7 +139,11 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             const ctx = yield* WorkspaceContext
             const foreignContext = {
               ...ctx,
-              workspace: { ...ctx.workspace, id: 'wrk_other', slug: 'other-lab' }
+              workspace: {
+                ...ctx.workspace,
+                id: WorkspaceId.make('wrk_other'),
+                slug: 'other-lab'
+              }
             }
             const foreignToken = yield* tokens
               .create({ name: 'foreign credential', scopes: ['read'] })
@@ -171,7 +189,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                       )
                     return yield* dispatch.getDispatchTarget(
                       foreignEndpoint.endpoint.id,
-                      'wrk_other',
+                      WorkspaceId.make('wrk_other'),
                       sent.deliveryId
                     )
                   })
@@ -180,11 +198,13 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             ).toBe('CapabilityUnavailable')
             expect(
               failureTag(
-                yield* Effect.exit(selection.getSelectionForWorkspace('wrk_other'))
+                yield* Effect.exit(
+                  selection.getSelectionForWorkspace(WorkspaceId.make('wrk_other'))
+                )
               )
             ).toBe('CapabilityUnavailable')
           }),
-          { userId: 'usr_owner' },
+          { userId: UserId.make('usr_owner') },
           {
             webhookQueue: {
               send: () => Promise.resolve(),
@@ -229,7 +249,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 ).toBe('CapabilityUnavailable')
                 expect(yield* storedSelections).toEqual(before)
               }),
-              { userId: 'usr_owner' }
+              { userId: UserId.make('usr_owner') }
             ),
           () =>
             Effect.promise(() =>
@@ -294,7 +314,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               new Set(replacements.map((token) => token.id))
             )
           }),
-          { userId: 'usr_owner' }
+          { userId: UserId.make('usr_owner') }
         )
     )
   }

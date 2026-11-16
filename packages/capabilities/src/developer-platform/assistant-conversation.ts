@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { narrowFailure } from '@b2b-saas-starter/failure/narrowing'
 import { DateTime, Effect, Schema } from 'effect'
 
@@ -295,7 +296,7 @@ export function conversationTitle(question: string): string {
 
 export const ConversationSummary = Schema.Struct({
   id: Schema.String,
-  workspaceId: Schema.String,
+  workspaceId: WorkspaceId,
   createdAt: Schema.String,
   title: Schema.NullOr(Schema.String),
   activeAttempt: Schema.NullOr(ConversationAttempt),

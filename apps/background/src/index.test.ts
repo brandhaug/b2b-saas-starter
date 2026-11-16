@@ -1,4 +1,8 @@
-import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import {
+  WebhookDeliveryId,
+  WebhookEndpointId,
+  WorkspaceId
+} from '@b2b-saas-starter/db/ids'
 import {
   nextConsecutiveFailures,
   failureLadderAction,
@@ -28,7 +32,7 @@ import { readDelivery } from './queue-consumer.ts'
 const message: WebhookQueueMessage = {
   deliveryId: WebhookDeliveryId.make('whd_qmsg_1'),
   endpointId: WebhookEndpointId.make('wh_1'),
-  workspaceId: 'ws_1',
+  workspaceId: WorkspaceId.make('ws_1'),
   eventType: 'api_token.created',
   payload: { hello: 'world' }
 }
@@ -58,7 +62,7 @@ const rotatingTarget = {
 function resolveTarget(
   dispatchTarget: typeof target | null,
   endpointId: WebhookEndpointId,
-  workspaceId: string
+  workspaceId: WorkspaceId
 ): typeof target | null {
   if (endpointId === dispatchTarget?.id && workspaceId === 'ws_1') {
     return dispatchTarget

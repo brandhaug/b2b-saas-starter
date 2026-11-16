@@ -1,3 +1,4 @@
+import { type UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { workspaceAuditAttribution } from '@b2b-saas-starter/billing/ports'
 import { AssistantDirectory } from '../assistant/directory.ts'
 import { Billing } from '@b2b-saas-starter/billing/billing'
@@ -46,7 +47,7 @@ export type CreatedWorkspace = typeof CreatedWorkspace.Type
 export type CreateWorkspaceInput = {
   readonly name: string
   readonly slug: string
-  readonly userId: string
+  readonly userId: UserId
 }
 
 type WorkspaceLifecycleInterface = {
@@ -95,13 +96,13 @@ export type WorkspaceLifecycleBinding = {
   readonly create: (input: {
     readonly name: string
     readonly slug: string
-    readonly userId: string
+    readonly userId: UserId
   }) => Promise<void>
   readonly rename: (input: {
-    readonly workspaceId: string
+    readonly workspaceId: WorkspaceId
     readonly name: string
   }) => Promise<void>
-  readonly remove: (input: { readonly workspaceId: string }) => Promise<void>
+  readonly remove: (input: { readonly workspaceId: WorkspaceId }) => Promise<void>
 }
 
 const { callBinding } = makeBindingCaller<
@@ -165,7 +166,7 @@ export function SeedWorkspaceLifecycle(options: {
             input.slug,
             existing.map((each) => each.slug)
           )
-          const id = yield* newCapabilityId('wrk')
+          const id = WorkspaceId.make(yield* newCapabilityId('wrk'))
           const workspace: CreatedWorkspace = {
             id,
             slug: input.slug,

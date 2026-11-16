@@ -1,3 +1,4 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { useClipboard } from '@/hooks/use-clipboard'
 import { CopyIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -10,7 +11,7 @@ export function SupportDetails({
   appVersion
 }: {
   readonly routeName: 'help' | 'workspace' | 'application'
-  readonly workspaceId?: string | undefined
+  readonly workspaceId?: WorkspaceId | undefined
   readonly appVersion?: string | undefined
 }) {
   const details = [`Route: ${routeName}`]

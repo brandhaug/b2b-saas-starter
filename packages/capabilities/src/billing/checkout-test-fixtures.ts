@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import {
   testPrice,
   testItem,
@@ -37,7 +38,7 @@ import {
   type DurableCheckoutInput
 } from '@b2b-saas-starter/billing/checkout.live'
 
-export const workspaceId = 'wrk_live'
+export const workspaceId = WorkspaceId.make('wrk_live')
 export const secretKey = Redacted.make('sk_test_checkout')
 
 export type FixtureOptions = {
@@ -363,7 +364,7 @@ export const reset = Effect.gen(function* () {
     .where(
       and(
         eq(workspaceMembers.workspaceId, workspaceId),
-        eq(workspaceMembers.userId, 'usr_joiner')
+        eq(workspaceMembers.userId, UserId.make('usr_joiner'))
       )
     )
 })
@@ -379,7 +380,7 @@ export function checkoutInput(
     successUrl: 'https://example.test/success',
     cancelUrl: 'https://example.test/cancel',
     secretKey,
-    actorUserId: 'usr_owner',
+    actorUserId: UserId.make('usr_owner'),
     actorType: 'user',
     ...overrides
   }
@@ -437,7 +438,7 @@ export function durable<A, E>(
           )
         )
       ),
-      { userId: 'usr_owner' }
+      { userId: UserId.make('usr_owner') }
     )
   )
 }

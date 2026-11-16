@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { type Session } from '@b2b-saas-starter/auth'
 import { Effect } from 'effect'
 
@@ -32,7 +33,11 @@ import { Effect } from 'effect'
  * a forgotten actor must be a type error, not a silent test-as-owner.
  */
 export type FixtureSession = {
-  /** The acting user's id — the actor `requireRequestSession` vouches for. */
+  /**
+   * The acting user's id — the actor `requireRequestSession` vouches for.
+   * A plain string because tests declare it in `vi.hoisted`, which runs before
+   * imports; `fixtureSession` brands it the way `brandSession` does.
+   */
   readonly userId: string
   /** The acting user's address; defaults to the id's seed address shape. */
   readonly email?: string | undefined
@@ -42,7 +47,8 @@ export type FixtureSession = {
 }
 
 export function fixtureSession(overrides: FixtureSession): Session {
-  const userId = overrides.userId
+  const userId = UserId.make(overrides.userId)
+  const impersonatedBy = overrides.impersonatedBy
   const expiresAt = new Date('2099-01-01T00:00:00.000Z')
   const session = {
     user: {
@@ -67,7 +73,10 @@ export function fixtureSession(overrides: FixtureSession): Session {
       ipAddress: null,
       userAgent: null,
       activeOrganizationId: null,
-      impersonatedBy: overrides.impersonatedBy ?? null
+      impersonatedBy:
+        impersonatedBy === null || impersonatedBy === undefined
+          ? null
+          : UserId.make(impersonatedBy)
     }
   }
   // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion, anti-slop/require-safety-comment-for-type-assertion -- a stand-in for the plugin-inferred `Session`, carrying exactly the fields this app's gates read; every field below exists on the real shape with the same type, so the assertion cannot hide a wrong read

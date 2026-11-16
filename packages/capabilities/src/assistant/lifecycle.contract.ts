@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { ConversationUnavailable } from '../developer-platform/assistant-conversation.ts'
 import { Effect } from 'effect'
 import { type ContractExpect } from '../governance/contract-expect.ts'
@@ -16,13 +17,15 @@ export function assistantLifecycleContractCases(expect: ContractExpect) {
         const directory = yield* AssistantDirectory
         yield* directory.create({
           id: 'unconfigured-export',
-          workspaceId: 'concurrent',
-          creatorUserId: 'other'
+          workspaceId: WorkspaceId.make('concurrent'),
+          creatorUserId: UserId.make('other')
         })
         yield* Effect.gen(function* () {
           const lifecycle = yield* AssistantConversationLifecycle
           expect(
-            yield* lifecycle.collectForExport('other', 'session').pipe(Effect.result)
+            yield* lifecycle
+              .collectForExport(UserId.make('other'), 'session')
+              .pipe(Effect.result)
           ).toMatchObject({
             _tag: 'Failure',
             failure: {
@@ -39,13 +42,13 @@ export function assistantLifecycleContractCases(expect: ContractExpect) {
         const directory = yield* AssistantDirectory
         yield* directory.create({
           id: 'export-visible',
-          workspaceId: 'workspace',
-          creatorUserId: 'export-owner'
+          workspaceId: WorkspaceId.make('workspace'),
+          creatorUserId: UserId.make('export-owner')
         })
         yield* directory.create({
           id: 'export-other',
-          workspaceId: 'workspace',
-          creatorUserId: 'other'
+          workspaceId: WorkspaceId.make('workspace'),
+          creatorUserId: UserId.make('other')
         })
         const host: AssistantLifecycleBinding = {
           exportConversation: () =>
@@ -57,7 +60,10 @@ export function assistantLifecycleContractCases(expect: ContractExpect) {
         }
         yield* Effect.gen(function* () {
           const lifecycle = yield* AssistantConversationLifecycle
-          const result = yield* lifecycle.collectForExport('export-owner', 'session')
+          const result = yield* lifecycle.collectForExport(
+            UserId.make('export-owner'),
+            'session'
+          )
           expect(result.conversations).toHaveLength(1)
           expect(result.conversations[0]?.history).toEqual({
             questions: [
@@ -74,7 +80,7 @@ export function assistantLifecycleContractCases(expect: ContractExpect) {
           yield* directory.raisePolicy('export-visible', ['webhook:list'])
           expect(
             (yield* lifecycle
-              .validateExport('export-owner', 'session', result.manifest)
+              .validateExport(UserId.make('export-owner'), 'session', result.manifest)
               .pipe(Effect.result))._tag
           ).toBe('Failure')
         }).pipe(
@@ -89,8 +95,8 @@ export function assistantLifecycleContractCases(expect: ContractExpect) {
         const directory = yield* AssistantDirectory
         yield* directory.create({
           id: 'export-restoration',
-          workspaceId: 'workspace',
-          creatorUserId: 'restore-owner'
+          workspaceId: WorkspaceId.make('workspace'),
+          creatorUserId: UserId.make('restore-owner')
         })
         let authorized = true
         const host: AssistantLifecycleBinding = {
@@ -100,22 +106,34 @@ export function assistantLifecycleContractCases(expect: ContractExpect) {
         }
         yield* Effect.gen(function* () {
           const lifecycle = yield* AssistantConversationLifecycle
-          const result = yield* lifecycle.collectForExport('restore-owner', 'session')
+          const result = yield* lifecycle.collectForExport(
+            UserId.make('restore-owner'),
+            'session'
+          )
           authorized = false
           expect(
             (yield* lifecycle
-              .validateExport('restore-owner', 'session', result.manifest)
+              .validateExport(UserId.make('restore-owner'), 'session', result.manifest)
               .pipe(Effect.result))._tag
           ).toBe('Failure')
-          yield* directory.invalidateAccess({ creatorUserId: 'restore-owner' })
+          yield* directory.invalidateAccess({
+            creatorUserId: UserId.make('restore-owner')
+          })
           authorized = true
           expect(
             (yield* lifecycle
-              .validateExport('restore-owner', 'session', result.manifest)
+              .validateExport(UserId.make('restore-owner'), 'session', result.manifest)
               .pipe(Effect.result))._tag
           ).toBe('Failure')
-          const fresh = yield* lifecycle.collectForExport('restore-owner', 'session')
-          yield* lifecycle.validateExport('restore-owner', 'session', fresh.manifest)
+          const fresh = yield* lifecycle.collectForExport(
+            UserId.make('restore-owner'),
+            'session'
+          )
+          yield* lifecycle.validateExport(
+            UserId.make('restore-owner'),
+            'session',
+            fresh.manifest
+          )
         }).pipe(
           Effect.provide(AssistantConversationLifecycleLayer(host)),
           Effect.provideService(AssistantDirectory, directory)
@@ -128,8 +146,8 @@ export function assistantLifecycleContractCases(expect: ContractExpect) {
         const directory = yield* AssistantDirectory
         yield* directory.create({
           id: 'cleanup',
-          workspaceId: 'workspace',
-          creatorUserId: 'cleanup-owner'
+          workspaceId: WorkspaceId.make('workspace'),
+          creatorUserId: UserId.make('cleanup-owner')
         })
         let shouldFail = true
         const deleted: Array<string> = []
@@ -147,9 +165,9 @@ export function assistantLifecycleContractCases(expect: ContractExpect) {
         }
         yield* Effect.gen(function* () {
           const lifecycle = yield* AssistantConversationLifecycle
-          yield* lifecycle.deleteOwned('other', 'cleanup')
+          yield* lifecycle.deleteOwned(UserId.make('other'), 'cleanup')
           expect((yield* directory.get('cleanup'))?.deletedAt).toBe(null)
-          yield* lifecycle.deleteOwned('cleanup-owner', 'cleanup')
+          yield* lifecycle.deleteOwned(UserId.make('cleanup-owner'), 'cleanup')
           expect((yield* directory.get('cleanup'))?.deletedAt === null).toBe(false)
           expect((yield* lifecycle.cleanup().pipe(Effect.result))._tag).toBe('Failure')
           expect((yield* directory.get('cleanup'))?.cleanedAt).toBe(null)

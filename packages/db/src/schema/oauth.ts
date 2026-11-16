@@ -1,3 +1,4 @@
+import { type UserId, type WorkspaceId } from '../ids.ts'
 import { sql } from 'drizzle-orm'
 import { Schema } from 'effect'
 import { jsonText } from '../json-column.ts'
@@ -50,7 +51,9 @@ export const oauthClient = sqliteTable(
     clientCredentialsScopes: authStringArray('clientCredentialsScopes').default(
       sql`'[]'`
     ),
-    userId: text('userId').references(() => user.id),
+    userId: text('userId')
+      .$type<UserId>()
+      .references(() => user.id),
     createdAt: integer('createdAt', { mode: 'timestamp' }),
     updatedAt: integer('updatedAt', { mode: 'timestamp' }),
     name: text('name'),
@@ -139,9 +142,10 @@ export const oauthRefreshToken = sqliteTable(
     // Retain the grant's originating identity after natural browser-session cleanup.
     sessionId: text('sessionId'),
     userId: text('userId')
+      .$type<UserId>()
       .notNull()
       .references(() => user.id),
-    referenceId: text('referenceId'),
+    referenceId: text('referenceId').$type<WorkspaceId>(),
     authorizationCodeId: text('authorizationCodeId'),
     resources: authStringArray('resources'),
     requestedUserInfoClaims: authStringArray('requestedUserInfoClaims'),
@@ -173,8 +177,10 @@ export const oauthAccessToken = sqliteTable(
       .notNull()
       .references(() => oauthClient.clientId),
     sessionId: text('sessionId').references(() => session.id, { onDelete: 'set null' }),
-    userId: text('userId').references(() => user.id),
-    referenceId: text('referenceId'),
+    userId: text('userId')
+      .$type<UserId>()
+      .references(() => user.id),
+    referenceId: text('referenceId').$type<WorkspaceId>(),
     authorizationCodeId: text('authorizationCodeId'),
     resources: authStringArray('resources'),
     requestedUserInfoClaims: authStringArray('requestedUserInfoClaims'),
@@ -210,8 +216,10 @@ export const oauthConsent = sqliteTable(
     clientId: text('clientId')
       .notNull()
       .references(() => oauthClient.clientId),
-    userId: text('userId').references(() => user.id),
-    referenceId: text('referenceId'),
+    userId: text('userId')
+      .$type<UserId>()
+      .references(() => user.id),
+    referenceId: text('referenceId').$type<WorkspaceId>(),
     resources: authStringArray('resources'),
     requestedUserInfoClaims: authStringArray('requestedUserInfoClaims'),
     scopes: authStringArray('scopes').notNull(),

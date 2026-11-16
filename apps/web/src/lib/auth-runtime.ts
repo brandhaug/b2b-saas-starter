@@ -4,6 +4,7 @@
 // the hooks import resolves on first auth use, long after every module in the
 // cycle has finished evaluating, and the browser bundle never resolves it.
 // fallow-ignore-file circular-dependencies
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { Auth, AuthConfig } from '@b2b-saas-starter/auth'
 import {
   activeSocialProviders,
@@ -60,7 +61,7 @@ const AuthConfigLive = Layer.sync(AuthConfig)(() => {
     // server/social-account-audit.ts).
     accountHooks: socialAccountAuditHooks,
     hasRecentAuthentication,
-    invalidateAssistantAuthority: async ({ userId }: { readonly userId: string }) => {
+    invalidateAssistantAuthority: async ({ userId }: { readonly userId: UserId }) => {
       const { runCapabilities } = await import('./capabilities')
       const { AssistantDirectory } =
         await import('@b2b-saas-starter/capabilities/assistant/directory')

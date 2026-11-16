@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { type ImpersonationStarted } from '@b2b-saas-starter/capabilities/governance/platform-user-admin'
 import { useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
@@ -18,7 +19,7 @@ import { m } from '@b2b-saas-starter/i18n/messages'
 
 /** The one server call this action makes, as a port. */
 export type ImpersonateUser = (input: {
-  readonly data: { readonly userId: string }
+  readonly data: { readonly userId: UserId }
 }) => Promise<ImpersonationStarted>
 
 /**

@@ -1,3 +1,4 @@
+import { type UserId, type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Effect, Result, Schema } from 'effect'
 import * as TestClock from 'effect/testing/TestClock'
 
@@ -27,20 +28,20 @@ const decodeArchive = Schema.decodeUnknownSync(
 
 /** What one harness planted for the account the cases export. */
 export type PersonalDataExportSubject = {
-  readonly userId: string
+  readonly userId: UserId
   readonly sessionId: string
   /** A second live session of the same user: a download must refuse it. */
   readonly otherSessionId: string
   /** Another account with its own live session, whose download must refuse too. */
-  readonly otherUser: { readonly userId: string; readonly sessionId: string }
+  readonly otherUser: { readonly userId: UserId; readonly sessionId: string }
   /** A user id no adapter has an account for. */
-  readonly unknownUserId: string
+  readonly unknownUserId: UserId
   /** The ids the requester's archive must report, section by section. */
   readonly expected: {
-    readonly workspaceIds: ReadonlyArray<string>
+    readonly workspaceIds: ReadonlyArray<WorkspaceId>
     readonly notifications: ReadonlyArray<{
       readonly id: string
-      readonly workspaceId: string
+      readonly workspaceId: WorkspaceId
     }>
     readonly sessionIds: ReadonlyArray<string>
     readonly linkedAccountIds: ReadonlyArray<string>

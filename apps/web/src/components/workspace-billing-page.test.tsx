@@ -250,7 +250,7 @@ describe('billing synchronization polling', () => {
 describe('WorkspaceBillingPage route', () => {
   it('reconciles an authorized checkout return once and refreshes after success', async () => {
     const reconcile = vi.fn<ReconcileCheckout>(async () => ({
-      workspaceId: 'wrk_starter',
+      workspaceId: WorkspaceId.make('wrk_starter'),
       outcome: 'delayed',
       drift: ['provider_snapshot_missing']
     }))
@@ -275,7 +275,7 @@ describe('WorkspaceBillingPage route', () => {
       expect(screen.getByText(/billing updates are pending/i)).not.toBeNull()
     )
     deferredReconcile.resolve({
-      workspaceId: 'wrk_starter',
+      workspaceId: WorkspaceId.make('wrk_starter'),
       outcome: 'delayed',
       drift: ['provider_snapshot_missing']
     })
@@ -295,7 +295,7 @@ describe('WorkspaceBillingPage route', () => {
 
   it('does not reconcile a crafted return for an unpermitted viewer', async () => {
     const reconcile = vi.fn<ReconcileCheckout>(async () => ({
-      workspaceId: 'wrk_starter',
+      workspaceId: WorkspaceId.make('wrk_starter'),
       outcome: 'current',
       drift: []
     }))
@@ -314,7 +314,7 @@ describe('WorkspaceBillingPage route', () => {
       .fn<ReconcileCheckout>()
       .mockRejectedValueOnce(new Error('offline'))
       .mockResolvedValue({
-        workspaceId: 'wrk_starter',
+        workspaceId: WorkspaceId.make('wrk_starter'),
         outcome: 'delayed',
         drift: ['provider_snapshot_missing']
       })
@@ -545,5 +545,5 @@ it.each(statuses)(
     }
   }
 )
-import { ApiTokenId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import { ApiTokenId, WebhookEndpointId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Schema } from 'effect'

@@ -1,4 +1,4 @@
-import { ApiTokenId } from '@b2b-saas-starter/db/ids'
+import { ApiTokenId, UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { describe, expect, it } from '@effect/vitest'
 import { Effect, Logger } from 'effect'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -28,7 +28,9 @@ const preferences: NotificationPreferencesInterface = {
 const notification = {
   notificationId: 'not_test',
   kind: 'webhook.delivery_failed',
-  recipients: [{ userId: 'usr_test', email: 'member@example.test', name: 'Member' }],
+  recipients: [
+    { userId: UserId.make('usr_test'), email: 'member@example.test', name: 'Member' }
+  ],
   traceparent: undefined
 } satisfies Parameters<typeof enqueueInstantEmails>[2]
 
@@ -52,7 +54,7 @@ describe('best-effort publication evidence', () => {
                 ),
               enqueue: () => Effect.void
             },
-            'wrk_test',
+            WorkspaceId.make('wrk_test'),
             {
               eventType: 'api_token.revoked',
               payload: { tokenId: ApiTokenId.make('tok_test') }

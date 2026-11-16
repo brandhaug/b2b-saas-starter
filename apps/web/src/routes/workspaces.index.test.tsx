@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
@@ -9,7 +10,7 @@ const user = { role: '', email: 'demo@example.test', emailVerified: true }
 
 const membership: WorkspaceDirectory[number] = {
   workspace: {
-    id: 'wrk_lab',
+    id: WorkspaceId.make('wrk_lab'),
     slug: 'starter-lab',
     name: 'Starter Lab',
     planId: 'starter'
@@ -46,7 +47,7 @@ describe('workspace picker', () => {
 
   it('offers creation from the header once the list is not empty', async () => {
     const createWorkspace = vi.fn<CreateWorkspace>().mockResolvedValue({
-      id: 'wrk_new',
+      id: WorkspaceId.make('wrk_new'),
       slug: 'acme-corp',
       name: 'Acme Corp',
       planId: 'starter'

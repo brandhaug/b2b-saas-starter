@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { eq } from 'drizzle-orm'
 import {
   MCP_CONSENT_CLAIM,
@@ -298,7 +299,7 @@ describe('mcp oauth authorization server', () => {
               db
                 .select({ resources: oauthConsent.resources })
                 .from(oauthConsent)
-                .where(eq(oauthConsent.userId, userId))
+                .where(eq(oauthConsent.userId, UserId.make(userId)))
             )
             expect(Array.isArray(savedConsent?.resources)).toBe(true)
             // 4. The client exchanges the code.
@@ -411,7 +412,7 @@ describe('mcp oauth authorization server', () => {
                 db
                   .select()
                   .from(oauthRefreshToken)
-                  .where(eq(oauthRefreshToken.userId, userId))
+                  .where(eq(oauthRefreshToken.userId, UserId.make(userId)))
               )
               expect(retainedRefresh?.sessionId).toBe(issuing.session.id)
             }
@@ -506,10 +507,13 @@ describe('mcp oauth authorization server', () => {
               db
                 .update(oauthConsent)
                 .set({ resources: [] })
-                .where(eq(oauthConsent.userId, userId))
+                .where(eq(oauthConsent.userId, UserId.make(userId)))
             )
             const [removedResource] = yield* Effect.promise(() =>
-              db.select().from(oauthConsent).where(eq(oauthConsent.userId, userId))
+              db
+                .select()
+                .from(oauthConsent)
+                .where(eq(oauthConsent.userId, UserId.make(userId)))
             )
             expect(`${removedResource?.id}:${removedResource?.grantVersion}`).not.toBe(
               payload[MCP_CONSENT_CLAIM]
@@ -533,10 +537,13 @@ describe('mcp oauth authorization server', () => {
               db
                 .update(oauthConsent)
                 .set({ resources: [resource] })
-                .where(eq(oauthConsent.userId, userId))
+                .where(eq(oauthConsent.userId, UserId.make(userId)))
             )
             const [restoredResource] = yield* Effect.promise(() =>
-              db.select().from(oauthConsent).where(eq(oauthConsent.userId, userId))
+              db
+                .select()
+                .from(oauthConsent)
+                .where(eq(oauthConsent.userId, UserId.make(userId)))
             )
             expect(
               `${restoredResource?.id}:${restoredResource?.grantVersion}`

@@ -1,4 +1,8 @@
-import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import {
+  WebhookDeliveryId,
+  WebhookEndpointId,
+  type WorkspaceId
+} from '@b2b-saas-starter/db/ids'
 import {
   webhookInvestigationTaskStatuses,
   type WebhookInvestigationTaskStatus
@@ -189,11 +193,11 @@ export class WebhookInvestigationTasks extends Context.Service<
 /** The two persistence adapters share all investigation and replay behavior. */
 export type InvestigationTaskStore = {
   readonly get: (
-    workspaceId: string,
+    workspaceId: WorkspaceId,
     taskId: string
   ) => Effect.Effect<WebhookInvestigationTask | null, CapabilityUnavailable>
   readonly list: (
-    workspaceId: string
+    workspaceId: WorkspaceId
   ) => Effect.Effect<ReadonlyArray<WebhookInvestigationTask>, CapabilityUnavailable>
   readonly insert: (
     task: WebhookInvestigationTask

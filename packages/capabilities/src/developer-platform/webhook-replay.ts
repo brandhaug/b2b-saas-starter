@@ -1,5 +1,9 @@
 import { workspaceAuditAttribution } from '@b2b-saas-starter/billing/ports'
-import { WebhookDeliveryId, type WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import {
+  WebhookDeliveryId,
+  type WebhookEndpointId,
+  type WorkspaceId
+} from '@b2b-saas-starter/db/ids'
 import { Effect } from 'effect'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type RecordAuditEventInput } from '../governance/audit-event-log.ts'
@@ -42,12 +46,12 @@ type ReplayReservation = {
 type ReplayStore = {
   readonly source: (
     deliveryId: WebhookDeliveryId,
-    workspaceId: string
+    workspaceId: WorkspaceId
   ) => Effect.Effect<ReplaySource | null, CapabilityUnavailable>
   /** Atomically reserve and audit once, then return the stored identity. */
   readonly reserve: (input: {
     readonly deliveryId: WebhookDeliveryId
-    readonly workspaceId: string
+    readonly workspaceId: WorkspaceId
     readonly plan: PendingDispatchPlan
     readonly approvedEndpointUrl: string | undefined
     readonly auditEvent: RecordAuditEventInput

@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { EmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { Context, Effect, Layer, Result } from 'effect'
@@ -17,7 +18,7 @@ import {
 
 export type InstantNotificationEmailInput = {
   readonly notificationId: string
-  readonly recipientUserId: string
+  readonly recipientUserId: UserId
 }
 
 export type InstantNotificationEmailDecision =
@@ -59,7 +60,7 @@ export class NotificationEmailEligibility extends Context.Service<
 
 function notificationDeliveryId(
   notificationId: string,
-  recipientUserId: string
+  recipientUserId: UserId
 ): string {
   return `notification:${notificationId}:${recipientUserId}`
 }
@@ -67,7 +68,7 @@ function notificationDeliveryId(
 function digestSuppressionId(
   until: string,
   notificationId: string,
-  recipientUserId: string
+  recipientUserId: UserId
 ): string {
   return `digest-suppressed:${until}:${notificationId}:${recipientUserId}`
 }

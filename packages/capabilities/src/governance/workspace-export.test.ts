@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { SeedAssistantDirectory } from '../assistant/directory.seed.ts'
 import {
   BillingAuditLayer,
@@ -281,7 +282,12 @@ describe('SeedWorkspaceExports', () => {
         Layer.merge(
           SeedLayer,
           testWorkspaceContext(
-            { id: 'wrk_other', slug: 'other-lab', name: 'Other Lab', planId: 'team' },
+            {
+              id: WorkspaceId.make('wrk_other'),
+              slug: 'other-lab',
+              name: 'Other Lab',
+              planId: 'team'
+            },
             owner
           )
         )

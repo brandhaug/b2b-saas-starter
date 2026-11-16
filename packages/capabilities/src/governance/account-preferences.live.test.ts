@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { Effect } from 'effect'
 import { expect, layer } from '@effect/vitest'
 
@@ -17,13 +18,13 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         'live-lab',
         Effect.gen(function* () {
           const preferences = yield* AccountPreferencesService
-          expect(yield* preferences.get('usr_owner')).toEqual({
+          expect(yield* preferences.get(UserId.make('usr_owner'))).toEqual({
             locale: null,
             timeZone: null
           })
           expect(
             yield* preferences.set({
-              userId: 'usr_owner',
+              userId: UserId.make('usr_owner'),
               locale: 'nb',
               timeZone: 'Europe/Oslo',
               initializeTimeZone: true
@@ -35,7 +36,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           })
           expect(
             yield* preferences.set({
-              userId: 'usr_owner',
+              userId: UserId.make('usr_owner'),
               locale: 'en',
               timeZone: 'America/New_York',
               initializeTimeZone: true
@@ -43,7 +44,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           ).toEqual({ locale: 'en', timeZone: 'Europe/Oslo' })
           expect(
             yield* preferences.set({
-              userId: 'usr_owner',
+              userId: UserId.make('usr_owner'),
               timeZone: 'America/New_York',
               initializeTimeZone: true
             })
@@ -54,7 +55,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           )
           expect(changes).toHaveLength(2)
         }),
-        { userId: 'usr_owner' }
+        { userId: UserId.make('usr_owner') }
       )
     )
   }

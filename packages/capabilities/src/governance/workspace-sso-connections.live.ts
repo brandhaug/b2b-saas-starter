@@ -1,3 +1,4 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { workspaceSsoConnections } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database } from '@b2b-saas-starter/db/service'
 import { Effect, Layer, Option, Schema } from 'effect'
@@ -180,7 +181,7 @@ export function LiveSsoConnections(
        */
       // oxlint-disable-next-line starter/named-effect-operation -- shared row read; every caller is a named SsoConnections operation span
       const readInWorkspace = Effect.fnUntraced(function* (
-        workspaceId: string,
+        workspaceId: WorkspaceId,
         providerId: string
       ) {
         const rows = yield* unavailable(

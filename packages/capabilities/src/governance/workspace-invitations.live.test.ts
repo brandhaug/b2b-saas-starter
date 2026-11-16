@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { Database } from '@b2b-saas-starter/db/service'
 import { Effect } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'
@@ -22,7 +23,10 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
       const cases = workspaceInvitationsContractCases(
         {
           emailFor: (slot) => `${slot}@live-invite.test`,
-          accepter: { userId: 'usr_accepter', email: 'accepter@live-invite.test' },
+          accepter: {
+            userId: UserId.make('usr_accepter'),
+            email: 'accepter@live-invite.test'
+          },
           expired: {
             invitationId: 'inv_live_expired',
             email: 'expired@live-invite.test'
@@ -46,7 +50,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             yield* inWorkspace(
               'live-lab',
               contractCase.assert,
-              { userId: 'usr_owner' },
+              { userId: UserId.make('usr_owner') },
               {
                 invitationBinding,
                 memberBinding
@@ -71,7 +75,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 role: 'admin'
               })
             }),
-            { userId: 'usr_owner' },
+            { userId: UserId.make('usr_owner') },
             { invitationBinding: binding }
           )
 
@@ -91,7 +95,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             Effect.flatMap(AuditEventLog, (audit) =>
               Effect.map(audit.list(), (page) => page.items)
             ),
-            { userId: 'usr_owner' }
+            { userId: UserId.make('usr_owner') }
           )
           expect(events.map((event) => event.eventType)).toContain(
             'workspace_invitation.sent'
@@ -111,7 +115,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                   role: 'member'
                 })
               }),
-              { userId: 'usr_owner' }
+              { userId: UserId.make('usr_owner') }
             )
           )
           expect(error).toBeInstanceOf(CapabilityUnavailable)

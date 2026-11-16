@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { expect, it } from '@effect/vitest'
 import { Effect, Schedule, Queue, Stream, Layer, Clock, Schema } from 'effect'
 import {
@@ -68,7 +69,10 @@ it.live(
       ).toBe('conversation_manifest_stale')
       expect(
         (yield* conversations
-          .read({ ...identity, credential: { ...credential, userId: 'another-user' } })
+          .read({
+            ...identity,
+            credential: { ...credential, userId: UserId.make('another-user') }
+          })
           .pipe(Effect.flip))._tag
       ).toBe('ConversationNotFound')
       yield* conversations.remove(identity)
@@ -647,8 +651,8 @@ it.live(
       yield* directory.fence({ conversationId: row.id })
       for (const invalid of [
         { ...authority, conversationId: 'absent' },
-        { ...authority, workspaceId: 'another-workspace' },
-        { ...authority, creatorUserId: 'another-user' }
+        { ...authority, workspaceId: WorkspaceId.make('another-workspace') },
+        { ...authority, creatorUserId: UserId.make('another-user') }
       ]) {
         expect(
           (yield* host.lifecycle.destroyConversation(invalid).pipe(Effect.result))._tag

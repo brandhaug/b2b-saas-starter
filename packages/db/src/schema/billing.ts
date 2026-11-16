@@ -97,9 +97,11 @@ export const billingProviderEvents = sqliteTable(
     providerCreatedAt: text('provider_created_at'),
     // Provider evidence survives workspace deletion for the retention window;
     // the workspace link is cleared while the event identity remains inspectable.
-    workspaceId: text('workspace_id').references(() => workspaces.id, {
-      onDelete: 'set null'
-    }),
+    workspaceId: text('workspace_id')
+      .$type<WorkspaceId>()
+      .references(() => workspaces.id, {
+        onDelete: 'set null'
+      }),
     stripeCustomerId: text('stripe_customer_id'),
     stripeSubscriptionId: text('stripe_subscription_id'),
     status: text('status', { enum: billingProviderEventStatuses })
@@ -218,4 +220,4 @@ export const billingNotices = sqliteTable(
     )
   ]
 )
-import { ApiTokenId, WebhookEndpointId } from '../ids.ts'
+import { ApiTokenId, WebhookEndpointId, type WorkspaceId } from '../ids.ts'

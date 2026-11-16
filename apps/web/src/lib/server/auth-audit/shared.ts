@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { annotateWideEvent } from '@b2b-saas-starter/logger'
 import {
   AuditEventLog,
@@ -36,7 +37,7 @@ const WRITE_FAILED_REASON = 'audit event could not be written'
  * asserted; a body that does not match becomes `AuthAuditBodyUnreadable`.
  */
 const ResponseBody = Schema.Struct({
-  user: Schema.optionalKey(Schema.Struct({ id: Schema.optionalKey(Schema.String) }))
+  user: Schema.optionalKey(Schema.Struct({ id: Schema.optionalKey(UserId) }))
 })
 
 const decodeResponseBody = Schema.decodeUnknownSync(ResponseBody)
@@ -48,7 +49,7 @@ const decodeResponseBody = Schema.decodeUnknownSync(ResponseBody)
  */
 export function readResponseUserId(
   response: Response
-): Effect.Effect<string | null, AuthAuditBodyUnreadable> {
+): Effect.Effect<UserId | null, AuthAuditBodyUnreadable> {
   return Effect.tryPromise({
     try: async () => {
       const body = decodeResponseBody(await response.clone().json())
@@ -65,7 +66,7 @@ export function readResponseUserId(
  * The request-body fields of the admin endpoints this audit path reads.
  */
 const RequestBody = Schema.Struct({
-  userId: Schema.optionalKey(Schema.String)
+  userId: Schema.optionalKey(UserId)
 })
 
 const decodeRequestBody = Schema.decodeUnknownSync(RequestBody)
@@ -78,7 +79,7 @@ const decodeRequestBody = Schema.decodeUnknownSync(RequestBody)
 export function readRequestUserId(request: {
   // oxlint-disable-next-line anti-slop/no-unknown-returns -- `json()` IS the untrusted I/O boundary; `decodeRequestBody` below is the parse step that establishes the shape
   readonly json: () => Promise<unknown>
-}): Effect.Effect<string | null, AuthAuditBodyUnreadable> {
+}): Effect.Effect<UserId | null, AuthAuditBodyUnreadable> {
   return Effect.tryPromise({
     try: async () => {
       const body = decodeRequestBody(await request.json())
@@ -126,8 +127,8 @@ function writeAuditEvent(
  * request, since Better Auth consumes the original body.
  */
 export type AuthAuditContext = {
-  readonly actorUserId: string
-  readonly targetUserId?: string | null
+  readonly actorUserId: UserId
+  readonly targetUserId?: UserId | null
   /**
    * The actor's address, from the same pre-handler session read as
    * `actorUserId`. The credential-change security notification mails it on a

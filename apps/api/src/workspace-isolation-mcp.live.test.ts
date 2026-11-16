@@ -1,4 +1,4 @@
-import { ApiTokenId } from '@b2b-saas-starter/db/ids'
+import { ApiTokenId, UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { McpClientConnections } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
 import { RateLimiter } from '@b2b-saas-starter/api'
 import {
@@ -131,8 +131,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             { disableLogger: true }
           )
           function clientFor(
-            userId: string,
-            workspaceId: string,
+            userId: UserId,
+            workspaceId: WorkspaceId,
             workspaceSlug: string,
             consent: string,
             scopes = 'mcp:read mcp:write'
@@ -157,26 +157,26 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             ).pipe(Effect.map((jwt) => mcpClient(handler, `Bearer ${jwt}`)))
           }
           const a = yield* clientFor(
-            'usr_joiner',
-            'wrk_dev_contract',
+            UserId.make('usr_joiner'),
+            WorkspaceId.make('wrk_dev_contract'),
             'dev-contract-lab',
             'consent-isolation-a'
           )
           const b = yield* clientFor(
-            'usr_joiner',
-            'wrk_other',
+            UserId.make('usr_joiner'),
+            WorkspaceId.make('wrk_other'),
             'other-lab',
             'consent-isolation-b'
           )
           const other = yield* clientFor(
-            'usr_outsider',
-            'wrk_other',
+            UserId.make('usr_outsider'),
+            WorkspaceId.make('wrk_other'),
             'other-lab',
             'consent-isolation-other'
           )
           const owner = yield* clientFor(
-            'usr_owner',
-            'wrk_dev_contract',
+            UserId.make('usr_owner'),
+            WorkspaceId.make('wrk_dev_contract'),
             'dev-contract-lab',
             'consent-isolation-owner',
             'mcp:read'
@@ -241,8 +241,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           ).toBe('[]')
           // Even a signed token naming B must not borrow a grant issued for A.
           const reused = yield* clientFor(
-            'usr_joiner',
-            'wrk_other',
+            UserId.make('usr_joiner'),
+            WorkspaceId.make('wrk_other'),
             'other-lab',
             'consent-isolation-a'
           )
@@ -275,7 +275,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           expect(yield* call(other, 'list_webhooks')).toEqual(before)
           const revoked = yield* Effect.flatMap(McpClientConnections, (connections) =>
             connections.revoke({
-              userId: 'usr_joiner',
+              userId: UserId.make('usr_joiner'),
               connectionId: 'consent-isolation-a'
             })
           ).pipe(Effect.provide(selectCapabilitiesLayer({ DB })))
@@ -287,8 +287,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             `INSERT INTO oauth_consent (id,userId,clientId,referenceId,resources,scopes) VALUES ('consent-isolation-a-new','usr_joiner','isolation-client','wrk_dev_contract','["https://api.test/mcp"]','["mcp:read","mcp:write"]')`
           )
           const restored = yield* clientFor(
-            'usr_joiner',
-            'wrk_dev_contract',
+            UserId.make('usr_joiner'),
+            WorkspaceId.make('wrk_dev_contract'),
             'dev-contract-lab',
             'consent-isolation-a-new'
           )
@@ -320,8 +320,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             `UPDATE workspaces SET suspensionStatus='active' WHERE id='wrk_other'`
           )
           const rebound = yield* clientFor(
-            'usr_joiner',
-            'wrk_other',
+            UserId.make('usr_joiner'),
+            WorkspaceId.make('wrk_other'),
             'dev-contract-lab',
             'consent-isolation-b'
           )

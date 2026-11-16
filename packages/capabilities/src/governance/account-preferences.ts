@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { accountLocales } from '@b2b-saas-starter/db/enums'
 import { isLocale, type Locale } from '@b2b-saas-starter/i18n/locale'
 import { user } from '@b2b-saas-starter/db/schema/auth'
@@ -27,7 +28,7 @@ type AccountPreferencesUpdate = {
 }
 
 export type SetAccountPreferencesInput = {
-  readonly userId: string
+  readonly userId: UserId
   readonly locale?: Locale | null | undefined
   readonly timeZone?: string | null | undefined
   /** Set the browser supplied timezone only when the account has none yet. */
@@ -35,13 +36,13 @@ export type SetAccountPreferencesInput = {
 }
 
 export type SeedAccountPreference = AccountPreferences & {
-  readonly userId: string
+  readonly userId: UserId
   readonly email?: string | undefined
 }
 
 export type AccountPreferencesInterface = {
   readonly get: (
-    userId: string
+    userId: UserId
   ) => Effect.Effect<AccountPreferences, CapabilityUnavailable>
   /** Resolve preferences for an email recipient; null means no account exists. */
   readonly getByEmail: (
@@ -88,13 +89,13 @@ export function SeedAccountPreferences(
     Effect.gen(function* () {
       const audit = yield* AuditEventLog
       const store = yield* Ref.make(new Map(seed.map((row) => [row.userId, row])))
-      const byEmail = new Map<string, string>()
+      const byEmail = new Map<string, UserId>()
       for (const row of seed) {
         if (row.email !== undefined) {
           byEmail.set(row.email.toLowerCase(), row.userId)
         }
       }
-      function get(userId: string) {
+      function get(userId: UserId) {
         return Effect.map(Ref.get(store), (rows) => {
           const row = rows.get(userId)
           return {
@@ -143,7 +144,7 @@ export function SeedAccountPreferences(
               rows
             ): readonly [
               { readonly preferences: AccountPreferences; readonly changed: boolean },
-              Map<string, SeedAccountPreference>
+              Map<UserId, SeedAccountPreference>
             ] => {
               const latest = rows.get(input.userId)
               if (latest === undefined) {
@@ -231,7 +232,7 @@ export const LiveAccountPreferences: Layer.Layer<
       unavailable
     })
 
-    function get(userId: string) {
+    function get(userId: UserId) {
       return unavailable(
         db
           .select({ locale: user.locale, timeZone: user.timeZone })

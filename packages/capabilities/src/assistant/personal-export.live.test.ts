@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { describe, expect, layer } from '@effect/vitest'
 import { Clock, DateTime, Effect, Schema } from 'effect'
 import { Database } from '@b2b-saas-starter/db/service'
@@ -42,28 +43,28 @@ describe('personal conversation archive invalidation', () => {
               // keeps the workspace owned throughout the invalidation test.
               yield* db.insert(workspaceMembers).values({
                 id: 'mem_export_stable_owner',
-                workspaceId: 'wrk_live',
-                userId: 'usr_sysadmin',
+                workspaceId: WorkspaceId.make('wrk_live'),
+                userId: UserId.make('usr_sysadmin'),
                 role: 'owner'
               })
               yield* db.insert(session).values({
                 id: 'conversation-export-session',
-                userId: 'usr_owner',
+                userId: UserId.make('usr_owner'),
                 token: 'synthetic-export-token',
                 expiresAt: DateTime.toDate(DateTime.makeUnsafe(now + 86_400_000))
               })
               yield* directory.create({
                 id: 'personal-conversation',
-                workspaceId: 'wrk_live',
-                creatorUserId: 'usr_owner'
+                workspaceId: WorkspaceId.make('wrk_live'),
+                creatorUserId: UserId.make('usr_owner')
               })
               const receipt = yield* exports.request(
-                'usr_owner',
+                UserId.make('usr_owner'),
                 'conversation-export-session'
               )
               const archive = yield* decodeArchive(
                 (yield* exports.download(
-                  'usr_owner',
+                  UserId.make('usr_owner'),
                   'conversation-export-session',
                   receipt.id
                 )).json
@@ -80,11 +81,15 @@ describe('personal conversation archive invalidation', () => {
                 .set({ role: 'owner' })
                 .where(eq(workspaceMembers.id, 'mem_live_owner'))
               const stale = yield* exports
-                .download('usr_owner', 'conversation-export-session', receipt.id)
+                .download(
+                  UserId.make('usr_owner'),
+                  'conversation-export-session',
+                  receipt.id
+                )
                 .pipe(Effect.result)
               expect(stale._tag).toBe('Failure')
             }),
-            { userId: 'usr_owner' },
+            { userId: UserId.make('usr_owner') },
             { assistantLifecycle: host }
           )
       )

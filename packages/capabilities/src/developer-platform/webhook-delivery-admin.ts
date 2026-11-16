@@ -1,4 +1,9 @@
-import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import {
+  type UserId,
+  WebhookDeliveryId,
+  WebhookEndpointId,
+  type WorkspaceId
+} from '@b2b-saas-starter/db/ids'
 import { Context, Effect, Schema } from 'effect'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type RecordAuditEventInput } from '../governance/audit-event-log.ts'
@@ -37,7 +42,7 @@ export type GlobalWebhookDelivery = typeof GlobalWebhookDelivery.Type
 export type AdminReplaySource = {
   readonly id: WebhookDeliveryId
   readonly endpointId: WebhookEndpointId
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   readonly eventType: string
   readonly status: WebhookDeliveryStatus
   readonly enabled: boolean
@@ -46,7 +51,7 @@ export type AdminReplaySource = {
 
 /** Shared replay policy and audit attribution; adapters only persist and enqueue. */
 export const planAdminReplay = Effect.fn('WebhookDeliveryAdmin.planAdminReplay')(
-  function* (source: AdminReplaySource | undefined, actorUserId: string) {
+  function* (source: AdminReplaySource | undefined, actorUserId: UserId) {
     if (source === undefined) {
       return yield* Effect.fail(
         new WebhookDispatchRejected({
@@ -116,7 +121,7 @@ type WebhookDeliveryAdminInterface = {
   /** Grants no workspace membership and never provides `WorkspaceContext`. */
   readonly replayDeliveryAsAdmin: (input: {
     readonly deliveryId: WebhookDeliveryId
-    readonly actorUserId: string
+    readonly actorUserId: UserId
   }) => Effect.Effect<
     DispatchedDelivery,
     CapabilityUnavailable | WebhookDispatchRejected

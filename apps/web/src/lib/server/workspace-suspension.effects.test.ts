@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { describe, expect, it } from '@effect/vitest'
 import { Effect } from 'effect'
 
@@ -14,7 +15,7 @@ import {
   workspaceSuspensionGate
 } from './workspace-suspension.effects'
 
-function actor(userId: string, role: Actor['role']): Actor {
+function actor(userId: UserId, role: Actor['role']): Actor {
   return { userId, role, systemRole: 'user', banned: false }
 }
 
@@ -25,24 +26,33 @@ describe('workspace recovery projection', () => {
       yield* suspension.transition({
         workspaceId: seedWorkspaceRecord.id,
         action: 'suspend',
-        actor: { userId: 'usr_demo' },
+        actor: { userId: UserId.make('usr_demo') },
         internalReason: 'private operator note',
         customerExplanation: 'Update the payment method or contact support.'
       })
 
       const owner = yield* workspaceRecoveryPayload.pipe(
         Effect.provide(
-          testWorkspaceContext(seedWorkspaceRecord, actor('usr_demo', 'owner'))
+          testWorkspaceContext(
+            seedWorkspaceRecord,
+            actor(UserId.make('usr_demo'), 'owner')
+          )
         )
       )
       const admin = yield* workspaceRecoveryPayload.pipe(
         Effect.provide(
-          testWorkspaceContext(seedWorkspaceRecord, actor('usr_ops', 'admin'))
+          testWorkspaceContext(
+            seedWorkspaceRecord,
+            actor(UserId.make('usr_ops'), 'admin')
+          )
         )
       )
       const member = yield* workspaceRecoveryPayload.pipe(
         Effect.provide(
-          testWorkspaceContext(seedWorkspaceRecord, actor('usr_dev', 'member'))
+          testWorkspaceContext(
+            seedWorkspaceRecord,
+            actor(UserId.make('usr_dev'), 'member')
+          )
         )
       )
 
@@ -93,17 +103,26 @@ describe('workspace subtree gate', () => {
       // states who is *asked* to verify, not who passes.
       const owner = yield* workspaceSuspensionGate('ses_owner').pipe(
         Effect.provide(
-          testWorkspaceContext(seedWorkspaceRecord, actor('usr_demo', 'owner'))
+          testWorkspaceContext(
+            seedWorkspaceRecord,
+            actor(UserId.make('usr_demo'), 'owner')
+          )
         )
       )
       const admin = yield* workspaceSuspensionGate('ses_admin').pipe(
         Effect.provide(
-          testWorkspaceContext(seedWorkspaceRecord, actor('usr_ops', 'admin'))
+          testWorkspaceContext(
+            seedWorkspaceRecord,
+            actor(UserId.make('usr_ops'), 'admin')
+          )
         )
       )
       const member = yield* workspaceSuspensionGate('ses_member').pipe(
         Effect.provide(
-          testWorkspaceContext(seedWorkspaceRecord, actor('usr_dev', 'member'))
+          testWorkspaceContext(
+            seedWorkspaceRecord,
+            actor(UserId.make('usr_dev'), 'member')
+          )
         )
       )
       expect(owner.strongAuthenticationRequired).toBe(true)

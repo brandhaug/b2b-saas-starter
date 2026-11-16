@@ -1,3 +1,4 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { narrowFailure } from '@b2b-saas-starter/failure/narrowing'
 import { billingLifecycleStatuses, billingIntervals } from '@b2b-saas-starter/db/enums'
 import { type JsonObject } from '@b2b-saas-starter/db/schema/json'
@@ -61,12 +62,12 @@ export type ProcessProviderEventInput = {
   readonly providerEventId: string
   readonly eventType: string
   readonly providerCreatedAt?: string | undefined
-  readonly workspaceId?: string | undefined
+  readonly workspaceId?: WorkspaceId | undefined
   readonly planId?: string | undefined
   /** Event fields are routing hints only; Live re-reads Stripe authority. */
   readonly subscription?:
     | (ProviderSubscriptionHint & {
-        readonly workspaceId?: string | undefined
+        readonly workspaceId?: WorkspaceId | undefined
       })
     | undefined
   readonly detail?: JsonObject | undefined
@@ -92,7 +93,7 @@ export type ProcessProviderEventResult =
     }
 
 export type ReconcileWorkspaceInput = {
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   /** The queue or operator reason that caused this reconciliation, if known. */
   readonly reason?: string | undefined
   /** Positive provider evidence supplied by an authenticated operator retry. */
@@ -103,7 +104,7 @@ export type ReconcileWorkspaceInput = {
 }
 
 export type ReconcileResult = {
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   readonly outcome: 'current' | 'repaired' | 'delayed' | 'conflict'
   readonly drift: ReadonlyArray<string>
 }
@@ -212,7 +213,7 @@ export type DisplayedPlan = Plan & {
 export type BillingInterface = {
   /** Conservative local gate: no nonterminal subscription, open checkout, or unresolved synchronization. */
   readonly workspaceDeletionAllowed: (
-    workspaceId: string
+    workspaceId: WorkspaceId
   ) => Effect.Effect<boolean, CapabilityUnavailable>
   /**
    * Whether checkout is actually wired: the Stripe secret key is set and
@@ -225,7 +226,7 @@ export type BillingInterface = {
   readonly currentPlan: Effect.Effect<Plan, CapabilityUnavailable, WorkspaceContext>
   /** Identity-keyed plan read for credential and background execution gates. */
   readonly currentPlanForWorkspace: (
-    workspaceId: string
+    workspaceId: WorkspaceId
   ) => Effect.Effect<Plan, CapabilityUnavailable>
   readonly lifecycleStatus: Effect.Effect<
     BillingLifecycle,
@@ -292,7 +293,7 @@ export type BillingInterface = {
    * queue retries).
    */
   readonly syncSeats: (input: {
-    readonly workspaceId: string
+    readonly workspaceId: WorkspaceId
     readonly reason: string
   }) => Effect.Effect<SeatSyncResult, CapabilityUnavailable>
 }

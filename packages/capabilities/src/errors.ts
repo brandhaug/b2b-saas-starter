@@ -1,4 +1,4 @@
-import { ApiTokenId } from '@b2b-saas-starter/db/ids'
+import { ApiTokenId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Schema } from 'effect'
 
 /**
@@ -20,7 +20,7 @@ export class WorkspaceNotFound extends Schema.TaggedError<WorkspaceNotFound>()(
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call
 export class WorkspaceSuspended extends Schema.TaggedError<WorkspaceSuspended>()(
   'WorkspaceSuspended',
-  { workspaceId: Schema.String },
+  { workspaceId: WorkspaceId },
   { httpApiStatus: 403 }
 ) {
   override get message() {

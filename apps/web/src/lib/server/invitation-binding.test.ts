@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import {
   readPluginBindingFailure,
   type PluginBindingFailure
@@ -57,7 +58,7 @@ const CALLS: ReadonlyArray<BindingCall> = [
     name: 'create',
     call: () =>
       webInvitationBinding.create({
-        workspaceId: 'ws_1',
+        workspaceId: WorkspaceId.make('ws_1'),
         email: 'invitee@example.com',
         role: 'member'
       })

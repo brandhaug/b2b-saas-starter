@@ -1,3 +1,4 @@
+import { UserIdInput } from '@b2b-saas-starter/db/ids'
 import { guardFailureResponse, type RateLimited } from '@b2b-saas-starter/api/errors'
 import {
   WorkspaceExports,
@@ -37,7 +38,7 @@ import { enforceRateLimit, observed, provideWorkspace } from './request-guards.t
 const DownloadQuery = Schema.Struct({
   expires: Schema.NumberFromString,
   signature: Schema.String,
-  user: Schema.NullOr(Schema.NonEmptyString),
+  user: Schema.NullOr(UserIdInput),
   session: Schema.NullOr(Schema.NonEmptyString),
   workspace: Schema.NullOr(Schema.NonEmptyString)
 })

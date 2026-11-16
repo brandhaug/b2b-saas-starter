@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { DateTime, Effect, Exit, Layer, Redacted } from 'effect'
 import { Database, RawD1 } from '@b2b-saas-starter/db/service'
 import { apiTokens } from '@b2b-saas-starter/db/schema/developer-platform'
@@ -26,7 +27,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
   (it) => {
     for (const contractCase of apiTokenRegistryContractCases(expect)) {
       it.effect(contractCase.name, () =>
-        inWorkspace('dev-contract-lab', contractCase.assert, { userId: 'usr_owner' })
+        inWorkspace('dev-contract-lab', contractCase.assert, {
+          userId: UserId.make('usr_owner')
+        })
       )
     }
     for (const failure of [
@@ -291,7 +294,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 scopes: ['read', 'write']
               })
             }),
-            { userId: 'usr_owner' }
+            { userId: UserId.make('usr_owner') }
           )
           const plaintext = Redacted.value(created.token)
           expect(plaintext.startsWith('bsk_live_')).toBe(true)
@@ -331,7 +334,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 tokenId: created.id
               })
             }),
-            { userId: 'usr_owner' }
+            { userId: UserId.make('usr_owner') }
           )
           expect(revoked).toBe(true)
 

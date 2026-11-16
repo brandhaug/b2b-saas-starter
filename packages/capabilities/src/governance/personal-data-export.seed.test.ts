@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { describe, expect, it } from '@effect/vitest'
 import { Effect, Result, Schema } from 'effect'
 import { SeedLayer } from '../layers.ts'
@@ -17,8 +18,8 @@ describe('seed personal data export contract', () => {
       userId: demoUserIdentity.id,
       sessionId: 'seed-owner-session',
       otherSessionId: 'seed-owner-other-session',
-      otherUser: { userId: 'usr_dev', sessionId: 'seed-member-session' },
-      unknownUserId: 'unknown-user',
+      otherUser: { userId: UserId.make('usr_dev'), sessionId: 'seed-member-session' },
+      unknownUserId: UserId.make('unknown-user'),
       expected: {
         workspaceIds: [seedWorkspaceRecord.id],
         // The demo owner's own feed rows: the fixture's targeted
@@ -47,10 +48,16 @@ describe('SeedPersonalDataExports', () => {
   it.effect('gives each member only the notifications addressed to them', () =>
     Effect.gen(function* () {
       const exports = yield* PersonalDataExports
-      const memberReceipt = yield* exports.request('usr_dev', 'seed-member-session')
+      const memberReceipt = yield* exports.request(
+        UserId.make('usr_dev'),
+        'seed-member-session'
+      )
       const member = yield* decodeArchive(
-        (yield* exports.download('usr_dev', 'seed-member-session', memberReceipt.id))
-          .json
+        (yield* exports.download(
+          UserId.make('usr_dev'),
+          'seed-member-session',
+          memberReceipt.id
+        )).json
       ).pipe(Effect.orDie)
       expect(member.notifications).toEqual([
         expect.objectContaining({
@@ -59,10 +66,16 @@ describe('SeedPersonalDataExports', () => {
           read: false
         })
       ])
-      const ownerReceipt = yield* exports.request('usr_demo', 'seed-owner-session')
+      const ownerReceipt = yield* exports.request(
+        UserId.make('usr_demo'),
+        'seed-owner-session'
+      )
       const owner = yield* decodeArchive(
-        (yield* exports.download('usr_demo', 'seed-owner-session', ownerReceipt.id))
-          .json
+        (yield* exports.download(
+          UserId.make('usr_demo'),
+          'seed-owner-session',
+          ownerReceipt.id
+        )).json
       ).pipe(Effect.orDie)
       expect(owner.notifications).toEqual([])
     }).pipe(Effect.provide(SeedLayer))
@@ -71,10 +84,16 @@ describe('SeedPersonalDataExports', () => {
   it.effect('exports an account that belongs to no workspace', () =>
     Effect.gen(function* () {
       const exports = yield* PersonalDataExports
-      const receipt = yield* exports.request('usr_outsider', 'seed-outsider-session')
+      const receipt = yield* exports.request(
+        UserId.make('usr_outsider'),
+        'seed-outsider-session'
+      )
       const outsider = yield* decodeArchive(
-        (yield* exports.download('usr_outsider', 'seed-outsider-session', receipt.id))
-          .json
+        (yield* exports.download(
+          UserId.make('usr_outsider'),
+          'seed-outsider-session',
+          receipt.id
+        )).json
       ).pipe(Effect.orDie)
       expect(outsider.user).toMatchObject({
         name: 'No Workspaces',
@@ -90,7 +109,9 @@ describe('SeedPersonalDataExports', () => {
       expect(outsider.passkeys).toEqual([])
       expect(
         Result.isFailure(
-          yield* Effect.result(exports.request('unknown-user', 'seed-session'))
+          yield* Effect.result(
+            exports.request(UserId.make('unknown-user'), 'seed-session')
+          )
         )
       ).toBe(true)
     }).pipe(Effect.provide(SeedLayer))

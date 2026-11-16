@@ -1,3 +1,4 @@
+import { UserIdInput } from '@b2b-saas-starter/db/ids'
 import { type SeatUsage } from '@b2b-saas-starter/billing/plan-catalog'
 import { type Member } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { type Invitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
@@ -38,13 +39,13 @@ const LoadWorkspaceMembersInput = Schema.Struct({
 
 const ChangeMemberRoleInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
-  userId: Schema.NonEmptyString,
+  userId: UserIdInput,
   role: Schema.Literals(workspaceRoles)
 })
 
 const RemoveMemberInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
-  userId: Schema.NonEmptyString
+  userId: UserIdInput
 })
 
 const LeaveWorkspaceInput = Schema.Struct({

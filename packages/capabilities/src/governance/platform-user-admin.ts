@@ -1,3 +1,4 @@
+import { UserId, type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Context, Effect, Schema } from 'effect'
 
 import { ImpersonationForbidden, UserAdminRejected } from '../errors.ts'
@@ -13,7 +14,7 @@ import { SystemRole, type Member, type WorkspaceRole } from './workspace-identit
  * ban flow).
  */
 export const SystemUserAccount = Schema.Struct({
-  id: Schema.String,
+  id: UserId,
   name: Schema.String,
   email: Schema.String,
   systemRole: SystemRole,
@@ -22,16 +23,16 @@ export const SystemUserAccount = Schema.Struct({
 export type SystemUserAccount = typeof SystemUserAccount.Type
 
 type UserAdminRef = {
-  readonly userId: string
+  readonly userId: UserId
 }
 
 type BanInput = UserAdminRef & {
   /** The admin acting — resolved at the route boundary by `requireAdmin`. */
-  readonly actorUserId: string | null
+  readonly actorUserId: UserId | null
 }
 
 export type ChangeWorkspaceRoleInput = BanInput & {
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   readonly role: WorkspaceRole
 }
 
@@ -63,7 +64,7 @@ export type ImpersonationForbiddenAction =
 
 /** The one field of a session the guard reads. */
 export type ImpersonationAwareSession = {
-  readonly impersonatedBy?: string | null | undefined
+  readonly impersonatedBy?: UserId | null | undefined
 }
 
 /**
@@ -84,17 +85,17 @@ export function refuseWhileImpersonating(
 
 type StartImpersonationInput = UserAdminRef & {
   /** The System Admin starting the session — never null: an unattributed impersonation is refused. */
-  readonly actorUserId: string
+  readonly actorUserId: UserId
 }
 
 type StopImpersonationInput = UserAdminRef & {
   /** The System Admin whose session is restored, read from `session.impersonatedBy`. */
-  readonly actorUserId: string
+  readonly actorUserId: UserId
 }
 
 /** What a started impersonation session promises the caller. */
 export type ImpersonationStarted = {
-  readonly userId: string
+  readonly userId: UserId
   readonly expiresInSeconds: number
 }
 
@@ -154,15 +155,15 @@ export class PlatformUserAdmin extends Context.Service<
  * `makeBindingCaller`'s `callBinding`.
  */
 export type PlatformUserAdminBinding = {
-  readonly banUser: (input: { readonly userId: string }) => Promise<void>
-  readonly unbanUser: (input: { readonly userId: string }) => Promise<void>
+  readonly banUser: (input: { readonly userId: UserId }) => Promise<void>
+  readonly unbanUser: (input: { readonly userId: UserId }) => Promise<void>
   readonly setMemberRole: (input: {
-    readonly workspaceId: string
+    readonly workspaceId: WorkspaceId
     readonly memberId: string
     readonly role: WorkspaceRole
   }) => Promise<void>
   /** `admin.impersonateUser` — swaps the request's session cookie for the target's. */
-  readonly impersonateUser: (input: { readonly userId: string }) => Promise<void>
+  readonly impersonateUser: (input: { readonly userId: UserId }) => Promise<void>
   /** `admin.stopImpersonating` — restores the admin's own session cookie. */
   readonly stopImpersonating: () => Promise<void>
 }
@@ -200,7 +201,7 @@ export function impersonationNotice(adminName: string) {
  */
 export function refuseImpersonationTarget(
   target: SystemUserAccount,
-  actorUserId: string
+  actorUserId: UserId
 ): Effect.Effect<void, UserAdminRejected> {
   if (target.id === actorUserId) {
     return Effect.fail(new UserAdminRejected({ reason: 'cannot_impersonate_self' }))

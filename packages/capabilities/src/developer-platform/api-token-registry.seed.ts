@@ -1,4 +1,4 @@
-import { ApiTokenId } from '@b2b-saas-starter/db/ids'
+import { ApiTokenId, type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import {
   SeedResourceInventory,
   SeedResourceInventoryLayer
@@ -39,7 +39,7 @@ import {
 type SeedTokenEntry = {
   token: ApiToken
   readonly tokenHash: string
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   readonly workspaceSlug: string
   revokedAt: string | null
 }
@@ -77,7 +77,7 @@ export function SeedApiTokenRegistry(
       )
       // Mutable entries have the same hash-only storage and lifecycle as D1.
       const store: Array<SeedTokenEntry> = entries
-      function activeIn(workspaceId: string) {
+      function activeIn(workspaceId: WorkspaceId) {
         return store.filter(
           (entry) => entry.workspaceId === workspaceId && entry.revokedAt === null
         )

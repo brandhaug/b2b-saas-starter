@@ -1,3 +1,4 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Effect } from 'effect'
 import { AuditEventLog, recordCompletedAudit } from '../governance/audit-event-log.ts'
 import { type ConversationAttempt } from './assistant-conversation.ts'
@@ -11,7 +12,7 @@ export const recordConversationOutcome = Effect.fn(
   'AssistantConversation.recordOutcome'
 )(function* (
   conversationId: string,
-  workspaceId: string,
+  workspaceId: WorkspaceId,
   attempt: ConversationAttempt
 ) {
   const audit = yield* AuditEventLog

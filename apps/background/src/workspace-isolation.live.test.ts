@@ -1,4 +1,4 @@
-import { ApiTokenId } from '@b2b-saas-starter/db/ids'
+import { ApiTokenId, UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { gunzipSync } from 'node:zlib'
 import { expect, layer } from '@effect/vitest'
 import { Deferred, Effect, Fiber, Layer, Option, Result, Schema } from 'effect'
@@ -134,8 +134,16 @@ function receiver() {
 function twoWorkspaces(name: string) {
   return Effect.gen(function* () {
     const db = yield* Database
-    const a = { id: `wrk_${name}_a`, slug: `${name}-a`, userId: 'usr_owner' }
-    const b = { id: `wrk_${name}_b`, slug: `${name}-b`, userId: 'usr_outsider' }
+    const a = {
+      id: WorkspaceId.make(`wrk_${name}_a`),
+      slug: `${name}-a`,
+      userId: UserId.make('usr_owner')
+    }
+    const b = {
+      id: WorkspaceId.make(`wrk_${name}_b`),
+      slug: `${name}-b`,
+      userId: UserId.make('usr_outsider')
+    }
     for (const workspace of [a, b]) {
       yield* db.insert(workspaces).values({
         id: workspace.id,
@@ -167,7 +175,7 @@ function queued<T>(messages: ReadonlyArray<T>, index = 0): T {
 }
 
 function publishWebhook(
-  workspace: { readonly slug: string; readonly userId: string },
+  workspace: { readonly slug: string; readonly userId: UserId },
   ports: ReturnType<typeof queuePorts>
 ) {
   return inWorkspace(
@@ -232,7 +240,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               })
               return created.endpoint
             }),
-            { userId: a.userId },
+            { userId: UserId.make(a.userId) },
             ports.bindings
           )
           const failed = queued(ports.webhooks, 1)
@@ -275,7 +283,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 deliveryId: failed.deliveryId
               })
             }),
-            { userId: a.userId },
+            { userId: UserId.make(a.userId) },
             ports.bindings
           )
           yield* inWorkspace(
@@ -296,7 +304,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 }
               ])
             }),
-            { userId: b.userId },
+            { userId: UserId.make(b.userId) },
             ports.bindings
           )
           expect(
@@ -348,7 +356,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 })
               }
             }),
-            { userId: a.userId },
+            { userId: UserId.make(a.userId) },
             ports.bindings
           )
           const publishing = yield* inWorkspace(
@@ -360,7 +368,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 payload: tokenPayload('enqueue-partial-a')
               })
             }),
-            { userId: a.userId },
+            { userId: UserId.make(a.userId) },
             ports.bindings
           ).pipe(Effect.forkChild)
           yield* Deferred.await(started)
@@ -419,7 +427,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 metadata: {}
               })
             }),
-            { userId: a.userId },
+            { userId: UserId.make(a.userId) },
             ports.bindings
           )
           expect(
@@ -499,7 +507,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             Effect.flatMap(WebhookDeliveries, (endpoints) =>
               endpoints.listDeliveries({ endpointId: message.endpointId })
             ),
-            { userId: workspace.userId },
+            { userId: UserId.make(workspace.userId) },
             ports.bindings
           )
           expect(deliveries).toMatchObject([
@@ -555,7 +563,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           Effect.flatMap(WebhookDeliveries, (endpoints) =>
             endpoints.listDeliveries({ endpointId: messageB.endpointId })
           ),
-          { userId: b.userId },
+          { userId: UserId.make(b.userId) },
           ports.bindings
         )
         expect(beforeB).toMatchObject([
@@ -597,7 +605,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               deliveryId: messageA.deliveryId
             })
           }),
-          { userId: a.userId },
+          { userId: UserId.make(a.userId) },
           ports.bindings
         )
         const replay = queued(ports.webhooks, 2)
@@ -646,9 +654,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               a.slug,
               Effect.flatMap(WorkspaceSuspensionService, (suspension) =>
                 suspension.transition({
-                  workspaceId: a.id,
+                  workspaceId: WorkspaceId.make(a.id),
                   action,
-                  actor: { userId: 'usr_sysadmin' },
+                  actor: { userId: UserId.make('usr_sysadmin') },
                   internalReason: 'Isolation test',
                   customerExplanation: 'Test workspace paused'
                 })
@@ -668,7 +676,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               Effect.flatMap(WebhookEndpoints, (endpoints) =>
                 endpoints.update({ endpointId: messageB.endpointId, enabled })
               ),
-              { userId: b.userId },
+              { userId: UserId.make(b.userId) },
               ports.bindings
             )
             expect(
@@ -683,7 +691,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             Effect.flatMap(WebhookEndpoints, (endpoints) =>
               endpoints.sendTestEvent({ endpointId: messageB.endpointId })
             ),
-            { userId: b.userId },
+            { userId: UserId.make(b.userId) },
             ports.bindings
           )
           expect(testSend.deliveryId).toBe(queued(ports.webhooks, 2).deliveryId)
@@ -709,7 +717,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             yield* inWorkspace(
               workspace.slug,
               Effect.flatMap(WorkspaceExports, (exports) => exports.request),
-              { userId: workspace.userId },
+              { userId: UserId.make(workspace.userId) },
               ports.bindings
             )
           }
@@ -747,7 +755,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           yield* db
             .update(workspaces)
             .set({ name: 'Changed after export' })
-            .where(eq(workspaces.id, a.id))
+            .where(eq(workspaces.id, WorkspaceId.make(a.id)))
           expect(yield* buildWorkspaceExport(envelope(messageA, 3), env)).toBe('ack')
           expect([...ports.objects.values()]).toEqual([archiveA, archiveB])
         })
@@ -762,7 +770,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           yield* db.insert(workspaceMembers).values({
             id: 'mem_export_remaining_owner',
             workspaceId: a.id,
-            userId: 'usr_bystander',
+            userId: UserId.make('usr_bystander'),
             role: 'owner'
           })
           const ports = queuePorts()
@@ -771,7 +779,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           const job = yield* inWorkspace(
             a.slug,
             Effect.flatMap(WorkspaceExports, (exports) => exports.request),
-            { userId: a.userId },
+            { userId: UserId.make(a.userId) },
             ports.bindings
           )
           yield* db
@@ -785,7 +793,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           expect(decodeJson(text)).toMatchObject({
             exportId: job.id,
             workspace: { id: a.id },
-            members: [{ id: 'usr_bystander', role: 'owner' }]
+            members: [{ id: UserId.make('usr_bystander'), role: 'owner' }]
           })
           expect(text).not.toContain('outsider@live.test')
           const denied = yield* inWorkspace(
@@ -796,14 +804,14 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 exportId: job.id
               })
             ),
-            { userId: a.userId },
+            { userId: UserId.make(a.userId) },
             ports.bindings
           ).pipe(Effect.flip)
           expect(denied._tag).toBe('WorkspaceNotFound')
           const other = yield* inWorkspace(
             b.slug,
             Effect.flatMap(WorkspaceExports, (exports) => exports.list),
-            { userId: b.userId },
+            { userId: UserId.make(b.userId) },
             ports.bindings
           )
           expect(other).toEqual([])
@@ -822,7 +830,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             yield* inWorkspace(
               workspace.slug,
               Effect.flatMap(WorkspaceExports, (exports) => exports.request),
-              { userId: workspace.userId },
+              { userId: UserId.make(workspace.userId) },
               ports.bindings
             )
           }
@@ -833,9 +841,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               a.slug,
               Effect.flatMap(WorkspaceSuspensionService, (suspension) =>
                 suspension.transition({
-                  workspaceId: a.id,
+                  workspaceId: WorkspaceId.make(a.id),
                   action,
-                  actor: { userId: 'usr_sysadmin' },
+                  actor: { userId: UserId.make('usr_sysadmin') },
                   internalReason: 'Isolation test',
                   customerExplanation: 'Test workspace paused'
                 })
@@ -849,11 +857,11 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           yield* db
             .update(workspaces)
             .set({ slug: `${b.slug}-renamed` })
-            .where(eq(workspaces.id, b.id))
+            .where(eq(workspaces.id, WorkspaceId.make(b.id)))
           yield* db
             .update(workspaces)
             .set({ slug: b.slug })
-            .where(eq(workspaces.id, a.id))
+            .where(eq(workspaces.id, WorkspaceId.make(a.id)))
           expect(yield* buildWorkspaceExport(envelope(messageB), env)).toBe('ack')
           expect(ports.objects.size).toBe(0)
           for (const { slug, message } of [

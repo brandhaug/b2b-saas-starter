@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import {
   testPrice,
   testItem,
@@ -117,7 +118,7 @@ describe('Stripe provider adapter', () => {
         secretKey: Redacted.make('sk_test_secret'),
         priceId: 'price_team',
         quantity: 3,
-        workspaceId: 'wrk_1',
+        workspaceId: WorkspaceId.make('wrk_1'),
         planId: 'team',
         successUrl: 'https://example.test/success',
         cancelUrl: 'https://example.test/cancel',
@@ -184,7 +185,7 @@ describe('Stripe provider adapter', () => {
           secretKey: Redacted.make('sk_test_secret'),
           priceId: 'price_team',
           quantity: 1,
-          workspaceId: 'wrk_1',
+          workspaceId: WorkspaceId.make('wrk_1'),
           planId: 'team',
           successUrl: 'https://example.test/success',
           cancelUrl: 'https://example.test/cancel',
@@ -308,7 +309,7 @@ describe('Stripe provider adapter', () => {
       return Effect.gen(function* () {
         const customer = yield* createStripeCustomer({
           secretKey: Redacted.make('sk_test_secret'),
-          workspaceId: 'wrk_1',
+          workspaceId: WorkspaceId.make('wrk_1'),
           idempotencyKey: 'customer-wrk_1-v1',
           email: 'billing@example.test'
         })

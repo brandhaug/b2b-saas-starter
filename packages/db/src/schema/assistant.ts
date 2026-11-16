@@ -1,3 +1,4 @@
+import { type UserId, type WorkspaceId } from '../ids.ts'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { Schema } from 'effect'
 import { jsonText } from '../json-column.ts'
@@ -9,8 +10,8 @@ export const assistantConversations = sqliteTable(
   'assistant_conversations',
   {
     id: id(),
-    workspaceId: text('workspace_id').notNull(),
-    creatorUserId: text('creator_user_id').notNull(),
+    workspaceId: text('workspace_id').$type<WorkspaceId>().notNull(),
+    creatorUserId: text('creator_user_id').$type<UserId>().notNull(),
     requiredPermissions: jsonText(
       'assistant_conversations',
       'required_permissions',
@@ -42,8 +43,8 @@ export const assistantReservations = sqliteTable(
   {
     id: id(),
     conversationId: text('conversation_id').notNull(),
-    workspaceId: text('workspace_id').notNull(),
-    userId: text('user_id').notNull(),
+    workspaceId: text('workspace_id').$type<WorkspaceId>().notNull(),
+    userId: text('user_id').$type<UserId>().notNull(),
     createdAt: integer('created_at').notNull(),
     deadline: integer('deadline').notNull(),
     committedAt: integer('committed_at'),
@@ -65,11 +66,12 @@ export const assistantSessionAuthority = sqliteTable(
   {
     sessionId: text('session_id').primaryKey(),
     userId: text('user_id')
+      .$type<UserId>()
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
     revokedAt: integer('revoked_at', { mode: 'timestamp' }),
-    impersonatedBy: text('impersonated_by'),
+    impersonatedBy: text('impersonated_by').$type<UserId>(),
     passwordVerifiedAt: integer('password_verified_at', { mode: 'timestamp' }),
     strongAuthAt: integer('strong_auth_at', { mode: 'timestamp' }),
     strongAuthMethod: text('strong_auth_method'),

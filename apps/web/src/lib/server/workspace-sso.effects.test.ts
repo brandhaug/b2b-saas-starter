@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { SeedAssistantDirectory } from '@b2b-saas-starter/capabilities/assistant/directory.seed'
 // oxlint-disable-next-line import/no-unassigned-import -- Installs the explicit authenticated-session test fixture.
 import '@/test/qualified-session'
@@ -49,9 +50,9 @@ vi.mock('./auth', async (importOriginal) =>
   fixtureAuthModule(await importOriginal<typeof AuthModule>(), actor)
 )
 
-const OWNER = 'usr_demo'
-const ADMIN = 'usr_ops'
-const MEMBER = 'usr_dev'
+const OWNER = UserId.make('usr_demo')
+const ADMIN = UserId.make('usr_ops')
+const MEMBER = UserId.make('usr_dev')
 
 describe('workspace SSO handlers — settings form permissions', () => {
   beforeEach(() => {
@@ -225,7 +226,7 @@ describe('notifyOwnersOfFailedTest — the owner fan-out rule', () => {
   // hears about a failed connection, nobody else does, and the notification
   // names the domain — is driven directly against Seed capability layers.
   const workspace: Workspace = {
-    id: 'wrk_sso_notify',
+    id: WorkspaceId.make('wrk_sso_notify'),
     slug: 'sso-lab',
     name: 'SSO Lab',
     planId: 'team'
@@ -233,7 +234,7 @@ describe('notifyOwnersOfFailedTest — the owner fan-out rule', () => {
 
   const members: ReadonlyArray<Member> = [
     {
-      id: 'usr_notify_owner',
+      id: UserId.make('usr_notify_owner'),
       name: 'Owner',
       email: 'owner@sso.test',
       role: 'owner',
@@ -241,7 +242,7 @@ describe('notifyOwnersOfFailedTest — the owner fan-out rule', () => {
       banned: false
     },
     {
-      id: 'usr_notify_admin',
+      id: UserId.make('usr_notify_admin'),
       name: 'Admin',
       email: 'admin@sso.test',
       role: 'admin',
@@ -249,7 +250,7 @@ describe('notifyOwnersOfFailedTest — the owner fan-out rule', () => {
       banned: false
     },
     {
-      id: 'usr_notify_member',
+      id: UserId.make('usr_notify_member'),
       name: 'Member',
       email: 'member@sso.test',
       role: 'member',

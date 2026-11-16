@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import * as TestClock from 'effect/testing/TestClock'
 import { type CapabilityServices } from '../layers.ts'
 import { type WorkspaceServices } from '../workspace-context.ts'
@@ -27,7 +28,7 @@ import {
 import { testItem, testPrice } from '@b2b-saas-starter/billing/provider-test-fixtures'
 import { wireHttpClient } from '@b2b-saas-starter/failure/http-client'
 
-const workspaceId = 'wrk_live'
+const workspaceId = WorkspaceId.make('wrk_live')
 const bindings = {
   billing: {
     secretKey: Redacted.make('sk_lifecycle'),
@@ -211,13 +212,13 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('Live lifecycle', (it) => {
         yield* db.insert(workspaceMembers).values({
           id: 'mem_lifecycle_admin',
           workspaceId,
-          userId: 'usr_audited',
+          userId: UserId.make('usr_audited'),
           role: 'admin'
         })
         yield* db.insert(workspaceMembers).values({
           id: 'mem_lifecycle_member',
           workspaceId,
-          userId: 'usr_joiner',
+          userId: UserId.make('usr_joiner'),
           role: 'member'
         })
         const fixture = providerFixture()

@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import {
   type AuditEvent,
   type AuditEventDetail
@@ -15,13 +16,21 @@ import { type WorkspacePagePayload } from '@/lib/workspace-frame'
  * mutable because the route stages a filter onto an empty record key by key.
  */
 const WorkspaceAuditFilters = Schema.Struct({
-  actorUserId: Schema.optionalKey(Schema.String),
+  actorUserId: Schema.optionalKey(UserId),
   eventType: Schema.optionalKey(Schema.String),
   since: Schema.optionalKey(Schema.String),
   until: Schema.optionalKey(Schema.String)
 })
 
 export type WorkspaceAuditFilters = Types.Mutable<typeof WorkspaceAuditFilters.Type>
+
+/** The filters as the URL and the server fn's caller hold them, before decoding. */
+export type WorkspaceAuditFilterInput = Types.Mutable<
+  typeof WorkspaceAuditFilters.Encoded
+>
+
+/** Decodes URL-held filters for renderers that filter without the server fn. */
+export const decodeWorkspaceAuditFilters = Schema.decodeSync(WorkspaceAuditFilters)
 
 /**
  * The per-workspace audit payload. `auditLog: ['read']` is the page's own read
@@ -42,7 +51,7 @@ export type WorkspaceAuditPayload = WorkspacePagePayload<{
   /** The filters this page was loaded with, echoed back for the controls. */
   readonly filters: WorkspaceAuditFilters
   readonly view?: AuditView
-  readonly members: ReadonlyArray<{ readonly id: string; readonly name: string }>
+  readonly members: ReadonlyArray<{ readonly id: UserId; readonly name: string }>
 }>
 
 /**

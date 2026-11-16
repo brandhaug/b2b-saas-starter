@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { workspaceRoles } from '@b2b-saas-starter/db/enums'
 import { Result, Schema } from 'effect'
 
@@ -48,14 +49,14 @@ const cnf = Schema.optional(Schema.Unknown)
 /** The verified, decoded payload of an MCP access token as the resource server reads it. */
 export const McpAccessTokenClaims = Schema.Struct({
   /** Better Auth's `user.id` — the consenting Member. */
-  sub: Schema.String,
+  sub: UserId,
   aud: Schema.optionalKey(Schema.String),
   /** Space-separated OAuth scopes; must contain {@link MCP_READ_SCOPE}. */
   scope: Schema.String,
   client_id: Schema.optionalKey(Schema.String),
   [MCP_CONSENT_CLAIM]: Schema.optionalKey(Schema.String),
   [MCP_SESSION_ID_CLAIM]: Schema.optionalKey(Schema.String),
-  [MCP_WORKSPACE_ID_CLAIM]: Schema.String,
+  [MCP_WORKSPACE_ID_CLAIM]: WorkspaceId,
   [MCP_WORKSPACE_SLUG_CLAIM]: Schema.String,
   [MCP_WORKSPACE_ROLE_CLAIM]: Schema.Literals(workspaceRoles),
   cnf
@@ -75,8 +76,8 @@ export type McpAccessTokenPrincipal = {
   readonly clientId?: string | undefined
   readonly consentBinding?: string | undefined
   readonly sessionId?: string | undefined
-  readonly userId: string
-  readonly workspaceId: string
+  readonly userId: UserId
+  readonly workspaceId: WorkspaceId
   readonly workspaceSlug: string
   readonly workspaceRole: (typeof workspaceRoles)[number]
   readonly scopes: ReadonlyArray<string>

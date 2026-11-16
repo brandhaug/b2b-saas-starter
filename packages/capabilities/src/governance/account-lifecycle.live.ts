@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { AssistantDirectory } from '../assistant/directory.ts'
 import { Billing } from '@b2b-saas-starter/billing/billing'
 import { batch, Database, RawD1 } from '@b2b-saas-starter/db/service'
@@ -81,7 +82,7 @@ export function LiveAccountLifecycle(
        * are computed here rather than in SQL dialect.
        */
       const membershipsOf = Effect.fn('AccountLifecycle.membershipsOf')(function* (
-        userId: string
+        userId: UserId
       ) {
         const rows = yield* unavailable(
           db
@@ -141,12 +142,12 @@ export function LiveAccountLifecycle(
         )
       })
 
-      function planDeletion(userId: string) {
+      function planDeletion(userId: UserId) {
         return Effect.map(membershipsOf(userId), planAccountDeletion)
       }
 
       const prepareDeletion = Effect.fn('AccountLifecycle.prepareDeletion')(function* (
-        userId: string
+        userId: UserId
       ) {
         // The memberships are kept beside the plan: the steps are the wire
         // shape (no internal row ids), and the leave binding needs the
@@ -313,7 +314,7 @@ export function LiveAccountLifecycle(
 
       const recordDeleted = Effect.fn('AccountLifecycle.recordDeleted')(
         function* (input: {
-          readonly userId: string
+          readonly userId: UserId
           readonly plan: AccountDeletionPlan
         }) {
           yield* recordSecurityEvidence(

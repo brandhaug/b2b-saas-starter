@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { describe, expect, it, vi } from 'vite-plus/test'
 
 import { runWebRequestScope } from '@/lib/observability'
@@ -27,17 +28,17 @@ describe('strongAuthenticationStatusFor', () => {
 
     await runWebRequestScope({ request, handlerType: 'router' }, async () => {
       const gate = strongAuthenticationStatusFor({
-        userId: 'usr_demo',
+        userId: UserId.make('usr_demo'),
         sessionId: 'ses_1'
       })
       const page = strongAuthenticationStatusFor({
-        userId: 'usr_demo',
+        userId: UserId.make('usr_demo'),
         sessionId: 'ses_1'
       })
       expect(page).toBe(gate)
       // A second device is a second session, and its own evidence.
       const otherDevice = strongAuthenticationStatusFor({
-        userId: 'usr_demo',
+        userId: UserId.make('usr_demo'),
         sessionId: 'ses_2'
       })
       expect(otherDevice).not.toBe(gate)
@@ -53,7 +54,7 @@ describe('strongAuthenticationStatusFor', () => {
       ambient.request = request
       await runWebRequestScope({ request, handlerType: 'router' }, async () => {
         const read = strongAuthenticationStatusFor({
-          userId: 'usr_demo',
+          userId: UserId.make('usr_demo'),
           sessionId: 'ses_1'
         })
         reads.push(read)

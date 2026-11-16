@@ -1,4 +1,5 @@
 // oxlint-disable effect/noGlobals -- D1 SQL parameters require serialized typed JSON at this adapter boundary.
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { narrowFailure } from '@b2b-saas-starter/failure/narrowing'
 import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
 import { user } from '@b2b-saas-starter/db/schema/auth'
@@ -172,7 +173,7 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
     Effect.gen(function* () {
       const db = yield* Database
 
-      function pageQuery(workspaceId: string, input?: ListAuditEventsInput) {
+      function pageQuery(workspaceId: WorkspaceId, input?: ListAuditEventsInput) {
         const view = normalizeAuditView(input?.view)
         const conditions: Array<SQL> = [eq(auditEvents.workspaceId, workspaceId)]
         if (input?.actorUserId !== undefined) {
@@ -225,7 +226,10 @@ export const LiveAuditEventLog: Layer.Layer<AuditEventLog, never, Database> =
           .limit(pageLimit(input) + 1)
       }
 
-      function pagedRows(workspaceId: string, input: ListAuditEventsInput | undefined) {
+      function pagedRows(
+        workspaceId: WorkspaceId,
+        input: ListAuditEventsInput | undefined
+      ) {
         const query = pageQuery(workspaceId, input)
         // An undecodable cursor addresses no position — empty page.
         return orUnavailable('audit-event-log')(query)

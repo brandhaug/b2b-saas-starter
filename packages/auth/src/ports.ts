@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { type CimdOptions } from '@better-auth/cimd'
 import { type drizzle } from 'drizzle-orm/d1'
 import { Context, type Redacted } from 'effect'
@@ -140,7 +141,7 @@ export type SocialProviderCredentials = {
  */
 export type AuthAccountChange = {
   readonly providerId: string
-  readonly userId: string
+  readonly userId: UserId
 }
 
 /**
@@ -156,7 +157,7 @@ export type AuthAccountHooks = {
 
 export type AuthConfigInterface = {
   readonly invalidateAssistantAuthority?: (input: {
-    readonly userId: string
+    readonly userId: UserId
   }) => Promise<void>
   readonly db: DrizzleDatabase
   /** Unwrapped only by `makeAuthOptions`, into Better Auth's options. */
@@ -185,7 +186,7 @@ export type AuthConfigInterface = {
   readonly accountHooks: AuthAccountHooks
   /** Social linking requires the app's proof that this exact session authenticated recently. */
   readonly hasRecentAuthentication: (input: {
-    readonly userId: string
+    readonly userId: UserId
     readonly sessionId: string
   }) => Promise<boolean>
   /**
@@ -231,7 +232,7 @@ export type AuthConfigInterface = {
   /** Recovery's audit and notification port, supplied by the app. */
   readonly recoveryHooks: {
     readonly onRecoveryStarted: (event: {
-      readonly userId: string
+      readonly userId: UserId
       readonly sessionId: string
       readonly expiresAt: Date
       readonly email: string
@@ -246,12 +247,12 @@ export type AuthConfigInterface = {
  */
 export type UserDeleteHooks = {
   readonly beforeDelete: (
-    user: { readonly id: string },
+    user: { readonly id: UserId },
     request: Request | undefined
   ) => Promise<void>
   readonly afterDelete: (
     user: {
-      readonly id: string
+      readonly id: UserId
       readonly email: string
       /** Persisted before deletion so the confirmation keeps its locale. */
       readonly locale?: Locale | null

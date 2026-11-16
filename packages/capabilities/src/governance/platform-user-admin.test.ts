@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Effect, Layer } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 
@@ -40,7 +41,7 @@ describe('refuseWhileImpersonating', () => {
     Effect.gen(function* () {
       for (const action of IMPERSONATION_FORBIDDEN_ACTIONS) {
         const error = yield* Effect.flip(
-          refuseWhileImpersonating({ impersonatedBy: 'usr_admin' }, action)
+          refuseWhileImpersonating({ impersonatedBy: UserId.make('usr_admin') }, action)
         )
         expect(error).toBeInstanceOf(ImpersonationForbidden)
         expect(error.action).toBe(action)
@@ -66,11 +67,11 @@ describe('seed impersonation side effects', () => {
     const records: Array<SecurityEvidenceRecord> = []
     return platformUserAdminRecoveryContract(
       {
-        existing: 'target',
-        outsider: 'outsider',
-        unknown: 'unknown',
-        workspaceId: 'workspace',
-        admin: 'admin'
+        existing: UserId.make('target'),
+        outsider: UserId.make('outsider'),
+        unknown: UserId.make('unknown'),
+        workspaceId: WorkspaceId.make('workspace'),
+        admin: UserId.make('admin')
       },
       records,
       'seed',
@@ -80,21 +81,27 @@ describe('seed impersonation side effects', () => {
         SeedPlatformUserAdmin(
           [
             {
-              id: 'target',
+              id: UserId.make('target'),
               name: 'Target',
               email: 'target@test.example',
               banned: false,
               systemRole: 'user'
             },
             {
-              id: 'outsider',
+              id: UserId.make('outsider'),
               name: 'Outsider',
               email: 'outsider@test.example',
               banned: false,
               systemRole: 'user'
             }
           ],
-          [{ workspaceId: 'workspace', userId: 'target', role: 'owner' }],
+          [
+            {
+              workspaceId: WorkspaceId.make('workspace'),
+              userId: UserId.make('target'),
+              role: 'owner'
+            }
+          ],
           {
             append: (record) => {
               records.push(record)

@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vite-plus/test'
 
@@ -25,7 +26,7 @@ describe('WorkspaceSuspensionPanel', () => {
     const suspend = vi.fn<SuspendWorkspace>().mockReturnValue(pending.promise)
     await renderWithRouter(
       <WorkspaceSuspensionPanel
-        workspaceId="wrk_1"
+        workspaceId={WorkspaceId.make('wrk_1')}
         workspaceName="Starter Lab"
         suspension={{ status: 'active' }}
         suspend={suspend}
@@ -46,7 +47,7 @@ describe('WorkspaceSuspensionPanel', () => {
     await waitFor(() => expect(suspend).toHaveBeenCalledTimes(1))
     expect(suspend).toHaveBeenCalledWith({
       data: {
-        workspaceId: 'wrk_1',
+        workspaceId: WorkspaceId.make('wrk_1'),
         internalReason: 'Review',
         customerExplanation: 'Contact support.'
       }
@@ -59,7 +60,7 @@ describe('WorkspaceSuspensionPanel', () => {
     const reactivate = vi.fn<ReactivateWorkspace>().mockResolvedValue(undefined)
     await renderWithRouter(
       <WorkspaceSuspensionPanel
-        workspaceId="wrk_1"
+        workspaceId={WorkspaceId.make('wrk_1')}
         workspaceName="Starter Lab"
         suspension={{ status: 'active' }}
         suspend={suspend}
@@ -81,7 +82,7 @@ describe('WorkspaceSuspensionPanel', () => {
     await waitFor(() => {
       expect(suspend).toHaveBeenCalledWith({
         data: {
-          workspaceId: 'wrk_1',
+          workspaceId: WorkspaceId.make('wrk_1'),
           internalReason: 'Abuse review',
           customerExplanation: 'Please contact support.'
         }
@@ -94,7 +95,7 @@ describe('WorkspaceSuspensionPanel', () => {
     const reactivate = vi.fn<ReactivateWorkspace>().mockResolvedValue(undefined)
     await renderWithRouter(
       <WorkspaceSuspensionPanel
-        workspaceId="wrk_1"
+        workspaceId={WorkspaceId.make('wrk_1')}
         workspaceName="Starter Lab"
         suspension={{ status: 'suspended', suspendedAt: '2026-09-07T10:00:00Z' }}
         suspend={suspend}
@@ -108,7 +109,10 @@ describe('WorkspaceSuspensionPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reactivate workspace' }))
     await waitFor(() => {
       expect(reactivate).toHaveBeenCalledWith({
-        data: { workspaceId: 'wrk_1', internalReason: 'Reactivate workspace' }
+        data: {
+          workspaceId: WorkspaceId.make('wrk_1'),
+          internalReason: 'Reactivate workspace'
+        }
       })
     })
     expect(suspend).not.toHaveBeenCalled()

@@ -1,3 +1,4 @@
+import { UserId, type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Effect } from 'effect'
 import { type ContractExpect } from './contract-expect.ts'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -38,13 +39,13 @@ export type AuditEventLogContractCase = {
  * to one workspace so adapters can scope `list` to it.
  */
 export function auditEventContractDataset(
-  workspaceId: string
+  workspaceId: WorkspaceId
 ): ReadonlyArray<SeedAuditEventRow> {
   return [
     {
       id: 'aud_c_old',
       workspaceId,
-      actorUserId: 'usr_alice',
+      actorUserId: UserId.make('usr_alice'),
       actorType: 'user',
       eventType: 'api_token.created',
       targetType: 'api_token',
@@ -56,7 +57,7 @@ export function auditEventContractDataset(
       // Same instant as the row below — ordering between them is decided by id.
       id: 'aud_c_tie_b',
       workspaceId,
-      actorUserId: 'usr_bob',
+      actorUserId: UserId.make('usr_bob'),
       actorType: 'user',
       eventType: 'api_token.created',
       targetType: 'api_token',
@@ -67,7 +68,7 @@ export function auditEventContractDataset(
     {
       id: 'aud_c_tie_a',
       workspaceId,
-      actorUserId: 'usr_alice',
+      actorUserId: UserId.make('usr_alice'),
       actorType: 'user',
       eventType: 'webhook_endpoint.created',
       targetType: 'webhook_endpoint',
@@ -103,7 +104,7 @@ export function auditEventLogContractCases(
         ).toEqual([])
         const event = yield* audit.get('aud_c_old')
         expect(event?.id).toBe('aud_c_old')
-        expect(event?.actorUserId).toBe('usr_alice')
+        expect(event?.actorUserId).toBe(UserId.make('usr_alice'))
         expect(event?.actor).toBe('Alice')
         expect(event?.targetId).toBe('tok_a')
         expect(yield* audit.get('missing')).toBe(null)
@@ -166,7 +167,7 @@ export function auditEventLogContractCases(
     {
       name: 'filters by actor server-side',
       assert: Effect.gen(function* () {
-        const page = yield* list({ actorUserId: 'usr_bob' })
+        const page = yield* list({ actorUserId: UserId.make('usr_bob') })
         expect(page.items.map((event) => event.id)).toEqual(['aud_c_tie_b'])
       })
     },
@@ -239,7 +240,7 @@ export function auditEventLogContractCases(
         expect(reused.items).toEqual([])
         const changedLegacy = yield* list({
           view,
-          actorUserId: 'usr_bob',
+          actorUserId: UserId.make('usr_bob'),
           cursor: first.nextCursor ?? undefined
         })
         expect(changedLegacy.items).toEqual([])
@@ -350,7 +351,7 @@ export function auditEventLogContractCases(
         // appear unchanged, and nothing is duplicated.
         yield* audit.record({
           workspaceId: ctx.workspace.id,
-          actorUserId: 'usr_alice',
+          actorUserId: UserId.make('usr_alice'),
           actorType: 'user',
           eventType: 'api_token.created',
           targetType: 'api_token',

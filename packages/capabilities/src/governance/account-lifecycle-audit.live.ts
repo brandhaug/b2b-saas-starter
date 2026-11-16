@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { batch, Database, RawD1 } from '@b2b-saas-starter/db/service'
 import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
 import { type JsonValue } from '@b2b-saas-starter/db/schema/json'
@@ -37,7 +38,7 @@ const unavailable = orUnavailable('account-lifecycle')
 export const scrubAuditEventsForAccount = Effect.fn(
   'AccountLifecycle.scrubAuditEvents'
 )(function* (account: {
-  readonly id: string
+  readonly id: UserId
   readonly email: string
 }): Effect.fn.Return<void, CapabilityUnavailable, Database | RawD1> {
   const db = yield* Database

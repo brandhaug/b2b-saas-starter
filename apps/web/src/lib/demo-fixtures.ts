@@ -1,5 +1,6 @@
 import {
   ApiTokenId,
+  UserId,
   WebhookDeliveryId,
   WebhookEndpointId
 } from '@b2b-saas-starter/db/ids'
@@ -246,7 +247,7 @@ export const demoAuditDetails = [
     targetId: 'tok_mcp',
     actor: 'Ops Lead',
     createdAt: '2026-05-16T06:00:00.000Z',
-    actorUserId: 'usr_ops',
+    actorUserId: UserId.make('usr_ops'),
     metadata: {}
   },
   {
@@ -257,7 +258,7 @@ export const demoAuditDetails = [
     targetId: 'usr_dev',
     actor: 'Demo Admin',
     createdAt: '2026-05-15T14:45:00.000Z',
-    actorUserId: 'usr_demo',
+    actorUserId: UserId.make('usr_demo'),
     metadata: { role: 'member' }
   }
 ] satisfies ReadonlyArray<NonNullable<WorkspaceAuditPayload['selectedEvent']>>

@@ -1,10 +1,11 @@
+import { type UserId, type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { type JsonObject } from '@b2b-saas-starter/db/schema/json'
 import { type BatchStatement } from '@b2b-saas-starter/db/service'
 import { Context, type Effect } from 'effect'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 
-export type BillingWorkspace = { readonly id: string; readonly planId: string }
+export type BillingWorkspace = { readonly id: WorkspaceId; readonly planId: string }
 /**
  * The resolved request context. A user provenance always carries its user and
  * a token or platform caller never claims one, so an audit row cannot record
@@ -14,7 +15,7 @@ export type BillingWorkspaceContext =
   | {
       readonly workspace: BillingWorkspace
       readonly actorType: 'user'
-      readonly actor: { readonly userId: string }
+      readonly actor: { readonly userId: UserId }
     }
   | {
       readonly workspace: BillingWorkspace
@@ -28,8 +29,8 @@ export class WorkspaceContext extends Context.Service<
 
 /** The attribution columns every workspace-scoped audit row carries. */
 export type AuditAttribution = {
-  readonly workspaceId: string
-  readonly actorUserId: string | null
+  readonly workspaceId: WorkspaceId
+  readonly actorUserId: UserId | null
   readonly actorType: AuditActorTypeValue
 }
 
@@ -80,8 +81,8 @@ export class AuditEventLog extends Context.Service<AuditEventLog, AuditPort>()(
 export type NotificationPort = {
   readonly create: (input: {
     readonly deduplicationKey?: string
-    readonly workspaceId: string
-    readonly userId?: string | null
+    readonly workspaceId: WorkspaceId
+    readonly userId?: UserId | null
     readonly kind: 'billing.plan_changed'
     readonly title: string
     readonly message: string
@@ -94,7 +95,7 @@ export class NotificationFeed extends Context.Service<
 
 export type BillingWebhookPublisherPort = {
   readonly publishPlanChanged: (input: {
-    readonly workspaceId: string
+    readonly workspaceId: WorkspaceId
     readonly planId: string
     readonly previousPlanId: string | null
   }) => Effect.Effect<void, never>
@@ -104,4 +105,4 @@ export class BillingWebhookPublisher extends Context.Service<
   BillingWebhookPublisherPort
 >()('@b2b-saas-starter/billing/WebhookPublisher') {}
 
-export type BillingMember = { readonly id: string; readonly role: string }
+export type BillingMember = { readonly id: UserId; readonly role: string }

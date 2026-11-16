@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { expect, layer } from '@effect/vitest'
 import { Database } from '@b2b-saas-starter/db/service'
 import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema/workspaces'
@@ -45,7 +46,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               if (operation === 'changeRole') {
                 expectedRole = 'admin'
               }
-              const workspaceId = `${failureAt}-${operation}`
+              const workspaceId = WorkspaceId.make(`${failureAt}-${operation}`)
               yield* db
                 .insert(workspaces)
                 .values({ id: workspaceId, slug: workspaceId, name: workspaceId })
@@ -53,25 +54,25 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 {
                   id: `${workspaceId}-owner`,
                   workspaceId,
-                  userId: 'usr_owner',
+                  userId: UserId.make('usr_owner'),
                   role: 'owner'
                 },
                 {
                   id: `${workspaceId}-bob`,
                   workspaceId,
-                  userId: 'usr_bob',
+                  userId: UserId.make('usr_bob'),
                   role: 'owner'
                 }
               ])
               yield* db.insert(session).values({
                 id: workspaceId,
-                userId: 'usr_owner',
+                userId: UserId.make('usr_owner'),
                 token: workspaceId,
                 expiresAt: DateTime.toDate(DateTime.makeUnsafe('2099-01-01T00:00:00Z'))
               })
               yield* db.insert(personalDataExports).values({
                 id: workspaceId,
-                userId: 'usr_owner',
+                userId: UserId.make('usr_owner'),
                 sessionId: workspaceId,
                 archive: '{}',
                 createdAt: '2026-09-23T00:00:00Z',
@@ -108,7 +109,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                   const room = yield* directory.create({
                     id: `${workspaceId}-room`,
                     workspaceId,
-                    creatorUserId: 'usr_owner'
+                    creatorUserId: UserId.make('usr_owner')
                   })
                   let fail = failureAt === 'invalidation'
                   const controlled = AssistantDirectory.of({
@@ -134,10 +135,12 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                         return yield* membership.leave
                       }
                       if (operation === 'removeMember') {
-                        return yield* membership.removeMember({ userId: 'usr_owner' })
+                        return yield* membership.removeMember({
+                          userId: UserId.make('usr_owner')
+                        })
                       }
                       return yield* membership.changeRole({
-                        userId: 'usr_owner',
+                        userId: UserId.make('usr_owner'),
                         role: 'admin'
                       })
                     })
@@ -194,7 +197,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                     )
                   )
                 }),
-                { userId: 'usr_owner' },
+                { userId: UserId.make('usr_owner') },
                 {
                   memberBinding: binding,
                   assistantInvalidation: (addresses) => {

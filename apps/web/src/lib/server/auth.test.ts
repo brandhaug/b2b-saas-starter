@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { Cause, Effect, Exit } from 'effect'
 import { describe, expect, it } from 'vite-plus/test'
 import { requireRequestSessionEffect, toRouteSession, UnauthorizedError } from './auth'
@@ -19,13 +20,13 @@ describe('toRouteSession', () => {
         token: 'tok_secret',
         createdAt: new Date('2026-08-01T00:00:00Z'),
         updatedAt: new Date('2026-08-01T00:00:00Z'),
-        userId: 'usr_1',
+        userId: UserId.make('usr_1'),
         expiresAt: new Date('2026-09-01T00:00:00Z'),
         ipAddress: '203.0.113.7',
         userAgent: 'Mozilla/5.0'
       },
       user: {
-        id: 'usr_1',
+        id: UserId.make('usr_1'),
         createdAt: new Date('2026-01-01T00:00:00Z'),
         updatedAt: new Date('2026-01-01T00:00:00Z'),
         name: 'Demo',
@@ -61,12 +62,12 @@ describe('toRouteSession', () => {
         token: 'tok_secret',
         createdAt: new Date('2026-08-01T00:00:00Z'),
         updatedAt: new Date('2026-08-01T00:00:00Z'),
-        userId: 'usr_2',
+        userId: UserId.make('usr_2'),
         expiresAt: new Date('2026-08-01T01:00:00Z'),
-        impersonatedBy: 'usr_admin'
+        impersonatedBy: UserId.make('usr_admin')
       },
       user: {
-        id: 'usr_2',
+        id: UserId.make('usr_2'),
         createdAt: new Date('2026-01-01T00:00:00Z'),
         updatedAt: new Date('2026-01-01T00:00:00Z'),
         name: 'Member',

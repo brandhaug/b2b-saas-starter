@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { RateLimiter } from '@b2b-saas-starter/api'
 import { SeedLayer } from '@b2b-saas-starter/capabilities/layers'
 import { McpClientConnections } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
@@ -19,8 +20,8 @@ it.effect('Seed MCP reads observe bans and unbans with the same OAuth credential
     const services = yield* Layer.build(SeedLayer)
     const admin = yield* PlatformUserAdmin.pipe(Effect.provideContext(services))
     const caller = {
-      userId: 'usr_dev',
-      workspaceId: 'wrk_starter',
+      userId: UserId.make('usr_dev'),
+      workspaceId: WorkspaceId.make('wrk_starter'),
       workspaceSlug: 'starter-lab',
       workspaceRole: 'member',
       scopes: ['mcp:read'],
@@ -58,9 +59,15 @@ it.effect('Seed MCP reads observe bans and unbans with the same OAuth credential
       ).pipe(Effect.flatMap((response) => jsonBody(response, responseSchema)))
     }
     expect((yield* read()).result.isError).not.toBe(true)
-    yield* admin.banUser({ userId: caller.userId, actorUserId: 'usr_admin' })
+    yield* admin.banUser({
+      userId: UserId.make(caller.userId),
+      actorUserId: UserId.make('usr_admin')
+    })
     expect((yield* read()).result.isError).toBe(true)
-    yield* admin.unbanUser({ userId: caller.userId, actorUserId: 'usr_admin' })
+    yield* admin.unbanUser({
+      userId: UserId.make(caller.userId),
+      actorUserId: UserId.make('usr_admin')
+    })
     expect((yield* read()).result.isError).not.toBe(true)
   }).pipe(Effect.scoped)
 )

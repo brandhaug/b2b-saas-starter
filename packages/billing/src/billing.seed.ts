@@ -1,3 +1,4 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import {
   NotificationFeed,
   WorkspaceContext,
@@ -52,7 +53,7 @@ import {
 
 /** One fixture subscription row, as the seed layer stores it. */
 export type SeedSubscriptionFixture = {
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   readonly customerId: string
   readonly subscriptionId?: string | null
   readonly subscriptionItemId?: string | null
@@ -121,7 +122,7 @@ export function SeedBilling(options?: {
     | ReadonlyArray<SeedProviderSubscriptionFixture>
     | undefined
   readonly providerState?:
-    | Ref.Ref<ReadonlyMap<string, SeedProviderSubscriptionFixture>>
+    | Ref.Ref<ReadonlyMap<WorkspaceId, SeedProviderSubscriptionFixture>>
     | undefined
   /** Initial plan projection for identity-keyed reconciliation calls. */
   readonly workspacePlans?: Readonly<Record<string, string>> | undefined
@@ -147,9 +148,11 @@ export function SeedBilling(options?: {
 
       // Local mutation of the fixture workspace's planId, read back by
       // `currentPlan` — same read-your-write shape as Live.
-      const planOverrides = yield* Ref.make<ReadonlyMap<string, string>>(new Map())
+      const planOverrides = yield* Ref.make<ReadonlyMap<WorkspaceId, string>>(new Map())
       // The simulated `workspace_subscriptions` table.
-      const subscriptions = yield* Ref.make<ReadonlyMap<string, SubscriptionState>>(
+      const subscriptions = yield* Ref.make<
+        ReadonlyMap<WorkspaceId, SubscriptionState>
+      >(
         new Map(
           (options?.subscriptions ?? []).map((fixture) => [
             fixture.workspaceId,
@@ -159,7 +162,7 @@ export function SeedBilling(options?: {
       )
       const providerSubscriptions =
         options?.providerState ??
-        (yield* Ref.make<ReadonlyMap<string, SeedProviderSubscriptionFixture>>(
+        (yield* Ref.make<ReadonlyMap<WorkspaceId, SeedProviderSubscriptionFixture>>(
           new Map(
             (options?.providerSubscriptions ?? []).map((fixture) => [
               fixture.workspaceId,
@@ -167,11 +170,11 @@ export function SeedBilling(options?: {
             ])
           )
         ))
-      const checkoutClaims = yield* Ref.make<ReadonlyMap<string, CheckoutClaim>>(
+      const checkoutClaims = yield* Ref.make<ReadonlyMap<WorkspaceId, CheckoutClaim>>(
         new Map()
       )
       const synchronization = yield* Ref.make<
-        ReadonlyMap<string, BillingSynchronizationStatus>
+        ReadonlyMap<WorkspaceId, BillingSynchronizationStatus>
       >(new Map())
       const processedEvents = yield* Ref.make<ReadonlySet<string>>(new Set())
       const pendingEvents = yield* Ref.make<
@@ -192,7 +195,7 @@ export function SeedBilling(options?: {
        * comes from the shared failure classification, never a caller literal.
        */
       const markUnresolved = Effect.fn('Billing.markUnresolved')(function* (
-        workspaceId: string,
+        workspaceId: WorkspaceId,
         conflict: boolean
       ) {
         const status = nextSynchronizationStatus({ kind: 'failure', conflict })
@@ -464,7 +467,7 @@ export function SeedBilling(options?: {
       })
 
       const lifecycleForWorkspace = Effect.fn('Billing.lifecycleForWorkspace')(
-        function* (workspaceId: string) {
+        function* (workspaceId: WorkspaceId) {
           const current =
             (yield* Ref.get(planOverrides)).get(workspaceId) ??
             workspacePlans[workspaceId] ??
@@ -478,7 +481,7 @@ export function SeedBilling(options?: {
         }
       )
       const currentPlanForWorkspace = Effect.fn('Billing.currentPlanForWorkspace')(
-        function* (workspaceId: string) {
+        function* (workspaceId: WorkspaceId) {
           const plan = planById(
             (yield* lifecycleForWorkspace(workspaceId)).access.planId
           )
@@ -585,7 +588,7 @@ export function SeedBilling(options?: {
 
       const capability = {
         workspaceDeletionAllowed: Effect.fn('Billing.workspaceDeletionAllowed')(
-          function* (workspaceId: string) {
+          function* (workspaceId: WorkspaceId) {
             const subscription = (yield* Ref.get(subscriptions)).get(workspaceId)
             const sync = (yield* Ref.get(synchronization)).get(workspaceId)
             return (
@@ -805,7 +808,7 @@ export function SeedBilling(options?: {
           }
         }),
         syncSeats: Effect.fn('Billing.syncSeats')(function* (input: {
-          readonly workspaceId: string
+          readonly workspaceId: WorkspaceId
           readonly reason: string
         }) {
           return yield* withProviderLock(

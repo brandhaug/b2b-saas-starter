@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { type Member, type Workspace } from './workspace-identity.ts'
 
 /**
@@ -7,7 +8,7 @@ import { type Member, type Workspace } from './workspace-identity.ts'
  * graph into the client bundle. `seed-fixture.ts` re-exports these.
  */
 export const seedWorkspaceRecord: Workspace = {
-  id: 'wrk_starter',
+  id: WorkspaceId.make('wrk_starter'),
   slug: 'starter-lab',
   name: 'Starter Lab',
   planId: 'team'
@@ -21,7 +22,7 @@ export const seedWorkspaceRecord: Workspace = {
  * in BOTH layers or SPA navigation 404s while full-page loads succeed.
  */
 export const demoUserIdentity: Member = {
-  id: 'usr_demo',
+  id: UserId.make('usr_demo'),
   name: 'Demo Admin',
   email: 'demo@starter.local',
   role: 'owner',
@@ -36,7 +37,7 @@ export const demoUserIdentity: Member = {
  * demo user is an owner and therefore shows none of it.
  */
 export const demoMemberIdentity: Member = {
-  id: 'usr_dev',
+  id: UserId.make('usr_dev'),
   name: 'Product Engineer',
   email: 'engineer@example.com',
   role: 'member',
@@ -47,7 +48,7 @@ export const demoMemberIdentity: Member = {
 export const seedMembers: ReadonlyArray<Member> = [
   demoUserIdentity,
   {
-    id: 'usr_martin',
+    id: UserId.make('usr_martin'),
     name: 'Martin Brandhaug',
     email: 'martin@example.com',
     role: 'owner',
@@ -55,7 +56,7 @@ export const seedMembers: ReadonlyArray<Member> = [
     banned: false
   },
   {
-    id: 'usr_ops',
+    id: UserId.make('usr_ops'),
     name: 'Ops Lead',
     email: 'ops@example.com',
     role: 'admin',

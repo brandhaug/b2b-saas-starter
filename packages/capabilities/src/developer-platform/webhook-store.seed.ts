@@ -1,6 +1,7 @@
 import {
   type WebhookDeliveryId,
-  type WebhookEndpointId
+  type WebhookEndpointId,
+  type WorkspaceId
 } from '@b2b-saas-starter/db/ids'
 import {
   SeedResourceInventory,
@@ -32,7 +33,7 @@ export type SeedWebhookEndpointFixture = {
   readonly enabled: boolean
   readonly events: ReadonlyArray<string>
   readonly signingSecret?: string
-  readonly workspaceId?: string
+  readonly workspaceId?: WorkspaceId
 }
 
 /** Persisted deliveries may lack an attempt time, including terminal rows. */
@@ -42,7 +43,7 @@ export type SeedDeliveryFixture = Omit<SeedWebhookDeliveryFixture, 'lastAttemptA
 
 export type SeedEndpointRow = {
   readonly id: WebhookEndpointId
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   url: string
   enabled: boolean
   events: ReadonlyArray<string>
@@ -57,7 +58,7 @@ export type SeedEndpointRow = {
 export type SeedDeliveryRow = {
   readonly id: WebhookDeliveryId
   readonly endpointId: WebhookEndpointId
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   readonly eventType: string
   readonly status: WebhookDeliveryStatus
   readonly attempts: number
@@ -87,7 +88,7 @@ type SeedWebhookStoreInterface = {
   readonly inventory: SeedResourceInventory['Service']
   readonly endpointFor: (
     endpointId: WebhookEndpointId,
-    workspaceId: string
+    workspaceId: WorkspaceId
   ) => SeedEndpointRow | null
   readonly projection: (endpoint: SeedEndpointRow) => WebhookEndpoint
 }
@@ -134,7 +135,7 @@ export function SeedWebhookStoreLayer(
         toDeliveryRow(fixture, seedWorkspaceRecord.id)
       )
 
-      function endpointFor(endpointId: WebhookEndpointId, workspaceId: string) {
+      function endpointFor(endpointId: WebhookEndpointId, workspaceId: WorkspaceId) {
         return (
           endpoints.find(
             (endpoint) =>
@@ -159,7 +160,7 @@ export function SeedWebhookStoreLayer(
 
 function toDeliveryRow(
   fixture: SeedDeliveryFixture,
-  fallbackWorkspaceId: string
+  fallbackWorkspaceId: WorkspaceId
 ): SeedDeliveryRow {
   return {
     id: fixture.id,

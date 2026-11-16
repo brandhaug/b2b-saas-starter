@@ -1,4 +1,4 @@
-import { WebhookDeliveryId } from '@b2b-saas-starter/db/ids'
+import { UserId, WebhookDeliveryId } from '@b2b-saas-starter/db/ids'
 import { webhookInvestigationTaskStatuses } from '@b2b-saas-starter/db/enums'
 import { describe, expect, it } from '@effect/vitest'
 import { Effect } from 'effect'
@@ -92,7 +92,11 @@ describe('webhook investigation tasks', () => {
         expect(saved.replayDeliveryId).toBeNull()
       }).pipe(
         Effect.provide(
-          selectWorkspaceLayer({}, 'starter-lab', WorkspaceCaller.user('usr_demo'))
+          selectWorkspaceLayer(
+            {},
+            'starter-lab',
+            WorkspaceCaller.user(UserId.make('usr_demo'))
+          )
         )
       )
   )
@@ -103,7 +107,11 @@ describe('seed webhook investigation tasks contract', () => {
     it.effect(contractCase.name, () =>
       contractCase.assert.pipe(
         Effect.provide(
-          selectWorkspaceLayer({}, 'starter-lab', WorkspaceCaller.user('usr_demo'))
+          selectWorkspaceLayer(
+            {},
+            'starter-lab',
+            WorkspaceCaller.user(UserId.make('usr_demo'))
+          )
         )
       )
     )

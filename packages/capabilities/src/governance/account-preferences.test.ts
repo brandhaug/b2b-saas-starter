@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { Effect, Layer, Result } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 
@@ -12,9 +13,9 @@ const audit = SeedAuditEventLog([])
 const layer = Layer.merge(
   audit,
   SeedAccountPreferences([
-    { userId: 'usr_demo', locale: null, timeZone: null },
+    { userId: UserId.make('usr_demo'), locale: null, timeZone: null },
     {
-      userId: 'usr_nb',
+      userId: UserId.make('usr_nb'),
       email: 'martin@example.com',
       locale: 'nb',
       timeZone: 'Europe/Oslo'
@@ -26,7 +27,7 @@ describe('account preferences', () => {
   it.effect('persists locale and initializes a timezone once', () =>
     Effect.gen(function* () {
       const preferences = yield* AccountPreferencesService
-      expect(yield* preferences.get('usr_demo')).toEqual({
+      expect(yield* preferences.get(UserId.make('usr_demo'))).toEqual({
         locale: null,
         timeZone: null
       })
@@ -37,7 +38,7 @@ describe('account preferences', () => {
       expect(yield* preferences.getByEmail('unknown@example.com')).toBeNull()
       expect(
         yield* preferences.set({
-          userId: 'usr_demo',
+          userId: UserId.make('usr_demo'),
           locale: 'nb',
           timeZone: 'Europe/Oslo',
           initializeTimeZone: true
@@ -45,14 +46,14 @@ describe('account preferences', () => {
       ).toEqual({ locale: 'nb', timeZone: 'Europe/Oslo' })
       expect(
         yield* preferences.set({
-          userId: 'usr_demo',
+          userId: UserId.make('usr_demo'),
           timeZone: 'America/New_York',
           initializeTimeZone: true
         })
       ).toEqual({ locale: 'nb', timeZone: 'Europe/Oslo' })
       expect(
         yield* preferences.set({
-          userId: 'usr_demo',
+          userId: UserId.make('usr_demo'),
           locale: 'en',
           timeZone: 'America/New_York',
           initializeTimeZone: true
@@ -70,13 +71,13 @@ describe('account preferences', () => {
     Effect.gen(function* () {
       const preferences = yield* AccountPreferencesService
       const result = yield* Effect.result(
-        preferences.set({ userId: 'usr_demo', timeZone: 'Not/A-Timezone' })
+        preferences.set({ userId: UserId.make('usr_demo'), timeZone: 'Not/A-Timezone' })
       )
       expect(Result.isFailure(result)).toBe(true)
       if (Result.isFailure(result)) {
         expect(result.failure).toBeInstanceOf(AccountPreferencesRejected)
       }
-      expect(yield* preferences.get('usr_demo')).toEqual({
+      expect(yield* preferences.get(UserId.make('usr_demo'))).toEqual({
         locale: null,
         timeZone: null
       })

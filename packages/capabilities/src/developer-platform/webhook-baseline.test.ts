@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { SeedAssistantDirectory } from '../assistant/directory.seed.ts'
 import { Effect, Layer } from 'effect'
 import { expect, it } from '@effect/vitest'
@@ -22,14 +23,14 @@ import { testWorkspaceContext } from '../workspace-context.ts'
 import { WorkspaceInvitations } from '../governance/workspace-invitations.ts'
 
 const workspace = {
-  id: 'wrk_webhook_baseline',
+  id: WorkspaceId.make('wrk_webhook_baseline'),
   slug: 'webhook-baseline',
   name: 'Webhook Baseline',
   planId: 'team'
 }
 
 const owner: Member = {
-  id: 'usr_owner',
+  id: UserId.make('usr_owner'),
   name: 'Owner',
   email: 'owner@webhook.test',
   role: 'owner',
@@ -38,7 +39,7 @@ const owner: Member = {
 }
 
 const member: Member = {
-  id: 'usr_member',
+  id: UserId.make('usr_member'),
   name: 'Member',
   email: 'member@webhook.test',
   role: 'member',
@@ -51,7 +52,7 @@ function fixture(options?: {
   readonly failPublish?: boolean
 }) {
   const published: Array<{
-    readonly workspaceId: string
+    readonly workspaceId: WorkspaceId
     readonly input: PublishWebhookEventInput
   }> = []
   const publisher = Layer.succeed(WebhookPublisher)({
@@ -112,7 +113,7 @@ it.effect('publishes scoped membership changes and no events for refusals', () =
 
     const beforeRefusal = published.length
     const refused = yield* Effect.flip(
-      membership.removeMember({ userId: 'usr_missing' })
+      membership.removeMember({ userId: UserId.make('usr_missing') })
     )
     expect(refused).toBeInstanceOf(MembershipChangeRejected)
     expect(published).toHaveLength(beforeRefusal)
@@ -180,7 +181,7 @@ it.effect('acceptance publishes both events, scopes them, and rejects repeats', 
     const wrongRecipient = yield* Effect.flip(
       invitations.accept({
         invitationId: invitation.id,
-        userId: 'usr_joiner',
+        userId: UserId.make('usr_joiner'),
         email: 'attacker@webhook.test'
       })
     )
@@ -188,7 +189,7 @@ it.effect('acceptance publishes both events, scopes them, and rejects repeats', 
     expect(published).toEqual([])
     yield* invitations.accept({
       invitationId: invitation.id,
-      userId: 'usr_joiner',
+      userId: UserId.make('usr_joiner'),
       email: 'joiner@webhook.test'
     })
     expect(published).toHaveLength(2)
@@ -201,20 +202,20 @@ it.effect('acceptance publishes both events, scopes them, and rejects repeats', 
         eventType: 'workspace_invitation.accepted',
         payload: {
           invitationId: invitation.id,
-          userId: 'usr_joiner',
+          userId: UserId.make('usr_joiner'),
           role: 'member'
         }
       },
       {
         eventType: 'workspace_member.added',
-        payload: { userId: 'usr_joiner', role: 'member' }
+        payload: { userId: UserId.make('usr_joiner'), role: 'member' }
       }
     ])
 
     const repeated = yield* Effect.flip(
       invitations.accept({
         invitationId: invitation.id,
-        userId: 'usr_joiner',
+        userId: UserId.make('usr_joiner'),
         email: 'joiner@webhook.test'
       })
     )

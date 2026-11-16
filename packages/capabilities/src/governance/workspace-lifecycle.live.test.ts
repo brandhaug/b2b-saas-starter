@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
 import {
   billingCheckoutClaims,
@@ -30,12 +31,12 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         () =>
           Effect.gen(function* () {
             const db = yield* Database
-            const id = `wrk_delete_${obligation}`
+            const id = WorkspaceId.make(`wrk_delete_${obligation}`)
             yield* db.insert(workspaces).values({ id, slug: id, name: id })
             yield* db.insert(workspaceMembers).values({
               id: `mem_${id}`,
               workspaceId: id,
-              userId: 'usr_owner',
+              userId: UserId.make('usr_owner'),
               role: 'owner'
             })
             if (obligation === 'subscription') {
@@ -66,7 +67,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             const failure = yield* inWorkspace(
               id,
               Effect.flatMap(WorkspaceLifecycle, (lifecycle) => lifecycle.remove),
-              { userId: 'usr_owner' },
+              { userId: UserId.make('usr_owner') },
               { lifecycleBinding: binding }
             ).pipe(Effect.flip)
             expect(failure).toMatchObject({
@@ -86,7 +87,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
     // The Seed half of this same list runs in index.test.ts.
     describe('live workspace lifecycle contract', () => {
       const cases = workspaceLifecycleContractCases(
-        { creator: 'usr_joiner', existingSlug: 'live-lab' },
+        { creator: UserId.make('usr_joiner'), existingSlug: 'live-lab' },
         expect
       )
       for (const contractCase of cases) {
@@ -97,7 +98,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             yield* inWorkspace(
               'live-lab',
               contractCase.assert,
-              { userId: 'usr_owner' },
+              { userId: UserId.make('usr_owner') },
               { lifecycleBinding: binding }
             )
           })
@@ -117,7 +118,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               return inWorkspace(
                 slug,
                 effect,
-                { userId: 'usr_owner' },
+                { userId: UserId.make('usr_owner') },
                 { lifecycleBinding: binding }
               )
             }
@@ -128,7 +129,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 lifecycle.create({
                   name: 'Doomed Live',
                   slug: 'doomed-live-lab',
-                  userId: 'usr_owner'
+                  userId: UserId.make('usr_owner')
                 })
               )
             )
@@ -183,7 +184,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                   const created = yield* lifecycle.create({
                     name: 'Audit Gap Lab',
                     slug: 'audit-gap-lab',
-                    userId: 'usr_owner'
+                    userId: UserId.make('usr_owner')
                   })
                   expect(created.slug).toBe('audit-gap-lab')
                   expect(
@@ -199,7 +200,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                       .where(eq(auditEvents.targetId, created.id))
                   ).toHaveLength(0)
                 }),
-                { userId: 'usr_owner' },
+                { userId: UserId.make('usr_owner') },
                 { lifecycleBinding: binding }
               ),
             () =>
@@ -220,10 +221,10 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 return yield* lifecycle.create({
                   name: 'Unbound Lab',
                   slug: 'unbound-live-lab',
-                  userId: 'usr_joiner'
+                  userId: UserId.make('usr_joiner')
                 })
               }),
-              { userId: 'usr_owner' }
+              { userId: UserId.make('usr_owner') }
             )
           )
           expect(error).toBeInstanceOf(CapabilityUnavailable)

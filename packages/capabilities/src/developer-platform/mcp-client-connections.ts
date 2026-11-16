@@ -1,3 +1,4 @@
+import { type UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Context, Schema, type Effect } from 'effect'
 
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -26,7 +27,7 @@ export const McpClientSummary = Schema.Struct({
 export type McpClientSummary = typeof McpClientSummary.Type
 
 const McpClientConnectionWorkspace = Schema.Struct({
-  id: Schema.String,
+  id: WorkspaceId,
   slug: Schema.String,
   name: Schema.String
 })
@@ -44,14 +45,14 @@ export const McpClientConnection = Schema.Struct({
 export type McpClientConnection = typeof McpClientConnection.Type
 
 type RecordMcpConsentGrantInput = {
-  readonly userId: string
-  readonly workspaceId: string
+  readonly userId: UserId
+  readonly workspaceId: WorkspaceId
   readonly clientId: string
   readonly scopes: ReadonlyArray<string>
 }
 
 type RevokeMcpClientInput = {
-  readonly userId: string
+  readonly userId: UserId
   readonly connectionId: string
 }
 
@@ -78,11 +79,11 @@ export function consentGrantedAuditEvent(
 }
 
 export function consentRevokedAuditEvent(input: {
-  readonly userId: string
+  readonly userId: UserId
   readonly clientId: string
   readonly scopes: ReadonlyArray<string>
   /** The consented workspace's id, or `null` once that workspace is gone. */
-  readonly workspaceId: string | null
+  readonly workspaceId: WorkspaceId | null
 }): RecordAuditEventInput {
   return {
     workspaceId: input.workspaceId,
@@ -98,9 +99,9 @@ export function consentRevokedAuditEvent(input: {
 type McpClientConnectionsInterface = {
   /** Current consent binding and scopes; null for revoked, missing or disabled clients. */
   readonly getGrant: (input: {
-    readonly userId: string
+    readonly userId: UserId
     readonly clientId: string
-    readonly workspaceId: string
+    readonly workspaceId: WorkspaceId
     readonly resource?: string | undefined
   }) => Effect.Effect<
     { readonly binding: string; readonly scopes: ReadonlyArray<string> } | null,
@@ -113,7 +114,7 @@ type McpClientConnectionsInterface = {
   ) => Effect.Effect<McpClientSummary | null, CapabilityUnavailable>
   /** Every consent the user holds, newest first — an account-level read, not a workspace one. */
   readonly listForUser: (
-    userId: string
+    userId: UserId
   ) => Effect.Effect<ReadonlyArray<McpClientConnection>, CapabilityUnavailable>
   /**
    * The `mcp_client.consent_granted` Audit Event. The consent row is the

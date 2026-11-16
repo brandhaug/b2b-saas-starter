@@ -1,3 +1,4 @@
+import { type UserId, type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { currentTraceparent } from '@b2b-saas-starter/logger'
 import { Database } from '@b2b-saas-starter/db/service'
 import { notifications } from '@b2b-saas-starter/db/schema/notifications'
@@ -92,7 +93,7 @@ function toWorkspaceRef(row: WorkspaceRow | null): NotificationWorkspace | null 
   return { id: row.id, slug: row.slug, name: row.name }
 }
 
-function visibilityFilter(workspaceId: string, actor: Actor | null) {
+function visibilityFilter(workspaceId: WorkspaceId, actor: Actor | null) {
   return and(
     eq(notifications.workspaceId, workspaceId),
     visibleToUserCondition(actor?.userId)
@@ -104,7 +105,7 @@ function visibilityFilter(workspaceId: string, actor: Actor | null) {
  * everyone in the workspace, an addressed row only its addressee. With no
  * viewer, only broadcasts.
  */
-function visibleToUserCondition(viewerUserId: string | undefined) {
+function visibleToUserCondition(viewerUserId: UserId | undefined) {
   if (viewerUserId === undefined) {
     return isNull(notifications.userId)
   }
@@ -132,7 +133,7 @@ export function LiveNotificationFeed(
 
       /** Every member of a workspace, as email recipients. */
       function membersOf(
-        workspaceId: string
+        workspaceId: WorkspaceId
       ): Effect.Effect<ReadonlyArray<EmailQueueRecipient>, CapabilityUnavailable> {
         return unavailable(
           db
@@ -145,7 +146,7 @@ export function LiveNotificationFeed(
 
       /** The workspace's owners, as email recipients. */
       function ownersOf(
-        workspaceId: string,
+        workspaceId: WorkspaceId,
         audience: 'owners' | 'owners_and_admins' = 'owners'
       ): Effect.Effect<ReadonlyArray<EmailQueueRecipient>, CapabilityUnavailable> {
         let roleCondition = eq(workspaceMembers.role, 'owner')
@@ -163,7 +164,7 @@ export function LiveNotificationFeed(
 
       /** The one user a targeted row reaches, if the account still exists. */
       function userById(
-        userId: string
+        userId: UserId
       ): Effect.Effect<EmailQueueRecipient | null, CapabilityUnavailable> {
         return unavailable(db.select().from(user).where(eq(user.id, userId))).pipe(
           Effect.map((rows) => {
@@ -292,8 +293,8 @@ export function LiveNotificationFeed(
           return rows.map(toNotification)
         })(),
         countVisibleToUser: Effect.fn('NotificationFeed.countVisibleToUser')(function* (
-          userId: string,
-          workspaceIds: ReadonlyArray<string>
+          userId: UserId,
+          workspaceIds: ReadonlyArray<WorkspaceId>
         ) {
           // One bound parameter is the user id.
           return yield* countInIdChunks(workspaceIds, 1, (chunk) =>

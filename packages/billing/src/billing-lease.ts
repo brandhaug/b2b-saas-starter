@@ -1,3 +1,4 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { narrowFailure } from '@b2b-saas-starter/failure/narrowing'
 import { billingSynchronization } from '@b2b-saas-starter/db/schema/billing'
 import {
@@ -15,7 +16,7 @@ import { newCapabilityId } from './internal/ids.ts'
 import { initialSynchronizationStatus } from './synchronization-status.ts'
 
 export type BillingLease = {
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   readonly owner: string
   readonly fence: number
   readonly expiresAt: string
@@ -34,7 +35,9 @@ export const makeBillingLease = Effect.fn('Billing.makeLease')(function* () {
   const db = yield* Database
   const d1 = yield* RawD1
 
-  const acquire = Effect.fn('Billing.acquireLease')(function* (workspaceId: string) {
+  const acquire = Effect.fn('Billing.acquireLease')(function* (
+    workspaceId: WorkspaceId
+  ) {
     const now = yield* DateTime.now
     const timestamp = DateTime.formatIso(now)
     const owner = yield* newCapabilityId('bill_lease')
@@ -130,7 +133,7 @@ export const makeBillingLease = Effect.fn('Billing.makeLease')(function* () {
   })
 
   function withLease<A, E, R>(
-    workspaceId: string,
+    workspaceId: WorkspaceId,
     use: (lease: BillingLease) => Effect.Effect<A, E, R>
   ): Effect.Effect<A, E | CapabilityUnavailable, R> {
     return Effect.acquireUseRelease(

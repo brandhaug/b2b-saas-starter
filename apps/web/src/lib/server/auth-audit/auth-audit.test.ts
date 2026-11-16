@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { Effect } from 'effect'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { exchangeRow, needsPreHandlerActor, type AuthExchange } from './exchanges'
@@ -149,7 +150,7 @@ describe('authAuditInput', () => {
       method: 'POST',
       pathname: '/api/auth/sign-in/email',
       status: 200,
-      actorUserId: 'usr_demo'
+      actorUserId: UserId.make('usr_demo')
     })
     expect(input).toEqual({
       workspaceId: null,
@@ -178,7 +179,7 @@ describe('authAuditInput', () => {
       method: 'POST',
       pathname: '/api/auth/sign-in/email',
       status: 500,
-      actorUserId: 'usr_demo'
+      actorUserId: UserId.make('usr_demo')
     })
     expect(input?.actorUserId).toBeNull()
   })
@@ -188,7 +189,7 @@ describe('authAuditInput', () => {
       method: 'POST',
       pathname: '/api/auth/sign-up/email',
       status: 200,
-      actorUserId: 'usr_new'
+      actorUserId: UserId.make('usr_new')
     })
     expect(input?.eventType).toBe('auth.sign_up')
     expect(input?.actorUserId).toBe('usr_new')
@@ -308,7 +309,7 @@ describe('authAuditInput', () => {
       method: 'GET',
       pathname: '/api/auth/verify-email',
       status: 200,
-      actorUserId: 'usr_demo'
+      actorUserId: UserId.make('usr_demo')
     })
     expect(input?.eventType).toBe('auth.email_verified')
     expect(input?.actorUserId).toBe('usr_demo')
@@ -336,7 +337,7 @@ describe('authAuditInput', () => {
       method: 'GET',
       pathname: '/api/auth/callback/google',
       status: 302,
-      actorUserId: 'usr_demo',
+      actorUserId: UserId.make('usr_demo'),
       locationHeader: 'http://localhost:3071/workspaces'
     })
     expect(attributed).toMatchObject({
@@ -362,7 +363,7 @@ describe('authAuditInput', () => {
       method: 'POST',
       pathname: '/api/auth/sign-in/username',
       status: 200,
-      actorUserId: 'usr_demo'
+      actorUserId: UserId.make('usr_demo')
     })
     expect(input?.eventType).toBe('auth.sign_in')
     expect(input?.actorUserId).toBe('usr_demo')
@@ -383,7 +384,7 @@ describe('authAuditInput', () => {
       method: 'POST',
       pathname: '/api/auth/passkey/verify-registration',
       status: 200,
-      actorUserId: 'usr_demo'
+      actorUserId: UserId.make('usr_demo')
     })
     expect(added?.eventType).toBe('auth.passkey_added')
     expect(added?.actorUserId).toBe('usr_demo')
@@ -394,7 +395,7 @@ describe('authAuditInput', () => {
       pathname: '/api/auth/passkey/verify-registration',
       status: 400,
       // The pre-handler session read attributes failures too.
-      actorUserId: 'usr_demo'
+      actorUserId: UserId.make('usr_demo')
     })
     expect(addFailed?.eventType).toBe('auth.passkey_added_failed')
     expect(addFailed?.actorUserId).toBe('usr_demo')
@@ -403,7 +404,7 @@ describe('authAuditInput', () => {
       method: 'POST',
       pathname: '/api/auth/passkey/delete-passkey',
       status: 200,
-      actorUserId: 'usr_demo'
+      actorUserId: UserId.make('usr_demo')
     })
     expect(removed?.eventType).toBe('auth.passkey_removed')
 
@@ -411,7 +412,7 @@ describe('authAuditInput', () => {
       method: 'POST',
       pathname: '/api/auth/passkey/delete-passkey',
       status: 401,
-      actorUserId: 'usr_demo'
+      actorUserId: UserId.make('usr_demo')
     })
     expect(removeFailed?.eventType).toBe('auth.passkey_removed_failed')
   })
@@ -421,7 +422,7 @@ describe('authAuditInput', () => {
       method: 'POST',
       pathname: '/api/auth/passkey/verify-authentication',
       status: 200,
-      actorUserId: 'usr_demo'
+      actorUserId: UserId.make('usr_demo')
     })
     expect(input?.eventType).toBe('auth.sign_in')
     expect(input?.targetType).toBe('session')
@@ -450,7 +451,7 @@ describe('authAuditInput', () => {
       method: 'POST',
       pathname: '/api/auth/sign-out',
       status: 200,
-      actorUserId: 'usr_demo'
+      actorUserId: UserId.make('usr_demo')
     })
     expect(input?.eventType).toBe('auth.sign_out')
     expect(input?.actorUserId).toBe('usr_demo')
@@ -470,7 +471,7 @@ describe('authAuditInput', () => {
         method: 'POST',
         pathname,
         status: 500,
-        actorUserId: 'usr_demo'
+        actorUserId: UserId.make('usr_demo')
       })
       expect(input?.eventType).toBe(
         pathname.endsWith('/sign-out')
@@ -527,7 +528,11 @@ describe('email-otp exchanges', () => {
     // trustworthy actor (the challenge may carry no session yet).
     expect(needsPreHandlerActor(signInOtp)).toBe(false)
     expect(
-      authAuditInput({ ...signInOtp, status: 200, actorUserId: 'usr_demo' })
+      authAuditInput({
+        ...signInOtp,
+        status: 200,
+        actorUserId: UserId.make('usr_demo')
+      })
     ).toEqual({
       workspaceId: null,
       actorType: 'user',
@@ -545,7 +550,11 @@ describe('email-otp exchanges', () => {
     expect(isAudited(verifyOtp)).toBe(true)
     expect(needsPreHandlerActor(verifyOtp)).toBe(false)
     expect(
-      authAuditInput({ ...verifyOtp, status: 200, actorUserId: 'usr_demo' })?.eventType
+      authAuditInput({
+        ...verifyOtp,
+        status: 200,
+        actorUserId: UserId.make('usr_demo')
+      })?.eventType
     ).toBe('auth.email_verified')
     expect(
       authAuditInput({ ...verifyOtp, status: 403, actorUserId: null })?.eventType
@@ -591,7 +600,7 @@ describe('recordAuthAudit', () => {
     const outcome = await Effect.runPromise(
       Effect.scoped(
         recordAuthAudit(exchangeOf(request), response, runCapabilities, {
-          actorUserId: 'usr_demo'
+          actorUserId: UserId.make('usr_demo')
         })
       )
     )
@@ -688,14 +697,14 @@ describe('two-factor lifecycle exchanges', () => {
 
   it('maps enable to an attributed pair, failures keeping the pre-handler actor', () => {
     expect(
-      authAuditInput({ ...enable, status: 200, actorUserId: 'usr_demo' })
+      authAuditInput({ ...enable, status: 200, actorUserId: UserId.make('usr_demo') })
     ).toMatchObject({
       eventType: 'auth.two_factor_enabled',
       actorUserId: 'usr_demo',
       targetType: 'user'
     })
     expect(
-      authAuditInput({ ...enable, status: 400, actorUserId: 'usr_demo' })
+      authAuditInput({ ...enable, status: 400, actorUserId: UserId.make('usr_demo') })
     ).toMatchObject({
       eventType: 'auth.two_factor_enabled_failed',
       actorUserId: 'usr_demo'
@@ -704,14 +713,14 @@ describe('two-factor lifecycle exchanges', () => {
 
   it('maps disable to an attributed pair', () => {
     expect(
-      authAuditInput({ ...disable, status: 200, actorUserId: 'usr_demo' })
+      authAuditInput({ ...disable, status: 200, actorUserId: UserId.make('usr_demo') })
     ).toMatchObject({
       eventType: 'auth.two_factor_disabled',
       actorUserId: 'usr_demo',
       targetType: 'user'
     })
     expect(
-      authAuditInput({ ...disable, status: 401, actorUserId: 'usr_demo' })
+      authAuditInput({ ...disable, status: 401, actorUserId: UserId.make('usr_demo') })
     ).toMatchObject({
       eventType: 'auth.two_factor_disable_failed',
       actorUserId: 'usr_demo'
@@ -724,7 +733,11 @@ describe('two-factor lifecycle exchanges', () => {
     // no trustworthy actor (the sign-in challenge may carry no session yet).
     expect(needsPreHandlerActor(verifyTotp)).toBe(false)
     expect(
-      authAuditInput({ ...verifyTotp, status: 200, actorUserId: 'usr_challenge' })
+      authAuditInput({
+        ...verifyTotp,
+        status: 200,
+        actorUserId: UserId.make('usr_challenge')
+      })
     ).toMatchObject({
       eventType: 'auth.two_factor_verified',
       actorUserId: 'usr_challenge',
@@ -748,14 +761,14 @@ describe('two-factor lifecycle exchanges', () => {
     // codes, never an actor.
     expect(needsPreHandlerActor(rotate)).toBe(true)
     expect(
-      authAuditInput({ ...rotate, status: 200, actorUserId: 'usr_demo' })
+      authAuditInput({ ...rotate, status: 200, actorUserId: UserId.make('usr_demo') })
     ).toMatchObject({
       eventType: 'auth.two_factor_backup_codes_rotated',
       actorUserId: 'usr_demo',
       targetType: 'user'
     })
     expect(
-      authAuditInput({ ...rotate, status: 400, actorUserId: 'usr_demo' })
+      authAuditInput({ ...rotate, status: 400, actorUserId: UserId.make('usr_demo') })
     ).toMatchObject({
       eventType: 'auth.two_factor_backup_codes_rotation_failed',
       actorUserId: 'usr_demo'
@@ -777,7 +790,11 @@ describe('signed-in account changes', () => {
       // judgment.
       expect(needsPreHandlerActor(exchange)).toBe(true)
       expect(
-        authAuditInput({ ...exchange, status: 200, actorUserId: 'usr_demo' })
+        authAuditInput({
+          ...exchange,
+          status: 200,
+          actorUserId: UserId.make('usr_demo')
+        })
       ).toMatchObject({ actorUserId: 'usr_demo', targetType: 'user' })
     }
   })
@@ -790,10 +807,18 @@ describe('signed-in account changes', () => {
     ]
     for (const [exchange, success, failure] of pairs) {
       expect(
-        authAuditInput({ ...exchange, status: 200, actorUserId: 'usr_demo' })?.eventType
+        authAuditInput({
+          ...exchange,
+          status: 200,
+          actorUserId: UserId.make('usr_demo')
+        })?.eventType
       ).toBe(success)
       expect(
-        authAuditInput({ ...exchange, status: 400, actorUserId: 'usr_demo' })?.eventType
+        authAuditInput({
+          ...exchange,
+          status: 400,
+          actorUserId: UserId.make('usr_demo')
+        })?.eventType
       ).toBe(failure)
     }
   })
@@ -802,7 +827,7 @@ describe('signed-in account changes', () => {
     const failed = authAuditInput({
       ...changePassword,
       status: 400,
-      actorUserId: 'usr_demo'
+      actorUserId: UserId.make('usr_demo')
     })
     expect(failed?.eventType).toBe('auth.password_change_failed')
     expect(failed?.actorUserId).toBe('usr_demo')
@@ -829,8 +854,11 @@ describe('the admin rows of the table', () => {
       // the pre-handler session read.
       expect(needsPreHandlerActor(exchange)).toBe(true)
       expect(
-        authAuditInput({ ...exchange, status: 200, actorUserId: 'usr_martin' })
-          ?.eventType
+        authAuditInput({
+          ...exchange,
+          status: 200,
+          actorUserId: UserId.make('usr_martin')
+        })?.eventType
       ).toMatch(/^system_admin\./)
     }
   })
@@ -854,8 +882,8 @@ describe('authAuditInput for the admin rows', () => {
         method: 'POST',
         pathname,
         status: 200,
-        actorUserId: 'usr_martin',
-        targetUserId: 'usr_dev'
+        actorUserId: UserId.make('usr_martin'),
+        targetUserId: UserId.make('usr_dev')
       })
     ).toEqual({
       workspaceId: null,
@@ -873,8 +901,8 @@ describe('authAuditInput for the admin rows', () => {
       method: 'POST',
       pathname,
       status: 400,
-      actorUserId: 'usr_martin',
-      targetUserId: 'usr_dev'
+      actorUserId: UserId.make('usr_martin'),
+      targetUserId: UserId.make('usr_dev')
     })
     expect(input?.eventType).toBe('system_admin.user_role_change_failed')
     expect(input?.actorUserId).toBe('usr_martin')
@@ -929,7 +957,7 @@ describe('authAuditInput for the admin rows', () => {
           method: 'POST',
           pathname: path,
           status: 200,
-          actorUserId: 'a',
+          actorUserId: UserId.make('a'),
           targetUserId: null
         })?.eventType
       ).toBe(success)
@@ -938,7 +966,7 @@ describe('authAuditInput for the admin rows', () => {
           method: 'POST',
           pathname: path,
           status: 500,
-          actorUserId: 'a',
+          actorUserId: UserId.make('a'),
           targetUserId: null
         })?.eventType
       ).toBe(failure)
@@ -950,7 +978,7 @@ describe('authAuditInput for the admin rows', () => {
       method: 'POST',
       pathname: '/api/auth/admin/stop-impersonating',
       status: 200,
-      actorUserId: 'usr_martin',
+      actorUserId: UserId.make('usr_martin'),
       targetUserId: null
     })
     expect(input?.targetType).toBe('user')
@@ -964,8 +992,8 @@ describe('authAuditInput for the admin rows', () => {
       method: 'POST',
       pathname: '/api/auth/sign-in/email',
       status: 200,
-      actorUserId: 'usr_martin',
-      targetUserId: 'usr_dev'
+      actorUserId: UserId.make('usr_martin'),
+      targetUserId: UserId.make('usr_dev')
     })
     expect(input?.eventType).toBe('auth.sign_in')
     expect(input?.targetId).toBeUndefined()
@@ -997,7 +1025,7 @@ describe('recordAuthAudit with a pre-handler context', () => {
     })
     await expect(
       runAdminAudit(request, response, {
-        actorUserId: 'usr_martin',
+        actorUserId: UserId.make('usr_martin'),
         request: request.clone()
       })
     ).resolves.toBe('recorded')
@@ -1012,7 +1040,7 @@ describe('recordAuthAudit with a pre-handler context', () => {
       status: 201
     })
     await expect(
-      runAdminAudit(request, response, { actorUserId: 'usr_martin' })
+      runAdminAudit(request, response, { actorUserId: UserId.make('usr_martin') })
     ).resolves.toBe('recorded')
   })
 
@@ -1023,7 +1051,7 @@ describe('recordAuthAudit with a pre-handler context', () => {
     const response = new Response(JSON.stringify({ message: 'nope' }), { status: 403 })
     await expect(
       runAdminAudit(request, response, {
-        actorUserId: 'usr_martin',
+        actorUserId: UserId.make('usr_martin'),
         request: request.clone()
       })
     ).resolves.toBe('recorded')
@@ -1037,7 +1065,7 @@ describe('recordAuthAudit with a pre-handler context', () => {
     const response = new Response('{}', { status: 200 })
     await expect(
       runAdminAudit(request, response, {
-        actorUserId: 'usr_martin',
+        actorUserId: UserId.make('usr_martin'),
         request: request.clone()
       })
     ).resolves.toBe('dropped')
@@ -1049,7 +1077,7 @@ describe('recordAuthAudit with a pre-handler context', () => {
     })
     const response = new Response('{}', { status: 200 })
     await expect(
-      runAdminAudit(request, response, { actorUserId: 'usr_demo' })
+      runAdminAudit(request, response, { actorUserId: UserId.make('usr_demo') })
     ).resolves.toBe('recorded')
     expect(runCapabilities).toHaveBeenCalledWith(expect.anything())
   })

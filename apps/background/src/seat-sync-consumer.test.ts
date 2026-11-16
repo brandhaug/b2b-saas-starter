@@ -1,4 +1,4 @@
-import { WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import { WebhookEndpointId, type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import {
   Billing,
   type ProcessProviderEventInput,
@@ -33,7 +33,7 @@ import {
  * reach the consumer entry's retry fold.
  */
 
-type SyncCall = { readonly workspaceId: string; readonly reason: string }
+type SyncCall = { readonly workspaceId: WorkspaceId; readonly reason: string }
 
 function stubBilling(
   calls: Array<SyncCall>,

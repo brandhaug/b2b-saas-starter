@@ -1,6 +1,7 @@
 import {
   type WebhookDeliveryId,
-  type WebhookEndpointId
+  type WebhookEndpointId,
+  type WorkspaceId
 } from '@b2b-saas-starter/db/ids'
 import { Database } from '@b2b-saas-starter/db/service'
 import {
@@ -50,7 +51,7 @@ export function makeLiveWebhookStorage(capability: WebhookStorageCapability) {
       unavailable
     })
 
-    function endpointExists(endpointId: WebhookEndpointId, workspaceId: string) {
+    function endpointExists(endpointId: WebhookEndpointId, workspaceId: WorkspaceId) {
       return unavailable(
         db
           .select({ id: webhookEndpoints.id })
@@ -60,7 +61,7 @@ export function makeLiveWebhookStorage(capability: WebhookStorageCapability) {
       ).pipe(Effect.map((rows) => rows.length > 0))
     }
 
-    function endpointRow(endpointId: WebhookEndpointId, workspaceId: string) {
+    function endpointRow(endpointId: WebhookEndpointId, workspaceId: WorkspaceId) {
       return unavailable(
         db
           .select()
@@ -90,7 +91,7 @@ export function makeLiveWebhookStorage(capability: WebhookStorageCapability) {
 
     function endpointProjection(
       endpointId: WebhookEndpointId,
-      workspaceId: string
+      workspaceId: WorkspaceId
     ): Effect.Effect<WebhookEndpoint | null, CapabilityUnavailable> {
       return unavailable(
         aggregateQuery()
@@ -116,7 +117,7 @@ export function makeLiveWebhookStorage(capability: WebhookStorageCapability) {
      */
     function recordOperatorDispatch(input: {
       readonly deliveryId: WebhookDeliveryId
-      readonly workspaceId: string
+      readonly workspaceId: WorkspaceId
       readonly plan: PendingDispatchPlan
       readonly auditEvent?: RecordAuditEventInput | undefined
       readonly approvedEndpointUrl?: string | undefined
@@ -189,7 +190,7 @@ export function projectionFromAggregate(
 // Always pair endpoint identity with its owning workspace.
 export function scopedEndpointWhere(
   endpointId: WebhookEndpointId,
-  workspaceId: string
+  workspaceId: WorkspaceId
 ) {
   return and(
     eq(webhookEndpoints.id, endpointId),

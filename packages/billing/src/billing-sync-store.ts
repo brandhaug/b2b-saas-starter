@@ -1,3 +1,4 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { makeBillingNotices } from './billing-notices.live.ts'
 import { decodeSubscriptionRow } from './subscription-row.ts'
 import {
@@ -69,7 +70,7 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
   const notices = yield* makeBillingNotices()
   const unavailable = billingStoreUnavailable
 
-  const read = Effect.fn('Billing.readSyncState')(function* (workspaceId: string) {
+  const read = Effect.fn('Billing.readSyncState')(function* (workspaceId: WorkspaceId) {
     const rows = yield* unavailable(
       db
         .select({
@@ -114,7 +115,7 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
 
   const recordEvent = Effect.fn('Billing.recordProviderEvidence')(function* (
     input: ProcessProviderEventInput,
-    workspaceId: string | null
+    workspaceId: WorkspaceId | null
   ) {
     const now = DateTime.formatIso(yield* DateTime.now)
     yield* unavailable(

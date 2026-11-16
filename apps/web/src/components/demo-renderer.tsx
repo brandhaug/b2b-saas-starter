@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { WorkspaceDashboardPage } from '@/components/workspace-dashboard-page'
 import { WorkspaceMembersPage } from '@/components/workspace-members-page'
 import { WorkspaceApiTokensPage } from '@/components/workspace-api-tokens-page'
@@ -26,6 +27,7 @@ import {
   auditViewFromSearch,
   type WorkspaceAuditSearchUpdate
 } from '@/lib/audit-search'
+import { decodeWorkspaceAuditFilters } from '@/lib/server/workspace-audit'
 import { applyTableView } from '@/lib/table-view'
 import { DEMO_WORKSPACE_SLUG } from '@/lib/demo-workspace'
 import { m } from '@b2b-saas-starter/i18n/messages'
@@ -63,7 +65,7 @@ export function DemoRenderer({ section }: { readonly section: DemoSection }) {
         <WorkspaceMembersPage
           workspaceSlug={slug}
           data={demoFixtures.members}
-          actorUserId="usr_demo"
+          actorUserId={UserId.make('usr_demo')}
         />
       )
     }
@@ -177,7 +179,7 @@ function DemoAudit() {
     selectedEventId === null
       ? null
       : (demoAuditDetails.find((event) => event.id === selectedEventId) ?? null)
-  const filters = auditFiltersFromSearch(search)
+  const filters = decodeWorkspaceAuditFilters(auditFiltersFromSearch(search))
   return (
     <WorkspaceAuditPage
       workspaceSlug={DEMO_WORKSPACE_SLUG}

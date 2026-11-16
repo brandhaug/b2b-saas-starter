@@ -1,3 +1,4 @@
+import { WorkspaceIdInput } from '@b2b-saas-starter/db/ids'
 import { type McpClientSummary } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
 import { type WorkspaceListItemProjection } from '@b2b-saas-starter/capabilities/workspace-projections'
 import { createServerFn } from '@tanstack/react-start'
@@ -22,7 +23,7 @@ const LoadOAuthConsentInput = Schema.Struct({
 })
 
 const GrantOAuthConsentInput = Schema.Struct({
-  workspaceId: Schema.NonEmptyString,
+  workspaceId: WorkspaceIdInput,
   /** The page's signed OAuth query (`signedOAuthQuery` in `lib/oauth-query.ts`). */
   oauthQuery: Schema.NonEmptyString
 })
@@ -33,6 +34,8 @@ const DenyOAuthConsentInput = Schema.Struct({
 
 export type LoadOAuthConsentInput = typeof LoadOAuthConsentInput.Type
 export type GrantOAuthConsentInput = typeof GrantOAuthConsentInput.Type
+/** What the consent page sends, before the server fn decodes the brand. */
+export type GrantOAuthConsentRequest = typeof GrantOAuthConsentInput.Encoded
 export type DenyOAuthConsentInput = typeof DenyOAuthConsentInput.Type
 
 export const loadOAuthConsentServerFn = createServerFn({ method: 'GET' })

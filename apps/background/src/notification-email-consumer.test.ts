@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import {
   NotificationFeed,
   type NotificationEmailContext
@@ -41,8 +42,12 @@ const context: NotificationEmailContext = {
     createdAt: '2026-09-02T10:00:00.000Z',
     read: false
   },
-  recipient: { userId: 'usr_owner', email: 'owner@example.com', name: 'Owner' },
-  workspace: { id: 'wrk_1', slug: 'starter-lab', name: 'Starter Lab' }
+  recipient: {
+    userId: UserId.make('usr_owner'),
+    email: 'owner@example.com',
+    name: 'Owner'
+  },
+  workspace: { id: WorkspaceId.make('wrk_1'), slug: 'starter-lab', name: 'Starter Lab' }
 }
 
 function stubFeed(
@@ -130,7 +135,7 @@ function run(
   const stored: Array<SeedNotificationPreference> = []
   if (options.channel !== undefined) {
     stored.push({
-      userId: 'usr_owner',
+      userId: UserId.make('usr_owner'),
       kind: 'api_token.created',
       channel: options.channel
     })
@@ -219,14 +224,20 @@ describe('processNotificationEmailMessage', () => {
             notification: { ...context.notification, kind: 'announcement' }
           }),
           SeedNotificationPreferences([
-            { userId: 'usr_owner', kind: 'announcement', channel: 'instant' }
+            {
+              userId: UserId.make('usr_owner'),
+              kind: 'announcement',
+              channel: 'instant'
+            }
           ]).pipe(Layer.provide(audit)),
           SeedEmailDelivery(),
           Layer.succeed(WorkspaceSuspensionService)({
             list: Effect.succeed([]),
             get: () => Effect.die('unused'),
             requireAllowed: () =>
-              Effect.fail(new WorkspaceSuspended({ workspaceId: 'wrk_1' })),
+              Effect.fail(
+                new WorkspaceSuspended({ workspaceId: WorkspaceId.make('wrk_1') })
+              ),
             transition: () => Effect.die('unused')
           }),
           stubDispatcher(sent)
@@ -359,7 +370,7 @@ describe('processNotificationEmailMessage', () => {
         'https://app.test'
       )
       yield* preferences.set({
-        userId: 'usr_owner',
+        userId: UserId.make('usr_owner'),
         kind: 'api_token.created',
         channel: 'off'
       })

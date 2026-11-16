@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Effect, Redacted } from 'effect'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 
@@ -44,7 +45,7 @@ describe('webSsoBinding client secret', () => {
 
   it('reveals the redacted secret only in the register body', async () => {
     const input = {
-      workspaceId: 'wrk_starter',
+      workspaceId: WorkspaceId.make('wrk_starter'),
       providerId: 'sso_x',
       protocol: 'oidc' as const,
       domain: 'acme.com',

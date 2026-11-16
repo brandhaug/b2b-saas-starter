@@ -1,3 +1,4 @@
+import { type UserId, type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import {
   oauthAccessToken,
   oauthClient,
@@ -53,8 +54,8 @@ function consentTokenWhere(
   },
   consent: {
     readonly clientId: string
-    readonly userId: string
-    readonly referenceId: string | null
+    readonly userId: UserId
+    readonly referenceId: WorkspaceId | null
   }
 ) {
   const conditions = [

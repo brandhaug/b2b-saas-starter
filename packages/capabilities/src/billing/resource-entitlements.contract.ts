@@ -196,7 +196,11 @@ export function resourceEntitlementsContract(expect: typeof VitestExpect) {
     expect(
       failureTag(yield* Effect.exit(tokens.verifyBearerToken(Redacted.value(c.token))))
     ).toBe('AuthorizationDenied')
-    expect(yield* entitlements.getSelectionForWorkspace('foreign-workspace')).toEqual({
+    expect(
+      yield* entitlements.getSelectionForWorkspace(
+        WorkspaceId.make('foreign-workspace')
+      )
+    ).toEqual({
       apiTokenIds: [],
       webhookEndpointIds: []
     })
@@ -270,5 +274,5 @@ export function resourceAdmissionContract(expect: typeof VitestExpect) {
     ).toBe('PlanLimitExceeded')
   })
 }
-import { ApiTokenId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import { ApiTokenId, WebhookEndpointId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { WebhookDispatch } from '../developer-platform/webhook-dispatch.ts'

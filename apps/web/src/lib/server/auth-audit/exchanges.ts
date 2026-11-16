@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { type AuditEventType } from '@b2b-saas-starter/capabilities/governance/audit-event-taxonomy'
 
 /**
@@ -530,8 +531,8 @@ export function needsPreHandlerActor(exchange: AuthExchange): boolean {
 export function recoveryEvidence(
   exchange: AuthExchange,
   context?: {
-    readonly actorUserId: string
-    readonly targetUserId?: string | null
+    readonly actorUserId: UserId
+    readonly targetUserId?: UserId | null
   }
 ) {
   const row = exchangePolicy(exchange)

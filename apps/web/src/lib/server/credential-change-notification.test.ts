@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { type AuthExchange } from './auth-audit/exchanges'
 import {
@@ -19,7 +20,9 @@ describe('notifyCredentialChanged', () => {
   const send = vi.fn<CredentialChangeSender>()
 
   function context(email?: string) {
-    return email === undefined ? undefined : { actorUserId: 'usr_1', actorEmail: email }
+    return email === undefined
+      ? undefined
+      : { actorUserId: UserId.make('usr_1'), actorEmail: email }
   }
 
   it('emails the actor on a two-factor enable and disable, naming the direction', async () => {

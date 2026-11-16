@@ -1,4 +1,4 @@
-import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import { UserId, WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 // oxlint-disable-next-line import/no-unassigned-import -- Installs the explicit authenticated-session test fixture.
 import '@/test/qualified-session'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
@@ -33,9 +33,9 @@ vi.mock('./auth', async (importOriginal) =>
   fixtureAuthModule(await importOriginal<typeof AuthModule>(), actor)
 )
 
-const OWNER = 'usr_demo'
-const ADMIN = 'usr_ops'
-const MEMBER = 'usr_dev'
+const OWNER = UserId.make('usr_demo')
+const ADMIN = UserId.make('usr_ops')
+const MEMBER = UserId.make('usr_dev')
 
 describe('loadWorkspaceWebhooksHandler', () => {
   beforeEach(() => {

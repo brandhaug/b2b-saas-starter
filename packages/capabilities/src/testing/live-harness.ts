@@ -1,4 +1,4 @@
-import { WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import { UserId, WebhookEndpointId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
 import { user } from '@b2b-saas-starter/db/schema/auth'
 import { webhookEndpoints } from '@b2b-saas-starter/db/schema/developer-platform'
@@ -61,38 +61,50 @@ const iso = '2026-07-03T09:00:00.000Z'
 const insertFixtureRows = Effect.gen(function* () {
   const db = yield* Database
   yield* db.insert(user).values([
-    { id: 'usr_owner', email: 'owner@live.test', name: 'Owner One' },
-    { id: 'usr_outsider', email: 'outsider@live.test', name: 'Outsider' },
+    { id: UserId.make('usr_owner'), email: 'owner@live.test', name: 'Owner One' },
+    { id: UserId.make('usr_outsider'), email: 'outsider@live.test', name: 'Outsider' },
     // Exists as a user but holds no membership anywhere — the mutation
     // suites name them as the stranger every change must refuse.
-    { id: 'usr_joiner', email: 'joiner@live.test', name: 'Joiner' },
+    { id: UserId.make('usr_joiner'), email: 'joiner@live.test', name: 'Joiner' },
     // A plain member of `wrk_member_contract` the mutation suites promote,
     // demote, and remove. Membership has no add verb, so every member a case
     // spends is seeded here.
-    { id: 'usr_mover', email: 'mover@live.test', name: 'Mover' },
+    { id: UserId.make('usr_mover'), email: 'mover@live.test', name: 'Mover' },
     // The membership contract's spendable roster: one member per case that
     // consumes one.
-    { id: 'usr_removable', email: 'removable@live.test', name: 'Removable' },
-    { id: 'usr_mutable', email: 'mutable@live.test', name: 'Mutable' },
-    { id: 'usr_auditable', email: 'auditable@live.test', name: 'Auditable' },
+    {
+      id: UserId.make('usr_removable'),
+      email: 'removable@live.test',
+      name: 'Removable'
+    },
+    { id: UserId.make('usr_mutable'), email: 'mutable@live.test', name: 'Mutable' },
+    {
+      id: UserId.make('usr_auditable'),
+      email: 'auditable@live.test',
+      name: 'Auditable'
+    },
     // A plain member no case ever spends: the mutation suite needs a
     // non-owner to act *as* after it has removed the one it acts *on*.
-    { id: 'usr_bystander', email: 'bystander@live.test', name: 'Bystander' },
-    { id: 'usr_audited', email: 'audited@live.test', name: 'Audited' },
+    {
+      id: UserId.make('usr_bystander'),
+      email: 'bystander@live.test',
+      name: 'Bystander'
+    },
+    { id: UserId.make('usr_audited'), email: 'audited@live.test', name: 'Audited' },
     // The invitation contract invites this address and then accepts as this
     // user — a real row, because accepting joins `workspace_members` to `user`.
     {
-      id: 'usr_accepter',
+      id: UserId.make('usr_accepter'),
       email: 'accepter@live-invite.test',
       name: 'Accepter'
     },
     // Actors on the audit read-contract dataset rows (FK to `user`).
-    { id: 'usr_alice', email: 'alice@live.test', name: 'Alice' },
-    { id: 'usr_bob', email: 'bob@live.test', name: 'Bob' },
+    { id: UserId.make('usr_alice'), email: 'alice@live.test', name: 'Alice' },
+    { id: UserId.make('usr_bob'), email: 'bob@live.test', name: 'Bob' },
     // The System Admin the user-admin impersonation cases act as, and the
     // admin target they must refuse.
     {
-      id: 'usr_sysadmin',
+      id: UserId.make('usr_sysadmin'),
       email: 'sysadmin@live.test',
       name: 'Sys Admin',
       role: 'admin'
@@ -102,20 +114,29 @@ const insertFixtureRows = Effect.gen(function* () {
   // their timestamps default to epoch integers, and a member row carries a
   // surrogate id rather than a composite key.
   yield* db.insert(workspaces).values([
-    { id: 'wrk_live', slug: 'live-lab', name: 'Live Lab' },
-    { id: 'wrk_other', slug: 'other-lab', name: 'Other Lab' },
+    { id: WorkspaceId.make('wrk_live'), slug: 'live-lab', name: 'Live Lab' },
+    { id: WorkspaceId.make('wrk_other'), slug: 'other-lab', name: 'Other Lab' },
     // Home of the audit read-contract dataset and the full-page pagination
     // suite — isolated so their rows never leak into other suites' counts.
-    { id: 'wrk_audit', slug: 'audit-lab', name: 'Audit Lab' },
-    { id: 'wrk_audit_pages', slug: 'audit-pages-lab', name: 'Audit Pages Lab' },
+    { id: WorkspaceId.make('wrk_audit'), slug: 'audit-lab', name: 'Audit Lab' },
+    {
+      id: WorkspaceId.make('wrk_audit_pages'),
+      slug: 'audit-pages-lab',
+      name: 'Audit Pages Lab'
+    },
     // The developer-platform plan-limit contract runs its create loop here:
     // the starter plan caps tokens, so `PlanLimitExceeded` is reachable.
-    { id: 'wrk_capped', slug: 'capped-lab', name: 'Capped Lab', planId: 'starter' },
+    {
+      id: WorkspaceId.make('wrk_capped'),
+      slug: 'capped-lab',
+      name: 'Capped Lab',
+      planId: 'starter'
+    },
     // Home of the developer-platform mutation contract: an isolated,
     // uncapped workspace so its creates never collide with other suites'
     // fixtures or entitlement ceilings.
     {
-      id: 'wrk_dev_contract',
+      id: WorkspaceId.make('wrk_dev_contract'),
       slug: 'dev-contract-lab',
       name: 'Dev Contract Lab',
       planId: 'team'
@@ -123,18 +144,18 @@ const insertFixtureRows = Effect.gen(function* () {
   ])
   yield* db.insert(workspaceMembers).values({
     id: 'mem_dev_contract_owner',
-    workspaceId: 'wrk_dev_contract',
-    userId: 'usr_owner',
+    workspaceId: WorkspaceId.make('wrk_dev_contract'),
+    userId: UserId.make('usr_owner'),
     role: 'owner'
   })
   yield* db.insert(workspaceMembers).values({
     id: 'mem_capped_owner',
-    workspaceId: 'wrk_capped',
-    userId: 'usr_owner',
+    workspaceId: WorkspaceId.make('wrk_capped'),
+    userId: UserId.make('usr_owner'),
     role: 'owner'
   })
   yield* db.insert(auditEvents).values(
-    auditEventContractDataset('wrk_audit').map((row) => ({
+    auditEventContractDataset(WorkspaceId.make('wrk_audit')).map((row) => ({
       id: row.id,
       workspaceId: row.workspaceId ?? null,
       actorUserId: row.actorUserId ?? null,
@@ -148,40 +169,40 @@ const insertFixtureRows = Effect.gen(function* () {
   )
   yield* db.insert(workspaceMembers).values({
     id: 'mem_live_owner',
-    workspaceId: 'wrk_live',
-    userId: 'usr_owner',
+    workspaceId: WorkspaceId.make('wrk_live'),
+    userId: UserId.make('usr_owner'),
     role: 'owner'
   })
   // Home of the membership contract: an isolated workspace whose sole owner
   // is the runner's actor and whose plain members the cases spend one apiece.
   yield* db.insert(workspaces).values({
-    id: 'wrk_member_contract',
+    id: WorkspaceId.make('wrk_member_contract'),
     slug: 'member-contract-lab',
     name: 'Member Contract Lab'
   })
   yield* db.insert(workspaceMembers).values([
     {
       id: 'mem_mc_owner',
-      workspaceId: 'wrk_member_contract',
-      userId: 'usr_owner',
+      workspaceId: WorkspaceId.make('wrk_member_contract'),
+      userId: UserId.make('usr_owner'),
       role: 'owner'
     },
     {
       id: 'mem_mc_removable',
-      workspaceId: 'wrk_member_contract',
-      userId: 'usr_removable',
+      workspaceId: WorkspaceId.make('wrk_member_contract'),
+      userId: UserId.make('usr_removable'),
       role: 'member'
     },
     {
       id: 'mem_mc_mutable',
-      workspaceId: 'wrk_member_contract',
-      userId: 'usr_mutable',
+      workspaceId: WorkspaceId.make('wrk_member_contract'),
+      userId: UserId.make('usr_mutable'),
       role: 'member'
     },
     {
       id: 'mem_mc_auditable',
-      workspaceId: 'wrk_member_contract',
-      userId: 'usr_auditable',
+      workspaceId: WorkspaceId.make('wrk_member_contract'),
+      userId: UserId.make('usr_auditable'),
       role: 'member'
     },
     // A plain member the mutation suite promotes and removes; the binding
@@ -191,35 +212,35 @@ const insertFixtureRows = Effect.gen(function* () {
     // fixture's seat quantity.
     {
       id: 'mem_mc_mover',
-      workspaceId: 'wrk_member_contract',
-      userId: 'usr_mover',
+      workspaceId: WorkspaceId.make('wrk_member_contract'),
+      userId: UserId.make('usr_mover'),
       role: 'member'
     },
     {
       id: 'mem_mc_bystander',
-      workspaceId: 'wrk_member_contract',
-      userId: 'usr_bystander',
+      workspaceId: WorkspaceId.make('wrk_member_contract'),
+      userId: UserId.make('usr_bystander'),
       role: 'member'
     }
   ])
   // Home of the platform-user-admin contract: an isolated workspace where
   // `usr_owner` holds a membership the role-change case mutates.
   yield* db.insert(workspaces).values({
-    id: 'wrk_user_admin_contract',
+    id: WorkspaceId.make('wrk_user_admin_contract'),
     slug: 'user-admin-contract',
     name: 'User Admin Contract'
   })
   yield* db.insert(workspaceMembers).values({
     id: 'mem_uac_owner',
-    workspaceId: 'wrk_user_admin_contract',
-    userId: 'usr_owner',
+    workspaceId: WorkspaceId.make('wrk_user_admin_contract'),
+    userId: UserId.make('usr_owner'),
     role: 'member'
   })
   // Already past its expiry when the suite starts: the invitation contract
   // needs one, and no case can age an invitation from inside the interface.
   yield* db.insert(workspaceInvitations).values({
     id: 'inv_live_expired',
-    workspaceId: 'wrk_live',
+    workspaceId: WorkspaceId.make('wrk_live'),
     email: 'expired@live-invite.test',
     role: 'member',
     status: 'pending',
@@ -228,7 +249,7 @@ const insertFixtureRows = Effect.gen(function* () {
     // there is nothing here for `Clock` to control.
     // oxlint-disable-next-line effect/noGlobals -- fixed literal date, not a clock read; drizzle's timestamp mode requires a Date instance
     expiresAt: new Date(CONTRACT_EXPIRED_AT),
-    inviterId: 'usr_owner'
+    inviterId: UserId.make('usr_owner')
   })
   // Three invitations with distinct, ascending creation stamps: the ordering
   // contract case reads their relative order back out of `list`. No case
@@ -238,7 +259,7 @@ const insertFixtureRows = Effect.gen(function* () {
       (createdAt, index) =>
         ({
           id: `inv_live_order_${String(index)}`,
-          workspaceId: 'wrk_live',
+          workspaceId: WorkspaceId.make('wrk_live'),
           email: `order-${String(index)}@live-invite.test`,
           role: 'member',
           status: 'pending',
@@ -246,14 +267,14 @@ const insertFixtureRows = Effect.gen(function* () {
           expiresAt: new Date(CONTRACT_UNEXPIRED_AT),
           // oxlint-disable-next-line effect/noGlobals -- fixed literal dates, not clock reads; drizzle's timestamp mode requires Date instances
           createdAt: new Date(createdAt),
-          inviterId: 'usr_owner'
+          inviterId: UserId.make('usr_owner')
         }) satisfies typeof workspaceInvitations.$inferInsert
     )
   )
   // The endpoint the webhook delivery-attempt suite records attempts against.
   yield* db.insert(webhookEndpoints).values({
     id: WebhookEndpointId.make('wh_live'),
-    workspaceId: 'wrk_live',
+    workspaceId: WorkspaceId.make('wrk_live'),
     url: 'https://example.com/hook',
     signingSecret: 'whsec_live_test',
     enabled: true,
@@ -278,9 +299,9 @@ const insertFixtureRows = Effect.gen(function* () {
         jwksEndpoint: 'https://login.routed.test/jwks'
       }),
       samlConfig: null,
-      userId: 'usr_owner',
+      userId: UserId.make('usr_owner'),
       providerId: 'sso_live_oidc',
-      workspaceId: 'wrk_live',
+      workspaceId: WorkspaceId.make('wrk_live'),
       domain: 'routed.test',
       enabled: true,
       requireSso: true,
@@ -292,9 +313,9 @@ const insertFixtureRows = Effect.gen(function* () {
       issuer: 'https://login.disabled.test',
       oidcConfig: JSON.stringify({ clientId: 'client-disabled' }),
       samlConfig: null,
-      userId: 'usr_owner',
+      userId: UserId.make('usr_owner'),
       providerId: 'sso_live_disabled',
-      workspaceId: 'wrk_live',
+      workspaceId: WorkspaceId.make('wrk_live'),
       domain: 'disabled.test',
       enabled: false,
       requireSso: false,
@@ -306,9 +327,9 @@ const insertFixtureRows = Effect.gen(function* () {
       issuer: 'https://login.other.test',
       oidcConfig: JSON.stringify({ clientId: 'client-other' }),
       samlConfig: null,
-      userId: 'usr_owner',
+      userId: UserId.make('usr_owner'),
       providerId: 'sso_other_oidc',
-      workspaceId: 'wrk_other',
+      workspaceId: WorkspaceId.make('wrk_other'),
       domain: 'routed.test',
       enabled: true,
       requireSso: false,
@@ -326,9 +347,9 @@ const insertFixtureRows = Effect.gen(function* () {
           metadata: '<EntityDescriptor entityID="https://idp.saml.test"/>'
         }
       }),
-      userId: 'usr_owner',
+      userId: UserId.make('usr_owner'),
       providerId: 'sso_live_saml',
-      workspaceId: 'wrk_live',
+      workspaceId: WorkspaceId.make('wrk_live'),
       domain: 'saml.test',
       enabled: false,
       requireSso: false,
@@ -401,7 +422,7 @@ export function inWorkspace<A, E>(
     E,
     WorkspaceServices | CapabilityServices | Database | RawD1
   >,
-  actor?: { readonly userId: string },
+  actor?: { readonly userId: UserId },
   bindings: CapabilityBindings = {}
 ): Effect.Effect<A, E | WorkspaceNotFound | CapabilityUnavailable, Database | RawD1> {
   let caller: WorkspaceCaller = WorkspaceCaller.system
@@ -426,7 +447,7 @@ export function inWorkspace<A, E>(
  * harness's `inWorkspace` actor is that session's user.
  */
 export function fakeMemberBinding(db: EffectDatabase) {
-  const sessionUser = 'usr_owner'
+  const sessionUser = UserId.make('usr_owner')
   const calls: Array<unknown> = []
   const binding: WorkspaceMemberBinding = {
     removeMember: (input) => {
@@ -531,7 +552,7 @@ export function fakeInvitationBinding(db: EffectDatabase) {
             // invitations are all meant to be acceptable.
             // oxlint-disable-next-line effect/noGlobals -- fixed literal date, not a clock read; drizzle's timestamp mode requires a Date instance
             expiresAt: new Date(CONTRACT_UNEXPIRED_AT),
-            inviterId: 'usr_owner'
+            inviterId: UserId.make('usr_owner')
           })
         )
       )
@@ -570,7 +591,7 @@ export function fakeInvitationBinding(db: EffectDatabase) {
           yield* db.insert(workspaceMembers).values({
             id: `mem_${invitation.id}`,
             workspaceId: invitation.workspaceId,
-            userId: 'usr_accepter',
+            userId: UserId.make('usr_accepter'),
             role: invitation.role ?? 'member'
           })
         })
@@ -613,7 +634,7 @@ export function fakeLifecycleBinding(db: EffectDatabase) {
             })
           }
           mintedWorkspaces += 1
-          const id = `wrk_lc_${mintedWorkspaces}`
+          const id = WorkspaceId.make(`wrk_lc_${mintedWorkspaces}`)
           yield* db.insert(workspaces).values({
             id,
             slug: input.slug,
@@ -660,11 +681,11 @@ export function fakeAccountLifecycleBinding(
   db: EffectDatabase,
   options: {
     /** The user the fake's session names — the endpoint acts on its own session's user. */
-    readonly userId: string
+    readonly userId: UserId
     /** The only password the fake accepts; anything else rejects like the endpoint's `INVALID_PASSWORD`. */
     readonly password: string
-    readonly beforeDelete?: (userId: string) => Promise<void>
-    readonly afterDelete?: (userId: string) => Promise<void>
+    readonly beforeDelete?: (userId: UserId) => Promise<void>
+    readonly afterDelete?: (userId: UserId) => Promise<void>
   }
 ) {
   const calls: Array<unknown> = []
@@ -800,7 +821,7 @@ export function fakeSsoBinding(db: EffectDatabase) {
             issuer: input.issuer,
             oidcConfig: oidcBlob(input),
             samlConfig: samlBlob(input),
-            userId: 'usr_owner',
+            userId: UserId.make('usr_owner'),
             providerId: input.providerId,
             workspaceId: input.workspaceId,
             domain: input.domain,

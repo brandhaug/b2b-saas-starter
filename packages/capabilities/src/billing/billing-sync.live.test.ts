@@ -1,4 +1,4 @@
-import { WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import { UserId, WebhookEndpointId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import {
   testPrice,
   testItem,
@@ -44,7 +44,7 @@ import {
 import { type WebhookQueueMessage } from '../developer-platform/webhook-publisher.ts'
 import { WebhookDeliveries } from '../developer-platform/webhook-deliveries.ts'
 
-const workspaceId = 'wrk_live'
+const workspaceId = WorkspaceId.make('wrk_live')
 const customerId = 'cus_sync'
 const subscriptionId = 'sub_sync'
 const bindings = {
@@ -70,7 +70,7 @@ function subscription(
 
 type StripeFixtureState = {
   subscriptions: Array<StripeSubscriptionResponse>
-  customerWorkspaceId: string | undefined
+  customerWorkspaceId: WorkspaceId | undefined
   unavailable: boolean
   seatWrites: Array<number>
   lostSeatResponse: boolean
@@ -242,7 +242,7 @@ const reset = Effect.gen(function* () {
     .where(
       and(
         eq(workspaceMembers.workspaceId, workspaceId),
-        eq(workspaceMembers.userId, 'usr_joiner')
+        eq(workspaceMembers.userId, UserId.make('usr_joiner'))
       )
     )
   yield* db
@@ -555,7 +555,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             yield* db.insert(workspaceMembers).values({
               id: 'mem_sync_joiner',
               workspaceId,
-              userId: 'usr_joiner',
+              userId: UserId.make('usr_joiner'),
               role: 'member'
             })
             state.subscriptions = [
@@ -647,7 +647,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
       () =>
         withStripe(({ state }) =>
           Effect.gen(function* () {
-            state.customerWorkspaceId = 'wrk_other'
+            state.customerWorkspaceId = WorkspaceId.make('wrk_other')
             const result = yield* billingRun((billing) =>
               billing.processProviderEvent(event('evt_foreign'))
             )
@@ -762,7 +762,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           )
           const db = yield* Database
           yield* db.insert(workspaceSubscriptions).values({
-            workspaceId: 'wrk_other',
+            workspaceId: WorkspaceId.make('wrk_other'),
             stripeCustomerId: 'cus_other',
             stripeSubscriptionId: 'sub_other',
             stripeSubscriptionItemId: 'si_other',
@@ -1004,7 +1004,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             yield* db.insert(workspaceMembers).values({
               id: 'mem_sync_joiner',
               workspaceId,
-              userId: 'usr_joiner',
+              userId: UserId.make('usr_joiner'),
               role: 'member'
             })
             state.lostSeatResponse = true
@@ -1029,7 +1029,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           yield* db.insert(workspaceMembers).values({
             id: 'mem_sync_joiner',
             workspaceId,
-            userId: 'usr_joiner',
+            userId: UserId.make('usr_joiner'),
             role: 'member'
           })
           yield* billingRun((billing) => billing.reconcileWorkspace({ workspaceId }))
@@ -1040,7 +1040,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           yield* db.insert(workspaceMembers).values({
             id: 'mem_sync_joiner',
             workspaceId,
-            userId: 'usr_joiner',
+            userId: UserId.make('usr_joiner'),
             role: 'member'
           })
           yield* billingRun((billing) => billing.reconcileWorkspace({ workspaceId }))

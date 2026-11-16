@@ -7,27 +7,27 @@ export class SeedResourceInventory extends Context.Service<
   {
     readonly registerTokens: (
       read: (
-        workspaceId: string,
+        workspaceId: WorkspaceId,
         now: number,
         includeUnavailable: boolean
       ) => ReadonlyArray<ApiTokenId>
     ) => void
     readonly registerTokenResolver: (
-      read: (workspaceId: string, id: ApiTokenId) => ApiTokenId
+      read: (workspaceId: WorkspaceId, id: ApiTokenId) => ApiTokenId
     ) => void
-    readonly resolveToken: (workspaceId: string, id: ApiTokenId) => ApiTokenId
+    readonly resolveToken: (workspaceId: WorkspaceId, id: ApiTokenId) => ApiTokenId
     readonly registerWebhooks: (
       read: (
-        workspaceId: string,
+        workspaceId: WorkspaceId,
         includeUnavailable: boolean
       ) => ReadonlyArray<WebhookEndpointId>
     ) => void
-    readonly available: (workspaceId: string, now: number) => ResourceSelection
-    readonly known: (workspaceId: string) => ResourceSelection
+    readonly available: (workspaceId: WorkspaceId, now: number) => ResourceSelection
+    readonly known: (workspaceId: WorkspaceId) => ResourceSelection
     readonly lock: Semaphore.Semaphore
     readonly selections: Map<string, ResourceSelection>
     readonly rotateToken: (
-      workspaceId: string,
+      workspaceId: WorkspaceId,
       fromId: ApiTokenId,
       toId: ApiTokenId
     ) => void
@@ -35,17 +35,17 @@ export class SeedResourceInventory extends Context.Service<
 >()('@b2b-saas-starter/billing/SeedResourceInventory') {}
 
 function emptyTokens(
-  _workspaceId: string,
+  _workspaceId: WorkspaceId,
   _now: number,
   _includeUnavailable: boolean
 ): ReadonlyArray<ApiTokenId> {
   return []
 }
-function unchangedToken(_workspaceId: string, id: ApiTokenId): ApiTokenId {
+function unchangedToken(_workspaceId: WorkspaceId, id: ApiTokenId): ApiTokenId {
   return id
 }
 function emptyWebhooks(
-  _workspaceId: string,
+  _workspaceId: WorkspaceId,
   _includeUnavailable: boolean
 ): ReadonlyArray<WebhookEndpointId> {
   return []
@@ -95,4 +95,8 @@ export const SeedResourceInventoryLayer = Layer.effect(
     })
   })
 )
-import { type ApiTokenId, type WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import {
+  type ApiTokenId,
+  type WebhookEndpointId,
+  type WorkspaceId
+} from '@b2b-saas-starter/db/ids'

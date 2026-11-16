@@ -1,3 +1,4 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { roleLabel } from '@/lib/value-labels'
 import {
   type Member,
@@ -25,7 +26,9 @@ import { roleVariant } from '@/lib/badge-variants'
 import {
   changeUserWorkspaceRoleServerFn,
   listUserWorkspacesServerFn,
-  type SystemUser
+  type ChangeWorkspaceRoleRequest,
+  type SystemUser,
+  type SystemUserRequest
 } from '@/lib/server/admin'
 import { useServerAction } from '@/hooks/use-server-action'
 
@@ -36,19 +39,15 @@ import { useServerAction } from '@/hooks/use-server-action'
  * the production server functions, so every caller but a test passes nothing.
  */
 export type ListUserWorkspaces = (input: {
-  readonly data: { readonly userId: string }
+  readonly data: SystemUserRequest
 }) => Promise<ReadonlyArray<WorkspaceWithMembership>>
 
 export type ChangeUserWorkspaceRole = (input: {
-  readonly data: {
-    readonly userId: string
-    readonly workspaceId: string
-    readonly role: WorkspaceRole
-  }
+  readonly data: ChangeWorkspaceRoleRequest
 }) => Promise<Member>
 
 type RoleChange = {
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   readonly member: Member
   readonly role: WorkspaceRole
 }

@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import {
   WORKSPACE_EXPORT_RETENTION_DAYS as CAPABILITY_RETENTION_DAYS,
   workspaceExportExpiresAt,
@@ -11,7 +12,7 @@ import { readDelivery } from './queue-consumer.ts'
 
 const message: WorkspaceExportQueueMessage = {
   exportId: 'exp_1',
-  workspaceId: 'wrk_1',
+  workspaceId: WorkspaceId.make('wrk_1'),
   workspaceSlug: 'lab'
 }
 

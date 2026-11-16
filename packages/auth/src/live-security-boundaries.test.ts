@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { oauthClient } from '@b2b-saas-starter/db/schema/oauth'
 import { user } from '@b2b-saas-starter/db/schema/auth'
 import { validateCimdMetadata, validateClientIdUrl } from '@better-auth/cimd'
@@ -206,7 +207,7 @@ describe('pinned auth security boundaries', () => {
             provisioned.db
               .update(user)
               .set({ role: adminSystemRole })
-              .where(eq(user.id, admin.userId))
+              .where(eq(user.id, UserId.make(admin.userId)))
           )
           expect(yield* auth.api.getSession({ headers: target.headers })).not.toBeNull()
           yield* auth.api.banUser({

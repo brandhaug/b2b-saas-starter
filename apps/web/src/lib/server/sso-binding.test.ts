@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import {
   readPluginBindingFailure,
   type PluginBindingFailure
@@ -42,7 +43,7 @@ async function rejectionOf(call: () => Promise<void>): Promise<BindingRejection>
 }
 
 const INPUT = {
-  workspaceId: 'wrk_starter',
+  workspaceId: WorkspaceId.make('wrk_starter'),
   providerId: 'sso_x',
   protocol: 'oidc',
   domain: 'acme.com',

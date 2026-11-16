@@ -13,3 +13,18 @@ export const WebhookDeliveryId = Schema.NonEmptyString.pipe(
   Schema.brand('WebhookDeliveryId')
 )
 export type WebhookDeliveryId = typeof WebhookDeliveryId.Type
+
+/**
+ * Workspace and user identities appear in published response DTOs (members,
+ * workspaces, audit events) whose OpenAPI schemas carry no `minLength`, so
+ * these brand a plain string and the published contract stays unchanged.
+ */
+export const WorkspaceId = Schema.String.pipe(Schema.brand('WorkspaceId'))
+export type WorkspaceId = typeof WorkspaceId.Type
+
+export const UserId = Schema.String.pipe(Schema.brand('UserId'))
+export type UserId = typeof UserId.Type
+
+/** Request-input variants: a form or query value must also be non-empty. */
+export const WorkspaceIdInput = WorkspaceId.check(Schema.isNonEmpty())
+export const UserIdInput = UserId.check(Schema.isNonEmpty())

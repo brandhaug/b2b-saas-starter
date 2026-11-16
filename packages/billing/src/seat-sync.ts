@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Context, Effect, Layer, Schema } from 'effect'
 
 import { type ProcessProviderEventInput } from './billing.ts'
@@ -55,7 +56,7 @@ const SeatSyncQueueReasonSchema = Schema.Literals([
  */
 export const SeatSyncQueueMessage = Schema.Struct({
   kind: Schema.Literal('billing.seat_sync'),
-  workspaceId: Schema.String,
+  workspaceId: WorkspaceId,
   reason: SeatSyncQueueReasonSchema,
   operatorId: Schema.optionalKey(Schema.String),
   recovery: Schema.optionalKey(SeatSyncRecoveryEvidence),
@@ -69,7 +70,7 @@ export const StripeProviderEventQueueMessage = Schema.Struct({
   providerEventId: Schema.String,
   eventType: Schema.String,
   providerCreatedAt: Schema.optionalKey(Schema.String),
-  workspaceId: Schema.optionalKey(Schema.String),
+  workspaceId: Schema.optionalKey(WorkspaceId),
   subscription: Schema.optionalKey(
     Schema.Struct({
       customerId: Schema.optionalKey(Schema.String),
@@ -171,7 +172,7 @@ type SeatSyncPublisherInterface = {
    * write this follows completes.
    */
   readonly publish: (input: {
-    readonly workspaceId: string
+    readonly workspaceId: WorkspaceId
     readonly reason: SeatSyncReason
   }) => Effect.Effect<void, CapabilityUnavailable>
 }
@@ -198,7 +199,7 @@ export const SeedSeatSyncPublisher: Layer.Layer<SeatSyncPublisher> = Layer.succe
 export function publishSeatSyncWith(
   publisher: SeatSyncPublisherInterface,
   input: {
-    readonly workspaceId: string
+    readonly workspaceId: WorkspaceId
     readonly reason: SeatSyncReason
   }
 ): Effect.Effect<void> {

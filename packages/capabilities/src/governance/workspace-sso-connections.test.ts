@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { Effect, Layer, Option } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 
@@ -31,7 +32,7 @@ import { SeedSsoConnections } from './workspace-sso-connections.seed.ts'
  */
 
 const owner: Actor = {
-  userId: 'usr_demo',
+  userId: UserId.make('usr_demo'),
   role: 'owner',
   systemRole: 'admin',
   banned: false

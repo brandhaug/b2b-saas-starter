@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { session, twoFactor, passkey } from '@b2b-saas-starter/db/schema/auth'
 import { Database } from '@b2b-saas-starter/db/service'
 import {
@@ -27,7 +28,7 @@ export class StrongAuthenticationRequired extends Schema.TaggedError<StrongAuthe
 ) {}
 
 export type StrongAuthenticationInput = {
-  readonly userId: string
+  readonly userId: UserId
   readonly sessionId: string
 }
 
@@ -50,7 +51,7 @@ export class StrongAuthentication extends Context.Service<
 
 export type SessionEvidence = {
   readonly expiresAt: Date
-  readonly impersonatedBy: string | null
+  readonly impersonatedBy: UserId | null
   readonly passwordVerifiedAt: Date | null
   readonly strongAuthAt: Date | null
   readonly strongAuthMethod: string | null

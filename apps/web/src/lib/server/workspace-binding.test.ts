@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import {
   readPluginBindingFailure,
   type PluginBindingFailure
@@ -46,7 +47,7 @@ describe('webWorkspaceLifecycleBinding with no request', () => {
     expect(
       await rejectionOf(() =>
         webWorkspaceLifecycleBinding.rename({
-          workspaceId: 'wrk_1',
+          workspaceId: WorkspaceId.make('wrk_1'),
           name: 'New Name'
         })
       )
@@ -59,7 +60,7 @@ describe('webWorkspaceLifecycleBinding with no request', () => {
   it('rejects remove as unavailable rather than refused', async () => {
     expect(
       await rejectionOf(() =>
-        webWorkspaceLifecycleBinding.remove({ workspaceId: 'wrk_1' })
+        webWorkspaceLifecycleBinding.remove({ workspaceId: WorkspaceId.make('wrk_1') })
       )
     ).toEqual({
       tag: 'MissingRequestHeaders',
@@ -75,7 +76,7 @@ describe('webWorkspaceLifecycleBinding with no request', () => {
       webWorkspaceLifecycleBinding.create({
         name: 'Headerless Labs',
         slug: 'headerless-labs',
-        userId: 'usr_1'
+        userId: UserId.make('usr_1')
       })
     )
     expect(outcome.tag).toBe('MissingD1Binding')

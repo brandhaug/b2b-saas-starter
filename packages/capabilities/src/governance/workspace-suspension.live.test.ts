@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { AssistantDirectory } from '../assistant/directory.ts'
 import { Effect } from 'effect'
 import { Database } from '@b2b-saas-starter/db/service'
@@ -34,26 +35,26 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             const suspension = yield* WorkspaceSuspensionService
             yield* directory.create({
               id: 'suspension-notification-room',
-              workspaceId: 'wrk_live',
-              creatorUserId: 'usr_owner'
+              workspaceId: WorkspaceId.make('wrk_live'),
+              creatorUserId: UserId.make('usr_owner')
             })
             yield* directory.create({
               id: 'suspension-notification-other',
-              workspaceId: 'wrk_other',
-              creatorUserId: 'usr_owner'
+              workspaceId: WorkspaceId.make('wrk_other'),
+              creatorUserId: UserId.make('usr_owner')
             })
             yield* suspension.transition({
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               action: 'suspend',
-              actor: { userId: 'usr_sysadmin' },
+              actor: { userId: UserId.make('usr_sysadmin') },
               internalReason: 'Review',
               customerExplanation: 'Review in progress.'
             })
             const suspended = yield* directory.get('suspension-notification-room')
             yield* suspension.transition({
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               action: 'unsuspend',
-              actor: { userId: 'usr_sysadmin' },
+              actor: { userId: UserId.make('usr_sysadmin') },
               internalReason: 'Review complete'
             })
             expect(notified).toEqual([
@@ -84,9 +85,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           'live-lab',
           Effect.flatMap(WorkspaceSuspensionService, (suspension) =>
             suspension.transition({
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               action: 'suspend',
-              actor: { userId: 'usr_sysadmin' },
+              actor: { userId: UserId.make('usr_sysadmin') },
               internalReason: 'test',
               customerExplanation: 'Access is temporarily limited.'
             })
@@ -95,7 +96,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         const other = yield* inWorkspace(
           'other-lab',
           Effect.flatMap(WorkspaceSuspensionService, (service) =>
-            service.requireAllowed('wrk_other', 'product')
+            service.requireAllowed(WorkspaceId.make('wrk_other'), 'product')
           )
         )
         expect(other).toBeUndefined()
@@ -103,9 +104,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           'live-lab',
           Effect.flatMap(WorkspaceSuspensionService, (suspension) =>
             suspension.transition({
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               action: 'unsuspend',
-              actor: { userId: 'usr_sysadmin' },
+              actor: { userId: UserId.make('usr_sysadmin') },
               internalReason: 'test cleanup'
             })
           )
@@ -127,9 +128,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             sql`CREATE TRIGGER reject_suspension_notice BEFORE INSERT ON notifications BEGIN SELECT RAISE(ABORT, 'test notification failure'); END`
           )
           const input = {
-            workspaceId: 'wrk_live',
+            workspaceId: WorkspaceId.make('wrk_live'),
             action: 'suspend',
-            actor: { userId: 'usr_sysadmin' },
+            actor: { userId: UserId.make('usr_sysadmin') },
             internalReason: 'Review',
             customerExplanation: 'Contact support.'
           } satisfies Parameters<typeof suspension.transition>[0]
@@ -139,7 +140,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             _tag: 'Failure',
             failure: { _tag: 'CapabilityUnavailable' }
           })
-          expect((yield* suspension.get('wrk_live')).status).toBe('active')
+          expect((yield* suspension.get(WorkspaceId.make('wrk_live'))).status).toBe(
+            'active'
+          )
           expect(yield* audit.listGlobal).toEqual(beforeAudit)
           expect(yield* feed.list).toEqual(beforeNotices)
           yield* suspension.transition(input)
@@ -150,13 +153,13 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             yield* lifecycle.rename({ name: 'Forbidden rename' }).pipe(Effect.result)
           ).toMatchObject({ _tag: 'Failure', failure: { _tag: 'WorkspaceSuspended' } })
           yield* suspension.transition({
-            workspaceId: 'wrk_live',
+            workspaceId: WorkspaceId.make('wrk_live'),
             action: 'unsuspend',
-            actor: { userId: 'usr_sysadmin' },
+            actor: { userId: UserId.make('usr_sysadmin') },
             internalReason: 'Cleanup'
           })
         }),
-        { userId: 'usr_owner' }
+        { userId: UserId.make('usr_owner') }
       )
     )
 
@@ -172,9 +175,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           yield* Effect.all(
             [1, 2].map(() =>
               suspension.transition({
-                workspaceId: 'wrk_live',
+                workspaceId: WorkspaceId.make('wrk_live'),
                 action: 'suspend',
-                actor: { userId: 'usr_sysadmin' },
+                actor: { userId: UserId.make('usr_sysadmin') },
                 internalReason: 'concurrent review',
                 customerExplanation: 'Access is temporarily limited.'
               })
@@ -198,7 +201,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           expect(transition?.actorType).toBe('user')
           expect(afterNotices.at(-1)?.message).not.toContain('concurrent review')
         }),
-        { userId: 'usr_owner' }
+        { userId: UserId.make('usr_owner') }
       )
     )
   }

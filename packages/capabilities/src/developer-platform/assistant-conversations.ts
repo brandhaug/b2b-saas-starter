@@ -89,7 +89,7 @@ const decodeFailure = Schema.decodeUnknownResult(
     AssistantAuthorityDenied
   ])
 )
-function decode<A>(schema: Schema.Codec<A>, response: Response) {
+function decode<A>(schema: Schema.Decoder<A>, response: Response) {
   return attemptPromise({
     try: () => response.json(),
     narrow: conversationStorageFailure

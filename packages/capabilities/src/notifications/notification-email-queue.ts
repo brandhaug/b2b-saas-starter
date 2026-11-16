@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { Schema } from 'effect'
 
 /**
@@ -12,7 +13,7 @@ import { Schema } from 'effect'
  */
 export const NotificationEmailQueueMessage = Schema.Struct({
   notificationId: Schema.String,
-  recipientUserId: Schema.String,
+  recipientUserId: UserId,
   // Unchecked string on purpose, as on the webhook message: a strict W3C
   // pattern would turn a cosmetic trace defect into a dropped email.
   traceparent: Schema.optionalKey(Schema.String)

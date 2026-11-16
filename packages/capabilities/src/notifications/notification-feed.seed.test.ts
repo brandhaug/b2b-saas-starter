@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Effect, Layer, Logger } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 
@@ -62,7 +63,7 @@ const seeded: ReadonlyArray<SeedNotification> = [
     message: 'm',
     createdAt: '2026-05-16T09:00:00.000Z',
     read: false,
-    userId: 'usr_dev'
+    userId: UserId.make('usr_dev')
   },
   {
     id: 'not_read',
@@ -79,14 +80,14 @@ const seeded: ReadonlyArray<SeedNotification> = [
     message: 'm',
     createdAt: '2026-05-16T09:40:00.000Z',
     read: false,
-    userId: 'usr_not_a_member'
+    userId: UserId.make('usr_not_a_member')
   }
 ]
 
 function feedFor(
   enqueued: Array<NotificationEmailQueueMessage>,
   preferences: ReadonlyArray<{
-    readonly userId: string
+    readonly userId: UserId
     readonly kind: SeedNotification['kind']
     readonly channel: 'off' | 'instant' | 'digest'
   }> = []
@@ -143,7 +144,7 @@ describe('seed notification feed: create and fan-out', () => {
         Layer.merge(
           feedFor(broadcastEnqueued),
           testWorkspaceContext(seedWorkspaceRecord, {
-            userId: 'usr_demo',
+            userId: UserId.make('usr_demo'),
             role: 'owner',
             systemRole: 'admin',
             banned: false
@@ -159,8 +160,12 @@ describe('seed notification feed: create and fan-out', () => {
       Effect.gen(function* () {
         const enqueued: Array<NotificationEmailQueueMessage> = []
         const layer = feedFor(enqueued, [
-          { userId: 'usr_demo', kind: 'api_token.created', channel: 'digest' },
-          { userId: 'usr_ops', kind: 'api_token.created', channel: 'off' }
+          {
+            userId: UserId.make('usr_demo'),
+            kind: 'api_token.created',
+            channel: 'digest'
+          },
+          { userId: UserId.make('usr_ops'), kind: 'api_token.created', channel: 'off' }
         ])
         yield* Effect.flatMap(NotificationFeed, (feed) =>
           feed.create({
@@ -193,8 +198,8 @@ describe('seed notification feed: create and fan-out', () => {
         ).pipe(Effect.provide(layer))
         yield* Effect.flatMap(NotificationFeed, (feed) =>
           feed.create({
-            workspaceId: 'wrk_elsewhere',
-            userId: 'usr_demo',
+            workspaceId: WorkspaceId.make('wrk_elsewhere'),
+            userId: UserId.make('usr_demo'),
             kind: 'api_token.created',
             title: 'token',
             message: 'm'
@@ -213,7 +218,7 @@ describe('seed notification feed: create and fan-out', () => {
         yield* Effect.flatMap(NotificationFeed, (feed) =>
           feed.create({
             workspaceId: seedWorkspaceRecord.id,
-            userId: 'usr_dev',
+            userId: UserId.make('usr_dev'),
             kind: 'workspace_member.role_changed',
             title: 'role',
             message: 'm'
@@ -222,7 +227,7 @@ describe('seed notification feed: create and fan-out', () => {
         yield* Effect.flatMap(NotificationFeed, (feed) =>
           feed.create({
             workspaceId: seedWorkspaceRecord.id,
-            userId: 'usr_not_a_member',
+            userId: UserId.make('usr_not_a_member'),
             kind: 'workspace_member.role_changed',
             title: 'role',
             message: 'm'
@@ -241,7 +246,11 @@ describe('seed notification feed: notifyWorkspaceOwners', () => {
       // The demo owner takes webhook failures instantly; the other owner
       // stays on the kind's digest default.
       const layer = feedFor(enqueued, [
-        { userId: 'usr_demo', kind: 'webhook.delivery_failed', channel: 'instant' }
+        {
+          userId: UserId.make('usr_demo'),
+          kind: 'webhook.delivery_failed',
+          channel: 'instant'
+        }
       ])
       const ladderNotice = {
         workspaceId: seedWorkspaceRecord.id,
@@ -256,7 +265,7 @@ describe('seed notification feed: notifyWorkspaceOwners', () => {
         // each, and a row is visible only to its reader — the member and the
         // admin see none of them.
         function visibleTo(actor: {
-          userId: string
+          userId: UserId
           role: 'owner' | 'admin' | 'member'
           systemRole: 'admin' | 'user'
         }) {
@@ -273,13 +282,8 @@ describe('seed notification feed: notifyWorkspaceOwners', () => {
         }
         expect(
           titled(
-            yield* visibleTo({ userId: 'usr_demo', role: 'owner', systemRole: 'admin' })
-          )
-        ).toHaveLength(1)
-        expect(
-          titled(
             yield* visibleTo({
-              userId: 'usr_martin',
+              userId: UserId.make('usr_demo'),
               role: 'owner',
               systemRole: 'admin'
             })
@@ -287,12 +291,29 @@ describe('seed notification feed: notifyWorkspaceOwners', () => {
         ).toHaveLength(1)
         expect(
           titled(
-            yield* visibleTo({ userId: 'usr_dev', role: 'member', systemRole: 'user' })
+            yield* visibleTo({
+              userId: UserId.make('usr_martin'),
+              role: 'owner',
+              systemRole: 'admin'
+            })
+          )
+        ).toHaveLength(1)
+        expect(
+          titled(
+            yield* visibleTo({
+              userId: UserId.make('usr_dev'),
+              role: 'member',
+              systemRole: 'user'
+            })
           )
         ).toHaveLength(0)
         expect(
           titled(
-            yield* visibleTo({ userId: 'usr_ops', role: 'admin', systemRole: 'user' })
+            yield* visibleTo({
+              userId: UserId.make('usr_ops'),
+              role: 'admin',
+              systemRole: 'user'
+            })
           )
         ).toHaveLength(0)
         // One enqueue per row, resolved per owner's channel: only the owner
@@ -301,12 +322,16 @@ describe('seed notification feed: notifyWorkspaceOwners', () => {
         // The fixture knows one workspace: any other id owns no rows.
         yield* feed.notifyWorkspaceOwners({
           ...ladderNotice,
-          workspaceId: 'wrk_elsewhere'
+          workspaceId: WorkspaceId.make('wrk_elsewhere')
         })
         expect(enqueued).toHaveLength(1)
         expect(
           titled(
-            yield* visibleTo({ userId: 'usr_demo', role: 'owner', systemRole: 'admin' })
+            yield* visibleTo({
+              userId: UserId.make('usr_demo'),
+              role: 'owner',
+              systemRole: 'admin'
+            })
           )
         ).toHaveLength(1)
       }).pipe(Effect.provide(layer))
@@ -318,7 +343,7 @@ describe('seed notification feed: email and digest reads', () => {
   it.effect('reads current account preferences for digest recipients', () => {
     const audit = SeedAuditEventLog([])
     const accountPreferences = SeedAccountPreferences([
-      { userId: 'usr_demo', locale: null, timeZone: null }
+      { userId: UserId.make('usr_demo'), locale: null, timeZone: null }
     ]).pipe(Layer.provide(audit))
     const notificationPreferences = SeedNotificationPreferences([]).pipe(
       Layer.provide(audit)
@@ -337,13 +362,13 @@ describe('seed notification feed: email and digest reads', () => {
       const notifications = yield* NotificationFeed
       yield* notifications.create({
         workspaceId: seedWorkspaceRecord.id,
-        userId: 'usr_demo',
+        userId: UserId.make('usr_demo'),
         kind: 'announcement',
         title: 'Notice',
         message: 'Message'
       })
       yield* service.set({
-        userId: 'usr_demo',
+        userId: UserId.make('usr_demo'),
         locale: 'nb',
         timeZone: 'Europe/Oslo'
       })
@@ -352,7 +377,7 @@ describe('seed notification feed: email and digest reads', () => {
         until: '2999-01-01T00:00:00.000Z'
       })
       expect(candidates[0]?.recipient).toMatchObject({
-        userId: 'usr_demo',
+        userId: UserId.make('usr_demo'),
         locale: 'nb',
         timeZone: 'Europe/Oslo'
       })
@@ -364,16 +389,26 @@ describe('seed notification feed: email and digest reads', () => {
     () =>
       Effect.gen(function* () {
         const feed = yield* NotificationFeed
-        const loaded = yield* feed.loadForEmail('not_targeted', 'usr_dev')
+        const loaded = yield* feed.loadForEmail('not_targeted', UserId.make('usr_dev'))
         expect(loaded).toMatchObject({
           notification: { id: 'not_targeted', kind: 'workspace_member.role_changed' },
-          recipient: { userId: 'usr_dev', email: 'engineer@example.com' },
-          workspace: { id: 'wrk_starter', slug: 'starter-lab', name: 'Starter Lab' }
+          recipient: { userId: UserId.make('usr_dev'), email: 'engineer@example.com' },
+          workspace: {
+            id: WorkspaceId.make('wrk_starter'),
+            slug: 'starter-lab',
+            name: 'Starter Lab'
+          }
         })
-        expect(yield* feed.loadForEmail('not_targeted', 'usr_demo')).toBeNull()
-        expect(yield* feed.loadForEmail('not_read', 'usr_demo')).toBeNull()
-        expect(yield* feed.loadForEmail('not_missing', 'usr_demo')).toBeNull()
-        expect(yield* feed.loadForEmail('not_stranger', 'usr_not_a_member')).toBeNull()
+        expect(
+          yield* feed.loadForEmail('not_targeted', UserId.make('usr_demo'))
+        ).toBeNull()
+        expect(yield* feed.loadForEmail('not_read', UserId.make('usr_demo'))).toBeNull()
+        expect(
+          yield* feed.loadForEmail('not_missing', UserId.make('usr_demo'))
+        ).toBeNull()
+        expect(
+          yield* feed.loadForEmail('not_stranger', UserId.make('usr_not_a_member'))
+        ).toBeNull()
       }).pipe(Effect.provide(feedFor([])))
   )
 
@@ -411,8 +446,8 @@ describe('seed notification feed: email and digest reads', () => {
 
 describe('enqueueInstantEmails', () => {
   const recipients = [
-    { userId: 'usr_a', email: 'a@example.com', name: 'A' },
-    { userId: 'usr_b', email: 'b@example.com', name: 'B' }
+    { userId: UserId.make('usr_a'), email: 'a@example.com', name: 'A' },
+    { userId: UserId.make('usr_b'), email: 'b@example.com', name: 'B' }
   ]
   const instantForAll: NotificationPreferencesInterface = {
     list: () => Effect.die('unused'),
@@ -453,12 +488,12 @@ describe('enqueueInstantEmails', () => {
       expect(enqueued).toEqual([
         {
           notificationId: 'not_1',
-          recipientUserId: 'usr_a',
+          recipientUserId: UserId.make('usr_a'),
           traceparent: '00-abc-def-01'
         },
         {
           notificationId: 'not_1',
-          recipientUserId: 'usr_b',
+          recipientUserId: UserId.make('usr_b'),
           traceparent: '00-abc-def-01'
         }
       ])
@@ -478,7 +513,7 @@ describe('enqueueInstantEmails', () => {
   )
 
   const crowd = Array.from({ length: 250 }, (_, index) => ({
-    userId: `usr_${String(index).padStart(3, '0')}`,
+    userId: UserId.make(`usr_${String(index).padStart(3, '0')}`),
     email: `member${index}@example.com`,
     name: `Member ${index}`
   }))
@@ -537,7 +572,7 @@ describe('enqueueInstantEmails', () => {
         const flaky: NotificationPreferencesInterface = {
           ...instantForAll,
           resolveForUsers: (userIds, kind) => {
-            if (userIds.includes('usr_100')) {
+            if (userIds.includes(UserId.make('usr_100'))) {
               return Effect.fail(
                 new CapabilityUnavailable({
                   capability: 'notification-preferences',

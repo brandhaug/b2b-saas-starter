@@ -1,4 +1,8 @@
-import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import {
+  WebhookDeliveryId,
+  WebhookEndpointId,
+  WorkspaceId
+} from '@b2b-saas-starter/db/ids'
 import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
@@ -38,7 +42,7 @@ const initialPage: FailedDeliveriesPayload = {
       lastAttemptAt: '2026-09-01T00:00:00.000Z',
       responseStatus: 503,
       workspace: {
-        id: 'wrk_1',
+        id: WorkspaceId.make('wrk_1'),
         slug: 'first-workspace',
         name: 'First workspace',
         planId: 'team'

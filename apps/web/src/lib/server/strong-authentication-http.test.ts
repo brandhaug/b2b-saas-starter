@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { describe, expect, it, vi, beforeEach } from 'vite-plus/test'
 import { Effect } from 'effect'
 import {
@@ -91,7 +92,7 @@ function planForDeletion(): AccountDeletionPlan {
     canDelete: true,
     steps: roles.map((role, index) => ({
       workspace: {
-        id: `wrk_${index}`,
+        id: WorkspaceId.make(`wrk_${index}`),
         slug: `workspace-${index}`,
         name: 'Workspace',
         planId: 'team'
@@ -118,7 +119,7 @@ beforeEach(() => {
     executed: false
   })
 })
-const current = fixtureSession({ userId: 'usr_admin' })
+const current = fixtureSession({ userId: UserId.make('usr_admin') })
 function request(path: string, method: 'POST' | 'GET' = 'POST', session = current) {
   const exchange = { method, pathname: `/api/auth${path}` }
   return strongAuthenticationHttpResponse(
@@ -185,7 +186,7 @@ describe('privileged authentication HTTP boundary', () => {
     // The capability reports every impersonation session as unqualified, so
     // the exit is the one admin action that asks for nothing (ADR 0054).
     const impersonating = fixtureSession({
-      userId: 'usr_admin',
+      userId: UserId.make('usr_admin'),
       impersonatedBy: 'usr_admin'
     })
     expect(await request('/admin/stop-impersonating', 'POST', impersonating)).toBeNull()
@@ -200,7 +201,7 @@ describe('privileged authentication HTTP boundary', () => {
     const response = await request(
       '/passkey/verify-registration',
       'POST',
-      fixtureSession({ userId: 'usr_member', impersonatedBy: 'usr_admin' })
+      fixtureSession({ userId: UserId.make('usr_member'), impersonatedBy: 'usr_admin' })
     )
     expect(response?.status).toBe(403)
   })
@@ -258,7 +259,10 @@ describe('privileged authentication HTTP boundary', () => {
       await request(
         '/change-password',
         'POST',
-        fixtureSession({ userId: 'usr_member', impersonatedBy: 'usr_admin' })
+        fixtureSession({
+          userId: UserId.make('usr_member'),
+          impersonatedBy: 'usr_admin'
+        })
       )
     ).toEqual(expect.objectContaining({ status: 403 }))
   })

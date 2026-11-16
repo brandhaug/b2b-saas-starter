@@ -1,3 +1,4 @@
+import { type UserId, type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { workspaceAuditAttribution } from '@b2b-saas-starter/billing/ports'
 import { DateTime, Effect, Layer, Option, Result, Scope } from 'effect'
 
@@ -59,7 +60,7 @@ import { WorkspaceSuspensionService } from './workspace-suspension.ts'
 export type SeedWorkspaceExportFixture = {
   readonly id: string
   /** The requester — an owner of the fixture workspace. */
-  readonly requestedByUserId: string
+  readonly requestedByUserId: UserId
   readonly downloadSecret: string
   /** How long before "now" the export was requested. */
   readonly ageMs: number
@@ -69,7 +70,7 @@ export type SeedWorkspaceExportFixture = {
 
 type SeedExportRow = {
   record: WorkspaceExport
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   readonly workspaceSlug: string
   /**
    * The workspace's name at request time, for the completion notification —
@@ -78,7 +79,7 @@ type SeedExportRow = {
    * workspace's context created.
    */
   readonly workspaceName: string
-  readonly requestedByUserId: string | null
+  readonly requestedByUserId: UserId | null
   readonly downloadSecret: string
   archive: Uint8Array | null
   /**
@@ -144,7 +145,7 @@ export function SeedWorkspaceExports(options: {
       const snapshotContext = yield* workspaceExportSnapshotContextEffect()
       const suspension = yield* WorkspaceSuspensionService
       const scope = yield* Effect.scope
-      function requireProduct(workspaceId: string) {
+      function requireProduct(workspaceId: WorkspaceId) {
         return suspension.requireAllowed(workspaceId, 'product')
       }
       const rows: Array<SeedExportRow> = []
@@ -230,7 +231,7 @@ export function SeedWorkspaceExports(options: {
         }
       })
 
-      function findPending(exportId: string, workspaceId: string) {
+      function findPending(exportId: string, workspaceId: WorkspaceId) {
         return rows.find(
           (row) =>
             row.record.id === exportId &&

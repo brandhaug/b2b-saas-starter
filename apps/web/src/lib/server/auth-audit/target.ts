@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { Auth } from '@b2b-saas-starter/auth'
 import { errorMessage } from '@b2b-saas-starter/failure'
 import { Effect, Schema } from 'effect'
@@ -23,7 +24,7 @@ export const resolveAuthTarget = Effect.fn('AuthAudit.resolveTarget')(function* 
     return context
   }
   const request = context.request
-  let targetUserId: string | null = null
+  let targetUserId: UserId | null = null
   if (sources.includes('session-token')) {
     const body = yield* readAndReportBody(
       Effect.tryPromise(() => request.json()).pipe(
@@ -52,7 +53,9 @@ export const resolveAuthTarget = Effect.fn('AuthAudit.resolveTarget')(function* 
           const session = yield* Effect.promise(() =>
             plugin.internalAdapter.findSession(sessionToken)
           )
-          return session?.user.id ?? null
+          // The plugin's adapter returns plain-string ids.
+          const userId = session?.user.id
+          return userId === undefined ? null : UserId.make(userId)
         })
       )
     )

@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { Effect } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'
 
@@ -46,10 +47,13 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             Effect.gen(function* () {
               const membership = yield* WorkspaceMembership
               return yield* Effect.flip(
-                membership.changeRole({ userId: 'usr_mover', role: 'admin' })
+                membership.changeRole({
+                  userId: UserId.make('usr_mover'),
+                  role: 'admin'
+                })
               )
             }),
-            { userId: 'usr_owner' },
+            { userId: UserId.make('usr_owner') },
             {
               memberBinding: rejectingMemberBinding(
                 pluginRejection(403, 'user is already a member')
@@ -69,10 +73,13 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             Effect.gen(function* () {
               const membership = yield* WorkspaceMembership
               return yield* Effect.flip(
-                membership.changeRole({ userId: 'usr_mover', role: 'admin' })
+                membership.changeRole({
+                  userId: UserId.make('usr_mover'),
+                  role: 'admin'
+                })
               )
             }),
-            { userId: 'usr_owner' },
+            { userId: UserId.make('usr_owner') },
             {
               memberBinding: rejectingMemberBinding(
                 pluginRejection(502, 'upstream unavailable')
@@ -97,10 +104,13 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             Effect.gen(function* () {
               const membership = yield* WorkspaceMembership
               return yield* Effect.flip(
-                membership.changeRole({ userId: 'usr_mover', role: 'admin' })
+                membership.changeRole({
+                  userId: UserId.make('usr_mover'),
+                  role: 'admin'
+                })
               )
             }),
-            { userId: 'usr_owner' },
+            { userId: UserId.make('usr_owner') },
             {
               memberBinding: rejectingMemberBinding(new TypeError('fetch failed'))
             }
@@ -138,7 +148,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 })
               )
             }),
-            { userId: 'usr_owner' },
+            { userId: UserId.make('usr_owner') },
             {
               invitationBinding: rejectingInvitationBinding(
                 pluginRejection(400, 'already invited')
@@ -164,7 +174,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 })
               )
             }),
-            { userId: 'usr_owner' },
+            { userId: UserId.make('usr_owner') },
             {
               invitationBinding: rejectingInvitationBinding(
                 pluginRejection(500, 'invitation store down')

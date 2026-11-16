@@ -1,9 +1,10 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { workspaceAuditAttribution } from '@b2b-saas-starter/billing/ports'
 import { workspaceExports } from '@b2b-saas-starter/db/schema/governance'
 import { workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer, Option, Result } from 'effect'
-import { and, desc, eq } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
 
 import {
   CapabilityUnavailable,
@@ -18,6 +19,7 @@ import { AuditEventLog } from './audit-event-log.ts'
 import { auditedMutations } from './audited-mutation.ts'
 import { WorkspaceSuspensionService } from './workspace-suspension.ts'
 import { workspaceExportFileName } from './workspace-export-archive.ts'
+import { objectKeyFor, pendingWhere } from './workspace-export.internal.ts'
 import {
   completedWorkspaceExportStatus,
   failedWorkspaceExportStatus,
@@ -61,11 +63,6 @@ function toRecord(row: typeof workspaceExports.$inferSelect): WorkspaceExport {
   }
 }
 
-/** The R2 key: one prefix per workspace, so a bucket listing groups by owner. */
-function objectKeyFor(workspaceId: string, exportId: string): string {
-  return `workspaces/${workspaceId}/${exportId}.json.gz`
-}
-
 /**
  * The provider-light gate. Both bindings are provisioned together by alchemy
  * when `WORKSPACE_EXPORTS_ENABLED` is set, so a worker with one and not the
@@ -90,15 +87,6 @@ function availabilityOf(
   }
 }
 
-/** The pending row a queue message names, scoped to its workspace. */
-function pendingWhere(exportId: string, workspaceId: string) {
-  return and(
-    eq(workspaceExports.id, exportId),
-    eq(workspaceExports.workspaceId, workspaceId),
-    eq(workspaceExports.status, initialWorkspaceExportStatus)
-  )
-}
-
 export function LiveWorkspaceExports(
   options: LiveWorkspaceExportsOptions = {}
 ): Layer.Layer<
@@ -112,7 +100,7 @@ export function LiveWorkspaceExports(
       const audit = yield* AuditEventLog
       const feed = yield* NotificationFeed
       const suspension = yield* WorkspaceSuspensionService
-      function requireProduct(workspaceId: string) {
+      function requireProduct(workspaceId: WorkspaceId) {
         return suspension.requireAllowed(workspaceId, 'product')
       }
       const auditedMutation = yield* auditedMutations({
@@ -129,12 +117,12 @@ export function LiveWorkspaceExports(
         options.queue,
         (input: {
           readonly exportId: string
-          readonly workspaceId: string
+          readonly workspaceId: WorkspaceId
           readonly workspaceSlug: string
         }) => input
       )
 
-      function pendingMatched(exportId: string, workspaceId: string) {
+      function pendingMatched(exportId: string, workspaceId: WorkspaceId) {
         return unavailable(
           db
             .select({ id: workspaceExports.id })
@@ -162,7 +150,7 @@ export function LiveWorkspaceExports(
        * loose statements could leave the row settled with no record of why.
        * Resolves `false` when the export was already settled.
        */
-      function markFailed(exportId: string, workspaceId: string, reason: string) {
+      function markFailed(exportId: string, workspaceId: WorkspaceId, reason: string) {
         return Effect.gen(function* () {
           const completedAt = yield* DateTime.now
           return yield* auditedMutation({

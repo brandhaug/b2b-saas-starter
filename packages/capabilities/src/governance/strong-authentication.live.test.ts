@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { session, twoFactor, passkey } from '@b2b-saas-starter/db/schema/auth'
 import { Database } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Result } from 'effect'
@@ -25,7 +26,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           yield* db.insert(session).values({
             id: sessionId,
             token: 'token_assurance_live',
-            userId: 'usr_owner',
+            userId: UserId.make('usr_owner'),
             // oxlint-disable-next-line effect/noGlobals -- test fixture date derived from the live clock
             expiresAt: new Date(now.getTime() + 60 * 60 * 1000),
             strongAuthAt: now,
@@ -34,7 +35,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           })
           yield* db.insert(passkey).values({
             id: passkeyId,
-            userId: 'usr_owner',
+            userId: UserId.make('usr_owner'),
             publicKey: 'public-key',
             credentialID: 'credential-id',
             counter: 0,
@@ -43,7 +44,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             createdAt: now
           })
           const assurance = yield* StrongAuthentication
-          expect(yield* assurance.status({ userId: 'usr_owner', sessionId })).toEqual({
+          expect(
+            yield* assurance.status({ userId: UserId.make('usr_owner'), sessionId })
+          ).toEqual({
             qualified: true,
             recent: true,
             recovering: false,
@@ -51,12 +54,16 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             passwordVerified: false
           })
           expect(
-            (yield* assurance.status({ userId: 'usr_outsider', sessionId })).qualified
+            (yield* assurance.status({
+              userId: UserId.make('usr_outsider'),
+              sessionId
+            })).qualified
           ).toBe(false)
 
           yield* db.delete(passkey).where(eq(passkey.id, passkeyId))
           expect(
-            (yield* assurance.status({ userId: 'usr_owner', sessionId })).qualified
+            (yield* assurance.status({ userId: UserId.make('usr_owner'), sessionId }))
+              .qualified
           ).toBe(false)
           yield* db.delete(session).where(eq(session.id, sessionId))
         })
@@ -74,7 +81,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             const now = DateTime.toDate(yield* DateTime.now)
             const sessionId = 'session_recent_proof'
             const totpId = 'totp_recent_proof'
-            const input = { userId: 'usr_owner', sessionId }
+            const input = { userId: UserId.make('usr_owner'), sessionId }
             yield* db.insert(session).values({
               id: sessionId,
               token: 'token_recent_proof',
@@ -109,7 +116,10 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             expect(
               Result.isFailure(
                 yield* Effect.result(
-                  authentication.requireRecent({ ...input, userId: 'usr_outsider' })
+                  authentication.requireRecent({
+                    ...input,
+                    userId: UserId.make('usr_outsider')
+                  })
                 )
               )
             ).toBe(true)
@@ -198,7 +208,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             yield* db.insert(session).values({
               id: sessionId,
               token: 'token_assurance_states',
-              userId: 'usr_owner',
+              userId: UserId.make('usr_owner'),
               // oxlint-disable-next-line effect/noGlobals -- test fixture date derived from the live clock
               expiresAt: new Date(now.getTime() + 60 * 60 * 1000),
               passwordVerifiedAt: now,
@@ -208,14 +218,15 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             })
             yield* db.insert(twoFactor).values({
               id: totpId,
-              userId: 'usr_owner',
+              userId: UserId.make('usr_owner'),
               secret: 'secret',
               backupCodes: '[]',
               verified: true
             })
             const assurance = yield* StrongAuthentication
             expect(
-              (yield* assurance.status({ userId: 'usr_owner', sessionId })).qualified
+              (yield* assurance.status({ userId: UserId.make('usr_owner'), sessionId }))
+                .qualified
             ).toBe(true)
             yield* db
               .update(session)
@@ -223,7 +234,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               .set({ strongAuthAt: new Date(now.getTime() - 12 * 60 * 60 * 1000 - 1) })
               .where(eq(session.id, sessionId))
             expect(
-              (yield* assurance.status({ userId: 'usr_owner', sessionId })).qualified
+              (yield* assurance.status({ userId: UserId.make('usr_owner'), sessionId }))
+                .qualified
             ).toBe(false)
             yield* db
               .update(session)
@@ -234,42 +246,42 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               // oxlint-disable-next-line effect/noGlobals -- test fixture date derived from the live clock
               .set({ recoveryUntil: new Date(now.getTime() + 60 * 60 * 1000) })
               .where(eq(session.id, sessionId))
-            expect(yield* assurance.status({ userId: 'usr_owner', sessionId })).toEqual(
-              {
-                qualified: false,
-                recent: false,
-                recovering: true,
-                hasFactors: true,
-                passwordVerified: true
-              }
-            )
+            expect(
+              yield* assurance.status({ userId: UserId.make('usr_owner'), sessionId })
+            ).toEqual({
+              qualified: false,
+              recent: false,
+              recovering: true,
+              hasFactors: true,
+              passwordVerified: true
+            })
             yield* db
               .update(session)
-              .set({ recoveryUntil: null, impersonatedBy: 'usr_sysadmin' })
+              .set({ recoveryUntil: null, impersonatedBy: UserId.make('usr_sysadmin') })
               .where(eq(session.id, sessionId))
-            expect(yield* assurance.status({ userId: 'usr_owner', sessionId })).toEqual(
-              {
-                qualified: false,
-                recent: false,
-                recovering: false,
-                hasFactors: true,
-                passwordVerified: false
-              }
-            )
+            expect(
+              yield* assurance.status({ userId: UserId.make('usr_owner'), sessionId })
+            ).toEqual({
+              qualified: false,
+              recent: false,
+              recovering: false,
+              hasFactors: true,
+              passwordVerified: false
+            })
             yield* db
               .update(session)
               // oxlint-disable-next-line effect/noGlobals -- test fixture date derived from the live clock
               .set({ impersonatedBy: null, expiresAt: new Date(now.getTime() - 1) })
               .where(eq(session.id, sessionId))
-            expect(yield* assurance.status({ userId: 'usr_owner', sessionId })).toEqual(
-              {
-                qualified: false,
-                recent: false,
-                recovering: false,
-                hasFactors: false,
-                passwordVerified: false
-              }
-            )
+            expect(
+              yield* assurance.status({ userId: UserId.make('usr_owner'), sessionId })
+            ).toEqual({
+              qualified: false,
+              recent: false,
+              recovering: false,
+              hasFactors: false,
+              passwordVerified: false
+            })
             yield* db.delete(twoFactor).where(eq(twoFactor.id, totpId))
             yield* db.delete(session).where(eq(session.id, sessionId))
           })

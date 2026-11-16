@@ -1,9 +1,10 @@
+import { type UserId } from '../ids.ts'
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { systemRoles, accountLocales } from '../enums.ts'
 import { id, authCreatedAt, authTimestamps } from './columns.ts'
 
 export const user = sqliteTable('user', {
-  id: id(),
+  id: id().$type<UserId>(),
   email: text('email').unique().notNull(),
   name: text('name').notNull(),
   image: text('image'),
@@ -40,9 +41,10 @@ export const session = sqliteTable(
     ipAddress: text('ipAddress'),
     userAgent: text('userAgent'),
     userId: text('userId')
+      .$type<UserId>()
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    impersonatedBy: text('impersonatedBy'),
+    impersonatedBy: text('impersonatedBy').$type<UserId>(),
     // The organization plugin declares this field on `session` unconditionally
     // — there is no config that switches it off — so the column must exist or
     // every plugin write against `session` fails. Whether the starter *reads*
@@ -70,6 +72,7 @@ export const account = sqliteTable(
     // Better Auth 1.7.3+ no longer writes issuer for account rows.
     issuer: text('issuer'),
     userId: text('userId')
+      .$type<UserId>()
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     accessToken: text('accessToken'),
@@ -119,6 +122,7 @@ export const twoFactor = sqliteTable(
     // decodes it itself, so plain `text`, like `workspaces.metadata`.
     backupCodes: text('backupCodes').notNull(),
     userId: text('userId')
+      .$type<UserId>()
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     verified: integer('verified', { mode: 'boolean' }).default(true).notNull(),
@@ -146,6 +150,7 @@ export const passkey = sqliteTable(
     name: text('name'),
     publicKey: text('publicKey').notNull(),
     userId: text('userId')
+      .$type<UserId>()
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     credentialID: text('credentialID').notNull(),

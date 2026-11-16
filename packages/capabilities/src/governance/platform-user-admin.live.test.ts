@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Database } from '@b2b-saas-starter/db/service'
 import { workspaceMembers } from '@b2b-saas-starter/db/schema/workspaces'
 import { eq } from 'drizzle-orm'
@@ -31,8 +32,8 @@ const UserAdminDatabase = Layer.effectDiscard(
     const db = yield* Database
     yield* db.insert(workspaceMembers).values({
       id: 'mem_uac_stable_owner',
-      workspaceId: 'wrk_user_admin_contract',
-      userId: 'usr_sysadmin',
+      workspaceId: WorkspaceId.make('wrk_user_admin_contract'),
+      userId: UserId.make('usr_sysadmin'),
       role: 'owner'
     })
   })
@@ -52,17 +53,17 @@ layer(UserAdminDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             'live-lab',
             platformUserAdminRecoveryContract(
               {
-                existing: 'usr_owner',
-                outsider: 'usr_outsider',
-                unknown: 'usr_nobody',
-                workspaceId: 'wrk_user_admin_contract',
-                admin: 'usr_sysadmin'
+                existing: UserId.make('usr_owner'),
+                outsider: UserId.make('usr_outsider'),
+                unknown: UserId.make('usr_nobody'),
+                workspaceId: WorkspaceId.make('wrk_user_admin_contract'),
+                admin: UserId.make('usr_sysadmin')
               },
               records,
               'live',
               expect
             ),
-            { userId: 'usr_owner' },
+            { userId: UserId.make('usr_owner') },
             {
               userAdminBinding: fakeUserAdminBinding(db),
               securityEvidence: {
@@ -108,10 +109,10 @@ layer(UserAdminDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         )
         yield* Effect.gen(function* () {
           const admin = yield* PlatformUserAdmin
-          yield* admin.banUser({ userId: 'usr_owner', actorUserId: null })
+          yield* admin.banUser({ userId: UserId.make('usr_owner'), actorUserId: null })
           yield* admin.changeWorkspaceRole({
-            userId: 'usr_owner',
-            workspaceId: 'wrk_user_admin_contract',
+            userId: UserId.make('usr_owner'),
+            workspaceId: WorkspaceId.make('wrk_user_admin_contract'),
             role: 'member',
             actorUserId: null
           })
@@ -140,14 +141,14 @@ layer(UserAdminDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               const admin = yield* PlatformUserAdmin
               expect(
                 (yield* Effect.exit(
-                  admin.banUser({ userId: 'usr_owner', actorUserId: null })
+                  admin.banUser({ userId: UserId.make('usr_owner'), actorUserId: null })
                 ))._tag
               ).toBe('Failure')
               expect(
                 (yield* Effect.exit(
                   admin.changeWorkspaceRole({
-                    userId: 'usr_owner',
-                    workspaceId: 'wrk_user_admin_contract',
+                    userId: UserId.make('usr_owner'),
+                    workspaceId: WorkspaceId.make('wrk_user_admin_contract'),
                     role: 'member',
                     actorUserId: null
                   })
@@ -155,7 +156,7 @@ layer(UserAdminDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               ).toBe('Failure')
               expect(records).toEqual([])
             }),
-            { userId: 'usr_owner' },
+            { userId: UserId.make('usr_owner') },
             {
               userAdminBinding: {
                 ...fakeUserAdminBinding(db),
@@ -181,8 +182,8 @@ layer(UserAdminDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           const db = yield* Database
           yield* db.insert(workspaceMembers).values({
             id: 'mem_readback',
-            workspaceId: 'wrk_user_admin_contract',
-            userId: 'usr_outsider',
+            workspaceId: WorkspaceId.make('wrk_user_admin_contract'),
+            userId: UserId.make('usr_outsider'),
             role: 'owner'
           })
           const records: Array<SecurityEvidenceRecord> = []
@@ -192,8 +193,8 @@ layer(UserAdminDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               const admin = yield* PlatformUserAdmin
               const error = yield* Effect.flip(
                 admin.changeWorkspaceRole({
-                  userId: 'usr_outsider',
-                  workspaceId: 'wrk_user_admin_contract',
+                  userId: UserId.make('usr_outsider'),
+                  workspaceId: WorkspaceId.make('wrk_user_admin_contract'),
                   role: 'member',
                   actorUserId: null
                 })
@@ -207,7 +208,7 @@ layer(UserAdminDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 }
               ])
             }),
-            { userId: 'usr_owner' },
+            { userId: UserId.make('usr_owner') },
             {
               userAdminBinding: {
                 ...fakeUserAdminBinding(db),
@@ -243,10 +244,13 @@ layer(UserAdminDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             'live-lab',
             Effect.gen(function* () {
               const admin = yield* PlatformUserAdmin
-              yield* admin.banUser({ userId: 'usr_owner', actorUserId: null })
+              yield* admin.banUser({
+                userId: UserId.make('usr_owner'),
+                actorUserId: null
+              })
               const member = yield* admin.changeWorkspaceRole({
-                userId: 'usr_owner',
-                workspaceId: 'wrk_user_admin_contract',
+                userId: UserId.make('usr_owner'),
+                workspaceId: WorkspaceId.make('wrk_user_admin_contract'),
                 role: 'member',
                 actorUserId: null
               })
@@ -258,9 +262,12 @@ layer(UserAdminDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 'account_banned',
                 'workspace_access_removed'
               ])
-              yield* admin.unbanUser({ userId: 'usr_owner', actorUserId: null })
+              yield* admin.unbanUser({
+                userId: UserId.make('usr_owner'),
+                actorUserId: null
+              })
             }),
-            { userId: 'usr_owner' },
+            { userId: UserId.make('usr_owner') },
             {
               userAdminBinding: fakeUserAdminBinding(db),
               securityEvidence: {
@@ -277,11 +284,11 @@ layer(UserAdminDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
     describe('live platform user admin contract', () => {
       for (const contractCase of platformUserAdminContractCases(
         {
-          existing: 'usr_owner',
-          outsider: 'usr_outsider',
-          unknown: 'usr_nobody',
-          workspaceId: 'wrk_user_admin_contract',
-          admin: 'usr_sysadmin'
+          existing: UserId.make('usr_owner'),
+          outsider: UserId.make('usr_outsider'),
+          unknown: UserId.make('usr_nobody'),
+          workspaceId: WorkspaceId.make('wrk_user_admin_contract'),
+          admin: UserId.make('usr_sysadmin')
         },
         expect
       )) {
@@ -292,7 +299,7 @@ layer(UserAdminDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             yield* inWorkspace(
               'live-lab',
               contractCase.assert,
-              { userId: 'usr_owner' },
+              { userId: UserId.make('usr_owner') },
               { userAdminBinding: binding }
             )
           })

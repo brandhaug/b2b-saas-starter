@@ -1,4 +1,4 @@
-import { WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import { UserId, WebhookEndpointId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Effect, Layer } from 'effect'
 import { expect, layer } from '@effect/vitest'
 import { eq } from 'drizzle-orm'
@@ -37,7 +37,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('publisher', (it) => {
           const tokens = yield* ApiTokenRegistry
           return yield* tokens.create({ name: 'Read integration', scopes: ['read'] })
         }),
-        { userId: 'usr_owner' },
+        { userId: UserId.make('usr_owner') },
         {
           webhookQueue: {
             send: (message) => {
@@ -86,7 +86,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('publisher', (it) => {
         )
       )
       const memberPayload: WebhookPayload['workspace_member.added'] = {
-        userId: 'usr_joiner',
+        userId: UserId.make('usr_joiner'),
         role: 'member'
       }
       const payloadWithPrivateFields = {
@@ -94,13 +94,13 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('publisher', (it) => {
         email: 'secret@webhook.test',
         signingSecret: 'never-send'
       }
-      yield* publisher.publishForWorkspace('wrk_live', {
+      yield* publisher.publishForWorkspace(WorkspaceId.make('wrk_live'), {
         eventType: 'workspace_member.added',
         payload: payloadWithPrivateFields
       })
-      yield* publisher.publishForWorkspace('wrk_other', {
+      yield* publisher.publishForWorkspace(WorkspaceId.make('wrk_other'), {
         eventType: 'workspace_member.added',
-        payload: { userId: 'usr_other', role: 'member' }
+        payload: { userId: UserId.make('usr_other'), role: 'member' }
       })
       expect(messages).toHaveLength(1)
       expect(messages[0]).toMatchObject({
@@ -133,7 +133,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('publisher', (it) => {
       const db = yield* Database
       yield* db.insert(webhookEndpoints).values({
         id: WebhookEndpointId.make('wh_member_baseline'),
-        workspaceId: 'wrk_member_contract',
+        workspaceId: WorkspaceId.make('wrk_member_contract'),
         url: 'https://example.com/member-hook',
         signingSecret: 'whsec_member_test',
         enabled: true,
@@ -146,9 +146,12 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('publisher', (it) => {
         'member-contract-lab',
         Effect.gen(function* () {
           const membership = yield* WorkspaceMembership
-          yield* membership.changeRole({ userId: 'usr_mover', role: 'admin' })
+          yield* membership.changeRole({
+            userId: UserId.make('usr_mover'),
+            role: 'admin'
+          })
         }),
-        { userId: 'usr_owner' },
+        { userId: UserId.make('usr_owner') },
         {
           memberBinding: binding,
           webhookQueue: {

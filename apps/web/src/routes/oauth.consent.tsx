@@ -16,6 +16,7 @@ import {
   denyOAuthConsentServerFn,
   grantOAuthConsentServerFn,
   loadOAuthConsentServerFn,
+  type GrantOAuthConsentRequest,
   type OAuthConsentPayload,
   type OAuthRedirect
 } from '@/lib/server/mcp-consent'
@@ -51,7 +52,7 @@ export const Route = createFileRoute('/oauth/consent')({
 })
 /** The page's two server calls, as ports — a test drives the page with plain functions. */
 export type GrantConsent = (input: {
-  readonly data: { readonly workspaceId: string; readonly oauthQuery: string }
+  readonly data: GrantOAuthConsentRequest
 }) => Promise<OAuthRedirect>
 export type DenyConsent = (input: {
   readonly data: { readonly oauthQuery: string }

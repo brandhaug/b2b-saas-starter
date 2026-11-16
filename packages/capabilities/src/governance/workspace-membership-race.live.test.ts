@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Effect, Exit, Layer } from 'effect'
 import { expect, it } from '@effect/vitest'
 import { eq } from 'drizzle-orm'
@@ -41,7 +42,7 @@ for (const operation of ['demote', 'remove', 'leave']) {
               fixture.db
                 .select()
                 .from(workspaceMembers)
-                .where(eq(workspaceMembers.workspaceId, workspace.id))
+                .where(eq(workspaceMembers.workspaceId, WorkspaceId.make(workspace.id)))
             )
             const memberA = members.find((member) => member.userId === a.userId)
             const memberB = members.find((member) => member.userId === b.userId)
@@ -87,7 +88,7 @@ for (const operation of ['demote', 'remove', 'leave']) {
               fixture.db
                 .select()
                 .from(workspaceMembers)
-                .where(eq(workspaceMembers.workspaceId, workspace.id))
+                .where(eq(workspaceMembers.workspaceId, WorkspaceId.make(workspace.id)))
             )
             expect(remaining.filter((member) => member.role === 'owner')).toHaveLength(
               1
@@ -114,11 +115,11 @@ it.live(
             headers: owner.headers
           })
           const binding = {
-            create: (input: { name: string; slug: string; userId: string }) =>
+            create: (input: { name: string; slug: string; userId: UserId }) =>
               auth.instance.api
                 .createOrganization({ body: input })
                 .then(() => undefined),
-            rename: (input: { workspaceId: string; name: string }) =>
+            rename: (input: { workspaceId: WorkspaceId; name: string }) =>
               auth.instance.api
                 .updateOrganization({
                   headers: owner.headers,
@@ -128,7 +129,7 @@ it.live(
                   }
                 })
                 .then(() => undefined),
-            remove: (input: { workspaceId: string }) =>
+            remove: (input: { workspaceId: WorkspaceId }) =>
               auth.instance.api
                 .deleteOrganization({
                   headers: owner.headers,
@@ -142,13 +143,13 @@ it.live(
           ).pipe(
             Effect.provideService(WorkspaceContext, {
               workspace: {
-                id: workspace.id,
+                id: WorkspaceId.make(workspace.id),
                 name: workspace.name,
                 slug: workspace.slug,
                 planId: 'starter'
               },
               actor: {
-                userId: owner.userId,
+                userId: UserId.make(owner.userId),
                 role: 'owner',
                 systemRole: 'user',
                 banned: false
@@ -166,7 +167,7 @@ it.live(
               fixture.db
                 .select()
                 .from(workspaces)
-                .where(eq(workspaces.id, workspace.id))
+                .where(eq(workspaces.id, WorkspaceId.make(workspace.id)))
             )
           ).toHaveLength(0)
           expect(

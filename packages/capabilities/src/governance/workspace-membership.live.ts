@@ -1,3 +1,4 @@
+import { type UserId, type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { AssistantDirectory } from '../assistant/directory.ts'
 import { Database } from '@b2b-saas-starter/db/service'
 import { user } from '@b2b-saas-starter/db/schema/auth'
@@ -77,7 +78,7 @@ export function LiveWorkspaceMembership(
        * capability caller speaks in user ids. Resolving here also supplies the
        * `not_a_member` rejection without a second round trip.
        */
-      function resolveMemberId(workspaceId: string, userId: string) {
+      function resolveMemberId(workspaceId: WorkspaceId, userId: UserId) {
         return requireMemberRowId(
           db,
           { workspaceId, userId },
@@ -87,8 +88,8 @@ export function LiveWorkspaceMembership(
 
       /** Reads the member back through the same join `listMembers` uses. */
       const readMember = Effect.fn('WorkspaceMembership.readMember')(function* (
-        workspaceId: string,
-        userId: string
+        workspaceId: WorkspaceId,
+        userId: UserId
       ) {
         const member = yield* findWorkspaceMember(db, { workspaceId, userId })
         if (!member) {
@@ -106,8 +107,8 @@ export function LiveWorkspaceMembership(
        * asked for a change it would refuse with message text.
        */
       const rosterFacts = Effect.fn('WorkspaceMembership.rosterFacts')(function* (
-        workspaceId: string,
-        userId: string
+        workspaceId: WorkspaceId,
+        userId: UserId
       ) {
         const target = yield* findWorkspaceMember(db, { workspaceId, userId })
         const ownerCount = yield* countWorkspaceOwners(db, workspaceId)
@@ -118,8 +119,8 @@ export function LiveWorkspaceMembership(
       // rejected plugin write to translate its database failure into the same
       // stable refusal as the preflight, without depending on vendor messages.
       function ownerWrite(
-        workspaceId: string,
-        userId: string,
+        workspaceId: WorkspaceId,
+        userId: UserId,
         write: ReturnType<typeof callBinding>
       ) {
         return write.pipe(
@@ -186,7 +187,7 @@ export function LiveWorkspaceMembership(
           )
         }),
         countMembers: Effect.fn('WorkspaceMembership.countMembers')(
-          (workspaceIds: ReadonlyArray<string>) =>
+          (workspaceIds: ReadonlyArray<WorkspaceId>) =>
             countInIdChunks(workspaceIds, 0, (chunk) =>
               unavailable(
                 db
@@ -199,7 +200,7 @@ export function LiveWorkspaceMembership(
             )
         ),
         listWorkspacesForUser: Effect.fn('WorkspaceMembership.listWorkspacesForUser')(
-          (userId: string) =>
+          (userId: UserId) =>
             unavailable(
               db
                 .select({ workspace: workspaces, member: workspaceMembers, user })

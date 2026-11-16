@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { emailDeliveryStatuses, emailPurposes } from '@b2b-saas-starter/db/enums'
 import { Context, type Effect, Schema } from 'effect'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -12,8 +13,8 @@ export const EmailDeliveryRecord = Schema.Struct({
   referenceId: Schema.NullOr(Schema.String),
   purpose: Schema.Literals(emailPurposes),
   recipient: Schema.String,
-  userId: Schema.NullOr(Schema.String),
-  workspaceId: Schema.NullOr(Schema.String),
+  userId: Schema.NullOr(UserId),
+  workspaceId: Schema.NullOr(WorkspaceId),
   status: Schema.Literals(emailDeliveryStatuses),
   providerMessageId: Schema.NullOr(Schema.String),
   lastEventId: Schema.NullOr(Schema.String),
@@ -98,19 +99,19 @@ export type EmailDeliveryInterface = {
   readonly get: (id: string) => Result<EmailDeliveryRecord | null>
   /** `complete` reads the whole sanitized personal archive, unpaged. */
   readonly listForUser: (
-    userId: string,
+    userId: UserId,
     options?: { readonly complete?: boolean }
   ) => Result<ReadonlyArray<EmailDeliveryRecord>>
   readonly listInvitations: (
-    workspaceId: string
+    workspaceId: WorkspaceId
   ) => Result<ReadonlyArray<EmailDeliveryRecord>>
   readonly latestInvitation: (
-    workspaceId: string,
+    workspaceId: WorkspaceId,
     referenceId: string
   ) => Result<EmailDeliveryRecord | null>
   /** Caller must require System Admin. */
   readonly listSystem: () => Result<ReadonlyArray<EmailDeliveryRecord>>
-  readonly resolveUserId: (email: string) => Result<string | null>
+  readonly resolveUserId: (email: string) => Result<UserId | null>
 }
 export class EmailDelivery extends Context.Service<
   EmailDelivery,

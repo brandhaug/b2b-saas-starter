@@ -1,3 +1,4 @@
+import { type UserId, type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { workspaceAuditAttribution } from '@b2b-saas-starter/billing/ports'
 import { type JsonObject } from '@b2b-saas-starter/db/schema/json'
 import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
@@ -49,7 +50,7 @@ export const AuditEvent = Schema.Struct({
 export type AuditEvent = typeof AuditEvent.Type
 
 export type AuditEventDetail = AuditEvent & {
-  readonly actorUserId: string | null
+  readonly actorUserId: UserId | null
   readonly metadata: AuditEventMetadata
 }
 
@@ -66,7 +67,7 @@ export function auditEventPosition(
 /** Optional server-side filters and paging for the per-workspace read. */
 export type ListAuditEventsInput = {
   /** Only events whose `actorUserId` matches. */
-  readonly actorUserId?: string
+  readonly actorUserId?: UserId
   /** Only events of this event type (exact match). */
   readonly eventType?: string
   /** ISO timestamp lower bound, inclusive. */
@@ -107,13 +108,13 @@ export const AUDIT_EVENT_PAGE_SIZE = 100
 export type SeedAuditEventRow = AuditEvent & {
   readonly metadata?: JsonObject
   readonly actorType: AuditActorTypeValue
-  readonly workspaceId?: string | null
-  readonly actorUserId?: string | null
+  readonly workspaceId?: WorkspaceId | null
+  readonly actorUserId?: UserId | null
 }
 
 export type RecordAuditEventInput = {
-  readonly workspaceId?: string | null
-  readonly actorUserId?: string | null
+  readonly workspaceId?: WorkspaceId | null
+  readonly actorUserId?: UserId | null
   /**
    * Who the actor was: a session user, the platform, or a bearer API token.
    * Required invocation provenance, independent of the event's taxonomy.
@@ -290,7 +291,7 @@ function toSeedWire(row: SeedAuditEventRow): AuditEvent {
 
 function pagedSeedRows(
   rows: ReadonlyArray<SeedAuditEventRow>,
-  workspaceId: string | undefined,
+  workspaceId: WorkspaceId | undefined,
   input: ListAuditEventsInput | undefined
 ): Page<AuditEvent> {
   const view = normalizeAuditView(input?.view)
@@ -374,7 +375,7 @@ export type SeedAuditActor = {
  */
 function seedActorName(
   actors: ReadonlyArray<SeedAuditActor>,
-  actorUserId: string | null | undefined
+  actorUserId: UserId | null | undefined
 ): string {
   if (!actorUserId) {
     return 'system'

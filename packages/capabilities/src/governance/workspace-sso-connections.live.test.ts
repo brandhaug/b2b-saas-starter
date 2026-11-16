@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { Database } from '@b2b-saas-starter/db/service'
 import { Effect, Option, Redacted } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'
@@ -51,7 +52,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               expect(serialized).not.toContain('sec_live_secret')
               expect(serialized).not.toContain('client-live-abcd')
             }),
-            { userId: 'usr_owner' }
+            { userId: UserId.make('usr_owner') }
           )
       )
 
@@ -68,7 +69,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               true
             )
           }),
-          { userId: 'usr_owner' }
+          { userId: UserId.make('usr_owner') }
         )
       )
     })
@@ -136,7 +137,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               expect(detail.value.saml).toBeNull()
             }
           }),
-          { userId: 'usr_owner' }
+          { userId: UserId.make('usr_owner') }
         )
       )
 
@@ -163,7 +164,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               expect(partial.value.oidc).toBeNull()
             }
           }),
-          { userId: 'usr_owner' }
+          { userId: UserId.make('usr_owner') }
         )
       )
 
@@ -182,7 +183,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 }
               })
             ),
-            { userId: 'usr_owner' },
+            { userId: UserId.make('usr_owner') },
             { ssoBinding: binding }
           )
           expect(Option.isSome(updated)).toBe(true)
@@ -226,7 +227,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               return inWorkspace(
                 'live-lab',
                 contractCase.assert,
-                { userId: 'usr_owner' },
+                { userId: UserId.make('usr_owner') },
                 { ssoBinding: binding }
               )
             })
@@ -256,7 +257,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 defaultWorkspaceRole: 'member'
               })
             }),
-            { userId: 'usr_owner' },
+            { userId: UserId.make('usr_owner') },
             { ssoBinding: binding }
           )
           expect(created.enabled).toBe(false)
@@ -278,7 +279,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               })
               return events.items
             }),
-            { userId: 'usr_owner' }
+            { userId: UserId.make('usr_owner') }
           )
           expect(audit.map((event) => event.targetId)).toContain(created.id)
         })
@@ -299,7 +300,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 defaultWorkspaceRole: 'admin'
               })
             }),
-            { userId: 'usr_owner' },
+            { userId: UserId.make('usr_owner') },
             { ssoBinding: binding }
           )
           expect(Option.isSome(updated)).toBe(true)
@@ -337,7 +338,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               })
               return events.items
             }),
-            { userId: 'usr_owner' }
+            { userId: UserId.make('usr_owner') }
           )
           expect(audit.map((event) => event.targetId)).toContain('sso_live_disabled')
         })
@@ -352,7 +353,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             Effect.flatMap(SsoConnections, (sso) =>
               sso.remove({ providerId: 'sso_live_oidc' })
             ),
-            { userId: 'usr_owner' },
+            { userId: UserId.make('usr_owner') },
             { ssoBinding: binding }
           )
           expect(removed).toBe(true)
@@ -391,7 +392,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                   removed: yield* sso.remove({ providerId: 'sso_missing' })
                 }
               }),
-              { userId: 'usr_owner' },
+              { userId: UserId.make('usr_owner') },
               { ssoBinding: binding }
             )
             expect(Option.isNone(outcome.updated)).toBe(true)

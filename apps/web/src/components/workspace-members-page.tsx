@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { SectionTabs } from '@/components/page/section-tabs'
 import { WorkspaceLink } from '@/components/workspace-link'
 import { InvitationPanel } from '@/components/invitation-panel'
@@ -33,7 +34,7 @@ export function WorkspaceMembersPage({
   /** The signed-in user's Better Auth system role, for the shell's admin link. */
   readonly systemRole?: string | null
   /** The signed-in user's id — the roster's own-row verb (leave) keys on it. */
-  readonly actorUserId: string
+  readonly actorUserId: UserId
 }) {
   const { viewer, members, invitations, seatUsage } = data
   return (

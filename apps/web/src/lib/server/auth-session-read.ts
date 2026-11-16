@@ -1,4 +1,4 @@
-import { Auth, type Session } from '@b2b-saas-starter/auth'
+import { Auth, brandSession, type Session } from '@b2b-saas-starter/auth'
 import { errorMessage } from '@b2b-saas-starter/failure'
 import { Effect, Schema } from 'effect'
 
@@ -47,7 +47,7 @@ function runSessionRead(headers: Headers): Promise<Session | null> {
         // Whether the read found a session is the useful fact. Never the
         // token, never the email.
         yield* Effect.annotateLogsScoped({ authenticated: session !== null })
-        return session
+        return session === null ? null : brandSession(session)
       })
     )
   )

@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { it } from '@effect/vitest'
 import { Effect, Layer } from 'effect'
@@ -15,8 +16,8 @@ import { testWorkspaceContext } from '../workspace-context.ts'
 import { seedWorkspaceRecord } from '../seed-fixture.ts'
 
 const input: RecordAuditEventInput = {
-  workspaceId: 'wrk_test',
-  actorUserId: 'usr_test',
+  workspaceId: WorkspaceId.make('wrk_test'),
+  actorUserId: UserId.make('usr_test'),
   actorType: 'user',
   eventType: 'workspace.renamed',
   targetType: 'workspace',
@@ -58,7 +59,7 @@ describe('advanced audit views', () => {
       {
         id: 'aud_a',
         workspaceId: seedWorkspaceRecord.id,
-        actorUserId: 'usr_a',
+        actorUserId: UserId.make('usr_a'),
         actorType: 'user',
         actor: 'A',
         eventType: 'workspace.renamed',
@@ -69,7 +70,7 @@ describe('advanced audit views', () => {
       {
         id: 'aud_b',
         workspaceId: seedWorkspaceRecord.id,
-        actorUserId: 'usr_b',
+        actorUserId: UserId.make('usr_b'),
         actorType: 'user',
         actor: 'B',
         eventType: 'workspace.deleted',
@@ -80,7 +81,7 @@ describe('advanced audit views', () => {
       {
         id: 'aud_c',
         workspaceId: seedWorkspaceRecord.id,
-        actorUserId: 'usr_a',
+        actorUserId: UserId.make('usr_a'),
         actorType: 'user',
         actor: 'A',
         eventType: 'workspace.renamed',
@@ -92,7 +93,7 @@ describe('advanced audit views', () => {
     const layer = Layer.merge(
       SeedAuditEventLog(rows),
       testWorkspaceContext(seedWorkspaceRecord, {
-        userId: 'usr_a',
+        userId: UserId.make('usr_a'),
         role: 'owner',
         systemRole: 'admin',
         banned: false

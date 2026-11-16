@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { expect, layer } from '@effect/vitest'
 import { Effect, Layer } from 'effect'
 import { assistantSessionAuthority } from '@b2b-saas-starter/db/schema/assistant'
@@ -25,7 +26,7 @@ const insertState = Effect.fn('test.insertAuthorityState')(function* (
   state: AssistantAuthorityState | null
 ) {
   const db = yield* Database
-  yield* db.delete(twoFactor).where(eq(twoFactor.userId, 'usr_authority'))
+  yield* db.delete(twoFactor).where(eq(twoFactor.userId, UserId.make('usr_authority')))
   yield* db.delete(oauthConsent).where(eq(oauthConsent.id, 'consent_authority'))
   yield* db.delete(session).where(eq(session.id, 'ses_authority'))
   yield* db
@@ -33,7 +34,7 @@ const insertState = Effect.fn('test.insertAuthorityState')(function* (
     .where(eq(assistantSessionAuthority.sessionId, 'ses_authority'))
   yield* db
     .delete(workspaceMembers)
-    .where(eq(workspaceMembers.workspaceId, 'wrk_authority'))
+    .where(eq(workspaceMembers.workspaceId, WorkspaceId.make('wrk_authority')))
   if (state === null) {
     return
   }
@@ -70,7 +71,7 @@ const insertState = Effect.fn('test.insertAuthorityState')(function* (
     .onConflictDoUpdate({ target: workspaces.id, set: { suspensionStatus } })
   yield* db.insert(workspaceMembers).values({
     id: 'member_authority',
-    workspaceId: 'wrk_authority',
+    workspaceId: WorkspaceId.make('wrk_authority'),
     userId: actor.userId,
     role: actor.role
   })
@@ -112,7 +113,7 @@ const insertState = Effect.fn('test.insertAuthorityState')(function* (
       id: 'consent_authority',
       clientId: 'authority-client',
       userId: actor.userId,
-      referenceId: 'wrk_authority',
+      referenceId: WorkspaceId.make('wrk_authority'),
       grantVersion: Number(state.grant.binding.split(':')[1]),
       scopes: [...state.grant.scopes],
       resources: [authorityResource]
@@ -140,7 +141,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             const service = yield* AssistantAuthority
             return yield* service.authorize({
               credential: authorityCredential,
-              workspaceId: 'wrk_authority',
+              workspaceId: WorkspaceId.make('wrk_authority'),
               requiredPermissions: [],
               operation: 'read',
               mode: 'observe'

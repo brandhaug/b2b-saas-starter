@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { notificationPreferences } from '@b2b-saas-starter/db/schema/notifications'
 import { notificationKinds } from '@b2b-saas-starter/db/enums'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
@@ -37,7 +38,7 @@ export const NotificationPreference = Schema.Struct({
 export type NotificationPreference = typeof NotificationPreference.Type
 
 export type SetNotificationPreferenceInput = {
-  readonly userId: string
+  readonly userId: UserId
   readonly kind: NotificationKind
   readonly channel: NotificationChannel
 }
@@ -47,7 +48,7 @@ export type SetNotificationPreferenceInput = {
  * spell it. The wire shape derives from it plus the default policy.
  */
 export type SeedNotificationPreference = {
-  readonly userId: string
+  readonly userId: UserId
   readonly kind: NotificationKind
   readonly channel: NotificationChannel
 }
@@ -60,11 +61,11 @@ export type SeedNotificationPreference = {
 export type NotificationPreferencesInterface = {
   /** Every kind, resolved: explicit choices and defaults alike. */
   readonly list: (
-    userId: string
+    userId: UserId
   ) => Effect.Effect<ReadonlyArray<NotificationPreference>, CapabilityUnavailable>
   /** The channel that applies to one kind for one user. */
   readonly resolve: (
-    userId: string,
+    userId: UserId,
     kind: NotificationKind
   ) => Effect.Effect<NotificationChannel, CapabilityUnavailable>
   /**
@@ -72,7 +73,7 @@ export type NotificationPreferencesInterface = {
    * requested user. Fan-out reads its recipients here instead of once each.
    */
   readonly resolveForUsers: (
-    userIds: ReadonlyArray<string>,
+    userIds: ReadonlyArray<UserId>,
     kind: NotificationKind
   ) => Effect.Effect<ReadonlyMap<string, NotificationChannel>, CapabilityUnavailable>
   /**
@@ -121,11 +122,11 @@ export function SeedNotificationPreferences(
       }
       const store = yield* Ref.make(initial)
       function storedFor(
-        userId: string
+        userId: UserId
       ): Effect.Effect<ReadonlyMap<NotificationKind, NotificationChannel>> {
         return Effect.map(Ref.get(store), (rows) => rows.get(userId) ?? new Map())
       }
-      function storedForUsers(userIds: ReadonlyArray<string>, kind: NotificationKind) {
+      function storedForUsers(userIds: ReadonlyArray<UserId>, kind: NotificationKind) {
         return Effect.map(
           Ref.get(store),
           (rows) =>
@@ -174,7 +175,7 @@ export const LiveNotificationPreferences: Layer.Layer<
     })
 
     function storedFor(
-      userId: string
+      userId: UserId
     ): Effect.Effect<
       ReadonlyMap<NotificationKind, NotificationChannel>,
       CapabilityUnavailable
@@ -190,7 +191,7 @@ export const LiveNotificationPreferences: Layer.Layer<
       ).pipe(Effect.map((rows) => new Map(rows.map((row) => [row.kind, row.channel]))))
     }
 
-    function storedForUsers(userIds: ReadonlyArray<string>, kind: NotificationKind) {
+    function storedForUsers(userIds: ReadonlyArray<UserId>, kind: NotificationKind) {
       // One bound parameter is the kind.
       return selectInIdChunks(userIds, 1, (chunk) =>
         unavailable(
@@ -264,18 +265,18 @@ function preferenceChangeEvent(
 // Seed and Live share default resolution; only the storage lookup differs.
 function storedPreferenceReads<E>(
   storedFor: (
-    userId: string
+    userId: UserId
   ) => Effect.Effect<ReadonlyMap<NotificationKind, NotificationChannel>, E>,
   storedForUsers: (
-    userIds: ReadonlyArray<string>,
+    userIds: ReadonlyArray<UserId>,
     kind: NotificationKind
   ) => Effect.Effect<ReadonlyMap<string, NotificationChannel>, E>
 ) {
   return {
-    list: (userId: string) => Effect.map(storedFor(userId), resolvePreferences),
-    resolve: (userId: string, kind: NotificationKind) =>
+    list: (userId: UserId) => Effect.map(storedFor(userId), resolvePreferences),
+    resolve: (userId: UserId, kind: NotificationKind) =>
       Effect.map(storedFor(userId), (stored) => resolveChannel(kind, stored.get(kind))),
-    resolveForUsers: (userIds: ReadonlyArray<string>, kind: NotificationKind) =>
+    resolveForUsers: (userIds: ReadonlyArray<UserId>, kind: NotificationKind) =>
       Effect.map(
         storedForUsers(userIds, kind),
         (stored): ReadonlyMap<string, NotificationChannel> =>

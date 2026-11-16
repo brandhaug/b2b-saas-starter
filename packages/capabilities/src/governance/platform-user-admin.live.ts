@@ -1,3 +1,4 @@
+import { type UserId, type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { user } from '@b2b-saas-starter/db/schema/auth'
 import { Database } from '@b2b-saas-starter/db/service'
 import { Effect, Layer } from 'effect'
@@ -58,7 +59,7 @@ export function LivePlatformUserAdmin(
        * change that changed nothing.
        */
       const requireAccount = Effect.fn('PlatformUserAdmin.requireAccount')(function* (
-        userId: string
+        userId: UserId
       ) {
         const rows = yield* unavailable(
           db.select().from(user).where(eq(user.id, userId)).limit(1)
@@ -74,7 +75,7 @@ export function LivePlatformUserAdmin(
        * The plugin addresses a member by its surrogate row id; the capability
        * speaks in user ids, like `WorkspaceMembership` does.
        */
-      function resolveMemberId(workspaceId: string, userId: string) {
+      function resolveMemberId(workspaceId: WorkspaceId, userId: UserId) {
         return requireMemberRowId(
           db,
           { workspaceId, userId },

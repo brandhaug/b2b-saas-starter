@@ -1,3 +1,4 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { workspaceAuditAttribution } from '@b2b-saas-starter/billing/ports'
 import { DateTime, Effect, Layer, Ref } from 'effect'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
@@ -15,7 +16,7 @@ export const SeedWebhookInvestigationTasks = Layer.effect(WebhookInvestigationTa
     const audit = yield* AuditEventLog
     const rows = yield* Ref.make<
       ReadonlyArray<{
-        readonly workspaceId: string
+        readonly workspaceId: WorkspaceId
         readonly task: WebhookInvestigationTask
       }>
     >([])

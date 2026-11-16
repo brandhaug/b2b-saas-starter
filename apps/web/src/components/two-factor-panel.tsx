@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { useReducer, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { authClient } from '@/lib/auth-client'
@@ -29,7 +30,7 @@ export function TwoFactorPanel({
   // Optional/nullable to match the plugin's declared field shape; anything
   // truthy means "on".
   readonly twoFactorEnabled?: boolean | null | undefined
-  readonly userId?: string
+  readonly userId?: UserId | 'current'
 }) {
   const queryClient = useQueryClient()
   const hydrated = useClientValue(() => true, false)

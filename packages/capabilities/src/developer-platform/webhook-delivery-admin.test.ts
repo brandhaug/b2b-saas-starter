@@ -1,4 +1,9 @@
-import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import {
+  UserId,
+  WebhookDeliveryId,
+  WebhookEndpointId,
+  WorkspaceId
+} from '@b2b-saas-starter/db/ids'
 import { describe, expect, it, layer } from '@effect/vitest'
 import { Effect, Layer } from 'effect'
 import { eq } from 'drizzle-orm'
@@ -23,29 +28,39 @@ import {
 const endpoints = [
   {
     id: WebhookEndpointId.make('wh_admin_a'),
-    workspaceId: 'wrk_live',
+    workspaceId: WorkspaceId.make('wrk_live'),
     url: 'https://example.com/a',
     enabled: true,
     events: ['demo.event']
   },
   {
     id: WebhookEndpointId.make('wh_admin_b'),
-    workspaceId: 'wrk_other',
+    workspaceId: WorkspaceId.make('wrk_other'),
     url: 'https://example.com/b',
     enabled: true,
     events: ['demo.event']
   }
 ]
 const workspaces = [
-  { id: 'wrk_live', slug: 'live-lab', name: 'Live Lab', planId: 'team' },
-  { id: 'wrk_other', slug: 'other-lab', name: 'Other Lab', planId: 'team' }
+  {
+    id: WorkspaceId.make('wrk_live'),
+    slug: 'live-lab',
+    name: 'Live Lab',
+    planId: 'team'
+  },
+  {
+    id: WorkspaceId.make('wrk_other'),
+    slug: 'other-lab',
+    name: 'Other Lab',
+    planId: 'team'
+  }
 ]
 
 describe('admin replay payload evidence', () => {
   const source = {
     id: WebhookDeliveryId.make('whd_payload'),
     endpointId: WebhookEndpointId.make('wh_admin_a'),
-    workspaceId: 'wrk_live',
+    workspaceId: WorkspaceId.make('wrk_live'),
     enabled: true,
     eventType: 'demo.event',
     status: 'dead_lettered',
@@ -54,7 +69,9 @@ describe('admin replay payload evidence', () => {
 
   it.effect('refuses absent evidence rather than fabricating a payload', () =>
     Effect.gen(function* () {
-      const outcome = yield* Effect.exit(planAdminReplay(source, 'usr_sysadmin'))
+      const outcome = yield* Effect.exit(
+        planAdminReplay(source, UserId.make('usr_sysadmin'))
+      )
       expect(failureTag(outcome)).toBe('WebhookDispatchRejected')
     })
   )
@@ -63,7 +80,7 @@ describe('admin replay payload evidence', () => {
     Effect.gen(function* () {
       const replay = yield* planAdminReplay(
         { ...source, payload: null },
-        'usr_sysadmin'
+        UserId.make('usr_sysadmin')
       )
       expect(replay.plan.payload).toBe(null)
     })
@@ -85,7 +102,10 @@ describe('Seed admin webhooks without WorkspaceContext', () => {
           messages.push(input)
         })
     })
-    const audit = SeedAuditEventLog([], [{ id: 'usr_sysadmin', name: 'Sys Admin' }])
+    const audit = SeedAuditEventLog(
+      [],
+      [{ id: UserId.make('usr_sysadmin'), name: 'Sys Admin' }]
+    )
     const seed = SeedWebhooks(endpoints, adminDeliveryFixtures, workspaces).pipe(
       Layer.provideMerge(Layer.mergeAll(SeedLayer, publisher, audit))
     )
@@ -100,7 +120,7 @@ describe('Seed admin webhooks without WorkspaceContext', () => {
       expect(messages).toEqual([
         {
           deliveryId: replay.deliveryId,
-          workspaceId: 'wrk_live',
+          workspaceId: WorkspaceId.make('wrk_live'),
           endpointId: WebhookEndpointId.make('wh_admin_a'),
           eventType: 'demo.event',
           payload: { nested: { original: ['verbatim', 42] } }
@@ -145,7 +165,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           expect(messages).toMatchObject([
             {
               deliveryId: replay.deliveryId,
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               endpointId: WebhookEndpointId.make('wh_admin_a'),
               eventType: 'demo.event',
               payload: { nested: { original: ['verbatim', 42] } }
@@ -169,9 +189,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             .where(eq(auditEvents.eventType, 'webhook.delivery_replayed'))
           expect(audits).toHaveLength(1)
           expect(audits[0]).toMatchObject({
-            actorUserId: 'usr_sysadmin',
+            actorUserId: UserId.make('usr_sysadmin'),
             actorType: 'user',
-            workspaceId: 'wrk_live',
+            workspaceId: WorkspaceId.make('wrk_live'),
             metadata: {
               scope: 'system_admin',
               replayedFrom: WebhookDeliveryId.make('whd_admin_z'),
@@ -187,7 +207,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             Effect.flatMap(WebhookDeliveryAdmin, (webhooks) =>
               webhooks.replayDeliveryAsAdmin({
                 deliveryId: WebhookDeliveryId.make('whd_admin_z'),
-                actorUserId: 'usr_sysadmin'
+                actorUserId: UserId.make('usr_sysadmin')
               })
             ).pipe(Effect.provide(makeLiveCapabilitiesLayer()))
           )
@@ -205,7 +225,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         const db = yield* Database
         yield* db.insert(webhookEndpoints).values({
           id: WebhookEndpointId.make('wh_outage'),
-          workspaceId: 'wrk_live',
+          workspaceId: WorkspaceId.make('wrk_live'),
           url: 'https://example.com/outage',
           signingSecret: 'whsec_test',
           enabled: true,
@@ -224,7 +244,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           Effect.flatMap(WebhookDeliveryAdmin, (webhooks) =>
             webhooks.replayDeliveryAsAdmin({
               deliveryId: WebhookDeliveryId.make('whd_outage'),
-              actorUserId: 'usr_sysadmin'
+              actorUserId: UserId.make('usr_sysadmin')
             })
           ).pipe(
             Effect.provide(
@@ -256,7 +276,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           .where(eq(auditEvents.targetId, WebhookEndpointId.make('wh_outage')))
         expect(audits).toHaveLength(1)
         expect(audits[0]).toMatchObject({
-          actorUserId: 'usr_sysadmin',
+          actorUserId: UserId.make('usr_sysadmin'),
           actorType: 'user',
           eventType: 'webhook.delivery_replayed'
         })

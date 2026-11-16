@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { notifications } from '@b2b-saas-starter/db/schema/notifications'
 import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database } from '@b2b-saas-starter/db/service'
@@ -42,7 +43,7 @@ function insertDataset(
     yield* db.insert(notifications).values([
       {
         id: ids.broadcastUnread,
-        workspaceId: 'wrk_live',
+        workspaceId: WorkspaceId.make('wrk_live'),
         title: 'Live broadcast',
         message: 'An unread workspace broadcast.',
         readAt: null,
@@ -50,7 +51,7 @@ function insertDataset(
       },
       {
         id: ids.broadcastRead,
-        workspaceId: 'wrk_live',
+        workspaceId: WorkspaceId.make('wrk_live'),
         title: 'Live read broadcast',
         message: 'A broadcast that was read before the case ran.',
         readAt: '2026-06-11T08:00:00.000Z',
@@ -58,8 +59,8 @@ function insertDataset(
       },
       {
         id: ids.aliceUnread,
-        workspaceId: 'wrk_live',
-        userId: 'usr_alice',
+        workspaceId: WorkspaceId.make('wrk_live'),
+        userId: UserId.make('usr_alice'),
         title: 'Live row for Alice',
         message: 'Only Alice can see this row.',
         readAt: null,
@@ -109,7 +110,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
   ): Effect.Effect<string, unknown, Database> {
     return Effect.gen(function* () {
       const db = yield* Database
-      const workspaceId = `wrk_${ids.aliceUnread}`
+      const workspaceId = WorkspaceId.make(`wrk_${ids.aliceUnread}`)
       const slug = `notification-${ids.aliceUnread}`
       yield* db.insert(workspaces).values({
         id: workspaceId,
@@ -120,13 +121,13 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
         {
           id: `mem_${ids.aliceUnread}_owner`,
           workspaceId,
-          userId: 'usr_owner',
+          userId: UserId.make('usr_owner'),
           role: 'owner'
         },
         {
           id: `mem_${ids.aliceUnread}_bob`,
           workspaceId,
-          userId: 'usr_bob',
+          userId: UserId.make('usr_bob'),
           role: 'member'
         }
       ])
@@ -135,7 +136,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
   }
 
   function insertDatasetFor(
-    workspaceId: string,
+    workspaceId: WorkspaceId,
     ids: NotificationFeedContractDataset
   ): Effect.Effect<void, unknown, Database> {
     return Effect.gen(function* () {
@@ -143,7 +144,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
       yield* db.insert(notifications).values({
         id: ids.aliceUnread,
         workspaceId,
-        userId: 'usr_owner',
+        userId: UserId.make('usr_owner'),
         title: 'Live row for the owner',
         message: 'Only the owner can see this row.',
         readAt: null,
@@ -153,10 +154,14 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
   }
 
   /** Drops a provisioned workspace; member and notification rows cascade. */
-  function dropWorkspace(workspaceId: string): Effect.Effect<void, unknown, Database> {
+  function dropWorkspace(
+    workspaceId: WorkspaceId
+  ): Effect.Effect<void, unknown, Database> {
     return Effect.gen(function* () {
       const db = yield* Database
-      yield* db.delete(workspaces).where(eq(workspaces.id, workspaceId))
+      yield* db
+        .delete(workspaces)
+        .where(eq(workspaces.id, WorkspaceId.make(workspaceId)))
     })
   }
 
@@ -170,7 +175,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
           yield* feed.record({
             title: 'Connection test failed',
             message: 'The OIDC connection for routed.test failed its test.',
-            userId: 'usr_owner'
+            userId: UserId.make('usr_owner')
           })
           const unread = yield* feed.unreadCount
           expect(unread).toBe(before + 1)
@@ -178,7 +183,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
           expect(listed[0]?.title).toBe('Connection test failed')
           expect(listed[0]?.read).toBe(false)
         }),
-        { userId: 'usr_owner' }
+        { userId: UserId.make('usr_owner') }
       )
     )
   })
@@ -186,22 +191,24 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
   it.effect('marks a user-targeted row read for its addressee', () => {
     const ids = freshIds()
     return Effect.flatMap(provisionActorWorkspace(ids), (slug) =>
-      Effect.flatMap(insertDatasetFor(`wrk_${ids.aliceUnread}`, ids), () =>
-        Effect.flatMap(
-          inWorkspace(
-            slug,
-            Effect.gen(function* () {
-              const feed = yield* NotificationFeed
-              expect(yield* feed.markRead([ids.aliceUnread])).toBe(1)
-              const rows = yield* feed.list
-              expect(
-                rows.find((notification) => notification.id === ids.aliceUnread)?.read
-              ).toBe(true)
-            }),
-            { userId: 'usr_owner' }
-          ),
-          () => dropWorkspace(`wrk_${ids.aliceUnread}`)
-        )
+      Effect.flatMap(
+        insertDatasetFor(WorkspaceId.make(`wrk_${ids.aliceUnread}`), ids),
+        () =>
+          Effect.flatMap(
+            inWorkspace(
+              slug,
+              Effect.gen(function* () {
+                const feed = yield* NotificationFeed
+                expect(yield* feed.markRead([ids.aliceUnread])).toBe(1)
+                const rows = yield* feed.list
+                expect(
+                  rows.find((notification) => notification.id === ids.aliceUnread)?.read
+                ).toBe(true)
+              }),
+              { userId: UserId.make('usr_owner') }
+            ),
+            () => dropWorkspace(WorkspaceId.make(`wrk_${ids.aliceUnread}`))
+          )
       )
     )
   })
@@ -209,18 +216,20 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
   it.effect('another member cannot mark a row addressed to someone else', () => {
     const ids = freshIds()
     return Effect.flatMap(provisionActorWorkspace(ids), (slug) =>
-      Effect.flatMap(insertDatasetFor(`wrk_${ids.aliceUnread}`, ids), () =>
-        Effect.flatMap(
-          inWorkspace(
-            slug,
-            Effect.gen(function* () {
-              const feed = yield* NotificationFeed
-              expect(yield* feed.markRead([ids.aliceUnread])).toBe(0)
-            }),
-            { userId: 'usr_bob' }
-          ),
-          () => dropWorkspace(`wrk_${ids.aliceUnread}`)
-        )
+      Effect.flatMap(
+        insertDatasetFor(WorkspaceId.make(`wrk_${ids.aliceUnread}`), ids),
+        () =>
+          Effect.flatMap(
+            inWorkspace(
+              slug,
+              Effect.gen(function* () {
+                const feed = yield* NotificationFeed
+                expect(yield* feed.markRead([ids.aliceUnread])).toBe(0)
+              }),
+              { userId: UserId.make('usr_bob') }
+            ),
+            () => dropWorkspace(WorkspaceId.make(`wrk_${ids.aliceUnread}`))
+          )
       )
     )
   })
@@ -252,7 +261,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
         .values([
           {
             id: pageIdA,
-            workspaceId: 'wrk_live',
+            workspaceId: WorkspaceId.make('wrk_live'),
             title: 'Paging one',
             message: 'older',
             readAt: null,
@@ -260,7 +269,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
           },
           {
             id: pageIdB,
-            workspaceId: 'wrk_live',
+            workspaceId: WorkspaceId.make('wrk_live'),
             title: 'Paging two',
             message: 'newer',
             readAt: null,
@@ -277,7 +286,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
       // keyset window of the resumed page.
       yield* db.insert(notifications).values({
         id: insertedId,
-        workspaceId: 'wrk_live',
+        workspaceId: WorkspaceId.make('wrk_live'),
         title: 'Inserted between pages',
         message: 'newest',
         readAt: null,

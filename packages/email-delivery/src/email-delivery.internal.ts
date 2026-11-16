@@ -1,3 +1,4 @@
+import { type UserId, type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Clock, DateTime, Effect, Metric, Random, Schedule, Schema } from 'effect'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { randomHex } from '@b2b-saas-starter/failure/crypto'
@@ -33,8 +34,8 @@ export type DeliveryStore = {
     id: string
   ) => Effect.Effect<StoredDelivery | null, CapabilityUnavailable>
   readonly list: (filter: {
-    readonly userId?: string
-    readonly workspaceId?: string
+    readonly userId?: UserId
+    readonly workspaceId?: WorkspaceId
     readonly messageId?: string
     readonly recipient?: string
     readonly referenceId?: string
@@ -48,7 +49,7 @@ export type DeliveryStore = {
   ) => Effect.Effect<boolean, CapabilityUnavailable>
   readonly resolveUserId: (
     email: string
-  ) => Effect.Effect<string | null, CapabilityUnavailable>
+  ) => Effect.Effect<UserId | null, CapabilityUnavailable>
 }
 const outcomes = Metric.counter('starter.email.send.outcomes')
 
@@ -340,7 +341,7 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
     )
   })
   const listForUser = Effect.fn('EmailDelivery.listForUser')(function* (
-    userId: string,
+    userId: UserId,
     options?: { readonly complete?: boolean }
   ) {
     // The complete personal archive drops the history page limit; the account
@@ -351,7 +352,7 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
     return (yield* store.list({ userId })).map(evidence)
   })
   const listInvitations = Effect.fn('EmailDelivery.listInvitations')(function* (
-    workspaceId: string
+    workspaceId: WorkspaceId
   ) {
     return (yield* store.list({
       workspaceId,
@@ -359,7 +360,7 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
     })).map(evidence)
   })
   const latestInvitation = Effect.fn('EmailDelivery.latestInvitation')(function* (
-    workspaceId: string,
+    workspaceId: WorkspaceId,
     referenceId: string
   ) {
     const rows = yield* store.list({

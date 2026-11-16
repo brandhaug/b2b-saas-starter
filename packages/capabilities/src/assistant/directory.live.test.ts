@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { eq } from 'drizzle-orm'
 import { AssistantDirectory } from './directory.ts'
 import { AssistantAdmission } from './admission.ts'
@@ -26,17 +27,17 @@ const database = Layer.unwrap(
     yield* Effect.gen(function* () {
       const db = yield* Database
       yield* db.insert(user).values([
-        { id: 'owner', email: 'owner@assistant.test', name: 'Owner' },
-        { id: 'other', email: 'other@assistant.test', name: 'Other' },
+        { id: UserId.make('owner'), email: 'owner@assistant.test', name: 'Owner' },
+        { id: UserId.make('other'), email: 'other@assistant.test', name: 'Other' },
         ...['export-owner', 'restore-owner', 'cleanup-owner'].map((id) => ({
-          id,
+          id: UserId.make(id),
           email: `${id}@assistant.test`,
           name: id
         }))
       ])
       yield* db.insert(workspaces).values(
         ['workspace', 'concurrent', 'expiry', 'rate'].map((id) => ({
-          id,
+          id: WorkspaceId.make(id),
           slug: id,
           name: id
         }))
@@ -58,14 +59,14 @@ describe('Live assistant directory and admission contract', () => {
           const db = yield* Database
           const directory = yield* AssistantDirectory
           yield* db.insert(workspaces).values({
-            id: 'revocation-workspace',
+            id: WorkspaceId.make('revocation-workspace'),
             slug: 'revocation-workspace',
             name: 'Revocation'
           })
           const member = {
             id: 'revocation-member',
-            workspaceId: 'revocation-workspace',
-            userId: 'owner',
+            workspaceId: WorkspaceId.make('revocation-workspace'),
+            userId: UserId.make('owner'),
             role: 'member'
           } satisfies typeof workspaceMembers.$inferInsert
           yield* db.insert(workspaceMembers).values(member)
@@ -76,7 +77,7 @@ describe('Live assistant directory and admission contract', () => {
           })
           const unrelated = yield* directory.create({
             id: 'revocation-unrelated',
-            workspaceId: 'concurrent',
+            workspaceId: WorkspaceId.make('concurrent'),
             creatorUserId: member.userId
           })
           yield* db
@@ -119,8 +120,8 @@ describe('Live assistant directory and admission contract', () => {
           const directory = yield* AssistantDirectory
           const row = yield* directory.create({
             id: 'notify-policy',
-            workspaceId: 'concurrent',
-            creatorUserId: 'other'
+            workspaceId: WorkspaceId.make('concurrent'),
+            creatorUserId: UserId.make('other')
           })
           const updated = yield* directory.raisePolicy(row.id, ['webhook:list'])
           expect(updated.requiredPermissions).toEqual(['webhook:list'])
@@ -141,25 +142,29 @@ describe('Live assistant directory and admission contract', () => {
           const db = yield* Database
           const directory = yield* AssistantDirectory
           const admission = yield* AssistantAdmission
-          yield* db
-            .insert(workspaces)
-            .values({ id: 'parent-deleted', slug: 'parent-deleted', name: 'Parent' })
+          yield* db.insert(workspaces).values({
+            id: WorkspaceId.make('parent-deleted'),
+            slug: 'parent-deleted',
+            name: 'Parent'
+          })
           yield* directory.create({
             id: 'parent-conversation',
-            workspaceId: 'parent-deleted',
-            creatorUserId: 'owner'
+            workspaceId: WorkspaceId.make('parent-deleted'),
+            creatorUserId: UserId.make('owner')
           })
           const now = yield* Clock.currentTimeMillis
           yield* admission.reserve({
             id: 'parent-reservation',
             conversationId: 'parent-conversation',
-            workspaceId: 'parent-deleted',
-            userId: 'owner',
+            workspaceId: WorkspaceId.make('parent-deleted'),
+            userId: UserId.make('owner'),
             deadline: now + 600_000,
             activeLimit: 3,
             rateLimit: 20
           })
-          yield* db.delete(workspaces).where(eq(workspaces.id, 'parent-deleted'))
+          yield* db
+            .delete(workspaces)
+            .where(eq(workspaces.id, WorkspaceId.make('parent-deleted')))
           const row = yield* directory.get('parent-conversation')
           expect(row?.workspaceId).toBe('parent-deleted')
           expect(row?.creatorUserId).toBe('owner')
@@ -171,8 +176,8 @@ describe('Live assistant directory and admission contract', () => {
             (yield* directory
               .create({
                 id: 'late-create',
-                workspaceId: 'parent-deleted',
-                creatorUserId: 'owner'
+                workspaceId: WorkspaceId.make('parent-deleted'),
+                creatorUserId: UserId.make('owner')
               })
               .pipe(Effect.result))._tag
           ).toBe('Failure')
@@ -189,14 +194,14 @@ describe('Live assistant directory and admission contract', () => {
           const admission = yield* AssistantAdmission
           const now = yield* Clock.currentTimeMillis
           yield* db.insert(workspaces).values({
-            id: 'audit-retries',
+            id: WorkspaceId.make('audit-retries'),
             slug: 'audit-retries',
             name: 'Audit retries'
           })
           const identity = {
             id: 'audit-conversation',
-            workspaceId: 'audit-retries',
-            creatorUserId: 'owner'
+            workspaceId: WorkspaceId.make('audit-retries'),
+            creatorUserId: UserId.make('owner')
           }
           yield* Effect.all([directory.create(identity), directory.create(identity)], {
             concurrency: 'unbounded'
@@ -287,25 +292,25 @@ describe('Live assistant directory and admission contract', () => {
           const admission = yield* AssistantAdmission
           const now = yield* Clock.currentTimeMillis
           yield* db.insert(user).values({
-            id: 'audit-expiry-owner',
+            id: UserId.make('audit-expiry-owner'),
             email: 'audit-expiry@assistant.test',
             name: 'Audit expiry'
           })
           yield* db.insert(workspaces).values({
-            id: 'audit-expired',
+            id: WorkspaceId.make('audit-expired'),
             slug: 'audit-expired',
             name: 'Audit expiry'
           })
           yield* directory.create({
             id: 'audit-expired-conversation',
-            workspaceId: 'audit-expired',
-            creatorUserId: 'audit-expiry-owner'
+            workspaceId: WorkspaceId.make('audit-expired'),
+            creatorUserId: UserId.make('audit-expiry-owner')
           })
           yield* admission.reserve({
             id: 'audit-expired-reservation',
             conversationId: 'audit-expired-conversation',
-            workspaceId: 'audit-expired',
-            userId: 'audit-expiry-owner',
+            workspaceId: WorkspaceId.make('audit-expired'),
+            userId: UserId.make('audit-expiry-owner'),
             deadline: now + 1000,
             activeLimit: 3,
             rateLimit: 20

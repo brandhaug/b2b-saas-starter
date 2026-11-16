@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vite-plus/test'
 
@@ -15,7 +16,7 @@ import { m } from '@b2b-saas-starter/i18n/messages'
 // outcomes the user sees — a redirect to the provider's answer, or a reason
 // in the error slot — the way invitations.accept does.
 
-function workspace(id: string, slug: string, name: string) {
+function workspace(id: WorkspaceId, slug: string, name: string) {
   return { id, slug, name, planId: 'team' }
 }
 
@@ -27,12 +28,12 @@ const payload: OAuthConsentPayload = {
   },
   workspaces: [
     {
-      workspace: workspace('wrk_a', 'alpha', 'Alpha'),
+      workspace: workspace(WorkspaceId.make('wrk_a'), 'alpha', 'Alpha'),
       memberCount: 2,
       notificationCount: 0
     },
     {
-      workspace: workspace('wrk_b', 'beta', 'Beta'),
+      workspace: workspace(WorkspaceId.make('wrk_b'), 'beta', 'Beta'),
       memberCount: 1,
       notificationCount: 0
     }
@@ -106,7 +107,7 @@ describe('OAuthConsentPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Allow access/ }))
     await waitFor(() => {
       expect(grant).toHaveBeenCalledWith({
-        data: { workspaceId: 'wrk_b', oauthQuery: payload.oauthQuery }
+        data: { workspaceId: WorkspaceId.make('wrk_b'), oauthQuery: payload.oauthQuery }
       })
       expect(assign).toHaveBeenCalledWith('https://client.example/callback?code=1')
     })
@@ -145,7 +146,10 @@ describe('OAuthConsentPage', () => {
     const { assign } = await renderConsent({
       grant: vi.fn(
         async (_input: {
-          readonly data: { readonly workspaceId: string; readonly oauthQuery: string }
+          readonly data: {
+            readonly workspaceId: string
+            readonly oauthQuery: string
+          }
         }): Promise<{ url: string }> => {
           throw new Error('authorization collapsed')
         }

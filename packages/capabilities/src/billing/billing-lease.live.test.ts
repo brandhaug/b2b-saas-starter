@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { billingSynchronization } from '@b2b-saas-starter/db/schema/billing'
 import { workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database } from '@b2b-saas-starter/db/service'
@@ -16,8 +17,11 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('billing lease fencing', (i
       Effect.gen(function* () {
         const db = yield* Database
         const leases = yield* makeBillingLease()
-        const stale = yield* leases.withLease('wrk_live', Effect.succeed)
-        yield* leases.withLease('wrk_live', (current) =>
+        const stale = yield* leases.withLease(
+          WorkspaceId.make('wrk_live'),
+          Effect.succeed
+        )
+        yield* leases.withLease(WorkspaceId.make('wrk_live'), (current) =>
           Effect.gen(function* () {
             expect(current.owner).not.toBe(stale.owner)
             expect(current.fence).toBeGreaterThan(stale.fence)
@@ -26,26 +30,26 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('billing lease fencing', (i
                 db
                   .update(workspaces)
                   .set({ planId: 'enterprise' })
-                  .where(eq(workspaces.id, 'wrk_live'))
+                  .where(eq(workspaces.id, WorkspaceId.make('wrk_live')))
               ])
             )
             const unchanged = yield* db
               .select()
               .from(workspaces)
-              .where(eq(workspaces.id, 'wrk_live'))
+              .where(eq(workspaces.id, WorkspaceId.make('wrk_live')))
             expect(unchanged[0]?.planId).toBe('starter')
             yield* leases.fencedBatch(current, [
               db
                 .update(workspaces)
                 .set({ planId: 'team' })
-                .where(eq(workspaces.id, 'wrk_live'))
+                .where(eq(workspaces.id, WorkspaceId.make('wrk_live')))
             ])
           })
         )
         const rows = yield* db
           .select()
           .from(billingSynchronization)
-          .where(eq(billingSynchronization.workspaceId, 'wrk_live'))
+          .where(eq(billingSynchronization.workspaceId, WorkspaceId.make('wrk_live')))
         expect(rows[0]?.leaseOwner).toBeNull()
         expect(rows[0]?.leaseExpiresAt).toBeNull()
       })
@@ -57,7 +61,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('billing lease fencing', (i
       Effect.gen(function* () {
         const db = yield* Database
         const leases = yield* makeBillingLease()
-        yield* leases.withLease('wrk_other', (lease) =>
+        yield* leases.withLease(WorkspaceId.make('wrk_other'), (lease) =>
           Effect.gen(function* () {
             yield* TestClock.adjust('3 minutes')
             yield* Effect.flip(
@@ -65,13 +69,13 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('billing lease fencing', (i
                 db
                   .update(workspaces)
                   .set({ planId: 'enterprise' })
-                  .where(eq(workspaces.id, 'wrk_other'))
+                  .where(eq(workspaces.id, WorkspaceId.make('wrk_other')))
               ])
             )
             const unchanged = yield* db
               .select()
               .from(workspaces)
-              .where(eq(workspaces.id, 'wrk_other'))
+              .where(eq(workspaces.id, WorkspaceId.make('wrk_other')))
             expect(unchanged[0]?.planId).toBe('starter')
           })
         )

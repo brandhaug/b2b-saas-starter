@@ -1,3 +1,4 @@
+import { type UserId } from '../ids.ts'
 import { sql } from 'drizzle-orm'
 import { Schema } from 'effect'
 import { jsonText } from '../json-column.ts'
@@ -12,7 +13,9 @@ export const auditEvents = sqliteTable(
   {
     id: id(),
     workspaceId: workspaceRefNullable(),
-    actorUserId: text('actor_user_id').references(() => user.id),
+    actorUserId: text('actor_user_id')
+      .$type<UserId>()
+      .references(() => user.id),
     actorType: text('actor_type', { enum: auditActorTypes }).notNull(),
     eventType: text('event_type').notNull(),
     targetType: text('target_type').notNull(),
@@ -52,9 +55,11 @@ export const workspaceExports = sqliteTable(
     workspaceId: workspaceRef(),
     // Set null rather than cascade: an export outlives the account that asked
     // for it, and the row is what the audit trail's `targetId` points at.
-    requestedByUserId: text('requested_by_user_id').references(() => user.id, {
-      onDelete: 'set null'
-    }),
+    requestedByUserId: text('requested_by_user_id')
+      .$type<UserId>()
+      .references(() => user.id, {
+        onDelete: 'set null'
+      }),
     status: text('status', { enum: workspaceExportStatuses })
       .default('pending')
       .notNull(),
@@ -86,6 +91,7 @@ export const personalDataExports = sqliteTable(
   {
     id: id(),
     userId: text('user_id')
+      .$type<UserId>()
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     sessionId: text('session_id')

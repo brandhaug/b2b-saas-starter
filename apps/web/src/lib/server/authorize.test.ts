@@ -1,5 +1,6 @@
 // oxlint-disable-next-line import/no-unassigned-import -- Installs the explicit authenticated-session test fixture.
 import '@/test/qualified-session'
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { vi } from 'vite-plus/test'
 import { SeedStrongAuthentication } from '@b2b-saas-starter/capabilities/governance/strong-authentication'
 import {
@@ -46,14 +47,14 @@ vi.mock('./auth', async () => {
 })
 
 const workspace: Workspace = {
-  id: 'wrk_test',
+  id: WorkspaceId.make('wrk_test'),
   slug: 'test-lab',
   name: 'Test Lab',
   planId: 'starter'
 }
 
 function actor(role: WorkspaceRole): Actor {
-  return { userId: `usr_${role}`, role, systemRole: 'user', banned: false }
+  return { userId: UserId.make(`usr_${role}`), role, systemRole: 'user', banned: false }
 }
 
 const suspensionLayer = SeedWorkspaceSuspension({
@@ -90,7 +91,7 @@ describe('requireWorkspacePermission', () => {
         yield* suspension.transition({
           workspaceId: workspace.id,
           action: 'suspend',
-          actor: { userId: 'usr_demo' },
+          actor: { userId: UserId.make('usr_demo') },
           internalReason: 'Private operator reason',
           customerExplanation: 'Please contact support.'
         })
@@ -117,7 +118,7 @@ describe('requireWorkspacePermission', () => {
         yield* suspension.transition({
           workspaceId: workspace.id,
           action: 'unsuspend',
-          actor: { userId: 'usr_demo' },
+          actor: { userId: UserId.make('usr_demo') },
           internalReason: 'Review complete'
         })
         yield* requireWorkspacePermission({ notification: ['read'] })
@@ -135,7 +136,7 @@ describe('requireWorkspacePermission', () => {
         yield* suspension.transition({
           workspaceId: workspace.id,
           action: 'suspend',
-          actor: { userId: 'usr_demo' },
+          actor: { userId: UserId.make('usr_demo') },
           internalReason: 'Private operator reason',
           customerExplanation: 'Please contact support.'
         })
@@ -223,7 +224,7 @@ describe('requireWorkspacePermission', () => {
       // workspace member gets the member's answer, so the bypass stays absent
       // from the audit log because it does not exist.
       const systemAdminMember: Actor = {
-        userId: 'usr_sysadmin',
+        userId: UserId.make('usr_sysadmin'),
         role: 'member',
         systemRole: 'admin',
         banned: false
