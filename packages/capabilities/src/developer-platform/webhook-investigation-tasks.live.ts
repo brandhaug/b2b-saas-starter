@@ -107,11 +107,11 @@ export const LiveWebhookInvestigationTasks = Layer.effect(WebhookInvestigationTa
         })
       }),
       transition: Effect.fn('InvestigationTaskStore.transition')(
-        function* (task, status) {
+        function* (task, transition) {
           const ctx = yield* WorkspaceContext
           const transitionId = yield* newCapabilityId('transition')
           const updatedAt = DateTime.formatIso(yield* DateTime.now)
-          const change = investigationTransition(task.id, status)
+          const change = investigationTransition(task.id, transition)
           return yield* mutate({
             matched: Effect.succeed(true),
             auditEvent: {
@@ -127,7 +127,7 @@ export const LiveWebhookInvestigationTasks = Layer.effect(WebhookInvestigationTa
               db
                 .update(webhookInvestigationTasks)
                 .set({
-                  status,
+                  status: change.status,
                   transitionId,
                   updatedAt,
                   replayDeliveryId: change.replayDeliveryId

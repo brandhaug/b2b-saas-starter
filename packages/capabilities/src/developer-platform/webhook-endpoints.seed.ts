@@ -39,7 +39,7 @@ import {
   isTerminalDeliveryStatus,
   nextConsecutiveFailures,
   pendingDeliveryStatus,
-  failedDeliveryStatus,
+  isDispatchableDeliveryStatus,
   planPendingDispatch,
   planSecretRotation,
   terminalDeliveryAuditEventType,
@@ -298,9 +298,10 @@ export function SeedWebhookEndpoints(
         // rows advance (`dispatchableDeliveryStatuses` in webhook-delivery-plan.ts).
         const advances =
           !previous ||
-          previous.status === pendingDeliveryStatus ||
-          (previous.status === failedDeliveryStatus &&
-            (evidence.phase === 'terminal' || previous.attempts < input.attempts))
+          (isDispatchableDeliveryStatus(previous.status) &&
+            (evidence.phase === 'terminal' ||
+              previous.status === pendingDeliveryStatus ||
+              previous.attempts < input.attempts))
         if (!advances) {
           return {
             deliveryId,

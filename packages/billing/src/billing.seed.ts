@@ -622,7 +622,7 @@ export function SeedBilling(options?: {
           const ctx = yield* WorkspaceContext
           if (!(yield* Ref.get(subscriptions)).has(ctx.workspace.id) && !configured) {
             return {
-              status: 'current',
+              status: currentSynchronizationStatus,
               lastSyncedAt: null
             } satisfies BillingSynchronizationStatus
           }
@@ -630,9 +630,9 @@ export function SeedBilling(options?: {
           if (recorded !== undefined) {
             return recorded
           }
-          let status: BillingSynchronizationStatus['status'] = 'current'
+          let status = currentSynchronizationStatus
           if (configured) {
-            status = 'pending'
+            status = nextSynchronizationStatus({ kind: 'provider_unread' })
           }
           return {
             status,

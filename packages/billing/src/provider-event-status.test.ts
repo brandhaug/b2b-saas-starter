@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vite-plus/test'
 
 import {
+  isCompletedProviderEvent,
   nextProviderEventStatus,
+  providerEventAttemptSources,
+  providerEventFailureSources,
   settledBySynchronization
 } from './provider-event-status.ts'
 import { billingProviderEventStatuses } from '@b2b-saas-starter/db/enums'
@@ -41,6 +44,28 @@ describe('nextProviderEventStatus', () => {
     // `conflict` is operator evidence and must survive an unrelated success;
     // only its own retry (above) may complete it.
     expect([...settledBySynchronization]).toEqual(['processing', 'failed'])
+  })
+
+  it('guards attempt and failure writes on every row but a completed one', () => {
+    // The adapters' SQL filters compose from these sets; a stale invocation's
+    // write lands on nothing once another invocation completed the event.
+    expect([...providerEventAttemptSources]).toEqual([
+      'processing',
+      'failed',
+      'conflict'
+    ])
+    expect([...providerEventFailureSources]).toEqual([
+      'processing',
+      'failed',
+      'conflict'
+    ])
+  })
+
+  it('treats only a completed row as settled by its commit', () => {
+    for (const status of billingProviderEventStatuses) {
+      expect(isCompletedProviderEvent({ status })).toBe(status === 'completed')
+    }
+    expect(isCompletedProviderEvent(undefined)).toBe(false)
   })
 
   it('covers the stored vocabulary', () => {

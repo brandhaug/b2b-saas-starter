@@ -13,6 +13,7 @@ import { type makeBillingSyncStore } from './billing-sync-store.ts'
 import {
   decideCheckoutClaim,
   initialCheckoutClaimStatus,
+  nextCheckoutClaimStatus,
   type CheckoutClaim,
   type CheckoutClaimInput
 } from './checkout-claims.ts'
@@ -269,6 +270,14 @@ export function makeDurableCheckout(deps: CheckoutServices) {
           claimId: claim.id,
           idempotencyKey: claim.idempotencyKey
         })
+        // The claim was read or born open under this lease; a terminal claim
+        // refuses the session and stays a recovery problem.
+        const claimStatus = nextCheckoutClaimStatus(claim.status, {
+          kind: 'provider_session_created'
+        })
+        if (claimStatus === null) {
+          return yield* Effect.fail(checkoutFailure('checkout_recovery_required'))
+        }
         const audit = yield* deps.audit.prepareRecord({
           workspaceId: input.workspaceId,
           actorUserId: input.actorUserId,
@@ -286,7 +295,7 @@ export function makeDurableCheckout(deps: CheckoutServices) {
           deps.db
             .update(billingCheckoutClaims)
             .set({
-              status: 'created',
+              status: claimStatus,
               stripeSessionId: session.id,
               checkoutUrl: session.url,
               expiresAt: DateTime.formatIso(
@@ -299,7 +308,7 @@ export function makeDurableCheckout(deps: CheckoutServices) {
           deps.db
             .update(billingSynchronization)
             .set({
-              status: 'pending',
+              status: nextSynchronizationStatus({ kind: 'checkout_claim_opened' }),
               unresolvedSince: null,
               failureReason: null,
               conflictReason: null,

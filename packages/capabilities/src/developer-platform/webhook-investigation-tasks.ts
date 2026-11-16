@@ -10,8 +10,7 @@ import { WorkspaceContext } from '../workspace-context.ts'
 import {
   deadLetteredDeliveryStatus,
   deliveredDeliveryStatus,
-  failedDeliveryStatus,
-  pendingDeliveryStatus
+  isDispatchableDeliveryStatus
 } from './webhook-delivery-plan.ts'
 import { WebhookEndpoints } from './webhook-endpoints.ts'
 
@@ -41,6 +40,10 @@ export type { WebhookInvestigationTaskStatus }
 export const proposedInvestigationTaskStatus: WebhookInvestigationTaskStatus =
   'proposed'
 
+/** The status an approval claims; its replay may already be in flight. */
+export const approvedInvestigationTaskStatus: WebhookInvestigationTaskStatus =
+  'approved'
+
 /** The outcomes that can move a stored task row. */
 export type InvestigationTaskTransition =
   | { readonly kind: 'approve' }
@@ -48,16 +51,16 @@ export type InvestigationTaskTransition =
 
 /**
  * The declared transition map: the status each operator outcome produces
- * from each stored status. `null` refuses the outcome — `cancelled` and
- * `completed` are terminal, and an approved task can no longer be
- * cancelled (its replay may already be in flight). Approving an approved
- * task re-enters `approved` idempotently: the retained replay identity is
- * reused, not replaced.
+ * from each stored status. `null` refuses the outcome — `completed` is
+ * terminal, a cancelled task is never approved, and an approved task can no
+ * longer be cancelled (its replay may already be in flight). Repeating the
+ * outcome a task already holds re-enters it idempotently: an approved task
+ * reuses its retained replay identity, and a cancelled one stays cancelled.
  */
 const investigationTaskTransitions = {
   proposed: { approve: 'approved', cancel: 'cancelled' },
   approved: { approve: 'approved', cancel: null },
-  cancelled: { approve: null, cancel: null },
+  cancelled: { approve: null, cancel: 'cancelled' },
   completed: { approve: null, cancel: null }
 } as const satisfies Record<
   WebhookInvestigationTaskStatus,
@@ -70,6 +73,17 @@ export function nextInvestigationTaskStatus(
   transition: InvestigationTaskTransition
 ): WebhookInvestigationTaskStatus | null {
   return investigationTaskTransitions[status][transition.kind]
+}
+
+/**
+ * The status a store writes when it claims a proposal for one outcome. Both
+ * stores claim from `proposedInvestigationTaskStatus` alone, where every
+ * outcome is legal.
+ */
+export function claimedInvestigationTaskStatus(
+  transition: InvestigationTaskTransition
+): WebhookInvestigationTaskStatus {
+  return investigationTaskTransitions.proposed[transition.kind]
 }
 
 /**
@@ -184,9 +198,10 @@ export type InvestigationTaskStore = {
   readonly insert: (
     task: WebhookInvestigationTask
   ) => Effect.Effect<void, CapabilityUnavailable, WorkspaceContext>
+  /** Claims a proposal for one outcome; `false` when it is no longer proposed. */
   readonly transition: (
     task: WebhookInvestigationTask,
-    status: 'approved' | 'cancelled'
+    transition: InvestigationTaskTransition
   ) => Effect.Effect<boolean, CapabilityUnavailable, WorkspaceContext>
 }
 
@@ -206,10 +221,18 @@ export function investigationReplayOutcome(
   if (status === deliveredDeliveryStatus) {
     return 'delivered'
   }
-  if (status === pendingDeliveryStatus || status === failedDeliveryStatus) {
+  if (isDispatchableDeliveryStatus(status)) {
     return 'pending'
   }
   return 'failed'
+}
+
+/** Why a task refused cancellation: an approved replay may be in flight. */
+function cancellationRefused(status: WebhookInvestigationTaskStatus) {
+  if (status === approvedInvestigationTaskStatus) {
+    return new WebhookInvestigationTaskRejected({ reason: 'already_approved' })
+  }
+  return new WebhookInvestigationTaskRejected({ reason: 'not_proposed' })
 }
 
 export function makeInvestigationTasks(store: InvestigationTaskStore) {
@@ -263,10 +286,7 @@ export function makeInvestigationTasks(store: InvestigationTaskStore) {
       let diagnosis: WebhookInvestigationTask['diagnosis'] = 'unknown'
       if (delivery.status === deliveredDeliveryStatus) {
         diagnosis = 'delivered'
-      } else if (
-        delivery.status === pendingDeliveryStatus ||
-        delivery.status === failedDeliveryStatus
-      ) {
+      } else if (isDispatchableDeliveryStatus(delivery.status)) {
         diagnosis = 'retrying'
       } else if (!endpoint.enabled) {
         diagnosis = 'endpoint_disabled'
@@ -327,10 +347,11 @@ export function makeInvestigationTasks(store: InvestigationTaskStore) {
     const approve = Effect.fn('WebhookInvestigationTasks.approve')(function* (
       input: TaskId
     ) {
+      const transition = { kind: 'approve' } as const
       let task = yield* read(input.taskId)
       // The machine refuses approval from every status but proposed and
       // already-approved (the map's only legal `approve` sources).
-      if (nextInvestigationTaskStatus(task.status, { kind: 'approve' }) === null) {
+      if (nextInvestigationTaskStatus(task.status, transition) === null) {
         return yield* new WebhookInvestigationTaskRejected({ reason: 'not_proposed' })
       }
       if (task.status === proposedInvestigationTaskStatus) {
@@ -344,9 +365,9 @@ export function makeInvestigationTasks(store: InvestigationTaskStore) {
             reason: 'proposal_changed'
           })
         }
-        yield* store.transition(task, 'approved')
+        yield* store.transition(task, transition)
         task = yield* read(task.id)
-        if (task.status !== 'approved') {
+        if (task.status !== claimedInvestigationTaskStatus(transition)) {
           return yield* new WebhookInvestigationTaskRejected({ reason: 'not_proposed' })
         }
       }
@@ -374,20 +395,21 @@ export function makeInvestigationTasks(store: InvestigationTaskStore) {
     const cancel = Effect.fn('WebhookInvestigationTasks.cancel')(function* (
       input: TaskId
     ) {
+      const transition = { kind: 'cancel' } as const
       const task = yield* read(input.taskId)
-      if (task.status === 'approved') {
-        return yield* new WebhookInvestigationTaskRejected({
-          reason: 'already_approved'
-        })
+      if (nextInvestigationTaskStatus(task.status, transition) === null) {
+        return yield* cancellationRefused(task.status)
       }
-      if (task.status === 'proposed') {
-        yield* store.transition(task, 'cancelled')
+      // A repeat cancellation is already settled; only a proposal is claimed.
+      if (task.status !== proposedInvestigationTaskStatus) {
+        return task
       }
+      yield* store.transition(task, transition)
+      // A concurrent cancellation that won the claim still leaves the
+      // requested outcome; a concurrent approval does not.
       const result = yield* read(task.id)
-      if (result.status === 'approved') {
-        return yield* new WebhookInvestigationTaskRejected({
-          reason: 'already_approved'
-        })
+      if (result.status !== claimedInvestigationTaskStatus(transition)) {
+        return yield* cancellationRefused(result.status)
       }
       return result
     })
@@ -395,21 +417,28 @@ export function makeInvestigationTasks(store: InvestigationTaskStore) {
   })
 }
 
+/** The stored side effects of claiming a proposal for one outcome. */
 export function investigationTransition(
   taskId: string,
-  status: 'approved' | 'cancelled'
+  transition: InvestigationTaskTransition
 ) {
-  if (status === 'approved') {
+  const status = claimedInvestigationTaskStatus(transition)
+  if (transition.kind === 'approve') {
     return {
+      status,
       replayDeliveryId: WebhookDeliveryId.make(`replay_${taskId}`),
       eventType: 'assistant_task.approved'
-    } satisfies {
-      replayDeliveryId: WebhookDeliveryId | null
-      eventType: 'assistant_task.approved' | 'assistant_task.cancelled'
-    }
+    } satisfies InvestigationClaim
   }
-  return { replayDeliveryId: null, eventType: 'assistant_task.cancelled' } satisfies {
-    replayDeliveryId: WebhookDeliveryId | null
-    eventType: 'assistant_task.approved' | 'assistant_task.cancelled'
-  }
+  return {
+    status,
+    replayDeliveryId: null,
+    eventType: 'assistant_task.cancelled'
+  } satisfies InvestigationClaim
+}
+
+type InvestigationClaim = {
+  readonly status: WebhookInvestigationTaskStatus
+  readonly replayDeliveryId: WebhookDeliveryId | null
+  readonly eventType: 'assistant_task.approved' | 'assistant_task.cancelled'
 }

@@ -244,6 +244,14 @@ type SendTestEventInput = {
  */
 export const WEBHOOK_TEST_EVENT_TYPE = 'webhook.test_event'
 
+/**
+ * How many endpoints' `listDeliveries` reads a caller runs at once when it
+ * reads every endpoint's history. Endpoints are unlimited on paid plans, and a
+ * Worker invocation holds six outbound connections; this leaves room for the
+ * caller's other reads.
+ */
+export const WEBHOOK_DELIVERY_READ_CONCURRENCY = 4
+
 type DispatchedDelivery = {
   /**
    * The id of the `pending` delivery row the dispatch created. The queue

@@ -27,6 +27,13 @@ export const unresolvedSynchronizationStatuses: ReadonlyArray<BillingSynchroniza
 /** The one settled status; SQL mirrors compare against it by name. */
 export const currentSynchronizationStatus: BillingSynchronizationStatus = 'current'
 
+/**
+ * The status the lease births a missing row with: no outcome has been
+ * classified yet, so nothing is unresolved until one is.
+ */
+export const initialSynchronizationStatus: BillingSynchronizationStatus =
+  currentSynchronizationStatus
+
 /** The outcomes that write the stored status. */
 export type SynchronizationStatusEvent =
   | {
@@ -42,13 +49,20 @@ export type SynchronizationStatusEvent =
       readonly conflict: boolean
     }
   | { readonly kind: 'checkout_claim_opened' }
+  /** A configured provider that no synchronization pass has read yet. */
+  | { readonly kind: 'provider_unread' }
+  /** The provider verified the workspace has no customer and no open checkout. */
+  | { readonly kind: 'customer_absence_verified' }
 
 /**
  * The sole classification of a synchronization outcome into the stored
  * status. A commit is `current` only when the provider read was verified and
  * seats have converged; any drift stays `pending`. Failures split into
- * retryable `delayed` and operator-facing `conflict`. A newly opened
- * checkout claim leaves the workspace `pending` its subscription linkage.
+ * retryable `delayed` and operator-facing `conflict`. An open checkout
+ * claim (born, or holding its provider session) leaves the workspace
+ * `pending` its subscription linkage, and an unread configured provider is
+ * `pending` its first verified read. Verified customer absence has nothing
+ * left to synchronize, so it is `current`.
  */
 export function nextSynchronizationStatus(
   event: SynchronizationStatusEvent
@@ -64,6 +78,9 @@ export function nextSynchronizationStatus(
       return 'conflict'
     }
     return 'delayed'
+  }
+  if (event.kind === 'customer_absence_verified') {
+    return 'current'
   }
   return 'pending'
 }

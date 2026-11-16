@@ -216,7 +216,7 @@ export function LiveBilling(
           const ctx = yield* WorkspaceContext
           if (!billingConfigured(options)) {
             return {
-              status: 'current',
+              status: currentSynchronizationStatus,
               lastSyncedAt: null
             } satisfies BillingSynchronizationStatus
           }
@@ -233,7 +233,7 @@ export function LiveBilling(
           return (
             rows[0] ??
             ({
-              status: 'current',
+              status: currentSynchronizationStatus,
               lastSyncedAt: null
             } satisfies BillingSynchronizationStatus)
           )

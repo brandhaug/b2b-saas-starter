@@ -62,10 +62,10 @@ export const SeedWebhookInvestigationTasks = Layer.effect(WebhookInvestigationTa
         })
       }),
       transition: Effect.fn('InvestigationTaskStore.transition')(
-        function* (task, status) {
+        function* (task, transition) {
           const ctx = yield* WorkspaceContext
           const updatedAt = DateTime.formatIso(yield* DateTime.now)
-          const change = investigationTransition(task.id, status)
+          const change = investigationTransition(task.id, transition)
           const won = yield* Ref.modify(rows, (items) => {
             const current = items.find(
               (row) => row.workspaceId === ctx.workspace.id && row.task.id === task.id
@@ -83,7 +83,7 @@ export const SeedWebhookInvestigationTasks = Layer.effect(WebhookInvestigationTa
                   ...row,
                   task: {
                     ...row.task,
-                    status,
+                    status: change.status,
                     updatedAt,
                     replayDeliveryId: change.replayDeliveryId
                   }

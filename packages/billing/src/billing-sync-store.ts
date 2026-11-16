@@ -6,6 +6,7 @@ import {
   workspaceSubscriptions
 } from '@b2b-saas-starter/db/schema/billing'
 import { workspaces } from '@b2b-saas-starter/db/schema/workspaces'
+import { type BillingProviderEventStatus } from '@b2b-saas-starter/db/enums'
 import { Database, type BatchStatement } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect } from 'effect'
 import { annotateWideEvent } from '@b2b-saas-starter/logger'
@@ -18,9 +19,14 @@ import {
   attemptProviderEventStatus,
   completedProviderEventStatus,
   failureStatus,
+  providerEventAttemptSources,
+  providerEventFailureSources,
   settledBySynchronization
 } from './provider-event-status.ts'
-import { nextSynchronizationStatus } from './synchronization-status.ts'
+import {
+  currentSynchronizationStatus,
+  nextSynchronizationStatus
+} from './synchronization-status.ts'
 import {
   billingStoreUnavailable,
   planChangeMetadata,
@@ -29,6 +35,30 @@ import {
   type ProcessProviderEventInput
 } from './billing.ts'
 import { type BillingStateDecision } from './billing-state.ts'
+
+/**
+ * Minutes before billing retries work that has failed `failures` times:
+ * doubling from one minute, capped at fifteen. Synchronization failures and
+ * unrouted provider evidence share this one schedule.
+ */
+export function billingRetryDelayMinutes(failures: number): number {
+  return Math.min(15, 2 ** Math.min(failures - 1, 4))
+}
+
+/**
+ * The one provider event row a keyed write targets, only while its status is
+ * in the transition's source set (`provider-event-status.ts`), so a stale
+ * invocation's write lands on nothing once the map refuses it.
+ */
+export function providerEventRowIn(
+  providerEventId: string,
+  sources: ReadonlyArray<BillingProviderEventStatus>
+) {
+  return and(
+    eq(billingProviderEvents.providerEventId, providerEventId),
+    inArray(billingProviderEvents.status, [...sources])
+  )
+}
 
 /** The atomic storage boundary shared by webhook, queue, and scheduled work. */
 export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function* () {
@@ -128,7 +158,7 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
             attemptCount: sql`${billingProviderEvents.attemptCount} + 1`,
             updatedAt: now
           })
-          .where(eq(billingProviderEvents.providerEventId, input.providerEventId))
+          .where(providerEventRowIn(input.providerEventId, providerEventAttemptSources))
       )
     }
     yield* leases.fencedBatch(lease, statements)
@@ -144,13 +174,12 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
     const previous = yield* read(lease.workspaceId)
     const failureCount = (previous?.failureCount ?? 0) + 1
     // Retry deadlines survive worker restarts; Cloudflare owns the wait.
-    const delayMinutes = Math.min(15, 2 ** Math.min(failureCount - 1, 4))
     const nextAttemptAt = DateTime.formatIso(
-      DateTime.add(yield* DateTime.now, { minutes: delayMinutes })
+      DateTime.add(yield* DateTime.now, {
+        minutes: billingRetryDelayMinutes(failureCount)
+      })
     )
     const status = nextSynchronizationStatus({ kind: 'failure', conflict })
-    // `begin` re-entered the event into `processing` before this failure, so
-    // the failure half of the event machine is total here.
     const eventStatus = failureStatus(conflict)
     let conflictReason: string | null = null
     if (conflict) {
@@ -182,7 +211,7 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
             updatedAt: now,
             resolvedAt: null
           })
-          .where(eq(billingProviderEvents.providerEventId, input.providerEventId))
+          .where(providerEventRowIn(input.providerEventId, providerEventFailureSources))
       )
     }
     yield* leases.fencedBatch(lease, statements)
@@ -227,7 +256,7 @@ export const makeBillingSyncStore = Effect.fn('Billing.makeSyncStore')(function*
       seatsAligned: desiredQuantity === next.seatQuantity
     })
     let nextAttemptMinutes = 5
-    if (synchronizationStatus === 'pending') {
+    if (synchronizationStatus !== currentSynchronizationStatus) {
       nextAttemptMinutes = 1
     }
     const statements: Array<BatchStatement> = []

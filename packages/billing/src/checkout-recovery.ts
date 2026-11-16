@@ -10,6 +10,7 @@ import { type makeBillingLease, type BillingLease } from './billing-lease.ts'
 import { type billingStoreUnavailable } from './billing.ts'
 import {
   checkoutClaimEventFromSessionStatus,
+  initialCheckoutClaimStatus,
   nextCheckoutClaimStatus,
   openCheckoutClaimStatuses,
   type CheckoutClaim
@@ -220,10 +221,11 @@ export const recoverCheckoutClaim = Effect.fn('Billing.recoverCheckoutClaim')(
         })
         .where(eq(billingCheckoutClaims.id, claim.id))
     ]
-    // A lost creation response also lost its original local audit commit.
-    // Record that handoff exactly once when provider evidence recovers it.
+    // A claim still in its birth status never recorded a session, so its lost
+    // creation response also lost the original local audit commit. Record
+    // that handoff exactly once when provider evidence recovers it.
     const auditStatements = []
-    if (claim.status === 'pending') {
+    if (claim.status === initialCheckoutClaimStatus) {
       auditStatements.push(
         yield* deps.audit.prepareRecord({
           workspaceId: input.workspaceId,
