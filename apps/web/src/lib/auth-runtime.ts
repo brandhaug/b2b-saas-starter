@@ -11,7 +11,7 @@ import {
 } from '@b2b-saas-starter/env/server'
 import { env } from 'cloudflare:workers'
 import { drizzle } from 'drizzle-orm/d1'
-import { Effect, Layer, ManagedRuntime } from 'effect'
+import { Effect, Layer, ManagedRuntime, Redacted } from 'effect'
 import { reportWebFailure } from './observability'
 import { currentRequest } from './request-context'
 import { MissingD1Binding } from './server/auth-local-d1'
@@ -40,7 +40,7 @@ const AuthConfigLive = Layer.sync(AuthConfig)(() => {
   }
   return {
     db: drizzle(db),
-    secret: env.BETTER_AUTH_SECRET,
+    secret: Redacted.make(env.BETTER_AUTH_SECRET),
     baseURL: env.BETTER_AUTH_URL,
     trustedOrigins:
       env.BETTER_AUTH_TRUSTED_ORIGINS?.split(',')

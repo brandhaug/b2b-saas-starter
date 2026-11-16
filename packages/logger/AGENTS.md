@@ -25,6 +25,7 @@ helpers or duplicate an invocation span. Operation spans do not emit canonical e
 
 - Don't build `traceparent` by hand (`currentTraceparent` encodes it) or set it outbound; `HttpClient` injects it.
 - Don't hoist `makeOtlpLayer` to module scope (invariant 3).
+- `OTEL_EXPORTER_OTLP_HEADERS` carries collector credentials: `makeOtlpLayer` parses it into a `Redacted` record at the read and unwraps it only into `Otlp.layer`'s `headers` option.
 - Failed canonical events use `console.error` so Cloudflare Issues detects handled failures. Interrupt-only scopes retain their event evidence through `console.log`, avoiding Issues for cancellation. Both console methods use the same allowlisted payload.
 - Don't import `./providers` from code reaching the browser bundle.
 - Don't mint a correlation id by hand; `currentTraceId` is the only source.

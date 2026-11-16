@@ -13,7 +13,7 @@ import {
 } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { describe, expect, it } from '@effect/vitest'
-import { Effect, Layer } from 'effect'
+import { Effect, Layer, Redacted } from 'effect'
 import { HttpClient, HttpClientResponse, type HttpClientRequest } from 'effect/http'
 
 import { processDeadLetterMessage, processWebhookMessage } from './webhook-consumer.ts'
@@ -36,7 +36,7 @@ const message: WebhookQueueMessage = {
 const target = {
   id: WebhookEndpointId.make('wh_1'),
   url: 'https://example.com/hook',
-  signingSecrets: ['whsec_dGVzdF9zZWNyZXQ='],
+  signingSecrets: [Redacted.make('whsec_dGVzdF9zZWNyZXQ=')],
   eventType: message.eventType,
   payload: message.payload
 }
@@ -45,7 +45,10 @@ const target = {
 const rotatingTarget = {
   id: WebhookEndpointId.make('wh_1'),
   url: 'https://example.com/hook',
-  signingSecrets: ['whsec_bmV3X3NlY3JldA==', 'whsec_b2xkX3NlY3JldA=='],
+  signingSecrets: [
+    Redacted.make('whsec_bmV3X3NlY3JldA=='),
+    Redacted.make('whsec_b2xkX3NlY3JldA==')
+  ],
   eventType: message.eventType,
   payload: message.payload
 }

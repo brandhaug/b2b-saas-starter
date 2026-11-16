@@ -4,7 +4,7 @@ import { failureMessage } from '@b2b-saas-starter/failure'
 // oxlint-disable-next-line effect/noNodeBuiltinImport -- loopback server verifies native fetch redirect behavior
 import { createServer } from 'node:http'
 import { describe, expect, it, vi } from '@effect/vitest'
-import { Effect, Layer, Schema, Stream } from 'effect'
+import { Effect, Layer, Redacted, Schema, Stream } from 'effect'
 import { LanguageModel, Prompt } from 'effect/ai'
 import {
   PlatformHttpClientLive,
@@ -12,6 +12,7 @@ import {
   type WireRequest
 } from '@b2b-saas-starter/failure/http-client'
 import { type OpenAIConfig, makeOpenAIModel } from './openai.ts'
+import { selectProvider } from './provider-selection.ts'
 import { ask, askFails, assistantOn } from './test-ask.ts'
 
 /** The wire body the adapter reads; one place for the platform's Response. */
@@ -42,7 +43,7 @@ function modelOn(
   return makeOpenAIModel(config).pipe(Layer.provide(wireHttpClient(respond)))
 }
 
-const TEST_CONFIG: OpenAIConfig = { apiKey: 'test-key' }
+const TEST_CONFIG: OpenAIConfig = { apiKey: Redacted.make('test-key') }
 
 describe('openai-compatible model', () => {
   it('posts the normalized prompt and answers with the first choice', () => {
@@ -79,6 +80,23 @@ describe('openai-compatible model', () => {
     })
   })
 
+  it('keeps the env API key redacted in the selected config until the header', () => {
+    const plaintext = 'sk-openai-must-not-leak'
+    const choice = selectProvider({ OPENAI_API_KEY: plaintext })
+    if (choice.provider !== 'openai-compatible') {
+      return expect.fail('a set OPENAI_API_KEY must select the OpenAI adapter')
+    }
+    // The selection reaches layer construction, spans and logs serialized.
+    // oxlint-disable-next-line effect/noGlobals -- the assertion is what JSON serialization (logs, spans, causes) exposes
+    expect(JSON.stringify(choice)).not.toContain(plaintext)
+    const { posted, wire } = stubWire(() =>
+      jsonResponse({ choices: [{ message: { content: 'x' } }] })
+    )
+    return ask(assistantOn(modelOn(wire, choice.config)), () => {
+      expect(posted[0]?.headers.authorization).toBe(`Bearer ${plaintext}`)
+    })
+  })
+
   it('honors baseUrl and modelId overrides', () => {
     const { posted, wire } = stubWire(() =>
       jsonResponse({ choices: [{ message: { content: 'x' } }] })
@@ -86,7 +104,7 @@ describe('openai-compatible model', () => {
     return ask(
       assistantOn(
         modelOn(wire, {
-          apiKey: 'test-key',
+          apiKey: Redacted.make('test-key'),
           baseUrl: 'https://proxy.example.com/v1',
           modelId: 'other-model'
         })
@@ -220,7 +238,7 @@ describe('openai-compatible model', () => {
         askFails(
           assistantOn(
             makeOpenAIModel({
-              apiKey: 'test-key',
+              apiKey: Redacted.make('test-key'),
               baseUrl: `http://127.0.0.1:${address.port}/v1`
             }).pipe(Layer.provide(PlatformHttpClientLive))
           ),

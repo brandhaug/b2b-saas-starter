@@ -35,6 +35,8 @@ Per queue the outcome table is the contract; the non-obvious parts:
 
 - Do not give `webhook-signing.ts` dependencies; a test imports it directly against a fixed HMAC vector.
 
+- Signing secrets arrive `Redacted` in the dispatch target. `computeWebhookSignature` is the only place that unwraps one, into the HMAC key; never log, annotate or rethrow the target or a secret. `STRIPE_WEBHOOK_SECRET` is wrapped where `stripe-endpoint.ts` reads it and unwrapped only inside `verifyStripeSignature`.
+
 - The publisher persists a delivery before enqueueing its `deliveryId`. Both consumers bind that delivery to its endpoint and current workspace; stored contents supply dispatch and terminal evidence. Each observation is unique by delivery, attempt ordinal, and phase. Completion prevents repeated warnings ([ADR 0062](../../docs/adr/0062-webhook-protocol-and-operator-tooling.md)). Requester authorization stays at scheduling; execution checks current workspace suspension and resource availability.
 
 - `signatureHeaderValue` owns the signature format: Standard Webhooks HMAC-SHA256 over `"<deliveryId>.<unix>.<rawBody>"`, one space-separated `v1,<base64>` per active secret, current first, two only inside a rotation's grace window (ADR 0062).

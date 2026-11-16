@@ -1,10 +1,12 @@
 import { type ProviderEnvOf, hasValue } from '@b2b-saas-starter/env/server'
+import { Redacted } from 'effect'
 
 import { PLANS } from './plan-catalog.ts'
 
 /** Stripe settings shared by the live adapter and provider workers. */
 export type BillingOptions = {
-  readonly secretKey?: string | undefined
+  /** Unwrapped only into a Stripe request's authorization header. */
+  readonly secretKey?: Redacted.Redacted<string> | undefined
   /** Monthly prices, keyed by catalog plan id. */
   readonly priceIds?: Readonly<Record<string, string>> | undefined
   /** Optional annual prices, keyed by the same catalog plan ids. */
@@ -13,7 +15,7 @@ export type BillingOptions = {
 
 /** A complete Stripe configuration has every self-serve catalog price. */
 export function billingConfigured(options: BillingOptions): boolean {
-  if (options.secretKey === undefined || options.secretKey.length === 0) {
+  if (options.secretKey === undefined) {
     return false
   }
   return PLANS.every((plan) => {
@@ -55,5 +57,5 @@ export function billingOptionsFromEnv(
   if (hasValue(env.STRIPE_PRICE_ID_ENTERPRISE_ANNUAL)) {
     annualPriceIds.enterprise = env.STRIPE_PRICE_ID_ENTERPRISE_ANNUAL
   }
-  return { secretKey, priceIds, annualPriceIds }
+  return { secretKey: Redacted.make(secretKey), priceIds, annualPriceIds }
 }

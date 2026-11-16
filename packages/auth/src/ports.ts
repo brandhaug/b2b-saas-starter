@@ -1,6 +1,6 @@
 import { type CimdOptions } from '@better-auth/cimd'
 import { type drizzle } from 'drizzle-orm/d1'
-import { Context } from 'effect'
+import { Context, type Redacted } from 'effect'
 import { type Locale } from '@b2b-saas-starter/i18n/locale'
 
 /**
@@ -129,7 +129,8 @@ export type SocialProviderCredentialsByName = {
 /** One configured social provider. Both halves are required to be active. */
 export type SocialProviderCredentials = {
   readonly clientId: string
-  readonly clientSecret: string
+  /** Unwrapped only by `makeAuthOptions`, into Better Auth's options. */
+  readonly clientSecret: Redacted.Redacted<string>
 }
 
 /**
@@ -158,7 +159,8 @@ export type AuthConfigInterface = {
     readonly userId: string
   }) => Promise<void>
   readonly db: DrizzleDatabase
-  readonly secret: string
+  /** Unwrapped only by `makeAuthOptions`, into Better Auth's options. */
+  readonly secret: Redacted.Redacted<string>
   readonly baseURL: string
   readonly trustedOrigins: ReadonlyArray<string>
   readonly emails: AuthEmailSender

@@ -1,4 +1,4 @@
-import { Context, Effect, Result, Schedule, Schema } from 'effect'
+import { Context, Effect, Redacted, Result, Schedule, Schema } from 'effect'
 import { SecureRandom } from 'effect/crypto'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { annotateWideEvent } from '@b2b-saas-starter/logger'
@@ -26,7 +26,8 @@ type SiteverifyResponse = typeof SiteverifyResponse.Type
  * `verify` call, reused across its attempts, makes the retry safe.
  */
 export type SiteverifyRequest = {
-  readonly secret: string
+  /** Unwrapped only into the siteverify POST body. */
+  readonly secret: Redacted.Redacted<string>
   readonly response: string
   readonly remoteip?: string | undefined
   readonly idempotency_key: string
@@ -105,7 +106,7 @@ function fetchSiteverify(
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         // oxlint-disable-next-line effect/noGlobals -- one JSON POST to a fixed endpoint; a Schema codec adds nothing here
-        body: JSON.stringify(request),
+        body: JSON.stringify({ ...request, secret: Redacted.value(request.secret) }),
         signal
       }),
     catch: () => new SiteverifyNoResponse()
@@ -196,7 +197,7 @@ function classify(response: SiteverifyResponse): TurnstileOutcome {
 }
 
 function buildRequest(
-  secretKey: string,
+  secretKey: Redacted.Redacted<string>,
   token: string,
   remoteIp: string | undefined,
   idempotencyKey: string
@@ -213,11 +214,12 @@ function buildRequest(
 }
 
 export function makeTurnstileVerifier(options: {
-  readonly secretKey?: string | undefined
+  readonly secretKey?: Redacted.Redacted<string> | undefined
   readonly transport?: SiteverifyTransport | undefined
 }): TurnstileVerifierInterface {
   const secretKey = options.secretKey
-  const enabled = secretKey !== undefined && secretKey.length > 0
+  // A presence check, not a use: an empty secret is unconfigured, never sent.
+  const enabled = secretKey !== undefined && Redacted.value(secretKey).length > 0
   const transport = options.transport ?? fetchSiteverify
   const unavailable: TurnstileOutcome = { outcome: 'unavailable' }
 

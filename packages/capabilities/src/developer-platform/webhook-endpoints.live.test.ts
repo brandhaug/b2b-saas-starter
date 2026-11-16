@@ -5,7 +5,7 @@ import {
   webhookEndpoints
 } from '@b2b-saas-starter/db/schema/developer-platform'
 import { Database } from '@b2b-saas-starter/db/service'
-import { Effect } from 'effect'
+import { Effect, Redacted } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'
 import { and, count, eq } from 'drizzle-orm'
 
@@ -19,6 +19,7 @@ import {
   developerPlatformContractCases,
   planLimitContractCases
 } from './developer-platform.contract.ts'
+import { webhookDispatchContractCases } from './webhook-dispatch.contract.ts'
 import { type WebhookDeliveryAttemptInput } from './webhook-delivery-plan.ts'
 import { WebhookEndpoints } from './webhook-endpoints.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
@@ -48,6 +49,25 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               }
             ),
           30_000
+        )
+      }
+    })
+
+    // The Seed half runs in webhook-dispatch.test.ts.
+    describe('live webhook dispatch contract', () => {
+      for (const contractCase of webhookDispatchContractCases(expect)) {
+        it.effect(contractCase.name, () =>
+          inWorkspace(
+            'dev-contract-lab',
+            contractCase.assert,
+            { userId: 'usr_owner' },
+            {
+              webhookQueue: {
+                send: () => Promise.resolve(),
+                sendBatch: () => Promise.resolve()
+              }
+            }
+          )
         )
       }
     })
@@ -428,7 +448,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               const first = yield* webhooks.rotateSecret({
                 endpointId: WebhookEndpointId.make('wh_live')
               })
-              const firstSecret = first.signingSecret
+              const firstSecret = Redacted.value(first.signingSecret)
               const sent = yield* webhooks.sendTestEvent({
                 endpointId: WebhookEndpointId.make('wh_live')
               })
@@ -441,20 +461,24 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 sent.deliveryId
               )
               expect(during?.signingSecrets).toHaveLength(2)
-              expect(during?.signingSecrets[0]).toBe(firstSecret)
+              expect(
+                during?.signingSecrets.map((secret) => Redacted.value(secret))[0]
+              ).toBe(firstSecret)
 
               // A second rotation shifts the window: the middle secret becomes
               // the replaced one, and the original is dropped entirely.
               const second = yield* webhooks.rotateSecret({
                 endpointId: WebhookEndpointId.make('wh_live')
               })
-              const secondSecret = second.signingSecret
+              const secondSecret = Redacted.value(second.signingSecret)
               const afterSecond = yield* dispatch.getDispatchTarget(
                 WebhookEndpointId.make('wh_live'),
                 'wrk_live',
                 sent.deliveryId
               )
-              expect(afterSecond?.signingSecrets).toEqual([secondSecret, firstSecret])
+              expect(
+                afterSecond?.signingSecrets.map((secret) => Redacted.value(secret))
+              ).toEqual([secondSecret, firstSecret])
             }),
             undefined,
             {

@@ -3,7 +3,7 @@
 import { createHash } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
-import { Effect, Layer } from 'effect'
+import { Effect, Layer, Redacted } from 'effect'
 import { AssistantLive } from '../src/index.ts'
 import { PlatformHttpClientLive } from '@b2b-saas-starter/failure/http-client'
 import { makeOpenAIModel } from '../src/openai.ts'
@@ -109,7 +109,7 @@ const run = await Effect.runPromise(
       AssistantLive.pipe(
         Layer.provide(
           makeOpenAIModel({
-            apiKey: process.env.OPENAI_API_KEY,
+            apiKey: Redacted.make(process.env.OPENAI_API_KEY),
             baseUrl: identity.endpoint,
             modelId: identity.modelId,
             maxOutputTokens: identity.maxOutputTokens

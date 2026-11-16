@@ -25,6 +25,7 @@ SSO provisioning can assign `member` or `admin`, never `owner`. The app enforces
 - Keep `session.cookieCache` disabled. Caching delays revocation, serves stale `impersonatedBy`, and breaks MCP consent's write-then-read. Session reads are memoized per request instead.
 - Passkey sign-in bypasses the additional TOTP step; the credential-endpoint gate does not run on passkey session creation (ADR 0056).
 - Unconfigured social providers must be absent from the options (ADR 0070).
+- `AuthConfig.secret` and each social `clientSecret` are `Redacted`. `makeAuthOptions` is the one place that unwraps them, into Better Auth's own options; keep every other reference to the config redacted.
 - Cloudflare bindings own rate limiting (ADR 0030). Preserve the token encryption, hashed verification identifiers, and trusted IP settings pinned in `options.test.ts`.
 - Better Auth invokes `additionalFields` callbacks outside Effect; native dates there cannot use an Effect clock.
 

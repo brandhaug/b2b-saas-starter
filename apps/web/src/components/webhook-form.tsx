@@ -1,8 +1,5 @@
 import { WEBHOOK_EVENT_TYPES } from '@b2b-saas-starter/capabilities/developer-platform/webhook-events'
-import {
-  type CreatedWebhookEndpoint,
-  type WebhookEventType
-} from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
+import { type WebhookEventType } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 
@@ -11,7 +8,10 @@ import { FormTextField } from '@/components/form-text-field'
 import { Identifier } from '@/components/page/identifier'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { FormSubmitButton } from '@/components/form-submit-button'
-import { createWebhookEndpointServerFn } from '@/lib/server/webhooks'
+import {
+  createWebhookEndpointServerFn,
+  type RevealedWebhookEndpoint
+} from '@/lib/server/webhooks'
 import { useServerCall } from '@/hooks/use-server-call'
 import { useServerAction } from '@/hooks/use-server-action'
 import { Button } from '@/components/ui/button'
@@ -46,7 +46,7 @@ export type CreateWebhookEndpoint = (input: {
     readonly url: string
     readonly events: ReadonlyArray<string>
   }
-}) => Promise<CreatedWebhookEndpoint>
+}) => Promise<RevealedWebhookEndpoint>
 
 export function WebhookForm({
   workspaceSlug,
@@ -54,17 +54,17 @@ export function WebhookForm({
   createEndpoint = createWebhookEndpointServerFn
 }: {
   readonly workspaceSlug: string
-  readonly onCreated?: (created: CreatedWebhookEndpoint) => void | Promise<void>
+  readonly onCreated?: (created: RevealedWebhookEndpoint) => void | Promise<void>
   readonly createEndpoint?: CreateWebhookEndpoint
 }) {
   const callServerFn = useServerCall()
   const [created, setCreated] = useState<{
-    readonly value: CreatedWebhookEndpoint
+    readonly value: RevealedWebhookEndpoint
     readonly refresh: 'needed' | 'complete'
   } | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const refreshAction = useServerAction(
-    async (value: CreatedWebhookEndpoint) => onCreated?.(value),
+    async (value: RevealedWebhookEndpoint) => onCreated?.(value),
     {
       failureMessage: m.shell_error(),
       invalidate: false,
@@ -101,7 +101,7 @@ export function WebhookForm({
     }
   })
 
-  async function refresh(value: CreatedWebhookEndpoint) {
+  async function refresh(value: RevealedWebhookEndpoint) {
     const outcome = await refreshAction.runAsync(value)
     setCreated({ value, refresh: outcome.ok ? 'complete' : 'needed' })
     setSubmitError(outcome.ok ? null : outcome.message)

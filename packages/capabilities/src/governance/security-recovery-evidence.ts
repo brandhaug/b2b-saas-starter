@@ -1,4 +1,4 @@
-import { DateTime, Effect, Result, Schema } from 'effect'
+import { DateTime, Effect, Redacted, Result, Schema } from 'effect'
 
 import { newCapabilityId } from '../internal/ids.ts'
 
@@ -66,16 +66,19 @@ class SecurityEvidenceWriteFailed extends Schema.TaggedError<SecurityEvidenceWri
 // oxlint-disable effect/noGlobals, effect/noThrowStatement
 export function makeHttpSecurityEvidenceSink(options: {
   readonly url: string
-  readonly token: string
+  /** Unwrapped only into each append's authorization header. */
+  readonly token: Redacted.Redacted<string>
   readonly reportGap: SecurityEvidenceSink['reportGap']
 }): SecurityEvidenceSink {
-  const authorization = `Bearer ${options.token}`
   return {
     append: (record) =>
       fetch(options.url, {
         method: 'POST',
         redirect: 'manual',
-        headers: { authorization, 'content-type': 'application/json' },
+        headers: {
+          authorization: `Bearer ${Redacted.value(options.token)}`,
+          'content-type': 'application/json'
+        },
         body: JSON.stringify(record),
         signal: AbortSignal.timeout(3000)
       }).then(requireSuccessfulAppend),

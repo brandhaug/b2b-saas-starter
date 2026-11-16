@@ -1,4 +1,4 @@
-import { Effect, Layer, Option, Schema, Stream } from 'effect'
+import { Effect, Layer, Option, type Redacted, Schema, Stream } from 'effect'
 import { AiError, LanguageModel, Model, type Response } from 'effect/ai'
 import {
   FetchHttpClient,
@@ -17,7 +17,8 @@ import { providerStreamError, providerTextStream } from './provider-stream.ts'
 const PROVIDER = 'openai-compatible'
 
 export type OpenAIConfig = {
-  readonly apiKey: string
+  /** Unwrapped only into each request's authorization header. */
+  readonly apiKey: Redacted.Redacted<string>
   readonly baseUrl?: string
   readonly modelId?: string
   readonly maxOutputTokens?: number
@@ -50,10 +51,6 @@ export function makeOpenAIModel(config: OpenAIConfig) {
   const baseUrl = config.baseUrl ?? 'https://api.openai.com/v1'
   const modelId = config.modelId ?? 'gpt-4o-mini'
   const chatUrl = `${baseUrl}/chat/completions`
-  const headers = {
-    authorization: `Bearer ${config.apiKey}`,
-    'content-type': 'application/json'
-  }
 
   return Model.make(
     PROVIDER,
@@ -63,7 +60,7 @@ export function makeOpenAIModel(config: OpenAIConfig) {
       Effect.gen(function* () {
         const client = yield* HttpClient.HttpClient
         return yield* LanguageModel.make(
-          openAIOperations({ client, chatUrl, headers, modelId, config })
+          openAIOperations({ client, chatUrl, modelId, config })
         )
       })
     )
@@ -73,13 +70,11 @@ export function makeOpenAIModel(config: OpenAIConfig) {
 function openAIOperations({
   client,
   chatUrl,
-  headers,
   modelId,
   config
 }: {
   readonly client: HttpClient.HttpClient
   readonly chatUrl: string
-  readonly headers: Readonly<Record<string, string>>
   readonly modelId: string
   readonly config: OpenAIConfig
 }) {
@@ -90,7 +85,11 @@ function openAIOperations({
   const request = Effect.fn('OpenAI.request')(
     function* (payload: ChatRequest) {
       return yield* HttpClient.withScope(client).execute(
-        HttpClientRequest.post(chatUrl, { headers }).pipe(
+        HttpClientRequest.post(chatUrl, {
+          headers: { 'content-type': 'application/json' }
+        }).pipe(
+          // The one place the key becomes a header.
+          HttpClientRequest.bearerToken(config.apiKey),
           HttpClientRequest.setBody(
             // oxlint-disable-next-line effect/noGlobals -- selected outbound wire fields
             HttpBody.raw(JSON.stringify(payload), { contentType: 'application/json' })

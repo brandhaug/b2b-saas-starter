@@ -1162,6 +1162,10 @@ importers:
         version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/browser-preview@5.0.5)(@vitest/coverage-v8@5.0.5)(@vitest/ui@5.0.5(vitest@5.0.5))(@voidzero-dev/vite-plus-core@1.4.0(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(jsdom@31.0.0(@noble/hashes@2.4.0))
 
   packages/env:
+    dependencies:
+      effect:
+        specifier: 'catalog:'
+        version: 4.1.4
     devDependencies:
       typescript:
         specifier: 'catalog:'

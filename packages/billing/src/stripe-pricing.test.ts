@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import { Effect, Redacted } from 'effect'
 import { expect, it } from '@effect/vitest'
 import { vi } from 'vite-plus/test'
 import { displayedBillingPlans, validatedStripePrice } from './stripe-pricing.ts'
@@ -12,7 +12,10 @@ it.effect(
     let price = { ...testPrice, unit_amount: 2750, currency: 'nok' }
     const wire = vi.fn(() => Promise.resolve(Response.json(price)))
     return Effect.gen(function* () {
-      const options = { secretKey: 'sk_test', priceIds: { team: 'price_team' } }
+      const options = {
+        secretKey: Redacted.make('sk_test'),
+        priceIds: { team: 'price_team' }
+      }
       expect(billingConfigured(options)).toBe(true)
       const plans = yield* displayedBillingPlans(options)
       expect(plans.find((plan) => plan.id === 'team')?.providerPrice).toEqual({
@@ -22,19 +25,25 @@ it.effect(
       })
       expect(plans.find((plan) => plan.id === 'enterprise')?.purchase).toBe('sales')
       price = { ...price, unit_amount: 2500, currency: 'jpy' }
-      expect(yield* validatedStripePrice('sk_test', 'price_team')).toEqual({
+      expect(
+        yield* validatedStripePrice(Redacted.make('sk_test'), 'price_team')
+      ).toEqual({
         amount: 2500,
         currency: 'JPY',
         interval: 'month'
       })
       price = { ...price, unit_amount: 12_345, currency: 'kwd' }
-      expect(yield* validatedStripePrice('sk_test', 'price_team')).toEqual({
+      expect(
+        yield* validatedStripePrice(Redacted.make('sk_test'), 'price_team')
+      ).toEqual({
         amount: 12.345,
         currency: 'KWD',
         interval: 'month'
       })
       price = { ...price, unit_amount: 120_000, currency: 'isk' }
-      expect(yield* validatedStripePrice('sk_test', 'price_team')).toEqual({
+      expect(
+        yield* validatedStripePrice(Redacted.make('sk_test'), 'price_team')
+      ).toEqual({
         amount: 1200,
         currency: 'ISK',
         interval: 'month'
@@ -58,7 +67,9 @@ it.effect(
       ]) {
         price = unsupported
         expect(
-          (yield* Effect.flip(validatedStripePrice('sk_test', 'price_team'))).reason
+          (yield* Effect.flip(
+            validatedStripePrice(Redacted.make('sk_test'), 'price_team')
+          )).reason
         ).toBe('unsupported_price')
       }
     }).pipe(Effect.provide(wireHttpClient(wire)))
@@ -71,10 +82,15 @@ it.effect('recognizes archived subscription prices but refuses new purchases', (
   )
   return Effect.gen(function* () {
     expect(
-      (yield* Effect.flip(validatedStripePrice('sk_test', 'price_team'))).reason
+      (yield* Effect.flip(validatedStripePrice(Redacted.make('sk_test'), 'price_team')))
+        .reason
     ).toBe('unsupported_price')
     expect(
-      yield* validatedStripePrice('sk_test', 'price_team', 'subscription')
+      yield* validatedStripePrice(
+        Redacted.make('sk_test'),
+        'price_team',
+        'subscription'
+      )
     ).toEqual({ amount: 12, currency: 'USD', interval: 'month' })
   }).pipe(Effect.provide(wireHttpClient(wire)))
 })
@@ -97,11 +113,21 @@ it.effect(
     )
     return Effect.gen(function* () {
       expect(
-        yield* validatedStripePrice('sk_test', 'price_annual', 'purchase', 'year')
+        yield* validatedStripePrice(
+          Redacted.make('sk_test'),
+          'price_annual',
+          'purchase',
+          'year'
+        )
       ).toEqual({ amount: 123.45, currency: 'NOK', interval: 'year' })
       expect(
         (yield* Effect.flip(
-          validatedStripePrice('sk_test', 'price_annual', 'purchase', 'month')
+          validatedStripePrice(
+            Redacted.make('sk_test'),
+            'price_annual',
+            'purchase',
+            'month'
+          )
         )).reason
       ).toBe('unsupported_price')
     }).pipe(Effect.provide(wireHttpClient(wire)))

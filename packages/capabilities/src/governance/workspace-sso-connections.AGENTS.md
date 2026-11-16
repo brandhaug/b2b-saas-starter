@@ -4,6 +4,7 @@ Workspace-owned SSO connection lifecycle and the domain routing rule (ADR 0069):
 
 ## Contracts
 
+- The OIDC client secret is `Redacted` from the web input schema (`Schema.RedactedFromValue`) through `create`/`update` and the `WorkspaceSsoBinding`; only the plugin call's body (`apps/web` `sso-binding.ts`) unwraps it.
 - Secrets are write-only, enforced here rather than in the UI: `list` / `get` expose the client id's last four and nothing else, and `describe` adds testable protocol detail while staying secret-free.
 - `resolveRouting(email)` is identity-keyed and routes enabled connections only, so a disabled row renders in settings without intercepting sign-ins. The seeded example connection depends on that.
 - `resolveSignInTarget` is the raw resolution, disabled answers included; the web app's `sso-sign-in-gate.ts` reads it so a disabled connection is refused at the boundary, not merely hidden.

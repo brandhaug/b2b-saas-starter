@@ -18,7 +18,10 @@ type ToolFailure =
 export type ToolOutcome = Result.Result<unknown, ToolFailure>
 
 // The JSON-RPC wire format carries opaque JSON payloads; serializing the
-// already-typed capability results here IS the encoding step.
+// already-typed capability results here IS the encoding step. It never
+// unwraps a `Redacted`: a tool that hands over a one-time secret reveals that
+// one field itself (`revealing` in `mcp-mutations.ts`), so anything else stays
+// `<redacted>`.
 // oxlint-disable-next-line anti-slop/no-unknown-parameters -- `unknown` is the protocol's own payload type; the capability layer already produced it
 function textResult(data: unknown): CallToolResult {
   return new CallToolResult({

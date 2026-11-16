@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import { Effect, type Redacted } from 'effect'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type BillingOptions, billingConfigured } from './billing-config.ts'
 import { PLANS, type BillingInterval, type BillingPrice } from './plan-catalog.ts'
@@ -35,7 +35,7 @@ function stripeUnitAmount(amount: number, currency: string): number {
 }
 
 export const validatedStripePrice = Effect.fn('Billing.validatePrice')(function* (
-  secretKey: string,
+  secretKey: Redacted.Redacted<string>,
   priceId: string,
   purpose: 'purchase' | 'subscription' = 'purchase',
   expectedInterval?: BillingInterval

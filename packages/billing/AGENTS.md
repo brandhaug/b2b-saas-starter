@@ -16,6 +16,7 @@ Stripe lifecycle, checkout recovery, seat billing, and resource entitlements (AD
 
 ## Patterns & Pitfalls
 
+- The Stripe key is `Redacted` from `billingOptionsFromEnv` through `BillingOptions` and every operation input; `stripeRequest` hands it to `HttpClientRequest.bearerToken`, which sets the header; no plaintext header record exists before that. `verifyStripeSignature` likewise takes the webhook secret `Redacted` and unwraps it into the SDK call. Never `Redacted.value` anywhere else, and never widen an input back to `string`.
 - Stripe calls take `HttpClient` from the environment. `makeLiveCapabilitiesLayer` provides `PlatformHttpClientLive` (`@b2b-saas-starter/failure/http-client`) once, and `LiveBilling` captures that client once for itself and the synchronization it builds. Tests provide `wireHttpClient(respond)`, which also overrides the transport composed inside the Live layer, never a patched global fetch.
 - Stripe periods belong to subscription items; trial end is nullable. Configured prices must be single-month or single-year licensed, per-unit prices; each must match its configured interval. Display provider amounts using Stripe's currency units.
 - Seats count current members, including owners/admins. Invitations do not count. Membership queues quantity synchronization; additions and removals use next-invoice prorations.

@@ -1,5 +1,5 @@
 import { WorkspaceContext, testResolvedWorkspaceContext } from '../workspace-context.ts'
-import { Array, Effect, Layer } from 'effect'
+import { Array, Effect, Layer, Redacted } from 'effect'
 import { expect, layer } from '@effect/vitest'
 import { Database } from '@b2b-saas-starter/db/service'
 import { workspaces } from '@b2b-saas-starter/db/schema/workspaces'
@@ -132,11 +132,12 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               .update(workspaces)
               .set({ planId: 'starter' })
               .where(eq(workspaces.id, 'wrk_dev_contract'))
-            yield* tokens.verifyBearerToken(replacement.token)
-            yield* tokens.verifyBearerToken(c.token)
-            expect((yield* Effect.flip(tokens.verifyBearerToken(b.token)))._tag).toBe(
-              'AuthorizationDenied'
-            )
+            yield* tokens.verifyBearerToken(Redacted.value(replacement.token))
+            yield* tokens.verifyBearerToken(Redacted.value(c.token))
+            expect(
+              (yield* Effect.flip(tokens.verifyBearerToken(Redacted.value(b.token))))
+                ._tag
+            ).toBe('AuthorizationDenied')
             expect(new Set((yield* selection.getSelection()).apiTokenIds)).toEqual(
               new Set([replacement.id, c.id])
             )

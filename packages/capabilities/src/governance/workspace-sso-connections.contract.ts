@@ -1,4 +1,4 @@
-import { Effect, Option } from 'effect'
+import { Effect, Option, Redacted } from 'effect'
 import { type ContractExpect } from './contract-expect.ts'
 import { type MembershipChangeRejected } from '../errors.ts'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -44,7 +44,7 @@ function oidcCreate(domain: string): CreateSsoConnectionInput {
     domain,
     issuer: `https://login.${domain}`,
     clientId: `client-${domain}`,
-    clientSecret: 'sekrit',
+    clientSecret: Redacted.make('sekrit'),
     endpoints: {
       authorizationEndpoint: `https://login.${domain}/authorize`,
       tokenEndpoint: `https://login.${domain}/token`,
@@ -158,7 +158,7 @@ export function workspaceSsoConnectionsContractCases(
         const outcome = yield* Effect.exit(
           sso.update({
             providerId: created.id,
-            oidcCredentials: { clientId: 'c', clientSecret: 's' }
+            oidcCredentials: { clientId: 'c', clientSecret: Redacted.make('s') }
           })
         )
         expect(failureTag(outcome)).toBe('MembershipChangeRejected')

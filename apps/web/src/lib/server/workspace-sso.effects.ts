@@ -33,15 +33,15 @@ import {
   type SsoValidationError
 } from './sso-discovery'
 import {
-  type CreateSsoConnectionInput,
+  type CreateSsoConnectionRequest,
   type RemoveSsoConnectionInput,
   type RoutingInput,
   type SsoTestResult,
-  type UpdateSsoConnectionInput
+  type UpdateSsoConnectionRequest
 } from './workspace-sso'
 
 function samlIssuer(
-  input: Extract<CreateSsoConnectionInput, { readonly protocol: 'saml' }>,
+  input: Extract<CreateSsoConnectionRequest, { readonly protocol: 'saml' }>,
   metadata: string
 ): string {
   if (input.issuer !== undefined && input.issuer !== '') {
@@ -57,7 +57,7 @@ function samlIssuer(
 }
 
 export async function createSsoConnectionHandler(
-  input: CreateSsoConnectionInput
+  input: CreateSsoConnectionRequest
 ): Promise<SsoConnection> {
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
@@ -100,7 +100,7 @@ export async function createSsoConnectionHandler(
 
 /** A metadata URL is fetched once, at create; everything after stores the XML. */
 function loadSamlMetadata(
-  input: Extract<CreateSsoConnectionInput, { readonly protocol: 'saml' }>
+  input: Extract<CreateSsoConnectionRequest, { readonly protocol: 'saml' }>
 ): Effect.Effect<string, SsoValidationError> {
   if (input.metadataXml !== undefined) {
     return Effect.succeed(input.metadataXml)
@@ -144,7 +144,7 @@ function loadSamlMetadata(
 }
 
 export async function updateSsoConnectionHandler(
-  input: UpdateSsoConnectionInput
+  input: UpdateSsoConnectionRequest
 ): Promise<SsoConnection | null> {
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(

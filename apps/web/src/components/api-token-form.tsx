@@ -1,7 +1,4 @@
-import {
-  type ApiTokenScope,
-  type CreatedApiToken
-} from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+import { type ApiTokenScope } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { apiTokenScopes } from '@/lib/permissions'
 import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
@@ -12,7 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { FormSubmitButton } from '@/components/form-submit-button'
 import { Button } from '@/components/ui/button'
 import { SecretReveal } from '@/components/secret-reveal'
-import { createApiTokenServerFn } from '@/lib/server/api-tokens'
+import { createApiTokenServerFn, type RevealedApiToken } from '@/lib/server/api-tokens'
 import { useServerCall } from '@/hooks/use-server-call'
 import { useServerAction } from '@/hooks/use-server-action'
 import { m } from '@b2b-saas-starter/i18n/messages'
@@ -52,10 +49,10 @@ export type CreateApiToken = (input: {
     readonly expiresAt?: string
     readonly scopes: ReadonlyArray<ApiTokenScope>
   }
-}) => Promise<CreatedApiToken>
+}) => Promise<RevealedApiToken>
 
 /** What the form reports after a create; awaited by the submit flow. */
-export type OnApiTokenCreated = (token: CreatedApiToken) => void | Promise<void>
+export type OnApiTokenCreated = (token: RevealedApiToken) => void | Promise<void>
 
 export function ApiTokenForm({
   workspaceSlug,
@@ -68,12 +65,12 @@ export function ApiTokenForm({
 }) {
   const callServerFn = useServerCall()
   const [created, setCreated] = useState<{
-    readonly value: CreatedApiToken
+    readonly value: RevealedApiToken
     readonly refresh: 'needed' | 'complete'
   } | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const refreshAction = useServerAction(
-    async (value: CreatedApiToken) => onCreated?.(value),
+    async (value: RevealedApiToken) => onCreated?.(value),
     {
       failureMessage: m.shell_error(),
       invalidate: false,
@@ -115,7 +112,7 @@ export function ApiTokenForm({
     }
   })
 
-  async function refresh(value: CreatedApiToken) {
+  async function refresh(value: RevealedApiToken) {
     const outcome = await refreshAction.runAsync(value)
     setCreated({ value, refresh: outcome.ok ? 'complete' : 'needed' })
     setSubmitError(outcome.ok ? null : outcome.message)

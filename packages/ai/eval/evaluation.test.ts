@@ -1,5 +1,5 @@
 import { expect, it, vi } from '@effect/vitest'
-import { Effect, Layer } from 'effect'
+import { Effect, Layer, Redacted } from 'effect'
 import {
   AssistantLive,
   AssistantService,
@@ -102,9 +102,10 @@ it.effect(
         Effect.provide(
           AssistantLive.pipe(
             Layer.provide(
-              makeOpenAIModel({ apiKey: 'fake', modelId: identity.modelId }).pipe(
-                Layer.provide(wireHttpClient(wire))
-              )
+              makeOpenAIModel({
+                apiKey: Redacted.make('fake'),
+                modelId: identity.modelId
+              }).pipe(Layer.provide(wireHttpClient(wire)))
             )
           )
         )

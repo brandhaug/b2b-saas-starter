@@ -1,4 +1,4 @@
-import { Effect, Result, Schema } from 'effect'
+import { Effect, Redacted, Result, Schema } from 'effect'
 import { FetchHttpClient, HttpBody, HttpClient, HttpClientRequest } from 'effect/http'
 import { Stripe } from 'stripe'
 
@@ -132,35 +132,27 @@ function idempotencyHeader(key: string | undefined) {
 /**
  * One Stripe REST call. `body` is the form-encoded payload of a POST; a GET
  * passes none. The idempotency key rides POSTs that create provider state.
+ * The key stays `Redacted` into the request; `bearerToken` is the only place
+ * it becomes a header.
  */
-function stripeRequest(
-  method: 'GET' | 'POST',
-  url: string,
-  headers: Record<string, string>,
-  body?: string,
-  idempotencyKey?: string
-) {
-  const requestHeaders = {
-    ...headers,
-    ...idempotencyHeader(idempotencyKey),
-    'stripe-version': STRIPE_API_VERSION
-  }
-  // Snapshot headers at call time as before; transport remains lazy.
-  return executeStripeRequest(method, url, requestHeaders, body)
-}
-
-const executeStripeRequest = Effect.fn('Stripe.request')(
+const stripeRequest = Effect.fn('Stripe.request')(
   function* (
+    secretKey: Redacted.Redacted<string>,
     method: 'GET' | 'POST',
     url: string,
-    requestHeaders: Record<string, string>,
-    body?: string
+    body?: string,
+    idempotencyKey?: string
   ) {
     // stripe 23.1.0 bounds JSON body reads, but RequestOptions still has no caller
     // AbortSignal. Keep scoped cancellation and manual redirects in this transport.
     // Exact SDK operations and source evidence: docs/research/effect-4-adoption.md.
     const client = yield* HttpClient.HttpClient
-    let request = HttpClientRequest.make(method)(url, { headers: requestHeaders })
+    let request = HttpClientRequest.make(method)(url, {
+      headers: {
+        ...idempotencyHeader(idempotencyKey),
+        'stripe-version': STRIPE_API_VERSION
+      }
+    }).pipe(HttpClientRequest.bearerToken(secretKey))
     if (body !== undefined) {
       request = HttpClientRequest.setBody(
         request,
@@ -269,7 +261,7 @@ function requireCheckoutUrl(
 /** Creates a checkout session with the caller's durable idempotency identity. */
 export const createStripeCheckoutSession = Effect.fn('Stripe.createCheckoutSession')(
   function* (input: {
-    readonly secretKey: string
+    readonly secretKey: Redacted.Redacted<string>
     readonly priceId: string
     /**
      * The subscription item quantity checkout opens with: the workspace's
@@ -287,12 +279,9 @@ export const createStripeCheckoutSession = Effect.fn('Stripe.createCheckoutSessi
     readonly idempotencyKey?: string | undefined
   }) {
     const response = yield* stripeRequest(
+      input.secretKey,
       'POST',
       'https://api.stripe.com/v1/checkout/sessions',
-      {
-        authorization: `Bearer ${input.secretKey}`,
-        'content-type': 'application/x-www-form-urlencoded'
-      },
       stripeCheckoutBody(input),
       input.idempotencyKey
     )
@@ -309,7 +298,7 @@ export const createStripeCheckoutSession = Effect.fn('Stripe.createCheckoutSessi
 export const createStripeBillingPortalSession = Effect.fn(
   'Stripe.createBillingPortalSession'
 )(function* (input: {
-  readonly secretKey: string
+  readonly secretKey: Redacted.Redacted<string>
   readonly customerId: string
   readonly returnUrl: string
   readonly idempotencyKey?: string | undefined
@@ -318,12 +307,9 @@ export const createStripeBillingPortalSession = Effect.fn(
   params.set('customer', input.customerId)
   params.set('return_url', input.returnUrl)
   const response = yield* stripeRequest(
+    input.secretKey,
     'POST',
     'https://api.stripe.com/v1/billing_portal/sessions',
-    {
-      authorization: `Bearer ${input.secretKey}`,
-      'content-type': 'application/x-www-form-urlencoded'
-    },
     params.toString(),
     input.idempotencyKey
   )
@@ -335,7 +321,7 @@ export const createStripeBillingPortalSession = Effect.fn(
 export const updateStripeSubscriptionItemQuantity = Effect.fn(
   'Stripe.updateSubscriptionItemQuantity'
 )(function* (input: {
-  readonly secretKey: string
+  readonly secretKey: Redacted.Redacted<string>
   readonly subscriptionItemId: string
   readonly quantity: number
   readonly idempotencyKey?: string | undefined
@@ -345,12 +331,9 @@ export const updateStripeSubscriptionItemQuantity = Effect.fn(
   params.set('quantity', String(billableSeatQuantity(input.quantity)))
   params.set('proration_behavior', 'create_prorations')
   const response = yield* stripeRequest(
+    input.secretKey,
     'POST',
     `https://api.stripe.com/v1/subscription_items/${encodeURIComponent(input.subscriptionItemId)}`,
-    {
-      authorization: `Bearer ${input.secretKey}`,
-      'content-type': 'application/x-www-form-urlencoded'
-    },
     params.toString(),
     input.idempotencyKey
   )
@@ -358,10 +341,6 @@ export const updateStripeSubscriptionItemQuantity = Effect.fn(
     return yield* Effect.fail(stripeUnavailable(`stripe http:${response.status}`))
   }
 })
-
-function stripeAuth(secretKey: string) {
-  return { authorization: `Bearer ${secretKey}` }
-}
 
 function decodeStripe<T>(
   decoded: Result.Result<T, unknown>,
@@ -387,7 +366,7 @@ function stripeResponse<T>(
 /** Creates one customer. The caller must persist the returned id with the same key. */
 export const createStripeCustomer = Effect.fn('Stripe.createCustomer')(
   function* (input: {
-    readonly secretKey: string
+    readonly secretKey: Redacted.Redacted<string>
     readonly workspaceId: string
     readonly idempotencyKey: string
     readonly email?: string | undefined
@@ -402,12 +381,9 @@ export const createStripeCustomer = Effect.fn('Stripe.createCustomer')(
       params.set('name', input.name)
     }
     const response = yield* stripeRequest(
+      input.secretKey,
       'POST',
       'https://api.stripe.com/v1/customers',
-      {
-        ...stripeAuth(input.secretKey),
-        'content-type': 'application/x-www-form-urlencoded'
-      },
       params.toString(),
       input.idempotencyKey
     )
@@ -422,11 +398,14 @@ export const createStripeCustomer = Effect.fn('Stripe.createCustomer')(
 
 /** Retrieves one customer and validates the response before exposing it. */
 export const retrieveStripeCustomer = Effect.fn('Stripe.retrieveCustomer')(
-  function* (input: { readonly secretKey: string; readonly customerId: string }) {
+  function* (input: {
+    readonly secretKey: Redacted.Redacted<string>
+    readonly customerId: string
+  }) {
     const response = yield* stripeRequest(
+      input.secretKey,
       'GET',
-      `https://api.stripe.com/v1/customers/${encodeURIComponent(input.customerId)}`,
-      stripeAuth(input.secretKey)
+      `https://api.stripe.com/v1/customers/${encodeURIComponent(input.customerId)}`
     )
     const json = yield* stripeJson(response)
     return yield* stripeResponse(
@@ -440,15 +419,18 @@ export const retrieveStripeCustomer = Effect.fn('Stripe.retrieveCustomer')(
 /** Retrieves customers by workspace metadata for operator reconciliation. */
 export const searchStripeCustomersByWorkspace = Effect.fn(
   'Stripe.searchCustomersByWorkspace'
-)(function* (input: { readonly secretKey: string; readonly workspaceId: string }) {
+)(function* (input: {
+  readonly secretKey: Redacted.Redacted<string>
+  readonly workspaceId: string
+}) {
   const escapedWorkspaceId = input.workspaceId
     .replaceAll(String.fromCharCode(92), String.fromCharCode(92, 92))
     .replaceAll("'", `${String.fromCharCode(92)}'`)
   const query = encodeURIComponent(`metadata['workspaceId']:'${escapedWorkspaceId}'`)
   const response = yield* stripeRequest(
+    input.secretKey,
     'GET',
-    `https://api.stripe.com/v1/customers/search?query=${query}&limit=100`,
-    stripeAuth(input.secretKey)
+    `https://api.stripe.com/v1/customers/search?query=${query}&limit=100`
   )
   const json = yield* stripeJson(response)
   return yield* stripeResponse(
@@ -460,13 +442,14 @@ export const searchStripeCustomersByWorkspace = Effect.fn(
 
 /** A complete bounded list can prove absence when customer search is inconclusive. */
 export const listStripeCustomersSince = Effect.fn('Stripe.listCustomersSince')(
-  function* (input: { readonly secretKey: string; readonly createdAfter: number }) {
+  function* (input: {
+    readonly secretKey: Redacted.Redacted<string>
+    readonly createdAfter: number
+  }) {
     const response = yield* stripeRequest(
+      input.secretKey,
       'GET',
-      `https://api.stripe.com/v1/customers?limit=100&created[gte]=${
-        input.createdAfter
-      }`,
-      stripeAuth(input.secretKey)
+      `https://api.stripe.com/v1/customers?limit=100&created[gte]=${input.createdAfter}`
     )
     const json = yield* stripeJson(response)
     return yield* stripeResponse(
@@ -479,11 +462,14 @@ export const listStripeCustomersSince = Effect.fn('Stripe.listCustomersSince')(
 
 /** Retrieves a subscription with its first price and seat item expanded. */
 export const retrieveStripeSubscription = Effect.fn('Stripe.retrieveSubscription')(
-  function* (input: { readonly secretKey: string; readonly subscriptionId: string }) {
+  function* (input: {
+    readonly secretKey: Redacted.Redacted<string>
+    readonly subscriptionId: string
+  }) {
     const response = yield* stripeRequest(
+      input.secretKey,
       'GET',
-      `https://api.stripe.com/v1/subscriptions/${encodeURIComponent(input.subscriptionId)}?expand[]=items.data.price`,
-      stripeAuth(input.secretKey)
+      `https://api.stripe.com/v1/subscriptions/${encodeURIComponent(input.subscriptionId)}?expand[]=items.data.price`
     )
     const json = yield* stripeJson(response)
     return yield* stripeResponse(
@@ -497,12 +483,15 @@ export const retrieveStripeSubscription = Effect.fn('Stripe.retrieveSubscription
 /** Lists all current and canceled subscriptions for one customer, bounded at 100. */
 export const listStripeCustomerSubscriptions = Effect.fn(
   'Stripe.listCustomerSubscriptions'
-)(function* (input: { readonly secretKey: string; readonly customerId: string }) {
+)(function* (input: {
+  readonly secretKey: Redacted.Redacted<string>
+  readonly customerId: string
+}) {
   const customer = encodeURIComponent(input.customerId)
   const response = yield* stripeRequest(
+    input.secretKey,
     'GET',
-    `https://api.stripe.com/v1/subscriptions?customer=${customer}&status=all&limit=100&expand[]=data.items.data.price`,
-    stripeAuth(input.secretKey)
+    `https://api.stripe.com/v1/subscriptions?customer=${customer}&status=all&limit=100&expand[]=data.items.data.price`
   )
   const json = yield* stripeJson(response)
   return yield* stripeResponse(
@@ -523,12 +512,15 @@ const decodeStripeCheckoutSessionListResponse = Schema.decodeUnknownResult(
 /** Lists a customer's Checkout Sessions for bounded unknown-success recovery. */
 export const listStripeCustomerCheckoutSessions = Effect.fn(
   'Stripe.listCustomerCheckoutSessions'
-)(function* (input: { readonly secretKey: string; readonly customerId: string }) {
+)(function* (input: {
+  readonly secretKey: Redacted.Redacted<string>
+  readonly customerId: string
+}) {
   const customer = encodeURIComponent(input.customerId)
   const response = yield* stripeRequest(
+    input.secretKey,
     'GET',
-    `https://api.stripe.com/v1/checkout/sessions?customer=${customer}&limit=100`,
-    stripeAuth(input.secretKey)
+    `https://api.stripe.com/v1/checkout/sessions?customer=${customer}&limit=100`
   )
   const json = yield* stripeJson(response)
   const decoded = decodeStripeCheckoutSessionListResponse(json)
@@ -560,7 +552,7 @@ export function isCurrentSubscriptionStatus(status: string): boolean {
 export const validateStripeCustomerForWorkspace = Effect.fn(
   'Stripe.validateCustomerForWorkspace'
 )(function* (input: {
-  readonly secretKey: string
+  readonly secretKey: Redacted.Redacted<string>
   readonly customerId: string
   readonly workspaceId: string
   readonly knownSubscriptionId?: string | undefined
@@ -616,11 +608,14 @@ export const validateStripeCustomerForWorkspace = Effect.fn(
 /** Retrieves a Checkout Session, including expiry and Stripe recovery fields. */
 export const retrieveStripeCheckoutSession = Effect.fn(
   'Stripe.retrieveCheckoutSession'
-)(function* (input: { readonly secretKey: string; readonly sessionId: string }) {
+)(function* (input: {
+  readonly secretKey: Redacted.Redacted<string>
+  readonly sessionId: string
+}) {
   const response = yield* stripeRequest(
+    input.secretKey,
     'GET',
-    `https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(input.sessionId)}`,
-    stripeAuth(input.secretKey)
+    `https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(input.sessionId)}`
   )
   const json = yield* stripeJson(response)
   return yield* stripeCheckoutSession(decodeStripeSessionResponse(json), response)
@@ -757,7 +752,7 @@ const stripeWebhookCrypto = Stripe.createSubtleCryptoProvider()
 // oxlint-disable-next-line effect/noAsyncFunction -- Stripe's Web Crypto verifier is promise-based; the background fetch handler shares it
 export async function verifyStripeSignature(
   input: {
-    readonly secret: string
+    readonly secret: Redacted.Redacted<string>
     readonly payload: string
     readonly header: string | null
     readonly toleranceSeconds?: number | undefined
@@ -809,7 +804,7 @@ export async function verifyStripeSignature(
       (await Stripe.webhooks.signature?.verifyHeaderAsync(
         input.payload,
         header,
-        input.secret,
+        Redacted.value(input.secret),
         0,
         stripeWebhookCrypto,
         receivedAt
@@ -826,14 +821,14 @@ export async function verifyStripeSignature(
 
 /** Shared decoded GET boundary for pricing and payment evidence. */
 export const readStripeObject = Effect.fn('Stripe.readObject')(function* <A>(
-  secretKey: string,
+  secretKey: Redacted.Redacted<string>,
   path: string,
   schema: Schema.Codec<A>
 ) {
   const response = yield* stripeRequest(
+    secretKey,
     'GET',
-    `https://api.stripe.com/v1/${path}`,
-    stripeAuth(secretKey)
+    `https://api.stripe.com/v1/${path}`
   )
   const json = yield* stripeJson(response)
   return yield* stripeResponse(

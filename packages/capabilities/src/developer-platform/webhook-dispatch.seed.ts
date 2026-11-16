@@ -11,6 +11,7 @@ import {
 } from './webhook-attempt-history.ts'
 import {
   activeSigningSecrets,
+  readSigningSecretRotation,
   deadLetteredDeliveryStatus,
   deadLetterNotification,
   failedPermanentDeliveryStatus,
@@ -282,7 +283,10 @@ export const SeedWebhookDispatch: Layer.Layer<
           return {
             id: endpoint.id,
             url: endpoint.url,
-            signingSecrets: activeSigningSecrets(endpoint, yield* DateTime.now),
+            signingSecrets: activeSigningSecrets(
+              readSigningSecretRotation(endpoint),
+              yield* DateTime.now
+            ),
             eventType: queued.eventType,
             payload: queued.payload
           }

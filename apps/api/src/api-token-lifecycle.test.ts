@@ -4,7 +4,7 @@ import {
   SEED_API_TOKEN
 } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { expect, it } from '@effect/vitest'
-import { Effect, Schema } from 'effect'
+import { Effect, Schema, Redacted } from 'effect'
 import { buildWebHandler } from './http.ts'
 import { jsonBody } from './test-utils.ts'
 
@@ -63,12 +63,14 @@ it.effect(
       const replacement = yield* jsonBody(replacedResponse, ReplacedApiTokenSchema)
       expect(replacement.previousTokenId).toBe(original.id)
       expect(replacement.expiresAt).toBe(expiresAt)
-      expect(replacement.token).not.toBe(original.token)
-      expect((yield* send('GET', tokensPath, undefined, original.token)).status).toBe(
-        401
-      )
+      expect(Redacted.value(replacement.token)).not.toBe(Redacted.value(original.token))
       expect(
-        (yield* send('GET', tokensPath, undefined, replacement.token)).status
+        (yield* send('GET', tokensPath, undefined, Redacted.value(original.token)))
+          .status
+      ).toBe(401)
+      expect(
+        (yield* send('GET', tokensPath, undefined, Redacted.value(replacement.token)))
+          .status
       ).toBe(200)
       const repeat = yield* send('POST', `${tokensPath}/${original.id}/replace`, {
         scopes: ['read'],
@@ -108,7 +110,9 @@ it.effect('REST rejects expiry and rotation inputs without retiring the source',
         (yield* send('POST', `${tokensPath}/${original.id}/replace`, payload)).status
       ).toBe(400)
     }
-    expect((yield* send('GET', tokensPath, undefined, original.token)).status).toBe(200)
+    expect(
+      (yield* send('GET', tokensPath, undefined, Redacted.value(original.token))).status
+    ).toBe(200)
     const foreign = yield* send(
       'POST',
       `/workspaces/another-workspace/api-tokens/${original.id}/replace`,
@@ -119,6 +123,8 @@ it.effect('REST rejects expiry and rotation inputs without retiring the source',
     )
     expect(foreign.status).toBe(403)
     expect((yield* jsonBody(foreign, Failure))._tag).toBe('AuthorizationDenied')
-    expect((yield* send('GET', tokensPath, undefined, original.token)).status).toBe(200)
+    expect(
+      (yield* send('GET', tokensPath, undefined, Redacted.value(original.token))).status
+    ).toBe(200)
   })
 )

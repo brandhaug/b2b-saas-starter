@@ -195,14 +195,19 @@ describe('MCP workspace mutations over streamable HTTP', () => {
         const handler = buildWebHandler(env).handler
         const client = mcpClient(handler, `Bearer ${SEED_API_TOKEN}`)
         yield* Effect.promise(() => client.initialize())
-        const token = yield* success(
-          client,
-          'create_api_token',
-          { name: 'MCP CI', scopes: ['read'] },
-          createdToken
-        )
+        const createdResult = yield* call(client, 'create_api_token', {
+          name: 'MCP CI',
+          scopes: ['read']
+        })
+        expect(createdResult.isError).not.toBe(true)
+        const createdText = createdResult.content[0]?.text ?? ''
+        const token = yield* Schema.decodeUnknownEffect(
+          Schema.fromJsonString(createdToken)
+        )(createdText)
         expect(token.scopes).toEqual(['read'])
+        // The tool's explicit reveal: plaintext on the wire, exactly once.
         expect(token.token).toMatch(/^bsk_/)
+        expect(createdText.split(token.token)).toHaveLength(2)
         const newReader = mcpClient(handler, `Bearer ${token.token}`)
         yield* Effect.promise(() => newReader.initialize())
         expect(

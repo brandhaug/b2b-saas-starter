@@ -1,6 +1,6 @@
 import { ApiTokenId } from '@b2b-saas-starter/db/ids'
 import { expect, it } from '@effect/vitest'
-import { Effect, Layer } from 'effect'
+import { Effect, Layer, Redacted } from 'effect'
 import { SeedLayer } from '../layers.ts'
 import { seedApiTokens, seedWorkspaceRecord } from '../seed-fixture.ts'
 import { testWorkspaceContext } from '../workspace-context.ts'
@@ -59,7 +59,9 @@ it.effect('transfers a selected token slot through rotation', () =>
       scopes: ['read'],
       overlapSeconds: 60
     })
-    expect(yield* registry.verifyBearerToken(replacement.token)).toMatchObject({
+    expect(
+      yield* registry.verifyBearerToken(Redacted.value(replacement.token))
+    ).toMatchObject({
       id: replacement.id
     })
   }).pipe(

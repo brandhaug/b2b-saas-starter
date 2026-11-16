@@ -3,7 +3,7 @@ import {
   type PluginBindingFailure
 } from '@b2b-saas-starter/capabilities/governance/plugin-binding-failure'
 import { describe, expect, it } from 'vite-plus/test'
-import { Option, Schema } from 'effect'
+import { Option, Schema, Redacted } from 'effect'
 
 import { webSsoBinding } from './sso-binding'
 
@@ -48,7 +48,7 @@ const INPUT = {
   domain: 'acme.com',
   issuer: 'https://login.acme.com',
   clientId: 'client-abcd',
-  clientSecret: 'sekrit',
+  clientSecret: Redacted.make('sekrit'),
   endpoints: {
     authorizationEndpoint: 'https://login.acme.com/authorize',
     tokenEndpoint: 'https://login.acme.com/token',

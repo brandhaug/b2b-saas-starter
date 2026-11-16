@@ -11,6 +11,18 @@ import { Schema } from 'effect'
 import { type WorkspacePagePayload } from '@/lib/workspace-frame'
 
 /**
+ * The create and replace responses: the capability's result with its
+ * `Redacted` token unwrapped by the handler, because this body is the
+ * one-time reveal.
+ */
+export type RevealedApiToken = Omit<CreatedApiToken, 'token'> & {
+  readonly token: string
+}
+export type RevealedReplacedApiToken = Omit<ReplacedApiToken, 'token'> & {
+  readonly token: string
+}
+
+/**
  * The API tokens payload.
  *
  * Unlike the members roster, reading tokens is itself a permission:
@@ -51,7 +63,7 @@ export const loadWorkspaceApiTokensServerFn = createServerFn({ method: 'GET' })
 
 export const createApiTokenServerFn = createServerFn({ method: 'POST' })
   .validator(Schema.decodeUnknownSync(CreateApiTokenInput))
-  .handler(async ({ data }): Promise<CreatedApiToken> => {
+  .handler(async ({ data }): Promise<RevealedApiToken> => {
     const { createApiTokenHandler } = await import('./api-tokens.effects')
     return createApiTokenHandler(data)
   })
@@ -72,7 +84,7 @@ export type ReplaceApiTokenInput = typeof ReplaceApiTokenInput.Type
 
 export const replaceApiTokenServerFn = createServerFn({ method: 'POST' })
   .validator(Schema.decodeUnknownSync(ReplaceApiTokenInput))
-  .handler(async ({ data }): Promise<ReplacedApiToken> => {
+  .handler(async ({ data }): Promise<RevealedReplacedApiToken> => {
     const { replaceApiTokenHandler } = await import('./api-tokens.effects')
     return replaceApiTokenHandler(data)
   })

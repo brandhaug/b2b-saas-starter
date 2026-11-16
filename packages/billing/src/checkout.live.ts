@@ -4,7 +4,7 @@ import {
   workspaceSubscriptions
 } from '@b2b-saas-starter/db/schema/billing'
 import { type AuditAttribution } from './ports.ts'
-import { DateTime, Effect } from 'effect'
+import { DateTime, Effect, type Redacted } from 'effect'
 import { eq, sql } from 'drizzle-orm'
 
 import { newCapabilityId } from './internal/ids.ts'
@@ -34,7 +34,7 @@ import {
 type Actor = Omit<AuditAttribution, 'workspaceId'>
 export type DurableCheckoutInput = CheckoutClaimInput &
   Actor & {
-    readonly secretKey: string
+    readonly secretKey: Redacted.Redacted<string>
     readonly returnUrl?: string
   }
 type CheckoutServices = CheckoutDependencies & {
@@ -44,7 +44,7 @@ type CheckoutServices = CheckoutDependencies & {
 }
 type PortalInput = Actor & {
   readonly workspaceId: string
-  readonly secretKey: string
+  readonly secretKey: Redacted.Redacted<string>
   readonly returnUrl: string
 }
 

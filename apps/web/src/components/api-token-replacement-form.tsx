@@ -1,7 +1,4 @@
-import {
-  type ApiToken,
-  type ReplacedApiToken
-} from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+import { type ApiToken } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 import { CheckboxSetField } from '@/components/checkbox-set-field'
@@ -12,7 +9,8 @@ import { Spinner } from '@/components/ui/spinner'
 import { FormTextField } from '@/components/form-text-field'
 import {
   replaceApiTokenServerFn,
-  type ReplaceApiTokenInput
+  type ReplaceApiTokenInput,
+  type RevealedReplacedApiToken
 } from '@/lib/server/api-tokens'
 import { useServerCall } from '@/hooks/use-server-call'
 import { useServerAction } from '@/hooks/use-server-action'
@@ -23,7 +21,7 @@ export type ReplaceApiToken = (input: {
   readonly data: Omit<ReplaceApiTokenInput, 'scopes'> & {
     readonly scopes: ApiToken['scopes']
   }
-}) => Promise<ReplacedApiToken>
+}) => Promise<RevealedReplacedApiToken>
 
 export function ApiTokenReplacementForm({
   workspaceSlug,
@@ -39,7 +37,7 @@ export function ApiTokenReplacementForm({
   readonly onClose: () => void
 }) {
   const callServerFn = useServerCall()
-  const [created, setCreated] = useState<ReplacedApiToken | null>(null)
+  const [created, setCreated] = useState<RevealedReplacedApiToken | null>(null)
   const [error, setError] = useState<string | null>(null)
   const refreshAction = useServerAction(onReplaced, {
     failureMessage: m.shell_error(),

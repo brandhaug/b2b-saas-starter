@@ -9,7 +9,7 @@ import { apiTokens } from '@b2b-saas-starter/db/schema/developer-platform'
 import { workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database, type BatchStatement, type RawD1 } from '@b2b-saas-starter/db/service'
 import { isExpiredToken } from '@b2b-saas-starter/db/token-lifecycle'
-import { DateTime, Effect, Layer } from 'effect'
+import { DateTime, Effect, Layer, Redacted } from 'effect'
 import { and, desc, eq, gt, isNull, or, sql, type SQL } from 'drizzle-orm'
 
 import { prepareResourceAdmission } from '@b2b-saas-starter/billing/resource-admission'
@@ -213,7 +213,7 @@ export function LiveApiTokenRegistry(
             eventType: 'api_token.created',
             payload: toTokenProjection(row)
           })
-          return { ...toTokenProjection(row), token }
+          return { ...toTokenProjection(row), token: Redacted.make(token) }
         }),
         replace: Effect.fn('ApiTokenRegistry.replace')(function* (input) {
           const ctx = yield* WorkspaceContext
@@ -310,7 +310,7 @@ export function LiveApiTokenRegistry(
           })
           return {
             ...toTokenProjection(row),
-            token,
+            token: Redacted.make(token),
             previousTokenId: source.id,
             previousTokenExpiresAt: plan.previousTokenExpiresAt
           }

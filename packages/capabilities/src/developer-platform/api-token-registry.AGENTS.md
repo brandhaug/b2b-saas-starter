@@ -2,7 +2,7 @@
 
 ## Purpose & Scope
 
-Workspace-scoped programmatic-access tokens for the REST and MCP surface. Tokens are stored as SHA-256 hashes; the plaintext is shown once by `create` and never persisted.
+Workspace-scoped programmatic-access tokens for the REST and MCP surface. Tokens are stored as SHA-256 hashes; the plaintext is shown once by `create` and `replace` and never persisted. Both return it `Redacted` (`CreatedApiTokenSchema` encodes it with `Schema.RedactedFromValue`); each surface reveals that one field explicitly.
 
 ## Entry Points & Contracts
 

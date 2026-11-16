@@ -1,8 +1,11 @@
 import { WebhookDeliveryId } from '@b2b-saas-starter/db/ids'
-import { activeSigningSecrets } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
+import {
+  activeSigningSecrets,
+  readSigningSecretRotation
+} from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
 import { randomWebhookSecret } from '@b2b-saas-starter/capabilities/crypto'
 import { describe, expect, it, vi } from '@effect/vitest'
-import { DateTime, Effect, Result } from 'effect'
+import { DateTime, Effect, Redacted, Result } from 'effect'
 import { Webhook } from 'standardwebhooks'
 import { computeWebhookSignature, signatureHeaderValue } from './webhook-signing.ts'
 
@@ -13,7 +16,7 @@ const decodedBody = { deliveryId: messageId, payload: { text: 'héllo 🌍' } }
 const body = '{"deliveryId":"whd_interoperability","payload":{"text":"héllo 🌍"}}'
 
 const signedHeaders = Effect.fn('Test.signedHeaders')(function* (
-  secrets: ReadonlyArray<string>,
+  secrets: ReadonlyArray<Redacted.Redacted<string>>,
   timestamp: number
 ) {
   const signatures = yield* Effect.forEach(secrets, (secret) =>
@@ -32,13 +35,13 @@ describe('Standard Webhooks reference verifier interoperability', () => {
   it.effect('matches a fixed HMAC vector and keeps current-key-first headers', () =>
     Effect.gen(function* () {
       const current = yield* computeWebhookSignature(
-        currentSecret,
+        Redacted.make(currentSecret),
         messageId,
         1_700_000_000,
         body
       )
       const previous = yield* computeWebhookSignature(
-        previousSecret,
+        Redacted.make(previousSecret),
         messageId,
         1_700_000_000,
         body
@@ -52,7 +55,7 @@ describe('Standard Webhooks reference verifier interoperability', () => {
     Effect.gen(function* () {
       for (const secret of ['whsec_', 'whsec_!!!!']) {
         const result = yield* Effect.result(
-          computeWebhookSignature(secret, messageId, 1_700_000_000, body)
+          computeWebhookSignature(Redacted.make(secret), messageId, 1_700_000_000, body)
         )
         expect(Result.isFailure(result)).toBe(true)
         if (Result.isFailure(result)) {
@@ -75,7 +78,7 @@ describe('Standard Webhooks reference verifier interoperability', () => {
           (clock) => Effect.sync(() => clock.mockRestore())
         )
         const timestamp = Math.floor(DateTime.toEpochMillis(now) / 1000)
-        const headers = yield* signedHeaders([currentSecret], timestamp)
+        const headers = yield* signedHeaders([Redacted.make(currentSecret)], timestamp)
         const verifier = new Webhook(currentSecret)
         expect(verifier.verify(body, headers)).toEqual(decodedBody)
         expect(() => verifier.verify(`${body} `, headers)).toThrow(
@@ -84,9 +87,15 @@ describe('Standard Webhooks reference verifier interoperability', () => {
         expect(() =>
           verifier.verify(body, { ...headers, 'webhook-id': 'different' })
         ).toThrow('No matching signature found')
-        const stale = yield* signedHeaders([currentSecret], timestamp - 301)
+        const stale = yield* signedHeaders(
+          [Redacted.make(currentSecret)],
+          timestamp - 301
+        )
         expect(() => verifier.verify(body, stale)).toThrow('Message timestamp too old')
-        const future = yield* signedHeaders([currentSecret], timestamp + 301)
+        const future = yield* signedHeaders(
+          [Redacted.make(currentSecret)],
+          timestamp + 301
+        )
         expect(() => verifier.verify(body, future)).toThrow('Message timestamp too new')
       })
   )
@@ -103,7 +112,7 @@ describe('Standard Webhooks reference verifier interoperability', () => {
           previousSecretExpiresAt: DateTime.formatIso(DateTime.add(now, { seconds: 1 }))
         }
         const overlapping = yield* signedHeaders(
-          activeSigningSecrets(endpoint, now),
+          activeSigningSecrets(readSigningSecretRotation(endpoint), now),
           timestamp
         )
         expect(new Webhook(currentSecret).verify(body, overlapping)).toEqual(
@@ -113,7 +122,10 @@ describe('Standard Webhooks reference verifier interoperability', () => {
           decodedBody
         )
         const expired = yield* signedHeaders(
-          activeSigningSecrets(endpoint, DateTime.add(now, { seconds: 1 })),
+          activeSigningSecrets(
+            readSigningSecretRotation(endpoint),
+            DateTime.add(now, { seconds: 1 })
+          ),
           timestamp
         )
         expect(new Webhook(currentSecret).verify(body, expired)).toEqual(decodedBody)
@@ -131,7 +143,10 @@ describe('Standard Webhooks reference verifier interoperability', () => {
         expect(secret).toMatch(/^whsec_[A-Za-z0-9+/]{43}=$/)
         const timestamp = Math.floor(DateTime.toEpochMillis(yield* DateTime.now) / 1000)
         expect(
-          new Webhook(secret).verify(body, yield* signedHeaders([secret], timestamp))
+          new Webhook(secret).verify(
+            body,
+            yield* signedHeaders([Redacted.make(secret)], timestamp)
+          )
         ).toEqual(decodedBody)
       })
   )

@@ -1,6 +1,6 @@
 import { workspaceSubscriptions } from '@b2b-saas-starter/db/schema/billing'
 import { Database } from '@b2b-saas-starter/db/service'
-import { Effect } from 'effect'
+import { Effect, Redacted } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'
 
 import {
@@ -109,7 +109,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live billing', (it) => {
             })
           }),
           undefined,
-          { billing: { secretKey: 'sk_partial_config', priceIds: {} } }
+          { billing: { secretKey: Redacted.make('sk_partial_config'), priceIds: {} } }
         )
         expect(result).toEqual({ outcome: 'provider_not_configured', quantity: null })
       })

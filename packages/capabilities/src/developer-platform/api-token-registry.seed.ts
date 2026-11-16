@@ -8,7 +8,7 @@ import {
   workspaceAuditAttribution
 } from '@b2b-saas-starter/billing/ports'
 import { Billing } from '@b2b-saas-starter/billing/billing'
-import { DateTime, Effect, Layer } from 'effect'
+import { DateTime, Effect, Layer, Redacted } from 'effect'
 
 import { assertWithinPlanLimit } from '@b2b-saas-starter/billing/resource-admission'
 import { ResourceEntitlements } from '@b2b-saas-starter/billing/resource-entitlements'
@@ -184,7 +184,7 @@ export function SeedApiTokenRegistry(
             eventType: 'api_token.created',
             payload: created
           })
-          return { ...created, token }
+          return { ...created, token: Redacted.make(token) }
         }, mutation),
         replace: Effect.fn('ApiTokenRegistry.replace')(function* (input) {
           const ctx = yield* WorkspaceContext
@@ -249,7 +249,7 @@ export function SeedApiTokenRegistry(
           })
           return {
             ...created,
-            token,
+            token: Redacted.make(token),
             previousTokenId: input.tokenId,
             previousTokenExpiresAt: plan.previousTokenExpiresAt
           }

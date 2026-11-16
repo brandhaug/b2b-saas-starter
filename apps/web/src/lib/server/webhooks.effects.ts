@@ -1,10 +1,9 @@
 import { type WebhookDeliveryId } from '@b2b-saas-starter/db/ids'
 import {
   WebhookEndpoints,
-  type WebhookEndpoint,
-  type CreatedWebhookEndpoint
+  type WebhookEndpoint
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
-import { Effect } from 'effect'
+import { Effect, Redacted } from 'effect'
 
 import { runWorkspaceCapabilities } from '../capabilities'
 import { WorkspaceCaller } from '@b2b-saas-starter/capabilities/workspace-context'
@@ -14,6 +13,7 @@ import { workspacePage, type WorkspacePageFrame } from './page-frame'
 import {
   type CreateWebhookInput,
   type EndpointMutationInput,
+  type RevealedWebhookEndpoint,
   type ReplayDeliveryInput,
   type UpdateEndpointInput,
   type WorkspaceWebhooksInput,
@@ -62,7 +62,7 @@ export async function loadWorkspaceWebhooksHandler(
 
 export async function createWebhookEndpointHandler(
   input: CreateWebhookInput
-): Promise<CreatedWebhookEndpoint> {
+): Promise<RevealedWebhookEndpoint> {
   const session = await requireRequestSession()
   return runWorkspaceCapabilities(
     input.workspaceSlug,
@@ -72,10 +72,15 @@ export async function createWebhookEndpointHandler(
       const webhooks = yield* WebhookEndpoints
       // The entitlement gate and webhook fan-out live inside the capability,
       // below the interface — identical for every surface.
-      return yield* webhooks.create({
+      const created = yield* webhooks.create({
         url: input.url,
         events: input.events
       })
+      // The server-function result is the response body: the one-time reveal.
+      return {
+        endpoint: created.endpoint,
+        signingSecret: Redacted.value(created.signingSecret)
+      }
     }),
     WorkspaceCaller.user(session.user.id)
   )
@@ -117,7 +122,8 @@ export async function rotateWebhookSecretHandler(
       yield* requireWorkspacePermission({ webhook: ['rotateSecret'] })
       const webhooks = yield* WebhookEndpoints
       const rotated = yield* webhooks.rotateSecret({ endpointId: input.endpointId })
-      return rotated.signingSecret
+      // The server-function result is the response body: the one-time reveal.
+      return Redacted.value(rotated.signingSecret)
     }),
     WorkspaceCaller.user(session.user.id)
   )

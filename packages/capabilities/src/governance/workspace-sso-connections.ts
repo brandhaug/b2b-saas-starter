@@ -1,6 +1,6 @@
 import { ssoProvisionedRoles } from '@b2b-saas-starter/db/enums'
 import { type JsonObject } from '@b2b-saas-starter/db/schema/json'
-import { Context, Effect, type Option, Schema } from 'effect'
+import { Context, Effect, type Option, type Redacted, Schema } from 'effect'
 
 import { MembershipChangeRejected } from '../errors.ts'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -65,7 +65,8 @@ type CreateOidcConnectionInput = {
   readonly domain: string
   readonly issuer: string
   readonly clientId: string
-  readonly clientSecret: string
+  /** Unwrapped only into the `sso` plugin's register body. */
+  readonly clientSecret: Redacted.Redacted<string>
   /**
    * Resolved by the app's test/discovery step before the connection is
    * registered, so the plugin stores a fully hydrated config and never needs
@@ -114,7 +115,7 @@ export type UpdateSsoConnectionInput = {
    * the new pair, no read path ever returns it.
    */
   readonly oidcCredentials?:
-    | { readonly clientId: string; readonly clientSecret: string }
+    | { readonly clientId: string; readonly clientSecret: Redacted.Redacted<string> }
     | undefined
 }
 
@@ -277,7 +278,7 @@ export type WorkspaceSsoBinding = {
     readonly requireSso?: boolean | undefined
     readonly defaultWorkspaceRole?: SsoProvisionedRole | undefined
     readonly oidcCredentials?:
-      | { readonly clientId: string; readonly clientSecret: string }
+      | { readonly clientId: string; readonly clientSecret: Redacted.Redacted<string> }
       | undefined
   }) => Promise<void>
   readonly remove: (input: { readonly providerId: string }) => Promise<void>

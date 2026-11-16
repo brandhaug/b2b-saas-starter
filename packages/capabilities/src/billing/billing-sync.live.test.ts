@@ -19,7 +19,7 @@ import {
 } from '@b2b-saas-starter/db/schema/developer-platform'
 import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database, RawD1 } from '@b2b-saas-starter/db/service'
-import { DateTime, type Context, Effect, Layer } from 'effect'
+import { DateTime, type Context, Effect, Layer, Redacted } from 'effect'
 import * as TestClock from 'effect/testing/TestClock'
 import { expect, layer } from '@effect/vitest'
 import { vi } from 'vite-plus/test'
@@ -48,7 +48,10 @@ const workspaceId = 'wrk_live'
 const customerId = 'cus_sync'
 const subscriptionId = 'sub_sync'
 const bindings = {
-  billing: { secretKey: 'sk_test_sync', priceIds: { team: 'price_team' } }
+  billing: {
+    secretKey: Redacted.make('sk_test_sync'),
+    priceIds: { team: 'price_team' }
+  }
 }
 
 function subscription(
@@ -743,7 +746,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 billing.reconcileBatch({ limit: 1 })
               ),
               undefined,
-              { billing: { secretKey: 'sk_test_sync', priceIds: {} } }
+              { billing: { secretKey: Redacted.make('sk_test_sync'), priceIds: {} } }
             )
             expect(result).toEqual([])
             expect(fetch.mock.calls).toHaveLength(calls)

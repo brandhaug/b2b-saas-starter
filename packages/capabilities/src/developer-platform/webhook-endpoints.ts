@@ -1,5 +1,5 @@
 import { WebhookEndpointId } from '@b2b-saas-starter/db/ids'
-import { Context, Effect, Schema } from 'effect'
+import { Context, Effect, type Redacted, Schema } from 'effect'
 
 import { type PlanLimitExceeded } from '@b2b-saas-starter/billing/errors'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -49,7 +49,8 @@ export type WebhookEndpoint = typeof WebhookEndpoint.Type
  */
 export type CreatedWebhookEndpoint = {
   readonly endpoint: WebhookEndpoint
-  readonly signingSecret: string
+  /** Unwrapped only by the surface encoding the one-time reveal response. */
+  readonly signingSecret: Redacted.Redacted<string>
 }
 
 type CreateWebhookEndpointInput = {
@@ -206,7 +207,7 @@ type WebhookEndpointsInterface = {
   readonly rotateSecret: (
     input: RotateWebhookSecretInput
   ) => Effect.Effect<
-    { readonly signingSecret: string },
+    { readonly signingSecret: Redacted.Redacted<string> },
     CapabilityUnavailable | WebhookEndpointNotFound,
     WorkspaceContext
   >

@@ -1,4 +1,5 @@
 import { type WorkspaceSsoBinding } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
+import { Redacted } from 'effect'
 
 import { sessionCall } from './plugin-call'
 
@@ -71,7 +72,8 @@ export const webSsoBinding: WorkspaceSsoBinding = {
     if (input.protocol === 'oidc') {
       body.oidcConfig = {
         clientId: input.clientId,
-        clientSecret: input.clientSecret,
+        // The plugin body is the one place the client secret is unwrapped.
+        clientSecret: Redacted.value(input.clientSecret),
         // PKCE on: the plugin defaults it on, and a stated `true` cannot
         // drift when the default changes.
         pkce: true,
@@ -101,7 +103,7 @@ export const webSsoBinding: WorkspaceSsoBinding = {
     if (oidcCredentials !== undefined) {
       pluginBody.oidcConfig = {
         clientId: oidcCredentials.clientId,
-        clientSecret: oidcCredentials.clientSecret
+        clientSecret: Redacted.value(oidcCredentials.clientSecret)
       }
     }
     await sessionCall((api, headers) =>

@@ -38,6 +38,7 @@ Cloudflare Worker for external REST clients and MCP. Serves the `StarterApi` con
 - Export-download refusals are all one 404 (ADR 0055), rate-limited by client IP so signatures cannot be brute-forced.
 
 - Token creation uses the shared `requireTokenScopes` guard. Keep requested grants bounded by caller authority on both REST and MCP.
+- One-time secrets (API token create/replace, webhook secret rotation) reach operations `Redacted`. REST reveals them through the contract's `Schema.RedactedFromValue`; MCP through the tool's `revealing` projection in `mcp-mutations.ts`. `mcp-results.ts` never unwraps, so any other `Redacted` in a tool result stays `<redacted>`.
 - MCP export links use invocation origin values, never captured HTTP request objects. Queue failures are tool errors even when a pending delivery committed first; no automatic mutation retries.
 
 ## Private assistant REST

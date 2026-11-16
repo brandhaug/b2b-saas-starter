@@ -2,7 +2,7 @@
 // oxlint-disable-next-line effect/noNodeBuiltinImport -- loopback server verifies native fetch redirect behavior
 import { createServer } from 'node:http'
 import { it } from '@effect/vitest'
-import { Effect } from 'effect'
+import { Effect, Redacted } from 'effect'
 import { describe, expect, vi } from 'vite-plus/test'
 
 import {
@@ -76,9 +76,11 @@ describe('security recovery evidence', () => {
   it.effect('does not follow a redirect from the evidence sink', () => {
     let successfulAppends = 0
     let redirectedRequests = 0
+    let authorization: string | undefined
     const server = createServer((request, response) => {
       if (request.url === '/success') {
         successfulAppends += 1
+        authorization = request.headers.authorization
         response.writeHead(204).end()
         return
       }
@@ -118,18 +120,19 @@ describe('security recovery evidence', () => {
           yield* Effect.promise(() =>
             makeHttpSecurityEvidenceSink({
               url: `http://127.0.0.1:${address.port}/success`,
-              token: 'test-token',
+              token: Redacted.make('test-token'),
               reportGap: async () => undefined
             }).append(record)
           )
           expect(successfulAppends).toBe(1)
+          expect(authorization).toBe('Bearer test-token')
 
           const gaps: Array<unknown> = []
           const outcome = yield* recordSecurityEvidence(
             input,
             makeHttpSecurityEvidenceSink({
               url: `http://127.0.0.1:${address.port}/redirect`,
-              token: 'test-token',
+              token: Redacted.make('test-token'),
               reportGap: async (gap) => {
                 gaps.push(gap)
               }

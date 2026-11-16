@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 
 import { fixtureAuthModule } from '@/test/fixture-session'
 import {
+  createWebhookEndpointHandler,
   loadWorkspaceWebhooksHandler,
   listWebhookDeliveryAttemptsHandler,
   replayWebhookDeliveryHandler,
@@ -84,6 +85,23 @@ describe('updateWebhookEndpointHandler', () => {
         enabled: false
       })
     ).rejects.toMatchObject({ _tag: 'WebhookEndpointNotFound' })
+  })
+})
+
+describe('createWebhookEndpointHandler', () => {
+  beforeEach(() => {
+    actor.userId = OWNER
+  })
+
+  it('reveals the new signing secret once in the server-function result', async () => {
+    const created = await createWebhookEndpointHandler({
+      workspaceSlug: 'starter-lab',
+      url: 'https://hooks.example.com/created',
+      events: ['api_token.created']
+    })
+    expect(created.signingSecret).toMatch(/^whsec_[A-Za-z0-9+/]{43}=$/)
+    // The server-function result is serialized to the browser as JSON.
+    expect(JSON.stringify(created).split(created.signingSecret)).toHaveLength(2)
   })
 })
 

@@ -24,7 +24,7 @@ import { organization } from 'better-auth/plugins/organization'
 import { twoFactor } from 'better-auth/plugins/two-factor'
 import { username } from 'better-auth/plugins/username'
 import { tanstackStartCookies } from 'better-auth/tanstack-start'
-import { Effect } from 'effect'
+import { Effect, Redacted } from 'effect'
 import { isLocale } from '@b2b-saas-starter/i18n/locale'
 import {
   plugins,
@@ -211,6 +211,33 @@ function socialLinkValidation(
 
 // oxlint-enable effect/noAsyncFunction
 
+type PlainSocialProviderCredentials = {
+  readonly clientId: string
+  readonly clientSecret: string
+}
+
+function plainSocialProvider(
+  credentials: AuthConfigInterface['socialProviders']['github']
+): PlainSocialProviderCredentials | undefined {
+  if (credentials === undefined) {
+    return undefined
+  }
+  return {
+    clientId: credentials.clientId,
+    clientSecret: Redacted.value(credentials.clientSecret)
+  }
+}
+
+/** Better Auth's `socialProviders`: the one place the client secrets are unwrapped. */
+function betterAuthSocialProviders(providers: AuthConfigInterface['socialProviders']) {
+  const github = plainSocialProvider(providers.github)
+  const google = plainSocialProvider(providers.google)
+  return {
+    ...(github !== undefined && { github }),
+    ...(google !== undefined && { google })
+  }
+}
+
 /**
  * Kept as a plain function returning a single (non-union) object type: the
  * plugins array is the literal that effectful-better-auth's inference reads,
@@ -223,11 +250,12 @@ export function makeAuthOptions(options: AuthConfigInterface) {
   const assurance = makeAssuranceHooks(options)
   const assistantResources = assistantOAuthResources(options.mcp.assistantResource)
   return {
-    secret: options.secret,
+    // The one place the auth secret is unwrapped: Better Auth's own options.
+    secret: Redacted.value(options.secret),
     baseURL: options.baseURL,
     trustedOrigins: [...options.trustedOrigins],
     // An empty object registers no providers, preserving provider-light local auth.
-    socialProviders: options.socialProviders,
+    socialProviders: betterAuthSocialProviders(options.socialProviders),
     // Encrypt provider access/refresh tokens so a read of `account` cannot
     // grant access to the linked provider account.
     account: {

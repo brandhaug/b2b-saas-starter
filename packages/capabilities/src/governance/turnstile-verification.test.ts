@@ -1,4 +1,4 @@
-import { Effect, Fiber, Logger } from 'effect'
+import { Effect, Fiber, Logger, Redacted } from 'effect'
 import { TestClock } from 'effect/testing'
 import { describe, expect, it } from '@effect/vitest'
 import { withRequestScope } from '@b2b-saas-starter/logger'
@@ -41,7 +41,10 @@ function verdict(body: unknown, status = 200) {
 /** Runs verify while advancing the TestClock past every retry and deadline. */
 function verifyWithClock(transport: SiteverifyTransport, token = 'tok') {
   return Effect.gen(function* () {
-    const verifier = makeTurnstileVerifier({ secretKey: 'secret', transport })
+    const verifier = makeTurnstileVerifier({
+      secretKey: Redacted.make('secret'),
+      transport
+    })
     const fiber = yield* Effect.forkChild(verifier.verify({ token }))
     yield* TestClock.adjust('1 minute')
     return yield* Fiber.join(fiber)
@@ -57,7 +60,10 @@ function verifyCapturingEvent(transport: SiteverifyTransport) {
     })
   ])
   return Effect.gen(function* () {
-    const verifier = makeTurnstileVerifier({ secretKey: 'secret', transport })
+    const verifier = makeTurnstileVerifier({
+      secretKey: Redacted.make('secret'),
+      transport
+    })
     const fiber = yield* Effect.forkChild(
       withRequestScope(
         { service: 'web', event: 'auth.sign_up' },
@@ -82,7 +88,7 @@ describe('turnstile verification', () => {
 
   it.effect('is inactive with an empty secret key', () =>
     Effect.gen(function* () {
-      const verifier = makeTurnstileVerifier({ secretKey: '' })
+      const verifier = makeTurnstileVerifier({ secretKey: Redacted.make('') })
       expect(verifier.enabled).toBe(false)
       expect(yield* verifier.verify({ token: 'x' })).toEqual({
         outcome: 'inactive'
@@ -94,7 +100,7 @@ describe('turnstile verification', () => {
     Effect.gen(function* () {
       const seen: Array<SiteverifyRequest> = []
       const verifier = makeTurnstileVerifier({
-        secretKey: 'secret',
+        secretKey: Redacted.make('secret'),
         transport: scriptedTransport(seen, [verdict({ success: true })])
       })
       expect(verifier.enabled).toBe(true)
@@ -110,15 +116,21 @@ describe('turnstile verification', () => {
     Effect.gen(function* () {
       const seen: Array<SiteverifyRequest> = []
       const verifier = makeTurnstileVerifier({
-        secretKey: 'secret',
+        secretKey: Redacted.make('turnstile-plaintext'),
         transport: scriptedTransport(seen, [verdict({ success: true })])
       })
       expect(yield* verifier.verify({ token: 'tok', remoteIp: '203.0.113.9' })).toEqual(
         { outcome: 'verified' }
       )
+      // The request crosses the transport port; only the POST body unwraps it.
+      // oxlint-disable-next-line effect/noGlobals -- the assertion is what JSON serialization (logs, spans, causes) exposes
+      expect(JSON.stringify(seen)).not.toContain('turnstile-plaintext')
+      expect(seen.map((request) => Redacted.value(request.secret))).toEqual([
+        'turnstile-plaintext'
+      ])
       expect(seen).toEqual([
         {
-          secret: 'secret',
+          secret: expect.anything(),
           response: 'tok',
           remoteip: '203.0.113.9',
           idempotency_key: expect.stringMatching(

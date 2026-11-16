@@ -1,6 +1,6 @@
 import { provisionTestD1, type TestD1 } from '@b2b-saas-starter/db/testing'
 import { drizzle } from 'drizzle-orm/d1'
-import { Effect, Layer } from 'effect'
+import { Effect, Layer, Redacted } from 'effect'
 import {
   cookieHeader as cookieHeaderOf,
   cookiePairs,
@@ -80,7 +80,7 @@ export function buildAuthLayer(
     Layer.provide(
       Layer.sync(AuthConfig)(() => ({
         db,
-        secret: 'test-secret-at-least-32-characters-long',
+        secret: Redacted.make('test-secret-at-least-32-characters-long'),
         baseURL: 'http://localhost:3071',
         trustedOrigins: [],
         // No-op callbacks (Better Auth's own Promise<void> signatures — no

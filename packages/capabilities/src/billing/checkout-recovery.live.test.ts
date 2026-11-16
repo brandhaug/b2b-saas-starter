@@ -4,7 +4,7 @@ import {
   workspaceSubscriptions
 } from '@b2b-saas-starter/db/schema/billing'
 import { Database } from '@b2b-saas-starter/db/service'
-import { DateTime, Effect } from 'effect'
+import { DateTime, Effect, Redacted } from 'effect'
 import { eq } from 'drizzle-orm'
 import { expect, layer } from '@effect/vitest'
 
@@ -23,7 +23,10 @@ import {
 } from '../testing/live-harness.ts'
 
 const bindings = {
-  billing: { secretKey: 'sk_test_checkout', priceIds: { team: 'price_team' } }
+  billing: {
+    secretKey: Redacted.make('sk_test_checkout'),
+    priceIds: { team: 'price_team' }
+  }
 }
 
 const actor = { userId: 'usr_owner' }

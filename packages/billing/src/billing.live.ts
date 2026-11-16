@@ -258,7 +258,7 @@ export function LiveBilling(
         ) {
           const ctx = yield* WorkspaceContext
           const secretKey = options.secretKey
-          if (secretKey === undefined || secretKey.length === 0) {
+          if (secretKey === undefined) {
             return yield* Effect.fail(providerNotConfigured())
           }
           const plan = planById(input.planId)
@@ -317,7 +317,7 @@ export function LiveBilling(
         }) {
           const ctx = yield* WorkspaceContext
           const secretKey = options.secretKey
-          if (secretKey === undefined || secretKey.length === 0) {
+          if (secretKey === undefined) {
             return yield* Effect.fail(providerNotConfigured())
           }
           return yield* portal({

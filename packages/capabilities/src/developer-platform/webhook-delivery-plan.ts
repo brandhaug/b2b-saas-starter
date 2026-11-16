@@ -4,7 +4,7 @@ import {
   deliveryStatuses,
   type DeliveryStatus
 } from '@b2b-saas-starter/db/enums'
-import { DateTime, Duration, Option, Schema } from 'effect'
+import { DateTime, Duration, Option, Redacted, Schema } from 'effect'
 
 import { type AuditEventType } from '../governance/audit-event-taxonomy.ts'
 import {
@@ -352,11 +352,36 @@ export function planSecretRotation(now: DateTime.Utc): string {
   return DateTime.formatIso(DateTime.addDuration(now, SECRET_ROTATION_GRACE))
 }
 
-/** The stored rotation columns, as `getDispatchTarget` reads them back. */
-type SigningSecretRotation = {
+/** The stored rotation columns, as a D1 row or Seed record holds them. */
+type StoredSigningSecretRotation = {
   readonly signingSecret: string
   readonly previousSigningSecret?: string | null
   readonly previousSecretExpiresAt?: string | null
+}
+
+/** The rotation state with its secrets `Redacted`, as dispatch carries it. */
+type SigningSecretRotation = {
+  readonly signingSecret: Redacted.Redacted<string>
+  readonly previousSigningSecret?: Redacted.Redacted<string> | undefined
+  readonly previousSecretExpiresAt?: string | null
+}
+
+/**
+ * The read boundary for signing secrets: both dispatch adapters call this on
+ * the row they just read, so the secrets are `Redacted` from storage onward.
+ * An empty previous secret is no previous secret.
+ */
+export function readSigningSecretRotation(
+  stored: StoredSigningSecretRotation
+): SigningSecretRotation {
+  const previous = stored.previousSigningSecret
+  return {
+    signingSecret: Redacted.make(stored.signingSecret),
+    previousSecretExpiresAt: stored.previousSecretExpiresAt ?? null,
+    ...(previous !== undefined &&
+      previous !== null &&
+      previous.length > 0 && { previousSigningSecret: Redacted.make(previous) })
+  }
 }
 
 /**
@@ -369,16 +394,10 @@ type SigningSecretRotation = {
 export function activeSigningSecrets(
   rotation: SigningSecretRotation,
   now: DateTime.Utc
-): ReadonlyArray<string> {
+): ReadonlyArray<Redacted.Redacted<string>> {
   const previous = rotation.previousSigningSecret
   const expiresAt = rotation.previousSecretExpiresAt
-  if (
-    previous === undefined ||
-    previous === null ||
-    previous.length === 0 ||
-    expiresAt === undefined ||
-    expiresAt === null
-  ) {
+  if (previous === undefined || expiresAt === undefined || expiresAt === null) {
     return [rotation.signingSecret]
   }
   const parsed = DateTime.make(expiresAt)
