@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./delivery-transitions": "./src/delivery-transitions.ts",
     "./email-delivery": "./src/email-delivery.ts",
     "./email-delivery.live": "./src/email-delivery.live.ts",
     "./email-delivery.seed": "./src/email-delivery.seed.ts",

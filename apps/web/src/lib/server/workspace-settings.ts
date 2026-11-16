@@ -1,9 +1,9 @@
 import { type SsoConnection } from '@b2b-saas-starter/capabilities/governance/workspace-sso-connections'
-import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
 
 import { type WorkspaceExportsSegment } from './workspace-exports'
+import { type WorkspacePagePayload } from '@/lib/workspace-frame'
 
 /**
  * The workspace settings payload, assembled per actor.
@@ -19,16 +19,14 @@ import { type WorkspaceExportsSegment } from './workspace-exports'
  * management surface — so its segment rides here, soft-gated like every
  * second-permission segment. The DTO the capability returns is secret-free.
  *
- * `viewer` carries the actor's workspace role to the client, where the same
+ * The frame's `viewer` carries the actor's workspace role to the client, where the same
  * pure `authorize()` decides whether a control renders. The server enforcing
  * the mutation permissions is the boundary; the client check is what stops a
  * member being shown a form that would only fail on submit.
  */
-export type WorkspaceSettingsPayload = {
-  readonly viewer: WorkspaceViewer | null
+export type WorkspaceSettingsPayload = WorkspacePagePayload<{
   /** The workspace itself; every member may read its own name. */
   readonly workspaceName: string
-  readonly unreadCount: number
   /** `null` for an actor without `sso:list`: the read never ran. */
   readonly ssoConnections: ReadonlyArray<SsoConnection> | null
   /**
@@ -38,7 +36,7 @@ export type WorkspaceSettingsPayload = {
    * unconfigured bucket instead of offering a button that fails.
    */
   readonly exports: WorkspaceExportsSegment | null
-}
+}>
 
 const WorkspaceSettingsInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString

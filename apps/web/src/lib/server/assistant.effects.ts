@@ -14,7 +14,7 @@ import { env as cloudflareEnv } from 'cloudflare:workers'
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission, whenPermitted } from './authorize'
-import { unreadCount, workspacePage } from './page-frame'
+import { workspacePage } from './page-frame'
 import {
   type AssistantAnswered,
   type AssistantPageInput,
@@ -60,11 +60,8 @@ const assistantPagePayload = workspacePage({ assistant: ['read'] }, () =>
         return { tasks: recentTasks, deliveries: deliveries.flat() }
       })
     )
-    const segments = yield* Effect.all(
-      { unreadCount, investigations: investigationsSegment },
-      { concurrency: 'unbounded' }
-    )
-    return { configured: isAssistantConfigured(cloudflareEnv), ...segments }
+    const investigations = yield* investigationsSegment
+    return { configured: isAssistantConfigured(cloudflareEnv), investigations }
   })
 )
 

@@ -102,12 +102,7 @@ export function WorkspaceBillingPage({
     }
   }, [router, routeId, stripeConfigured, synchronization.status])
   return (
-    <WorkspaceShell
-      workspaceSlug={workspaceSlug}
-      systemRole={systemRole}
-      unreadCount={data.unreadCount}
-      viewer={data.viewer}
-    >
+    <WorkspaceShell workspaceSlug={workspaceSlug} systemRole={systemRole} frame={data}>
       <PageHeader
         breadcrumb={<WorkspaceCrumb workspaceSlug={workspaceSlug} />}
         title={m.nav_billing()}

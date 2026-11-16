@@ -1,5 +1,12 @@
 import { m } from '@b2b-saas-starter/i18n/messages'
-import { type AuditView } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
+import {
+  AuditView,
+  AuditViewField,
+  AuditViewFilter,
+  AuditViewSort,
+  defaultAuditView
+} from '@b2b-saas-starter/capabilities/governance/audit-event-view'
+import { Option, Schema } from 'effect'
 import { type WorkspaceAuditPayload } from '@/lib/server/workspace-audit'
 import { parseTableView, type TableViewField } from '@/lib/table-view'
 
@@ -51,52 +58,37 @@ export function compact(search: {
   return next
 }
 
+/** Every audit view field, labelled; the schema owns which fields exist. */
+const auditFields = {
+  eventType: () => ({ id: 'eventType', label: m.event_label(), kind: 'text' }),
+  actorUserId: () => ({ id: 'actorUserId', label: m.actor_label(), kind: 'text' }),
+  actorType: () => ({ id: 'actorType', label: m.actor_type_label(), kind: 'text' }),
+  createdAt: () => ({ id: 'createdAt', label: m.when_label(), kind: 'date' })
+} satisfies { [K in AuditViewField]: () => TableViewField & { readonly id: K } }
+
 export function auditViewFields(): ReadonlyArray<TableViewField> {
-  return [
-    { id: 'eventType', label: m.event_label(), kind: 'text' },
-    { id: 'actorUserId', label: m.actor_label(), kind: 'text' },
-    { id: 'actorType', label: m.actor_type_label(), kind: 'text' },
-    { id: 'createdAt', label: m.when_label(), kind: 'date' }
-  ]
+  return AuditViewField.literals.map((id) => auditFields[id]())
 }
 
+const decodeFilter = Schema.decodeUnknownOption(AuditViewFilter)
+const decodeSort = Schema.decodeUnknownOption(AuditViewSort)
+const decodeView = Schema.decodeUnknownOption(AuditView)
+
+/** The URL's table view, narrowed to what the audit view schema accepts. */
 export function auditViewFromSearch(serialized: string | undefined): AuditView {
   const parsed = parseTableView(serialized, auditViewFields())
-  const filters: Array<AuditView['filters'][number]> = []
-  for (const filter of parsed.filters.slice(0, 12)) {
-    const { field, operator, value } = filter
-    if (field === 'createdAt') {
-      if (
-        operator !== 'contains' &&
-        operator !== 'notContains' &&
-        value.length <= 128
-      ) {
-        filters.push({ field, operator, value })
-      }
-    } else if (
-      field === 'eventType' ||
-      field === 'actorUserId' ||
-      field === 'actorType'
-    ) {
-      filters.push({ field, operator, value })
-    }
-  }
-  const sorts: Array<AuditView['sorts'][number]> = []
-  for (const sort of parsed.sorts.slice(0, 4)) {
-    const { field, direction } = sort
-    if (
-      field === 'eventType' ||
-      field === 'actorUserId' ||
-      field === 'actorType' ||
-      field === 'createdAt'
-    ) {
-      sorts.push({ field, direction })
-    }
-  }
-  if (sorts.length === 0) {
-    sorts.push({ field: 'createdAt', direction: 'desc' })
-  }
-  return { match: parsed.match, filters, sorts }
+  const filters = parsed.filters.flatMap((filter) =>
+    Option.toArray(decodeFilter(filter))
+  )
+  const sorts = parsed.sorts.flatMap((sort) => Option.toArray(decodeSort(sort)))
+  return Option.getOrElse(
+    decodeView({
+      match: parsed.match,
+      filters,
+      sorts: sorts.length > 0 ? sorts : defaultAuditView.sorts
+    }),
+    () => defaultAuditView
+  )
 }
 
 /**

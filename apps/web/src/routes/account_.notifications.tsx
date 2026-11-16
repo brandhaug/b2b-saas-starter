@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/page/page-header'
 import { Panel } from '@/components/page/panel'
 import { pageTitle } from '@/components/page/page-title'
 import { WorkspaceShell } from '@/components/workspace-shell'
+import { noWorkspaceFrame } from '@/lib/workspace-frame'
 import { requireSession } from '@/lib/server/auth'
 import { getTurnstileSiteKey } from '@/lib/server/turnstile'
 import {
@@ -66,7 +67,11 @@ function AccountNotificationsRoute() {
   }
   const highlighted = preferences.find((row) => row.kind === highlightKind)
   return (
-    <WorkspaceShell viewer={null} systemRole={session.user.role} workspaceSlug={null}>
+    <WorkspaceShell
+      frame={noWorkspaceFrame}
+      systemRole={session.user.role}
+      workspaceSlug={null}
+    >
       <PageHeader
         title={m.notification_preferences()}
         description={m.notification_preferences_description()}

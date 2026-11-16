@@ -33,7 +33,7 @@ export type DemoSection =
   | 'settings'
   | 'assistant'
   | 'notifications'
-const demoSections: ReadonlyArray<DemoSection> = [
+export const demoSections: ReadonlyArray<DemoSection> = [
   'overview',
   'members',
   'billing',

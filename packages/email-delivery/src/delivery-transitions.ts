@@ -218,6 +218,19 @@ function includesStatus(
 export const deliveryClaimLeaseMs = 5 * 60_000
 
 /**
+ * The backoff before retry `attempt` (1-based): one minute doubling to an
+ * hour, then stretched by up to a fifth of itself by `jitter` (a draw in
+ * [0, 1)) so failures from one provider outage do not come back in lockstep.
+ * Jitter only lengthens the wait: the queue's retry budget must still cover
+ * the whole retry window. Both the persisted `next_attempt_at` and the
+ * notification consumer's store-failure retry read this one schedule.
+ */
+export function deliveryRetryDelayMs(attempt: number, jitter: number): number {
+  const base = Math.min(3_600_000, 60_000 * 2 ** Math.min(Math.max(attempt - 1, 0), 6))
+  return base + Math.floor(base * 0.2 * jitter)
+}
+
+/**
  * The declared retry windows: how long after creation an interrupted or
  * failed attempt may be retried. Security credentials — verification,
  * recovery, security, invitations — carry evidence that is only meaningful

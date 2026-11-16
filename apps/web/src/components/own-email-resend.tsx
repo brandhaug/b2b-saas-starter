@@ -7,7 +7,7 @@ import {
   type RequestPasswordReset,
   type SendVerificationEmail
 } from '@/components/auth/auth-client-ports'
-import { useTurnstileChallenge } from '@/components/auth/turnstile-challenge'
+import { useTurnstileToken } from '@/components/auth/turnstile-challenge'
 import { Button } from './ui/button'
 
 /**
@@ -37,19 +37,22 @@ function OwnEmailResendContent({
   readonly requestReset?: RequestPasswordReset
 }) {
   const [feedback, setFeedback] = useState<string | null>(null)
-  const challenge = useTurnstileChallenge(turnstileSiteKey)
+  const challenge = useTurnstileToken(turnstileSiteKey)
   const resend = useAuthRequest(m.email_delivery_resend_failed())
 
+  // Not the shared gated send: this panel answers both flows with one constant
+  // outcome line instead of the shared refusal copy, and spends the token on
+  // dispatch, so the second button needs its own challenge. The buttons are
+  // disabled while a send is in flight, so an early spend strands nothing.
   function run(flow: 'verification' | 'recovery'): void {
-    if (challenge.missing) {
-      setFeedback(challenge.missingMessage)
+    const spent = challenge.spend()
+    if (spent.missing) {
+      setFeedback(m.complete_bot_check())
       return
     }
+    const turnstileToken = spent.token
     void resend.run(async (request) => {
       setFeedback(null)
-      const turnstileToken = challenge.token
-      // Single-use: the second button needs its own challenge.
-      challenge.consume()
       const result = await (flow === 'verification'
         ? sendVerificationEmail({ email, callbackPath: '/account', turnstileToken })
         : requestReset({ email, turnstileToken }))

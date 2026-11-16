@@ -24,9 +24,9 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
+import { type TableFilterOperator } from '@b2b-saas-starter/capabilities/internal/table-filter'
 import {
   operatorsForTableField,
-  type TableFilterOperator,
   type TableView,
   type TableViewField
 } from '@/lib/table-view'

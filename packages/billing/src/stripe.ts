@@ -1,4 +1,4 @@
-import { Effect, Layer, Result, Schema } from 'effect'
+import { Effect, Result, Schema } from 'effect'
 import { FetchHttpClient, HttpBody, HttpClient, HttpClientRequest } from 'effect/http'
 import { Stripe } from 'stripe'
 
@@ -175,11 +175,6 @@ const executeStripeRequest = Effect.fn('Stripe.request')(
     }
   },
   Effect.scoped,
-  Effect.provide(
-    FetchHttpClient.layer.pipe(
-      Layer.provide(Layer.sync(FetchHttpClient.Fetch, () => globalThis.fetch))
-    )
-  ),
   Effect.provideService(FetchHttpClient.RequestInit, { redirect: 'manual' }),
   Effect.mapError(() => stripeUnavailable('stripe request failed')),
   Effect.timeout(PROVIDER_TIMEOUT),

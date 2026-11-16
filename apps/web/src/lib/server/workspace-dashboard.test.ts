@@ -28,6 +28,8 @@ describe('loadWorkspaceDashboardHandler', () => {
     })
     expect(payload.viewer).toEqual({ role: 'owner' })
     expect(payload.webhooks?.length).toBeGreaterThan(0)
+    // The frame's unread count, the same read every workspace page badges.
+    expect(payload.unreadCount).toBe(4)
   })
 
   it('withholds webhook delivery from a member, who holds no webhook:list', async () => {

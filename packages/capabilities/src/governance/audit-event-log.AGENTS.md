@@ -7,3 +7,4 @@ Append-only audit stream. Add event and target names to `audit-event-taxonomy.ts
 - Workspace reads trust the caller's authenticated `WorkspaceContext`. Global reads include system events and require the System Admin boundary.
 - Keep metadata off unsanitized wire projections; it may contain IPs, scopes, and personal data.
 - Cursor decode failure returns an empty page. The default page size must not truncate an explicitly requested page.
+- `AuditView` filters speak the shared table-filter vocabulary: `internal/table-filter.ts` interprets them in memory (Seed, web tables) and `internal/table-filter-query.ts` in SQL (Live). A `createdAt` day arrives as the instant range `value`..`endValue`. Change filter semantics there, never per adapter.

@@ -18,7 +18,6 @@ import { FormTextField } from '@/components/form-text-field'
 import { Button } from '@/components/ui/button'
 import { AuthCardForm, AuthNoticeCard } from '@/components/auth/auth-card-form'
 import { authClient } from '@/lib/auth-client'
-import { authErrorCopy } from '@/lib/auth-error-copy'
 import { getTurnstileSiteKey } from '@/lib/server/turnstile'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
@@ -70,28 +69,15 @@ export function ForgotPasswordPage({
     defaultValues: { email: '' },
     onSubmit: async ({ value }) =>
       linkRequest.run(async (request) => {
-        setSubmitError(null)
-        if (challenge.missing) {
-          setSubmitError(challenge.missingMessage)
-          return
-        }
-        const result = await requestReset({
-          email: value.email,
-          turnstileToken: challenge.token
-        }).finally(() => {
-          if (request.current()) {
-            challenge.consume()
-          }
+        const sent = await challenge.send(request, {
+          call: (turnstileToken) =>
+            requestReset({ email: value.email, turnstileToken }),
+          failure: m.public_auth_request_failed(),
+          report: setSubmitError
         })
-        if (!request.current()) {
-          return
+        if (sent) {
+          setState({ stage: 'link-sent' })
         }
-        // Single-use: the code button below needs its own challenge.
-        if (result.error) {
-          setSubmitError(authErrorCopy(result.error, m.public_auth_request_failed()))
-          return
-        }
-        setState({ stage: 'link-sent' })
       })
   })
 
@@ -104,27 +90,15 @@ export function ForgotPasswordPage({
       await form.validateAllFields('submit')
       return
     }
-    if (challenge.missing) {
-      setSubmitError(challenge.missingMessage)
-      return
-    }
     await codeRequest.run(async (request) => {
-      const result = await requestResetCode({
-        email: address,
-        turnstileToken: challenge.token
-      }).finally(() => {
-        if (request.current()) {
-          challenge.consume()
-        }
+      const sent = await challenge.send(request, {
+        call: (turnstileToken) => requestResetCode({ email: address, turnstileToken }),
+        failure: m.public_auth_send_code_failed(),
+        report: setSubmitError
       })
-      if (!request.current()) {
-        return
+      if (sent) {
+        setState({ stage: 'code', email: address })
       }
-      if (result.error) {
-        setSubmitError(authErrorCopy(result.error, m.public_auth_send_code_failed()))
-        return
-      }
-      setState({ stage: 'code', email: address })
     })
   }
 

@@ -193,4 +193,28 @@ describe('ForgotPasswordPage', () => {
     expect(await screen.findByLabelText('Email')).toBeDefined()
     expect(screen.getByRole('button', { name: 'Send reset link' })).toBeDefined()
   })
+
+  describe('with Turnstile configured', () => {
+    // The widget's script cannot load under jsdom, so no token ever arrives:
+    // both gated sends must refuse before reaching their endpoint.
+    it('refuses the link and the code send while the challenge is unanswered', async () => {
+      await renderWithRouter(
+        <ForgotPasswordPage requestReset={requestReset} turnstileSiteKey="site-key" />,
+        { path: '/forgot-password', destinations: ['/sign-in'] }
+      )
+      fireEvent.change(await screen.findByLabelText('Email'), {
+        target: { value: 'demo@starter.local' }
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Send reset link' }))
+      const alert = await screen.findByRole('alert')
+      expect(alert.textContent).toContain('bot check')
+      fireEvent.click(screen.getByRole('button', { name: m.email_code_instead() }))
+      await waitFor(() =>
+        expect(screen.getByRole('alert').textContent).toContain('bot check')
+      )
+      expect(requestReset).not.toHaveBeenCalled()
+      expect(requestCode).not.toHaveBeenCalled()
+      expect(screen.getByLabelText('Email')).toBeDefined()
+    })
+  })
 })

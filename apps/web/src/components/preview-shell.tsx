@@ -1,13 +1,7 @@
-import { cn } from '@/lib/utils'
-import { type ReactNode, useState } from 'react'
+import { type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import { BellIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { MobileNavSheet } from '@/components/mobile-nav-sheet'
-import { WorkspaceNav } from '@/components/workspace-nav'
-import { CommandPaletteProvider, SearchButton } from '@/components/command-palette'
-import { LanguageSwitcher } from '@/components/language-switcher'
+import { WorkspaceChrome } from '@/components/workspace-chrome'
 import { DEMO_WORKSPACE_SLUG } from '@/lib/demo-workspace'
 import { seedWorkspaceRecord } from '@b2b-saas-starter/capabilities/governance/workspace-identity.seed'
 import { m } from '@b2b-saas-starter/i18n/messages'
@@ -18,6 +12,12 @@ import { type WorkspaceViewer } from '@/lib/permissions'
 const workspace = { slug: DEMO_WORKSPACE_SLUG, name: seedWorkspaceRecord.name }
 const viewer = { role: 'owner' } satisfies WorkspaceViewer
 
+/**
+ * The `/demo` shell: the shared chrome with a fixed synthetic owner, links that
+ * stay inside `/demo`, and the preview notice. Deliberately no session, account
+ * menu, impersonation banner, support footer or workspace memory — nothing here
+ * reads or acts on a signed-in identity.
+ */
 export function PreviewShell({
   children,
   layout = 'standard',
@@ -25,86 +25,38 @@ export function PreviewShell({
 }: {
   readonly layout?: 'standard' | 'wide' | undefined
   readonly children: ReactNode
-  readonly unreadCount?: number | undefined
+  readonly unreadCount: number | null
 }) {
-  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   return (
-    <CommandPaletteProvider viewer={viewer}>
-      <div className="grid min-h-dvh bg-background lg:grid-cols-[16rem_1fr]">
-        <a
-          href="#main-content"
-          className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-primary px-3 py-2 text-sm focus:text-primary-foreground"
-        >
-          {m.common_skip_to_content()}
-        </a>
-        <aside className="sticky top-0 hidden h-dvh overflow-y-auto border-r border-sidebar-border bg-sidebar text-sidebar-foreground p-4 lg:block">
-          <WorkspaceNav workspace={workspace} viewer={viewer} />
-        </aside>
-        <div className="min-w-0">
-          <header className="flex min-h-16 items-center gap-4 border-b border-border px-4 sm:px-6">
-            <MobileNavSheet
-              open={mobileNavOpen}
-              onOpenChange={setMobileNavOpen}
-              workspace={workspace}
-              viewer={viewer}
-            />
-            <Link
-              to="/demo"
-              className="min-w-0 flex-1 truncate text-sm text-muted-foreground hover:text-foreground hover:underline underline-offset-4 lg:invisible"
-            >
-              {workspace.name}
-            </Link>
-            <div className="hidden shrink-0 md:block">
-              <LanguageSwitcher />
-            </div>
-            <div className="hidden shrink-0 md:block">
-              <SearchButton />
-            </div>
-            {unreadCount === undefined ? null : (
-              <Badge
-                variant="neutral"
-                typography="numeric"
-                size="touch"
-                render={
-                  <Link
-                    to="/demo/$section"
-                    params={{ section: 'notifications' }}
-                    aria-label={m.unread_notifications({ count: unreadCount })}
-                  />
-                }
-              >
-                <BellIcon className="size-3" />
-                {unreadCount}
-              </Badge>
-            )}
-          </header>
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-card/40 px-4 py-2 text-muted-foreground sm:px-8">
-            <p className="text-sm">{m.demo_preview_notice()}</p>
-            <Button
-              nativeButton={false}
-              variant="outline"
-              size="xs"
-              render={<Link to="/sign-in" />}
-            >
-              {m.demo_try_sign_in()}
-            </Button>
-          </div>
-          <main
-            id="main-content"
-            tabIndex={-1}
-            className="px-4 py-8 sm:px-8 outline-none"
+    <WorkspaceChrome
+      layout={layout}
+      workspace={workspace}
+      viewer={viewer}
+      systemRole={null}
+      home={<Link to="/demo">{workspace.name}</Link>}
+      notifications={
+        unreadCount === null
+          ? null
+          : {
+              count: unreadCount,
+              link: <Link to="/demo/$section" params={{ section: 'notifications' }} />
+            }
+      }
+      notice={
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-card/40 px-4 py-2 text-muted-foreground sm:px-8">
+          <p className="text-sm">{m.demo_preview_notice()}</p>
+          <Button
+            nativeButton={false}
+            variant="outline"
+            size="xs"
+            render={<Link to="/sign-in" />}
           >
-            <div
-              className={cn(
-                'mx-auto grid w-full gap-8',
-                layout === 'wide' ? 'max-w-7xl' : 'max-w-4xl'
-              )}
-            >
-              {children}
-            </div>
-          </main>
+            {m.demo_try_sign_in()}
+          </Button>
         </div>
-      </div>
-    </CommandPaletteProvider>
+      }
+    >
+      {children}
+    </WorkspaceChrome>
   )
 }

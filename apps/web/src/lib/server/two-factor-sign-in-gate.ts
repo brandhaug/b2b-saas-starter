@@ -10,6 +10,7 @@ import { withWebRequestScope } from '../observability'
 import { type AuthExchange } from './auth-audit/exchanges'
 import { authRefusal } from './auth-refusal'
 import { readSessionForCookie } from './auth-session-read'
+import { responseSessionCookies } from './response-session-cookie'
 
 /**
  * The two-factor gate for mailbox-only sign-ins and email-verification
@@ -95,27 +96,6 @@ export function isSessionMintingSuccess(
     return response.status >= 200 && response.status < 400
   }
   return false
-}
-
-/**
- * The session-token cookie(s) the response set, as a `cookie` header value —
- * the credential the gate must read and then revoke. Better Auth names it
- * `better-auth.session_token` (`__Secure-`-prefixed behind HTTPS); matching
- * the `session_token` fragment rather than the full name keeps both
- * spellings one rule, same as the SSO sign-in audit's cookie reader.
- */
-export function responseSessionCookies(response: Response): string | null {
-  const pairs: Array<string> = []
-  for (const cookie of response.headers.getSetCookie()) {
-    const pair = cookie.split(';')[0]
-    if (cookie.includes('session_token') && pair !== undefined) {
-      pairs.push(pair)
-    }
-  }
-  if (pairs.length === 0) {
-    return null
-  }
-  return pairs.join('; ')
 }
 
 /**

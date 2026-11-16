@@ -193,8 +193,7 @@ export function WorkspaceAuditPage({
       layout="wide"
       workspaceSlug={workspaceSlug}
       systemRole={systemRole}
-      viewer={data.viewer}
-      unreadCount={data.unreadCount}
+      frame={data}
     >
       <PageHeader
         breadcrumb={<WorkspaceCrumb workspaceSlug={workspaceSlug} />}

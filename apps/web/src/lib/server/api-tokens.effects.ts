@@ -11,7 +11,7 @@ import { Effect } from 'effect'
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
-import { unreadCount, workspacePage, type WorkspacePageFrame } from './page-frame'
+import { workspacePage, type WorkspacePageFrame } from './page-frame'
 import {
   type CreateApiTokenInput,
   type LoadApiTokensInput,
@@ -27,12 +27,9 @@ import { makeSecurityEvidenceSink } from './security-evidence-sink'
 const apiTokensPayload: WorkspacePageFrame<WorkspaceApiTokensPayload> = workspacePage(
   { apiToken: ['list'] },
   () =>
-    Effect.all(
-      {
-        unreadCount,
-        tokens: Effect.flatMap(ApiTokenRegistry, (registry) => registry.list)
-      },
-      { concurrency: 'unbounded' }
+    Effect.map(
+      Effect.flatMap(ApiTokenRegistry, (registry) => registry.list),
+      (tokens) => ({ tokens })
     )
 )
 

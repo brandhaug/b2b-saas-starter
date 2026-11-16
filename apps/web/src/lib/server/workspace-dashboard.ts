@@ -3,15 +3,15 @@ import { type WebhookEndpoint } from '@b2b-saas-starter/capabilities/developer-p
 import { type AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { type Invitation } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import {
-  type WorkspaceDashboardProjection,
+  type WorkspaceOverviewProjection,
   type WorkspaceProgressProjection
 } from '@b2b-saas-starter/capabilities/workspace-projections'
-import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
+import { type WorkspacePagePayload } from '@/lib/workspace-frame'
 
 /**
- * The dashboard payload, assembled per actor: the `workspaceDashboard`
+ * The dashboard payload, assembled per actor: the `workspaceOverview`
  * projection (everything `notification:read` covers) plus the soft segments
  * the attention feed reads, each `null` for an actor without its permission,
  * plus the onboarding checklist, whose API-token and webhook steps are absent
@@ -21,15 +21,16 @@ import { Schema } from 'effect'
  * payload is declared in the app rather than in
  * `@b2b-saas-starter/capabilities`.
  */
-export type WorkspaceDashboardPayload = WorkspaceDashboardProjection & {
-  readonly viewer: WorkspaceViewer | null
-  readonly webhooks: ReadonlyArray<WebhookEndpoint> | null
-  readonly apiTokens: ReadonlyArray<ApiToken> | null
-  readonly invitations: ReadonlyArray<Invitation> | null
-  /** The newest audit events, for the dashboard's trailing activity card. */
-  readonly auditEvents: ReadonlyArray<AuditEvent> | null
-  readonly progress: WorkspaceProgressProjection
-}
+export type WorkspaceDashboardPayload = WorkspacePagePayload<
+  WorkspaceOverviewProjection & {
+    readonly webhooks: ReadonlyArray<WebhookEndpoint> | null
+    readonly apiTokens: ReadonlyArray<ApiToken> | null
+    readonly invitations: ReadonlyArray<Invitation> | null
+    /** The newest audit events, for the dashboard's trailing activity card. */
+    readonly auditEvents: ReadonlyArray<AuditEvent> | null
+    readonly progress: WorkspaceProgressProjection
+  }
+>
 
 const WorkspaceDashboardInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString

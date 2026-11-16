@@ -8,6 +8,7 @@ import {
   type ConversationInputRejected,
   prepareConversationContext
 } from './conversation-context.ts'
+import { PlatformHttpClientLive } from '@b2b-saas-starter/failure/http-client'
 import { makeOpenAIModel } from './openai.ts'
 import { makeWorkersAIModel } from './workers-ai.ts'
 import { MockAssistantModel } from './mock.ts'
@@ -350,7 +351,11 @@ export function selectConversationModelLayer(
     )
   }
   return conversationLayer(limits).pipe(
-    Layer.provide(makeOpenAIModel({ ...choice.config, maxOutputTokens }))
+    Layer.provide(
+      makeOpenAIModel({ ...choice.config, maxOutputTokens }).pipe(
+        Layer.provide(PlatformHttpClientLive)
+      )
+    )
   )
 }
 

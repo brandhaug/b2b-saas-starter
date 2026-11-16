@@ -1,5 +1,11 @@
 import { Option, Result, Schema } from 'effect'
 import { Base64 } from 'effect/encoding'
+import {
+  asciiFold,
+  isActiveTableFilter,
+  tableFieldOperators,
+  tableFilterMatches
+} from '../internal/table-filter.ts'
 
 export const AuditViewField = Schema.Literals([
   'eventType',
@@ -7,51 +13,36 @@ export const AuditViewField = Schema.Literals([
   'actorType',
   'createdAt'
 ])
-export const AuditViewOperator = Schema.Literals([
-  'contains',
-  'notContains',
-  'is',
-  'isNot',
-  'before',
-  'after',
-  'gt',
-  'lt',
-  'isEmpty',
-  'isNotEmpty'
-])
-const AuditFilter = Schema.Union([
+export type AuditViewField = typeof AuditViewField.Type
+/**
+ * One condition, in the shared table-filter vocabulary. Every field is read
+ * as text; a `createdAt` day travels as the inclusive instant range
+ * `value`..`endValue` once the web boundary has widened it.
+ */
+export const AuditViewFilter = Schema.Union([
   Schema.Struct({
     field: Schema.Literals(['eventType', 'actorUserId', 'actorType']),
-    operator: AuditViewOperator,
+    operator: Schema.Literals(tableFieldOperators.text),
     value: Schema.String.check(Schema.isMaxLength(512))
   }),
   Schema.Struct({
     field: Schema.Literal('createdAt'),
-    operator: Schema.Literals([
-      'is',
-      'isNot',
-      'before',
-      'after',
-      'gt',
-      'lt',
-      'isEmpty',
-      'isNotEmpty'
-    ]),
-    value: Schema.String.check(Schema.isMaxLength(128))
+    operator: Schema.Literals(tableFieldOperators.date),
+    value: Schema.String.check(Schema.isMaxLength(128)),
+    endValue: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(128)))
   })
 ])
+export type AuditViewFilter = typeof AuditViewFilter.Type
+export const AuditViewSort = Schema.Struct({
+  field: AuditViewField,
+  direction: Schema.Literals(['asc', 'desc'])
+})
+export type AuditViewSort = typeof AuditViewSort.Type
 export const AuditView = Schema.Struct({
   match: Schema.Literals(['all', 'any']),
-  filters: Schema.Array(AuditFilter).check(Schema.isMaxLength(12)),
-  sorts: Schema.Array(
-    Schema.Struct({
-      field: AuditViewField,
-      direction: Schema.Literals(['asc', 'desc'])
-    })
-  ).check(Schema.isMaxLength(4))
+  filters: Schema.Array(AuditViewFilter).check(Schema.isMaxLength(12)),
+  sorts: Schema.Array(AuditViewSort).check(Schema.isMaxLength(4))
 })
-export type AuditViewFilter = typeof AuditFilter.Type
-export type AuditViewSort = (typeof AuditView.Type.sorts)[number]
 export type AuditView = typeof AuditView.Type
 export const defaultAuditView: AuditView = {
   match: 'all',
@@ -111,12 +102,7 @@ export function normalizeAuditView(view: AuditView | undefined): AuditView {
   if (!view) {
     return defaultAuditView
   }
-  const filters = view.filters.filter(
-    (filter) =>
-      filter.value.trim().length > 0 ||
-      filter.operator === 'isEmpty' ||
-      filter.operator === 'isNotEmpty'
-  )
+  const filters = view.filters.filter(isActiveTableFilter)
   if (view.sorts.length === 0) {
     return { match: view.match, filters, sorts: defaultAuditView.sorts }
   }
@@ -194,49 +180,12 @@ export function auditFilterMatches(
   row: AuditViewRow,
   filter: AuditViewFilter
 ): boolean {
-  const value = auditSortValue(row, filter.field)
-  if (
-    filter.field === 'createdAt' &&
-    (filter.operator === 'is' || filter.operator === 'isNot')
-  ) {
-    const [start, end] = filter.value.split('|')
-    if (start && end) {
-      const inside = value >= start && value <= end
-      if (filter.operator === 'is') {
-        return inside
-      }
-      return !inside
-    }
-  }
-  switch (filter.operator) {
-    case 'contains': {
-      return value.includes(filter.value)
-    }
-    case 'notContains': {
-      return !value.includes(filter.value)
-    }
-    case 'is': {
-      return value === filter.value
-    }
-    case 'isNot': {
-      return value !== filter.value
-    }
-    case 'before':
-    case 'lt': {
-      return value < filter.value
-    }
-    case 'after':
-    case 'gt': {
-      return value > filter.value
-    }
-    case 'isEmpty': {
-      return value === ''
-    }
-    case 'isNotEmpty': {
-      return value !== ''
-    }
-  }
-  return false
+  return tableFilterMatches(
+    filter,
+    'text',
+    auditSortValue(row, filter.field),
+    asciiFold
+  )
 }
 export function auditRowMatchesView(row: AuditViewRow, view: AuditView): boolean {
   if (view.filters.length === 0) {

@@ -4,15 +4,13 @@ import { vi } from 'vite-plus/test'
 import { displayedBillingPlans, validatedStripePrice } from './stripe-pricing.ts'
 import { billingConfigured } from './billing-config.ts'
 import { testPrice } from './provider-test-fixtures.ts'
+import { wireHttpClient } from '@b2b-saas-starter/failure/http-client'
 
 it.effect(
   'displays the configured monthly unit price and handles zero/two/three-decimal currencies',
   () => {
     let price = { ...testPrice, unit_amount: 2750, currency: 'nok' }
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() => Promise.resolve(Response.json(price)))
-    )
+    const wire = vi.fn(() => Promise.resolve(Response.json(price)))
     return Effect.gen(function* () {
       const options = { secretKey: 'sk_test', priceIds: { team: 'price_team' } }
       expect(billingConfigured(options)).toBe(true)
@@ -41,7 +39,7 @@ it.effect(
         currency: 'ISK',
         interval: 'month'
       })
-    }).pipe(Effect.ensuring(Effect.sync(() => vi.unstubAllGlobals())))
+    }).pipe(Effect.provide(wireHttpClient(wire)))
   }
 )
 
@@ -49,10 +47,7 @@ it.effect(
   'rejects weekly, metered, tiered and transformed prices instead of displaying example pricing',
   () => {
     let price: unknown = testPrice
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() => Promise.resolve(Response.json(price)))
-    )
+    const wire = vi.fn(() => Promise.resolve(Response.json(price)))
     return Effect.gen(function* () {
       for (const unsupported of [
         { ...testPrice, recurring: { ...testPrice.recurring, interval: 'week' } },
@@ -66,14 +61,13 @@ it.effect(
           (yield* Effect.flip(validatedStripePrice('sk_test', 'price_team'))).reason
         ).toBe('unsupported_price')
       }
-    }).pipe(Effect.ensuring(Effect.sync(() => vi.unstubAllGlobals())))
+    }).pipe(Effect.provide(wireHttpClient(wire)))
   }
 )
 
 it.effect('recognizes archived subscription prices but refuses new purchases', () => {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(() => Promise.resolve(Response.json({ ...testPrice, active: false })))
+  const wire = vi.fn(() =>
+    Promise.resolve(Response.json({ ...testPrice, active: false }))
   )
   return Effect.gen(function* () {
     expect(
@@ -82,7 +76,7 @@ it.effect('recognizes archived subscription prices but refuses new purchases', (
     expect(
       yield* validatedStripePrice('sk_test', 'price_team', 'subscription')
     ).toEqual({ amount: 12, currency: 'USD', interval: 'month' })
-  }).pipe(Effect.ensuring(Effect.sync(() => vi.unstubAllGlobals())))
+  }).pipe(Effect.provide(wireHttpClient(wire)))
 })
 
 // Failure cases: wrong configured interval, unsupported recurrence, and a silently
@@ -90,18 +84,15 @@ it.effect('recognizes archived subscription prices but refuses new purchases', (
 it.effect(
   'displays the full annual currency amount and rejects interval mismatches',
   () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() =>
-        Promise.resolve(
-          Response.json({
-            ...testPrice,
-            id: 'price_annual',
-            unit_amount: 12_345,
-            currency: 'nok',
-            recurring: { ...testPrice.recurring, interval: 'year' }
-          })
-        )
+    const wire = vi.fn(() =>
+      Promise.resolve(
+        Response.json({
+          ...testPrice,
+          id: 'price_annual',
+          unit_amount: 12_345,
+          currency: 'nok',
+          recurring: { ...testPrice.recurring, interval: 'year' }
+        })
       )
     )
     return Effect.gen(function* () {
@@ -113,6 +104,6 @@ it.effect(
           validatedStripePrice('sk_test', 'price_annual', 'purchase', 'month')
         )).reason
       ).toBe('unsupported_price')
-    }).pipe(Effect.ensuring(Effect.sync(() => vi.unstubAllGlobals())))
+    }).pipe(Effect.provide(wireHttpClient(wire)))
   }
 )

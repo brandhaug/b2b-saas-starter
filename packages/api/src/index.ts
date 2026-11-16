@@ -205,7 +205,7 @@ const DeliveryParams = Schema.Struct({
  * declarations: this Effect-v4 query codec treats an undecodable optional as
  * absent, so `?limit=abc` decodes the field away and the read serves the
  * default page — while the MCP tools' Effect `PAGED_TOOL_INPUT`
- * (apps/api/src/mcp.ts) rejects a `limit` that is not a JSON number with a
+ * (apps/api/src/mcp-catalog.ts) rejects a `limit` that is not a JSON number with a
  * tool-call error. Same vocabulary, one edge case apart.
  */
 export const ListPageQuery = Schema.Struct({

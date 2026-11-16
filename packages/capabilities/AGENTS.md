@@ -56,6 +56,7 @@ Mutating capabilities that write to D1 wrap the write in `governance/audited-mut
 
 - Provider selection uses typed env bags and `select*Layer`, not Effect Config: invocation bindings select Seed/Live (`runtime.ts`) and leave unconfigured optional providers inactive.
 - Every Live D1 or queue failure surfaces as `CapabilityUnavailable` (503) via `orUnavailable` from `@b2b-saas-starter/failure/capability`, never as a defect.
+- Table-view filters (audit, global deliveries, web tables) share `internal/table-filter.ts`: one operator vocabulary and its semantics, interpreted in memory there and in SQL by `internal/table-filter-query.ts`. Seed and Live call these, never their own operator switch.
 - Paged list reads share `internal/keyset-cursor.ts` and the `Page<T>` shape (ADR 0057). Timestamped collections page newest-first on `(createdAt, id)`; untimestamped ones forward on `id`. Unpaged reads stay for the web app's own small pages.
 - Seed plugin-backed adapters read `AuditEventLog` ambiently with `Effect.serviceOption`. A harness that provides none gets no records; that is expected, not a bug.
 - `auditedMutations(deps)` requires `RawD1` at layer construction; the mutations it returns carry no requirement. Every mutation gates its audit on the nominated write's change count and resolves `false` on zero matches. The audit immediately follows that write, before other statements can overwrite `changes()`. Compound mutations nominate `transition.writeIndex` when the first write is not decisive; dependent statements carry their own predicates.

@@ -24,15 +24,14 @@ export function WorkspaceApiTokensPage({
   /** The signed-in user's Better Auth system role, for the shell's admin link. */
   readonly systemRole?: string | null
 }) {
-  const { viewer, unreadCount, tokens } = data
+  const { viewer, tokens } = data
 
   return (
     <WorkspaceShell
       layout="wide"
       workspaceSlug={workspaceSlug}
       systemRole={systemRole}
-      unreadCount={unreadCount}
-      viewer={viewer}
+      frame={data}
     >
       <PageHeader
         breadcrumb={<WorkspaceCrumb workspaceSlug={workspaceSlug} />}

@@ -1,7 +1,8 @@
 // oxlint-disable effect/noAsyncFunction, effect/noGlobals -- these fixtures exercise native Promise/fetch callers as well as Effect consumers
 import { expect, it, vi } from '@effect/vitest'
-import { Effect } from 'effect'
+import { Effect, Layer } from 'effect'
 import { FetchHttpClient, HttpClient } from 'effect/http'
+import { PlatformHttpClientLive } from '@b2b-saas-starter/failure/http-client'
 import { makeOpenAIModel } from '../src/openai.ts'
 import { askFails, assistantOn } from '../src/test-ask.ts'
 
@@ -20,9 +21,14 @@ it.effect('catches Effect fetch', () =>
 )
 
 it('catches production adapter failure', () =>
-  askFails(assistantOn(makeOpenAIModel({ apiKey: 'fake' })), (error) => {
-    expect(error.reason).toContain('Provider connection failed')
-  }))
+  askFails(
+    assistantOn(
+      makeOpenAIModel({ apiKey: 'fake' }).pipe(Layer.provide(PlatformHttpClientLive))
+    ),
+    (error) => {
+      expect(error.reason).toContain('Provider connection failed')
+    }
+  ))
 
 it('allows explicit transport stubs', async () => {
   vi.stubGlobal('fetch', () => Promise.resolve(new Response('stub')))

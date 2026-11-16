@@ -15,27 +15,20 @@ import {
 import { storeReactivityBindings } from '@tanstack/table-core/store-reactivity-bindings'
 import { presentationSettings } from './i18n'
 import { Option, Schema } from 'effect'
+import {
+  isActiveTableFilter,
+  tableFieldOperators,
+  TableFilterOperator,
+  tableFilterMatches,
+  type TableFieldKind
+} from '@b2b-saas-starter/capabilities/internal/table-filter'
 
-export const tableFilterOperators = [
-  'contains',
-  'notContains',
-  'is',
-  'isNot',
-  'before',
-  'after',
-  'gt',
-  'lt',
-  'isEmpty',
-  'isNotEmpty'
-] as const
-
-export type TableFilterOperator = (typeof tableFilterOperators)[number]
 export type TableViewMatch = 'all' | 'any'
 
 export type TableViewField = {
   readonly id: string
   readonly label: string
-  readonly kind: 'text' | 'select' | 'date' | 'number'
+  readonly kind: TableFieldKind
   readonly options?: ReadonlyArray<{ readonly value: string; readonly label: string }>
 }
 
@@ -58,7 +51,6 @@ export const defaultTableView: TableView = { match: 'all', filters: [], sorts: [
 
 const MAX_INPUT_LENGTH = 16_384
 const MAX_ITEMS = 32
-const FilterOperator = Schema.Literals(tableFilterOperators)
 const decodeEnvelope = Schema.decodeUnknownOption(
   Schema.fromJsonString(Schema.Record(Schema.String, Schema.Unknown))
 )
@@ -66,7 +58,7 @@ const decodeItems = Schema.decodeUnknownOption(Schema.Array(Schema.Unknown))
 const decodeFilter = Schema.decodeUnknownOption(
   Schema.Struct({
     field: Schema.String,
-    operator: FilterOperator,
+    operator: TableFilterOperator,
     value: Schema.String.check(Schema.isMaxLength(512))
   })
 )
@@ -175,20 +167,7 @@ export function serializeTableView(view: TableView): string | undefined {
 export function operatorsForTableField(
   field: TableViewField
 ): ReadonlyArray<TableFilterOperator> {
-  switch (field.kind) {
-    case 'date': {
-      return ['is', 'isNot', 'before', 'after', 'isEmpty', 'isNotEmpty']
-    }
-    case 'number': {
-      return ['is', 'isNot', 'gt', 'lt', 'isEmpty', 'isNotEmpty']
-    }
-    case 'select': {
-      return ['is', 'isNot', 'isEmpty', 'isNotEmpty']
-    }
-    case 'text': {
-      return ['contains', 'notContains', 'is', 'isNot', 'isEmpty', 'isNotEmpty']
-    }
-  }
+  return tableFieldOperators[field.kind]
 }
 
 function validOperatorForField(
@@ -255,16 +234,27 @@ const compareValue = sortFn_basic.sort as (
   b: string | number | undefined
 ) => number
 
+/** One case fold for quick search and filters, so the two agree on a table. */
+function localeFold(text: string): string {
+  return text.toLocaleLowerCase()
+}
+
+/** A declared field kind decides; values are inspected only for undeclared fields. */
 function comparisonKind(
   left: TableValue,
   right: TableValue,
   kind?: TableViewField['kind']
 ) {
-  if (kind === 'number' || typeof left === 'number') {
+  if (kind === 'number' || kind === 'date') {
+    return kind
+  }
+  if (kind === 'text' || kind === 'select') {
+    return 'text'
+  }
+  if (typeof left === 'number') {
     return 'number'
   }
   if (
-    kind === 'date' ||
     left instanceof Date ||
     (/^\d{4}-\d{2}-\d{2}/.test(valueAsText(left)) &&
       /^\d{4}-\d{2}-\d{2}/.test(valueAsText(right)))
@@ -287,9 +277,17 @@ function comparable(value: TableValue, kind: TableViewField['kind'], day = false
       ? calendarDay(value instanceof Date ? value : String(value))
       : new Date(valueAsText(value)).getTime()
   }
-  return valueAsText(value).toLocaleLowerCase()
+  return localeFold(valueAsText(value))
 }
 /* oxlint-enable unicorn/no-instanceof-builtins */
+
+function finiteNumber(value: TableValue): number | undefined {
+  if (value === null || value === undefined || value === '') {
+    return undefined
+  }
+  const number = Number(value)
+  return Number.isFinite(number) ? number : undefined
+}
 
 export const tableViewFeatures = tableFeatures({
   columnFilteringFeature,
@@ -308,41 +306,35 @@ export function tableViewOptions<T extends RowData>(
 ) {
   const kinds = new Map(fields.map((field) => [field.id, field.kind]))
   const activeFilters = view.filters.filter(
-    (filter) =>
-      filter.field.length > 0 &&
-      (filter.operator === 'isEmpty' ||
-        filter.operator === 'isNotEmpty' ||
-        filter.value.trim().length > 0)
+    (filter) => filter.field.length > 0 && isActiveTableFilter(filter)
   )
   function globalFilterFn<F extends TableFeatures>(row: Row<F, T>, id: string) {
-    function test({ field, operator, value }: TableView['filters'][number]) {
-      const actual = getValue(row.original, field)
-      const text = valueAsText(actual).toLocaleLowerCase()
-      if (operator === 'isEmpty' || operator === 'isNotEmpty') {
-        return (text.trim().length === 0) === (operator === 'isEmpty')
+    // The shared table-filter interpreter decides; this only maps local values
+    // onto its text or number operands. Dates compare as calendar days in the
+    // presentation zone, or as instants for a full timestamp.
+    function test(filter: TableView['filters'][number]) {
+      const actual = getValue(row.original, filter.field)
+      const kind = comparisonKind(actual, filter.value, kinds.get(filter.field))
+      if (kind === 'text') {
+        return tableFilterMatches(filter, 'text', valueAsText(actual), localeFold)
       }
-      if (actual === null || actual === undefined) {
-        return operator === 'isNot'
+      if (kind === 'number') {
+        return tableFilterMatches(filter, 'number', finiteNumber(actual), localeFold)
       }
-      if (operator === 'contains' || operator === 'notContains') {
-        return (
-          includesText(text, value.toLocaleLowerCase()) === (operator === 'contains')
+      if (/^\d{4}-\d{2}-\d{2}$/.test(filter.value)) {
+        return tableFilterMatches(
+          filter,
+          'text',
+          comparable(actual, kind, true),
+          localeFold
         )
       }
-      const kind = comparisonKind(actual, value, kinds.get(field))
-      const day = /^\d{4}-\d{2}-\d{2}$/.test(value)
-      const left = comparable(actual, kind, day)
-      const expected = comparable(value, kind, day)
-      if (left === undefined || Number.isNaN(left) || Number.isNaN(expected)) {
-        return false
-      }
-      const comparison = compareValue(left, expected)
-      if (operator === 'is' || operator === 'isNot') {
-        return (comparison === 0) === (operator === 'is')
-      }
-      return operator === 'before' || operator === 'lt'
-        ? comparison < 0
-        : comparison > 0
+      return tableFilterMatches(
+        { ...filter, value: String(comparable(filter.value, kind)) },
+        'number',
+        finiteNumber(comparable(actual, kind)),
+        localeFold
+      )
     }
     const matchesGroup =
       activeFilters.length === 0 ||
@@ -352,10 +344,7 @@ export function tableViewOptions<T extends RowData>(
       matchesGroup &&
       (!view.query ||
         ((typeof searchValue === 'string' || typeof searchValue === 'number') &&
-          includesText(
-            String(searchValue).toLocaleLowerCase(),
-            view.query.toLocaleLowerCase()
-          )))
+          includesText(localeFold(String(searchValue)), localeFold(view.query))))
     )
   }
   function sortFn<F extends TableFeatures>(a: Row<F, T>, b: Row<F, T>, id: string) {

@@ -5,6 +5,7 @@ import {
   claimableDeliveryStatuses,
   deliveryClaimLeaseMs,
   deliveryEvidenceRanks,
+  deliveryRetryDelayMs,
   deliveryRetryWindow,
   initialDeliveryStatus,
   isClaimableDelivery,
@@ -252,6 +253,27 @@ describe('recordedOutcomeStatus', () => {
 describe('deliveryClaimLeaseMs', () => {
   it('holds one attempt for five minutes', () => {
     expect(deliveryClaimLeaseMs).toBe(5 * 60_000)
+  })
+})
+
+describe('deliveryRetryDelayMs', () => {
+  it('doubles from one minute and caps the base at an hour', () => {
+    expect(
+      [1, 2, 3, 4, 5, 6, 7, 8, 50].map((attempt) => deliveryRetryDelayMs(attempt, 0))
+    ).toEqual([
+      60_000, 120_000, 240_000, 480_000, 960_000, 1_920_000, 3_600_000, 3_600_000,
+      3_600_000
+    ])
+  })
+
+  it('stretches the base by at most a fifth and never shortens it', () => {
+    expect(deliveryRetryDelayMs(1, 0.5)).toBe(66_000)
+    expect(deliveryRetryDelayMs(7, 0.9999)).toBeLessThan(3_600_000 * 1.2)
+    expect(deliveryRetryDelayMs(7, 0.9999)).toBeGreaterThan(3_600_000)
+  })
+
+  it('treats a non-positive attempt as the first', () => {
+    expect(deliveryRetryDelayMs(0, 0)).toBe(60_000)
   })
 })
 

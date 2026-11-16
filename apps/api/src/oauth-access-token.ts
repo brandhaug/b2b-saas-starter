@@ -14,7 +14,7 @@ import { type ApiEnv } from './env.ts'
  * The OAuth half of `/mcp` authentication (ADR 0068): a Bearer JWT minted by
  * the web worker's `@better-auth/mcp` authorization server, verified here as
  * the resource server. API Tokens remain the other half — see
- * `request-guards.ts`, which routes a credential to one or the other by shape.
+ * `mcp-caller.ts`, which routes a credential to one or the other by shape.
  *
  * Verification is jose's: signature against the issuer's JWKS, `iss`, `aud`
  * (this worker's `/mcp` URL), `exp`/`nbf`. What the starter itself stamped —

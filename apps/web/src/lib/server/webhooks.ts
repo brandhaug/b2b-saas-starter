@@ -9,9 +9,9 @@ import {
   type WebhookDelivery,
   type WebhookDeliveryAttempt
 } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-plan'
-import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
+import { type WorkspacePagePayload } from '@/lib/workspace-frame'
 
 const CreateWebhookInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString,
@@ -61,15 +61,13 @@ export const createWebhookEndpointServerFn = createServerFn({ method: 'POST' })
  * meeting the URL directly gets the denial, not an empty list. Deliveries are
  * fetched per endpoint so each endpoint card can show its recent attempts.
  */
-export type WorkspaceWebhooksPayload = {
-  readonly viewer: WorkspaceViewer | null
-  readonly unreadCount: number
+export type WorkspaceWebhooksPayload = WorkspacePagePayload<{
   readonly endpoints: ReadonlyArray<
     WebhookEndpoint & {
       readonly deliveries: ReadonlyArray<WebhookDelivery>
     }
   >
-}
+}>
 
 /**
  * The webhooks route's loader. `webhook:list` is the page's own read

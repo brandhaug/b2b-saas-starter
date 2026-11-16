@@ -1,36 +1,16 @@
-import { McpClientConnections } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
 import {
   WorkspaceSuspensionService,
   workspaceSuspensionOperationForPermission
 } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
 import { annotateWideEvent } from '@b2b-saas-starter/logger'
 import { requirePermission } from '@b2b-saas-starter/authz/guard'
-import {
-  memberPrincipal,
-  tokenPrincipal,
-  needsStrongAuthentication,
-  needsRecentAuthentication,
-  type Principal,
-  type PermissionRequest
-} from '@b2b-saas-starter/authz/client'
+import { tokenPrincipal, type PermissionRequest } from '@b2b-saas-starter/authz/client'
 import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { type WorkspaceSuspended } from '@b2b-saas-starter/capabilities/errors'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { selectWorkspaceContextLayer } from '@b2b-saas-starter/capabilities/runtime'
-import {
-  WorkspaceContext,
-  type ActorRef
-} from '@b2b-saas-starter/capabilities/workspace-context'
-import {
-  type MCP_READ_SCOPE,
-  type MCP_WRITE_SCOPE,
-  type McpAccessTokenPrincipal
-} from '@b2b-saas-starter/authz/mcp-access-token'
-import {
-  StrongAuthentication,
-  StrongAuthenticationRequired
-} from '@b2b-saas-starter/capabilities/governance/strong-authentication'
+import { type ActorRef } from '@b2b-saas-starter/capabilities/workspace-context'
 import {
   AUTHORIZATION_DENIED_REASONS,
   AuthorizationDenied
@@ -49,12 +29,11 @@ import {
 import { RateLimited, Unauthorized } from '@b2b-saas-starter/api/errors'
 import { clientKey } from '@b2b-saas-starter/rate-limit'
 import { starterEnv, type ApiEnv } from './env.ts'
-import { looksLikeJwt, OAuthTokenVerifier } from './oauth-access-token.ts'
 
 /**
  * The per-request enforcement helpers shared by every served surface — the
  * `StarterApi` contract groups in `handlers.ts` *and* the raw MCP protocol
- * route in `mcp.ts`. One authenticate path, one rate-limit path, one wide-event
+ * route (`mcp-credential-gate.ts`, `mcp-caller.ts`). One authenticate path, one rate-limit path, one wide-event
  * envelope: a new surface cannot grow a second, weaker gate.
  */
 
@@ -97,7 +76,7 @@ export const enforceRateLimitKey = Effect.fn('Api.enforceRateLimitKey')(function
  * those scopes cover what was asked is a separate `requirePermission` call —
  * see `enforcePermission`.
  */
-const verifyToken = Effect.fn('Api.verifyToken')(function* (
+export const verifyToken = Effect.fn('Api.verifyToken')(function* (
   token: string | null
 ): Effect.fn.Return<
   ApiPrincipalValue,
@@ -137,75 +116,6 @@ const verifyToken = Effect.fn('Api.verifyToken')(function* (
   })
 
   return verified.success
-})
-
-/**
- * Who is calling the MCP server: a workspace API Token (scripts, CI) or an
- * OAuth access token minted for a signed-in Member by the web worker (Claude,
- * Cursor, …) — ADR 0068. Both name exactly one workspace; only the OAuth caller
- * names a user, which is what lets its calls resolve a real `Actor` and
- * authorize as that Member rather than as a scope set.
- */
-export type McpCaller =
-  | { readonly kind: 'token'; readonly token: ApiPrincipalValue }
-  | { readonly kind: 'oauth'; readonly token: McpAccessTokenPrincipal }
-
-/** The actor a workspace layer should resolve for the caller: the Member behind an OAuth token, nobody behind an API Token. */
-export function mcpCallerActor(caller: McpCaller): ActorRef | undefined {
-  if (caller.kind !== 'oauth') {
-    return undefined
-  }
-  return { userId: caller.token.userId }
-}
-
-/**
- * The caller kind that same workspace layer should carry: an API Token names
- * itself; OAuth acts on behalf of the authenticated user.
- */
-export function mcpCallerActorType(caller: McpCaller): AuditActorTypeValue {
-  if (caller.kind === 'token') {
-    return 'api_token'
-  }
-  return 'user'
-}
-
-/**
- * The MCP protocol route's authentication: one `Authorization: Bearer`
- * credential, two shapes. A JWT (three segments) goes to the OAuth verifier —
- * signature against the issuer's JWKS, issuer, audience, expiry, then the
- * starter's own claims; anything else is an API Token and takes exactly the
- * path {@link verifyToken} always took. The REST groups do not call this:
- * OAuth is for interactive clients, and the contract's `BearerAuth` stays
- * token-only. Resolved again for each write, including batched tool calls.
- */
-export const verifyMcpCredential = Effect.fn('Mcp.verifyCredential')(function* (
-  bearer: string | null
-): Effect.fn.Return<
-  McpCaller,
-  Unauthorized | CapabilityUnavailable,
-  ApiTokenRegistry | OAuthTokenVerifier | Scope.Scope
-> {
-  if (bearer !== null && looksLikeJwt(bearer)) {
-    const verifier = yield* OAuthTokenVerifier
-    const verified = yield* verifier.verify(bearer).pipe(
-      Effect.tapError((failure) =>
-        annotateWideEvent({
-          outcome: 'unauthorized',
-          authReason: failure.message,
-          credential: 'oauth'
-        })
-      )
-    )
-    yield* annotateWideEvent({
-      credential: 'oauth',
-      actorUserId: verified.userId,
-      workspaceId: verified.workspaceId
-    })
-    return { kind: 'oauth', token: verified }
-  }
-  const token = yield* verifyToken(bearer)
-  yield* annotateWideEvent({ credential: 'api_token' })
-  return { kind: 'token', token }
 })
 
 /**
@@ -283,7 +193,7 @@ export function observed<A, E, R>(
  * The Worker's own `Request` behind the router's request. `toWebResult` hands
  * the source straight back when it already is one — which it is for every
  * request this worker serves, since `HttpRouter.toWebHandler` is fed the
- * platform's `Request` (the same conversion `mcp.ts` uses). That is what lets
+ * platform's `Request` (the same conversion the MCP gate uses). That is what lets
  * the envelope read `request.cf.colo` and stamp the colo onto the wide event.
  *
  * It fails only for a source with no derivable URL, which this worker never
@@ -304,8 +214,8 @@ export function webRequest(request: HttpServerRequest.HttpServerRequest): Reques
  *
  * `actorType` names what kind of caller made the request — it is what the
  * audit writes a mutating capability performs read to label their rows. The
- * REST groups are bearer-token-only, so they pass `'api_token'`; the MCP
- * route's token callers do the same while its OAuth callers pass `'user'`.
+ * REST groups are bearer-token-only, so they pass `'api_token'`; MCP callers
+ * take theirs from their caller-kind policy (`provideMcpWorkspace`).
  */
 export function provideWorkspace<A, E, R>(
   env: ApiEnv,
@@ -367,87 +277,3 @@ export function bearerAuth(): Layer.Layer<BearerAuth> {
     })
   )
 }
-
-/** Current Workspace identity, role, and consent constrain every MCP operation. */
-export const authorizeMcpOperation = Effect.fn('Mcp.authorizeOperation')(function* (
-  caller: McpCaller,
-  permission: PermissionRequest,
-  requiredScope: typeof MCP_READ_SCOPE | typeof MCP_WRITE_SCOPE
-) {
-  const ctx = yield* WorkspaceContext
-  if (ctx.workspace.id !== caller.token.workspaceId) {
-    return yield* new AuthorizationDenied({
-      reason: AUTHORIZATION_DENIED_REASONS.tokenWorkspaceMismatch
-    })
-  }
-  let principal: Principal
-  if (caller.kind === 'token') {
-    principal = tokenPrincipal(caller.token.scopes)
-  } else {
-    if (ctx.actor === null) {
-      return yield* new AuthorizationDenied({
-        reason: AUTHORIZATION_DENIED_REASONS.noPrincipal
-      })
-    }
-    if (ctx.actor.banned) {
-      return yield* new AuthorizationDenied({
-        reason: AUTHORIZATION_DENIED_REASONS.insufficientPermission
-      })
-    }
-    principal = memberPrincipal(ctx.actor.role)
-    const token = caller.token
-    if (
-      !token.scopes.includes(requiredScope) ||
-      token.clientId === undefined ||
-      token.consentBinding === undefined
-    ) {
-      return yield* new AuthorizationDenied({
-        reason: AUTHORIZATION_DENIED_REASONS.insufficientPermission
-      })
-    }
-    const connections = yield* McpClientConnections
-    const grant = yield* connections.getGrant({
-      userId: token.userId,
-      clientId: token.clientId,
-      workspaceId: token.workspaceId,
-      resource: token.resource
-    })
-    if (
-      grant?.binding !== token.consentBinding ||
-      !grant.scopes.includes(requiredScope)
-    ) {
-      return yield* new AuthorizationDenied({
-        reason: AUTHORIZATION_DENIED_REASONS.insufficientPermission
-      })
-    }
-  }
-  yield* requirePermission(principal, permission)
-  if (
-    caller.kind === 'oauth' &&
-    needsStrongAuthentication({
-      systemRole: ctx.actor?.systemRole,
-      workspaceRole: ctx.actor?.role
-    })
-  ) {
-    const sessionId = caller.token.sessionId
-    if (sessionId === undefined) {
-      return yield* new StrongAuthenticationRequired()
-    }
-    const strongAuthentication = yield* StrongAuthentication
-    yield* strongAuthentication.require({ userId: caller.token.userId, sessionId })
-  }
-  if (caller.kind === 'oauth' && needsRecentAuthentication(permission)) {
-    const sessionId = caller.token.sessionId
-    if (sessionId === undefined) {
-      return yield* new StrongAuthenticationRequired()
-    }
-    const authentication = yield* StrongAuthentication
-    yield* authentication.requireRecent({ userId: caller.token.userId, sessionId })
-  }
-  const suspension = yield* WorkspaceSuspensionService
-  yield* suspension.requireAllowed(
-    ctx.workspace.id,
-    workspaceSuspensionOperationForPermission(permission)
-  )
-  return principal
-})

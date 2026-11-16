@@ -6,6 +6,7 @@ import {
   AssistantUnavailable,
   makeOpenAIModel
 } from '../src/index.ts'
+import { wireHttpClient, type WireRequest } from '@b2b-saas-starter/failure/http-client'
 import { createIdentity, decodeBaseline, evaluate, serializeRun } from './evaluation.ts'
 import { cases } from './cases.ts'
 
@@ -90,12 +91,10 @@ it.effect(
   'runs the evaluation through production instructions and inference with an explicit wire stub',
   () => {
     const posted: Array<string> = []
-    vi.stubGlobal('fetch', (_url: string, init: { body: string }) => {
-      posted.push(init.body)
-      return Promise.resolve(
-        new Response(
-          '{"choices":[{"message":{"content":"Observed queued."},"finish_reason":"stop"}]}'
-        )
+    const wire = vi.fn((_url: string, request: WireRequest) => {
+      posted.push(request.body)
+      return new Response(
+        '{"choices":[{"message":{"content":"Observed queued."},"finish_reason":"stop"}]}'
       )
     })
     return Effect.gen(function* () {
@@ -103,7 +102,9 @@ it.effect(
         Effect.provide(
           AssistantLive.pipe(
             Layer.provide(
-              makeOpenAIModel({ apiKey: 'fake', modelId: identity.modelId })
+              makeOpenAIModel({ apiKey: 'fake', modelId: identity.modelId }).pipe(
+                Layer.provide(wireHttpClient(wire))
+              )
             )
           )
         )

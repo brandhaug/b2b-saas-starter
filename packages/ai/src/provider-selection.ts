@@ -1,7 +1,8 @@
 import { hasValue, type ProviderEnvOf } from '@b2b-saas-starter/env/server'
-import { type Layer } from 'effect'
+import { Layer } from 'effect'
 import { type LanguageModel, type Model } from 'effect/ai'
 import { MockAssistantModel } from './mock.ts'
+import { PlatformHttpClientLive } from '@b2b-saas-starter/failure/http-client'
 import { type OpenAIConfig, makeOpenAIModel } from './openai.ts'
 import { type WorkersAIBinding, makeWorkersAIModel } from './workers-ai.ts'
 
@@ -51,7 +52,7 @@ export function selectModel(
       return makeWorkersAIModel(choice.binding)
     }
     case 'openai-compatible': {
-      return makeOpenAIModel(choice.config)
+      return makeOpenAIModel(choice.config).pipe(Layer.provide(PlatformHttpClientLive))
     }
     case 'mock': {
       return MockAssistantModel

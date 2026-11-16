@@ -4,105 +4,44 @@ import {
   webhookEndpoints
 } from '@b2b-saas-starter/db/schema/developer-platform'
 import { workspaces } from '@b2b-saas-starter/db/schema/workspaces'
+import { tableFilterSql } from '../internal/table-filter-query.ts'
 import {
+  deliveryOperandKind,
   deliveryViewCursor,
   type DeliveryView,
   type DeliveryViewField,
   type DeliveryViewFilter
 } from './webhook-delivery-view.ts'
 
-function fieldSql(field: DeliveryViewField): SQL {
-  switch (field) {
-    case 'endpointUrl': {
-      return sql`${webhookEndpoints.url}`
-    }
-    case 'workspace': {
-      return sql`${workspaces.name}`
-    }
-    case 'eventType': {
-      return sql`${webhookDeliveries.eventType}`
-    }
-    case 'status': {
-      return sql`${webhookDeliveries.status}`
-    }
-    case 'attempts': {
-      return sql`printf('%020d', ${webhookDeliveries.attempts})`
-    }
-    case 'lastAttemptAt': {
-      return sql`coalesce(${webhookDeliveries.lastAttemptAt}, '')`
-    }
+/**
+ * The stored value of each field, the SQL side of `deliveryFields`
+ * (`webhook-delivery-view.ts`): filters read it raw, sorts and cursors read
+ * {@link sortSql}.
+ */
+const deliveryColumns = {
+  endpointUrl: sql`${webhookEndpoints.url}`,
+  workspace: sql`${workspaces.name}`,
+  eventType: sql`${webhookDeliveries.eventType}`,
+  status: sql`${webhookDeliveries.status}`,
+  attempts: sql`${webhookDeliveries.attempts}`,
+  lastAttemptAt: sql`${webhookDeliveries.lastAttemptAt}`
+} satisfies Record<DeliveryViewField, SQL>
+
+/** The sortable projection `deliveryViewValue` computes in memory. */
+function sortSql(field: DeliveryViewField): SQL {
+  const column = deliveryColumns[field]
+  if (deliveryOperandKind(field) === 'number') {
+    return sql`printf('%020d', ${column})`
   }
+  return sql`coalesce(${column}, '')`
 }
 
 function filterSql(filter: DeliveryViewFilter): SQL {
-  if (filter.field === 'attempts') {
-    const value = Number(filter.value)
-    if (!Number.isFinite(value)) {
-      return sql`0 = 1`
-    }
-    switch (filter.operator) {
-      case 'isEmpty': {
-        return sql`0 = 1`
-      }
-      case 'isNotEmpty': {
-        return sql`1 = 1`
-      }
-      case 'is': {
-        return sql`${webhookDeliveries.attempts} = ${value}`
-      }
-      case 'isNot': {
-        return sql`${webhookDeliveries.attempts} <> ${value}`
-      }
-      case 'gt': {
-        return sql`${webhookDeliveries.attempts} > ${value}`
-      }
-      case 'lt': {
-        return sql`${webhookDeliveries.attempts} < ${value}`
-      }
-      case 'after':
-      case 'before':
-      case 'contains':
-      case 'notContains': {
-        return sql`0 = 1`
-      }
-    }
-  }
-  const field = fieldSql(filter.field)
-  const value = filter.value
-  switch (filter.operator) {
-    case 'isEmpty': {
-      return sql`${field} = ''`
-    }
-    case 'isNotEmpty': {
-      return sql`${field} <> ''`
-    }
-    case 'is': {
-      if (filter.endValue === undefined) {
-        return sql`lower(${field}) = ${value.toLowerCase()}`
-      }
-      return sql`${field} >= ${value} and ${field} <= ${filter.endValue}`
-    }
-    case 'isNot': {
-      if (filter.endValue === undefined) {
-        return sql`lower(${field}) <> ${value.toLowerCase()}`
-      }
-      return sql`(${field} < ${value} or ${field} > ${filter.endValue})`
-    }
-    case 'contains': {
-      return sql`instr(lower(${field}), ${value.toLowerCase()}) > 0`
-    }
-    case 'notContains': {
-      return sql`instr(lower(${field}), ${value.toLowerCase()}) = 0`
-    }
-    case 'before':
-    case 'lt': {
-      return sql`${field} <> '' and ${field} < ${value}`
-    }
-    case 'after':
-    case 'gt': {
-      return sql`${field} <> '' and ${field} > ${value}`
-    }
-  }
+  return tableFilterSql(
+    filter,
+    deliveryOperandKind(filter.field),
+    deliveryColumns[filter.field]
+  )
 }
 
 /** Parameterized predicates and a lexicographic resume condition for the selected sort tuple. */
@@ -124,7 +63,7 @@ export function deliveryViewQuery(view: DeliveryView, cursor: string | undefined
     const alternatives: Array<SQL> = []
     const equal: Array<SQL> = []
     for (const [index, sort] of view.sorts.entries()) {
-      const field = fieldSql(sort.field)
+      const field = sortSql(sort.field)
       const value = position.values[index] ?? ''
       let after = sql`${field} > ${value}`
       if (sort.direction === 'desc') {
@@ -147,9 +86,9 @@ export function deliveryViewQuery(view: DeliveryView, cursor: string | undefined
   }
   const order = view.sorts.map((sort) => {
     if (sort.direction === 'asc') {
-      return sql`${fieldSql(sort.field)} asc`
+      return sql`${sortSql(sort.field)} asc`
     }
-    return sql`${fieldSql(sort.field)} desc`
+    return sql`${sortSql(sort.field)} desc`
   })
   return { conditions, order: [...order, sql`${webhookDeliveries.id} desc`] }
 }

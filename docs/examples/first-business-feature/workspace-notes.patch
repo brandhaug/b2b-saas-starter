@@ -874,7 +874,7 @@ index 00000000..d86ef19f
 +})
 diff --git a/apps/web/src/components/workspace-notes-page.tsx b/apps/web/src/components/workspace-notes-page.tsx
 new file mode 100644
-index 00000000..1cc7149c
+index 00000000..0e0a3054
 --- /dev/null
 +++ b/apps/web/src/components/workspace-notes-page.tsx
 @@ -0,0 +1,94 @@
@@ -918,7 +918,7 @@ index 00000000..1cc7149c
 +    }
 +  })
 +  return (
-+    <WorkspaceShell workspaceSlug={workspaceSlug} viewer={data.viewer}>
++    <WorkspaceShell workspaceSlug={workspaceSlug} frame={data}>
 +      <PageHeader title={m.notes_title()} description={m.notes_description()} />
 +      <Panel>
 +        <form
@@ -1013,17 +1013,17 @@ index 00000000..f9f5d0e3
 +}
 diff --git a/apps/web/src/lib/server/workspace-notes.ts b/apps/web/src/lib/server/workspace-notes.ts
 new file mode 100644
-index 00000000..32f5600b
+index 00000000..f22b5ef4
 --- /dev/null
 +++ b/apps/web/src/lib/server/workspace-notes.ts
-@@ -0,0 +1,32 @@
+@@ -0,0 +1,31 @@
 +import { createServerFn } from '@tanstack/react-start'
 +import { Schema } from 'effect'
 +import {
 +  CreateWorkspaceNote,
 +  type WorkspaceNote
 +} from '@b2b-saas-starter/capabilities/notes/workspace-notes'
-+import { type WorkspaceViewer } from '../permissions'
++import { type WorkspacePagePayload } from './workspace-frame'
 +
 +const WorkspaceNotesInput = Schema.Struct({ workspaceSlug: Schema.NonEmptyString })
 +const AddWorkspaceNoteInput = Schema.Struct({
@@ -1032,10 +1032,9 @@ index 00000000..32f5600b
 +})
 +export type WorkspaceNotesInput = typeof WorkspaceNotesInput.Type
 +export type AddWorkspaceNoteInput = typeof AddWorkspaceNoteInput.Type
-+export type WorkspaceNotesPayload = {
-+  readonly viewer: WorkspaceViewer | null
++export type WorkspaceNotesPayload = WorkspacePagePayload<{
 +  readonly notes: ReadonlyArray<WorkspaceNote>
-+}
++}>
 +
 +export const loadWorkspaceNotesServerFn = createServerFn({ method: 'GET' })
 +  .validator(Schema.decodeUnknownSync(WorkspaceNotesInput))

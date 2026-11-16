@@ -13,6 +13,7 @@ import {
 import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer } from 'effect'
+import { HttpClient } from 'effect/http'
 import { annotateWideEvent } from '@b2b-saas-starter/logger'
 import { and, count, eq, inArray, ne, isNull, isNotNull, or } from 'drizzle-orm'
 
@@ -56,15 +57,28 @@ export function LiveBilling(
 ): Layer.Layer<
   Billing,
   never,
-  Database | RawD1 | AuditEventLog | NotificationFeed | BillingWebhookPublisher
+  | Database
+  | RawD1
+  | AuditEventLog
+  | NotificationFeed
+  | BillingWebhookPublisher
+  | HttpClient.HttpClient
 > {
   return Layer.effect(Billing)(
     Effect.gen(function* () {
       const db = yield* Database
       const audit = yield* AuditEventLog
+      const provideHttp = Effect.provideService(
+        HttpClient.HttpClient,
+        yield* HttpClient.HttpClient
+      )
       const unavailable = billingStoreUnavailable
       const store = yield* makeBillingSyncStore()
-      const synchronization = yield* makeBillingSynchronization(options, store)
+      const synchronization = yield* makeBillingSynchronization(
+        options,
+        store,
+        provideHttp
+      )
       const lease = store.leases
       const checkout = makeDurableCheckout({
         db,
@@ -211,7 +225,7 @@ export function LiveBilling(
           const ctx = yield* WorkspaceContext
           return yield* lifecycleForWorkspace(ctx.workspace.id)
         })(),
-        displayedPlans: displayedBillingPlans(options),
+        displayedPlans: displayedBillingPlans(options).pipe(provideHttp),
         synchronizationStatus: Effect.fn('Billing.synchronizationStatus')(function* () {
           const ctx = yield* WorkspaceContext
           if (!billingConfigured(options)) {
@@ -298,7 +312,7 @@ export function LiveBilling(
             actorUserId: ctx.actor?.userId ?? null,
             actorType: ctx.actorType
           })
-        }),
+        }, provideHttp),
         startPortalSession: Effect.fn('Billing.startPortalSession')(function* (input: {
           readonly returnUrl: string
         }) {
@@ -314,7 +328,7 @@ export function LiveBilling(
             actorUserId: ctx.actor?.userId ?? null,
             actorType: ctx.actorType
           })
-        }),
+        }, provideHttp),
         syncSeats: Effect.fn('Billing.syncSeats')(function* (input: {
           readonly workspaceId: string
           readonly reason: string

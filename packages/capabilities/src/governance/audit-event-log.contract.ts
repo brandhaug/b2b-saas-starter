@@ -88,6 +88,11 @@ export function auditEventLogContractCases(
   >,
   expect: ContractExpect
 ): ReadonlyArray<AuditEventLogContractCase> {
+  function ids(filter: AuditView['filters'][number]) {
+    return list({ view: { match: 'all', filters: [filter], sorts: [] } }).pipe(
+      Effect.map((page) => page.items.map((event) => event.id))
+    )
+  }
   return [
     {
       name: 'gets an event independently of list filters and cursors',
@@ -259,16 +264,42 @@ export function auditEventLogContractCases(
           }
         })
         expect(draft.items).toHaveLength(3)
-        for (const value of ['%', 'CREATED']) {
-          const literal = yield* list({
-            view: {
-              match: 'all',
-              filters: [{ field: 'eventType', operator: 'contains', value }],
-              sorts: []
-            }
-          })
-          expect(literal.items).toEqual([])
-        }
+        const literal = yield* list({
+          view: {
+            match: 'all',
+            filters: [{ field: 'eventType', operator: 'contains', value: '%' }],
+            sorts: []
+          }
+        })
+        expect(literal.items).toEqual([])
+      })
+    },
+    {
+      // The table-filter semantics every table view shares
+      // (`internal/table-filter.ts`): text equality and containment fold ASCII
+      // case, negations are exact complements, and a range travels as
+      // `value`..`endValue`.
+      name: 'interprets filter operators with the shared table-filter semantics',
+      assert: Effect.gen(function* () {
+        expect(
+          yield* ids({ field: 'eventType', operator: 'contains', value: 'WEBHOOK' })
+        ).toEqual(['aud_c_tie_a'])
+        expect(
+          yield* ids({ field: 'eventType', operator: 'notContains', value: 'WEBHOOK' })
+        ).toEqual(['aud_c_tie_b', 'aud_c_old'])
+        expect(
+          yield* ids({ field: 'actorUserId', operator: 'is', value: 'USR_BOB' })
+        ).toEqual(['aud_c_tie_b'])
+        const day = {
+          field: 'createdAt',
+          value: '2026-06-02T00:00:00.000Z',
+          endValue: '2026-06-02T23:59:59.999Z'
+        } as const
+        expect(yield* ids({ ...day, operator: 'is' })).toEqual([
+          'aud_c_tie_b',
+          'aud_c_tie_a'
+        ])
+        expect(yield* ids({ ...day, operator: 'isNot' })).toEqual(['aud_c_old'])
       })
     },
     {

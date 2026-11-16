@@ -55,13 +55,40 @@ export function makeOpenAIModel(config: OpenAIConfig) {
     'content-type': 'application/json'
   }
 
+  return Model.make(
+    PROVIDER,
+    modelId,
+    Layer.effect(
+      LanguageModel.LanguageModel,
+      Effect.gen(function* () {
+        const client = yield* HttpClient.HttpClient
+        return yield* LanguageModel.make(
+          openAIOperations({ client, chatUrl, headers, modelId, config })
+        )
+      })
+    )
+  )
+}
+
+function openAIOperations({
+  client,
+  chatUrl,
+  headers,
+  modelId,
+  config
+}: {
+  readonly client: HttpClient.HttpClient
+  readonly chatUrl: string
+  readonly headers: Readonly<Record<string, string>>
+  readonly modelId: string
+  readonly config: OpenAIConfig
+}) {
   // openai 7.47.0's chat.completions.create stream stops at [DONE], accepting
   // trailing data, and has no SSE event-size limit. Keep the bounded strict
   // decoder and scoped transport; .asResponse() would retain both beneath an SDK.
   // Checked operations and source evidence: docs/research/effect-4-adoption.md.
   const request = Effect.fn('OpenAI.request')(
     function* (payload: ChatRequest) {
-      const client = yield* HttpClient.HttpClient
       return yield* HttpClient.withScope(client).execute(
         HttpClientRequest.post(chatUrl, { headers }).pipe(
           HttpClientRequest.setBody(
@@ -71,14 +98,6 @@ export function makeOpenAIModel(config: OpenAIConfig) {
         )
       )
     },
-    Effect.provide(
-      FetchHttpClient.layer.pipe(
-        Layer.provide(
-          // Resolve the platform transport per invocation, including test overrides.
-          Layer.sync(FetchHttpClient.Fetch, () => globalThis.fetch)
-        )
-      )
-    ),
     Effect.provideService(FetchHttpClient.RequestInit, { redirect: 'manual' })
   )
 
@@ -193,17 +212,7 @@ export function makeOpenAIModel(config: OpenAIConfig) {
     )
   }
 
-  return Model.make(
-    PROVIDER,
-    modelId,
-    Layer.effect(
-      LanguageModel.LanguageModel,
-      LanguageModel.make({
-        generateText,
-        streamText
-      })
-    )
-  )
+  return { generateText, streamText }
 }
 
 function finishReason(

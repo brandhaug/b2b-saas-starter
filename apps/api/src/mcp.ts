@@ -1,115 +1,80 @@
-import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
 import { NotificationFeed } from '@b2b-saas-starter/capabilities/notifications/notification-feed'
 import { WorkspaceMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
-import { annotateWideEventCause } from '@b2b-saas-starter/logger'
-import {
-  WorkspaceExports,
-  type WorkspaceExportRecipient
-} from '@b2b-saas-starter/capabilities/governance/workspace-export'
+import { WorkspaceExports } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { WorkspaceSuspensionService } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
-import {
-  StrongAuthentication,
-  StrongAuthenticationRequired
-} from '@b2b-saas-starter/capabilities/governance/strong-authentication'
+import { StrongAuthentication } from '@b2b-saas-starter/capabilities/governance/strong-authentication'
 import { McpClientConnections } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
-import { mcpMutationOperations } from './mcp-mutations.ts'
-import { clientKey } from '@b2b-saas-starter/rate-limit'
+import { PlatformUserAdmin } from '@b2b-saas-starter/capabilities/governance/platform-user-admin'
+import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
+import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
+import { annotateWideEventCause } from '@b2b-saas-starter/logger'
 import {
   MCP_READ_SCOPE,
   MCP_WRITE_SCOPE
 } from '@b2b-saas-starter/authz/mcp-access-token'
+import { RateLimiter } from '@b2b-saas-starter/api'
+import { Context, Cause, Effect, Layer, Option, Result } from 'effect'
+import { type HttpRouter } from 'effect/http'
 import {
-  mirroredRestPath,
+  McpServer,
+  layerHttp as mcpLayerHttp,
+  registerResource
+} from 'effect/ai/McpServer'
+import { v2025_11_25 } from 'effect/ai/McpProtocol'
+import { CallToolResult, InternalError, Tool as McpTool } from 'effect/ai/McpSchema'
+import { type ApiEnv } from './env.ts'
+import {
+  MCP_SERVER_NAME,
+  OVERVIEW_RESOURCE_URI,
+  decodeOperationInput,
+  invalidParams,
+  mutationToolProjection,
+  toolProjection
+} from './mcp-catalog.ts'
+import {
+  authorizeMcpOperation,
+  mcpCallerPolicy,
+  provideMcpWorkspace,
+  verifyMcpCredential,
+  type McpCaller
+} from './mcp-caller.ts'
+import {
+  CurrentMcpRequest,
+  mcpCredentialGate,
+  type GateServices
+} from './mcp-credential-gate.ts'
+import { discoveryVisibility } from './mcp-discovery.ts'
+import { mcpMutationOperations } from './mcp-mutations.ts'
+import {
+  TOOL_FAILED_MESSAGE,
+  failureText,
+  outcomeToToolResult,
+  type ToolOutcome
+} from './mcp-results.ts'
+import {
   READ_OPERATIONS,
   readOperations,
   OperationOrigin,
   OperationExportRecipient,
   OperationPrincipal,
-  type CapabilityMutationError,
   type CapabilityMutationServices,
-  type CapabilityRead,
   type CapabilityReadError,
-  type CapabilityReadServices,
-  type WorkspaceReadOperation
+  type CapabilityReadServices
 } from './operations.ts'
-import {
-  type RateLimited,
-  type Unauthorized,
-  guardFailureResponse,
-  GuardFailure
-} from '@b2b-saas-starter/api/errors'
-import { RateLimiter, type McpDiscovery } from '@b2b-saas-starter/api'
-import {
-  Context,
-  Cause,
-  Effect,
-  Layer,
-  Option,
-  Result,
-  Schema,
-  SchemaIssue,
-  Scope,
-  type Types
-} from 'effect'
-import { HttpRouter, HttpServerRequest, HttpServerResponse } from 'effect/http'
-import {
-  McpServer,
-  visibility,
-  layerHttp as mcpLayerHttp,
-  registerResource
-} from 'effect/ai/McpServer'
-import { v2025_11_25 } from 'effect/ai/McpProtocol'
-import {
-  CallToolResult,
-  InternalError,
-  InvalidParams,
-  Tool as McpTool,
-  type ToolJson,
-  ToolJson as ToolJsonCodec
-} from 'effect/ai/McpSchema'
+import { OAuthTokenVerifier } from './oauth-access-token.ts'
+import { enforceRateLimitKey } from './request-guards.ts'
 
-import { type WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
-import { PlatformUserAdmin } from '@b2b-saas-starter/capabilities/governance/platform-user-admin'
-
-import {
-  authorizeMcpOperation,
-  enforceRateLimitKey,
-  bearerToken,
-  verifyMcpCredential,
-  enforceRateLimit,
-  mcpCallerActor,
-  mcpCallerActorType,
-  observed,
-  provideWorkspace,
-  webRequest,
-  type McpCaller
-} from './request-guards.ts'
-import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
-import { type ApiEnv } from './env.ts'
-import {
-  OAuthTokenVerifier,
-  oauthChallengeHeader,
-  oauthResourceConfig
-} from './oauth-access-token.ts'
-
-// Registrations live for the isolate; CurrentMcpRequest supplies each caller's
-// authority through the RPC context. Never capture a caller during registration.
-
-const MCP_SERVER_NAME = 'b2b-saas-starter-mcp'
-const OVERVIEW_RESOURCE_URI = 'workspace://overview'
-
-/** Authority and transport facts supplied by the gate for this HTTP request. */
-export class CurrentMcpRequest extends Context.Service<
-  CurrentMcpRequest,
-  {
-    readonly caller: McpCaller
-    readonly origin: string
-    readonly rateKey: string
-    readonly bearer: string | null
-  }
->()('@b2b-saas-starter/api/mcp/current-request') {}
+/**
+ * MCP protocol wiring: the Streamable HTTP transport and the tool and resource
+ * registrations. The credential gate, discovery authorization, caller-kind
+ * policy, wire projection and result encoding live in the sibling `mcp-*`
+ * modules.
+ *
+ * Registrations live for the isolate; CurrentMcpRequest supplies each caller's
+ * authority through the RPC context. Never capture a caller during registration.
+ */
 
 /** Streamable HTTP transport with request-scoped credential and rate-limit gates. */
 export function mcpProtocolLayer(
@@ -124,9 +89,6 @@ export function mcpProtocolLayer(
   | PlatformUserAdmin
   | GateServices
 > {
-  const gate = HttpRouter.middleware<{ provides: CurrentMcpRequest }>()(
-    makeGate(env)
-  ).layer
   return mcpLayerHttp({
     name: MCP_SERVER_NAME,
     version: '0.1.0',
@@ -134,7 +96,7 @@ export function mcpProtocolLayer(
     path: '/mcp',
     registrations: mcpRegistrations(env)
     // oxlint-disable-next-line eslint/no-restricted-properties -- the protocol layer's only build failure is an empty protocol list, and the list here is a non-empty literal; there is no runtime condition this layer could truthfully report
-  }).pipe(Layer.orDie, Layer.provide(gate))
+  }).pipe(Layer.orDie, Layer.provide(mcpCredentialGate(env)))
 }
 
 /** Catalog registrations shared by HTTP transport and protocol-level tests. */
@@ -146,310 +108,6 @@ export function mcpRegistrations(env: ApiEnv) {
       yield* registerOverviewResource(env)
     })
   ).pipe(Layer.provide(discoveryVisibility(env).layer))
-}
-
-/**
- * Every tool reads like its REST mirror: paged list tools take the same
- * optional `cursor`/`limit` the REST route accepts (ADR 0057), the one
- * parameterized read (deliveries for one endpoint) takes exactly that path
- * parameter, and the overview read takes no input. The Effect schema is what
- * a tool call decodes its arguments against, and the JSON Schema the
- * discovery document advertises is generated from it — so an operation's
- * input is declared once, in one schema system.
- *
- * The paging input every list tool takes: the same optional `cursor`/`limit`
- * the REST route accepts (ADR 0057), whose contract-side owner is
- * `ListPageQuery` in `@b2b-saas-starter/api`. Known behavioral divergence,
- * documented on both declarations: REST's query codec treats an undecodable
- * optional as absent — `?limit=abc` decodes the field away and the read
- * serves the default page — while this schema rejects a non-number `limit`
- * with an invalid-params tool-call error. Same vocabulary, one edge case
- * apart. Exported so `mcp.test.ts` can pin the advertised shape against
- * drift.
- */
-export const PAGED_TOOL_INPUT = Schema.Struct({
-  cursor: Schema.optionalKey(Schema.String),
-  limit: Schema.optionalKey(Schema.Finite)
-})
-const ENDPOINT_ID_TOOL_INPUT = Schema.Struct({
-  endpointId: WebhookEndpointId.pipe(
-    Schema.annotate({
-      description: 'The webhook endpoint id whose deliveries to list.'
-    })
-  )
-})
-
-/** The protocol's own check on what a tool descriptor may advertise. */
-const decodeToolJson = Schema.decodeUnknownSync(ToolJsonCodec)
-
-/**
- * The advertised JSON Schema for a registered input: the input schema run
- * through Effect's JSON Schema generator, decoded against the protocol's own
- * `ToolJson` so what ships is exactly what the protocol accepts. A
- * struct with no fields generates no object root, so the empty input
- * advertises the literal object shape.
- */
-function advertisedInputSchema(schema: Schema.Constraint): ToolJson {
-  return decodeToolJson(Schema.toJsonSchemaDocument(schema).schema)
-}
-
-const NO_TOOL_INPUT_SCHEMA: ToolJson = decodeToolJson({
-  type: 'object',
-  properties: {}
-})
-const PAGED_INPUT_SCHEMA = advertisedInputSchema(PAGED_TOOL_INPUT)
-const DELIVERY_ID_TOOL_INPUT = Schema.Struct({ deliveryId: WebhookDeliveryId })
-const DELIVERY_ID_INPUT_SCHEMA = advertisedInputSchema(DELIVERY_ID_TOOL_INPUT)
-const ENDPOINT_ID_INPUT_SCHEMA = advertisedInputSchema(ENDPOINT_ID_TOOL_INPUT)
-
-/**
- * The advertised JSON Schema per row shape, keyed by the row's discrimination —
- * each generated from the schema a tool call decodes against (the same
- * declarations, right above), so the two cannot drift apart.
- */
-const TOOL_INPUTS = {
-  collection: NO_TOOL_INPUT_SCHEMA,
-  paged: PAGED_INPUT_SCHEMA,
-  deliveryId: DELIVERY_ID_INPUT_SCHEMA,
-  endpointId: ENDPOINT_ID_INPUT_SCHEMA
-}
-
-/** The advertised input schema an operation registers with, derived from its row shape. */
-function toolInput(operation: WorkspaceReadOperation): ToolJson {
-  if (operation.param !== undefined) {
-    return TOOL_INPUTS[operation.input]
-  }
-  if (operation.paged) {
-    return TOOL_INPUTS.paged
-  }
-  return TOOL_INPUTS.collection
-}
-
-/**
- * One tool descriptor, projected from one row of the shared operation table
- * (operations.ts) rather than hand-mirrored: same name, same permission, same
- * capability read as the REST endpoint it names. Only rows that declare a
- * read projection reach here. Mutations use typed JSON adapters beside the
- * catalog and share the same capability dispatch (ADR 0072).
- */
-function toolDescription(operation: WorkspaceReadOperation): string {
-  return `${operation.toolDescription} Mirrors GET /${mirroredRestPath(operation.endpoint.path)}.`
-}
-
-/**
- * The one projection of a row onto the wire: name, description, and input
- * schema in a single place, so the discovery document (`GET /mcp/discovery`)
- * and the `McpTool` a call registers answer `tools/list` with the same
- * fields and cannot drift apart.
- */
-function toolProjection(operation: WorkspaceReadOperation) {
-  return {
-    name: operation.toolName,
-    description: toolDescription(operation),
-    inputSchema: toolInput(operation)
-  }
-}
-
-/** Catalog projection, filtered per request by scopedMcpDiscovery before serving. */
-export function mcpDiscoveryDocument(): McpDiscovery {
-  return {
-    name: MCP_SERVER_NAME,
-    resources: [OVERVIEW_RESOURCE_URI],
-    tools: [
-      ...readOperations().map(toolProjection),
-      ...mcpMutationOperations().map((op) => ({
-        name: op.toolName,
-        description: `${op.toolDescription} Mirrors ${op.endpoint.method} /${mirroredRestPath(op.endpoint.path)}.`,
-        inputSchema: mutationInputSchema(op.input)
-      }))
-    ]
-  }
-}
-
-/** Discovery reuses execution authorization without invoking the operation. */
-function operationVisible(env: ApiEnv, caller: McpCaller, target: string) {
-  const read = readOperations().find((operation) => operation.toolName === target)
-  const mutation = mcpMutationOperations().find(
-    (operation) => operation.toolName === target
-  )
-  let operation = read ?? mutation
-  if (target === OVERVIEW_RESOURCE_URI) {
-    operation = READ_OPERATIONS.overview
-  }
-  if (operation === undefined) {
-    return Effect.succeed(false)
-  }
-  let requiredScope: typeof MCP_READ_SCOPE | typeof MCP_WRITE_SCOPE = MCP_READ_SCOPE
-  if (mutation !== undefined) {
-    requiredScope = MCP_WRITE_SCOPE
-  }
-  return provideWorkspace(
-    env,
-    caller.token.workspaceSlug,
-    authorizeMcpOperation(caller, operation.permission, requiredScope).pipe(
-      Effect.scoped
-    ),
-    mcpCallerActor(caller),
-    mcpCallerActorType(caller)
-  ).pipe(Effect.match({ onFailure: () => false, onSuccess: () => true }))
-}
-
-export const scopedMcpDiscovery = Effect.fn('Mcp.discovery')(function* (
-  env: ApiEnv,
-  caller: McpCaller
-) {
-  const document = mcpDiscoveryDocument()
-  const tools = yield* Effect.filter(document.tools, (tool) =>
-    operationVisible(env, caller, tool.name)
-  )
-  const resources = yield* Effect.filter(document.resources, (uri) =>
-    operationVisible(env, caller, uri)
-  )
-  return { ...document, tools, resources }
-})
-
-function discoveryVisibility(env: ApiEnv) {
-  return visibility(
-    Effect.gen(function* () {
-      const services = (yield* Effect.context<
-        | WorkspaceMembership
-        | PlatformUserAdmin
-        | McpClientConnections
-        | StrongAuthentication
-        | WorkspaceSuspensionService
-      >()).pipe(
-        Context.pick(
-          WorkspaceMembership,
-          PlatformUserAdmin,
-          McpClientConnections,
-          StrongAuthentication,
-          WorkspaceSuspensionService
-        )
-      )
-      return ({ method, target }) => {
-        // Calls retain their existing typed permission failures and write admission.
-        if (
-          method === 'tools/call' ||
-          method === 'resources/read' ||
-          method === 'prompts/get' ||
-          method === 'completion/complete'
-        ) {
-          return Effect.as(CurrentMcpRequest, true)
-        }
-        return Effect.flatMap(CurrentMcpRequest, ({ caller }) =>
-          operationVisible(env, caller, target)
-        ).pipe(Effect.provideContext(services))
-      }
-    })
-  )
-}
-
-/**
- * Generic failure body shared by both defect seams (tool and resource);
- * internals never leak into the client's transcript.
- */
-const TOOL_FAILED_MESSAGE = 'tool failed; see the API worker logs'
-
-/** What a settled tool invocation hands the wire encoder. */
-type ToolFailure =
-  | CapabilityReadError
-  | CapabilityMutationError
-  | RateLimited
-  | Unauthorized
-type ToolOutcome = Result.Result<unknown, ToolFailure>
-
-// The JSON-RPC wire format carries opaque JSON payloads; serializing the
-// already-typed capability results here IS the encoding step.
-// oxlint-disable-next-line anti-slop/no-unknown-parameters -- `unknown` is the protocol's own payload type; the capability layer already produced it
-function textResult(data: unknown): CallToolResult {
-  return new CallToolResult({
-    // oxlint-disable-next-line effect/noGlobals -- see above: this is the wire encoding
-    content: [{ type: 'text', text: JSON.stringify(data, null, 2) }]
-  })
-}
-
-/**
- * The one text vocabulary for a typed capability failure. The tool channel
- * wraps it in an `isError` result and the resource channel in an internal
- * error, so both surfaces speak identically. The switch is exhaustive over
- * `CapabilityReadError`: a new variant is a compile error here until it gets
- * its text, never a silent generic body or a serialized failure object.
- */
-function failureText(error: ToolFailure): string {
-  switch (error._tag) {
-    case 'WorkspaceSuspended': {
-      return 'WorkspaceSuspended: workspace access is suspended. Contact a workspace owner or administrator.'
-    }
-    case 'AuthorizationDenied': {
-      return `denied: ${error.reason}`
-    }
-    case 'StrongAuthenticationRequired': {
-      return 'denied: strong_authentication_required'
-    }
-    case 'CapabilityUnavailable': {
-      if (error.capability === 'webhook-publisher') {
-        return 'webhook queue unavailable; a pending delivery may have been saved, but enqueue was not confirmed. Inspect deliveries before retrying'
-      }
-      if (error.capability === 'workspace-exports') {
-        return 'export unavailable; an enqueue failure may have saved a failed export'
-      }
-      return 'capability unavailable in this environment'
-    }
-    case 'Unauthorized': {
-      return 'credential no longer valid'
-    }
-    case 'RateLimited': {
-      return 'write rate limit exceeded'
-    }
-    case 'PlanLimitExceeded': {
-      return 'workspace plan limit exceeded'
-    }
-    case 'InvalidApiTokenInput': {
-      return 'invalid API token input'
-    }
-    case 'ApiTokenNotRotatable': {
-      return 'API token cannot be replaced'
-    }
-    case 'InvalidWebhookUrl': {
-      return 'invalid webhook URL'
-    }
-    case 'WebhookEndpointNotFound': {
-      return 'webhook endpoint not found'
-    }
-    case 'WebhookDeliveryNotFound': {
-      return 'webhook delivery not found'
-    }
-    case 'WebhookDispatchRejected': {
-      return `webhook dispatch refused: ${error.reason}`
-    }
-    case 'WorkspaceExportNotDownloadable': {
-      return 'workspace export not downloadable'
-    }
-    case 'WorkspaceNotFound': {
-      return 'workspace not found'
-    }
-  }
-}
-
-/** Success as JSON text; a typed failure as text the model can read, `isError` set. */
-function outcomeToToolResult(outcome: ToolOutcome): CallToolResult {
-  if (Result.isSuccess(outcome)) {
-    return textResult(outcome.success)
-  }
-  if (outcome.failure._tag === 'WorkspaceSuspended') {
-    return new CallToolResult({
-      content: [{ type: 'text', text: failureText(outcome.failure) }],
-      structuredContent: {
-        _tag: 'WorkspaceSuspended',
-        workspaceId: outcome.failure.workspaceId
-      },
-      isError: true
-    })
-  }
-  return new CallToolResult({
-    content: [{ type: 'text', text: failureText(outcome.failure) }],
-    isError: true
-  })
 }
 
 /**
@@ -490,55 +148,7 @@ function bridgedRead(
   never,
   CapabilityReadServices | McpClientConnections | PlatformUserAdmin
 > {
-  return Effect.result(
-    provideWorkspace(
-      env,
-      caller.token.workspaceSlug,
-      body,
-      mcpCallerActor(caller),
-      mcpCallerActorType(caller)
-    )
-  )
-}
-
-/** The invalid-params error a tool call answers undecodable arguments with. */
-const formatIssue = SchemaIssue.makeFormatterDefault()
-const invalidParams = Effect.mapError(
-  (error: Schema.SchemaError) =>
-    new InvalidParams({ message: formatIssue(error.issue) })
-)
-const decodePagedInput = Schema.decodeUnknownEffect(PAGED_TOOL_INPUT)
-const decodeDeliveryIdInput = Schema.decodeUnknownEffect(DELIVERY_ID_TOOL_INPUT)
-const decodeEndpointIdInput = Schema.decodeUnknownEffect(ENDPOINT_ID_TOOL_INPUT)
-
-/**
- * Decodes a tool call's arguments against the row's input schema and hands
- * back the capability read, already bound to exactly the input shape the
- * operation takes. Decoding happens here — outside the workspace layer and
- * the permission guard — so a schema violation is a protocol-level
- * invalid-params error for the caller, never a tool failure the model would
- * try to read around.
- */
-function decodeOperationInput(
-  operation: WorkspaceReadOperation,
-  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the protocol hands tool arguments over as opaque JSON; decoding them against the row's schema is this very function
-  payload: unknown
-): Effect.Effect<CapabilityRead, InvalidParams> {
-  return Effect.gen(function* () {
-    if (operation.param !== undefined) {
-      if (operation.input === 'deliveryId') {
-        const args = yield* decodeDeliveryIdInput(payload ?? {}).pipe(invalidParams)
-        return Effect.suspend(() => operation.read(undefined, args))
-      }
-      const args = yield* decodeEndpointIdInput(payload ?? {}).pipe(invalidParams)
-      return Effect.suspend(() => operation.read(undefined, args))
-    }
-    if (operation.paged) {
-      const page = yield* decodePagedInput(payload ?? {}).pipe(invalidParams)
-      return Effect.suspend(() => operation.read(page))
-    }
-    return Effect.suspend(() => operation.read(undefined))
-  })
+  return Effect.result(provideMcpWorkspace(env, caller, body))
 }
 
 /**
@@ -614,13 +224,6 @@ function registerTools(env: ApiEnv) {
   })
 }
 
-function mutationInputSchema(input: Schema.Constraint): ToolJson {
-  if (Schema.toJsonSchemaDocument(input).schema.type === undefined) {
-    return NO_TOOL_INPUT_SCHEMA
-  }
-  return advertisedInputSchema(input)
-}
-
 function registerMutationTools(env: ApiEnv) {
   return Effect.gen(function* () {
     const registry = yield* McpServer
@@ -648,9 +251,7 @@ function registerMutationTools(env: ApiEnv) {
     for (const operation of mcpMutationOperations()) {
       yield* registry.addTool({
         tool: new McpTool({
-          name: operation.toolName,
-          description: `${operation.toolDescription} Mirrors ${operation.endpoint.method} /${mirroredRestPath(operation.endpoint.path)}.`,
-          inputSchema: mutationInputSchema(operation.input),
+          ...mutationToolProjection(operation),
           annotations: operation.annotations
         }),
         services: registrationServices,
@@ -675,17 +276,7 @@ function registerMutationTools(env: ApiEnv) {
                 operation.permission,
                 MCP_WRITE_SCOPE
               )
-              let recipient: WorkspaceExportRecipient = { type: 'api_token' }
-              if (caller.kind === 'oauth') {
-                if (caller.token.sessionId === undefined) {
-                  return yield* new StrongAuthenticationRequired()
-                }
-                recipient = {
-                  type: 'session',
-                  userId: caller.token.userId,
-                  sessionId: caller.token.sessionId
-                }
-              }
+              const recipient = yield* mcpCallerPolicy(caller).exportRecipient
               return yield* invoke.pipe(
                 Effect.provideService(OperationExportRecipient, recipient),
                 Effect.provideService(OperationPrincipal, principal),
@@ -693,13 +284,7 @@ function registerMutationTools(env: ApiEnv) {
               )
             }).pipe(Effect.scoped)
             const outcome = yield* Effect.result(
-              provideWorkspace(
-                env,
-                caller.token.workspaceSlug,
-                guarded,
-                mcpCallerActor(caller),
-                mcpCallerActorType(caller)
-              )
+              provideMcpWorkspace(env, caller, guarded)
             )
             return outcomeToToolResult(outcome)
           }).pipe(
@@ -781,118 +366,5 @@ function registerOverviewResource(env: ApiEnv) {
         )
       )
     })
-  })
-}
-
-/**
- * A guard failure, encoded the way the contract encodes it: the status from
- * the tag→status table in `packages/api` (`errors.test.ts` pins each row to
- * the schema's own `httpApiStatus` annotation, so REST and this surface
- * cannot drift), and the body from the schema's own encoding — so a rejected
- * `/mcp` request answers exactly as a rejected REST route would. Only the
- * JSON-RPC bodies inside the protocol are this surface's own shape.
- */
-function failureResponse(
-  env: ApiEnv,
-  request: HttpServerRequest.HttpServerRequest,
-  error: GuardFailure
-): HttpServerResponse.HttpServerResponse {
-  const { status, body } = guardFailureResponse(error)
-  // RFC 9728: a 401 tells an OAuth-capable client where the protected-resource
-  // metadata is, which is how Claude finds the authorization server. Only
-  // when OAuth is configured — otherwise there is nothing to discover.
-  if (error._tag === 'Unauthorized' && oauthResourceConfig(env) !== undefined) {
-    const origin = new URL(webRequest(request).url).origin
-    return HttpServerResponse.jsonUnsafe(body, {
-      status,
-      contentType: 'application/problem+json',
-      headers: { 'www-authenticate': oauthChallengeHeader(origin) }
-    })
-  }
-  return HttpServerResponse.jsonUnsafe(body, {
-    status,
-    contentType: 'application/problem+json'
-  })
-}
-
-const isGuardFailure = Schema.is(GuardFailure)
-
-/**
- * The isolate-level services the credential gate draws on — the same
- * memoized `capabilities` value the REST groups ride on, captured once when
- * the middleware layer builds and provided around each request, so the gate
- * never depends on route middleware ordering.
- */
-type GateServices = RateLimiter | ApiTokenRegistry | OAuthTokenVerifier
-
-/**
- * The gate around `layerHttp`'s routes: rate-limit, authenticate (API Token
- * or OAuth access token), then publish the caller and run the protocol
- * handler. `layerHttp` owns the route handlers, so the guards ride as
- * route-scoped router middleware — every protocol request (POST and the
- * method-not-allowed probes alike) draws the `mcp` bucket and answers a
- * rejected credential the way REST does. Guard failures escape the body so
- * `observed` records them like any other rejected request.
- *
- * There is deliberately no permission check beside authentication: every
- * credential the system can mint already clears `mcp:read` (the read and
- * write token scopes carry it, and the OAuth verifier refuses a token without
- * it), so a gate here could never deny. The real enforcement is per tool —
- * each invocation re-checks its own `operation.permission`, the same
- * permission its REST counterpart demands.
- */
-function makeGate(
-  env: ApiEnv
-): Effect.Effect<
-  (
-    httpEffect: Effect.Effect<
-      HttpServerResponse.HttpServerResponse,
-      Types.unhandled,
-      CurrentMcpRequest
-    >
-  ) => Effect.Effect<
-    HttpServerResponse.HttpServerResponse,
-    Types.unhandled,
-    HttpServerRequest.HttpServerRequest | Scope.Scope
-  >,
-  never,
-  GateServices
-> {
-  return Effect.gen(function* () {
-    const limiter = yield* RateLimiter
-    const registry = yield* ApiTokenRegistry
-    const verifier = yield* OAuthTokenVerifier
-    return (httpEffect) =>
-      Effect.gen(function* () {
-        const request = yield* HttpServerRequest.HttpServerRequest
-        const requestScope = yield* Scope.Scope
-        return yield* Effect.catchIf(
-          observed(
-            'mcp.protocol',
-            Effect.gen(function* () {
-              yield* enforceRateLimit(request, 'mcp')
-              const bearer = bearerToken(request)
-              const caller = yield* verifyMcpCredential(bearer)
-              return yield* httpEffect.pipe(
-                // The HTTP handler transfers this scope to the response stream.
-                // The observation scope closes as soon as the response is returned.
-                Effect.provideService(Scope.Scope, requestScope),
-                Effect.provideService(CurrentMcpRequest, {
-                  caller,
-                  origin: new URL(webRequest(request).url).origin,
-                  rateKey: clientKey(webRequest(request)),
-                  bearer
-                })
-              )
-            })
-          ),
-          isGuardFailure,
-          (failure) => Effect.succeed(failureResponse(env, request, failure))
-        )
-      }).pipe(
-        Effect.provideService(RateLimiter, limiter),
-        Effect.provideService(ApiTokenRegistry, registry),
-        Effect.provideService(OAuthTokenVerifier, verifier)
-      )
   })
 }

@@ -10,7 +10,7 @@ import { Effect } from 'effect'
 import { runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission } from './authorize'
-import { unreadCount, workspacePage, type WorkspacePageFrame } from './page-frame'
+import { workspacePage, type WorkspacePageFrame } from './page-frame'
 import {
   type CreateWebhookInput,
   type EndpointMutationInput,
@@ -28,25 +28,19 @@ const webhooksPayload: WorkspacePageFrame<WorkspaceWebhooksPayload> = workspaceP
   () =>
     Effect.gen(function* () {
       const webhooks = yield* WebhookEndpoints
-      return yield* Effect.all(
-        {
-          unreadCount,
-          endpoints: webhooks.list.pipe(
-            Effect.flatMap((endpoints) =>
-              Effect.forEach(
-                endpoints,
-                (endpoint) =>
-                  Effect.map(
-                    webhooks.listDeliveries({ endpointId: endpoint.id }),
-                    (deliveries) => ({ ...endpoint, deliveries })
-                  ),
-                { concurrency: WEBHOOK_DELIVERY_READ_CONCURRENCY }
-              )
-            )
-          )
-        },
-        { concurrency: 'unbounded' }
+      const endpoints = yield* Effect.forEach(
+        yield* webhooks.list,
+        (endpoint) =>
+          Effect.map(
+            webhooks.listDeliveries({ endpointId: endpoint.id }),
+            (deliveries) => ({
+              ...endpoint,
+              deliveries
+            })
+          ),
+        { concurrency: WEBHOOK_DELIVERY_READ_CONCURRENCY }
       )
+      return { endpoints }
     })
 )
 

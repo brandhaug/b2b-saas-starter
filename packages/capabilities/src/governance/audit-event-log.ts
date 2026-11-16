@@ -31,12 +31,7 @@ import {
   encodeAuditCursor,
   type AuditView
 } from './audit-event-view.ts'
-export {
-  AuditView,
-  AuditViewField,
-  AuditViewOperator,
-  defaultAuditView
-} from './audit-event-view.ts'
+export { AuditView, AuditViewField, defaultAuditView } from './audit-event-view.ts'
 export type { AuditViewFilter, AuditViewSort } from './audit-event-view.ts'
 
 export const AuditEvent = Schema.Struct({

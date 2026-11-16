@@ -10,6 +10,7 @@ import { PageHeader } from '@/components/page/page-header'
 import { pageTitle } from '@/components/page/page-title'
 import { CreateAction, Panel } from '@/components/page/panel'
 import { WorkspaceShell } from '@/components/workspace-shell'
+import { noWorkspaceFrame } from '@/lib/workspace-frame'
 import { RoutePending } from '@/components/route-pending'
 import { getTurnstileSiteKey } from '@/lib/server/turnstile'
 import {
@@ -87,7 +88,11 @@ export function WorkspacesPage({
 }) {
   const formProps = createWorkspace === undefined ? {} : { createWorkspace }
   return (
-    <WorkspaceShell viewer={null} systemRole={user.role} workspaceSlug={null}>
+    <WorkspaceShell
+      frame={noWorkspaceFrame}
+      systemRole={user.role}
+      workspaceSlug={null}
+    >
       <PageHeader
         title={m.page_workspaces()}
         description={m.page_workspaces_description()}

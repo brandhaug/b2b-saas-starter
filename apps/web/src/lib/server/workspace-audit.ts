@@ -1,11 +1,11 @@
 import {
   type AuditEvent,
-  type AuditEventDetail,
-  AuditView
+  type AuditEventDetail
 } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
-import { type WorkspaceViewer } from '@/lib/permissions'
+import { AuditView } from '@b2b-saas-starter/capabilities/governance/audit-event-view'
 import { createServerFn } from '@tanstack/react-start'
 import { Schema, type Types } from 'effect'
+import { type WorkspacePagePayload } from '@/lib/workspace-frame'
 
 /**
  * Server-side filters for the audit page, straight from the route's search
@@ -34,10 +34,8 @@ export type WorkspaceAuditFilters = Types.Mutable<typeof WorkspaceAuditFilters.T
  * permission decision is made here: `auditLog: ['read']` is owner/admin only,
  * and the hard gate above already decided who reaches this payload.
  */
-export type WorkspaceAuditPayload = {
+export type WorkspaceAuditPayload = WorkspacePagePayload<{
   readonly selectedEvent: AuditEventDetail | null
-  readonly viewer: WorkspaceViewer | null
-  readonly unreadCount: number
   readonly events: ReadonlyArray<AuditEvent>
   /** Opaque keyset cursor for the next older page, or null on the last one. */
   readonly nextCursor: string | null
@@ -45,7 +43,7 @@ export type WorkspaceAuditPayload = {
   readonly filters: WorkspaceAuditFilters
   readonly view?: AuditView
   readonly members: ReadonlyArray<{ readonly id: string; readonly name: string }>
-}
+}>
 
 /**
  * The server fn's input. The filter keys stay optional and unconstrained —

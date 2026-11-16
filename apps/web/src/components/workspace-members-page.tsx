@@ -35,13 +35,12 @@ export function WorkspaceMembersPage({
   /** The signed-in user's id — the roster's own-row verb (leave) keys on it. */
   readonly actorUserId: string
 }) {
-  const { viewer, unreadCount, members, invitations, seatUsage } = data
+  const { viewer, members, invitations, seatUsage } = data
   return (
     <WorkspaceShell
       workspaceSlug={workspaceSlug}
       systemRole={systemRole}
-      unreadCount={unreadCount}
-      viewer={viewer}
+      frame={data}
       layout="wide"
     >
       <PageHeader

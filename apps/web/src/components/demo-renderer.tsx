@@ -117,11 +117,7 @@ function unreachable(value: never): never {
 
 function DemoNotifications() {
   return (
-    <WorkspaceShell
-      workspaceSlug={DEMO_WORKSPACE_SLUG}
-      unreadCount={demoFixtures.dashboard.unreadCount}
-      viewer={demoFixtures.dashboard.viewer}
-    >
+    <WorkspaceShell workspaceSlug={DEMO_WORKSPACE_SLUG} frame={demoFixtures.dashboard}>
       <PageHeader title={m.notifications_title()} />
       <LiveNotifications
         workspaceSlug={DEMO_WORKSPACE_SLUG}

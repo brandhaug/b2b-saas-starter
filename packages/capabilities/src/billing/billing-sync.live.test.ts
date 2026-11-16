@@ -5,6 +5,7 @@ import {
   testSubscriptionFields,
   paidInvoice
 } from '@b2b-saas-starter/billing/provider-test-fixtures'
+import { wireHttpClient } from '@b2b-saas-starter/failure/http-client'
 import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
 import {
   billingCheckoutClaims,
@@ -253,11 +254,7 @@ function withStripe<A, E, R>(
   return Effect.gen(function* () {
     yield* reset
     const fixture = stripeFixture()
-    return yield* Effect.acquireUseRelease(
-      Effect.sync(() => vi.stubGlobal('fetch', fixture.fetch)),
-      () => run(fixture),
-      () => Effect.sync(() => vi.unstubAllGlobals())
-    )
+    return yield* run(fixture).pipe(Effect.provide(wireHttpClient(fixture.fetch)))
   })
 }
 
@@ -713,7 +710,11 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             const calls = fetch.mock.calls.length
             const inactive = yield* inWorkspace(
               'live-lab',
-              Effect.flatMap(Billing, (billing) => billing.reconcileBatch({ limit: 1 }))
+              Effect.flatMap(Billing, (billing) =>
+                billing.reconcileBatch({ limit: 1 })
+              ),
+              undefined,
+              {}
             )
             expect(inactive).toEqual([])
             expect(fetch.mock.calls).toHaveLength(calls)

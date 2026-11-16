@@ -3,7 +3,7 @@ import { WebhookEndpoints } from '@b2b-saas-starter/capabilities/developer-platf
 import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { WorkspaceInvitations } from '@b2b-saas-starter/capabilities/governance/workspace-invitations'
 import {
-  workspaceDashboard,
+  workspaceOverview,
   workspaceProgress
 } from '@b2b-saas-starter/capabilities/workspace-projections'
 import { Effect } from 'effect'
@@ -35,7 +35,7 @@ const dashboardPayload: WorkspacePageFrame<WorkspaceDashboardPayload> = workspac
     Effect.map(
       Effect.all(
         {
-          core: workspaceDashboard,
+          core: workspaceOverview,
           webhooks: whenPermitted(
             { webhook: ['list'] },
             Effect.flatMap(WebhookEndpoints, (webhooks) => webhooks.list)

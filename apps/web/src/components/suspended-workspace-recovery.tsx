@@ -34,7 +34,7 @@ export function SuspendedWorkspaceRecovery({
     <WorkspaceShell
       workspaceSlug={workspaceSlug}
       systemRole={systemRole}
-      viewer={data.viewer}
+      frame={{ viewer: data.viewer, unreadCount: null }}
     >
       <PageHeader
         title={m.workspace_suspended_title({ workspace: data.workspaceName })}

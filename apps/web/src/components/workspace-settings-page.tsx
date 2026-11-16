@@ -47,7 +47,7 @@ export function WorkspaceSettingsPage({
     readonly requestExport?: RequestWorkspaceExport
   }
 }) {
-  const { viewer, workspaceName, unreadCount, ssoConnections, exports } = data
+  const { viewer, workspaceName, ssoConnections, exports } = data
   // Rename and delete are gated per action, not per page: an admin may rename
   // but never delete, a member sees neither. The server functions enforce the
   // same statements.
@@ -55,12 +55,7 @@ export function WorkspaceSettingsPage({
   const canDelete = viewerCan(viewer, { organization: ['delete'] })
 
   return (
-    <WorkspaceShell
-      workspaceSlug={workspaceSlug}
-      systemRole={systemRole}
-      unreadCount={unreadCount}
-      viewer={viewer}
-    >
+    <WorkspaceShell workspaceSlug={workspaceSlug} systemRole={systemRole} frame={data}>
       <PageHeader
         breadcrumb={<WorkspaceCrumb workspaceSlug={workspaceSlug} />}
         title={m.workspace_settings()}

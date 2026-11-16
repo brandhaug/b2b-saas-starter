@@ -6,8 +6,16 @@ import {
   type ListPageInput,
   type Page
 } from '../internal/keyset-cursor.ts'
+import {
+  asciiFold,
+  isActiveTableFilter,
+  tableFieldOperators,
+  tableFilterMatches,
+  type TableFieldKind,
+  type TableFilterOperandKind
+} from '../internal/table-filter.ts'
 
-const DeliveryField = Schema.Literals([
+const DeliveryViewField = Schema.Literals([
   'endpointUrl',
   'workspace',
   'eventType',
@@ -15,34 +23,74 @@ const DeliveryField = Schema.Literals([
   'attempts',
   'lastAttemptAt'
 ])
+export type DeliveryViewField = typeof DeliveryViewField.Type
+
+/**
+ * Each column of the global deliveries view: its table-field kind, which
+ * fixes the operators it offers and how both interpreters compare it, and the
+ * value the in-memory interpreter reads. `deliveryColumns`
+ * (`webhook-delivery-view.live.ts`) is the SQL side of the same record.
+ */
+const deliveryFields = {
+  endpointUrl: { kind: 'text', value: (row) => row.endpointUrl },
+  workspace: { kind: 'text', value: (row) => row.workspace.name },
+  eventType: { kind: 'text', value: (row) => row.eventType },
+  status: { kind: 'select', value: (row) => row.status },
+  attempts: { kind: 'number', value: (row) => row.attempts },
+  lastAttemptAt: { kind: 'date', value: (row) => row.lastAttemptAt }
+} as const satisfies Record<
+  DeliveryViewField,
+  {
+    readonly kind: TableFieldKind
+    readonly value: (row: GlobalWebhookDelivery) => string | number | null
+  }
+>
+
+/** Schema caps; a full view binds at most 64 filter and 28 cursor parameters. */
+export const deliveryViewLimits = { filters: 32, sorts: 6 } as const
+
+const FilterValue = Schema.String.check(Schema.isMaxLength(512))
+
+function fieldFilter<const F extends DeliveryViewField>(field: F) {
+  return Schema.Struct({
+    field: Schema.Literal(field),
+    operator: Schema.Literals(tableFieldOperators[deliveryFields[field].kind]),
+    value: FilterValue,
+    endValue: Schema.optionalKey(FilterValue)
+  })
+}
+
+export const DeliveryViewFilter = Schema.Union([
+  fieldFilter('endpointUrl'),
+  fieldFilter('workspace'),
+  fieldFilter('eventType'),
+  fieldFilter('status'),
+  fieldFilter('attempts'),
+  fieldFilter('lastAttemptAt')
+])
+export type DeliveryViewFilter = typeof DeliveryViewFilter.Type
 export const DeliveryView = Schema.Struct({
   match: Schema.Literals(['all', 'any']),
-  filters: Schema.Array(
-    Schema.Struct({
-      field: DeliveryField,
-      operator: Schema.Literals([
-        'contains',
-        'notContains',
-        'is',
-        'isNot',
-        'before',
-        'after',
-        'gt',
-        'lt',
-        'isEmpty',
-        'isNotEmpty'
-      ]),
-      value: Schema.String.check(Schema.isMaxLength(512)),
-      endValue: Schema.optionalKey(Schema.String)
-    })
-  ).check(Schema.isMaxLength(32)),
+  filters: Schema.Array(DeliveryViewFilter).check(
+    Schema.isMaxLength(deliveryViewLimits.filters)
+  ),
   sorts: Schema.Array(
-    Schema.Struct({ field: DeliveryField, direction: Schema.Literals(['asc', 'desc']) })
-  ).check(Schema.isMaxLength(6))
+    Schema.Struct({
+      field: DeliveryViewField,
+      direction: Schema.Literals(['asc', 'desc'])
+    })
+  ).check(Schema.isMaxLength(deliveryViewLimits.sorts))
 })
 export type DeliveryView = typeof DeliveryView.Type
-export type DeliveryViewField = DeliveryView['sorts'][number]['field']
-export type DeliveryViewFilter = DeliveryView['filters'][number]
+
+/** How a field's kind reads its stored value: only `number` compares numerically. */
+export function deliveryOperandKind(field: DeliveryViewField): TableFilterOperandKind {
+  if (deliveryFields[field].kind === 'number') {
+    return 'number'
+  }
+  return 'text'
+}
+
 export type ListGlobalDeliveriesInput = ListPageInput & {
   readonly view?: DeliveryView | undefined
 }
@@ -57,32 +105,31 @@ export function deliveryView(
   }
   return {
     ...view,
-    filters: view.filters.filter(
-      (filter) =>
-        filter.operator === 'isEmpty' ||
-        filter.operator === 'isNotEmpty' ||
-        filter.value.trim() !== ''
-    ),
+    filters: view.filters.filter(isActiveTableFilter),
     sorts
   }
 }
 
-export function deliveryViewValue(
+/**
+ * The sortable projection of a field, which cursors carry: numbers padded so
+ * they order as text, absent values as `''`.
+ */
+function deliveryViewValue(
   row: GlobalWebhookDelivery,
   field: DeliveryViewField
 ): string {
-  if (field === 'workspace') {
-    return row.workspace.name
+  const value = deliveryFields[field].value(row)
+  if (deliveryOperandKind(field) === 'number') {
+    return String(value).padStart(20, '0')
   }
-  if (field === 'attempts') {
-    return String(row.attempts).padStart(20, '0')
-  }
-  return row[field] ?? ''
+  return String(value ?? '')
 }
 
 const Cursor = Schema.Struct({
   view: Schema.String,
-  values: Schema.Array(Schema.String).check(Schema.isMaxLength(6)),
+  values: Schema.Array(Schema.String).check(
+    Schema.isMaxLength(deliveryViewLimits.sorts)
+  ),
   id: Schema.NonEmptyString
 })
 type Cursor = typeof Cursor.Type
@@ -159,71 +206,12 @@ function positionOf(row: GlobalWebhookDelivery, view: DeliveryView): Cursor {
 }
 
 function matches(row: GlobalWebhookDelivery, filter: DeliveryViewFilter): boolean {
-  if (filter.field === 'attempts') {
-    const expected = Number(filter.value)
-    switch (filter.operator) {
-      case 'isEmpty': {
-        return false
-      }
-      case 'isNotEmpty': {
-        return true
-      }
-      case 'is': {
-        return Number.isFinite(expected) && row.attempts === expected
-      }
-      case 'isNot': {
-        return Number.isFinite(expected) && row.attempts !== expected
-      }
-      case 'gt': {
-        return Number.isFinite(expected) && row.attempts > expected
-      }
-      case 'lt': {
-        return Number.isFinite(expected) && row.attempts < expected
-      }
-      case 'after':
-      case 'before':
-      case 'contains':
-      case 'notContains': {
-        return false
-      }
-    }
-  }
-  const value = deliveryViewValue(row, filter.field)
-  const expected = filter.value
-  switch (filter.operator) {
-    case 'isEmpty': {
-      return value === ''
-    }
-    case 'isNotEmpty': {
-      return value !== ''
-    }
-    case 'contains': {
-      return value.toLowerCase().includes(expected.toLowerCase())
-    }
-    case 'notContains': {
-      return !value.toLowerCase().includes(expected.toLowerCase())
-    }
-    case 'is': {
-      if (filter.endValue === undefined) {
-        return value.toLowerCase() === expected.toLowerCase()
-      }
-      return value >= expected && value <= filter.endValue
-    }
-    case 'isNot': {
-      if (filter.endValue === undefined) {
-        return value.toLowerCase() !== expected.toLowerCase()
-      }
-      return value < expected || value > filter.endValue
-    }
-    case 'before':
-    case 'lt': {
-      return value !== '' && value < expected
-    }
-    case 'after':
-    case 'gt': {
-      return value !== '' && value > expected
-    }
-  }
+  return tableFilterMatches(
+    filter,
+    deliveryOperandKind(filter.field),
+    deliveryFields[filter.field].value(row),
+    asciiFold
+  )
 }
 
 export function cutDeliveryViewPage(

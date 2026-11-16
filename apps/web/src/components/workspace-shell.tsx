@@ -1,9 +1,7 @@
-import { cn } from '@/lib/utils'
 import { SupportDetails } from '@/components/support-details'
-import { type ComponentProps, type ReactNode, useEffect, useState } from 'react'
+import { type ComponentProps, type ReactNode, useEffect } from 'react'
 import { Link, useRouter } from '@tanstack/react-router'
-import { BellIcon, LogOutIcon, ShieldIcon, UserRoundIcon } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import { LogOutIcon, ShieldIcon, UserRoundIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -17,11 +15,11 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useServerAction } from '@/hooks/use-server-action'
 import { authClient } from '@/lib/auth-client'
-import { SearchButton, CommandPaletteProvider } from '@/components/command-palette'
 import { ImpersonationBanner } from '@/components/impersonation-banner'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { useImpersonation, type StopImpersonating } from '@/lib/impersonation'
-import { adminSystemRole, type Viewer } from '@/lib/permissions'
+import { adminSystemRole } from '@/lib/permissions'
+import { type WorkspaceFrame } from '@/lib/workspace-frame'
 import {
   findWorkspace,
   lastVisitedWorkspace,
@@ -29,12 +27,10 @@ import {
   useWorkspaceDirectory,
   type SidebarWorkspace
 } from '@/lib/workspace-directory'
-import { WorkspaceNav } from '@/components/workspace-nav'
+import { WorkspaceChrome } from '@/components/workspace-chrome'
 import { PreviewShell } from '@/components/preview-shell'
-import { MobileNavSheet } from '@/components/mobile-nav-sheet'
 import { usePreview } from '@/lib/preview-context'
 import { m } from '@b2b-saas-starter/i18n/messages'
-import { LanguageSwitcher } from '@/components/language-switcher'
 
 export { type StopImpersonating }
 
@@ -43,7 +39,7 @@ export function WorkspaceShell(
 ) {
   const preview = usePreview()
   return preview ? (
-    <PreviewShell unreadCount={props.unreadCount} layout={props.layout}>
+    <PreviewShell unreadCount={props.frame.unreadCount} layout={props.layout}>
       {props.children}
     </PreviewShell>
   ) : (
@@ -54,19 +50,20 @@ export function WorkspaceShell(
 function AuthenticatedWorkspaceShell({
   children,
   layout = 'standard',
-  unreadCount,
+  frame,
   workspaceSlug,
-  viewer,
   systemRole,
   stopImpersonating
 }: {
   readonly children: ReactNode
   readonly layout?: 'standard' | 'wide' | undefined
   /**
-   * Unread-notification badge count. Omit on surfaces without a workspace
-   * notification feed (e.g. /admin) — no badge is rendered.
+   * The page's viewer and unread count; workspace pages pass their payload
+   * itself. The nav asks `viewerCan` per gated row from the one viewer, so
+   * the same entries are visible on every workspace page — the owner sees API
+   * tokens and Webhooks on the dashboard exactly as on the webhooks page.
    */
-  readonly unreadCount?: number
+  readonly frame: WorkspaceFrame
   /**
    * Current workspace slug. Pass `null` on non-workspace surfaces (e.g.
    * /admin): the sidebar then anchors to the last workspace the user visited
@@ -74,14 +71,6 @@ function AuthenticatedWorkspaceShell({
    * below.
    */
   readonly workspaceSlug: string | null
-  /**
-   * The viewer from the page's loader payload (`viewer: { role }`). The nav
-   * asks `viewerCan` per gated row from this one value, so the same entries
-   * are visible on every workspace page — the owner sees API tokens and
-   * Webhooks on the dashboard exactly as on the webhooks page. Pass `null` on
-   * surfaces without a workspace viewer; the gated rows stay hidden.
-   */
-  readonly viewer: Viewer
   /**
    * The signed-in user's Better Auth system role, when the route's session
    * context carries one. The "System admin" link renders only for
@@ -92,7 +81,6 @@ function AuthenticatedWorkspaceShell({
   /** The impersonation banner's one server call, forwarded for tests. */
   readonly stopImpersonating?: StopImpersonating | undefined
 }) {
-  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   // Read off the route context rather than threaded in: every gated route
   // carries `session`, and the banner has to show on all of them (ADR 0054).
   const impersonation = useImpersonation()
@@ -133,109 +121,68 @@ function AuthenticatedWorkspaceShell({
     }
     rememberWorkspace(router, { slug: workspaceSlug, name: workspaceName })
   }, [router, workspaceSlug, workspaceName])
+  const { unreadCount } = frame
   return (
-    // prettier-ignore
-    <CommandPaletteProvider viewer={viewer} systemRole={systemRole}>
-      <div className="grid min-h-dvh bg-background lg:grid-cols-[16rem_1fr]">
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-primary px-3 py-2 text-sm focus:text-primary-foreground"
-      >
-        {m.common_skip_to_content()}
-      </a>
-      <aside className="sticky top-0 hidden h-dvh overflow-y-auto border-r border-sidebar-border bg-sidebar text-sidebar-foreground p-4 lg:block">
-        <WorkspaceNav
-          workspace={sidebarWorkspace}
-          viewer={viewer}
-          systemRole={systemRole}
-        />
-      </aside>
-      <div className="min-w-0">
-        {impersonation === null ? null : (
+    <WorkspaceChrome
+      layout={layout}
+      workspace={sidebarWorkspace}
+      viewer={frame.viewer}
+      systemRole={systemRole ?? null}
+      home={
+        workspaceSlug === null ? null : (
+          <Link
+            to="/workspaces/$workspaceSlug"
+            params={{ workspaceSlug }}
+            title={workspaceName ?? workspaceSlug}
+          >
+            {workspaceName}
+          </Link>
+        )
+      }
+      // The badge lands on the user-level notifications route, where the
+      // unread kinds are managed.
+      notifications={
+        unreadCount === null
+          ? null
+          : { count: unreadCount, link: <Link to="/account/notifications" /> }
+      }
+      banner={
+        impersonation === null ? null : (
           <ImpersonationBanner
             impersonation={impersonation}
             {...(stopImpersonating === undefined ? {} : { stopImpersonating })}
           />
-        )}
-        <div>
-          <header className="flex min-h-16 items-center gap-4 border-b border-border px-4 sm:px-6">
-            <MobileNavSheet
-              open={mobileNavOpen}
-              onOpenChange={setMobileNavOpen}
-              workspace={sidebarWorkspace}
-              viewer={viewer}
-              systemRole={systemRole}
-            />
-            {workspaceSlug === null ? (
-              <div className="min-w-0 flex-1" />
-            ) : (
-              <Link
-                to="/workspaces/$workspaceSlug"
-                params={{ workspaceSlug }}
-                className="min-w-0 flex-1 truncate text-sm text-muted-foreground hover:text-foreground hover:underline underline-offset-4 lg:invisible"
-                title={workspaceName ?? workspaceSlug}
-              >
-                {workspaceName}
-              </Link>
-            )}
-            {/* The secondary controls move into the mobile sheet below md. */}
-            <div className="hidden shrink-0 md:block">
-              <LanguageSwitcher />
-            </div>
-            <div className="hidden shrink-0 md:block">
-              <SearchButton />
-            </div>
-            {unreadCount === undefined ? null : (
-              // The badge is the notification feed's one always-visible entry
-              // point: it lands on the user-level notifications route, where
-              // the unread kinds are managed — same count, same label, now
-              // clickable.
-              <Badge
-                variant="neutral"
-                typography="numeric"
-                size="touch"
-                render={
-                  <Link
-                    to="/account/notifications"
-                    aria-label={m.unread_notifications({ count: unreadCount })}
-                  />
-                }
-              >
-                <BellIcon className="size-3" />
-                {unreadCount}
-              </Badge>
-            )}
-            <UserMenu
-              workspaceSlug={workspaceSlug}
-              signingOut={signingOut}
-              systemRole={systemRole}
-            />
-          </header>
-          {signingOut.error === null ? null : (
-            <div className="border-b border-border px-4 py-2 sm:px-6">
-              <ActionFeedback error={signingOut.error} />
-            </div>
-          )}
-        </div>
-        {/* Forms keep a reading width; operational lists can use the available space. */}
-        <main id="main-content" tabIndex={-1} className="px-4 py-8 sm:px-8 outline-none">
-          <div className={cn('mx-auto grid w-full gap-8', layout === 'wide' ? 'max-w-7xl' : 'max-w-4xl')}>
-            {children}
-            <footer className="border-t border-border pt-6">
-              <SupportDetails
-                routeName={workspaceSlug === null ? 'application' : 'workspace'}
-                workspaceId={
-                  workspaceSlug === null
-                    ? undefined
-                    : findWorkspace(directory, workspaceSlug)?.id
-                }
-              />
-            </footer>
+        )
+      }
+      accountMenu={
+        <UserMenu
+          workspaceSlug={workspaceSlug}
+          signingOut={signingOut}
+          systemRole={systemRole}
+        />
+      }
+      notice={
+        signingOut.error === null ? null : (
+          <div className="border-b border-border px-4 py-2 sm:px-6">
+            <ActionFeedback error={signingOut.error} />
           </div>
-        </main>
-      </div>
-      </div>
-    </CommandPaletteProvider>
+        )
+      }
+      footer={
+        <footer className="border-t border-border pt-6">
+          <SupportDetails
+            routeName={workspaceSlug === null ? 'application' : 'workspace'}
+            workspaceId={
+              workspaceSlug === null
+                ? undefined
+                : findWorkspace(directory, workspaceSlug)?.id
+            }
+          />
+        </footer>
+      }
+    >
+      {children}
+    </WorkspaceChrome>
   )
 }
 

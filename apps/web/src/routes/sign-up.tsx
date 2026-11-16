@@ -18,7 +18,6 @@ import {
 import { getSocialProviderIds } from '@/lib/server/social-providers'
 import { getTurnstileSiteKey } from '@/lib/server/turnstile'
 import { redirectSearch, safeRedirect } from '@/lib/utils'
-import { authErrorCopy } from '@/lib/auth-error-copy'
 import { useTurnstileChallenge } from '@/components/auth/turnstile-challenge'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
@@ -98,32 +97,21 @@ function SignUpPageContent({
     defaultValues: { name: '', email: '', password: '' } satisfies SignUpValues,
     onSubmit: async ({ value }) =>
       signup.run(async (request) => {
-        setSubmitError(null)
-        if (challenge.missing) {
-          setSubmitError(m.complete_bot_check())
-          return
-        }
-        const result = await signUp({
-          callbackPath: redirect
-            ? `/verify-email?redirect=${encodeURIComponent(safeRedirect(redirect))}`
-            : undefined,
-          name: value.name,
-          email: value.email,
-          password: value.password,
-          turnstileToken: challenge.token
-        }).finally(() => {
-          if (request.current()) {
-            challenge.consume()
-          }
+        const registered = await challenge.send(request, {
+          call: (turnstileToken) =>
+            signUp({
+              callbackPath: redirect
+                ? `/verify-email?redirect=${encodeURIComponent(safeRedirect(redirect))}`
+                : undefined,
+              name: value.name,
+              email: value.email,
+              password: value.password,
+              turnstileToken
+            }),
+          failure: m.public_auth_sign_up_failed(),
+          report: setSubmitError
         })
-        if (!request.current()) {
-          return
-        }
-        if (result.error) {
-          // The captcha refusals (`captcha_rejected`, `captcha_unavailable`)
-          // are codes in the shared table, so the challenge-reset below is the
-          // only thing this branch adds to the mapped copy.
-          setSubmitError(authErrorCopy(result.error, m.public_auth_sign_up_failed()))
+        if (!registered) {
           return
         }
         // Registration signs the user in (auto sign-in) and emails a

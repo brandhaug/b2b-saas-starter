@@ -15,8 +15,9 @@ import {
 } from '@b2b-saas-starter/email'
 import { notificationEmailFor } from '@b2b-saas-starter/email/notification-emails'
 import { dispatchTrackedEmail } from '@b2b-saas-starter/email/tracked'
+import { deliveryRetryDelayMs } from '@b2b-saas-starter/email-delivery/delivery-transitions'
 import { EmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery'
-import { Effect, Layer, type Scope } from 'effect'
+import { Effect, Layer, Random, type Scope } from 'effect'
 
 import { appUrlFrom, openUrlFor, preferencesUrl } from './notification-links.ts'
 import {
@@ -158,18 +159,19 @@ export function sendNotificationEmail(
       )
     )
   }).pipe(
-    Effect.map((outcome) => {
-      if (outcome === 'retry') {
-        // Store failures have no persisted due time yet. Keep those queue
-        // attempts spread far enough apart to cover the full retry window.
-        return {
-          retryAfterSeconds: Math.min(
-            3600,
-            60 * 2 ** Math.min(envelope.attempts - 1, 6)
-          )
-        }
+    Effect.flatMap((outcome) => {
+      if (outcome !== 'retry') {
+        return Effect.succeed(outcome)
       }
-      return outcome
+      // Store failures have no persisted due time yet, so the queue attempt
+      // follows the delivery backoff to cover the full retry window.
+      return Random.next.pipe(
+        Effect.map((jitter) => ({
+          retryAfterSeconds: Math.ceil(
+            deliveryRetryDelayMs(envelope.attempts, jitter) / 1000
+          )
+        }))
+      )
     })
   )
 }

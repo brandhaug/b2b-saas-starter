@@ -22,7 +22,7 @@ import { runCapabilities, runWorkspaceCapabilities } from '../capabilities'
 import { requireRequestSession } from './auth'
 import { requireWorkspacePermission, whenPermitted } from './authorize'
 import { WorkspaceContext } from '@b2b-saas-starter/capabilities/workspace-context'
-import { unreadCount, workspacePage, type WorkspacePageFrame } from './page-frame'
+import { workspacePage, type WorkspacePageFrame } from './page-frame'
 import {
   type PortalInput,
   type StartCheckoutInput,
@@ -59,7 +59,6 @@ const billingPayload: WorkspacePageFrame<WorkspaceBillingPayload> = workspacePag
       Effect.map(
         Effect.all(
           {
-            unreadCount,
             members: Effect.flatMap(
               WorkspaceMembership,
               (membership) => membership.listMembers
@@ -94,7 +93,6 @@ const billingPayload: WorkspacePageFrame<WorkspaceBillingPayload> = workspacePag
           const webhookEndpointIds = new Set(segments.webhookEntitlements.eligibleIds)
           return {
             workspaceName: ctx.workspace.name,
-            unreadCount: segments.unreadCount,
             plans: segments.plans ?? [],
             pricingUnavailable: segments.plans === null,
             currentPlanId: plan.id,

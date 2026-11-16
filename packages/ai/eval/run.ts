@@ -5,6 +5,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
 import { Effect, Layer } from 'effect'
 import { AssistantLive } from '../src/index.ts'
+import { PlatformHttpClientLive } from '@b2b-saas-starter/failure/http-client'
 import { makeOpenAIModel } from '../src/openai.ts'
 import { cases } from './cases.ts'
 import { createIdentity, decodeBaseline, evaluate, serializeRun } from './evaluation.ts'
@@ -112,7 +113,7 @@ const run = await Effect.runPromise(
             baseUrl: identity.endpoint,
             modelId: identity.modelId,
             maxOutputTokens: identity.maxOutputTokens
-          })
+          }).pipe(Layer.provide(PlatformHttpClientLive))
         )
       )
     )

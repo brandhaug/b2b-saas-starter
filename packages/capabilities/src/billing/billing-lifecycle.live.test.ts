@@ -25,6 +25,7 @@ import {
   type LifecycleSnapshot
 } from './billing-lifecycle.contract.ts'
 import { testItem, testPrice } from '@b2b-saas-starter/billing/provider-test-fixtures'
+import { wireHttpClient } from '@b2b-saas-starter/failure/http-client'
 
 const workspaceId = 'wrk_live'
 const bindings = {
@@ -221,7 +222,6 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('Live lifecycle', (it) => {
         })
         const fixture = providerFixture()
         fixture.archive()
-        vi.stubGlobal('fetch', fixture.fetch)
         function scoped<A, E>(
           effect: Effect.Effect<
             A,
@@ -302,7 +302,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('Live lifecycle', (it) => {
           expect(fixture.seats.length).toBeGreaterThan(0)
           expect(fixture.seats.every((mode) => mode === 'create_prorations')).toBe(true)
         })
-        yield* run.pipe(Effect.ensuring(Effect.sync(() => vi.unstubAllGlobals())))
+        yield* run.pipe(Effect.provide(wireHttpClient(fixture.fetch)))
       }),
     30_000
   )
@@ -332,7 +332,6 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('Live lifecycle', (it) => {
             updatedAt: '2026-10-01T00:00:00.000Z'
           })
           .onConflictDoNothing()
-        vi.stubGlobal('fetch', fixture.fetch)
         const sync = inWorkspace(
           'live-lab',
           Effect.gen(function* () {
@@ -468,7 +467,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('Live lifecycle', (it) => {
             )
           ).toHaveLength(1)
         })
-        yield* run.pipe(Effect.ensuring(Effect.sync(() => vi.unstubAllGlobals())))
+        yield* run.pipe(Effect.provide(wireHttpClient(fixture.fetch)))
       }),
     30_000
   )
@@ -504,7 +503,6 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('Live lifecycle', (it) => {
               graceEndsAt: null
             }
           })
-        vi.stubGlobal('fetch', fixture.fetch)
         const run = inWorkspace(
           'live-lab',
           Effect.gen(function* () {
@@ -559,7 +557,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('Live lifecycle', (it) => {
           undefined,
           bindings
         )
-        yield* run.pipe(Effect.ensuring(Effect.sync(() => vi.unstubAllGlobals())))
+        yield* run.pipe(Effect.provide(wireHttpClient(fixture.fetch)))
       }),
     30_000
   )

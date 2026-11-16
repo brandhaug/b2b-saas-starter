@@ -150,7 +150,11 @@ export function handleStripeRequest(request: Request, env: Env): Promise<Respons
   ).catch(() => Response.json({ error: 'processing_failed' }, { status: 500 }))
 }
 
-const processStripeRequest = Effect.fn('Stripe.ingest')(function* (
+/**
+ * The ingest program `handleStripeRequest` runs; its failures become the
+ * handler's 500. Tests drive it directly to provide a fixture transport.
+ */
+export const processStripeRequest = Effect.fn('Stripe.ingest')(function* (
   request: Request,
   env: Env
 ) {

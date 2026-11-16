@@ -6,9 +6,9 @@ import {
   type ReplacedApiToken,
   type CreatedApiToken
 } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
-import { type WorkspaceViewer } from '@/lib/permissions'
 import { createServerFn } from '@tanstack/react-start'
 import { Schema } from 'effect'
+import { type WorkspacePagePayload } from '@/lib/workspace-frame'
 
 /**
  * The API tokens payload.
@@ -17,11 +17,9 @@ import { Schema } from 'effect'
  * `apiToken:list` is withheld from a plain `member`, so the page hard-gates on
  * it — a member meeting the URL directly gets the denial, not an empty list.
  */
-export type WorkspaceApiTokensPayload = {
-  readonly viewer: WorkspaceViewer | null
-  readonly unreadCount: number
+export type WorkspaceApiTokensPayload = WorkspacePagePayload<{
   readonly tokens: ReadonlyArray<ApiToken>
-}
+}>
 
 const LoadApiTokensInput = Schema.Struct({
   workspaceSlug: Schema.NonEmptyString

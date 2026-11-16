@@ -18,6 +18,7 @@ import {
 import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Schema } from 'effect'
+import { type HttpClient } from 'effect/http'
 import { annotateWideEvent } from '@b2b-saas-starter/logger'
 import { and, asc, count, eq, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm'
 import {
@@ -76,11 +77,20 @@ function conflict(reason: string) {
   return Effect.fail(new BillingSyncConflict({ reason }))
 }
 
+/**
+ * Supplies the Stripe transport `LiveBilling` captured from its composition,
+ * so its operations and the synchronization's close over one client.
+ */
+type ProvideHttpClient = <A, E, R>(
+  effect: Effect.Effect<A, E, R>
+) => Effect.Effect<A, E, Exclude<R, HttpClient.HttpClient>>
+
 /** All background billing paths share authoritative reads and one atomic commit. */
 export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization')(
   function* (
     options: BillingOptions,
-    store: Effect.Success<ReturnType<typeof makeBillingSyncStore>>
+    store: Effect.Success<ReturnType<typeof makeBillingSyncStore>>,
+    provideHttp: ProvideHttpClient
   ) {
     const db = yield* Database
     const audit = yield* AuditEventLog
@@ -128,7 +138,8 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
       recovery: ReconcileWorkspaceInput['recovery']
     ): Effect.fn.Return<
       { readonly result: ReconcileResult; readonly duplicate: boolean },
-      CapabilityUnavailable
+      CapabilityUnavailable,
+      HttpClient.HttpClient
     > {
       yield* annotateWideEvent({ workspaceId, stripeEventId: input?.providerEventId })
       const secretKey = yield* providerKey()
@@ -399,7 +410,7 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
           )
         })
       )
-    })
+    }, provideHttp)
 
     const resolveWorkspace = Effect.fn('Billing.resolveProviderWorkspace')(function* (
       input: ProcessProviderEventInput
@@ -474,7 +485,11 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
 
     const processProviderEvent = Effect.fn('Billing.processProviderEvent')(function* (
       input: ProcessProviderEventInput
-    ): Effect.fn.Return<ProcessProviderEventResult, CapabilityUnavailable> {
+    ): Effect.fn.Return<
+      ProcessProviderEventResult,
+      CapabilityUnavailable,
+      HttpClient.HttpClient
+    > {
       yield* providerKey()
       yield* annotateWideEvent({ stripeEventId: input.providerEventId })
       if (isCompletedProviderEvent(yield* store.event(input.providerEventId))) {
@@ -565,7 +580,7 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
         }
       }
       return { outcome: 'applied', providerEventId: input.providerEventId }
-    })
+    }, provideHttp)
 
     const reconcileWorkspace = Effect.fn('Billing.reconcileWorkspace')(function* (
       input: ReconcileWorkspaceInput

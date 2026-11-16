@@ -1,4 +1,4 @@
-import { Clock, DateTime, Effect, Ref } from 'effect'
+import { Clock, DateTime, Effect, Random, Ref } from 'effect'
 import * as TestClock from 'effect/testing/TestClock'
 import { type expect as vitestExpect } from '@effect/vitest'
 import {
@@ -22,6 +22,11 @@ function input(
     workspaceId: 'wrk_live'
   }
 }
+/** A random source that always draws `value`, so retry jitter is exact. */
+export function fixedJitter(value: number): Random.Random {
+  return { nextDoubleUnsafe: () => value, nextIntUnsafe: () => 0 }
+}
+
 export function emailDeliveryContractCases(expect: typeof vitestExpect) {
   return [
     {
@@ -143,7 +148,26 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
           status: 'queued',
           retryAfterSeconds: 300
         })
-      })
+      }).pipe(Effect.provideService(Random.Random, fixedJitter(0)))
+    },
+    {
+      name: 'a transient failure retries after a jittered backoff drawn from the random source',
+      assert: Effect.gen(function* () {
+        const delivery = yield* EmailDelivery
+        const claim = yield* delivery.claim(input('jittered'))
+        if (!claim) {
+          expect.fail('expected a send claim')
+        }
+        yield* delivery.recordOutcome('jittered', claim.token, {
+          status: 'temporary_failure',
+          reason: 'transport_unavailable'
+        })
+        expect(yield* delivery.completionDecision('jittered')).toEqual({
+          outcome: 'retry_pending',
+          status: 'temporary_failure',
+          retryAfterSeconds: 66
+        })
+      }).pipe(Effect.provideService(Random.Random, fixedJitter(0.5)))
     },
     {
       name: 'a complaint strengthens an existing failure and cannot be overwritten by weaker evidence',
@@ -336,6 +360,38 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
         expect(yield* delivery.claim(input('ambiguous', 'digest'))).toBeNull()
         expect((yield* delivery.get('ambiguous'))?.reason).toBe('retry_window_expired')
       })
+    },
+    {
+      name: 'a backoff that crosses the retry window expires at the window instead of waking early',
+      assert: Effect.gen(function* () {
+        const delivery = yield* EmailDelivery
+        const now = yield* Clock.currentTimeMillis
+        // Thirty seconds of the 24-hour notification window remain.
+        const queuedAt = DateTime.formatIso(
+          DateTime.makeUnsafe(now - 24 * 3_600_000 + 30_000)
+        )
+        const request = { ...input('backoff-past-window'), queuedAt }
+        const claim = yield* delivery.claim(request)
+        if (!claim) {
+          expect.fail('expected a send claim')
+        }
+        yield* delivery.recordOutcome(request.id, claim.token, {
+          status: 'temporary_failure',
+          reason: 'transport_unavailable'
+        })
+        expect(yield* delivery.completionDecision(request.id)).toEqual({
+          outcome: 'retry_pending',
+          status: 'temporary_failure',
+          retryAfterSeconds: 30
+        })
+        yield* TestClock.adjust('30 seconds')
+        expect(yield* delivery.claim(request)).toBeNull()
+        expect((yield* delivery.get(request.id))?.reason).toBe('retry_window_expired')
+        expect(yield* delivery.completionDecision(request.id)).toEqual({
+          outcome: 'ack',
+          status: 'failed'
+        })
+      }).pipe(Effect.provideService(Random.Random, fixedJitter(0)))
     },
     {
       name: 'an expired first notification attempt is recorded without granting a send',
