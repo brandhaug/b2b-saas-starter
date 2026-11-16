@@ -100,7 +100,7 @@ describe('workers-ai model', () => {
       assistantOn(makeWorkersAIModel({ run: () => Promise.resolve({}) })),
       (error) => {
         expect(error._tag).toBe('AssistantUnavailable')
-        expect(error.reason).toContain('missing response text')
+        expect(error.reason).toBe('Assistant provider request failed.')
       }
     ))
 
@@ -111,7 +111,7 @@ describe('workers-ai model', () => {
       ),
       (error) => {
         expect(error._tag).toBe('AssistantUnavailable')
-        expect(error.reason).toContain('workers-ai')
+        expect(error.reason).toBe('Assistant provider request failed.')
       }
     ))
 })

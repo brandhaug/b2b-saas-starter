@@ -2,7 +2,7 @@ import {
   WorkspaceSuspensionService,
   workspaceSuspensionOperationForPermission
 } from '@b2b-saas-starter/capabilities/governance/workspace-suspension'
-import { annotateWideEvent } from '@b2b-saas-starter/logger'
+import { annotateWideEvent, annotateWideEventCause } from '@b2b-saas-starter/logger'
 import { requirePermission } from '@b2b-saas-starter/authz/guard'
 import { tokenPrincipal, type PermissionRequest } from '@b2b-saas-starter/authz/client'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
@@ -14,7 +14,7 @@ import {
   AUTHORIZATION_DENIED_REASONS,
   AuthorizationDenied
 } from '@b2b-saas-starter/authz/errors'
-import { Effect, Layer, Redacted, Result, Schema, type Scope } from 'effect'
+import { Cause, Effect, Layer, Redacted, Result, type Scope } from 'effect'
 import { HttpServerRequest } from 'effect/http'
 
 import {
@@ -161,22 +161,13 @@ export const enforcePermission = Effect.fn('Api.enforcePermission')(function* (
   )
 })
 
-const decodeFailureTag = Schema.decodeUnknownResult(
-  Schema.Struct({ _tag: Schema.String })
-)
-
-/** Preserve the tag before the HTTP contract translates a typed failure. */
-export const annotateRequestFailure = Effect.fn('Api.annotateRequestFailure')(
-  function* (
-    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- generic Effect error boundary; only the schema-decoded tag enters the sanitized logger
-    error: unknown
-  ) {
-    const decoded = decodeFailureTag(error)
-    if (Result.isSuccess(decoded)) {
-      yield* annotateWideEvent({ errorTag: decoded.success._tag, errorKind: 'fail' })
-    }
-  }
-)
+/** Preserve the failure's safe facts before the HTTP contract translates it. */
+export function annotateRequestFailure(
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- generic Effect error boundary; the logger keeps only its sanitized facts
+  error: unknown
+): Effect.Effect<void> {
+  return annotateWideEventCause(Cause.fail(error))
+}
 
 export function observed<A, E, R>(
   event: string,

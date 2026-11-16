@@ -31,6 +31,7 @@ import {
   diagnosticLabel
 } from './sanitization.ts'
 import { failureMessage } from '@b2b-saas-starter/failure'
+import { narrowedCauseTag } from '@b2b-saas-starter/failure/narrowing'
 
 class WideEventFacts extends Context.Service<WideEventFacts, Record<string, unknown>>()(
   'logger/WideEventFacts'
@@ -72,14 +73,18 @@ type WideEventFailure = {
   readonly errorKind: 'fail' | 'interrupt' | 'defect'
   readonly error?: string
   readonly errorTag?: string
+  /** Narrowed failures only: the identity of the failure the narrowing replaced. */
+  readonly causeTag?: string
   /** Defects only: scrubbed error name and top frame (see `sanitization.ts`). */
   readonly errorSummary?: string
 }
 
 function failureMetadata(head: unknown): WideEventFailure {
+  const causeTag = narrowedCauseTag(head)
   const base: WideEventFailure = {
     errorKind: 'fail',
-    error: failureMessage(head)
+    error: failureMessage(head),
+    ...(causeTag !== undefined && { causeTag })
   }
   // oxlint-disable-next-line anti-slop/no-runtime-typeof -- one `_tag` read off an arbitrary failure value; there is no contract to parse it against
   if (!Predicate.hasProperty(head, '_tag') || typeof head._tag !== 'string') {
@@ -88,7 +93,13 @@ function failureMetadata(head: unknown): WideEventFailure {
   return { ...base, errorTag: head._tag }
 }
 
-function causeMetadata(cause: Cause.Cause<unknown>): WideEventFailure {
+/**
+ * The wide event's safe failure facts for a cause: kind, tag, the narrowed
+ * failure's `causeTag`, or a defect's scrubbed summary. Every adapter that
+ * translates a failure into a response records these, so the facts match the
+ * ones a failed scope emits.
+ */
+export function failureFacts(cause: Cause.Cause<unknown>): WideEventFailure {
   const failure = Cause.findErrorOption(cause)
   if (Option.isSome(failure)) {
     return failureMetadata(failure.value)
@@ -109,7 +120,7 @@ function causeMetadata(cause: Cause.Cause<unknown>): WideEventFailure {
 export function annotateWideEventCause(
   cause: Cause.Cause<unknown>
 ): Effect.Effect<void> {
-  return annotateWideEvent(causeMetadata(cause))
+  return annotateWideEvent(failureFacts(cause))
 }
 
 export type WideEventScopeOptions = TraceContinuation & {
@@ -131,7 +142,7 @@ function outcomeMetadata(
   annotations: Readonly<Record<string, unknown>>
 ): WideEventOutcome {
   if (Exit.isFailure(exit)) {
-    return { status: 'error', ...causeMetadata(exit.cause) }
+    return { status: 'error', ...failureFacts(exit.cause) }
   }
   // Protocols such as MCP encode a caught defect inside an HTTP 200 response.
   if (annotations['errorKind'] === 'defect') {

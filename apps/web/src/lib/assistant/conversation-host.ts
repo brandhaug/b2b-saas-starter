@@ -8,10 +8,12 @@ import { createUIMessageStream, createUIMessageStreamResponse } from 'ai'
 import { Effect, Layer, ManagedRuntime, Semaphore, Result } from 'effect'
 import {
   WideEventLoggerLive,
+  annotateWideEventCause,
   withHttpInvocation,
   withTriggerScope,
   makeOtlpLayer
 } from '@b2b-saas-starter/logger'
+import { attemptPromise } from '@b2b-saas-starter/failure/narrowing'
 import {
   makeConversationHostLayer,
   type ConversationHostServices
@@ -32,6 +34,7 @@ import {
   type ConversationRetry,
   ConversationNotFound,
   ConversationUnavailable,
+  conversationStorageFailure,
   conversationTitle,
   type ConversationAttempt
 } from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversation'
@@ -52,7 +55,6 @@ import {
 } from './conversation-protocol'
 
 const InvocationHeader = 'x-starter-assistant-context'
-
 type ConversationRun = {
   readonly attemptId: string
   readonly controller: AbortController
@@ -98,9 +100,9 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
           Effect.gen({ self: this }, function* () {
             const invocation = yield* this.invocation(request)
             yield* this.authorize(invocation.credential, 'read')
-            return yield* Effect.tryPromise({
+            return yield* attemptPromise({
               try: next,
-              catch: () => new ConversationUnavailable({ reason: 'storage' })
+              narrow: conversationStorageFailure
             })
           })
         ),
@@ -282,9 +284,9 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
   }
 
   private watchAuthority() {
-    return Effect.tryPromise({
+    return attemptPromise({
       try: () => this.scheduleEvery(15, 'revalidateAuthority'),
-      catch: () => new ConversationUnavailable({ reason: 'storage' })
+      narrow: conversationStorageFailure
     }).pipe(Effect.asVoid)
   }
 
@@ -363,9 +365,9 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
   }
 
   private savedText(id: string) {
-    return Effect.tryPromise({
+    return attemptPromise({
       try: () => this.sessions.session().getMessage(id),
-      catch: () => new ConversationUnavailable({ reason: 'storage' })
+      narrow: conversationStorageFailure
     }).pipe(
       Effect.map(
         (message) =>
@@ -411,9 +413,9 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
         if (id === null || id !== (yield* this.ledger.identity())) {
           return new Response(null, { status: 204 })
         }
-        yield* Effect.tryPromise({
+        yield* attemptPromise({
           try: () => this.revalidateAuthority(),
-          catch: () => new ConversationUnavailable({ reason: 'authority' })
+          narrow: () => new ConversationUnavailable({ reason: 'authority' })
         })
         return new Response(null, { status: 204 })
       }
@@ -442,15 +444,15 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
         for (const connection of this.getConnections()) {
           connection.close(1008, 'Conversation deleted')
         }
-        yield* Effect.tryPromise({
+        yield* attemptPromise({
           try: async () => {
             await run?.completion
           },
-          catch: () => new ConversationUnavailable({ reason: 'storage' })
+          narrow: conversationStorageFailure
         })
-        yield* Effect.tryPromise({
+        yield* attemptPromise({
           try: () => this.destroy(),
-          catch: () => new ConversationUnavailable({ reason: 'storage' })
+          narrow: conversationStorageFailure
         })
         return new Response(null, { status: 204 })
       }
@@ -531,11 +533,11 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
         }
         const run = this.run?.attemptId === attempt.id ? this.run : undefined
         yield* this.terminal(attempt, 'Stopped', 'stopped')
-        yield* Effect.tryPromise({
+        yield* attemptPromise({
           try: async () => {
             await run?.completion
           },
-          catch: () => new ConversationUnavailable({ reason: 'storage' })
+          narrow: conversationStorageFailure
         })
         return Response.json(yield* this.ledger.attempt(attempt.id))
       }
@@ -666,9 +668,9 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
                     writer.write({ type: 'message-metadata', messageMetadata: event })
                   }
                 },
-                persistOutput: Effect.tryPromise({
+                persistOutput: attemptPromise({
                   try: () => this.persistOutput(run, attempt),
-                  catch: () => new ConversationUnavailable({ reason: 'storage' })
+                  narrow: conversationStorageFailure
                 }),
                 finish: (current, status, reason) =>
                   this.terminal(current, status, reason)
@@ -731,7 +733,7 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
           attempt !== null &&
           context.partialText.length > (yield* this.savedText(attempt.id)).length
         ) {
-          yield* Effect.tryPromise({
+          yield* attemptPromise({
             try: () =>
               this.persistMessages([
                 ...this.messages.filter((message) => message.id !== attempt.id),
@@ -741,7 +743,7 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
                   parts: [{ type: 'text', text: context.partialText }]
                 }
               ]),
-            catch: () => new ConversationUnavailable({ reason: 'storage' })
+            narrow: conversationStorageFailure
           })
         }
         if (attempt !== null) {
@@ -759,28 +761,40 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
     request: Request,
     effect: Effect.Effect<A, E, ConversationHostServices>
   ) {
-    return this.runtime
-      .runPromise(
-        withHttpInvocation(
-          { service: 'assistant', event: 'assistant.request', request, env: this.env },
-          effect.pipe(
-            Effect.catch((error) =>
-              Effect.sync(() => {
-                const tagged = decodeFailure(error)
-                if (Result.isFailure(tagged)) {
-                  return Response.json(
-                    { error: 'ConversationUnavailable' },
-                    { status: 503 }
-                  )
-                }
-                return failureResponse(tagged.success)
-              })
+    return (
+      this.runtime
+        .runPromise(
+          withHttpInvocation(
+            {
+              service: 'assistant',
+              event: 'assistant.request',
+              request,
+              env: this.env
+            },
+            effect.pipe(
+              // The response hides the failure; the wide event keeps its tags.
+              Effect.tapCause(annotateWideEventCause),
+              Effect.catch((error) =>
+                Effect.sync(() => {
+                  const tagged = decodeFailure(error)
+                  if (Result.isFailure(tagged)) {
+                    return Response.json(
+                      { error: 'ConversationUnavailable' },
+                      { status: 503 }
+                    )
+                  }
+                  return failureResponse(tagged.success)
+                })
+              )
             )
           )
         )
-      )
-      .catch(() =>
-        failureResponse(new ConversationUnavailable({ reason: 'configuration' }))
-      )
+        // The one narrowing outside Effect, so it records no causeTag: the
+        // invocation's wide event already carries this exit's cause, or the
+        // runtime never started and there is no event to annotate.
+        .catch(() =>
+          failureResponse(new ConversationUnavailable({ reason: 'configuration' }))
+        )
+    )
   }
 }

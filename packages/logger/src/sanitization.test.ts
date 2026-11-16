@@ -9,9 +9,11 @@ import { makeOtlpLayer } from './otlp.ts'
 import {
   WideEventLoggerLive,
   annotateWideEvent,
+  annotateWideEventCause,
   withRequestScope
 } from './wide-event.ts'
 import { diagnosticErrorSummary, diagnosticFields } from './sanitization.ts'
+import { orUnavailable } from '@b2b-saas-starter/failure/capability'
 
 async function requestBody(init: RequestInit | undefined): Promise<string> {
   const bytes = new Uint8Array(await new Response(init?.body).arrayBuffer())
@@ -525,4 +527,93 @@ it('keeps assistant cleanup counts and code-owned notification outcomes while dr
       assistantAuthorityNotification: secret
     })
   ).toEqual({})
+})
+
+describe('narrowed failure identity', () => {
+  it('exports the replaced failure tag behind a 503 in console and OTLP without its message', async () => {
+    const lines: Array<string> = []
+    const payloads: Array<string> = []
+    const output = vi
+      .spyOn(console, 'log')
+      .mockImplementation((line: string) => lines.push(line))
+    const errors = vi
+      .spyOn(console, 'error')
+      .mockImplementation((line: string) => lines.push(line))
+    const fetch = vi.fn<typeof globalThis.fetch>(async (_input, init) => {
+      payloads.push(await requestBody(init))
+      return new Response('{}')
+    })
+    try {
+      const response = await Effect.runPromise(
+        withHttpInvocation(
+          {
+            service: 'api',
+            event: 'api.request',
+            request: new Request('https://app.example/private'),
+            env: { OTEL_EXPORTER_OTLP_ENDPOINT: 'https://collector.example' }
+          },
+          Effect.fail({
+            _tag: 'SqlError',
+            message: `select * from api_tokens where secret = '${secret}'`
+          }).pipe(
+            orUnavailable('api-tokens'),
+            Effect.tapCause(annotateWideEventCause),
+            Effect.catchTag('CapabilityUnavailable', () =>
+              Effect.succeed(new Response(null, { status: 503 }))
+            )
+          )
+        ).pipe(
+          Effect.provide(WideEventLoggerLive),
+          Effect.provideService(FetchHttpClient.Fetch, fetch)
+        )
+      )
+      expect(response.status).toBe(503)
+      expect(lines).toHaveLength(1)
+      expect(JSON.parse(lines[0] ?? '')).toMatchObject({
+        level: 'ERROR',
+        annotations: { statusCode: 503, causeTag: 'SqlError' }
+      })
+      const emitted = payloads.join(',')
+      expect(emitted).toContain('"key":"causeTag"')
+      expect(emitted).toContain('SqlError')
+      expect(lines.join(',') + emitted).not.toContain(secret)
+    } finally {
+      output.mockRestore()
+      errors.mockRestore()
+    }
+  })
+
+  it('keeps only the code-owned security evidence outcomes', () => {
+    for (const securityEvidence of ['gap', 'gap_alert_failed']) {
+      expect(diagnosticFields({ securityEvidence })).toEqual({ securityEvidence })
+    }
+    for (const securityEvidence of ['recorded', secret, 42]) {
+      expect(diagnosticFields({ securityEvidence })).toEqual({})
+    }
+  })
+
+  it('keeps only a code-owned tag shape as a cause tag', () => {
+    for (const causeTag of [
+      'SqlError',
+      'SchemaError',
+      'EffectDrizzleQueryError',
+      'untagged'
+    ]) {
+      expect(diagnosticFields({ causeTag })).toEqual({ causeTag })
+    }
+    for (const causeTag of [
+      secret,
+      'select * from api_tokens',
+      'Error: no such table',
+      'sqlError',
+      'SQLITE_ERROR',
+      'Sql.Error',
+      'S'.repeat(65),
+      'user@example.com',
+      42,
+      true
+    ]) {
+      expect(diagnosticFields({ causeTag })).toEqual({})
+    }
+  })
 })

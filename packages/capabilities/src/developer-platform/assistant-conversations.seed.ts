@@ -1,3 +1,4 @@
+import { narrowFailure } from '@b2b-saas-starter/failure/narrowing'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { Effect, Fiber, Result, Schema, Semaphore } from 'effect'
 import { type ConversationModel } from '@b2b-saas-starter/ai/conversation'
@@ -349,7 +350,7 @@ export const makeSeedAssistantConversationHost = Effect.fn('SeedConversationHost
     // non-2xx answers do through the Live binding.
     function hostCall<A, E>(effect: Effect.Effect<A, E, SeedHostServices>) {
       return effect.pipe(
-        Effect.mapError(() => new ConversationUnavailable({ reason: 'storage' })),
+        narrowFailure(() => new ConversationUnavailable({ reason: 'storage' })),
         Effect.provideContext(context)
       )
     }

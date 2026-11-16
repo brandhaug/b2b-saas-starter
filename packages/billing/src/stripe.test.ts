@@ -4,11 +4,12 @@ import {
   testSubscriptionFields
 } from './provider-test-fixtures.ts'
 import { describe, expect, it, vi } from '@effect/vitest'
-import { Deferred, Effect, Fiber, Redacted } from 'effect'
+import { Deferred, Effect, Fiber, Redacted, Schema } from 'effect'
 import { TestClock } from 'effect/testing'
 import { wireHttpClient, type WireRequest } from '@b2b-saas-starter/failure/http-client'
 
 import { billingOptionsFromEnv } from './billing-config.ts'
+import { WideEventLoggerLive, withRequestScope } from '@b2b-saas-starter/logger'
 
 import {
   createStripeCheckoutSession,
@@ -19,6 +20,8 @@ import {
   updateStripeSubscriptionItemQuantity,
   verifyStripeSignature
 } from './stripe.ts'
+
+const decodeLine = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Unknown))
 
 /** What the adapter put on the wire, with the URL it went to. */
 type SentRequest = WireRequest & { readonly url: string }
@@ -192,6 +195,43 @@ describe('Stripe provider adapter', () => {
       expect(error.reason).not.toContain('secret account details')
     }).pipe(Effect.provide(wireHttpClient(wire)))
   })
+
+  // Live services: the console logger writes to the platform console, not TestConsole.
+  it.live(
+    'names the transport failure behind stripe request failed on the wide event',
+    () => {
+      const lines: Array<string> = []
+      const errors = vi
+        .spyOn(console, 'error')
+        .mockImplementation((line: string) => lines.push(line))
+      const wire = vi.fn(() => Promise.reject(new Error('connect ECONNREFUSED')))
+      return Effect.gen(function* () {
+        const exit = yield* Effect.exit(
+          withRequestScope(
+            { service: 'api', event: 'api.request' },
+            retrieveStripeCustomer({
+              secretKey: Redacted.make('sk_test_secret'),
+              customerId: 'cus_1'
+            })
+          )
+        )
+        expect(exit).toMatchObject({
+          cause: { reasons: [{ error: { reason: 'stripe request failed' } }] }
+        })
+        expect(lines).toHaveLength(1)
+        expect(decodeLine(lines[0] ?? '')).toMatchObject({
+          annotations: {
+            errorTag: 'CapabilityUnavailable',
+            causeTag: 'HttpClientError'
+          }
+        })
+      }).pipe(
+        Effect.provide(wireHttpClient(wire)),
+        Effect.provide(WideEventLoggerLive),
+        Effect.ensuring(Effect.sync(() => errors.mockRestore()))
+      )
+    }
+  )
 
   it.effect('reads authoritative subscription price and seat quantity', () => {
     const wire = vi.fn(() =>

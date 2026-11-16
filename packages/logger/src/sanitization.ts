@@ -40,6 +40,7 @@ const publicationFailureFields = new Set([
 
 // Each degraded-provider reason key accepts only the labels its owner emits.
 const providerReasonFields = new Map<string, ReadonlySet<string>>([
+  ['securityEvidence', new Set(['gap', 'gap_alert_failed'])],
   [
     'notificationEmailEnqueueReason',
     new Set(['preferences_unavailable', 'queue_rejected'])
@@ -57,6 +58,10 @@ const providerReasonFields = new Map<string, ReadonlySet<string>>([
     ])
   ]
 ])
+
+// A narrowed failure's identity: a PascalCase `_tag`, or `untagged` for a
+// thrown value without one. Never a message, so no spaces, quotes or SQL.
+const CAUSE_TAG = /^(?:[A-Z][a-zA-Z0-9]{0,63}|untagged)$/
 
 const configurationFields = new Set([
   'config.BETTER_AUTH_SECRET',
@@ -86,6 +91,7 @@ const allowedFields = new Set([
   'errorKind',
   'errorTag',
   'errorSummary',
+  'causeTag',
   'environment',
   'region',
   'serviceVersion',
@@ -247,6 +253,9 @@ export function diagnosticFields(fields: object) {
       providerReasons !== undefined &&
       (typeof value !== 'string' || !providerReasons.has(value))
     ) {
+      continue
+    }
+    if (key === 'causeTag' && (typeof value !== 'string' || !CAUSE_TAG.test(value))) {
       continue
     }
     if (key === 'authAuditBodyErrorTag' && value !== 'AuthAuditBodyUnreadable') {

@@ -1,3 +1,4 @@
+import { annotateWideEvent } from '@b2b-saas-starter/logger'
 import { DateTime, Effect, Redacted, Result, Schema } from 'effect'
 
 import { newCapabilityId } from '../internal/ids.ts'
@@ -133,6 +134,8 @@ const appendSecurityEvidence = Effect.fn('SecurityEvidence.record')(function* (
   if (Result.isSuccess(appended)) {
     return 'recorded'
   }
+  // The mutation still succeeds; the gap is a fact on its event, not a failure.
+  yield* annotateWideEvent({ securityEvidence: 'gap' })
   const alerted = yield* Effect.tryPromise({
     try: () =>
       sink.reportGap({
@@ -144,6 +147,7 @@ const appendSecurityEvidence = Effect.fn('SecurityEvidence.record')(function* (
     catch: () => 'security_evidence_gap_alert_failed'
   }).pipe(Effect.result)
   if (Result.isFailure(alerted)) {
+    yield* annotateWideEvent({ securityEvidence: 'gap_alert_failed' })
     yield* Effect.logError('security.recovery.gap_alert_failed').pipe(
       Effect.annotateLogs({
         event: 'security.recovery.gap_alert_failed',

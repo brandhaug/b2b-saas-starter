@@ -69,6 +69,11 @@ decision function, and the predicate sets (`open`, `terminal`, `replayable`,
   operation input. Call `Redacted.value` only inside the I/O call that needs the
   plaintext (HTTP header or body, HMAC key, SDK argument); never build plaintext
   headers or option bags ahead of time.
+- Narrow a provider, storage or decode failure into a code-owned error only
+  through `narrowFailure`, `attempt`/`attemptPromise` (for `Effect.try` and
+  `tryPromise`) or `orUnavailable`, which keep the replaced failure's tag as the
+  wide event's `causeTag`. An error built in a bare `catch` or `mapError` loses
+  the original failure's identity.
 
 ### Execution ownership
 

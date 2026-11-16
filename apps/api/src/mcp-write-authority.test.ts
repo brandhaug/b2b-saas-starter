@@ -12,7 +12,10 @@ import {
   seedWebhookEndpoints,
   seedDeliveries
 } from '@b2b-saas-starter/capabilities/seed-fixture'
-import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
+import {
+  CapabilityUnavailable,
+  orUnavailable
+} from '@b2b-saas-starter/failure/capability'
 import { SEED_API_TOKEN } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { WideEventLoggerLive, withHttpInvocation } from '@b2b-saas-starter/logger'
 import { vi } from 'vite-plus/test'
@@ -37,6 +40,83 @@ const decodeTelemetry = Schema.decodeUnknownSync(
   Schema.fromJsonString(Schema.JsonObject)
 )
 
+/** The MCP protocol behind the API's wide-event middleware, with a substituted publisher. */
+function observedMcpServer(publisher: Layer.Layer<WebhookPublisher>) {
+  const webhooks = SeedWebhooks(seedWebhookEndpoints, seedDeliveries).pipe(
+    Layer.provide(publisher),
+    Layer.provide(SeedLayer)
+  )
+  const observation = HttpRouter.middleware(
+    (effect) =>
+      Effect.gen(function* () {
+        const request = yield* HttpServerRequest.HttpServerRequest
+        return yield* withHttpInvocation(
+          {
+            service: 'api',
+            event: 'api.request',
+            request: webRequest(request),
+            env: {}
+          },
+          effect
+        )
+      }).pipe(Effect.provide(WideEventLoggerLive)),
+    { global: true }
+  )
+  return HttpRouter.toWebHandler(
+    Layer.mergeAll(
+      mcpProtocolLayer({}).pipe(
+        Layer.provide(
+          Layer.mergeAll(
+            SeedLayer,
+            webhooks,
+            Layer.succeed(RateLimiter)({ take: () => Effect.succeed(true) }),
+            Layer.succeed(OAuthTokenVerifier)({
+              verify: () => Effect.die('unexpected OAuth')
+            })
+          )
+        )
+      ),
+      observation
+    ),
+    { disableLogger: true }
+  )
+}
+
+it.live('names the narrowed failure behind an MCP tool error on the wide event', () =>
+  Effect.gen(function* () {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const info = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const server = observedMcpServer(
+      Layer.succeed(WebhookPublisher)({
+        publish: () => Effect.void,
+        publishForWorkspace: () => Effect.void,
+        enqueue: () =>
+          Effect.fail({ _tag: 'SqlError' }).pipe(orUnavailable('webhook-publisher'))
+      })
+    )
+    try {
+      const client = mcpClient(server.handler, `Bearer ${SEED_API_TOKEN}`)
+      yield* Effect.promise(() => client.initialize())
+      info.mockClear()
+      const response = yield* call(client, 'send_webhook_test_event', {
+        endpointId: WebhookEndpointId.make('wh_release')
+      })
+      expect(response.isError).toBe(true)
+      const lines = [...info.mock.calls, ...error.mock.calls].map((args) =>
+        decodeTelemetry(String(args[0]))
+      )
+      expect(lines).toHaveLength(1)
+      expect(lines[0]).toMatchObject({
+        annotations: { errorTag: 'CapabilityUnavailable', causeTag: 'SqlError' }
+      })
+    } finally {
+      yield* Effect.promise(() => server.dispose())
+      info.mockRestore()
+      error.mockRestore()
+    }
+  })
+)
+
 it.live(
   'reports a mutation defect once while preserving the MCP tool-error response',
   () =>
@@ -48,44 +128,7 @@ it.live(
         publishForWorkspace: () => Effect.void,
         enqueue: () => Effect.die(new TypeError('private-provider-payload'))
       })
-      const webhooks = SeedWebhooks(seedWebhookEndpoints, seedDeliveries).pipe(
-        Layer.provide(publisher),
-        Layer.provide(SeedLayer)
-      )
-      const observation = HttpRouter.middleware(
-        (effect) =>
-          Effect.gen(function* () {
-            const request = yield* HttpServerRequest.HttpServerRequest
-            return yield* withHttpInvocation(
-              {
-                service: 'api',
-                event: 'api.request',
-                request: webRequest(request),
-                env: {}
-              },
-              effect
-            )
-          }).pipe(Effect.provide(WideEventLoggerLive)),
-        { global: true }
-      )
-      const server = HttpRouter.toWebHandler(
-        Layer.mergeAll(
-          mcpProtocolLayer({}).pipe(
-            Layer.provide(
-              Layer.mergeAll(
-                SeedLayer,
-                webhooks,
-                Layer.succeed(RateLimiter)({ take: () => Effect.succeed(true) }),
-                Layer.succeed(OAuthTokenVerifier)({
-                  verify: () => Effect.die('unexpected OAuth')
-                })
-              )
-            )
-          ),
-          observation
-        ),
-        { disableLogger: true }
-      )
+      const server = observedMcpServer(publisher)
       try {
         const client = mcpClient(server.handler, `Bearer ${SEED_API_TOKEN}`)
         yield* Effect.promise(() => client.initialize())

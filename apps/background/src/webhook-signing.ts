@@ -1,3 +1,4 @@
+import { attempt } from '@b2b-saas-starter/failure/narrowing'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { DateTime, Effect, Redacted } from 'effect'
 import { Webhook } from 'standardwebhooks'
@@ -10,14 +11,14 @@ export const computeWebhookSignature = Effect.fn('Webhooks.computeSignature')(
     timestamp: number,
     body: string
   ) {
-    return yield* Effect.try({
+    return yield* attempt({
       try: () =>
         new Webhook(Redacted.value(secret)).sign(
           messageId,
           DateTime.toDateUtc(DateTime.makeUnsafe(timestamp * 1000)),
           body
         ),
-      catch: () =>
+      narrow: () =>
         new CapabilityUnavailable({
           capability: 'Webhooks.computeSignature',
           reason: 'Webhook signing failed'

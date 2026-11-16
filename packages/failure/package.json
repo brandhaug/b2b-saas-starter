@@ -5,6 +5,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./capability": "./src/capability.ts",
+    "./narrowing": "./src/narrowing.ts",
     "./persistence": "./src/persistence.ts",
     "./crypto": "./src/crypto.ts",
     "./http-client": "./src/http-client.ts"

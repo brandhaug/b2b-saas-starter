@@ -1,3 +1,4 @@
+import { narrowFailure } from '@b2b-saas-starter/failure/narrowing'
 import { billingSynchronization } from '@b2b-saas-starter/db/schema/billing'
 import {
   batch,
@@ -25,7 +26,7 @@ function billingFailure(reason: string) {
 }
 
 function stored<A, E, R>(effect: Effect.Effect<A, E, R>) {
-  return effect.pipe(Effect.mapError(() => billingFailure('billing_store_unavailable')))
+  return effect.pipe(narrowFailure(() => billingFailure('billing_store_unavailable')))
 }
 
 /** Captures the database once; every invocation claims a distinct, durable owner. */

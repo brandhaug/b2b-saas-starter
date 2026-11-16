@@ -45,6 +45,27 @@ describe('persistence failure translation', () => {
     })
   )
 
+  it.effect("keeps an unrecognized failure's message out of the reason", () =>
+    Effect.gen(function* () {
+      const exit = yield* Effect.exit(
+        Effect.fail(new Error('provider said: token=secret-value')).pipe(
+          orUnavailable('provider')
+        )
+      )
+      expect(exit).toMatchObject({
+        _tag: 'Failure',
+        cause: {
+          reasons: [
+            {
+              _tag: 'Fail',
+              error: { _tag: 'CapabilityUnavailable', reason: 'unavailable' }
+            }
+          ]
+        }
+      })
+    })
+  )
+
   it.effect('preserves unrelated defects and interruption in mixed causes', () =>
     Effect.gen(function* () {
       const defect = new Error('programming bug')

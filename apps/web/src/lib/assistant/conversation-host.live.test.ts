@@ -417,6 +417,44 @@ it.live(
 )
 
 it.live(
+  'names the replaced storage failure on the wide event behind each 503 storage response',
+  () =>
+    Effect.gen(function* () {
+      const host = yield* provisionConversationHost(false)
+      for (const id of ['decode-failure', 'sql-failure']) {
+        yield* host.create(id)
+        expect((yield* host.request(id, 'read')).status).toBe(200)
+      }
+      yield* host.executeInConversation(
+        'decode-failure',
+        `INSERT INTO assistant_questions(id,data) VALUES('q-corrupt','{"text":42}')`
+      )
+      yield* host.executeInConversation('sql-failure', 'DROP TABLE assistant_questions')
+
+      const decode = yield* host.request('decode-failure', 'read')
+      expect(decode.status).toBe(503)
+      expect(yield* Effect.promise(() => decode.json())).toEqual({
+        _tag: 'ConversationUnavailable',
+        reason: 'storage'
+      })
+      yield* host.failedRequestEvents(1)
+      const sql = yield* host.request('sql-failure', 'read')
+      expect(sql.status).toBe(503)
+      expect(yield* Effect.promise(() => sql.json())).toEqual({
+        _tag: 'ConversationUnavailable',
+        reason: 'storage'
+      })
+      const events = yield* host.failedRequestEvents(2)
+      expect(events.map((event) => event['causeTag'])).toEqual([
+        'SchemaError',
+        'untagged'
+      ])
+      expect(JSON.stringify(events)).not.toContain('assistant_questions')
+    }).pipe(Effect.scoped),
+  120_000
+)
+
+it.live(
   'settles a concurrent Stop and provider completion once',
   () =>
     Effect.gen(function* () {

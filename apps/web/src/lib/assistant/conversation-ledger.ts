@@ -1,15 +1,16 @@
 import { type ConversationAdmissionLedger } from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversation-admission'
 import { Effect, Schema } from 'effect'
+import * as Narrowing from '@b2b-saas-starter/failure/narrowing'
 import {
   ConversationAttempt,
   ConversationQuestion,
   ConversationUnavailable,
+  conversationStorageFailure,
+  storageUnavailable,
   type ConversationAcceptance
 } from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversation'
 
 import { type TranscriptQuestionPage } from '@b2b-saas-starter/capabilities/developer-platform/assistant-conversation-transcript'
-
-const decodeJsonRow = Schema.decodeUnknownSync(Schema.Struct({ data: Schema.String }))
 
 /** Application acceptance and terminal state share the conversation's SQLite transaction. */
 export class ConversationLedger implements ConversationAdmissionLedger {
@@ -29,40 +30,46 @@ export class ConversationLedger implements ConversationAdmissionLedger {
     query: string,
     ...bindings: Array<SqlStorageValue>
   ) {
-    return Effect.try({
-      try: () =>
-        this.storage.sql
-          .exec(query, ...bindings)
-          .toArray()
-          .map((row) =>
-            Schema.decodeUnknownSync(Schema.fromJsonString(schema))(
-              decodeJsonRow(row).data
-            )
-          ),
-      catch: () => new ConversationUnavailable({ reason: 'storage' })
-    })
+    // SQLite throws untagged errors and rows fail as `SchemaError`, so the
+    // two stay apart in `causeTag`.
+    const decodeRow = Schema.decodeUnknownEffect(
+      Schema.Struct({ data: Schema.fromJsonString(schema) })
+    )
+    return Narrowing.attempt({
+      try: () => this.storage.sql.exec(query, ...bindings).toArray(),
+      narrow: conversationStorageFailure
+    }).pipe(
+      Effect.flatMap((rows) =>
+        Effect.forEach(rows, (row) =>
+          decodeRow(row).pipe(
+            Effect.map(({ data }) => data),
+            storageUnavailable
+          )
+        )
+      )
+    )
   }
 
   identity() {
-    return Effect.try({
+    return Narrowing.attempt({
       try: () =>
         this.storage.sql
           .exec<{ conversation_id: string }>(
             'SELECT conversation_id FROM assistant_identity WHERE id=1'
           )
           .toArray()[0]?.conversation_id ?? null,
-      catch: () => new ConversationUnavailable({ reason: 'storage' })
+      narrow: conversationStorageFailure
     })
   }
 
   bind(conversationId: string) {
-    return Effect.try({
+    return Narrowing.attempt({
       try: () =>
         this.storage.sql.exec(
           'INSERT OR IGNORE INTO assistant_identity VALUES(1,?)',
           conversationId
         ),
-      catch: () => new ConversationUnavailable({ reason: 'storage' })
+      narrow: conversationStorageFailure
     }).pipe(Effect.asVoid)
   }
 
@@ -96,13 +103,13 @@ export class ConversationLedger implements ConversationAdmissionLedger {
   }
 
   finishOutput(attemptId: string) {
-    return Effect.try({
+    return Narrowing.attempt({
       try: () =>
         this.storage.sql.exec(
           'DELETE FROM assistant_pending_output WHERE attempt_id=?',
           attemptId
         ),
-      catch: () => new ConversationUnavailable({ reason: 'storage' })
+      narrow: conversationStorageFailure
     }).pipe(Effect.asVoid)
   }
 
@@ -166,14 +173,14 @@ export class ConversationLedger implements ConversationAdmissionLedger {
   }
 
   completedCount() {
-    return Effect.try({
+    return Narrowing.attempt({
       try: () =>
         this.storage.sql
           .exec<{ count: number }>(
             "SELECT count(DISTINCT question_id) AS count FROM assistant_attempts WHERE status='Completed'"
           )
           .toArray()[0]?.count ?? 0,
-      catch: () => new ConversationUnavailable({ reason: 'storage' })
+      narrow: conversationStorageFailure
     })
   }
 
@@ -199,7 +206,7 @@ export class ConversationLedger implements ConversationAdmissionLedger {
 
   previous(key: string) {
     return Effect.gen({ self: this }, function* () {
-      const rows = yield* Effect.try({
+      const rows = yield* Narrowing.attempt({
         try: () =>
           this.storage.sql
             .exec<{ payload_hash: string; attempt_id: string }>(
@@ -207,7 +214,7 @@ export class ConversationLedger implements ConversationAdmissionLedger {
               key
             )
             .toArray(),
-        catch: () => new ConversationUnavailable({ reason: 'storage' })
+        narrow: conversationStorageFailure
       })
       const row = rows[0]
       if (!row) {
@@ -248,7 +255,7 @@ export class ConversationLedger implements ConversationAdmissionLedger {
     readonly acceptance: ConversationAcceptance
     readonly execution: unknown
   }) {
-    return Effect.try({
+    return Narrowing.attempt({
       try: () =>
         this.storage.transactionSync(() => {
           const { question, attempt } = input.acceptance
@@ -272,12 +279,12 @@ export class ConversationLedger implements ConversationAdmissionLedger {
             attempt.id
           )
         }),
-      catch: () => new ConversationUnavailable({ reason: 'storage' })
+      narrow: conversationStorageFailure
     })
   }
 
   update(attempt: ConversationAttempt) {
-    return Effect.try({
+    return Narrowing.attempt({
       try: () =>
         this.storage.transactionSync(() => {
           const changed =
@@ -297,7 +304,7 @@ export class ConversationLedger implements ConversationAdmissionLedger {
           }
           return changed
         }),
-      catch: () => new ConversationUnavailable({ reason: 'storage' })
+      narrow: conversationStorageFailure
     })
   }
 }
