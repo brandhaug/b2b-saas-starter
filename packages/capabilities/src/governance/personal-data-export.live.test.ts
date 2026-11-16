@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import {
   EmailDelivery,
   EmailDeliveryRecord
@@ -33,7 +34,7 @@ const decodeEmailArchive = Schema.decodeUnknownSync(
 )
 
 const addSession = Effect.fn('test.addExportSession')(function* (
-  userId: string,
+  userId: UserId,
   id: string
 ) {
   const db = yield* Database
@@ -61,7 +62,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         yield* db
           .insert(user)
           .values({
-            id: 'usr_pde',
+            id: UserId.make('usr_pde'),
             name: 'Export Subject',
             email: 'subject@live-export.test'
           })
@@ -70,8 +71,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           .insert(workspaceMembers)
           .values({
             id: 'mem_pde',
-            workspaceId: 'wrk_live',
-            userId: 'usr_pde',
+            workspaceId: WorkspaceId.make('wrk_live'),
+            userId: UserId.make('usr_pde'),
             role: 'member'
           })
           .onConflictDoNothing()
@@ -79,8 +80,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           .insert(notifications)
           .values({
             id: 'not_pde',
-            workspaceId: 'wrk_live',
-            userId: 'usr_pde',
+            workspaceId: WorkspaceId.make('wrk_live'),
+            userId: UserId.make('usr_pde'),
             kind: 'announcement',
             createdAt: '2026-09-01T00:00:00.000Z',
             title: 'Subject notice',
@@ -92,7 +93,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           .values({
             id: 'oac_pde',
             clientId: 'pde-client',
-            userId: 'usr_pde',
+            userId: UserId.make('usr_pde'),
             clientSecret: 'pde-private-client-secret',
             name: 'Subject MCP client',
             redirectUris: ['http://localhost/callback'],
@@ -103,9 +104,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           .insert(oauthConsent)
           .values({
             id: 'con_pde',
-            userId: 'usr_pde',
+            userId: UserId.make('usr_pde'),
             clientId: 'pde-client',
-            referenceId: 'wrk_live',
+            referenceId: WorkspaceId.make('wrk_live'),
             scopes: ['openid']
           })
           .onConflictDoNothing()
@@ -113,7 +114,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           .insert(account)
           .values({
             id: 'acc_pde',
-            userId: 'usr_pde',
+            userId: UserId.make('usr_pde'),
             accountId: 'pde-provider-account',
             providerId: 'test-provider',
             issuer: 'https://provider.example',
@@ -124,7 +125,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           .insert(passkey)
           .values({
             id: 'pky_pde',
-            userId: 'usr_pde',
+            userId: UserId.make('usr_pde'),
             publicKey: 'pde-private-public-key',
             credentialID: 'pde-credential',
             deviceType: 'singleDevice',
@@ -133,21 +134,26 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           })
           .onConflictDoNothing()
         for (const id of ['pde-session', 'pde-other-session']) {
-          yield* Effect.ignore(addSession('usr_pde', id))
+          yield* Effect.ignore(addSession(UserId.make('usr_pde'), id))
         }
-        yield* Effect.ignore(addSession('usr_owner', 'pde-owner-session'))
+        yield* Effect.ignore(addSession(UserId.make('usr_owner'), 'pde-owner-session'))
       })
 
       const cases = personalDataExportContractCases(
         {
-          userId: 'usr_pde',
+          userId: UserId.make('usr_pde'),
           sessionId: 'pde-session',
           otherSessionId: 'pde-other-session',
-          otherUser: { userId: 'usr_owner', sessionId: 'pde-owner-session' },
-          unknownUserId: 'usr_never_existed',
+          otherUser: {
+            userId: UserId.make('usr_owner'),
+            sessionId: 'pde-owner-session'
+          },
+          unknownUserId: UserId.make('usr_never_existed'),
           expected: {
-            workspaceIds: ['wrk_live'],
-            notifications: [{ id: 'not_pde', workspaceId: 'wrk_live' }],
+            workspaceIds: [WorkspaceId.make('wrk_live')],
+            notifications: [
+              { id: 'not_pde', workspaceId: WorkspaceId.make('wrk_live') }
+            ],
             sessionIds: ['pde-session', 'pde-other-session'],
             linkedAccountIds: ['acc_pde'],
             oauthClientIds: ['pde-client'],
@@ -180,13 +186,13 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           Effect.gen(function* () {
             const delivery = yield* EmailDelivery
             for (let index = 0; index < 101; index += 1) {
-              let workspaceId = 'wrk_live'
+              let workspaceId = WorkspaceId.make('wrk_live')
               if (index === 0) {
-                workspaceId = 'wrk_other'
+                workspaceId = WorkspaceId.make('wrk_other')
               }
               yield* delivery.claim({
                 id: `personal-email-${index}`,
-                userId: 'usr_audited',
+                userId: UserId.make('usr_audited'),
                 recipient: 'audited@live.test',
                 workspaceId,
                 purpose: 'notification'
@@ -194,28 +200,28 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             }
             const foreignClaim = yield* delivery.claim({
               id: 'foreign-personal-email',
-              userId: 'usr_owner',
+              userId: UserId.make('usr_owner'),
               recipient: 'private-recipient@example.com',
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               purpose: 'notification'
             })
             const privateClaim = yield* delivery.claim({
               id: 'personal-email-secret',
-              userId: 'usr_audited',
+              userId: UserId.make('usr_audited'),
               recipient: 'audited@live.test',
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               purpose: 'notification'
             })
             expect(privateClaim).not.toBeNull()
             expect(foreignClaim).not.toBeNull()
-            yield* addSession('usr_audited', 'personal-email-session')
+            yield* addSession(UserId.make('usr_audited'), 'personal-email-session')
             const exports = yield* PersonalDataExports
             const receipt = yield* exports.request(
-              'usr_audited',
+              UserId.make('usr_audited'),
               'personal-email-session'
             )
             const download = yield* exports.download(
-              'usr_audited',
+              UserId.make('usr_audited'),
               'personal-email-session',
               receipt.id
             )
@@ -224,7 +230,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             expect(archive.emailDeliveries).toContainEqual(
               expect.objectContaining({
                 id: 'personal-email-0',
-                workspaceId: 'wrk_other',
+                workspaceId: WorkspaceId.make('wrk_other'),
                 recipient: 'audited@live.test'
               })
             )
@@ -232,7 +238,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             if (privateClaim !== null) {
               expect(download.json).not.toContain(privateClaim.token)
             }
-            expect(yield* delivery.listForUser('usr_audited')).toHaveLength(100)
+            expect(
+              yield* delivery.listForUser(UserId.make('usr_audited'))
+            ).toHaveLength(100)
           })
         ),
       // Creating 102 live delivery records serially can exceed Vitest's
@@ -250,34 +258,34 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             yield* db.insert(workspaceMembers).values([
               {
                 id: 'export_alice_shared',
-                workspaceId: 'wrk_live',
-                userId: 'usr_alice',
+                workspaceId: WorkspaceId.make('wrk_live'),
+                userId: UserId.make('usr_alice'),
                 role: 'member'
               },
               {
                 id: 'export_bob_shared',
-                workspaceId: 'wrk_live',
-                userId: 'usr_bob',
+                workspaceId: WorkspaceId.make('wrk_live'),
+                userId: UserId.make('usr_bob'),
                 role: 'member'
               },
               {
                 id: 'export_alice_private',
-                workspaceId: 'wrk_other',
-                userId: 'usr_alice',
+                workspaceId: WorkspaceId.make('wrk_other'),
+                userId: UserId.make('usr_alice'),
                 role: 'owner'
               },
               {
                 id: 'export_bob_private',
-                workspaceId: 'wrk_audit',
-                userId: 'usr_bob',
+                workspaceId: WorkspaceId.make('wrk_audit'),
+                userId: UserId.make('usr_bob'),
                 role: 'owner'
               }
             ])
             yield* db.insert(notifications).values([
               {
                 id: 'export_alice_notice',
-                workspaceId: 'wrk_live',
-                userId: 'usr_alice',
+                workspaceId: WorkspaceId.make('wrk_live'),
+                userId: UserId.make('usr_alice'),
                 kind: 'announcement',
                 createdAt: '2026-09-01T00:00:00.000Z',
                 title: 'Alice notice',
@@ -285,8 +293,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               },
               {
                 id: 'export_alice_other',
-                workspaceId: 'wrk_other',
-                userId: 'usr_alice',
+                workspaceId: WorkspaceId.make('wrk_other'),
+                userId: UserId.make('usr_alice'),
                 kind: 'announcement',
                 createdAt: '2026-09-01T00:00:00.000Z',
                 title: 'Alice private notice',
@@ -294,8 +302,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               },
               {
                 id: 'export_bob_notice',
-                workspaceId: 'wrk_live',
-                userId: 'usr_bob',
+                workspaceId: WorkspaceId.make('wrk_live'),
+                userId: UserId.make('usr_bob'),
                 kind: 'announcement',
                 createdAt: '2026-09-01T00:00:00.000Z',
                 title: 'Bob notice',
@@ -306,7 +314,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               {
                 id: 'export_alice_client',
                 clientId: 'alice-client',
-                userId: 'usr_alice',
+                userId: UserId.make('usr_alice'),
                 clientSecret: 'private-client-secret',
                 name: 'Alice MCP client',
                 redirectUris: ['http://localhost/callback'],
@@ -315,7 +323,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               {
                 id: 'export_bob_client',
                 clientId: 'bob-client',
-                userId: 'usr_bob',
+                userId: UserId.make('usr_bob'),
                 clientSecret: 'bob-secret',
                 name: 'Private Bob client',
                 redirectUris: ['http://localhost/callback']
@@ -324,22 +332,22 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             yield* db.insert(oauthConsent).values([
               {
                 id: 'export_alice_consent',
-                userId: 'usr_alice',
+                userId: UserId.make('usr_alice'),
                 clientId: 'alice-client',
-                referenceId: 'wrk_live',
+                referenceId: WorkspaceId.make('wrk_live'),
                 scopes: ['openid', 'workspace:read']
               },
               {
                 id: 'export_bob_consent',
-                userId: 'usr_bob',
+                userId: UserId.make('usr_bob'),
                 clientId: 'bob-client',
-                referenceId: 'wrk_live',
+                referenceId: WorkspaceId.make('wrk_live'),
                 scopes: ['openid']
               }
             ])
             yield* db.insert(account).values({
               id: 'export_alice_account',
-              userId: 'usr_alice',
+              userId: UserId.make('usr_alice'),
               accountId: 'alice-provider-account',
               providerId: 'test-provider',
               issuer: 'https://provider.example',
@@ -349,19 +357,22 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             })
             yield* db.insert(passkey).values({
               id: 'export_alice_passkey',
-              userId: 'usr_alice',
+              userId: UserId.make('usr_alice'),
               publicKey: 'private-public-key',
               credentialID: 'alice-credential',
               deviceType: 'singleDevice',
               backedUp: false,
               counter: 7
             })
-            yield* addSession('usr_alice', 'export-alice-session')
-            yield* addSession('usr_bob', 'export-bob-session')
+            yield* addSession(UserId.make('usr_alice'), 'export-alice-session')
+            yield* addSession(UserId.make('usr_bob'), 'export-bob-session')
             const exports = yield* PersonalDataExports
-            const receipt = yield* exports.request('usr_alice', 'export-alice-session')
+            const receipt = yield* exports.request(
+              UserId.make('usr_alice'),
+              'export-alice-session'
+            )
             const download = yield* exports.download(
-              'usr_alice',
+              UserId.make('usr_alice'),
               'export-alice-session',
               receipt.id
             )
@@ -383,7 +394,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             ])
             expect(data.oauthConsents).toEqual([
               expect.objectContaining({
-                referenceId: 'wrk_live',
+                referenceId: WorkspaceId.make('wrk_live'),
                 scopes: ['openid', 'workspace:read']
               })
             ])
@@ -407,13 +418,21 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             }
             expect(
               Result.isFailure(
-                yield* Effect.result(exports.request('usr_bob', 'export-alice-session'))
+                yield* Effect.result(
+                  exports.request(UserId.make('usr_bob'), 'export-alice-session')
+                )
               )
             ).toBe(true)
-            const bobReceipt = yield* exports.request('usr_bob', 'export-bob-session')
+            const bobReceipt = yield* exports.request(
+              UserId.make('usr_bob'),
+              'export-bob-session'
+            )
             const bob = decodeArchive(
-              (yield* exports.download('usr_bob', 'export-bob-session', bobReceipt.id))
-                .json
+              (yield* exports.download(
+                UserId.make('usr_bob'),
+                'export-bob-session',
+                bobReceipt.id
+              )).json
             )
             expect(bob.workspaces.map((row) => row.workspace.id).toSorted()).toEqual([
               'wrk_audit',
@@ -425,7 +444,11 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             expect(
               Result.isFailure(
                 yield* Effect.result(
-                  exports.download('usr_bob', 'export-bob-session', receipt.id)
+                  exports.download(
+                    UserId.make('usr_bob'),
+                    'export-bob-session',
+                    receipt.id
+                  )
                 )
               )
             ).toBe(true)
@@ -448,11 +471,14 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           'live-lab',
           Effect.gen(function* () {
             const exports = yield* PersonalDataExports
-            yield* addSession('usr_joiner', 'export-empty-session')
-            const receipt = yield* exports.request('usr_joiner', 'export-empty-session')
+            yield* addSession(UserId.make('usr_joiner'), 'export-empty-session')
+            const receipt = yield* exports.request(
+              UserId.make('usr_joiner'),
+              'export-empty-session'
+            )
             const empty = decodeArchive(
               (yield* exports.download(
-                'usr_joiner',
+                UserId.make('usr_joiner'),
                 'export-empty-session',
                 receipt.id
               )).json
@@ -467,19 +493,23 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             expect(
               Result.isFailure(
                 yield* Effect.result(
-                  exports.download('usr_joiner', 'export-empty-session', receipt.id)
+                  exports.download(
+                    UserId.make('usr_joiner'),
+                    'export-empty-session',
+                    receipt.id
+                  )
                 )
               )
             ).toBe(true)
             const replacement = yield* exports.request(
-              'usr_joiner',
+              UserId.make('usr_joiner'),
               'export-empty-session'
             )
             expect(replacement.id).not.toBe(receipt.id)
             expect(
               decodeArchive(
                 (yield* exports.download(
-                  'usr_joiner',
+                  UserId.make('usr_joiner'),
                   'export-empty-session',
                   replacement.id
                 )).json
@@ -497,16 +527,20 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           Effect.gen(function* () {
             const db = yield* Database
             const exports = yield* PersonalDataExports
-            yield* addSession('usr_mover', 'export-original-session')
-            yield* addSession('usr_mover', 'export-other-session')
+            yield* addSession(UserId.make('usr_mover'), 'export-original-session')
+            yield* addSession(UserId.make('usr_mover'), 'export-other-session')
             const receipt = yield* exports.request(
-              'usr_mover',
+              UserId.make('usr_mover'),
               'export-original-session'
             )
             expect(
               Result.isFailure(
                 yield* Effect.result(
-                  exports.download('usr_mover', 'export-other-session', receipt.id)
+                  exports.download(
+                    UserId.make('usr_mover'),
+                    'export-other-session',
+                    receipt.id
+                  )
                 )
               )
             ).toBe(true)
@@ -514,22 +548,30 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             expect(
               Result.isFailure(
                 yield* Effect.result(
-                  exports.download('usr_mover', 'export-original-session', receipt.id)
+                  exports.download(
+                    UserId.make('usr_mover'),
+                    'export-original-session',
+                    receipt.id
+                  )
                 )
               )
             ).toBe(true)
             expect(
               Result.isFailure(
                 yield* Effect.result(
-                  exports.request('usr_mover', 'export-original-session')
+                  exports.request(UserId.make('usr_mover'), 'export-original-session')
                 )
               )
             ).toBe(true)
-            yield* addSession('usr_mover', 'export-original-session')
+            yield* addSession(UserId.make('usr_mover'), 'export-original-session')
             expect(
               Result.isFailure(
                 yield* Effect.result(
-                  exports.download('usr_mover', 'export-original-session', receipt.id)
+                  exports.download(
+                    UserId.make('usr_mover'),
+                    'export-original-session',
+                    receipt.id
+                  )
                 )
               )
             ).toBe(true)
@@ -546,23 +588,28 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             const db = yield* Database
             const exports = yield* PersonalDataExports
             yield* db.insert(user).values({
-              id: 'export-deleted-user',
+              id: UserId.make('export-deleted-user'),
               name: 'Deleted User',
               email: 'deleted-export@example.com'
             })
-            yield* addSession('export-deleted-user', 'export-deleted-session')
+            yield* addSession(
+              UserId.make('export-deleted-user'),
+              'export-deleted-session'
+            )
             const receipt = yield* exports.request(
-              'export-deleted-user',
+              UserId.make('export-deleted-user'),
               'export-deleted-session'
             )
             const lifecycle = yield* AccountLifecycle
-            yield* lifecycle.prepareDeletion('export-deleted-user')
-            yield* db.delete(user).where(eq(user.id, 'export-deleted-user'))
+            yield* lifecycle.prepareDeletion(UserId.make('export-deleted-user'))
+            yield* db
+              .delete(user)
+              .where(eq(user.id, UserId.make('export-deleted-user')))
             expect(
               Result.isFailure(
                 yield* Effect.result(
                   exports.download(
-                    'export-deleted-user',
+                    UserId.make('export-deleted-user'),
                     'export-deleted-session',
                     receipt.id
                   )
@@ -570,16 +617,19 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               )
             ).toBe(true)
             yield* db.insert(user).values({
-              id: 'export-deleted-user',
+              id: UserId.make('export-deleted-user'),
               name: 'Recreated User',
               email: 'recreated-export@example.com'
             })
-            yield* addSession('export-deleted-user', 'export-deleted-session')
+            yield* addSession(
+              UserId.make('export-deleted-user'),
+              'export-deleted-session'
+            )
             expect(
               Result.isFailure(
                 yield* Effect.result(
                   exports.download(
-                    'export-deleted-user',
+                    UserId.make('export-deleted-user'),
                     'export-deleted-session',
                     receipt.id
                   )

@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { DateTime, Effect, Result } from 'effect'
 import { type AssistantCredentialReference } from '@b2b-saas-starter/authz/assistant-access-token'
 import { type ContractExpect } from '../governance/contract-expect.ts'
@@ -13,8 +14,8 @@ function date(milliseconds: number) {
 }
 export const authorityCredential = {
   kind: 'oauth',
-  userId: 'usr_authority',
-  workspaceId: 'wrk_authority',
+  userId: UserId.make('usr_authority'),
+  workspaceId: WorkspaceId.make('wrk_authority'),
   sessionId: 'ses_authority',
   expiresAt: 60_000,
   clientId: 'authority-client',
@@ -34,13 +35,13 @@ const sessionProof = {
 export const authorityState: AssistantAuthorityState = {
   context: {
     workspace: {
-      id: 'wrk_authority',
+      id: WorkspaceId.make('wrk_authority'),
       slug: 'authority',
       name: 'Authority',
       planId: 'free'
     },
     actor: {
-      userId: 'usr_authority',
+      userId: UserId.make('usr_authority'),
       role: 'member',
       systemRole: 'user',
       banned: false
@@ -60,8 +61,8 @@ export const authorityState: AssistantAuthorityState = {
 }
 const observe: AssistantAuthorityInput = {
   credential: authorityCredential,
-  workspaceId: 'wrk_authority',
-  creatorUserId: 'usr_authority',
+  workspaceId: WorkspaceId.make('wrk_authority'),
+  creatorUserId: UserId.make('usr_authority'),
   requiredPermissions: [],
   operation: 'read',
   mode: 'observe'
@@ -116,7 +117,10 @@ export function assistantAuthorityContractCases(expect: ContractExpect) {
       state: authorityState,
       input: {
         ...observe,
-        credential: { ...authorityCredential, workspaceId: 'other-workspace' }
+        credential: {
+          ...authorityCredential,
+          workspaceId: WorkspaceId.make('other-workspace')
+        }
       },
       allowed: false
     },
@@ -138,7 +142,7 @@ export function assistantAuthorityContractCases(expect: ContractExpect) {
     {
       name: 'withholds another creator from a valid member',
       state: authorityState,
-      input: { ...observe, creatorUserId: 'other' },
+      input: { ...observe, creatorUserId: UserId.make('other') },
       allowed: false
     },
     {

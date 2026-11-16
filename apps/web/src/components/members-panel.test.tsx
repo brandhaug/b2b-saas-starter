@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { type Member } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it } from 'vite-plus/test'
@@ -6,7 +7,7 @@ import { renderWithRouter } from '@/test/router-harness'
 
 const members: ReadonlyArray<Member> = [
   {
-    id: 'usr_demo',
+    id: UserId.make('usr_demo'),
     name: 'Demo Owner',
     email: 'demo@starter.local',
     role: 'owner',
@@ -14,7 +15,7 @@ const members: ReadonlyArray<Member> = [
     banned: false
   },
   {
-    id: 'usr_ops',
+    id: UserId.make('usr_ops'),
     name: 'Ops Admin',
     email: 'ops@starter.local',
     role: 'admin',
@@ -22,7 +23,7 @@ const members: ReadonlyArray<Member> = [
     banned: false
   },
   {
-    id: 'usr_dev',
+    id: UserId.make('usr_dev'),
     name: 'Dev Member',
     email: 'dev@starter.local',
     role: 'member',
@@ -31,7 +32,10 @@ const members: ReadonlyArray<Member> = [
   }
 ]
 
-function renderPanel(role: 'owner' | 'admin' | 'member', actorUserId = 'usr_demo') {
+function renderPanel(
+  role: 'owner' | 'admin' | 'member',
+  actorUserId = UserId.make('usr_demo')
+) {
   return renderWithRouter(
     <MembersPanel
       workspaceSlug="starter-lab"
@@ -52,7 +56,7 @@ describe('MembersPanel', () => {
   })
 
   it('withholds the owner role from an admin — the plugin reserves it for owners', async () => {
-    await renderPanel('admin', 'usr_ops')
+    await renderPanel('admin', UserId.make('usr_ops'))
     // `member:update` covers the admin's changes of a plain member…
     fireEvent.click(screen.getByRole('button', { name: 'More actions for Dev Member' }))
     expect(screen.getByRole('menuitem', { name: 'Make admin' })).not.toBeNull()
@@ -69,7 +73,7 @@ describe('MembersPanel', () => {
   })
 
   it('replaces the role controls with a reason for a viewer who cannot', async () => {
-    await renderPanel('member', 'usr_dev')
+    await renderPanel('member', UserId.make('usr_dev'))
     expect(screen.getByText('Your role cannot change member roles.')).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'More actions for Dev Member' }))
     expect(screen.queryByRole('menuitem', { name: 'Make admin' })).toBeNull()
@@ -94,7 +98,7 @@ describe('MembersPanel', () => {
   })
 
   it('offers the leave verb on the actor’s own row to a plain member too', async () => {
-    await renderPanel('member', 'usr_dev')
+    await renderPanel('member', UserId.make('usr_dev'))
     fireEvent.click(screen.getByRole('button', { name: 'More actions for Dev Member' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Leave workspace' }))
     expect(screen.getByLabelText('Confirm leave')).not.toBeNull()
@@ -107,7 +111,7 @@ describe('MembersPanel', () => {
     const manyMembers: ReadonlyArray<Member> = Array.from(
       { length: 50 },
       (_, index) => ({
-        id: `usr_${index}`,
+        id: UserId.make(`usr_${index}`),
         name: index === 42 ? 'Ada Lovelace' : `Member ${index}`,
         email: index === 42 ? 'ada@example.com' : `member-${index}@example.com`,
         role: 'member',
@@ -120,7 +124,7 @@ describe('MembersPanel', () => {
         workspaceSlug="starter-lab"
         members={manyMembers}
         viewer={{ role: 'owner' }}
-        actorUserId="usr_0"
+        actorUserId={UserId.make('usr_0')}
       />
     )
     expect(screen.getAllByText(/@example.com/)).toHaveLength(20)
@@ -136,7 +140,7 @@ describe('MembersPanel', () => {
 
   it('restores query and page from the URL and clamps an oversized page', async () => {
     const manyMembers = Array.from({ length: 50 }, (_, index): Member => ({
-      id: `usr_${index}`,
+      id: UserId.make(`usr_${index}`),
       name: `Member ${index}`,
       email: `member-${index}@example.com`,
       role: 'member',
@@ -148,7 +152,7 @@ describe('MembersPanel', () => {
         workspaceSlug="starter-lab"
         members={manyMembers}
         viewer={{ role: 'owner' }}
-        actorUserId="usr_0"
+        actorUserId={UserId.make('usr_0')}
       />,
       { initialEntry: '/?query=member&page=9' }
     )

@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import {
   type Member,
@@ -78,7 +79,7 @@ function pageFrom(value: string | undefined) {
 
 type MemberActionsProps = {
   readonly member: Member
-  readonly actorUserId: string
+  readonly actorUserId: UserId
   readonly canManage: boolean
   readonly canRemove: boolean
   readonly viewer: Viewer
@@ -198,7 +199,7 @@ function WorkspaceMembers({
   readonly workspaceSlug: string
   readonly members: ReadonlyArray<Member>
   readonly viewer: Viewer
-  readonly actorUserId: string
+  readonly actorUserId: UserId
 }) {
   const canManage = viewerCan(viewer, { member: ['update'] })
   const canRemove = viewerCan(viewer, { member: ['delete'] })
@@ -213,7 +214,7 @@ function WorkspaceMembers({
   const [leaveArmed, setLeaveArmed] = useState(false)
   const { failure: failedRow, runWith: runOnRow } = useKeyedFailure<string>()
   const changeRole = useServerAction(
-    ({ userId, role }: { readonly userId: string; readonly role: WorkspaceRole }) =>
+    ({ userId, role }: { readonly userId: UserId; readonly role: WorkspaceRole }) =>
       changeMemberRoleServerFn({ data: { workspaceSlug, userId, role } }),
     {
       failureMessage: m.member_role_change_failed(),
@@ -229,7 +230,7 @@ function WorkspaceMembers({
     }
   )
   const removeMember = useServerAction(
-    ({ userId }: { readonly userId: string }) =>
+    ({ userId }: { readonly userId: UserId }) =>
       removeMemberServerFn({ data: { workspaceSlug, userId } }),
     {
       failureMessage: m.member_remove_failed(),

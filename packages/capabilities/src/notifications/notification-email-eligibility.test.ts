@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import {
   NotificationFeed,
   type NotificationEmailContext,
@@ -26,9 +27,13 @@ import { EmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery'
 import { describe, expect, it } from '@effect/vitest'
 import { Effect, Layer } from 'effect'
 
-const workspace = { id: 'wrk_1', slug: 'starter-lab', name: 'Starter Lab' }
+const workspace = {
+  id: WorkspaceId.make('wrk_1'),
+  slug: 'starter-lab',
+  name: 'Starter Lab'
+}
 const recipient = {
-  userId: 'usr_owner',
+  userId: UserId.make('usr_owner'),
   email: 'owner@example.com',
   name: 'Owner'
 }
@@ -93,14 +98,14 @@ function eligibilityLayer(
 function seedEligibilityLayer(
   seed: ReadonlyArray<SeedNotification>,
   preferences: ReadonlyArray<{
-    readonly userId: string
+    readonly userId: UserId
     readonly kind: SeedNotification['kind']
     readonly channel: 'off' | 'instant' | 'digest'
   }>
 ) {
   const audit = SeedAuditEventLog([])
   const accountPreferences = SeedAccountPreferences([
-    { userId: 'usr_demo', locale: null, timeZone: null }
+    { userId: UserId.make('usr_demo'), locale: null, timeZone: null }
   ]).pipe(Layer.provide(audit))
   const notificationPreferences = SeedNotificationPreferences(preferences).pipe(
     Layer.provide(audit)
@@ -201,7 +206,9 @@ describe('NotificationEmailEligibility', () => {
           stubFeed(context),
           SeedNotificationPreferences([]).pipe(Layer.provide(SeedAuditEventLog([]))),
           suspensionLayer(() =>
-            Effect.fail(new WorkspaceSuspended({ workspaceId: workspace.id }))
+            Effect.fail(
+              new WorkspaceSuspended({ workspaceId: WorkspaceId.make(workspace.id) })
+            )
           )
         )
       )
@@ -241,7 +248,9 @@ describe('NotificationEmailEligibility', () => {
           ]).pipe(Layer.provide(SeedAuditEventLog([]))),
           suspensionLayer(() => {
             if (suspended) {
-              return Effect.fail(new WorkspaceSuspended({ workspaceId: workspace.id }))
+              return Effect.fail(
+                new WorkspaceSuspended({ workspaceId: WorkspaceId.make(workspace.id) })
+              )
             }
             return Effect.void
           })
@@ -270,7 +279,9 @@ describe('NotificationEmailEligibility', () => {
           }),
           SeedNotificationPreferences([]).pipe(Layer.provide(SeedAuditEventLog([]))),
           suspensionLayer(() =>
-            Effect.fail(new WorkspaceSuspended({ workspaceId: workspace.id }))
+            Effect.fail(
+              new WorkspaceSuspended({ workspaceId: WorkspaceId.make(workspace.id) })
+            )
           )
         )
       )
@@ -281,7 +292,10 @@ describe('NotificationEmailEligibility', () => {
     Effect.gen(function* () {
       const eligibility = yield* NotificationEmailEligibility
       const feed = yield* NotificationFeed
-      const input = { notificationId: 'seed_read', recipientUserId: 'usr_demo' }
+      const input = {
+        notificationId: 'seed_read',
+        recipientUserId: UserId.make('usr_demo')
+      }
 
       expect(yield* eligibility.instant(input)).toMatchObject({ _tag: 'deliver' })
       yield* feed.markRead(['seed_read'])
@@ -296,7 +310,7 @@ describe('NotificationEmailEligibility', () => {
             [
               {
                 id: 'seed_read',
-                userId: 'usr_demo',
+                userId: UserId.make('usr_demo'),
                 kind: 'announcement',
                 title: 'Seed read check',
                 message: 'Unread initially.',
@@ -304,10 +318,16 @@ describe('NotificationEmailEligibility', () => {
                 read: false
               }
             ],
-            [{ userId: 'usr_demo', kind: 'announcement', channel: 'instant' }]
+            [
+              {
+                userId: UserId.make('usr_demo'),
+                kind: 'announcement',
+                channel: 'instant'
+              }
+            ]
           ),
           testWorkspaceContext(seedWorkspaceRecord, {
-            userId: 'usr_demo',
+            userId: UserId.make('usr_demo'),
             role: 'owner',
             systemRole: 'admin',
             banned: false
@@ -339,7 +359,7 @@ describe('NotificationEmailEligibility', () => {
             [
               {
                 id: 'seed_digest_read',
-                userId: 'usr_demo',
+                userId: UserId.make('usr_demo'),
                 kind: 'announcement',
                 title: 'Seed digest read check',
                 message: 'Unread initially.',
@@ -350,7 +370,7 @@ describe('NotificationEmailEligibility', () => {
             []
           ),
           testWorkspaceContext(seedWorkspaceRecord, {
-            userId: 'usr_demo',
+            userId: UserId.make('usr_demo'),
             role: 'owner',
             systemRole: 'admin',
             banned: false

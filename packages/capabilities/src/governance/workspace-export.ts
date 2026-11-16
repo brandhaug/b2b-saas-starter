@@ -1,3 +1,4 @@
+import { type UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { workspaceExportStatuses } from '@b2b-saas-starter/db/enums'
 import { Context, DateTime, Effect, Option, Schema } from 'effect'
 
@@ -127,7 +128,7 @@ export type WorkspaceExportAvailability =
  */
 export const WorkspaceExportQueueMessage = Schema.Struct({
   exportId: Schema.String,
-  workspaceId: Schema.String,
+  workspaceId: WorkspaceId,
   workspaceSlug: Schema.String,
   // Same reasoning as `WebhookQueueMessage.traceparent`: unchecked so a trace
   // defect cannot turn into a dropped export.
@@ -180,23 +181,23 @@ type WorkspaceExportDownload = {
 
 export type CompleteWorkspaceExportInput = {
   readonly exportId: string
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   readonly archive: Uint8Array
 }
 
 export type FailWorkspaceExportInput = {
   readonly exportId: string
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   readonly reason: string
 }
 
 export type WorkspaceExportRecipient =
   | { readonly type: 'api_token' }
-  | { readonly type: 'session'; readonly userId: string; readonly sessionId: string }
+  | { readonly type: 'session'; readonly userId: UserId; readonly sessionId: string }
 
 /** Human links retain their issuing session and Workspace through redemption. */
 export type WorkspaceExportHumanRecipient = {
-  readonly userId: string
+  readonly userId: UserId
   readonly sessionId: string
   readonly workspaceSlug: string
 }

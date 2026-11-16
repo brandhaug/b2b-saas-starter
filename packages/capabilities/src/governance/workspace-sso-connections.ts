@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { ssoProvisionedRoles } from '@b2b-saas-starter/db/enums'
 import { type JsonObject } from '@b2b-saas-starter/db/schema/json'
 import { Context, Effect, type Option, type Redacted, Schema } from 'effect'
@@ -128,7 +129,7 @@ export const SsoRoutingDecision = Schema.Struct({
   providerId: Schema.String,
   protocol: SsoProtocol,
   /** The workspace the connection belongs to. */
-  workspaceId: Schema.String,
+  workspaceId: WorkspaceId,
   /** True when that workspace refuses password sign-in for this domain. */
   requireSso: Schema.Boolean
 })
@@ -245,7 +246,7 @@ type SsoConnectionsInterface = {
   readonly resolveProvider: (
     providerId: string
   ) => Effect.Effect<
-    Option.Option<{ readonly workspaceId: string; readonly domain: string }>,
+    Option.Option<{ readonly workspaceId: WorkspaceId; readonly domain: string }>,
     CapabilityUnavailable
   >
 }
@@ -268,7 +269,7 @@ export class SsoConnections extends Context.Service<
 export type WorkspaceSsoBinding = {
   readonly create: (
     input: CreateSsoConnectionInput & {
-      readonly workspaceId: string
+      readonly workspaceId: WorkspaceId
       readonly providerId: string
     }
   ) => Promise<void>
@@ -399,7 +400,7 @@ export function ssoAuditEvent(
 export type SsoSignInTarget = {
   readonly providerId: string
   readonly protocol: SsoProtocol
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   readonly domain: string
   readonly enabled: boolean
   readonly requireSso: boolean
@@ -424,7 +425,7 @@ export type SsoRoutingFields = {
   readonly id: string
   readonly protocol: SsoProtocol
   readonly domain: string
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   readonly enabled: boolean
   readonly requireSso: boolean
 }

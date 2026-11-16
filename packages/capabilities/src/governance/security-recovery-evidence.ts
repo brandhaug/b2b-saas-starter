@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { annotateWideEvent } from '@b2b-saas-starter/logger'
 import { DateTime, Effect, Redacted, Result, Schema } from 'effect'
 
@@ -23,8 +24,8 @@ export const SecurityEvidenceRecord = Schema.Struct({
   id: Schema.String,
   kind: SecurityEvidenceKind,
   subjectId: Schema.String,
-  workspaceId: Schema.NullOr(Schema.String),
-  creatorUserId: Schema.optionalKey(Schema.String),
+  workspaceId: Schema.NullOr(WorkspaceId),
+  creatorUserId: Schema.optionalKey(UserId),
   occurredAt: Schema.String,
   /**
    * Which adapter recorded it. `'seed'` never reaches a real evidence store
@@ -39,15 +40,15 @@ export type SecurityEvidenceRecord = typeof SecurityEvidenceRecord.Type
 export type SecurityEvidenceInput = {
   readonly kind: SecurityEvidenceKind
   readonly subjectId: string
-  readonly workspaceId?: string | undefined
-  readonly creatorUserId?: string | undefined
+  readonly workspaceId?: WorkspaceId | undefined
+  readonly creatorUserId?: UserId | undefined
 }
 
 export type SecurityEvidenceGap = {
   readonly evidenceId: string
   readonly kind: SecurityEvidenceKind
   readonly subjectId: string
-  readonly workspaceId: string | null
+  readonly workspaceId: WorkspaceId | null
 }
 
 /** A store outside the production Cloudflare account plus an independent alert path. */

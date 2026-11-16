@@ -1,5 +1,6 @@
 // oxlint-disable effect/noAsyncFunction -- these callbacks exercise Better Auth's Promise-shaped hook port against the real D1 adapter.
 
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { type DrizzleDatabase } from './ports.ts'
 import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
 import { notifications } from '@b2b-saas-starter/db/schema/notifications'
@@ -55,7 +56,7 @@ function run<A, E>(effect: Effect.Effect<A, E, AuthService>) {
 }
 
 /** The plugin needs an existing user to own the workspace it creates. */
-function seedUser(id: string, email: string) {
+function seedUser(id: UserId, email: string) {
   return Effect.promise(() => db.insert(user).values({ id, email, name: email }).run())
 }
 
@@ -63,7 +64,7 @@ describe('organization plugin', () => {
   it.live('creates a workspace through the remapped organization model', () =>
     run(
       Effect.gen(function* () {
-        yield* seedUser('usr_acme_owner', 'owner@acme.test')
+        yield* seedUser(UserId.make('usr_acme_owner'), 'owner@acme.test')
         const auth = yield* Auth.Tag
 
         const created = yield* auth.api.createOrganization({
@@ -84,7 +85,7 @@ describe('organization plugin', () => {
   it.live('carries planId and updatedAt as organization additional fields', () =>
     run(
       Effect.gen(function* () {
-        yield* seedUser('usr_plan_owner', 'owner@plan.test')
+        yield* seedUser(UserId.make('usr_plan_owner'), 'owner@plan.test')
         const auth = yield* Auth.Tag
 
         const created = yield* auth.api.createOrganization({
@@ -239,16 +240,16 @@ describe('admin account deletion', () => {
         beforeDelete: async (deletedUser) => {
           await db
             .delete(workspaceMembers)
-            .where(eq(workspaceMembers.userId, deletedUser.id))
+            .where(eq(workspaceMembers.userId, UserId.make(deletedUser.id)))
             .run()
           await db
             .delete(notifications)
-            .where(eq(notifications.userId, deletedUser.id))
+            .where(eq(notifications.userId, UserId.make(deletedUser.id)))
             .run()
           await db
             .update(auditEvents)
             .set({ actorUserId: null, metadata: {} })
-            .where(eq(auditEvents.actorUserId, deletedUser.id))
+            .where(eq(auditEvents.actorUserId, UserId.make(deletedUser.id)))
             .run()
           await db
             .update(auditEvents)
@@ -281,7 +282,11 @@ describe('admin account deletion', () => {
         const auth = yield* Auth.Tag
 
         yield* Effect.promise(() =>
-          db.update(user).set({ role: 'admin' }).where(eq(user.id, admin.userId)).run()
+          db
+            .update(user)
+            .set({ role: 'admin' })
+            .where(eq(user.id, UserId.make(admin.userId)))
+            .run()
         )
         const workspace = yield* auth.api.createOrganization({
           body: { name: 'Shared Delete Lab', slug: 'shared-delete-lab' },
@@ -299,8 +304,8 @@ describe('admin account deletion', () => {
             .insert(notifications)
             .values({
               id: 'notification_target_delete',
-              workspaceId: workspace.id,
-              userId: target.userId,
+              workspaceId: WorkspaceId.make(workspace.id),
+              userId: UserId.make(target.userId),
               kind: 'announcement',
               title: 'Private',
               message: 'Private',
@@ -314,8 +319,8 @@ describe('admin account deletion', () => {
             .values([
               {
                 id: 'audit_target_delete',
-                workspaceId: workspace.id,
-                actorUserId: target.userId,
+                workspaceId: WorkspaceId.make(workspace.id),
+                actorUserId: UserId.make(target.userId),
                 actorType: 'user',
                 eventType: 'target.private',
                 targetType: 'user',
@@ -325,8 +330,8 @@ describe('admin account deletion', () => {
               },
               {
                 id: 'audit_other_delete',
-                workspaceId: workspace.id,
-                actorUserId: admin.userId,
+                workspaceId: WorkspaceId.make(workspace.id),
+                actorUserId: UserId.make(admin.userId),
                 actorType: 'user',
                 eventType: 'other.private',
                 targetType: 'user',
@@ -350,13 +355,19 @@ describe('admin account deletion', () => {
           db
             .select()
             .from(workspaceMembers)
-            .where(eq(workspaceMembers.userId, target.userId))
+            .where(eq(workspaceMembers.userId, UserId.make(target.userId)))
         )
         const remainingWorkspace = yield* Effect.promise(() =>
-          db.select().from(workspaces).where(eq(workspaces.id, workspace.id))
+          db
+            .select()
+            .from(workspaces)
+            .where(eq(workspaces.id, WorkspaceId.make(workspace.id)))
         )
         const remainingNotifications = yield* Effect.promise(() =>
-          db.select().from(notifications).where(eq(notifications.userId, target.userId))
+          db
+            .select()
+            .from(notifications)
+            .where(eq(notifications.userId, UserId.make(target.userId)))
         )
         const retainedAudit = yield* Effect.promise(() =>
           db.select().from(auditEvents).where(eq(auditEvents.id, 'audit_other_delete'))
@@ -393,7 +404,10 @@ describe('two-factor plugin', () => {
         expect(response.backupCodes.length).toBeGreaterThan(0)
 
         const rows = yield* Effect.promise(() =>
-          db.select().from(user).where(eq(user.id, session.userId))
+          db
+            .select()
+            .from(user)
+            .where(eq(user.id, UserId.make(session.userId)))
         )
         expect(rows[0]?.twoFactorEnabled).toBe(true)
       })

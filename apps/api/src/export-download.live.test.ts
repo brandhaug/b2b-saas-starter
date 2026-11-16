@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { createHmac } from 'node:crypto'
 import { gzipSync } from 'node:zlib'
 import { expect, layer } from '@effect/vitest'
@@ -69,8 +70,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT, excludeTestServices: true })(
           const db = yield* Database
           yield* db.insert(workspaceMembers).values({
             id: 'mem_download_other',
-            workspaceId: 'wrk_other',
-            userId: 'usr_outsider',
+            workspaceId: WorkspaceId.make('wrk_other'),
+            userId: UserId.make('usr_outsider'),
             role: 'owner'
           })
           const storage = exportStorage()
@@ -131,13 +132,13 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT, excludeTestServices: true })(
                   expect(
                     yield* exports.complete({
                       exportId: job.id,
-                      workspaceId: workspace.id,
+                      workspaceId: WorkspaceId.make(workspace.id),
                       archive: workspace.archive
                     })
                   ).toBe(true)
                   return { ...workspace, job, token }
                 }),
-                { userId: workspace.userId },
+                { userId: UserId.make(workspace.userId) },
                 bindings
               )
             )
@@ -215,7 +216,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT, excludeTestServices: true })(
             Effect.flatMap(ApiTokenRegistry, (tokens) =>
               tokens.revoke({ tokenId: a.token.id })
             ),
-            { userId: a.userId },
+            { userId: UserId.make(a.userId) },
             bindings
           )
           expect((yield* request(pathA, Redacted.value(a.token.token))).status).toBe(
@@ -228,9 +229,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT, excludeTestServices: true })(
               a.slug,
               Effect.flatMap(WorkspaceSuspensionService, (suspension) =>
                 suspension.transition({
-                  workspaceId: a.id,
+                  workspaceId: WorkspaceId.make(a.id),
                   action,
-                  actor: { userId: 'usr_sysadmin' },
+                  actor: { userId: UserId.make('usr_sysadmin') },
                   internalReason: 'Download test',
                   customerExplanation: 'Test workspace paused'
                 })
@@ -272,14 +273,14 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT, excludeTestServices: true })(
           const factorId = 'passkey_export_recipient'
           yield* db.insert(workspaceMembers).values({
             id: 'mem_export_remaining_owner',
-            workspaceId: 'wrk_live',
-            userId: 'usr_bystander',
+            workspaceId: WorkspaceId.make('wrk_live'),
+            userId: UserId.make('usr_bystander'),
             role: 'owner'
           })
           yield* db.insert(session).values({
             id: sessionId,
             token: 'token_export_recipient',
-            userId: 'usr_owner',
+            userId: UserId.make('usr_owner'),
             expiresAt: DateTime.toDate(DateTime.addDuration(now, '1 hour')),
             strongAuthAt: proofAt,
             strongAuthMethod: 'passkey',
@@ -287,7 +288,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT, excludeTestServices: true })(
           })
           yield* db.insert(passkey).values({
             id: factorId,
-            userId: 'usr_owner',
+            userId: UserId.make('usr_owner'),
             publicKey: 'public-key',
             credentialID: 'credential-export-recipient',
             counter: 0,
@@ -303,15 +304,19 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT, excludeTestServices: true })(
               const job = yield* exports.request
               yield* exports.complete({
                 exportId: job.id,
-                workspaceId: 'wrk_live',
+                workspaceId: WorkspaceId.make('wrk_live'),
                 archive: new Uint8Array(gzipSync('private export'))
               })
               return yield* exports.issueDownloadLink({
                 exportId: job.id,
-                recipient: { type: 'session', userId: 'usr_owner', sessionId }
+                recipient: {
+                  type: 'session',
+                  userId: UserId.make('usr_owner'),
+                  sessionId
+                }
               })
             }),
-            { userId: 'usr_owner' },
+            { userId: UserId.make('usr_owner') },
             { workspaceExports: storage }
           )
           if (Option.isNone(link)) {
@@ -353,7 +358,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT, excludeTestServices: true })(
           expect((yield* download()).status).toBe(404)
           yield* db
             .update(session)
-            .set({ strongAuthAt: proofAt, impersonatedBy: 'usr_outsider' })
+            .set({ strongAuthAt: proofAt, impersonatedBy: UserId.make('usr_outsider') })
             .where(eq(session.id, sessionId))
           expect((yield* download()).status).toBe(404)
           yield* db
@@ -365,8 +370,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT, excludeTestServices: true })(
             .set({ role: 'member' })
             .where(
               and(
-                eq(workspaceMembers.userId, 'usr_owner'),
-                eq(workspaceMembers.workspaceId, 'wrk_live')
+                eq(workspaceMembers.userId, UserId.make('usr_owner')),
+                eq(workspaceMembers.workspaceId, WorkspaceId.make('wrk_live'))
               )
             )
           expect((yield* download()).status).toBe(404)
@@ -375,8 +380,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT, excludeTestServices: true })(
             .set({ role: 'owner' })
             .where(
               and(
-                eq(workspaceMembers.userId, 'usr_owner'),
-                eq(workspaceMembers.workspaceId, 'wrk_live')
+                eq(workspaceMembers.userId, UserId.make('usr_owner')),
+                eq(workspaceMembers.workspaceId, WorkspaceId.make('wrk_live'))
               )
             )
           yield* db.delete(passkey).where(eq(passkey.id, factorId))

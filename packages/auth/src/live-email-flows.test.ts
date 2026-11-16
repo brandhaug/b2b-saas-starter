@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { type DrizzleDatabase } from './ports.ts'
 import { user, verification } from '@b2b-saas-starter/db/schema/auth'
 import { Effect, type Layer } from 'effect'
@@ -387,7 +388,10 @@ describe('email-otp plugin', () => {
 
         // The unverified state the link flow would clear:
         const unverified = yield* Effect.promise(() =>
-          db.select().from(user).where(eq(user.id, userId))
+          db
+            .select()
+            .from(user)
+            .where(eq(user.id, UserId.make(userId)))
         )
         expect(unverified[0]?.emailVerified).toBe(false)
 
@@ -399,7 +403,10 @@ describe('email-otp plugin', () => {
         expect(verified.token).not.toBeNull()
 
         const rows = yield* Effect.promise(() =>
-          db.select().from(user).where(eq(user.id, userId))
+          db
+            .select()
+            .from(user)
+            .where(eq(user.id, UserId.make(userId)))
         )
         expect(rows[0]?.emailVerified).toBe(true)
       })

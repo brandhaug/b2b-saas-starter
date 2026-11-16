@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { expect, it } from '@effect/vitest'
 import { SeedSeatSyncPublisher } from '@b2b-saas-starter/billing/seat-sync'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -24,7 +25,7 @@ for (const operation of ['changeRole', 'removeMember', 'leave']) {
         }
         const roster = yield* makeSeedRoster([
           demoUserIdentity,
-          { ...demoUserIdentity, id: 'other-owner' }
+          { ...demoUserIdentity, id: UserId.make('other-owner') }
         ])
         const directory = yield* AssistantDirectory
         const room = yield* directory.create({

@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
 import {
   oauthAccessToken,
@@ -44,8 +45,8 @@ const insertContractGrantRows = Effect.gen(function* () {
       {
         id: 'con_live_contract',
         clientId: CLIENT_ID,
-        userId: 'usr_joiner',
-        referenceId: 'wrk_live',
+        userId: UserId.make('usr_joiner'),
+        referenceId: WorkspaceId.make('wrk_live'),
         scopes: ['mcp:read', 'offline_access'],
         grantVersion: CONTRACT_GRANT_VERSION,
         createdAt: grantedAt,
@@ -56,8 +57,8 @@ const insertContractGrantRows = Effect.gen(function* () {
       {
         id: 'con_live_disabled_client',
         clientId: DISABLED_CLIENT_ID,
-        userId: 'usr_joiner',
-        referenceId: 'wrk_live',
+        userId: UserId.make('usr_joiner'),
+        referenceId: WorkspaceId.make('wrk_live'),
         scopes: ['mcp:read'],
         createdAt: grantedAt,
         updatedAt: grantedAt
@@ -90,8 +91,8 @@ const insertConsentRows = Effect.gen(function* () {
     {
       id: 'con_live_owner',
       clientId: CLIENT_ID,
-      userId: 'usr_owner',
-      referenceId: 'wrk_live',
+      userId: UserId.make('usr_owner'),
+      referenceId: WorkspaceId.make('wrk_live'),
       scopes: ['mcp:read', 'offline_access'],
       createdAt: grantedAt,
       updatedAt: grantedAt
@@ -100,8 +101,8 @@ const insertConsentRows = Effect.gen(function* () {
     {
       id: 'con_live_outsider',
       clientId: CLIENT_ID,
-      userId: 'usr_outsider',
-      referenceId: 'wrk_other',
+      userId: UserId.make('usr_outsider'),
+      referenceId: WorkspaceId.make('wrk_other'),
       scopes: ['mcp:read'],
       createdAt: grantedAt,
       updatedAt: grantedAt
@@ -112,8 +113,8 @@ const insertConsentRows = Effect.gen(function* () {
       id: 'ort_live_owner',
       token: 'rt_owner',
       clientId: CLIENT_ID,
-      userId: 'usr_owner',
-      referenceId: 'wrk_live',
+      userId: UserId.make('usr_owner'),
+      referenceId: WorkspaceId.make('wrk_live'),
       scopes: ['mcp:read', 'offline_access'],
       expiresAt: farFuture
     },
@@ -121,8 +122,8 @@ const insertConsentRows = Effect.gen(function* () {
       id: 'ort_live_outsider',
       token: 'rt_outsider',
       clientId: CLIENT_ID,
-      userId: 'usr_outsider',
-      referenceId: 'wrk_other',
+      userId: UserId.make('usr_outsider'),
+      referenceId: WorkspaceId.make('wrk_other'),
       scopes: ['mcp:read'],
       expiresAt: farFuture
     }
@@ -131,8 +132,8 @@ const insertConsentRows = Effect.gen(function* () {
     id: 'oat_live_owner',
     token: 'at_owner',
     clientId: CLIENT_ID,
-    userId: 'usr_owner',
-    referenceId: 'wrk_live',
+    userId: UserId.make('usr_owner'),
+    referenceId: WorkspaceId.make('wrk_live'),
     refreshId: 'ort_live_owner',
     scopes: ['mcp:read', 'offline_access'],
     expiresAt: farFuture
@@ -164,7 +165,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             const listed = yield* inWorkspace(
               'live-lab',
               Effect.flatMap(McpClientConnections, (connections) =>
-                connections.listForUser('usr_owner')
+                connections.listForUser(UserId.make('usr_owner'))
               )
             )
             expect(listed).toEqual([
@@ -186,7 +187,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               'live-lab',
               Effect.flatMap(McpClientConnections, (connections) =>
                 connections.revoke({
-                  userId: 'usr_outsider',
+                  userId: UserId.make('usr_outsider'),
                   connectionId: 'con_live_owner'
                 })
               )
@@ -197,7 +198,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               'live-lab',
               Effect.flatMap(McpClientConnections, (connections) =>
                 connections.revoke({
-                  userId: 'usr_owner',
+                  userId: UserId.make('usr_owner'),
                   connectionId: 'con_live_owner'
                 })
               )
@@ -237,7 +238,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               'live-lab',
               Effect.flatMap(McpClientConnections, (connections) =>
                 connections.revoke({
-                  userId: 'usr_owner',
+                  userId: UserId.make('usr_owner'),
                   connectionId: 'con_live_owner'
                 })
               )
@@ -252,8 +253,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             'live-lab',
             Effect.flatMap(McpClientConnections, (connections) =>
               connections.recordGrant({
-                userId: 'usr_owner',
-                workspaceId: 'wrk_live',
+                userId: UserId.make('usr_owner'),
+                workspaceId: WorkspaceId.make('wrk_live'),
                 clientId: CLIENT_ID,
                 scopes: ['mcp:read']
               })
@@ -276,16 +277,16 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
       // its rows are the provider's writes.
       const contractGrants = {
         active: {
-          userId: 'usr_joiner',
+          userId: UserId.make('usr_joiner'),
           clientId: CLIENT_ID,
-          workspaceId: 'wrk_live',
+          workspaceId: WorkspaceId.make('wrk_live'),
           binding: `con_live_contract:${String(CONTRACT_GRANT_VERSION)}`,
           scopes: ['mcp:read', 'offline_access']
         },
         disabledClient: {
-          userId: 'usr_joiner',
+          userId: UserId.make('usr_joiner'),
           clientId: DISABLED_CLIENT_ID,
-          workspaceId: 'wrk_live'
+          workspaceId: WorkspaceId.make('wrk_live')
         }
       }
       for (const contractCase of mcpClientConnectionsContractCases(
@@ -305,7 +306,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           yield* db.insert(oauthConsent).values({
             id: 'con_live_anonymous',
             clientId: CLIENT_ID,
-            userId: 'usr_owner',
+            userId: UserId.make('usr_owner'),
             referenceId: null,
             scopes: ['mcp:read'],
             createdAt: grantedAt,
@@ -315,7 +316,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             id: 'ort_live_anonymous',
             token: 'rt_anonymous',
             clientId: CLIENT_ID,
-            userId: 'usr_owner',
+            userId: UserId.make('usr_owner'),
             referenceId: null,
             scopes: ['mcp:read'],
             expiresAt: farFuture
@@ -325,7 +326,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             'live-lab',
             Effect.flatMap(McpClientConnections, (connections) =>
               connections.revoke({
-                userId: 'usr_owner',
+                userId: UserId.make('usr_owner'),
                 connectionId: 'con_live_anonymous'
               })
             )
@@ -351,8 +352,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           yield* db.insert(oauthConsent).values({
             id: 'con_live_ghost',
             clientId: CLIENT_ID,
-            userId: 'usr_owner',
-            referenceId: 'wrk_deleted',
+            userId: UserId.make('usr_owner'),
+            referenceId: WorkspaceId.make('wrk_deleted'),
             scopes: ['mcp:read'],
             createdAt: grantedAt,
             updatedAt: grantedAt
@@ -362,7 +363,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             'live-lab',
             Effect.flatMap(McpClientConnections, (connections) =>
               connections.revoke({
-                userId: 'usr_owner',
+                userId: UserId.make('usr_owner'),
                 connectionId: 'con_live_ghost'
               })
             )

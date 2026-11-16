@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 import { authClient } from '@/lib/auth-client'
@@ -68,7 +69,11 @@ function toViewModels(passkeys: ReadonlyArray<PasskeyRecord>): Array<PasskeyRowV
  * actions refetch it instead of invalidating the route, and every failure
  * reads through `ActionFeedback`.
  */
-export function PasskeysPanel({ userId = 'current' }: { readonly userId?: string }) {
+export function PasskeysPanel({
+  userId = 'current'
+}: {
+  readonly userId?: UserId | 'current'
+}) {
   const { hydrated, rows, loadError, isPending, refetch } = useAuthClientRows({
     queryKey: ['account', userId, 'passkeys'],
     list: () => authClient.passkey.listUserPasskeys(),

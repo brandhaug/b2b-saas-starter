@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { describe, expect, it } from 'vite-plus/test'
 
 import {
@@ -20,8 +21,8 @@ function entry(
 ): ConversationDirectoryEntry {
   return {
     id: 'c1',
-    workspaceId: 'workspace',
-    creatorUserId: 'owner',
+    workspaceId: WorkspaceId.make('workspace'),
+    creatorUserId: UserId.make('owner'),
     requiredPermissions: [],
     policyRevision: 0,
     runAccessRevision: 0,

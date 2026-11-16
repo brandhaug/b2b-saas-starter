@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { AccountPage } from '@/components/account-page'
@@ -35,7 +36,7 @@ function routeSession(
 ): RouteSession {
   return {
     user: {
-      id: 'usr_demo',
+      id: UserId.make('usr_demo'),
       name: 'Demo Admin',
       email: 'demo@starter.local',
       emailVerified: true,
@@ -92,7 +93,7 @@ describe('/account', () => {
     const payload = await loadAccountPageHandler()
     await renderWithRouter(
       <AccountPage
-        session={routeSession({ impersonatedBy: 'usr_admin' })}
+        session={routeSession({ impersonatedBy: UserId.make('usr_admin') })}
         deletionPlan={payload.deletionPlan}
         currentSessionToken="tok_current"
       />,

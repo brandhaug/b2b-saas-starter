@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { billingSynchronization } from '@b2b-saas-starter/db/schema/billing'
 import { emailDeliveries } from '@b2b-saas-starter/db/schema/email-delivery'
 import { Database, RawD1, databaseIsReady } from '@b2b-saas-starter/db/service'
@@ -28,7 +29,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('operational health', (it) 
       Effect.gen(function* () {
         const db = yield* Database
         yield* db.insert(billingSynchronization).values({
-          workspaceId: 'wrk_live',
+          workspaceId: WorkspaceId.make('wrk_live'),
           status: 'delayed',
           updatedAt: iso,
           unresolvedSince: DateTime.formatIso(DateTime.makeUnsafe(now - 899_999))
@@ -39,12 +40,12 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('operational health', (it) 
           .set({
             unresolvedSince: DateTime.formatIso(DateTime.makeUnsafe(now - 900_000))
           })
-          .where(eq(billingSynchronization.workspaceId, 'wrk_live'))
+          .where(eq(billingSynchronization.workspaceId, WorkspaceId.make('wrk_live')))
         expect((yield* read).overdueBilling).toBe(1)
         yield* db
           .update(billingSynchronization)
           .set({ status: 'current', unresolvedSince: null })
-          .where(eq(billingSynchronization.workspaceId, 'wrk_live'))
+          .where(eq(billingSynchronization.workspaceId, WorkspaceId.make('wrk_live')))
         expect((yield* read).overdueBilling).toBe(0)
       })
   )

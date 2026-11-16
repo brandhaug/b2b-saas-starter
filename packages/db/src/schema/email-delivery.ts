@@ -1,3 +1,4 @@
+import { type UserId, type WorkspaceId } from '../ids.ts'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 import { emailPurposes, emailDeliveryStatuses } from '../enums.ts'
 import { user } from './auth.ts'
@@ -11,10 +12,14 @@ export const emailDeliveries = sqliteTable(
     referenceId: text('reference_id'),
     purpose: text('purpose', { enum: emailPurposes }).notNull(),
     recipient: text('recipient').notNull(),
-    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
-    workspaceId: text('workspace_id').references(() => workspaces.id, {
-      onDelete: 'cascade'
-    }),
+    userId: text('user_id')
+      .$type<UserId>()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .$type<WorkspaceId>()
+      .references(() => workspaces.id, {
+        onDelete: 'cascade'
+      }),
     status: text('status', { enum: emailDeliveryStatuses }).notNull(),
     providerMessageId: text('provider_message_id'),
     lastEventId: text('last_event_id'),

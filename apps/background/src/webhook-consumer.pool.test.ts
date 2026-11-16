@@ -1,4 +1,8 @@
-import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import {
+  WebhookDeliveryId,
+  WebhookEndpointId,
+  WorkspaceId
+} from '@b2b-saas-starter/db/ids'
 import { type WebhookQueueMessage } from '@b2b-saas-starter/capabilities/developer-platform/webhook-publisher'
 import { webhookDeadLetterQueueName, webhookQueueName } from '@b2b-saas-starter/infra'
 import { type MessageBatchMessage } from 'cloudflare:test'
@@ -28,7 +32,7 @@ import {
 // steps ride `Effect.promise` inside `Effect.runPromise`, like the live
 // suites in `packages/auth`.
 
-const WORKSPACE_ID = 'ws_pool'
+const WORKSPACE_ID = WorkspaceId.make('ws_pool')
 const ENDPOINT_ID = WebhookEndpointId.make('wh_pool')
 const ENDPOINT_URL = 'https://receiver.example.test/hook'
 const SIGNING_SECRET = 'whsec_cG9vbF90ZXN0X3NlY3JldA=='

@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
@@ -287,7 +288,7 @@ describe('SignInPage', () => {
         resolveRouting={async () => ({
           providerId: 'sso_test',
           protocol: 'oidc',
-          workspaceId: 'wrk_test',
+          workspaceId: WorkspaceId.make('wrk_test'),
           requireSso: false
         })}
       />,

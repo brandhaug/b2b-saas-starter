@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
@@ -14,7 +15,7 @@ it('excludes simultaneous creates and ignores completion after leaving the direc
             ok: true,
             value: {
               id: 'conversation_new',
-              workspaceId: 'workspace_1',
+              workspaceId: WorkspaceId.make('workspace_1'),
               createdAt: '2026-10-30T00:00:00Z',
               title: null,
               activeAttempt: null,

@@ -1,3 +1,4 @@
+import { type UserId, type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Effect } from 'effect'
 import { type ContractExpect } from './contract-expect.ts'
 import { type UserAdminRejected } from '../errors.ts'
@@ -23,15 +24,15 @@ import {
 
 export type UserAdminContractIds = {
   /** A user who exists when each case starts. */
-  readonly existing: string
+  readonly existing: UserId
   /** A user who exists as an account but holds no membership in `workspaceId`. */
-  readonly outsider: string
+  readonly outsider: UserId
   /** A user id that exists nowhere — not as an account, not as a member. */
-  readonly unknown: string
+  readonly unknown: UserId
   /** The workspace `existing` holds a membership in when each case starts. */
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   /** A System Admin account: the impersonation actor, and the target the cases must refuse. */
-  readonly admin: string
+  readonly admin: UserId
 }
 
 export type UserAdminContractCase = {

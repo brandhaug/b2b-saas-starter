@@ -1,4 +1,9 @@
-import { WebhookDeliveryId } from '@b2b-saas-starter/db/ids'
+import {
+  type UserId,
+  UserIdInput,
+  WebhookDeliveryId,
+  WorkspaceIdInput
+} from '@b2b-saas-starter/db/ids'
 import { type AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { DeliveryView } from '@b2b-saas-starter/capabilities/developer-platform/webhook-delivery-view'
 import { type SystemRole } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
@@ -26,18 +31,18 @@ import { Schema } from 'effect'
  */
 
 export type SystemUser = {
-  readonly id: string
+  readonly id: UserId
   readonly name: string
   readonly email: string
   readonly role: SystemRole
   readonly banned: boolean
 }
 
-const SystemUserInput = Schema.Struct({ userId: Schema.NonEmptyString })
+const SystemUserInput = Schema.Struct({ userId: UserIdInput })
 
 const ChangeWorkspaceRoleInput = Schema.Struct({
-  userId: Schema.NonEmptyString,
-  workspaceId: Schema.NonEmptyString,
+  userId: UserIdInput,
+  workspaceId: WorkspaceIdInput,
   role: Schema.Literals(workspaceRoles)
 })
 
@@ -56,6 +61,9 @@ const ReplayFailedDeliveryInput = Schema.Struct({
 
 export type SystemUserInput = typeof SystemUserInput.Type
 export type ChangeWorkspaceRoleInput = typeof ChangeWorkspaceRoleInput.Type
+/** What a client sends, before the server fn decodes the brands. */
+export type SystemUserRequest = typeof SystemUserInput.Encoded
+export type ChangeWorkspaceRoleRequest = typeof ChangeWorkspaceRoleInput.Encoded
 export type FailedDeliveriesInput = typeof FailedDeliveriesInput.Type
 export type ReplayFailedDeliveryInput = typeof ReplayFailedDeliveryInput.Type
 
@@ -72,13 +80,14 @@ export type FailedDeliveriesPayload = {
 export type AdminWorkspace = WorkspaceSuspensionSummary
 
 const WorkspaceSuspensionInput = Schema.Struct({
-  workspaceId: Schema.NonEmptyString,
+  workspaceId: WorkspaceIdInput,
   action: Schema.Literals(['suspend', 'unsuspend']),
   internalReason: Schema.NonEmptyString,
   customerExplanation: Schema.optionalKey(Schema.String)
 })
 
 export type WorkspaceSuspensionInput = typeof WorkspaceSuspensionInput.Type
+export type WorkspaceSuspensionRequest = typeof WorkspaceSuspensionInput.Encoded
 
 export const listAdminWorkspacesServerFn = createServerFn({ method: 'GET' }).handler(
   async (): Promise<ReadonlyArray<AdminWorkspace>> => {

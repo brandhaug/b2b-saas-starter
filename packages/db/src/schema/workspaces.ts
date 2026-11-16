@@ -1,3 +1,4 @@
+import { type UserId, type WorkspaceId } from '../ids.ts'
 import { sql } from 'drizzle-orm'
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import {
@@ -17,12 +18,15 @@ import { id, authCreatedAt, authTimestamps, workspaceIdIndex } from './columns.t
  */
 export function workspaceRef(column = 'workspace_id') {
   return text(column)
+    .$type<WorkspaceId>()
     .notNull()
     .references(() => workspaces.id, { onDelete: 'cascade' })
 }
 
 export function workspaceRefNullable() {
-  return text('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' })
+  return text('workspace_id')
+    .$type<WorkspaceId>()
+    .references(() => workspaces.id, { onDelete: 'cascade' })
 }
 
 // The three tables below are owned by Better Auth's `organization` plugin.
@@ -36,7 +40,7 @@ export function workspaceRefNullable() {
 export const workspaces = sqliteTable(
   'workspaces',
   {
-    id: id(),
+    id: id().$type<WorkspaceId>(),
     name: text('name').notNull(),
     slug: text('slug').unique().notNull(),
     logo: text('logo'),
@@ -64,10 +68,9 @@ export const workspaces = sqliteTable(
     suspensionCustomerExplanation: text('suspensionCustomerExplanation'),
     suspensionChangedAt: text('suspensionChangedAt'),
     suspensionTransitionId: text('suspensionTransitionId'),
-    suspensionChangedByUserId: text('suspensionChangedByUserId').references(
-      () => user.id,
-      { onDelete: 'set null' }
-    ),
+    suspensionChangedByUserId: text('suspensionChangedByUserId')
+      .$type<UserId>()
+      .references(() => user.id, { onDelete: 'set null' }),
     ...authTimestamps()
   },
   (table) => [
@@ -80,6 +83,7 @@ export const workspaces = sqliteTable(
 /** Capability-owned permit for the plugin's member-first workspace teardown. */
 export const workspaceDeletionFences = sqliteTable('workspace_deletion_fences', {
   workspaceId: text('workspace_id')
+    .$type<WorkspaceId>()
     .primaryKey()
     .references(() => workspaces.id, { onDelete: 'cascade' }),
   token: text('token').notNull(),
@@ -97,6 +101,7 @@ export const workspaceMembers = sqliteTable(
     id: id(),
     workspaceId: workspaceRef('workspaceId'),
     userId: text('userId')
+      .$type<UserId>()
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     role: text('role', { enum: workspaceRoles }).default('member').notNull(),
@@ -128,6 +133,7 @@ export const workspaceInvitations = sqliteTable(
     // Database triggers stamp plugin-owned terminal transitions atomically.
     terminalAt: integer('terminalAt', { mode: 'timestamp' }),
     inviterId: text('inviterId')
+      .$type<UserId>()
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' })
   },
@@ -162,6 +168,7 @@ export const workspaceSsoConnections = sqliteTable(
     oidcConfig: text('oidcConfig'),
     samlConfig: text('samlConfig'),
     userId: text('userId')
+      .$type<UserId>()
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     providerId: text('providerId').unique().notNull(),

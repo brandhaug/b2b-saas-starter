@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { type DrizzleDatabase } from './ports.ts'
 import { account, user } from '@b2b-saas-starter/db/schema/auth'
 import { Effect, type Layer, Redacted } from 'effect'
@@ -174,7 +175,11 @@ function seedVerifiedLocalUser(email: string) {
     // The production counterpart verified through the emailed link; the link
     // flow must not depend on that hop having run in the same process.
     yield* Effect.promise(() =>
-      db.update(user).set({ emailVerified: true }).where(eq(user.id, created.id)).run()
+      db
+        .update(user)
+        .set({ emailVerified: true })
+        .where(eq(user.id, UserId.make(created.id)))
+        .run()
     )
     return created.id
   })
@@ -268,7 +273,12 @@ describe('social sign-in', () => {
             db
               .select()
               .from(account)
-              .where(and(eq(account.providerId, 'github'), eq(account.userId, userId)))
+              .where(
+                and(
+                  eq(account.providerId, 'github'),
+                  eq(account.userId, UserId.make(userId))
+                )
+              )
           )
           expect(rows).toHaveLength(1)
           expect(rows[0]?.accountId).toBe(String(githubProfile.id))
@@ -343,7 +353,12 @@ describe('social sign-in', () => {
             db
               .select()
               .from(account)
-              .where(and(eq(account.providerId, 'github'), eq(account.userId, userId)))
+              .where(
+                and(
+                  eq(account.providerId, 'github'),
+                  eq(account.userId, UserId.make(userId))
+                )
+              )
           )
           expect(rows).toHaveLength(0)
           expect(accountChanges.slice(before)).toHaveLength(0)
@@ -405,7 +420,10 @@ describe('social sign-in', () => {
             .select()
             .from(account)
             .where(
-              and(eq(account.providerId, 'github'), eq(account.userId, squatter.id))
+              and(
+                eq(account.providerId, 'github'),
+                eq(account.userId, UserId.make(squatter.id))
+              )
             )
         )
         expect(rows).toHaveLength(0)
@@ -444,7 +462,12 @@ describe('social sign-in', () => {
           db
             .select()
             .from(account)
-            .where(and(eq(account.providerId, 'github'), eq(account.userId, userId)))
+            .where(
+              and(
+                eq(account.providerId, 'github'),
+                eq(account.userId, UserId.make(userId))
+              )
+            )
         )
         expect(target).toHaveLength(1)
 
@@ -461,7 +484,12 @@ describe('social sign-in', () => {
           db
             .select()
             .from(account)
-            .where(and(eq(account.providerId, 'github'), eq(account.userId, userId)))
+            .where(
+              and(
+                eq(account.providerId, 'github'),
+                eq(account.userId, UserId.make(userId))
+              )
+            )
         )
         expect(remaining).toHaveLength(0)
         expect(accountChanges.slice(before).at(-1)?.account).toMatchObject({

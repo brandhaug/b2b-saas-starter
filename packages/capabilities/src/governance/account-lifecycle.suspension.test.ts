@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { describe, expect, it } from 'vite-plus/test'
 import { planAccountDeletion } from './account-lifecycle.ts'
 
@@ -6,7 +7,7 @@ describe('account deletion and suspended workspaces', () => {
     const plan = planAccountDeletion([
       {
         workspace: {
-          id: 'wrk_suspended',
+          id: WorkspaceId.make('wrk_suspended'),
           slug: 'suspended-lab',
           name: 'Suspended Lab',
           planId: 'starter'

@@ -1,4 +1,4 @@
-import { ApiTokenId } from '@b2b-saas-starter/db/ids'
+import { ApiTokenId, UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { hashSha256 } from '@b2b-saas-starter/capabilities/crypto'
 import {
   LIVE_SUITE_TIMEOUT,
@@ -33,7 +33,7 @@ const toolEnvelope = Schema.Struct({
     structuredContent: Schema.optional(
       Schema.Struct({
         _tag: Schema.Literal('WorkspaceSuspended'),
-        workspaceId: Schema.String
+        workspaceId: WorkspaceId
       })
     )
   })
@@ -103,7 +103,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             ),
             { disableLogger: true }
           )
-          function clientFor(userId: string) {
+          function clientFor(userId: UserId) {
             return Effect.promise(() =>
               new SignJWT({
                 sub: userId,
@@ -123,8 +123,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 .sign(keys.privateKey)
             ).pipe(Effect.map((jwt) => mcpClient(handler, `Bearer ${jwt}`)))
           }
-          const member = yield* clientFor('usr_owner')
-          const outsider = yield* clientFor('usr_outsider')
+          const member = yield* clientFor(UserId.make('usr_owner'))
+          const outsider = yield* clientFor(UserId.make('usr_outsider'))
           yield* Effect.promise(() => member.initialize())
           yield* Effect.promise(() => outsider.initialize())
           function read(client: ReturnType<typeof mcpClient>) {

@@ -1,5 +1,5 @@
 import { workspaceAuditAttribution } from '@b2b-saas-starter/billing/ports'
-import { type WebhookDeliveryId } from '@b2b-saas-starter/db/ids'
+import { type WebhookDeliveryId, type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { DateTime, Effect } from 'effect'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
 import { WorkspaceContext } from '../workspace-context.ts'
@@ -13,7 +13,7 @@ export function seedOperatorDispatch(deliveries: Array<SeedDeliveryFixture>) {
     const audit = yield* AuditEventLog
     return Effect.fn('WebhookOperatorDispatch.reserve')(function* (input: {
       readonly deliveryId: WebhookDeliveryId
-      readonly workspaceId: string
+      readonly workspaceId: WorkspaceId
       readonly plan: PendingDispatchPlan
       readonly auditEventType?: 'webhook.delivery_replayed' | undefined
     }) {

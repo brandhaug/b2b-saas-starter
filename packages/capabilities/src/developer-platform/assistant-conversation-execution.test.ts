@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { expect, it, vi } from '@effect/vitest'
 import { Effect, Layer, Schema } from 'effect'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -41,8 +42,8 @@ const services = Layer.mergeAll(
     get: (id) =>
       Effect.succeed({
         id,
-        workspaceId: 'workspace',
-        creatorUserId: 'owner',
+        workspaceId: WorkspaceId.make('workspace'),
+        creatorUserId: UserId.make('owner'),
         requiredPermissions: [],
         policyRevision: 0,
         runAccessRevision: 0,

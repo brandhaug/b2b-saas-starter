@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { workspaceSubscriptions } from '@b2b-saas-starter/db/schema/billing'
 import { Database } from '@b2b-saas-starter/db/service'
 import { Effect, Redacted } from 'effect'
@@ -54,7 +55,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live billing', (it) => {
           Effect.gen(function* () {
             const billing = yield* Billing
             return yield* billing.syncSeats({
-              workspaceId: 'wrk_other',
+              workspaceId: WorkspaceId.make('wrk_other'),
               reason: 'member_added'
             })
           })
@@ -67,7 +68,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live billing', (it) => {
       Effect.gen(function* () {
         const db = yield* Database
         yield* db.insert(workspaceSubscriptions).values({
-          workspaceId: 'wrk_live',
+          workspaceId: WorkspaceId.make('wrk_live'),
           stripeCustomerId: 'cus_unset_config',
           stripeSubscriptionId: 'sub_unset_config',
           stripeSubscriptionItemId: 'si_unset_config',
@@ -79,7 +80,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live billing', (it) => {
           Effect.gen(function* () {
             const billing = yield* Billing
             return yield* billing.syncSeats({
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               reason: 'member_added'
             })
           })
@@ -92,7 +93,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live billing', (it) => {
       Effect.gen(function* () {
         const db = yield* Database
         yield* db.insert(workspaceSubscriptions).values({
-          workspaceId: 'wrk_other',
+          workspaceId: WorkspaceId.make('wrk_other'),
           stripeCustomerId: 'cus_partial_config',
           stripeSubscriptionId: 'sub_partial_config',
           stripeSubscriptionItemId: 'si_partial_config',
@@ -104,7 +105,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live billing', (it) => {
           Effect.gen(function* () {
             const billing = yield* Billing
             return yield* billing.syncSeats({
-              workspaceId: 'wrk_other',
+              workspaceId: WorkspaceId.make('wrk_other'),
               reason: 'member_added'
             })
           }),

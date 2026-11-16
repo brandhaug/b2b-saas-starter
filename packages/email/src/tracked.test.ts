@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import {
   EmailDelivery,
   type ClaimEmail
@@ -19,7 +20,7 @@ const input = {
   id: 'email_1',
   purpose: 'notification',
   recipient: 'user@example.com',
-  userId: 'usr_1',
+  userId: UserId.make('usr_1'),
   workspaceId: null
 } satisfies ClaimEmail
 

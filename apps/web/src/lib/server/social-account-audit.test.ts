@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { Effect } from 'effect'
 import {
@@ -40,7 +41,10 @@ describe('makeSocialAccountAuditHooks', () => {
     const { runAgainstSeed, recordedEvents } = makeFixture()
     const hooks = makeSocialAccountAuditHooks(runAgainstSeed)
 
-    await hooks.onAccountLinked({ providerId: 'github', userId: 'usr_demo' })
+    await hooks.onAccountLinked({
+      providerId: 'github',
+      userId: UserId.make('usr_demo')
+    })
 
     const events = await recordedEvents()
     expect(events).toHaveLength(1)
@@ -54,7 +58,10 @@ describe('makeSocialAccountAuditHooks', () => {
     const { runAgainstSeed, recordedEvents } = makeFixture()
     const hooks = makeSocialAccountAuditHooks(runAgainstSeed)
 
-    await hooks.onAccountUnlinked({ providerId: 'google', userId: 'usr_demo' })
+    await hooks.onAccountUnlinked({
+      providerId: 'google',
+      userId: UserId.make('usr_demo')
+    })
 
     const events = await recordedEvents()
     expect(events.some((event) => event.eventType === 'auth.account_unlinked')).toBe(
@@ -66,8 +73,14 @@ describe('makeSocialAccountAuditHooks', () => {
     const { runAgainstSeed, recordedEvents } = makeFixture()
     const hooks = makeSocialAccountAuditHooks(runAgainstSeed)
 
-    await hooks.onAccountLinked({ providerId: 'credential', userId: 'usr_demo' })
-    await hooks.onAccountUnlinked({ providerId: 'credential', userId: 'usr_demo' })
+    await hooks.onAccountLinked({
+      providerId: 'credential',
+      userId: UserId.make('usr_demo')
+    })
+    await hooks.onAccountUnlinked({
+      providerId: 'credential',
+      userId: UserId.make('usr_demo')
+    })
 
     expect(await recordedEvents()).toHaveLength(0)
   })
@@ -79,7 +92,7 @@ describe('makeSocialAccountAuditHooks', () => {
     // The rejection is absorbed (logged, not thrown): a governance hiccup
     // must not fail the sign-in that triggered the hook.
     await expect(
-      hooks.onAccountLinked({ providerId: 'github', userId: 'usr_demo' })
+      hooks.onAccountLinked({ providerId: 'github', userId: UserId.make('usr_demo') })
     ).resolves.toBeUndefined()
   })
 })
@@ -89,7 +102,7 @@ describe('accountAuditInput', () => {
     expect(
       accountAuditInput('auth.account_linked', {
         providerId: 'github',
-        userId: 'usr_demo'
+        userId: UserId.make('usr_demo')
       })
     ).toEqual({
       workspaceId: null,

@@ -1,5 +1,6 @@
 // oxlint-disable-next-line import/no-unassigned-import -- Installs the explicit authenticated-session test fixture.
 import '@/test/qualified-session'
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { fixtureAuthModule } from '@/test/fixture-session'
 import { ApiTokenRegistry } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { Effect } from 'effect'
@@ -23,7 +24,7 @@ vi.mock('./server/auth', () => fixtureAuthModule({}, { userId: 'usr_martin' }))
  * decides, and the failure crosses the Effect → TanStack boundary as something
  * a form can display. `usr_martin` is the fixture owner, `usr_dev` a member.
  */
-function createToken(userId: string) {
+function createToken(userId: UserId) {
   return runWorkspaceCapabilities(
     'starter-lab',
     Effect.gen(function* () {
@@ -45,7 +46,7 @@ describe('runWorkspaceCapabilities authorization', () => {
       await runWorkspaceCapabilities(
         'starter-lab',
         Effect.void,
-        WorkspaceCaller.user('usr_martin')
+        WorkspaceCaller.user(UserId.make('usr_martin'))
       )
       expect(output).toHaveBeenCalledTimes(1)
       const serialized = String(output.mock.calls[0]?.[0])
@@ -65,7 +66,7 @@ describe('runWorkspaceCapabilities authorization', () => {
     const refusal = await runWorkspaceCapabilities(
       'starter-lab',
       Effect.fail(new WorkspaceChangeRejected({ reason: 'billing_obligations' })),
-      WorkspaceCaller.user('usr_martin')
+      WorkspaceCaller.user(UserId.make('usr_martin'))
     ).catch((error: unknown) => error)
     expect(refusal).toMatchObject({
       code: 'workspace_billing_obligations',
@@ -99,7 +100,7 @@ describe('runWorkspaceCapabilities authorization', () => {
   })
 
   it('lets the workspace owner create a token', async () => {
-    const created = await createToken('usr_martin')
+    const created = await createToken(UserId.make('usr_martin'))
     expect(created.token).toBeTruthy()
   })
 
@@ -107,8 +108,8 @@ describe('runWorkspaceCapabilities authorization', () => {
     // `uiErrorAdapter` serializes code, allowlisted details and name — never
     // the message — so the refusal has to carry its explanation as data the
     // receiving locale words itself.
-    await expect(createToken('usr_dev')).rejects.toThrow(ForbiddenError)
-    await expect(createToken('usr_dev')).rejects.toMatchObject({
+    await expect(createToken(UserId.make('usr_dev'))).rejects.toThrow(ForbiddenError)
+    await expect(createToken(UserId.make('usr_dev'))).rejects.toMatchObject({
       code: 'forbidden',
       details: { reason: 'denied' }
     })

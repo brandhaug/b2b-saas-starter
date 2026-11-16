@@ -1,3 +1,4 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { type billingCheckoutClaims } from '@b2b-saas-starter/db/schema/billing'
 import { type BillingCheckoutStatus } from '@b2b-saas-starter/db/enums'
 
@@ -107,7 +108,7 @@ export function checkoutClaimEventFromSessionStatus(
 export type CheckoutClaim = typeof billingCheckoutClaims.$inferSelect
 
 export type CheckoutClaimInput = {
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   readonly planId: string
   readonly priceId: string
   readonly quantity: number

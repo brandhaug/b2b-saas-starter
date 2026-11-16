@@ -1,3 +1,4 @@
+import { UserId, type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Effect } from 'effect'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { AuditEventLog } from '../governance/audit-event-log.ts'
@@ -23,18 +24,18 @@ import { McpClientConnections } from './mcp-client-connections.ts'
 export type McpGrantFixtures = {
   /** A live consent whose binding names a non-zero grant version. */
   readonly active: {
-    readonly userId: string
+    readonly userId: UserId
     readonly clientId: string
-    readonly workspaceId: string
+    readonly workspaceId: WorkspaceId
     /** `<consentId>:<grantVersion>` — the exact string `getGrant` must return. */
     readonly binding: string
     readonly scopes: ReadonlyArray<string>
   }
   /** A consent as real as the one above, whose client registration is disabled. */
   readonly disabledClient: {
-    readonly userId: string
+    readonly userId: UserId
     readonly clientId: string
-    readonly workspaceId: string
+    readonly workspaceId: WorkspaceId
   }
 }
 
@@ -122,7 +123,7 @@ export function mcpClientConnectionsContractCases(
         const connections = yield* McpClientConnections
         expect(
           yield* connections.revoke({
-            userId: 'usr_anyone',
+            userId: UserId.make('usr_anyone'),
             connectionId: 'con_missing'
           })
         ).toBe(false)
@@ -138,7 +139,7 @@ export function mcpClientConnectionsContractCases(
         yield* connections.recordGrant({
           // A user both adapters know: the live harness's fixture owner (the
           // audit row's `actor_user_id` is a real FK on D1).
-          userId: 'usr_owner',
+          userId: UserId.make('usr_owner'),
           workspaceId: ctx.workspace.id,
           clientId: 'https://contract.example/client.json',
           scopes: ['mcp:read']

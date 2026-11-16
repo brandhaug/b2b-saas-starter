@@ -1,3 +1,4 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { DateTime, Effect, Layer } from 'effect'
 import { Billing } from './billing.ts'
 import { AuditEventLog, WorkspaceContext, workspaceAuditAttribution } from './ports.ts'
@@ -30,7 +31,7 @@ export function SeedResourceEntitlements() {
       const audit = yield* AuditEventLog
       const inventory = yield* SeedResourceInventory
       const lock = inventory.lock
-      function resolveSelection(workspaceId: string, input: ResourceSelection) {
+      function resolveSelection(workspaceId: WorkspaceId, input: ResourceSelection) {
         return {
           ...input,
           apiTokenIds: input.apiTokenIds.map((id) =>
@@ -40,7 +41,7 @@ export function SeedResourceEntitlements() {
       }
       const getSelectionForWorkspace = Effect.fn(
         'ResourceEntitlements.getSelectionForWorkspace'
-      )(function* (workspaceId: string) {
+      )(function* (workspaceId: WorkspaceId) {
         return normalizeSelection(
           inventory.selections.get(workspaceId) ?? EMPTY_RESOURCE_SELECTION,
           inventory.available(workspaceId, DateTime.toEpochMillis(yield* DateTime.now))
@@ -50,7 +51,7 @@ export function SeedResourceEntitlements() {
       // fixture refuses and warns on the same ceiling the Live adapter does.
       const summarizeWith = Effect.fn('ResourceEntitlements.summarizeWith')(function* (
         plan: Plan,
-        workspaceId: string,
+        workspaceId: WorkspaceId,
         resource: EntitlementResource,
         selection: ResourceSelection
       ) {

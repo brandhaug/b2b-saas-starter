@@ -1,3 +1,4 @@
+import { type UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Effect } from 'effect'
 import { type ContractExpect } from './contract-expect.ts'
 import { type MembershipChangeRejected } from '../errors.ts'
@@ -28,19 +29,19 @@ export type MembershipContractIds = {
    * standing. The runner's resolved actor is this member; the cases below
    * only refuse, so every one of them can act as them without ordering.
    */
-  readonly member: string
+  readonly member: UserId
   /**
    * A plain member the roster already carries, spent by the removal case.
    * The interface has no add-member verb — joining runs through an accepted
    * invitation — so every case that consumes a member needs its own.
    */
-  readonly removable: string
+  readonly removable: UserId
   /** A plain member whose role the role-change case flips and restores. */
-  readonly mutable: string
+  readonly mutable: UserId
   /** A plain member the audit case changes and then removes. */
-  readonly auditable: string
+  readonly auditable: UserId
   /** A user with no membership that no case ever creates. */
-  readonly stranger: string
+  readonly stranger: UserId
   /**
    * Everything the harness's security-evidence sink has been handed so far.
    * The sink is a deployment binding, not a capability, so the harness owns
@@ -72,7 +73,10 @@ export function workspaceMembershipContractCases(
         const membership = yield* WorkspaceMembership
         const ctx = yield* WorkspaceContext
         const members = yield* membership.listMembers
-        const counts = yield* membership.countMembers([ctx.workspace.id, 'wrk_absent'])
+        const counts = yield* membership.countMembers([
+          ctx.workspace.id,
+          WorkspaceId.make('wrk_absent')
+        ])
         expect(counts.get(ctx.workspace.id)).toBe(members.length)
         expect(counts.get('wrk_absent')).toBe(0)
         expect(yield* membership.countMembers([])).toEqual(new Map())

@@ -1,3 +1,4 @@
+import { type UserId, type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { AssistantDirectory } from '../assistant/directory.ts'
 import { Context, Effect, Layer, Option, Ref, Schema } from 'effect'
 import { MembershipChangeRejected } from '../errors.ts'
@@ -53,7 +54,7 @@ type WorkspaceMembershipInterface = {
    * selected. Possibly empty; never discloses workspaces the user is not in.
    */
   readonly listWorkspacesForUser: (
-    userId: string
+    userId: UserId
   ) => Effect.Effect<ReadonlyArray<WorkspaceWithMembership>, CapabilityUnavailable>
   /**
    * Member count per workspace, an entry (possibly 0) for every requested id,
@@ -62,7 +63,7 @@ type WorkspaceMembershipInterface = {
    * counts only. Live answers with one grouped query per 100 ids.
    */
   readonly countMembers: (
-    workspaceIds: ReadonlyArray<string>
+    workspaceIds: ReadonlyArray<WorkspaceId>
   ) => Effect.Effect<ReadonlyMap<string, number>, CapabilityUnavailable>
   readonly removeMember: (
     input: MemberRef
@@ -96,7 +97,7 @@ type WorkspaceMembershipInterface = {
 }
 
 export type MemberRef = {
-  readonly userId: string
+  readonly userId: UserId
 }
 
 export type MemberRoleInput = MemberRef & {
@@ -246,7 +247,7 @@ export function SeedWorkspaceMembership(
       const commitRosterChange = Effect.fn('WorkspaceMembership.commitRosterChange')(
         function* (
           intent: MembershipChangeIntent,
-          userId: string,
+          userId: UserId,
           policy: {
             readonly actorRole: WorkspaceRole | null
             readonly nextRole?: WorkspaceRole
@@ -301,7 +302,7 @@ export function SeedWorkspaceMembership(
             )
         ),
         countMembers: Effect.fn('WorkspaceMembership.countMembers')(
-          (workspaceIds: ReadonlyArray<string>) =>
+          (workspaceIds: ReadonlyArray<WorkspaceId>) =>
             Ref.get(roster).pipe(
               Effect.map(
                 (current) =>
@@ -317,7 +318,7 @@ export function SeedWorkspaceMembership(
             )
         ),
         listWorkspacesForUser: Effect.fn('WorkspaceMembership.listWorkspacesForUser')(
-          (userId: string) =>
+          (userId: UserId) =>
             Ref.get(roster).pipe(
               Effect.map((current) => {
                 const member = current.find((candidate) => candidate.id === userId)
@@ -553,13 +554,13 @@ export function SeedWorkspaceMembership(
  */
 export type WorkspaceMemberBinding = {
   readonly removeMember: (input: {
-    readonly workspaceId: string
+    readonly workspaceId: WorkspaceId
     readonly memberId: string
   }) => Promise<void>
   /** The plugin's leave endpoint: no member row id — it resolves the actor from the session. */
-  readonly leave: (input: { readonly workspaceId: string }) => Promise<void>
+  readonly leave: (input: { readonly workspaceId: WorkspaceId }) => Promise<void>
   readonly changeRole: (input: {
-    readonly workspaceId: string
+    readonly workspaceId: WorkspaceId
     readonly memberId: string
     readonly role: WorkspaceRole
   }) => Promise<void>

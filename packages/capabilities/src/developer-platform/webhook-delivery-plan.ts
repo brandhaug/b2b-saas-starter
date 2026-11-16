@@ -1,4 +1,8 @@
-import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import {
+  WebhookDeliveryId,
+  WebhookEndpointId,
+  type WorkspaceId
+} from '@b2b-saas-starter/db/ids'
 import {
   deliveryAttemptPhases,
   deliveryStatuses,
@@ -284,7 +288,7 @@ export type SeedWebhookDeliveryFixture = {
   readonly requestHeaders?: Record<string, string> | null
   readonly responseBody?: string | null
   readonly replayedFrom?: WebhookDeliveryId | null
-  readonly workspaceId?: string
+  readonly workspaceId?: WorkspaceId
 }
 
 /**
@@ -569,7 +573,7 @@ export type WebhookDeliveryAttemptInput = {
    * Owning workspace of the endpoint, carried in the queue message. Terminal
    * statuses use it to scope their audit event.
    */
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   readonly eventType: string
   readonly status: WebhookDeliveryStatus
   readonly attempts: number

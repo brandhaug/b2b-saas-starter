@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { Effect } from 'effect'
 import { Billing } from '@b2b-saas-starter/billing/billing'
 import { STARTER_PLAN } from '@b2b-saas-starter/billing/plan-catalog'
@@ -73,7 +74,7 @@ export type WorkspaceListItemProjection = {
  */
 export const listWorkspacesForUser = Effect.fn('WorkspaceProjection.listForUser')(
   function* (
-    userId: string
+    userId: UserId
   ): Effect.fn.Return<
     ReadonlyArray<WorkspaceListItemProjection>,
     CapabilityUnavailable,

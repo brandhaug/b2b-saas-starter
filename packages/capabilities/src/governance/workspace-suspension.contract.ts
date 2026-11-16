@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Effect } from 'effect'
 import { type expect as vitestExpect } from '@effect/vitest'
 import { WorkspaceSuspensionService } from './workspace-suspension.ts'
@@ -9,30 +10,33 @@ export function workspaceSuspensionContractCases(expect: typeof vitestExpect) {
       assert: Effect.gen(function* () {
         const suspension = yield* WorkspaceSuspensionService
         const suspended = yield* suspension.transition({
-          workspaceId: 'wrk_live',
+          workspaceId: WorkspaceId.make('wrk_live'),
           action: 'suspend',
-          actor: { userId: 'usr_sysadmin' },
+          actor: { userId: UserId.make('usr_sysadmin') },
           internalReason: 'payment investigation',
           customerExplanation:
             'Access is temporarily limited while we review your account.'
         })
         expect(suspended.status).toBe('suspended')
         const denied = yield* suspension
-          .requireAllowed('wrk_live', 'product')
+          .requireAllowed(WorkspaceId.make('wrk_live'), 'product')
           .pipe(Effect.result)
         expect(denied).toMatchObject({
           _tag: 'Failure',
           failure: { _tag: 'WorkspaceSuspended' }
         })
-        yield* suspension.requireAllowed('wrk_live', 'billing_recovery')
+        yield* suspension.requireAllowed(
+          WorkspaceId.make('wrk_live'),
+          'billing_recovery'
+        )
         const active = yield* suspension.transition({
-          workspaceId: 'wrk_live',
+          workspaceId: WorkspaceId.make('wrk_live'),
           action: 'unsuspend',
-          actor: { userId: 'usr_sysadmin' },
+          actor: { userId: UserId.make('usr_sysadmin') },
           internalReason: 'review completed'
         })
         expect(active.status).toBe('active')
-        yield* suspension.requireAllowed('wrk_live', 'product')
+        yield* suspension.requireAllowed(WorkspaceId.make('wrk_live'), 'product')
       })
     },
     {
@@ -40,9 +44,9 @@ export function workspaceSuspensionContractCases(expect: typeof vitestExpect) {
       assert: Effect.gen(function* () {
         const suspension = yield* WorkspaceSuspensionService
         const suspended = yield* suspension.transition({
-          workspaceId: 'wrk_live',
+          workspaceId: WorkspaceId.make('wrk_live'),
           action: 'suspend',
-          actor: { userId: 'usr_sysadmin' },
+          actor: { userId: UserId.make('usr_sysadmin') },
           internalReason: 'payment investigation',
           customerExplanation:
             'Access is temporarily limited while we review your account.'
@@ -50,20 +54,22 @@ export function workspaceSuspensionContractCases(expect: typeof vitestExpect) {
         // The transition owner refuses the second suspend; the refusal is the
         // no-op — the stored state, its timestamps and its explanation stay.
         const refused = yield* suspension.transition({
-          workspaceId: 'wrk_live',
+          workspaceId: WorkspaceId.make('wrk_live'),
           action: 'suspend',
-          actor: { userId: 'usr_sysadmin' },
+          actor: { userId: UserId.make('usr_sysadmin') },
           internalReason: 'a later, different reason',
           customerExplanation: 'A different explanation.'
         })
         expect(refused.status).toBe('suspended')
         expect(refused.changedAt).toBe(suspended.changedAt)
         expect(refused.customerExplanation).toBe(suspended.customerExplanation)
-        expect((yield* suspension.get('wrk_live')).status).toBe('suspended')
+        expect((yield* suspension.get(WorkspaceId.make('wrk_live'))).status).toBe(
+          'suspended'
+        )
         yield* suspension.transition({
-          workspaceId: 'wrk_live',
+          workspaceId: WorkspaceId.make('wrk_live'),
           action: 'unsuspend',
-          actor: { userId: 'usr_sysadmin' },
+          actor: { userId: UserId.make('usr_sysadmin') },
           internalReason: 'review completed'
         })
       })
@@ -73,12 +79,15 @@ export function workspaceSuspensionContractCases(expect: typeof vitestExpect) {
       assert: Effect.gen(function* () {
         const suspension = yield* WorkspaceSuspensionService
         for (const actor of [
-          { userId: 'usr_owner' },
-          { userId: 'usr_sysadmin', impersonatedBy: 'usr_other' }
+          { userId: UserId.make('usr_owner') },
+          {
+            userId: UserId.make('usr_sysadmin'),
+            impersonatedBy: UserId.make('usr_other')
+          }
         ]) {
           const result = yield* Effect.exit(
             suspension.transition({
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               action: 'suspend',
               actor,
               internalReason: 'operator review',
@@ -113,15 +122,17 @@ export function workspaceSuspensionContractCases(expect: typeof vitestExpect) {
           const refusal = yield* suspension
             .transition({
               ...input,
-              workspaceId: 'wrk_live',
-              actor: { userId: 'usr_sysadmin' }
+              workspaceId: WorkspaceId.make('wrk_live'),
+              actor: { userId: UserId.make('usr_sysadmin') }
             })
             .pipe(Effect.result)
           expect(refusal).toMatchObject({
             _tag: 'Failure',
             failure: { _tag: 'WorkspaceSuspensionUnauthorized' }
           })
-          expect((yield* suspension.get('wrk_live')).status).toBe('active')
+          expect((yield* suspension.get(WorkspaceId.make('wrk_live'))).status).toBe(
+            'active'
+          )
         }
       })
     },
@@ -146,7 +157,7 @@ export function workspaceSuspensionContractCases(expect: typeof vitestExpect) {
       assert: Effect.gen(function* () {
         const suspension = yield* WorkspaceSuspensionService
         const result = yield* Effect.exit(
-          suspension.requireAllowed('wrk_missing', 'product')
+          suspension.requireAllowed(WorkspaceId.make('wrk_missing'), 'product')
         )
         expect(result._tag).toBe('Failure')
       })

@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { ExportedConversation } from '../assistant/lifecycle.ts'
 import { Schema } from 'effect'
 import { EmailDeliveryRecord } from '@b2b-saas-starter/email-delivery/email-delivery'
@@ -11,7 +12,7 @@ export const PersonalDataExport = Schema.Struct({
   generatedAt: Schema.String,
   conversations: Schema.Array(ExportedConversation),
   user: Schema.Struct({
-    id: Schema.String,
+    id: UserId,
     name: Schema.String,
     email: Schema.String,
     image: MaybeString,
@@ -35,7 +36,7 @@ export const PersonalDataExport = Schema.Struct({
       message: Notification.fields.message,
       read: Notification.fields.read,
       createdAt: Notification.fields.createdAt,
-      workspaceId: Schema.NullOr(Schema.String)
+      workspaceId: Schema.NullOr(WorkspaceId)
     })
   ),
   sessions: Schema.Array(

@@ -1,4 +1,5 @@
 /* oxlint-disable effect/noAsyncFunction, effect/noGlobals, effect/noThrowStatement, effect/noTryCatch -- Better Auth invokes these database and endpoint callbacks outside Effect; its APIError and native Date are the adapter contract. */
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { revokeRetainedAssistantSessions } from './assistant-session-hooks.ts'
 import * as schema from '@b2b-saas-starter/db/schema/auth'
 import { assistantSessionAuthority } from '@b2b-saas-starter/db/schema/assistant'
@@ -34,12 +35,19 @@ const emptyStrongProof = {
 /** Better Auth dispatch creates a fresh context for every API call, including
  * server calls without a Request. Never key ceremony evidence by user or cookie.
  * The verified callback and database hook share that call's context. */
+function pluginUserId(id: string | undefined): UserId | undefined {
+  if (id === undefined) {
+    return undefined
+  }
+  return UserId.make(id)
+}
+
 export function makeAssuranceHooks(options: AuthConfigInterface) {
   const verifiedPasskeys = new WeakMap<GenericEndpointContext['context'], string>()
   const recoveryEnrollments = new WeakMap<GenericEndpointContext['context'], string>()
   const db = options.db
 
-  async function invalidatePassword(userId: string) {
+  async function invalidatePassword(userId: UserId) {
     await db
       .update(assistantSessionAuthority)
       .set({ revokedAt: new Date() })
@@ -72,6 +80,7 @@ export function makeAssuranceHooks(options: AuthConfigInterface) {
       session: { readonly userId: string },
       ctx: GenericEndpointContext | null
     ) => {
+      const userId = UserId.make(session.userId)
       const credentialID = ctx && verifiedPasskeys.get(ctx.context)
       if (ctx) {
         verifiedPasskeys.delete(ctx.context)
@@ -83,7 +92,7 @@ export function makeAssuranceHooks(options: AuthConfigInterface) {
           .where(
             and(
               eq(schema.passkey.credentialID, credentialID),
-              eq(schema.passkey.userId, session.userId)
+              eq(schema.passkey.userId, userId)
             )
           )
         if (factor) {
@@ -176,6 +185,7 @@ export function makeAssuranceHooks(options: AuthConfigInterface) {
         if (!current) {
           return
         }
+        const currentUserId = UserId.make(current.user.id)
         const [session] = await db
           .select()
           .from(schema.session)
@@ -186,7 +196,7 @@ export function makeAssuranceHooks(options: AuthConfigInterface) {
         const [factor] = await db
           .select()
           .from(schema.twoFactor)
-          .where(eq(schema.twoFactor.userId, current.user.id))
+          .where(eq(schema.twoFactor.userId, currentUserId))
         if (factor?.verified === false) {
           recoveryEnrollments.set(ctx.context, factor.id)
         }
@@ -200,12 +210,17 @@ export function makeAssuranceHooks(options: AuthConfigInterface) {
         return
       }
       await revokeRetainedAssistantSessions(db, ctx)
-      let invalidationUser = ctx.context.session?.user.id
+      // The plugin's sessions carry plain-string ids: brand them once here.
+      const current = ctx.context.session
+      const target = ctx.context.newSession ?? current
+      const currentUserId = pluginUserId(current?.user.id)
+      const targetUserId = pluginUserId(target?.user.id)
+      let invalidationUser = currentUserId
       if (ctx.path === '/admin/revoke-user-sessions' && isString(ctx.body?.userId)) {
-        invalidationUser = ctx.body.userId
+        invalidationUser = UserId.make(ctx.body.userId)
       }
       if (
-        isString(invalidationUser) &&
+        invalidationUser !== undefined &&
         (ctx.path === '/revoke-sessions' ||
           ctx.path === '/revoke-other-sessions' ||
           ctx.path === '/admin/revoke-user-sessions' ||
@@ -217,12 +232,10 @@ export function makeAssuranceHooks(options: AuthConfigInterface) {
       ) {
         await options.invalidateAssistantAuthority?.({ userId: invalidationUser })
       }
-      const current = ctx.context.session
-      const target = ctx.context.newSession ?? current
-      if (!target) {
+      if (!target || targetUserId === undefined) {
         return
       }
-      const userId = target.user.id
+      const userId = targetUserId
       const sessionId = target.session.id
       const [session] = await db
         .select()

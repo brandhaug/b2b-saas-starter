@@ -1,4 +1,9 @@
-import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import {
+  UserId,
+  WebhookDeliveryId,
+  WebhookEndpointId,
+  WorkspaceId
+} from '@b2b-saas-starter/db/ids'
 import { RateLimiter } from '@b2b-saas-starter/api'
 import { SeedLayer } from '@b2b-saas-starter/capabilities/layers'
 import { McpClientConnections } from '@b2b-saas-starter/capabilities/developer-platform/mcp-client-connections'
@@ -209,8 +214,8 @@ function authorityHarness() {
       telemetry.push(encodeTelemetry(event))
     })
   ])
-  let userId = 'usr_demo'
-  let workspaceId = 'wrk_starter'
+  let userId = UserId.make('usr_demo')
+  let workspaceId = WorkspaceId.make('wrk_starter')
   let scopes = ['mcp:read', 'mcp:write']
   let granted = true
   let grantedScopes = ['mcp:read', 'mcp:write']
@@ -237,7 +242,11 @@ function authorityHarness() {
           {
             id: 'consent',
             client: { clientId, name: 'Test', uri: null },
-            workspace: { id: 'wrk_starter', slug: 'starter-lab', name: 'Starter' },
+            workspace: {
+              id: WorkspaceId.make('wrk_starter'),
+              slug: 'starter-lab',
+              name: 'Starter'
+            },
             scopes: grantedScopes,
             grantedAt: '2026-01-01T00:00:00Z'
           }
@@ -296,10 +305,10 @@ function authorityHarness() {
   return {
     handler,
     telemetry,
-    setUser: (id: string) => {
+    setUser: (id: UserId) => {
       userId = id
     },
-    setWorkspace: (id: string) => {
+    setWorkspace: (id: WorkspaceId) => {
       workspaceId = id
     },
     setScopes: (value: Array<string>) => {
@@ -387,8 +396,8 @@ it.effect(
       const caller: McpCaller = {
         kind: 'oauth',
         token: {
-          userId: 'usr_system_member',
-          workspaceId: 'wrk_starter',
+          userId: UserId.make('usr_system_member'),
+          workspaceId: WorkspaceId.make('wrk_starter'),
           workspaceSlug: 'starter-lab',
           workspaceRole: 'member',
           scopes: ['mcp:read'],
@@ -397,7 +406,7 @@ it.effect(
           sessionId: 'session:current'
         }
       }
-      const callerUserId = 'usr_system_member'
+      const callerUserId = UserId.make('usr_system_member')
       const connections = Layer.succeed(McpClientConnections)({
         getGrant: () =>
           Effect.succeed({ binding: 'binding:current', scopes: ['mcp:read'] }),
@@ -415,7 +424,7 @@ it.effect(
       function context(systemRole: 'admin' | 'user') {
         return Layer.succeed(WorkspaceContext)({
           workspace: {
-            id: 'wrk_starter',
+            id: WorkspaceId.make('wrk_starter'),
             slug: 'starter-lab',
             name: 'Starter',
             planId: 'starter'
@@ -480,7 +489,7 @@ it.effect(
         scopes: ['admin', 'read']
       })
       const sourceToken = yield* decodeCreated(source.content[0]?.text)
-      harness.setUser('usr_ops')
+      harness.setUser(UserId.make('usr_ops'))
       const beforeReplacement = yield* call(oauth, 'list_audit_events')
       expect(
         (yield* call(oauth, 'replace_api_token', {
@@ -510,22 +519,22 @@ it.effect(
           scopes: ['write']
         })).isError
       ).not.toBe(true)
-      harness.setUser('usr_dev')
+      harness.setUser(UserId.make('usr_dev'))
       expect(yield* visibleTools(oauth)).not.toContain('delete_webhook')
       expect(
         (yield* call(oauth, 'delete_webhook', {
           endpointId: WebhookEndpointId.make('wh_release')
         })).isError
       ).toBe(true)
-      harness.setUser('removed-user')
+      harness.setUser(UserId.make('removed-user'))
       expect(yield* visibleTools(oauth)).toEqual([])
       expect(
         (yield* call(oauth, 'delete_webhook', {
           endpointId: WebhookEndpointId.make('wh_release')
         })).content[0]?.text
       ).toBe('workspace not found')
-      harness.setUser('usr_demo')
-      harness.setWorkspace('foreign-workspace')
+      harness.setUser(UserId.make('usr_demo'))
+      harness.setWorkspace(WorkspaceId.make('foreign-workspace'))
       expect(yield* visibleTools(oauth)).toEqual([])
       expect(
         (yield* call(oauth, 'delete_webhook', {

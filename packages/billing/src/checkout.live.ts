@@ -1,3 +1,4 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import {
   billingCheckoutClaims,
   billingSynchronization,
@@ -43,7 +44,7 @@ type CheckoutServices = CheckoutDependencies & {
   >['fail']
 }
 type PortalInput = Actor & {
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   readonly secretKey: Redacted.Redacted<string>
   readonly returnUrl: string
 }
@@ -75,7 +76,7 @@ const createPortal = Effect.fn('Billing.createPortal')(function* (
 
 const readSubscription = Effect.fn('Billing.readCheckoutSubscription')(function* (
   deps: CheckoutDependencies,
-  workspaceId: string
+  workspaceId: WorkspaceId
 ) {
   const rows = yield* deps.unavailable(
     deps.db

@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { type DrizzleDatabase } from './ports.ts'
 import { account, user } from '@b2b-saas-starter/db/schema/auth'
 import { workspaceMembers } from '@b2b-saas-starter/db/schema/workspaces'
@@ -255,7 +256,7 @@ describe('workspace SSO over the sso plugin', () => {
               db
                 .select()
                 .from(workspaceMembers)
-                .where(eq(workspaceMembers.workspaceId, workspace.id))
+                .where(eq(workspaceMembers.workspaceId, WorkspaceId.make(workspace.id)))
             )
           const provisionedMember = members.find(
             (member) => member.userId === provisionedUser?.id
@@ -338,7 +339,7 @@ describe('workspace SSO over the sso plugin', () => {
               db
                 .select()
                 .from(workspaceMembers)
-                .where(eq(workspaceMembers.workspaceId, workspace.id))
+                .where(eq(workspaceMembers.workspaceId, WorkspaceId.make(workspace.id)))
             )
           const member = members.find((row) => row.userId === users[0]?.id)
           // Never `owner`: the guard narrows the raw value back to `member`.

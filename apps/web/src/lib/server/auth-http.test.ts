@@ -1,5 +1,6 @@
 import { withTriggerScope, WideEventLoggerLive } from '@b2b-saas-starter/logger'
 import { admin } from 'better-auth/plugins/admin'
+import type * as AuthModule from '@b2b-saas-starter/auth'
 import { type Session } from '@b2b-saas-starter/auth'
 import { type Context, Effect, Layer, Schema } from 'effect'
 import type * as RateLimitModule from '@/lib/rate-limit'
@@ -49,9 +50,10 @@ const testAuth = vi.hoisted(async () => {
   return { TestAuth }
 })
 
-vi.mock('@b2b-saas-starter/auth', async () => {
+vi.mock('@b2b-saas-starter/auth', async (importOriginal) => {
   const { TestAuth } = await testAuth
-  return { Auth: { Tag: TestAuth } }
+  const { brandSession } = await importOriginal<typeof AuthModule>()
+  return { Auth: { Tag: TestAuth }, brandSession }
 })
 vi.mock('@/lib/auth-runtime', async () => {
   const { TestAuth } = await testAuth

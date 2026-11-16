@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { unwrapAuthResult, type AuthResult } from '@/lib/auth-result'
 import { authClient } from '@/lib/auth-client'
 
@@ -94,7 +95,7 @@ export function SessionsPanel({
   userId = 'current'
 }: {
   readonly currentSessionToken: string
-  readonly userId?: string
+  readonly userId?: UserId | 'current'
 }) {
   const { hydrated, rows, loadError, isPending, refetch } = useAuthClientRows({
     queryKey: ['account', userId, 'sessions'],

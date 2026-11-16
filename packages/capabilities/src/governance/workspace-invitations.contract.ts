@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { Effect, Option } from 'effect'
 import { type ContractExpect } from './contract-expect.ts'
 import { type MembershipChangeRejected } from '../errors.ts'
@@ -61,7 +62,7 @@ export type InvitationContractIds = {
    * address and then accept as this user id, which is the whole point of the
    * accept path: the person accepting is not a member until they do.
    */
-  readonly accepter: { readonly userId: string; readonly email: string }
+  readonly accepter: { readonly userId: UserId; readonly email: string }
   /**
    * An invitation the harness planted already past its expiry, pending in every
    * other respect. No case can age one from inside the interface, so both

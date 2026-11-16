@@ -1,5 +1,6 @@
 // oxlint-disable-next-line import/no-unassigned-import -- Installs the explicit authenticated-session test fixture.
 import '@/test/qualified-session'
+import { UserId } from '@b2b-saas-starter/db/ids'
 import {
   EmailDispatcher,
   EmailSendError,
@@ -100,13 +101,13 @@ vi.mock('./auth-emails', async (importOriginal) => ({
     })
 }))
 
-function actingAs(userId: string): void {
+function actingAs(userId: UserId): void {
   env.userId = userId
 }
 
 describe('sendInvitationHandler', () => {
   beforeEach(() => {
-    actingAs('usr_demo')
+    actingAs(UserId.make('usr_demo'))
     env.origin = 'https://app.test'
     env.emailFails = false
     env.rateAllowed = true
@@ -168,7 +169,7 @@ describe('sendInvitationHandler', () => {
   })
 
   it('refuses a member, and invites nothing', async () => {
-    actingAs('usr_dev')
+    actingAs(UserId.make('usr_dev'))
     await expect(
       sendInvitationHandler({
         workspaceSlug: 'starter-lab',
@@ -182,13 +183,13 @@ describe('sendInvitationHandler', () => {
 
 describe('resendInvitationHandler', () => {
   beforeEach(() => {
-    actingAs('usr_demo')
+    actingAs(UserId.make('usr_demo'))
     env.rateAllowed = true
     env.outbox = []
   })
 
   it('refuses a plain member before looking up or sending an invitation', async () => {
-    actingAs('usr_dev')
+    actingAs(UserId.make('usr_dev'))
     await expect(
       resendInvitationHandler({ workspaceSlug: 'starter-lab', invitationId: 'unknown' })
     ).rejects.toMatchObject({ name: 'ForbiddenError' })
@@ -212,10 +213,10 @@ describe('resendInvitationHandler', () => {
 })
 
 describe('cancelInvitationHandler', () => {
-  beforeEach(() => actingAs('usr_demo'))
+  beforeEach(() => actingAs(UserId.make('usr_demo')))
 
   it('refuses a member', async () => {
-    actingAs('usr_dev')
+    actingAs(UserId.make('usr_dev'))
     await expect(
       cancelInvitationHandler({
         workspaceSlug: 'starter-lab',
@@ -235,7 +236,7 @@ describe('cancelInvitationHandler', () => {
 })
 
 describe('invitationPreviewHandler', () => {
-  beforeEach(() => actingAs('usr_demo'))
+  beforeEach(() => actingAs(UserId.make('usr_demo')))
 
   // One opaque answer for an unknown id: an invitation id is a URL
   // parameter, so anything disclosed for one tells a link-guesser which
@@ -308,7 +309,7 @@ describe('previewInvitation — the non-disclosure collapse', () => {
 })
 
 describe('acceptInvitationHandler', () => {
-  beforeEach(() => actingAs('usr_demo'))
+  beforeEach(() => actingAs(UserId.make('usr_demo')))
 
   it('refuses an unknown invitation — never fabricates a membership', async () => {
     await expect(

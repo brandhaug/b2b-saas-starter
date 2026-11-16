@@ -1,3 +1,4 @@
+import { type UserId, type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Effect, Layer, Ref } from 'effect'
 
 import { UserAdminRejected } from '../errors.ts'
@@ -25,8 +26,8 @@ import {
  * fixture has no `workspaceMembers` table to join.
  */
 export type SeedMembership = {
-  readonly workspaceId: string
-  readonly userId: string
+  readonly workspaceId: WorkspaceId
+  readonly userId: UserId
   readonly role: WorkspaceRole
 }
 
@@ -49,7 +50,7 @@ export function SeedPlatformUserAdmin(
         new Map(memberships.map((m) => [`${m.workspaceId}:${m.userId}`, m.role]))
       )
 
-      function requireAccount(userId: string) {
+      function requireAccount(userId: UserId) {
         return Ref.get(roster).pipe(
           Effect.flatMap((current) => {
             const account = current.find((candidate) => candidate.id === userId)
@@ -61,7 +62,7 @@ export function SeedPlatformUserAdmin(
         )
       }
 
-      function setBanned(userId: string, banned: boolean) {
+      function setBanned(userId: UserId, banned: boolean) {
         return Ref.update(roster, (current) =>
           current.map((account) => {
             if (account.id === userId) {

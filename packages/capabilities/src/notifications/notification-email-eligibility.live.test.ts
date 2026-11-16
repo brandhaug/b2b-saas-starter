@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { notifications } from '@b2b-saas-starter/db/schema/notifications'
 import { workspaceMembers } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database } from '@b2b-saas-starter/db/service'
@@ -33,8 +34,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             const db = yield* Database
             yield* db.insert(notifications).values({
               id: notificationId,
-              workspaceId: 'wrk_live',
-              userId: 'usr_owner',
+              workspaceId: WorkspaceId.make('wrk_live'),
+              userId: UserId.make('usr_owner'),
               kind: 'api_token.created',
               title: 'Live read check',
               message: 'Unread initially.',
@@ -44,7 +45,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
 
             const eligibility = yield* NotificationEmailEligibility
             const feed = yield* NotificationFeed
-            const input = { notificationId, recipientUserId: 'usr_owner' }
+            const input = { notificationId, recipientUserId: UserId.make('usr_owner') }
 
             expect(yield* eligibility.instant(input)).toMatchObject({ _tag: 'deliver' })
             expect(yield* feed.markRead([notificationId])).toBe(1)
@@ -53,7 +54,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               reason: 'not_deliverable'
             })
           }),
-          { userId: 'usr_owner' }
+          { userId: UserId.make('usr_owner') }
         )
       }
     )
@@ -67,13 +68,13 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           const db = yield* Database
           yield* db.insert(workspaceMembers).values({
             id: membershipId,
-            workspaceId: 'wrk_live',
-            userId: 'usr_joiner',
+            workspaceId: WorkspaceId.make('wrk_live'),
+            userId: UserId.make('usr_joiner'),
             role: 'member'
           })
           yield* db.insert(notifications).values({
             id: notificationId,
-            workspaceId: 'wrk_live',
+            workspaceId: WorkspaceId.make('wrk_live'),
             kind: 'api_token.created',
             title: 'Live membership check',
             message: 'Visible while the member belongs to the workspace.',
@@ -82,7 +83,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           })
 
           const eligibility = yield* NotificationEmailEligibility
-          const input = { notificationId, recipientUserId: 'usr_joiner' }
+          const input = { notificationId, recipientUserId: UserId.make('usr_joiner') }
           expect(yield* eligibility.instant(input)).toMatchObject({ _tag: 'deliver' })
 
           yield* db
@@ -90,7 +91,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             .where(
               and(
                 eq(workspaceMembers.id, membershipId),
-                eq(workspaceMembers.userId, 'usr_joiner')
+                eq(workspaceMembers.userId, UserId.make('usr_joiner'))
               )
             )
           expect(yield* eligibility.instant(input)).toEqual({
@@ -110,13 +111,13 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           const db = yield* Database
           yield* db.insert(workspaceMembers).values({
             id: membershipId,
-            workspaceId: 'wrk_live',
-            userId: 'usr_joiner',
+            workspaceId: WorkspaceId.make('wrk_live'),
+            userId: UserId.make('usr_joiner'),
             role: 'member'
           })
           yield* db.insert(notifications).values({
             id: notificationId,
-            workspaceId: 'wrk_live',
+            workspaceId: WorkspaceId.make('wrk_live'),
             kind: 'announcement',
             title: 'Live digest membership check',
             message: 'Visible while the member belongs to the workspace.',
@@ -139,7 +140,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             .where(
               and(
                 eq(workspaceMembers.id, membershipId),
-                eq(workspaceMembers.userId, 'usr_joiner')
+                eq(workspaceMembers.userId, UserId.make('usr_joiner'))
               )
             )
           const after = yield* eligibility.digest(window)

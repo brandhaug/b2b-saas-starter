@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Clock, DateTime, Effect, Random, Ref } from 'effect'
 import * as TestClock from 'effect/testing/TestClock'
 import { type expect as vitestExpect } from '@effect/vitest'
@@ -18,8 +19,8 @@ function input(
     id,
     purpose,
     recipient: 'owner@live.test',
-    userId: 'usr_owner',
-    workspaceId: 'wrk_live'
+    userId: UserId.make('usr_owner'),
+    workspaceId: WorkspaceId.make('wrk_live')
   }
 }
 /** A random source that always draws `value`, so retry jitter is exact. */
@@ -235,15 +236,23 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
           ...input('private-recovery', 'recovery'),
           referenceId: 'invite-reference'
         })
-        const own = yield* delivery.listInvitations('wrk_live')
+        const own = yield* delivery.listInvitations(WorkspaceId.make('wrk_live'))
         expect(own.map((row) => row.id)).toEqual(['invitation-evidence'])
-        const latest = yield* delivery.latestInvitation('wrk_live', 'invite-reference')
+        const latest = yield* delivery.latestInvitation(
+          WorkspaceId.make('wrk_live'),
+          'invite-reference'
+        )
         expect(latest?.id).toBe('invitation-evidence')
         expect(canResendInvitation(latest)).toBe(false)
         expect(
-          yield* delivery.latestInvitation('wrk_other', 'invite-reference')
+          yield* delivery.latestInvitation(
+            WorkspaceId.make('wrk_other'),
+            'invite-reference'
+          )
         ).toBeNull()
-        expect(yield* delivery.listInvitations('wrk_other')).toEqual([])
+        expect(yield* delivery.listInvitations(WorkspaceId.make('wrk_other'))).toEqual(
+          []
+        )
       })
     },
     {
@@ -471,14 +480,15 @@ export function emailDeliveryContractCases(expect: typeof vitestExpect) {
             })
           }
         }
-        expect(yield* delivery.listForUser('usr_outsider')).toEqual([])
+        expect(yield* delivery.listForUser(UserId.make('usr_outsider'))).toEqual([])
         expect(
-          (yield* delivery.listForUser('usr_owner')).some(
+          (yield* delivery.listForUser(UserId.make('usr_owner'))).some(
             (row) => row.id === 'history-failed'
           )
         ).toBe(true)
         expect(
-          (yield* delivery.listForUser('usr_owner', { complete: true })).length
+          (yield* delivery.listForUser(UserId.make('usr_owner'), { complete: true }))
+            .length
         ).toBeGreaterThanOrEqual(2)
       })
     }

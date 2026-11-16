@@ -1,7 +1,8 @@
 import {
   ApiTokenId,
   WebhookDeliveryId,
-  WebhookEndpointId
+  WebhookEndpointId,
+  type WorkspaceId
 } from '@b2b-saas-starter/db/ids'
 import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { HealthResponse } from './health.ts'
@@ -130,7 +131,7 @@ export function rateLimitBucketFor(
  */
 export type ApiPrincipalValue = {
   readonly id: string
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   readonly workspaceSlug: string
   readonly scopes: ReadonlyArray<ApiTokenScope>
 }

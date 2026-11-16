@@ -1,3 +1,4 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { AssistantDirectory } from '../assistant/directory.ts'
 import { sql } from 'drizzle-orm'
 import { DateTime, Effect, Layer, Ref, Semaphore } from 'effect'
@@ -22,7 +23,7 @@ import {
   validateSuspensionTransition
 } from './workspace-suspension.internal.ts'
 
-function active(workspaceId: string): WorkspaceSuspension {
+function active(workspaceId: WorkspaceId): WorkspaceSuspension {
   return {
     workspaceId,
     status: initialWorkspaceSuspensionStatus,
@@ -59,7 +60,9 @@ export function SeedWorkspaceSuspension(options: {
       // The id of the transition that last won a workspace — Live's
       // `workspaces.suspensionTransitionId` column, held in memory.
       const transitions = yield* Ref.make<ReadonlyMap<string, string>>(new Map())
-      const get = Effect.fn('WorkspaceSuspension.get')(function* (workspaceId: string) {
+      const get = Effect.fn('WorkspaceSuspension.get')(function* (
+        workspaceId: WorkspaceId
+      ) {
         const known = yield* Ref.get(catalog)
         if (!known.some((workspace) => workspace.id === workspaceId)) {
           return yield* new WorkspaceSuspended({ workspaceId })

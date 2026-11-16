@@ -8,7 +8,10 @@ import {
 } from './email-delivery.effects'
 import type * as AuthModule from './auth'
 
-const actor = vi.hoisted(() => ({ userId: 'usr_demo', systemRole: 'user' }))
+const actor = vi.hoisted(() => ({
+  userId: 'usr_demo',
+  systemRole: 'user'
+}))
 vi.mock('./auth', async (importOriginal) => ({
   ...(await importOriginal<typeof AuthModule>()),
   requireRequestSession: async () => {

@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { SeedAssistantDirectory } from '../assistant/directory.seed.ts'
 import { SeedBilling } from '@b2b-saas-starter/billing/billing.seed'
 import {
@@ -26,21 +27,21 @@ import { NotificationFeed } from '../notifications/notification-feed.ts'
 
 const options = {
   workspace: {
-    id: 'wrk_live',
+    id: WorkspaceId.make('wrk_live'),
     slug: 'live-lab',
     name: 'Live Lab',
     planId: 'starter'
   },
   systemUsers: [
     {
-      id: 'usr_sysadmin',
+      id: UserId.make('usr_sysadmin'),
       name: 'System Admin',
       email: 'admin@test',
       systemRole: 'admin',
       banned: false
     },
     {
-      id: 'usr_owner',
+      id: UserId.make('usr_owner'),
       name: 'Owner',
       email: 'owner@test',
       systemRole: 'user',
@@ -52,9 +53,19 @@ const options = {
 // Declared out of name order on purpose: the ordering contract case only
 // proves the adapter sorts if the fixture it reads does not arrive sorted.
 const catalogWorkspaces = [
-  { id: 'wrk_zeta', slug: 'zeta-lab', name: 'Zeta Lab', planId: 'starter' },
+  {
+    id: WorkspaceId.make('wrk_zeta'),
+    slug: 'zeta-lab',
+    name: 'Zeta Lab',
+    planId: 'starter'
+  },
   options.workspace,
-  { id: 'wrk_alpha', slug: 'alpha-lab', name: 'Alpha Lab', planId: 'starter' }
+  {
+    id: WorkspaceId.make('wrk_alpha'),
+    slug: 'alpha-lab',
+    name: 'Alpha Lab',
+    planId: 'starter'
+  }
 ]
 
 function makeLayer(feed: Layer.Layer<NotificationFeed>) {
@@ -130,9 +141,9 @@ describe('seed workspace suspension', () => {
         yield* Effect.gen(function* () {
           const suspension = yield* WorkspaceSuspensionService
           const input = {
-            workspaceId: 'wrk_live',
+            workspaceId: WorkspaceId.make('wrk_live'),
             action: 'suspend',
-            actor: { userId: 'usr_sysadmin' },
+            actor: { userId: UserId.make('usr_sysadmin') },
             internalReason: 'Review',
             customerExplanation: 'Contact support.'
           } satisfies Parameters<typeof suspension.transition>[0]
@@ -141,7 +152,9 @@ describe('seed workspace suspension', () => {
             _tag: 'Failure',
             failure: { _tag: 'CapabilityUnavailable' }
           })
-          expect((yield* suspension.get('wrk_live')).status).toBe('active')
+          expect((yield* suspension.get(WorkspaceId.make('wrk_live'))).status).toBe(
+            'active'
+          )
           yield* Ref.set(failing, false)
           yield* suspension.transition(input)
           yield* suspension.transition(input)
@@ -154,9 +167,9 @@ describe('seed workspace suspension', () => {
     Effect.gen(function* () {
       const suspension = yield* WorkspaceSuspensionService
       yield* suspension.transition({
-        workspaceId: 'wrk_live',
+        workspaceId: WorkspaceId.make('wrk_live'),
         action: 'suspend',
-        actor: { userId: 'usr_sysadmin' },
+        actor: { userId: UserId.make('usr_sysadmin') },
         internalReason: 'Review',
         customerExplanation: 'Contact support.'
       })
@@ -189,7 +202,7 @@ describe('seed workspace suspension', () => {
       Effect.provideService(WorkspaceContext, {
         workspace: options.workspace,
         actor: {
-          userId: 'usr_owner',
+          userId: UserId.make('usr_owner'),
           role: 'owner',
           systemRole: 'user',
           banned: false

@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import {
   Billing,
   type ProcessProviderEventInput
@@ -37,7 +38,8 @@ const StripeEventBody = Schema.Struct({
   data: Schema.Struct({
     object: Schema.Struct({
       id: Schema.optionalKey(Schema.String),
-      client_reference_id: Schema.optionalKey(Schema.String),
+      // Checkout sets this to the workspace id, like `metadata.workspaceId`.
+      client_reference_id: Schema.optionalKey(WorkspaceId),
       customer: Schema.optionalKey(Schema.String),
       subscription: Schema.optionalKey(Schema.NullOr(Schema.String)),
       parent: Schema.optionalKey(
@@ -51,7 +53,7 @@ const StripeEventBody = Schema.Struct({
       ),
       metadata: Schema.optionalKey(
         Schema.Struct({
-          workspaceId: Schema.optionalKey(Schema.String),
+          workspaceId: Schema.optionalKey(WorkspaceId),
           planId: Schema.optionalKey(Schema.String)
         })
       ),

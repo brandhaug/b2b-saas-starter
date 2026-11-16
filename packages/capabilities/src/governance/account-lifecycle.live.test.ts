@@ -1,4 +1,4 @@
-import { ApiTokenId } from '@b2b-saas-starter/db/ids'
+import { ApiTokenId, UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { apiTokens } from '@b2b-saas-starter/db/schema/developer-platform'
 import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
 import { emailDeliveries } from '@b2b-saas-starter/db/schema/email-delivery'
@@ -78,34 +78,42 @@ const contractState = Effect.gen(function* () {
   yield* db
     .insert(user)
     .values([
-      { id: 'usr_stuck_owner', email: 'stuck@live.test', name: 'Stuck Owner' },
-      { id: 'usr_second_admin', email: 'second@live.test', name: 'Second Admin' },
-      { id: 'usr_planner', email: 'planner@live.test', name: 'Planner' }
+      {
+        id: UserId.make('usr_stuck_owner'),
+        email: 'stuck@live.test',
+        name: 'Stuck Owner'
+      },
+      {
+        id: UserId.make('usr_second_admin'),
+        email: 'second@live.test',
+        name: 'Second Admin'
+      },
+      { id: UserId.make('usr_planner'), email: 'planner@live.test', name: 'Planner' }
     ])
     .onConflictDoNothing()
   yield* db
     .insert(workspaces)
-    .values({ id: 'wrk_stuck', slug: 'stuck-lab', name: 'Stuck Lab' })
+    .values({ id: WorkspaceId.make('wrk_stuck'), slug: 'stuck-lab', name: 'Stuck Lab' })
     .onConflictDoNothing()
   yield* db
     .insert(workspaceMembers)
     .values([
       {
         id: 'mem_stuck_owner',
-        workspaceId: 'wrk_stuck',
-        userId: 'usr_stuck_owner',
+        workspaceId: WorkspaceId.make('wrk_stuck'),
+        userId: UserId.make('usr_stuck_owner'),
         role: 'owner'
       },
       {
         id: 'mem_second_admin',
-        workspaceId: 'wrk_stuck',
-        userId: 'usr_second_admin',
+        workspaceId: WorkspaceId.make('wrk_stuck'),
+        userId: UserId.make('usr_second_admin'),
         role: 'admin'
       },
       {
         id: 'mem_planner',
-        workspaceId: 'wrk_stuck',
-        userId: 'usr_planner',
+        workspaceId: WorkspaceId.make('wrk_stuck'),
+        userId: UserId.make('usr_planner'),
         role: 'member'
       }
     ])
@@ -120,44 +128,49 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
         const db = yield* Database
         const d1 = yield* TestD1
         yield* db.insert(user).values({
-          id: 'usr_billed_solo',
+          id: UserId.make('usr_billed_solo'),
           email: 'billed-solo@live.test',
           name: 'Billed solo'
         })
-        yield* db
-          .insert(workspaces)
-          .values({ id: 'wrk_billed_solo', slug: 'billed-solo', name: 'Billed solo' })
+        yield* db.insert(workspaces).values({
+          id: WorkspaceId.make('wrk_billed_solo'),
+          slug: 'billed-solo',
+          name: 'Billed solo'
+        })
         yield* db.insert(workspaceMembers).values({
           id: 'mem_billed_solo',
-          userId: 'usr_billed_solo',
-          workspaceId: 'wrk_billed_solo',
+          userId: UserId.make('usr_billed_solo'),
+          workspaceId: WorkspaceId.make('wrk_billed_solo'),
           role: 'owner'
         })
         yield* db.insert(workspaceSubscriptions).values({
-          workspaceId: 'wrk_billed_solo',
+          workspaceId: WorkspaceId.make('wrk_billed_solo'),
           stripeCustomerId: 'cus_billed_solo',
           stripeSubscriptionId: 'sub_billed_solo',
           status: 'active',
           updatedAt: '2026-01-01T00:00:00.000Z'
         })
         const { binding, calls } = fakeAccountLifecycleBinding(db, {
-          userId: 'usr_billed_solo',
+          userId: UserId.make('usr_billed_solo'),
           password: DELETE_PASSWORD
         })
         yield* Effect.gen(function* () {
           const lifecycle = yield* AccountLifecycle
           expect(
-            (yield* lifecycle.planDeletion('usr_billed_solo')).steps[0]?.action
+            (yield* lifecycle.planDeletion(UserId.make('usr_billed_solo'))).steps[0]
+              ?.action
           ).toBe('blocked_billing_workspace')
           expect(
-            yield* lifecycle.prepareDeletion('usr_billed_solo').pipe(Effect.flip)
+            yield* lifecycle
+              .prepareDeletion(UserId.make('usr_billed_solo'))
+              .pipe(Effect.flip)
           ).toMatchObject({ _tag: 'AccountDeletionBlocked' })
           expect(calls).toHaveLength(0)
           expect(
             yield* db
               .select()
               .from(workspaceMembers)
-              .where(eq(workspaceMembers.userId, 'usr_billed_solo'))
+              .where(eq(workspaceMembers.userId, UserId.make('usr_billed_solo')))
           ).toHaveLength(1)
         }).pipe(Effect.provide(accountLifecycleLayer(d1, binding)))
       })
@@ -167,54 +180,54 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
       const db = yield* Database
       const d1 = yield* TestD1
       yield* db.insert(user).values({
-        id: 'usr_suspended_solo',
+        id: UserId.make('usr_suspended_solo'),
         email: 'suspended-solo@live.test',
         name: 'Solo'
       })
       yield* db.insert(workspaces).values({
-        id: 'wrk_suspended_solo',
+        id: WorkspaceId.make('wrk_suspended_solo'),
         slug: 'suspended-solo',
         name: 'Suspended solo'
       })
       yield* db.insert(workspaceMembers).values({
         id: 'mem_suspended_solo',
-        workspaceId: 'wrk_suspended_solo',
-        userId: 'usr_suspended_solo',
+        workspaceId: WorkspaceId.make('wrk_suspended_solo'),
+        userId: UserId.make('usr_suspended_solo'),
         role: 'owner'
       })
       yield* Effect.gen(function* () {
         const suspension = yield* WorkspaceSuspensionService
         const lifecycle = yield* AccountLifecycle
         yield* suspension.transition({
-          workspaceId: 'wrk_suspended_solo',
+          workspaceId: WorkspaceId.make('wrk_suspended_solo'),
           action: 'suspend',
-          actor: { userId: 'usr_sysadmin' },
+          actor: { userId: UserId.make('usr_sysadmin') },
           internalReason: 'Review',
           customerExplanation: 'Contact support.'
         })
         const refusal = yield* lifecycle
-          .prepareDeletion('usr_suspended_solo')
+          .prepareDeletion(UserId.make('usr_suspended_solo'))
           .pipe(Effect.flip)
         expect(refusal._tag).toBe('AccountDeletionBlocked')
         const memberships = yield* db
           .select()
           .from(workspaceMembers)
-          .where(eq(workspaceMembers.userId, 'usr_suspended_solo'))
+          .where(eq(workspaceMembers.userId, UserId.make('usr_suspended_solo')))
         expect(memberships).toHaveLength(1)
         const rows = yield* db
           .select()
           .from(workspaces)
-          .where(eq(workspaces.id, 'wrk_suspended_solo'))
+          .where(eq(workspaces.id, WorkspaceId.make('wrk_suspended_solo')))
         expect(rows).toHaveLength(1)
         yield* suspension.transition({
-          workspaceId: 'wrk_suspended_solo',
+          workspaceId: WorkspaceId.make('wrk_suspended_solo'),
           action: 'unsuspend',
-          actor: { userId: 'usr_sysadmin' },
+          actor: { userId: UserId.make('usr_sysadmin') },
           internalReason: 'Resolved'
         })
-        expect((yield* lifecycle.planDeletion('usr_suspended_solo')).canDelete).toBe(
-          true
-        )
+        expect(
+          (yield* lifecycle.planDeletion(UserId.make('usr_suspended_solo'))).canDelete
+        ).toBe(true)
       }).pipe(Effect.provide(accountLifecycleLayer(d1)))
     })
   )
@@ -224,8 +237,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
   describe('live account lifecycle contract', () => {
     const cases = accountLifecycleContractCases(
       {
-        stuckOwner: 'usr_stuck_owner',
-        planner: 'usr_planner',
+        stuckOwner: UserId.make('usr_stuck_owner'),
+        planner: UserId.make('usr_planner'),
         password: DELETE_PASSWORD,
         wrongPassword: ''
       },
@@ -237,7 +250,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
           const d1 = yield* TestD1
           yield* contractState
           const { binding } = fakeAccountLifecycleBinding(yield* Database, {
-            userId: 'usr_planner',
+            userId: UserId.make('usr_planner'),
             password: DELETE_PASSWORD
           })
           yield* contractCase.assert.pipe(
@@ -259,51 +272,71 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
         const db = yield* Database
         const d1 = yield* TestD1
         yield* db.insert(user).values([
-          { id: 'usr_mixed', email: 'mixed@live.test', name: 'Mixed Owner' },
-          { id: 'usr_co_owner', email: 'co-owner@live.test', name: 'Co Owner' }
+          {
+            id: UserId.make('usr_mixed'),
+            email: 'mixed@live.test',
+            name: 'Mixed Owner'
+          },
+          {
+            id: UserId.make('usr_co_owner'),
+            email: 'co-owner@live.test',
+            name: 'Co Owner'
+          }
         ])
         yield* db.insert(workspaces).values([
-          { id: 'wrk_mixed_solo', slug: 'mixed-solo', name: 'Mixed Solo' },
-          { id: 'wrk_mixed_shared', slug: 'mixed-shared', name: 'Mixed Shared' },
-          { id: 'wrk_unrelated', slug: 'unrelated', name: 'Unrelated' }
+          {
+            id: WorkspaceId.make('wrk_mixed_solo'),
+            slug: 'mixed-solo',
+            name: 'Mixed Solo'
+          },
+          {
+            id: WorkspaceId.make('wrk_mixed_shared'),
+            slug: 'mixed-shared',
+            name: 'Mixed Shared'
+          },
+          {
+            id: WorkspaceId.make('wrk_unrelated'),
+            slug: 'unrelated',
+            name: 'Unrelated'
+          }
         ])
         yield* db.insert(workspaceMembers).values([
           {
             id: 'mem_mixed_solo',
-            workspaceId: 'wrk_mixed_solo',
-            userId: 'usr_mixed',
+            workspaceId: WorkspaceId.make('wrk_mixed_solo'),
+            userId: UserId.make('usr_mixed'),
             role: 'owner'
           },
           {
             id: 'mem_mixed_shared',
-            workspaceId: 'wrk_mixed_shared',
-            userId: 'usr_mixed',
+            workspaceId: WorkspaceId.make('wrk_mixed_shared'),
+            userId: UserId.make('usr_mixed'),
             role: 'owner'
           },
           {
             id: 'mem_co_owner',
-            workspaceId: 'wrk_mixed_shared',
-            userId: 'usr_co_owner',
+            workspaceId: WorkspaceId.make('wrk_mixed_shared'),
+            userId: UserId.make('usr_co_owner'),
             role: 'owner'
           }
         ])
         yield* db.insert(oauthClient).values({
           id: 'client_mixed',
           clientId: 'mixed-client',
-          userId: 'usr_mixed',
+          userId: UserId.make('usr_mixed'),
           redirectUris: ['https://client.example/callback']
         })
         yield* db.insert(oauthConsent).values([
           {
             id: 'consent_mixed',
             clientId: 'mixed-client',
-            userId: 'usr_mixed',
+            userId: UserId.make('usr_mixed'),
             scopes: ['openid']
           },
           {
             id: 'consent_co_owner',
             clientId: 'mixed-client',
-            userId: 'usr_co_owner',
+            userId: UserId.make('usr_co_owner'),
             scopes: ['openid']
           }
         ])
@@ -311,7 +344,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
           id: 'refresh_mixed',
           token: 'refresh-mixed',
           clientId: 'mixed-client',
-          userId: 'usr_mixed',
+          userId: UserId.make('usr_mixed'),
           expiresAt: DateTime.toDate(DateTime.makeUnsafe('2030-01-01')),
           scopes: ['openid']
         })
@@ -319,7 +352,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
           id: 'access_mixed',
           token: 'access-mixed',
           clientId: 'mixed-client',
-          userId: 'usr_mixed',
+          userId: UserId.make('usr_mixed'),
           refreshId: 'refresh_mixed',
           expiresAt: DateTime.toDate(DateTime.makeUnsafe('2030-01-01')),
           scopes: ['openid']
@@ -329,8 +362,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
         yield* db.insert(auditEvents).values([
           {
             id: 'aud_mixed_owned',
-            workspaceId: 'wrk_mixed_shared',
-            actorUserId: 'usr_mixed',
+            workspaceId: WorkspaceId.make('wrk_mixed_shared'),
+            actorUserId: UserId.make('usr_mixed'),
             actorType: 'user',
             eventType: 'workspace_member.added',
             targetType: 'workspace_member',
@@ -341,12 +374,12 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
         ])
         yield* db.insert(apiTokens).values({
           id: ApiTokenId.make('tok_mixed_created'),
-          workspaceId: 'wrk_mixed_shared',
+          workspaceId: WorkspaceId.make('wrk_mixed_shared'),
           name: 'Mixed Token',
           tokenPrefix: 'bsk_live_mixed',
           tokenHash: 'hash_mixed_created',
           scopes: ['read'],
-          createdByUserId: 'usr_mixed',
+          createdByUserId: UserId.make('usr_mixed'),
           createdAt: '2026-07-03T09:00:00.000Z'
         })
         yield* db.insert(emailDeliveries).values([
@@ -354,8 +387,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
             id: 'email_mixed_linked',
             purpose: 'notification',
             recipient: 'mixed@live.test',
-            userId: 'usr_mixed',
-            workspaceId: 'wrk_mixed_shared',
+            userId: UserId.make('usr_mixed'),
+            workspaceId: WorkspaceId.make('wrk_mixed_shared'),
             status: 'accepted',
             createdAt: '2026-07-03T09:00:00.000Z',
             updatedAt: '2026-07-03T09:00:00.000Z',
@@ -395,16 +428,16 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
         yield* db.insert(notifications).values([
           {
             id: 'notification_mixed_personal',
-            userId: 'usr_mixed',
-            workspaceId: 'wrk_mixed_shared',
+            userId: UserId.make('usr_mixed'),
+            workspaceId: WorkspaceId.make('wrk_mixed_shared'),
             title: 'Personal notice',
             message: 'For Mixed Owner',
             createdAt: '2026-07-03T09:00:00.000Z'
           },
           {
             id: 'notification_mixed_other',
-            userId: 'usr_co_owner',
-            workspaceId: 'wrk_mixed_shared',
+            userId: UserId.make('usr_co_owner'),
+            workspaceId: WorkspaceId.make('wrk_mixed_shared'),
             title: 'Shared notice',
             message: 'For Co Owner',
             createdAt: '2026-07-03T09:00:00.000Z'
@@ -412,8 +445,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
         ])
         yield* db.insert(auditEvents).values({
           id: 'aud_mixed_identity',
-          workspaceId: 'wrk_mixed_shared',
-          actorUserId: 'usr_mixed',
+          workspaceId: WorkspaceId.make('wrk_mixed_shared'),
+          actorUserId: UserId.make('usr_mixed'),
           actorType: 'user',
           eventType: 'workspace_member.added',
           targetType: 'workspace_member',
@@ -427,8 +460,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
         })
         yield* db.insert(auditEvents).values({
           id: 'aud_mixed_recipient',
-          workspaceId: 'wrk_mixed_shared',
-          actorUserId: 'usr_co_owner',
+          workspaceId: WorkspaceId.make('wrk_mixed_shared'),
+          actorUserId: UserId.make('usr_co_owner'),
           actorType: 'user',
           eventType: 'workspace_invitation.sent',
           targetType: 'workspace_invitation',
@@ -438,8 +471,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
         })
         yield* db.insert(auditEvents).values({
           id: 'aud_unrelated_name_prose',
-          workspaceId: 'wrk_unrelated',
-          actorUserId: 'usr_co_owner',
+          workspaceId: WorkspaceId.make('wrk_unrelated'),
+          actorUserId: UserId.make('usr_co_owner'),
           actorType: 'user',
           eventType: 'workspace.note.created',
           targetType: 'workspace',
@@ -453,7 +486,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
         // passes it across (keyed by request there, by closure here).
         let hookPlan: AccountDeletionPlan | undefined
         const { binding, calls } = fakeAccountLifecycleBinding(db, {
-          userId: 'usr_mixed',
+          userId: UserId.make('usr_mixed'),
           password: DELETE_PASSWORD,
           beforeDelete: (userId) =>
             // oxlint-disable-next-line starter/no-run-promise-in-tests -- Better Auth calls these hooks as plain promise callbacks outside any Effect runtime; the runPromise is the port
@@ -483,7 +516,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
 
         const executed = yield* Effect.flatMap(AccountLifecycle, (lifecycle) =>
           lifecycle.deleteAccount({
-            userId: 'usr_mixed',
+            userId: UserId.make('usr_mixed'),
             password: DELETE_PASSWORD
           })
         ).pipe(Effect.provide(accountLifecycleLayer(d1, binding)))
@@ -504,14 +537,17 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
 
         // The sole-member workspace is gone; the shared one survives.
         const solo = yield* Effect.flatMap(Database, (database) =>
-          database.select().from(workspaces).where(eq(workspaces.id, 'wrk_mixed_solo'))
+          database
+            .select()
+            .from(workspaces)
+            .where(eq(workspaces.id, WorkspaceId.make('wrk_mixed_solo')))
         )
         expect(solo).toHaveLength(0)
         const shared = yield* Effect.flatMap(Database, (database) =>
           database
             .select()
             .from(workspaces)
-            .where(eq(workspaces.id, 'wrk_mixed_shared'))
+            .where(eq(workspaces.id, WorkspaceId.make('wrk_mixed_shared')))
         )
         expect(shared).toHaveLength(1)
 
@@ -578,26 +614,29 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
         // The account row itself is gone (the fake's store half), and the
         // `account.deleted` event survived it, actorless.
         const account = yield* Effect.flatMap(Database, (database) =>
-          database.select().from(user).where(eq(user.id, 'usr_mixed'))
+          database
+            .select()
+            .from(user)
+            .where(eq(user.id, UserId.make('usr_mixed')))
         )
         expect(account).toHaveLength(0)
         expect(
           yield* db
             .select()
             .from(oauthRefreshToken)
-            .where(eq(oauthRefreshToken.userId, 'usr_mixed'))
+            .where(eq(oauthRefreshToken.userId, UserId.make('usr_mixed')))
         ).toHaveLength(0)
         expect(
           yield* db
             .select()
             .from(oauthAccessToken)
-            .where(eq(oauthAccessToken.userId, 'usr_mixed'))
+            .where(eq(oauthAccessToken.userId, UserId.make('usr_mixed')))
         ).toHaveLength(0)
         expect(
           yield* db
             .select()
             .from(oauthConsent)
-            .where(eq(oauthConsent.userId, 'usr_mixed'))
+            .where(eq(oauthConsent.userId, UserId.make('usr_mixed')))
         ).toHaveLength(0)
         expect(
           yield* db
@@ -631,26 +670,26 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
       const db = yield* Database
       const d1 = yield* TestD1
       yield* db.insert(user).values({
-        id: 'usr_admin_binding',
+        id: UserId.make('usr_admin_binding'),
         email: 'admin-binding@live.test',
         name: 'Admin Binding'
       })
       yield* db.insert(workspaces).values({
-        id: 'wrk_admin_binding',
+        id: WorkspaceId.make('wrk_admin_binding'),
         slug: 'admin-binding',
         name: 'Admin Binding'
       })
       yield* db.insert(workspaceMembers).values({
         id: 'mem_admin_binding',
-        workspaceId: 'wrk_admin_binding',
-        userId: 'usr_admin_binding',
+        workspaceId: WorkspaceId.make('wrk_admin_binding'),
+        userId: UserId.make('usr_admin_binding'),
         role: 'member'
       })
 
       const binding = makeAdminAccountLifecycleBinding(d1)
       yield* Effect.promise(() =>
         binding.leaveWorkspace({
-          workspaceId: 'wrk_admin_binding',
+          workspaceId: WorkspaceId.make('wrk_admin_binding'),
           memberId: 'mem_admin_binding'
         })
       )
@@ -661,12 +700,12 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
       expect(members).toHaveLength(0)
 
       yield* Effect.promise(() =>
-        binding.deleteWorkspace({ workspaceId: 'wrk_admin_binding' })
+        binding.deleteWorkspace({ workspaceId: WorkspaceId.make('wrk_admin_binding') })
       )
       const remaining = yield* db
         .select()
         .from(workspaces)
-        .where(eq(workspaces.id, 'wrk_admin_binding'))
+        .where(eq(workspaces.id, WorkspaceId.make('wrk_admin_binding')))
       expect(remaining).toHaveLength(0)
     })
   )
@@ -678,7 +717,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
       const error = yield* Effect.flip(
         Effect.flatMap(AccountLifecycle, (lifecycle) =>
           lifecycle.deleteAccount({
-            userId: 'usr_planner',
+            userId: UserId.make('usr_planner'),
             password: DELETE_PASSWORD
           })
         ).pipe(Effect.provide(accountLifecycleLayer(d1)))
@@ -697,7 +736,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
       yield* contractState
       const d1 = yield* TestD1
       const plan = yield* Effect.flatMap(AccountLifecycle, (lifecycle) =>
-        lifecycle.planDeletion('usr_stuck_owner')
+        lifecycle.planDeletion(UserId.make('usr_stuck_owner'))
       ).pipe(Effect.provide(accountLifecycleLayer(d1)))
       expect(plan.canDelete).toBe(false)
       expect(plan.steps[0]?.action).toBe('blocked_sole_owner')

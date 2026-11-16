@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
@@ -98,7 +99,10 @@ describe('customer support acceptance', () => {
 
   it('copies an authorized workspace and drops it when the current context changes', async () => {
     const view = await renderWithRouter(
-      <SupportDetails routeName="workspace" workspaceId="ws_authorized" />
+      <SupportDetails
+        routeName="workspace"
+        workspaceId={WorkspaceId.make('ws_authorized')}
+      />
     )
     fireEvent.click(screen.getByRole('button', { name: 'Copy support details' }))
     await waitFor(() => expect(writeText).toHaveBeenCalledOnce())

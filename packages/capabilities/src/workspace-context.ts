@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { WorkspaceContext as BillingWorkspaceContext } from '@b2b-saas-starter/billing/ports'
 import { type AuditActorTypeValue } from '@b2b-saas-starter/db/enums'
 import { Database } from '@b2b-saas-starter/db/service'
@@ -20,7 +21,7 @@ import {
 } from './governance/workspace-identity.ts'
 
 export const Actor = Schema.Struct({
-  userId: Schema.String,
+  userId: UserId,
   role: WorkspaceRole,
   systemRole: SystemRole,
   banned: Schema.Boolean
@@ -32,7 +33,7 @@ export type Actor = typeof Actor.Type
  * (a session only carries the user id). The workspace-context layers resolve
  * it into a full `Actor` by verifying membership of the requested workspace.
  */
-export type ActorRef = { readonly userId: string }
+export type ActorRef = { readonly userId: UserId }
 
 /**
  * Who asks for a workspace at a request boundary, before membership resolves.
@@ -51,7 +52,7 @@ export type ActorlessWorkspaceCaller = {
 }
 
 export const WorkspaceCaller = {
-  user: (userId: string): UserWorkspaceCaller => ({
+  user: (userId: UserId): UserWorkspaceCaller => ({
     actorType: 'user',
     actor: { userId }
   }),

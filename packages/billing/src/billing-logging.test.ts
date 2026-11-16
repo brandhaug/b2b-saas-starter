@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { expect, it } from '@effect/vitest'
 import { Effect, Layer, Logger } from 'effect'
 import { withRequestScope } from '@b2b-saas-starter/logger'
@@ -17,7 +18,7 @@ it.effect('records the resolved plan on one canonical billing request event', ()
     const billing = yield* Billing
     const plan = yield* withRequestScope(
       { service: 'web', event: 'billing.plan' },
-      billing.currentPlanForWorkspace('wrk_logging')
+      billing.currentPlanForWorkspace(WorkspaceId.make('wrk_logging'))
     )
     expect(plan.id).toBe('team')
     expect(records).toHaveLength(1)

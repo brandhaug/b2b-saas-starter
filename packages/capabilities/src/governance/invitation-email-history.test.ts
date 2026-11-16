@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { expect, it } from '@effect/vitest'
 import { Effect, Layer } from 'effect'
 import { SeedEmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery.seed'
@@ -9,7 +10,7 @@ import {
 import { EmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery'
 
 const seedWorkspaceRecord = {
-  id: 'wrk_live',
+  id: WorkspaceId.make('wrk_live'),
   slug: 'live-lab',
   name: 'Live Lab',
   planId: 'free'
@@ -21,7 +22,7 @@ const otherLayer = Layer.merge(
   deliveryLayer,
   testWorkspaceContext({
     ...seedWorkspaceRecord,
-    id: 'wrk_other',
+    id: WorkspaceId.make('wrk_other'),
     slug: 'other-lab'
   })
 )
@@ -34,7 +35,7 @@ it.effect('scopes invitation history to the current workspace', () =>
       purpose: 'invitation',
       recipient: 'invitee@example.test',
       userId: null,
-      workspaceId: seedWorkspaceRecord.id,
+      workspaceId: WorkspaceId.make(seedWorkspaceRecord.id),
       referenceId: 'invite-1'
     })
     if (!claim) {

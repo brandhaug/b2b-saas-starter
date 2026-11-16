@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Option, Result, Schema } from 'effect'
 import { Base64 } from 'effect/encoding'
 import {
@@ -52,7 +53,7 @@ export const defaultAuditView: AuditView = {
 export type AuditViewRow = {
   readonly id: string
   readonly eventType: string
-  readonly actorUserId?: string | null
+  readonly actorUserId?: UserId | null
   readonly actorType: string
   readonly createdAt: string
 }
@@ -68,8 +69,8 @@ const AuditCursorSchema = Schema.Struct({
 })
 const QueryContext = Schema.Struct({
   view: AuditView,
-  workspaceId: Schema.optional(Schema.String),
-  actorUserId: Schema.optional(Schema.String),
+  workspaceId: Schema.optional(WorkspaceId),
+  actorUserId: Schema.optional(UserId),
   eventType: Schema.optional(Schema.String),
   since: Schema.optional(Schema.String),
   until: Schema.optional(Schema.String)
@@ -81,9 +82,9 @@ const decodeCursor = Schema.decodeUnknownOption(
 )
 export function auditViewKey(
   view: AuditView,
-  workspaceId?: string,
+  workspaceId?: WorkspaceId,
   input?: {
-    readonly actorUserId?: string | undefined
+    readonly actorUserId?: UserId | undefined
     readonly eventType?: string | undefined
     readonly since?: string | undefined
     readonly until?: string | undefined

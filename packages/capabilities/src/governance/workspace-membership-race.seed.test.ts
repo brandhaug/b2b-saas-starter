@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { expect, it } from '@effect/vitest'
 import { SeedSeatSyncPublisher } from '@b2b-saas-starter/billing/seat-sync'
 import { Deferred, Effect, Fiber, Layer, Queue, Ref, Result } from 'effect'
@@ -16,7 +17,7 @@ for (const operation of ['demote', 'remove', 'leave']) {
   it.effect(`Seed preserves an owner across interleaved ${operation}`, () =>
     Effect.gen(function* () {
       const a = demoUserIdentity
-      const b = { ...a, id: 'other-owner' }
+      const b = { ...a, id: UserId.make('other-owner') }
       const roster = yield* makeSeedRoster([a, b])
       const directory = yield* AssistantDirectory
       const invalidating = yield* Queue.unbounded<undefined>()

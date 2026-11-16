@@ -1,10 +1,11 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { CreateWorkspaceForm, type CreateWorkspace } from './create-workspace-form'
 import { renderWithRouter } from '@/test/router-harness'
 
 const createdWorkspace = {
-  id: 'wrk_new',
+  id: WorkspaceId.make('wrk_new'),
   slug: 'acme-corp',
   name: 'Acme Corp',
   planId: 'starter'

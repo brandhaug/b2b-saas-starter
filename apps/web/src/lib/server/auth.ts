@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { getLocale } from '@b2b-saas-starter/i18n/runtime'
 import { DEFAULT_LOCALE, isLocale } from '@b2b-saas-starter/i18n/locale'
 import { presentationSettings } from '../i18n'
@@ -43,7 +44,7 @@ const getSessionServerFn = createServerFn({ method: 'GET' }).handler(
  */
 export type RouteSession = {
   readonly user: {
-    readonly id: string
+    readonly id: UserId
     readonly name: string
     readonly email: string
     readonly emailVerified: boolean
@@ -55,7 +56,7 @@ export type RouteSession = {
    * `null` for an ordinary session. The shell's banner and the account page's
    * hidden controls read it; the server re-checks the real session anyway.
    */
-  readonly impersonatedBy: string | null
+  readonly impersonatedBy: UserId | null
 }
 
 /**

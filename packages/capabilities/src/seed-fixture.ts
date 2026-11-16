@@ -1,7 +1,9 @@
 import {
   ApiTokenId,
+  UserId,
   WebhookDeliveryId,
-  WebhookEndpointId
+  WebhookEndpointId,
+  WorkspaceId
 } from '@b2b-saas-starter/db/ids'
 import { type PersonalDataExport } from './governance/personal-data-export-archive.ts'
 import { DateTime, Duration } from 'effect'
@@ -45,7 +47,7 @@ export { demoMemberIdentity, demoUserIdentity, seedMembers, seedWorkspaceRecord 
  * one of them, so the onboarding checklist's two-factor step stays open in
  * the Seed Workspace — the partially complete state the reference app shows.
  */
-export const seedTwoFactorUserIds: ReadonlyArray<string> = ['usr_martin']
+export const seedTwoFactorUserIds: ReadonlyArray<UserId> = [UserId.make('usr_martin')]
 
 export const seedSystemUsers: ReadonlyArray<SystemUserAccount> = [
   ...seedMembers.map((member) => ({
@@ -58,7 +60,7 @@ export const seedSystemUsers: ReadonlyArray<SystemUserAccount> = [
   // An account with no membership anywhere — the user-admin contract's
   // role-change rejection needs one on the seed side.
   {
-    id: 'usr_outsider',
+    id: UserId.make('usr_outsider'),
     name: 'No Workspaces',
     email: 'outsider@example.com',
     systemRole: 'user',
@@ -427,7 +429,7 @@ export const seedAuditEvents: ReadonlyArray<SeedAuditEventRow> = [
     targetType: 'user',
     targetId: 'usr_dev',
     actor: 'Martin Brandhaug',
-    actorUserId: 'usr_martin',
+    actorUserId: UserId.make('usr_martin'),
     createdAt: '2026-05-15T12:10:00.000Z'
   },
   // One completed impersonation (ADR 0054), so `/admin`'s trail and the
@@ -439,7 +441,7 @@ export const seedAuditEvents: ReadonlyArray<SeedAuditEventRow> = [
     targetType: 'user',
     targetId: 'usr_dev',
     actor: 'Martin Brandhaug',
-    actorUserId: 'usr_martin',
+    actorUserId: UserId.make('usr_martin'),
     createdAt: '2026-05-15T13:00:00.000Z'
   },
   {
@@ -449,7 +451,7 @@ export const seedAuditEvents: ReadonlyArray<SeedAuditEventRow> = [
     targetType: 'user',
     targetId: 'usr_dev',
     actor: 'Martin Brandhaug',
-    actorUserId: 'usr_martin',
+    actorUserId: UserId.make('usr_martin'),
     createdAt: '2026-05-15T13:12:00.000Z'
   },
   // System-level like the two-factor changes it sits beside: a passkey add is
@@ -461,7 +463,7 @@ export const seedAuditEvents: ReadonlyArray<SeedAuditEventRow> = [
     targetType: 'user',
     targetId: 'usr_demo',
     actor: 'Demo Admin',
-    actorUserId: 'usr_demo',
+    actorUserId: UserId.make('usr_demo'),
     createdAt: '2026-05-15T09:30:00.000Z'
   },
   {
@@ -471,10 +473,10 @@ export const seedAuditEvents: ReadonlyArray<SeedAuditEventRow> = [
     targetType: 'api_token',
     targetId: 'tok_ops',
     actor: 'Ops Lead',
-    actorUserId: 'usr_ops',
+    actorUserId: UserId.make('usr_ops'),
     // Workspace-scoped events carry their workspace so the per-workspace
     // audit page has something to show in Seed/dev.
-    workspaceId: 'wrk_starter',
+    workspaceId: WorkspaceId.make('wrk_starter'),
     createdAt: '2026-05-14T08:20:00.000Z'
   },
   {
@@ -484,8 +486,8 @@ export const seedAuditEvents: ReadonlyArray<SeedAuditEventRow> = [
     targetType: 'mcp_client',
     targetId: 'https://mcp-client.example.com/oauth/client-metadata.json',
     actor: 'Demo Admin',
-    actorUserId: 'usr_demo',
-    workspaceId: 'wrk_starter',
+    actorUserId: UserId.make('usr_demo'),
+    workspaceId: WorkspaceId.make('wrk_starter'),
     createdAt: '2026-05-15T10:00:00.000Z'
   },
   {
@@ -496,7 +498,7 @@ export const seedAuditEvents: ReadonlyArray<SeedAuditEventRow> = [
     targetId: 'exp_seed_ready',
     actor: 'system',
     actorUserId: null,
-    workspaceId: 'wrk_starter',
+    workspaceId: WorkspaceId.make('wrk_starter'),
     createdAt: '2026-05-16T07:30:05.000Z'
   },
   {
@@ -507,7 +509,7 @@ export const seedAuditEvents: ReadonlyArray<SeedAuditEventRow> = [
     // A session the magic link opened; no fixture row exists for it.
     targetId: null,
     actor: 'Demo User',
-    actorUserId: 'usr_demo',
+    actorUserId: UserId.make('usr_demo'),
     // Stands for the magic-link Local Auth Path: the auth-catchall audit rows
     // write `method: 'magic-link'` into the event's metadata (which the wire
     // shape deliberately does not surface — same for every producer).
@@ -545,7 +547,7 @@ export const seedNotifications: ReadonlyArray<SeedNotification> = [
     },
     createdAt: '2026-05-15T13:00:00.000Z',
     read: false,
-    userId: 'usr_dev'
+    userId: UserId.make('usr_dev')
   },
   {
     id: 'not_export',

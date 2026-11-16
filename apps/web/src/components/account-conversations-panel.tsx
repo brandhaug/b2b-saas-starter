@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { useServerAction } from '@/hooks/use-server-action'
 import { useQuery } from '@tanstack/react-query'
 import { pageQueryOptions } from '@/lib/page-query'
@@ -26,7 +27,7 @@ export function AccountConversationsPanel({
   load,
   remove
 }: {
-  readonly userId: string
+  readonly userId: UserId
   readonly load: () => Promise<ConversationResult<ReadonlyArray<OwnedConversation>>>
   readonly initial: ConversationResult<ReadonlyArray<OwnedConversation>>
   readonly remove: (input: {

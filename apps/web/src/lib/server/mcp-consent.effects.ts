@@ -1,3 +1,4 @@
+import { type UserId, type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { requireRecentAuthentication } from './strong-authentication.effects'
 import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { MCP_CONSENT_PAGE, MCP_WORKSPACE_SELECTED_HEADER } from '@b2b-saas-starter/auth'
@@ -54,7 +55,7 @@ function redirect(result: typeof RedirectResult.Type): Redirect {
   }
 }
 
-function withWorkspaceSelected(headers: Headers, workspaceId: string): Headers {
+function withWorkspaceSelected(headers: Headers, workspaceId: WorkspaceId): Headers {
   const selected = new Headers(headers)
   selected.set(MCP_WORKSPACE_SELECTED_HEADER, workspaceId)
   return selected
@@ -181,7 +182,7 @@ export async function grantOAuthConsentHandler(
  * report goes to the isolate logger.
  */
 async function recordGrantBestEffort(
-  input: { readonly userId: string; readonly workspaceId: string },
+  input: { readonly userId: UserId; readonly workspaceId: WorkspaceId },
   continued: URL
 ): Promise<void> {
   const clientId = continued.searchParams.get('client_id')
@@ -211,7 +212,7 @@ async function recordGrantBestEffort(
 
 /** The same visibility `reportDroppedAudit` gives the account hooks: a dropped audit write is never silent. */
 function reportDroppedGrantAudit(
-  input: { readonly userId: string; readonly workspaceId: string },
+  input: { readonly userId: UserId; readonly workspaceId: WorkspaceId },
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- rejected causes go through the shared telemetry sanitizer, not an application input decoder
   error: unknown
 ): void {

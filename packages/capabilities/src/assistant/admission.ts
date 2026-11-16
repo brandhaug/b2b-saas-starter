@@ -1,11 +1,12 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Context, type Effect, Schema } from 'effect'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 
 export const AssistantReservation = Schema.Struct({
   id: Schema.String,
   conversationId: Schema.String,
-  workspaceId: Schema.String,
-  userId: Schema.String,
+  workspaceId: WorkspaceId,
+  userId: UserId,
   createdAt: Schema.Number,
   deadline: Schema.Number,
   committedAt: Schema.NullOr(Schema.Number),

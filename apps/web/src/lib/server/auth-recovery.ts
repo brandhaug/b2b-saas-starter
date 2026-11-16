@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { AuditEventLog } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { type Locale } from '@b2b-saas-starter/i18n/locale'
 import { Effect } from 'effect'
@@ -6,7 +7,7 @@ import { sendRecoveryStartedEmail } from './auth-emails'
 
 /** Recovery is granted only after durable audit and notification acceptance. */
 export async function onRecoveryStarted(input: {
-  readonly userId: string
+  readonly userId: UserId
   readonly sessionId: string
   readonly expiresAt: Date
   readonly email: string

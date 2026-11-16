@@ -22,6 +22,7 @@ SSO provisioning can assign `member` or `admin`, never `owner`. The app enforces
 
 - Workspaces resolve from the URL slug. Only MCP consent uses `activeOrganizationId`, writing and reading it within one authorization.
 - MCP configuration supplies the audience-bound `/mcp` URL and a Workers-compatible transport. Issuance and refresh re-read membership and client consent ID/version from D1. `mcp:write` requires explicit consent; the API rechecks it before writes (ADR 0068).
+- `Session` is the plugin session with `UserId`-branded user and impersonator ids. Pass every `getSession` result through `brandSession`; hooks and port adapters here brand plugin-supplied ids before calling app ports.
 - Keep `session.cookieCache` disabled. Caching delays revocation, serves stale `impersonatedBy`, and breaks MCP consent's write-then-read. Session reads are memoized per request instead.
 - Passkey sign-in bypasses the additional TOTP step; the credential-endpoint gate does not run on passkey session creation (ADR 0056).
 - Unconfigured social providers must be absent from the options (ADR 0070).

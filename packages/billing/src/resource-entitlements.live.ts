@@ -26,7 +26,7 @@ const decodeSelection = Schema.decodeUnknownEffect(ResourceSelection)
 const encodeIds = Schema.encodeSync(Schema.fromJsonString(Schema.Array(Schema.String)))
 const unavailable = orUnavailable('resource-entitlements')
 const readSelection = Effect.fn('ResourceSelections.read')(function* (
-  workspaceId: string
+  workspaceId: WorkspaceId
 ) {
   const db = yield* Database
   const rows = yield* unavailable(
@@ -42,7 +42,12 @@ const readSelection = Effect.fn('ResourceSelections.read')(function* (
 /** Prepared in the selection owner, committed with the token claim and its audit. */
 export const prepareTokenSelectionRotation = Effect.fn(
   'ResourceSelections.prepareTokenRotation'
-)(function* (workspaceId: string, fromId: ApiTokenId, toId: ApiTokenId, now: string) {
+)(function* (
+  workspaceId: WorkspaceId,
+  fromId: ApiTokenId,
+  toId: ApiTokenId,
+  now: string
+) {
   const db = yield* Database
   return db
     .update(workspaceResourceSelections)
@@ -65,7 +70,7 @@ export const LiveResourceEntitlements: Layer.Layer<
     const audit = yield* AuditEventLog
     const d1 = yield* RawD1
     const available = Effect.fn('ResourceSelections.available')(function* (
-      workspaceId: string
+      workspaceId: WorkspaceId
     ) {
       const now = DateTime.formatIso(yield* DateTime.now)
       const [tokens, endpoints] = yield* Effect.all(
@@ -98,7 +103,7 @@ export const LiveResourceEntitlements: Layer.Layer<
     // Admission counts every stored endpoint, including disabled ones, so an
     // over-limit workspace sees the same ceiling the create refusal enforces.
     const storedWebhookIds = Effect.fn('ResourceSelections.storedWebhooks')(function* (
-      workspaceId: string
+      workspaceId: WorkspaceId
     ) {
       const rows = yield* unavailable(
         db
@@ -110,7 +115,7 @@ export const LiveResourceEntitlements: Layer.Layer<
     })
     const getSelectionForWorkspace = Effect.fn(
       'ResourceEntitlements.getSelectionForWorkspace'
-    )(function* (workspaceId: string) {
+    )(function* (workspaceId: WorkspaceId) {
       const [selection, inventory] = yield* Effect.all(
         [
           readSelection(workspaceId).pipe(Effect.provideService(Database, db)),
@@ -126,7 +131,7 @@ export const LiveResourceEntitlements: Layer.Layer<
     })
     const summarizeForWorkspace = Effect.fn(
       'ResourceEntitlements.summarizeForWorkspace'
-    )(function* (workspaceId: string, resource: 'api_token' | 'webhook_endpoint') {
+    )(function* (workspaceId: WorkspaceId, resource: 'api_token' | 'webhook_endpoint') {
       const [inventory, selected, plan, storedWebhooks] = yield* Effect.all(
         [
           available(workspaceId),
@@ -235,4 +240,4 @@ export const LiveResourceEntitlements: Layer.Layer<
     })
   })
 )
-import { type ApiTokenId } from '@b2b-saas-starter/db/ids'
+import { type ApiTokenId, type WorkspaceId } from '@b2b-saas-starter/db/ids'

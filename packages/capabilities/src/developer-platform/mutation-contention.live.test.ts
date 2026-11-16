@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { Database } from '@b2b-saas-starter/db/service'
 import {
   apiTokens,
@@ -62,7 +63,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('mutation contention', (it)
             rows.filter((row) => row.eventType === 'api_token.revoked')
           ).toHaveLength(1)
         }),
-        { userId: 'usr_owner' }
+        { userId: UserId.make('usr_owner') }
       )
   )
 
@@ -117,7 +118,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('mutation contention', (it)
               'webhook_endpoint.deleted'
             ])
           }),
-          { userId: 'usr_owner' }
+          { userId: UserId.make('usr_owner') }
         )
     )
   }
@@ -198,7 +199,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('mutation contention', (it)
               before.filter((row) => row.eventType === `${resource}.created`).length
           ).toBe(1)
         }),
-        { userId: 'usr_owner' }
+        { userId: UserId.make('usr_owner') }
       )
     )
   }

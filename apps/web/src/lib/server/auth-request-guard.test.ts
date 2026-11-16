@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { Effect, Schema } from 'effect'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { withWebRequestScope } from '../observability'
@@ -61,6 +62,7 @@ vi.mock('./auth-session-read', async () => {
 
 vi.mock('../capabilities', async () => {
   const effect = await import('effect')
+  const ids = await import('@b2b-saas-starter/db/ids')
   const { StrongAuthentication: Authentication } =
     await import('@b2b-saas-starter/capabilities/governance/strong-authentication')
   const { SsoConnections: Connections } =
@@ -78,7 +80,7 @@ vi.mock('../capabilities', async () => {
     return {
       providerId: sso.providerId,
       protocol: signInProtocol(),
-      workspaceId: sso.workspaceId,
+      workspaceId: ids.WorkspaceId.make(sso.workspaceId),
       domain: sso.domain,
       enabled: sso.enabled,
       requireSso: sso.requireSso
@@ -234,18 +236,20 @@ describe('auth request guard interface', () => {
     )
     expect(getResult.outcome).toBe('allowed')
     expect(getResult.context).toMatchObject({
-      actorUserId: 'usr_actor',
+      actorUserId: UserId.make('usr_actor'),
       actorEmail: 'actor@example.com'
     })
 
-    const postRequest = request('POST', '/api/auth/sign-out', { userId: 'usr_actor' })
+    const postRequest = request('POST', '/api/auth/sign-out', {
+      userId: UserId.make('usr_actor')
+    })
     const postResult = await run(postRequest, () => Effect.succeed(new Response('ok')))
     expect(postResult.outcome).toBe('allowed')
     if (postResult.context?.request === undefined) {
       throw new Error('audited POST must return its shared context and request clone')
     }
     await expect(postResult.context.request.json()).resolves.toEqual({
-      userId: 'usr_actor'
+      userId: UserId.make('usr_actor')
     })
   })
 

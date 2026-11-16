@@ -3,7 +3,7 @@ import { Effect, Exit } from 'effect'
 import { eq, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/d1'
 import { orUnavailable } from '@b2b-saas-starter/failure/capability'
-import { ApiTokenId } from './ids.ts'
+import { ApiTokenId, WorkspaceId } from './ids.ts'
 import { apiTokens, webhookDeliveries } from './schema/developer-platform.ts'
 import { personalDataExports } from './schema/governance.ts'
 import { oauthClient } from './schema/oauth.ts'
@@ -123,16 +123,18 @@ describe('validated stored JSON', () => {
   it.live('rejects header and conversation-manifest shapes from D1 results', () =>
     Effect.gen(function* () {
       const db = yield* Database
-      yield* db
-        .insert(workspaces)
-        .values({ id: 'shape-source', slug: 'shape-source', name: 'Shape source' })
+      yield* db.insert(workspaces).values({
+        id: WorkspaceId.make('shape-source'),
+        slug: 'shape-source',
+        name: 'Shape source'
+      })
       const headers = yield* Effect.exit(
         db
           .select({
             value: sql`'{"authorization":42}'`.mapWith(webhookDeliveries.requestHeaders)
           })
           .from(workspaces)
-          .where(eq(workspaces.id, 'shape-source'))
+          .where(eq(workspaces.id, WorkspaceId.make('shape-source')))
           .pipe(orUnavailable('headers'))
       )
       const manifest = yield* Effect.exit(
@@ -143,7 +145,7 @@ describe('validated stored JSON', () => {
             )
           })
           .from(workspaces)
-          .where(eq(workspaces.id, 'shape-source'))
+          .where(eq(workspaces.id, WorkspaceId.make('shape-source')))
           .pipe(orUnavailable('manifest'))
       )
       expect(headers).toMatchObject({
@@ -186,7 +188,7 @@ describe('validated stored JSON', () => {
             .insert(apiTokens)
             .values({
               id: ApiTokenId.make('sql-secret-test'),
-              workspaceId: 'missing-parent',
+              workspaceId: WorkspaceId.make('missing-parent'),
               name: 'private-secret',
               tokenPrefix: 'credential-prefix',
               tokenHash: 'credential-hash',
@@ -224,13 +226,15 @@ describe('validated stored JSON', () => {
       Effect.gen(function* () {
         const db = yield* Database
         const d1 = test.d1
-        yield* db
-          .insert(workspaces)
-          .values({ id: 'codec-workspace', name: 'Codec', slug: 'codec-workspace' })
+        yield* db.insert(workspaces).values({
+          id: WorkspaceId.make('codec-workspace'),
+          name: 'Codec',
+          slug: 'codec-workspace'
+        })
         const id = ApiTokenId.make('codec-token')
         yield* db.insert(apiTokens).values({
           id,
-          workspaceId: 'codec-workspace',
+          workspaceId: WorkspaceId.make('codec-workspace'),
           name: 'Codec',
           tokenPrefix: 'test',
           tokenHash: 'codec-hash',
@@ -281,17 +285,19 @@ describe('validated stored JSON', () => {
       Effect.gen(function* () {
         const db = yield* Database
         const results = yield* batchResults([
-          db
-            .insert(workspaces)
-            .values({ id: 'batch-codec', slug: 'batch-codec', name: 'Before' }),
+          db.insert(workspaces).values({
+            id: WorkspaceId.make('batch-codec'),
+            slug: 'batch-codec',
+            name: 'Before'
+          }),
           db
             .update(workspaces)
             .set({ name: 'After' })
-            .where(eq(workspaces.id, 'batch-codec')),
+            .where(eq(workspaces.id, WorkspaceId.make('batch-codec'))),
           db
             .select({ changes: sql<number>`changes()`.as('changes') })
             .from(workspaces)
-            .where(eq(workspaces.id, 'batch-codec'))
+            .where(eq(workspaces.id, WorkspaceId.make('batch-codec')))
         ])
         expect(results[0]?.meta.changes).toBe(1)
         expect(results[1]?.meta.changes).toBe(1)
@@ -301,10 +307,12 @@ describe('validated stored JSON', () => {
             db
               .update(workspaces)
               .set({ name: 'private-secret' })
-              .where(eq(workspaces.id, 'batch-codec')),
-            db
-              .insert(workspaces)
-              .values({ id: 'batch-codec', slug: 'duplicate', name: 'Duplicate' })
+              .where(eq(workspaces.id, WorkspaceId.make('batch-codec'))),
+            db.insert(workspaces).values({
+              id: WorkspaceId.make('batch-codec'),
+              slug: 'duplicate',
+              name: 'Duplicate'
+            })
           ]).pipe(orUnavailable('batch'))
         )
         expect(failed).toMatchObject({
@@ -315,7 +323,7 @@ describe('validated stored JSON', () => {
           (yield* db
             .select()
             .from(workspaces)
-            .where(eq(workspaces.id, 'batch-codec')))[0]?.name
+            .where(eq(workspaces.id, WorkspaceId.make('batch-codec'))))[0]?.name
         ).toBe('After')
       }).pipe(Effect.provide(layerFromD1(test.d1)))
   )

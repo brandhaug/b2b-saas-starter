@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Context, type Effect, Schema } from 'effect'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { type ConversationUnavailable } from '../developer-platform/assistant-conversation.ts'
@@ -5,8 +6,8 @@ import { type ListPageInput, type Page } from '../internal/keyset-cursor.ts'
 
 export const ConversationDirectoryEntry = Schema.Struct({
   id: Schema.String,
-  workspaceId: Schema.String,
-  creatorUserId: Schema.String,
+  workspaceId: WorkspaceId,
+  creatorUserId: UserId,
   requiredPermissions: Schema.Array(Schema.String),
   policyRevision: Schema.Number,
   runAccessRevision: Schema.Number,
@@ -16,13 +17,13 @@ export const ConversationDirectoryEntry = Schema.Struct({
 })
 export type ConversationDirectoryEntry = typeof ConversationDirectoryEntry.Type
 export type ConversationOwner = {
-  readonly workspaceId: string
-  readonly creatorUserId: string
+  readonly workspaceId: WorkspaceId
+  readonly creatorUserId: UserId
 }
 export type ConversationDeletionScope =
   | { readonly conversationId: string }
-  | { readonly workspaceId: string; readonly creatorUserId?: string }
-  | { readonly creatorUserId: string }
+  | { readonly workspaceId: WorkspaceId; readonly creatorUserId?: UserId }
+  | { readonly creatorUserId: UserId }
 
 export type AssistantDirectoryInterface = {
   readonly create: (
@@ -36,7 +37,7 @@ export type AssistantDirectoryInterface = {
     input: ConversationOwner & ListPageInput
   ) => Effect.Effect<Page<ConversationDirectoryEntry>, CapabilityUnavailable>
   readonly listForCreator: (
-    userId: string
+    userId: UserId
   ) => Effect.Effect<ReadonlyArray<ConversationDirectoryEntry>, CapabilityUnavailable>
   readonly raisePolicy: (
     id: string,

@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { DeleteAccountPanel } from './delete-account-panel'
@@ -22,7 +23,7 @@ const deletablePlan: AccountDeletionPlan = {
   steps: [
     {
       workspace: {
-        id: 'wrk_starter',
+        id: WorkspaceId.make('wrk_starter'),
         slug: 'starter-lab',
         name: 'Starter Lab',
         planId: 'team'
@@ -38,7 +39,7 @@ const blockedPlan: AccountDeletionPlan = {
   steps: [
     {
       workspace: {
-        id: 'wrk_acme',
+        id: WorkspaceId.make('wrk_acme'),
         slug: 'acme-lab',
         name: 'Acme Lab',
         planId: 'starter'
@@ -54,7 +55,7 @@ const suspendedPlan: AccountDeletionPlan = {
   steps: [
     {
       workspace: {
-        id: 'wrk_paused',
+        id: WorkspaceId.make('wrk_paused'),
         slug: 'paused-lab',
         name: 'Paused Lab',
         planId: 'starter'
@@ -75,7 +76,7 @@ describe('DeleteAccountPanel', () => {
       steps: [
         {
           workspace: {
-            id: 'wrk_billing',
+            id: WorkspaceId.make('wrk_billing'),
             slug: 'billing-lab',
             name: 'Billing Lab',
             planId: 'team'

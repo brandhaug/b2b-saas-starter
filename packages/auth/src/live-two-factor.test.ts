@@ -1,4 +1,5 @@
 // oxlint-disable effect/noGlobals -- Real-clock Better Auth ceremonies require real timestamps, including persisted expiry boundary tests.
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { type DrizzleDatabase } from './ports.ts'
 import {
   user,
@@ -201,7 +202,10 @@ describe('the two-factor challenge hop', () => {
           expect(rotated.passwordVerifiedAt).toBeInstanceOf(Date)
           expect(rotated.strongAuthMethod).toBe('totp')
           const [factor] = yield* Effect.promise(() =>
-            db.select().from(twoFactor).where(eq(twoFactor.userId, signup.userId))
+            db
+              .select()
+              .from(twoFactor)
+              .where(eq(twoFactor.userId, UserId.make(signup.userId)))
           )
           expect(rotated.strongAuthCredentialId).toBe(factor?.id)
           yield* auth.api.changePassword({

@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { type WorkspaceWithMembership } from '@b2b-saas-starter/capabilities/governance/workspace-membership'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
@@ -23,7 +24,7 @@ function deferred<A>() {
 
 const users: ReadonlyArray<SystemUser> = [
   {
-    id: 'usr_dev',
+    id: UserId.make('usr_dev'),
     name: 'Dev Member',
     email: 'dev@starter.local',
     role: 'user',
@@ -32,9 +33,14 @@ const users: ReadonlyArray<SystemUser> = [
 ]
 
 const membership: WorkspaceWithMembership = {
-  workspace: { id: 'wrk_1', slug: 'starter-lab', name: 'Starter Lab', planId: 'free' },
+  workspace: {
+    id: WorkspaceId.make('wrk_1'),
+    slug: 'starter-lab',
+    name: 'Starter Lab',
+    planId: 'free'
+  },
   member: {
-    id: 'usr_dev',
+    id: UserId.make('usr_dev'),
     name: 'Dev Member',
     email: 'dev@starter.local',
     role: 'member',
@@ -66,11 +72,19 @@ describe('AdminUserActions', () => {
 
   it('loads a directly linked user and ignores a late response after history selection changes', async () => {
     const first = deferred<ReadonlyArray<WorkspaceWithMembership>>()
-    const secondUser = { ...users[0]!, id: 'usr_other', name: 'Other User' }
+    const secondUser = {
+      ...users[0]!,
+      id: UserId.make('usr_other'),
+      name: 'Other User'
+    }
     const secondMembership = {
       ...membership,
-      workspace: { ...membership.workspace, id: 'wrk_2', name: 'Other Workspace' },
-      member: { ...membership.member, id: 'usr_other' }
+      workspace: {
+        ...membership.workspace,
+        id: WorkspaceId.make('wrk_2'),
+        name: 'Other Workspace'
+      },
+      member: { ...membership.member, id: UserId.make('usr_other') }
     }
     listWorkspaces.mockImplementation(({ data }) =>
       data.userId === 'usr_dev' ? first.promise : Promise.resolve([secondMembership])
@@ -84,7 +98,9 @@ describe('AdminUserActions', () => {
       { initialEntry: '/?record=usr_dev' }
     )
     await waitFor(() =>
-      expect(listWorkspaces).toHaveBeenCalledWith({ data: { userId: 'usr_dev' } })
+      expect(listWorkspaces).toHaveBeenCalledWith({
+        data: { userId: UserId.make('usr_dev') }
+      })
     )
     await router.navigate({ to: '/', search: { record: 'usr_other' } })
     await screen.findByLabelText('Make admin: Other Workspace')
@@ -104,7 +120,9 @@ describe('AdminUserActions', () => {
     expect(screen.getByLabelText('Make owner: Starter Lab')).not.toBeNull()
     // The role the membership already holds is not offered.
     expect(screen.queryByLabelText('Make member: Starter Lab')).toBeNull()
-    expect(listWorkspaces).toHaveBeenCalledWith({ data: { userId: 'usr_dev' } })
+    expect(listWorkspaces).toHaveBeenCalledWith({
+      data: { userId: UserId.make('usr_dev') }
+    })
   })
 
   it('re-reads the memberships after a role change', async () => {
@@ -113,7 +131,11 @@ describe('AdminUserActions', () => {
     fireEvent.click(await screen.findByLabelText('Make admin: Starter Lab'))
     await waitFor(() => {
       expect(changeUserRole).toHaveBeenCalledWith({
-        data: { userId: 'usr_dev', workspaceId: 'wrk_1', role: 'admin' }
+        data: {
+          userId: UserId.make('usr_dev'),
+          workspaceId: WorkspaceId.make('wrk_1'),
+          role: 'admin'
+        }
       })
     })
     await waitFor(() => {

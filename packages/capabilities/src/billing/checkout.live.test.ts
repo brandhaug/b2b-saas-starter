@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import {
   billingCheckoutClaims,
   billingSynchronization,
@@ -167,7 +168,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('durable checkout', (it) =>
               ),
               provideHttp
             ),
-            { userId: 'usr_owner' }
+            { userId: UserId.make('usr_owner') }
           )
         )
       )
@@ -246,7 +247,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('durable checkout', (it) =>
               ),
               provideHttp
             ),
-            { userId: 'usr_owner' }
+            { userId: UserId.make('usr_owner') }
           )
         )
       )
@@ -461,7 +462,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('durable checkout', (it) =>
             expect(error).toMatchObject({ reason: 'customer_ownership_conflict' })
             expect(fixture.state.portalCreates).toBe(0)
           }),
-          { userId: 'usr_owner' },
+          { userId: UserId.make('usr_owner') },
           { billing: { secretKey, priceIds: { team: 'price_team' } } }
         )
       )
@@ -518,7 +519,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('durable checkout', (it) =>
               )
               expect(error).toMatchObject({ reason: 'multiple_subscriptions' })
             }),
-            { userId: 'usr_owner' },
+            { userId: UserId.make('usr_owner') },
             { billing: { secretKey, priceIds: { team: 'price_team' } } }
           )
           expect(fixture.state.portalCreates).toBe(0)
@@ -598,7 +599,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('durable checkout', (it) =>
             expect(secondSync?.unresolvedSince).toBe(unresolvedSince)
             expect(secondSync?.nextAttemptAt).toBeTruthy()
           }),
-          { userId: 'usr_owner' },
+          { userId: UserId.make('usr_owner') },
           { billing: { secretKey, priceIds: { team: 'price_team' } } }
         )
       )
@@ -621,7 +622,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('durable checkout', (it) =>
             yield* db.insert(workspaceMembers).values({
               id: 'mem_live_joiner_checkout',
               workspaceId,
-              userId: 'usr_joiner',
+              userId: UserId.make('usr_joiner'),
               role: 'member'
             })
             yield* Effect.all(
@@ -669,7 +670,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('durable checkout', (it) =>
               db.insert(workspaceMembers).values({
                 id: 'mem_live_reconcile_joiner',
                 workspaceId,
-                userId: 'usr_joiner',
+                userId: UserId.make('usr_joiner'),
                 role: 'member'
               })
             ],
@@ -691,7 +692,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('durable checkout', (it) =>
           expect(synced.quantity).toBe(2)
           expect(fixture.state.seatQuantities).toEqual([2])
         }),
-        { userId: 'usr_owner' },
+        { userId: UserId.make('usr_owner') },
         { billing: { secretKey, priceIds: { team: 'price_team' } } }
       )
     )

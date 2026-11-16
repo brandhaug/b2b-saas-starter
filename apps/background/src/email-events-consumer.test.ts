@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { EmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery'
 import { SeedEmailDelivery } from '@b2b-saas-starter/email-delivery/email-delivery.seed'
 import { Effect, type Scope } from 'effect'
@@ -61,7 +62,7 @@ function delivery(body: unknown, attempts = 1) {
 
 function withSeed<A>(program: Effect.Effect<A, unknown, EmailDelivery | Scope.Scope>) {
   return program.pipe(
-    Effect.provide(SeedEmailDelivery([{ id: 'usr_1', email: recipient }]))
+    Effect.provide(SeedEmailDelivery([{ id: UserId.make('usr_1'), email: recipient }]))
   )
 }
 
@@ -72,7 +73,7 @@ function seedAccepted() {
       id: 'email_1',
       purpose: 'notification',
       recipient,
-      userId: 'usr_1',
+      userId: UserId.make('usr_1'),
       workspaceId: null
     })
     expect(claim).not.toBeNull()
@@ -168,7 +169,7 @@ describe('processEmailEventMessage', () => {
             id: `email_${type}`,
             purpose: 'notification',
             recipient,
-            userId: 'usr_1',
+            userId: UserId.make('usr_1'),
             workspaceId: null
           })
           expect(claimed).not.toBeNull()
@@ -235,7 +236,7 @@ describe('processEmailEventMessage', () => {
           id: 'email_complaint',
           purpose: 'notification',
           recipient,
-          userId: 'usr_1',
+          userId: UserId.make('usr_1'),
           workspaceId: null
         })
         expect(claim).not.toBeNull()

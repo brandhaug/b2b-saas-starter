@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { RateLimiter } from '@b2b-saas-starter/api'
 import { AssistantConversationsApi } from '@b2b-saas-starter/api/assistant-conversations'
 import { SeedAssistantDirectory } from '@b2b-saas-starter/capabilities/assistant/directory.seed'
@@ -41,8 +42,18 @@ const proof = {
 }
 const initialAuthority: AssistantAuthorityState = {
   context: {
-    workspace: { id: 'wrk_rest', slug: 'rest-lab', name: 'REST lab', planId: 'free' },
-    actor: { userId: 'usr_rest', role: 'member', systemRole: 'user', banned: false },
+    workspace: {
+      id: WorkspaceId.make('wrk_rest'),
+      slug: 'rest-lab',
+      name: 'REST lab',
+      planId: 'free'
+    },
+    actor: {
+      userId: UserId.make('usr_rest'),
+      role: 'member',
+      systemRole: 'user',
+      banned: false
+    },
     actorType: 'user'
   },
   banned: false,
@@ -186,7 +197,7 @@ const fixture = Effect.fn('AssistantRestTest.fixture')(function* () {
     ),
     (active) => Effect.promise(active.dispose)
   )
-  function token(options: { scope?: string; audience?: string; userId?: string } = {}) {
+  function token(options: { scope?: string; audience?: string; userId?: UserId } = {}) {
     return Effect.promise(() =>
       new SignJWT({
         sub: options.userId ?? 'usr_rest',
@@ -326,7 +337,7 @@ describe('private assistant REST', () => {
         )
         expect(
           (yield* client.request(
-            yield* client.token({ userId: 'another-member' }),
+            yield* client.token({ userId: UserId.make('another-member') }),
             'GET',
             path
           )).status

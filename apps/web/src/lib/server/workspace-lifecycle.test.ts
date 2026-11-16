@@ -17,7 +17,10 @@ const creator = vi.hoisted(() => ({ emailVerified: true }))
 vi.mock('./auth', async (importOriginal) => ({
   ...(await importOriginal<typeof AuthModule>()),
   requireRequestSession: async () =>
-    fixtureSession({ userId: 'usr_demo', emailVerified: creator.emailVerified })
+    fixtureSession({
+      userId: 'usr_demo',
+      emailVerified: creator.emailVerified
+    })
 }))
 
 /**

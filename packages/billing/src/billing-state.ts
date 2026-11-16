@@ -1,3 +1,4 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { DateTime } from 'effect'
 import {
   type BillingAccessDecision,
@@ -109,7 +110,7 @@ export function effectivePlanDecision(
 
 /** Event fields never grant access: this receives only a verified provider snapshot. */
 export function resolveBillingState(input: {
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   readonly customerId: string
   readonly subscriptions: ReadonlyArray<StripeSubscriptionResponse>
   readonly hasMore: boolean

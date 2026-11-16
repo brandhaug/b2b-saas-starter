@@ -1,3 +1,4 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Database, type EffectDatabase } from '@b2b-saas-starter/db/service'
 import {
   workspaceInvitations,
@@ -82,7 +83,7 @@ export function LiveWorkspaceInvitations(
        * is exactly what this package refuses to name.
        */
       const readPending = Effect.fn('WorkspaceInvitations.readPending')(function* (
-        workspaceId: string,
+        workspaceId: WorkspaceId,
         email: string
       ) {
         const rows = yield* unavailable(pendingByEmail(db, workspaceId, email).limit(1))
@@ -121,7 +122,7 @@ export function LiveWorkspaceInvitations(
        */
       const requirePendingInWorkspace = Effect.fn(
         'WorkspaceInvitations.requirePendingInWorkspace'
-      )(function* (workspaceId: string, invitationId: string) {
+      )(function* (workspaceId: WorkspaceId, invitationId: string) {
         const rows = yield* unavailable(
           db
             .select()
@@ -311,7 +312,7 @@ export function LiveWorkspaceInvitations(
  * `requireRecipient`. `lower()` on the column is what makes the lookup agree
  * with the acceptance rule (and with the Seed adapter).
  */
-function pendingByEmail(db: EffectDatabase, workspaceId: string, email: string) {
+function pendingByEmail(db: EffectDatabase, workspaceId: WorkspaceId, email: string) {
   return db
     .select()
     .from(workspaceInvitations)

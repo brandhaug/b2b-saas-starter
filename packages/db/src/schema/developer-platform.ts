@@ -4,7 +4,8 @@ import { jsonText } from '../json-column.ts'
 import {
   type ApiTokenId,
   type WebhookEndpointId,
-  type WebhookDeliveryId
+  type WebhookDeliveryId,
+  type UserId
 } from '../ids.ts'
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import {
@@ -35,7 +36,9 @@ export const apiTokens = sqliteTable(
     replacedByTokenId: text('replaced_by_token_id').$type<ApiTokenId>(),
     revokedAt: text('revoked_at'),
     createdAt: isoCreatedAt(),
-    createdByUserId: text('created_by_user_id').references(() => user.id)
+    createdByUserId: text('created_by_user_id')
+      .$type<UserId>()
+      .references(() => user.id)
   },
   (table) => [
     workspaceIdIndex('api_tokens', table.workspaceId),

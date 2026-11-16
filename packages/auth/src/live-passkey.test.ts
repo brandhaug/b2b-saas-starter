@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { type DrizzleDatabase } from './ports.ts'
 import {
   passkey as passkeyTable,
@@ -437,7 +438,10 @@ describe('passkey plugin', () => {
             })
           })
           const prior = yield* Effect.promise(() =>
-            db.select().from(sessionTable).where(eq(sessionTable.userId, signup.userId))
+            db
+              .select()
+              .from(sessionTable)
+              .where(eq(sessionTable.userId, UserId.make(signup.userId)))
           )
           const recovery = prior.find((row) => row.recoveryUntil !== null)
           const authenticator = makeAuthenticator()
@@ -448,7 +452,10 @@ describe('passkey plugin', () => {
             true
           )
           const after = yield* Effect.promise(() =>
-            db.select().from(sessionTable).where(eq(sessionTable.userId, signup.userId))
+            db
+              .select()
+              .from(sessionTable)
+              .where(eq(sessionTable.userId, UserId.make(signup.userId)))
           )
           const created = after.filter(
             (row) => !prior.some((previous) => row.id === previous.id)
@@ -485,7 +492,10 @@ describe('passkey plugin', () => {
             'Key'
           )
           const [registrationSession] = yield* Effect.promise(() =>
-            db.select().from(sessionTable).where(eq(sessionTable.userId, signup.userId))
+            db
+              .select()
+              .from(sessionTable)
+              .where(eq(sessionTable.userId, UserId.make(signup.userId)))
           )
           expect(registrationSession?.strongAuthAt).toBeNull()
           const weak = yield* signInWithPasskey(authenticator, false)
@@ -530,7 +540,10 @@ describe('passkey plugin', () => {
         expect(created.backedUp).toBe(true)
 
         const rows = yield* Effect.promise(() =>
-          db.select().from(passkeyTable).where(eq(passkeyTable.userId, userId))
+          db
+            .select()
+            .from(passkeyTable)
+            .where(eq(passkeyTable.userId, UserId.make(userId)))
         )
         expect(rows).toHaveLength(1)
         expect(rows[0]?.name).toBe('MacBook Touch ID')

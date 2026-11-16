@@ -1,4 +1,9 @@
-import { ApiTokenId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import {
+  ApiTokenId,
+  UserId,
+  WebhookEndpointId,
+  WorkspaceId
+} from '@b2b-saas-starter/db/ids'
 import { assertWithinPlanLimit } from '@b2b-saas-starter/billing/resource-admission'
 import { SeedNotificationFeed } from '../notifications/notification-feed.seed.ts'
 import { SeedNotificationPreferences } from '../notifications/notification-preferences.ts'
@@ -49,7 +54,9 @@ function billingFixture(options?: {
   readonly planId?: string
   readonly subscriptions?: ReadonlyArray<SeedSubscriptionFixture>
   readonly providerSubscriptions?: ReadonlyArray<SeedProviderSubscriptionFixture>
-  readonly providerState?: Ref.Ref<ReadonlyMap<string, SeedProviderSubscriptionFixture>>
+  readonly providerState?: Ref.Ref<
+    ReadonlyMap<WorkspaceId, SeedProviderSubscriptionFixture>
+  >
   readonly memberCount?: number
   readonly failFirstAudit?: boolean
 }) {
@@ -104,7 +111,7 @@ function billingFixture(options?: {
         ),
         auditLayer,
         testWorkspaceContext({
-          id: 'wrk_billing',
+          id: WorkspaceId.make('wrk_billing'),
           slug: 'billing-lab',
           name: 'Billing Lab',
           planId: options?.planId ?? 'team'
@@ -119,7 +126,7 @@ function billingFixture(options?: {
 /** Fixture members with stable ids; only the count matters to the seat tests. */
 function membersFor(count: number): ReadonlyArray<Member> {
   return Array.from({ length: count }, (_, index) => ({
-    id: `usr_seat_${index}`,
+    id: UserId.make(`usr_seat_${index}`),
     name: `Seat ${index}`,
     email: `seat${index}@seed.local`,
     role: 'member',
@@ -274,7 +281,7 @@ describe('seat pricing catalog', () => {
 
 describe('seed billing seat sync', () => {
   const subscription: SeedSubscriptionFixture = {
-    workspaceId: 'wrk_billing',
+    workspaceId: WorkspaceId.make('wrk_billing'),
     customerId: 'cus_seed',
     subscriptionId: 'sub_seed',
     subscriptionItemId: 'si_seed',
@@ -291,7 +298,7 @@ describe('seed billing seat sync', () => {
       const program = Effect.gen(function* () {
         const billing = yield* Billing
         const result = yield* billing.syncSeats({
-          workspaceId: 'wrk_billing',
+          workspaceId: WorkspaceId.make('wrk_billing'),
           reason: 'member_added'
         })
         expect(result).toEqual({ outcome: 'synced', quantity: 4 })
@@ -320,14 +327,17 @@ describe('seed billing seat sync', () => {
       const program = Effect.gen(function* () {
         const billing = yield* Billing
         const failed = yield* Effect.result(
-          billing.syncSeats({ workspaceId: 'wrk_billing', reason: 'member_added' })
+          billing.syncSeats({
+            workspaceId: WorkspaceId.make('wrk_billing'),
+            reason: 'member_added'
+          })
         )
         expect(Result.isFailure(failed)).toBe(true)
 
         // The one-shot audit failure leaves the stored quantity at 2. The
         // retry therefore still performs the mutation and emits its evidence.
         const retried = yield* billing.syncSeats({
-          workspaceId: 'wrk_billing',
+          workspaceId: WorkspaceId.make('wrk_billing'),
           reason: 'member_added'
         })
         expect(retried).toEqual({ outcome: 'synced', quantity: 4 })
@@ -359,7 +369,7 @@ describe('seed billing seat sync', () => {
       const program = Effect.gen(function* () {
         const billing = yield* Billing
         const result = yield* billing.syncSeats({
-          workspaceId: 'wrk_billing',
+          workspaceId: WorkspaceId.make('wrk_billing'),
           reason: 'member_added'
         })
         expect(result).toEqual({ outcome: 'synced', quantity: 4 })
@@ -385,7 +395,7 @@ describe('seed billing seat sync', () => {
       const program = Effect.gen(function* () {
         const billing = yield* Billing
         const result = yield* billing.syncSeats({
-          workspaceId: 'wrk_billing',
+          workspaceId: WorkspaceId.make('wrk_billing'),
           reason: 'member_added'
         })
         expect(result).toEqual({ outcome: 'quantity_unchanged', quantity: 4 })
@@ -403,7 +413,7 @@ describe('seed billing seat sync', () => {
     Effect.gen(function* () {
       const billing = yield* Billing
       const result = yield* billing.syncSeats({
-        workspaceId: 'wrk_billing',
+        workspaceId: WorkspaceId.make('wrk_billing'),
         reason: 'member_added'
       })
       expect(result).toEqual({ outcome: 'no_subscription', quantity: null })
@@ -414,7 +424,7 @@ describe('seed billing seat sync', () => {
     Effect.gen(function* () {
       const billing = yield* Billing
       const result = yield* billing.syncSeats({
-        workspaceId: 'wrk_billing',
+        workspaceId: WorkspaceId.make('wrk_billing'),
         reason: 'member_added'
       })
       expect(result).toEqual({ outcome: 'no_seat_item', quantity: null })
@@ -432,7 +442,7 @@ describe('seed billing seat sync', () => {
     Effect.gen(function* () {
       const billing = yield* Billing
       const result = yield* billing.syncSeats({
-        workspaceId: 'wrk_billing',
+        workspaceId: WorkspaceId.make('wrk_billing'),
         reason: 'member_added'
       })
       expect(result).toEqual({ outcome: 'provider_not_configured', quantity: null })
@@ -451,7 +461,7 @@ describe('seed billing reconciliation and checkout claims', () => {
       () =>
         Effect.gen(function* () {
           const provider: SeedProviderSubscriptionFixture = {
-            workspaceId: 'wrk_billing',
+            workspaceId: WorkspaceId.make('wrk_billing'),
             customerId: 'cus_seed',
             subscriptionId: 'sub_seed',
             subscriptionItemId: 'si_seed',
@@ -464,11 +474,13 @@ describe('seed billing reconciliation and checkout claims', () => {
             }
           }
           const providerState = yield* Ref.make<
-            ReadonlyMap<string, SeedProviderSubscriptionFixture>
-          >(new Map([['wrk_billing', provider]]))
+            ReadonlyMap<WorkspaceId, SeedProviderSubscriptionFixture>
+          >(new Map([[WorkspaceId.make('wrk_billing'), provider]]))
           yield* Effect.gen(function* () {
             const billing = yield* Billing
-            yield* billing.reconcileWorkspace({ workspaceId: 'wrk_billing' })
+            yield* billing.reconcileWorkspace({
+              workspaceId: WorkspaceId.make('wrk_billing')
+            })
             const verified = yield* billing.synchronizationStatus
             expect(verified.status).toBe('current')
             expect(verified.lastSyncedAt).not.toBeNull()
@@ -476,7 +488,7 @@ describe('seed billing reconciliation and checkout claims', () => {
             const event = {
               providerEventId: `evt_seed_missing_${delivery}`,
               eventType: 'customer.subscription.updated',
-              workspaceId: 'wrk_billing'
+              workspaceId: WorkspaceId.make('wrk_billing')
             }
             if (delivery === 'receipt') {
               yield* billing.recordProviderEvent(event)
@@ -493,7 +505,10 @@ describe('seed billing reconciliation and checkout claims', () => {
               lastSyncedAt: verified.lastSyncedAt
             })
             expect((yield* billing.currentPlan).id).toBe('team')
-            yield* Ref.set(providerState, new Map([['wrk_billing', provider]]))
+            yield* Ref.set(
+              providerState,
+              new Map([[WorkspaceId.make('wrk_billing'), provider]])
+            )
             if (delivery === 'receipt') {
               yield* billing.reconcileBatch({ limit: 1 })
             } else {
@@ -520,7 +535,7 @@ describe('seed billing reconciliation and checkout claims', () => {
       yield* billing.recordProviderEvent({
         providerEventId: 'evt_seed_receipt',
         eventType: 'customer.subscription.updated',
-        workspaceId: 'wrk_billing',
+        workspaceId: WorkspaceId.make('wrk_billing'),
         subscription: { customerId: 'cus_seed', subscriptionId: 'sub_seed' }
       })
       yield* billing.reconcileBatch({ limit: 1 })
@@ -528,19 +543,19 @@ describe('seed billing reconciliation and checkout claims', () => {
       const duplicate = yield* billing.processProviderEvent({
         providerEventId: 'evt_seed_receipt',
         eventType: 'customer.subscription.updated',
-        workspaceId: 'wrk_billing'
+        workspaceId: WorkspaceId.make('wrk_billing')
       })
       expect(duplicate.outcome).toBe('duplicate')
       yield* billing.recordProviderEvent({
         providerEventId: 'evt_seed_receipt',
         eventType: 'customer.subscription.updated',
-        workspaceId: 'wrk_billing'
+        workspaceId: WorkspaceId.make('wrk_billing')
       })
       yield* billing.reconcileBatch({ limit: 1 })
       const stillDuplicate = yield* billing.processProviderEvent({
         providerEventId: 'evt_seed_receipt',
         eventType: 'customer.subscription.updated',
-        workspaceId: 'wrk_billing'
+        workspaceId: WorkspaceId.make('wrk_billing')
       })
       expect(stillDuplicate.outcome).toBe('duplicate')
     }).pipe(
@@ -550,7 +565,7 @@ describe('seed billing reconciliation and checkout claims', () => {
           planId: 'starter',
           providerSubscriptions: [
             {
-              workspaceId: 'wrk_billing',
+              workspaceId: WorkspaceId.make('wrk_billing'),
               customerId: 'cus_seed',
               subscriptionId: 'sub_seed',
               subscriptionItemId: 'si_seed',
@@ -570,7 +585,7 @@ describe('seed billing reconciliation and checkout claims', () => {
       const result = yield* billing.processProviderEvent({
         providerEventId: 'evt_seed_authority',
         eventType: 'customer.subscription.deleted',
-        workspaceId: 'wrk_billing',
+        workspaceId: WorkspaceId.make('wrk_billing'),
         planId: 'starter',
         subscription: { deleted: true }
       })
@@ -579,7 +594,7 @@ describe('seed billing reconciliation and checkout claims', () => {
       const duplicate = yield* billing.processProviderEvent({
         providerEventId: 'evt_seed_authority',
         eventType: 'customer.subscription.deleted',
-        workspaceId: 'wrk_billing',
+        workspaceId: WorkspaceId.make('wrk_billing'),
         planId: 'starter'
       })
       expect(duplicate.outcome).toBe('duplicate')
@@ -590,7 +605,7 @@ describe('seed billing reconciliation and checkout claims', () => {
           planId: 'team',
           providerSubscriptions: [
             {
-              workspaceId: 'wrk_billing',
+              workspaceId: WorkspaceId.make('wrk_billing'),
               customerId: 'cus_seed',
               subscriptionId: 'sub_seed',
               subscriptionItemId: 'si_seed',
@@ -607,7 +622,9 @@ describe('seed billing reconciliation and checkout claims', () => {
   it.effect('records verified incomplete provider state without paid access', () =>
     Effect.gen(function* () {
       const billing = yield* Billing
-      const result = yield* billing.reconcileWorkspace({ workspaceId: 'wrk_billing' })
+      const result = yield* billing.reconcileWorkspace({
+        workspaceId: WorkspaceId.make('wrk_billing')
+      })
       expect(result.outcome).toBe('repaired')
       expect((yield* billing.synchronizationStatus).status).toBe('current')
       expect((yield* billing.currentPlan).id).toBe('starter')
@@ -618,7 +635,7 @@ describe('seed billing reconciliation and checkout claims', () => {
           planId: 'team',
           subscriptions: [
             {
-              workspaceId: 'wrk_billing',
+              workspaceId: WorkspaceId.make('wrk_billing'),
               customerId: 'cus_seed',
               subscriptionId: 'sub_seed',
               subscriptionItemId: 'si_seed',
@@ -627,7 +644,7 @@ describe('seed billing reconciliation and checkout claims', () => {
           ],
           providerSubscriptions: [
             {
-              workspaceId: 'wrk_billing',
+              workspaceId: WorkspaceId.make('wrk_billing'),
               customerId: 'cus_seed',
               subscriptionId: 'sub_seed',
               subscriptionItemId: 'si_seed',
@@ -648,7 +665,7 @@ describe('seed billing reconciliation and checkout claims', () => {
         billing.processProviderEvent({
           providerEventId: 'evt_seed_unconfigured',
           eventType: 'customer.subscription.updated',
-          workspaceId: 'wrk_billing'
+          workspaceId: WorkspaceId.make('wrk_billing')
         })
       )
       expect(Result.isFailure(result)).toBe(true)
@@ -658,7 +675,7 @@ describe('seed billing reconciliation and checkout claims', () => {
         billingFixture({
           subscriptions: [
             {
-              workspaceId: 'wrk_billing',
+              workspaceId: WorkspaceId.make('wrk_billing'),
               customerId: 'cus_seed',
               subscriptionId: 'sub_seed',
               subscriptionItemId: 'si_seed',
@@ -667,7 +684,7 @@ describe('seed billing reconciliation and checkout claims', () => {
           ],
           providerSubscriptions: [
             {
-              workspaceId: 'wrk_billing',
+              workspaceId: WorkspaceId.make('wrk_billing'),
               customerId: 'cus_seed',
               subscriptionId: 'sub_seed',
               subscriptionItemId: 'si_seed',
@@ -743,7 +760,7 @@ describe('seed billing reconciliation and checkout claims', () => {
           stripeConfigured: true,
           subscriptions: [
             {
-              workspaceId: 'wrk_billing',
+              workspaceId: WorkspaceId.make('wrk_billing'),
               customerId: 'cus_seed',
               subscriptionId: 'sub_seed',
               subscriptionItemId: 'si_seed',
@@ -752,7 +769,7 @@ describe('seed billing reconciliation and checkout claims', () => {
           ],
           providerSubscriptions: [
             {
-              workspaceId: 'wrk_billing',
+              workspaceId: WorkspaceId.make('wrk_billing'),
               customerId: 'cus_seed',
               subscriptionId: 'sub_seed',
               subscriptionItemId: 'si_seed',
@@ -778,9 +795,11 @@ describe('seed billing reconciliation and checkout claims', () => {
   it.effect('reconciles provider seats and plan from the authoritative fixture', () =>
     Effect.gen(function* () {
       const billing = yield* Billing
-      const result = yield* billing.reconcileWorkspace({ workspaceId: 'wrk_billing' })
+      const result = yield* billing.reconcileWorkspace({
+        workspaceId: WorkspaceId.make('wrk_billing')
+      })
       expect(result).toEqual({
-        workspaceId: 'wrk_billing',
+        workspaceId: WorkspaceId.make('wrk_billing'),
         outcome: 'repaired',
         drift: ['seat_quantity', 'subscription']
       })
@@ -793,7 +812,7 @@ describe('seed billing reconciliation and checkout claims', () => {
           planId: 'team',
           subscriptions: [
             {
-              workspaceId: 'wrk_billing',
+              workspaceId: WorkspaceId.make('wrk_billing'),
               customerId: 'cus_seed',
               subscriptionId: 'sub_old',
               subscriptionItemId: 'si_old',
@@ -802,7 +821,7 @@ describe('seed billing reconciliation and checkout claims', () => {
           ],
           providerSubscriptions: [
             {
-              workspaceId: 'wrk_billing',
+              workspaceId: WorkspaceId.make('wrk_billing'),
               customerId: 'cus_seed',
               subscriptionId: 'sub_new',
               subscriptionItemId: 'si_new',
@@ -819,7 +838,9 @@ describe('seed billing reconciliation and checkout claims', () => {
   it.effect('reconciles cancellation while retaining the customer profile', () =>
     Effect.gen(function* () {
       const billing = yield* Billing
-      const result = yield* billing.reconcileWorkspace({ workspaceId: 'wrk_billing' })
+      const result = yield* billing.reconcileWorkspace({
+        workspaceId: WorkspaceId.make('wrk_billing')
+      })
       expect(result.outcome).toBe('repaired')
       expect(result.drift).toEqual(['plan', 'seat_quantity', 'subscription'])
       expect((yield* billing.currentPlan).id).toBe('starter')
@@ -834,7 +855,7 @@ describe('seed billing reconciliation and checkout claims', () => {
           planId: 'team',
           subscriptions: [
             {
-              workspaceId: 'wrk_billing',
+              workspaceId: WorkspaceId.make('wrk_billing'),
               customerId: 'cus_seed',
               subscriptionId: 'sub_old',
               subscriptionItemId: 'si_old',
@@ -843,7 +864,7 @@ describe('seed billing reconciliation and checkout claims', () => {
           ],
           providerSubscriptions: [
             {
-              workspaceId: 'wrk_billing',
+              workspaceId: WorkspaceId.make('wrk_billing'),
               customerId: 'cus_seed',
               subscriptionId: 'sub_old',
               subscriptionItemId: 'si_old',
@@ -865,7 +886,7 @@ describe('seed billing portal', () => {
         stripeConfigured: true,
         subscriptions: [
           {
-            workspaceId: 'wrk_billing',
+            workspaceId: WorkspaceId.make('wrk_billing'),
             customerId: 'cus_seed',
             seatQuantity: 4
           }

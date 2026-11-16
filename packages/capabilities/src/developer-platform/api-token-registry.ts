@@ -1,4 +1,4 @@
-import { ApiTokenId } from '@b2b-saas-starter/db/ids'
+import { ApiTokenId, type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { apiTokenScopes } from '@b2b-saas-starter/db/enums'
 import { Context, DateTime, Schema, type Effect } from 'effect'
 
@@ -42,7 +42,7 @@ export type ApiToken = typeof ApiToken.Type
 
 type VerifiedApiToken = {
   readonly id: string
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   readonly workspaceSlug: string
   readonly scopes: ReadonlyArray<ApiTokenScope>
 }

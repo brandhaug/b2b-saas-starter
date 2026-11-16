@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import {
   ASSISTANT_READ_SCOPE,
   ASSISTANT_WRITE_SCOPE
@@ -94,6 +95,9 @@ export function mcpWorkspaceNeedsSelection(input: {
 export function mcpWorkspaceReferenceId(input: {
   readonly session: SessionWithActiveWorkspace | undefined
 }): string {
+  // `activeOrganizationId` stays an unbranded plugin string: it only becomes
+  // the consent's `referenceId` inside the plugin, and every read of that
+  // column (here and in capabilities) is typed `WorkspaceId` by the schema.
   const workspaceId = input.session?.activeOrganizationId
   if (!workspaceId) {
     // oxlint-disable-next-line effect/noThrowStatement -- Better Auth's option callbacks signal failure by throwing its APIError; there is no Effect channel here
@@ -130,6 +134,8 @@ export async function mcpWorkspaceAccessTokenClaims(
       error_description: 'MCP access tokens are issued for one workspace'
     })
   }
+  const userId = UserId.make(input.userId)
+  const workspaceId = WorkspaceId.make(input.referenceId)
   // oxlint-disable-next-line effect/noAsyncFunction -- see the module doc: no Effect runtime reaches this callback
   const rows = await db
     .select({
@@ -153,8 +159,8 @@ export async function mcpWorkspaceAccessTokenClaims(
     )
     .where(
       and(
-        eq(workspaceMembers.workspaceId, input.referenceId),
-        eq(workspaceMembers.userId, input.userId)
+        eq(workspaceMembers.workspaceId, workspaceId),
+        eq(workspaceMembers.userId, userId)
       )
     )
     .limit(1)
@@ -203,7 +209,7 @@ export async function mcpWorkspaceAccessTokenClaims(
       .where(
         and(
           eq(assistantSessionAuthority.sessionId, sessionId),
-          eq(assistantSessionAuthority.userId, input.userId)
+          eq(assistantSessionAuthority.userId, userId)
         )
       )
       .limit(1)

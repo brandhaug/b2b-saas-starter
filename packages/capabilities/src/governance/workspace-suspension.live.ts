@@ -1,3 +1,4 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { AssistantDirectory } from '../assistant/directory.ts'
 import { user } from '@b2b-saas-starter/db/schema/auth'
 import { workspaces } from '@b2b-saas-starter/db/schema/workspaces'
@@ -51,7 +52,9 @@ export const LiveWorkspaceSuspension: Layer.Layer<
       unavailable
     })
 
-    const get = Effect.fn('WorkspaceSuspension.get')(function* (workspaceId: string) {
+    const get = Effect.fn('WorkspaceSuspension.get')(function* (
+      workspaceId: WorkspaceId
+    ) {
       const rows = yield* unavailable(
         db.select().from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1)
       )

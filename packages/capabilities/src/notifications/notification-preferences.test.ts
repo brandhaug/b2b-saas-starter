@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { notificationKinds } from '@b2b-saas-starter/db/enums'
 import { Effect, Layer } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
@@ -63,25 +64,35 @@ describe('seed notification preferences', () => {
   it.effect('reads the demo owner’s mix and defaults for everyone else', () =>
     Effect.gen(function* () {
       const preferences = yield* NotificationPreferences
-      expect(yield* preferences.resolve('usr_demo', 'api_token.created')).toBe('digest')
-      expect(yield* preferences.resolve('usr_demo', 'webhook.delivery_failed')).toBe(
-        'instant'
+      expect(
+        yield* preferences.resolve(UserId.make('usr_demo'), 'api_token.created')
+      ).toBe('digest')
+      expect(
+        yield* preferences.resolve(UserId.make('usr_demo'), 'webhook.delivery_failed')
+      ).toBe('instant')
+      expect(yield* preferences.resolve(UserId.make('usr_demo'), 'announcement')).toBe(
+        'off'
       )
-      expect(yield* preferences.resolve('usr_demo', 'announcement')).toBe('off')
-      expect(yield* preferences.resolve('usr_demo', 'api_token.revoked')).toBe(
-        'instant'
+      expect(
+        yield* preferences.resolve(UserId.make('usr_demo'), 'api_token.revoked')
+      ).toBe('instant')
+      expect(
+        yield* preferences.resolve(UserId.make('usr_dev'), 'api_token.created')
+      ).toBe('instant')
+      expect(yield* preferences.resolve(UserId.make('usr_dev'), 'announcement')).toBe(
+        'digest'
       )
-      expect(yield* preferences.resolve('usr_dev', 'api_token.created')).toBe('instant')
-      expect(yield* preferences.resolve('usr_dev', 'announcement')).toBe('digest')
     }).pipe(Effect.provide(layer))
   )
 
   it.effect('resolves one kind for many users, defaults included', () =>
     Effect.gen(function* () {
       const preferences = yield* NotificationPreferences
-      const strangers = Array.from({ length: 150 }, (_, index) => `usr_none_${index}`)
+      const strangers = Array.from({ length: 150 }, (_, index) =>
+        UserId.make(`usr_none_${index}`)
+      )
       const channels = yield* preferences.resolveForUsers(
-        ['usr_demo', 'usr_dev', ...strangers],
+        [UserId.make('usr_demo'), UserId.make('usr_dev'), ...strangers],
         'webhook.delivery_failed'
       )
       expect(channels.size).toBe(152)
@@ -95,7 +106,7 @@ describe('seed notification preferences', () => {
     Effect.gen(function* () {
       const preferences = yield* NotificationPreferences
       const set = yield* preferences.set({
-        userId: 'usr_dev',
+        userId: UserId.make('usr_dev'),
         kind: 'webhook.delivery_failed',
         channel: 'off'
       })
@@ -104,10 +115,10 @@ describe('seed notification preferences', () => {
         channel: 'off',
         isDefault: false
       })
-      expect(yield* preferences.resolve('usr_dev', 'webhook.delivery_failed')).toBe(
-        'off'
-      )
-      const listed = yield* preferences.list('usr_dev')
+      expect(
+        yield* preferences.resolve(UserId.make('usr_dev'), 'webhook.delivery_failed')
+      ).toBe('off')
+      const listed = yield* preferences.list(UserId.make('usr_dev'))
       expect(
         listed.filter((entry) => !entry.isDefault).map((entry) => entry.kind)
       ).toEqual(['webhook.delivery_failed'])

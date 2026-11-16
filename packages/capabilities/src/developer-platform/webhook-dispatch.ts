@@ -1,6 +1,7 @@
 import {
   type WebhookDeliveryId,
-  type WebhookEndpointId
+  type WebhookEndpointId,
+  type WorkspaceId
 } from '@b2b-saas-starter/db/ids'
 import { Context, type Effect, type Redacted } from 'effect'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -42,7 +43,7 @@ type WebhookDispatchInterface = {
   readonly isDeliverySettled: (input: {
     readonly deliveryId: WebhookDeliveryId
     readonly endpointId: WebhookEndpointId
-    readonly workspaceId: string
+    readonly workspaceId: WorkspaceId
   }) => Effect.Effect<boolean, CapabilityUnavailable>
 
   /**
@@ -54,7 +55,7 @@ type WebhookDispatchInterface = {
    */
   readonly getDispatchTarget: (
     endpointId: WebhookEndpointId,
-    workspaceId: string,
+    workspaceId: WorkspaceId,
     /** Queue execution supplies the producer-stamped delivery identity. */
     deliveryId: WebhookDeliveryId
   ) => Effect.Effect<WebhookDispatchTarget | null, CapabilityUnavailable>
@@ -71,7 +72,7 @@ type WebhookDispatchInterface = {
   readonly recordTerminalDeliveryAttempt: (input: {
     readonly deliveryId: WebhookDeliveryId
     readonly endpointId: WebhookEndpointId
-    readonly workspaceId: string
+    readonly workspaceId: WorkspaceId
     readonly eventType: string
     readonly attempts: number
     readonly status: 'failed_permanent' | 'dead_lettered'

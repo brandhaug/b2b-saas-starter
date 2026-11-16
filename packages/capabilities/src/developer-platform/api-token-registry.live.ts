@@ -1,4 +1,4 @@
-import { ApiTokenId } from '@b2b-saas-starter/db/ids'
+import { ApiTokenId, type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { prepareTokenSelectionRotation } from '@b2b-saas-starter/billing/resource-entitlements.live'
 import {
   WorkspaceContext as BillingWorkspaceContext,
@@ -46,7 +46,7 @@ const unavailable = orUnavailable('api-token-registry')
  * revoke's pre-check and write share it, and list drops the id condition by
  * omitting `tokenId`.
  */
-function activeTokenWhere(tokenId: ApiTokenId | undefined, workspaceId: string) {
+function activeTokenWhere(tokenId: ApiTokenId | undefined, workspaceId: WorkspaceId) {
   const conditions = [
     eq(apiTokens.workspaceId, workspaceId),
     isNull(apiTokens.revokedAt)

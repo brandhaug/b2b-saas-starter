@@ -1,3 +1,4 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import {
   billingStoreUnavailable,
   type SubscriptionState,
@@ -97,7 +98,7 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
     const unavailable = billingStoreUnavailable
 
     const members = Effect.fn('Billing.countBillableMembers')(function* (
-      workspaceId: string
+      workspaceId: WorkspaceId
     ) {
       const rows = yield* unavailable(
         db
@@ -132,7 +133,7 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
      * and `recovery` instead.
      */
     const synchronizeWorkspace = Effect.fn('Billing.synchronizeWorkspace')(function* (
-      workspaceId: string,
+      workspaceId: WorkspaceId,
       input: ProcessProviderEventInput | undefined,
       reason: string | undefined,
       recovery: ReconcileWorkspaceInput['recovery']

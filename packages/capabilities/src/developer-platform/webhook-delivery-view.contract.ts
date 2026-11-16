@@ -1,4 +1,8 @@
-import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import {
+  WebhookDeliveryId,
+  WebhookEndpointId,
+  WorkspaceId
+} from '@b2b-saas-starter/db/ids'
 import { Effect } from 'effect'
 import { type ContractExpect } from '../governance/contract-expect.ts'
 import { walkKeysetPages } from '../internal/keyset-cursor.ts'
@@ -13,14 +17,14 @@ import {
 export const deliveryViewEndpoints = [
   {
     id: WebhookEndpointId.make('wh_admin_a'),
-    workspaceId: 'wrk_live',
+    workspaceId: WorkspaceId.make('wrk_live'),
     url: 'https://example.com/a',
     enabled: true,
     events: ['demo.event']
   },
   {
     id: WebhookEndpointId.make('wh_admin_b'),
-    workspaceId: 'wrk_other',
+    workspaceId: WorkspaceId.make('wrk_other'),
     url: 'https://example.com/b',
     enabled: true,
     events: ['demo.event']
@@ -29,8 +33,18 @@ export const deliveryViewEndpoints = [
 
 /** The Seed workspace records; the Live harness already holds both. */
 export const deliveryViewWorkspaces = [
-  { id: 'wrk_live', slug: 'live-lab', name: 'Live Lab', planId: 'team' },
-  { id: 'wrk_other', slug: 'other-lab', name: 'Other Lab', planId: 'team' }
+  {
+    id: WorkspaceId.make('wrk_live'),
+    slug: 'live-lab',
+    name: 'Live Lab',
+    planId: 'team'
+  },
+  {
+    id: WorkspaceId.make('wrk_other'),
+    slug: 'other-lab',
+    name: 'Other Lab',
+    planId: 'team'
+  }
 ]
 
 /**

@@ -1,3 +1,4 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { billingNotices } from '@b2b-saas-starter/db/schema/billing'
 import { workspaceMembers } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database, type BatchStatement } from '@b2b-saas-starter/db/service'
@@ -12,7 +13,7 @@ export const makeBillingNotices = Effect.fn('Billing.makeNotices')(function* () 
   const audit = yield* AuditEventLog
   const feed = yield* NotificationFeed
   const prepare = Effect.fn('Billing.prepareNotices')(function* (
-    workspaceId: string,
+    workspaceId: WorkspaceId,
     previous: SubscriptionState | null,
     next: SubscriptionState,
     now: string
@@ -55,7 +56,9 @@ export const makeBillingNotices = Effect.fn('Billing.makeNotices')(function* () 
     }
     return statements
   })
-  const deliver = Effect.fn('Billing.deliverNotices')(function* (workspaceId: string) {
+  const deliver = Effect.fn('Billing.deliverNotices')(function* (
+    workspaceId: WorkspaceId
+  ) {
     const [pending, recipients] = yield* Effect.all(
       [
         billingStoreUnavailable(

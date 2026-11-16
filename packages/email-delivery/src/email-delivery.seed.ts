@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { Effect, Layer } from 'effect'
 import { EmailDelivery } from './email-delivery.ts'
 import {
@@ -7,7 +8,7 @@ import {
 } from './email-delivery.internal.ts'
 
 export function SeedEmailDelivery(
-  users: ReadonlyArray<{ readonly id: string; readonly email: string }> = []
+  users: ReadonlyArray<{ readonly id: UserId; readonly email: string }> = []
 ) {
   return Layer.sync(EmailDelivery, () => {
     const rows = new Map<string, StoredDelivery>()

@@ -1,3 +1,4 @@
+import { type UserId, type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import {
   AssistantConversationLifecycle,
   type ConversationExportManifest
@@ -32,7 +33,7 @@ import { iso } from '../internal/timestamps.ts'
  * empty, exactly as Live does for a user with no rows.
  */
 export type SeedPersonalAccountArtifacts = {
-  readonly userId: string
+  readonly userId: UserId
   readonly sessions: PersonalDataExport['sessions']
   readonly linkedAccounts: PersonalDataExport['linkedAccounts']
   readonly oauthClients: PersonalDataExport['oauthClients']
@@ -57,9 +58,9 @@ export function SeedPersonalDataExports(
    * cross-workspace notification came from.
    */
   seedNotifications: ReadonlyArray<
-    SeedNotification & { readonly workspaceId?: string }
+    SeedNotification & { readonly workspaceId?: WorkspaceId }
   >,
-  defaultWorkspaceId: string,
+  defaultWorkspaceId: WorkspaceId,
   accountArtifacts: ReadonlyArray<SeedPersonalAccountArtifacts> = []
 ): Layer.Layer<
   PersonalDataExports,
@@ -74,7 +75,7 @@ export function SeedPersonalDataExports(
   const rows = new Map<
     string,
     {
-      userId: string
+      userId: UserId
       sessionId: string
       expiresAt: number
       json: string
@@ -89,7 +90,7 @@ export function SeedPersonalDataExports(
       const delivery = yield* EmailDelivery
       const audit = yield* AuditEventLog
       const conversations = yield* AssistantConversationLifecycle
-      function collect(userId: string) {
+      function collect(userId: UserId) {
         return Effect.gen(function* () {
           const profile = profiles.find((candidate) => candidate.id === userId)
           if (profile === undefined) {
@@ -115,7 +116,7 @@ export function SeedPersonalDataExports(
             notificationPreferences,
             emailDeliveries: yield* delivery.listForUser(userId, { complete: true }),
             notifications: seedNotifications.reduce<
-              Array<Notification & { workspaceId: string | null }>
+              Array<Notification & { workspaceId: WorkspaceId | null }>
             >((items, row) => {
               if (row.userId === userId) {
                 items.push({

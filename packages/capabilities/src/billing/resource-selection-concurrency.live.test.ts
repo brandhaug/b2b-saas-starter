@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { WorkspaceContext, testResolvedWorkspaceContext } from '../workspace-context.ts'
 import { Array, Effect, Layer, Redacted } from 'effect'
 import { expect, layer } from '@effect/vitest'
@@ -74,7 +75,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               new Set([b.id, c.id])
             )
           }).pipe(Effect.provide(BillingAuditLayer)),
-          { userId: 'usr_owner' }
+          { userId: UserId.make('usr_owner') }
         )
     )
 
@@ -131,7 +132,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             yield* db
               .update(workspaces)
               .set({ planId: 'starter' })
-              .where(eq(workspaces.id, 'wrk_dev_contract'))
+              .where(eq(workspaces.id, WorkspaceId.make('wrk_dev_contract')))
             yield* tokens.verifyBearerToken(Redacted.value(replacement.token))
             yield* tokens.verifyBearerToken(Redacted.value(c.token))
             expect(
@@ -142,7 +143,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               new Set([replacement.id, c.id])
             )
           }).pipe(Effect.provide(BillingAuditLayer)),
-          { userId: 'usr_owner' }
+          { userId: UserId.make('usr_owner') }
         )
     )
   }

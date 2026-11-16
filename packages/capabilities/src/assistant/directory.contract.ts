@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { TestClock } from 'effect/testing'
 import { Clock, Effect, Result } from 'effect'
@@ -12,13 +13,21 @@ export function assistantDirectoryContractCases(expect: ContractExpect) {
       assert: Effect.gen(function* () {
         const directory = yield* AssistantDirectory
         for (const identity of [
-          { id: 'run-target', workspaceId: 'workspace', creatorUserId: 'owner' },
+          {
+            id: 'run-target',
+            workspaceId: WorkspaceId.make('workspace'),
+            creatorUserId: UserId.make('owner')
+          },
           {
             id: 'run-other-workspace',
-            workspaceId: 'concurrent',
-            creatorUserId: 'owner'
+            workspaceId: WorkspaceId.make('concurrent'),
+            creatorUserId: UserId.make('owner')
           },
-          { id: 'run-other-member', workspaceId: 'workspace', creatorUserId: 'other' }
+          {
+            id: 'run-other-member',
+            workspaceId: WorkspaceId.make('workspace'),
+            creatorUserId: UserId.make('other')
+          }
         ]) {
           yield* directory.create(identity)
         }
@@ -27,7 +36,10 @@ export function assistantDirectoryContractCases(expect: ContractExpect) {
         expect((yield* directory.get('run-target'))?.runAccessRevision).toBe(0)
         for (const expectedRevision of [1, 2]) {
           yield* directory.invalidateAccess(
-            { workspaceId: 'workspace', creatorUserId: 'owner' },
+            {
+              workspaceId: WorkspaceId.make('workspace'),
+              creatorUserId: UserId.make('owner')
+            },
             { interruptRuns: true }
           )
           expect((yield* directory.get('run-target'))?.runAccessRevision).toBe(
@@ -37,7 +49,7 @@ export function assistantDirectoryContractCases(expect: ContractExpect) {
         expect((yield* directory.get('run-other-workspace'))?.runAccessRevision).toBe(0)
         expect((yield* directory.get('run-other-member'))?.runAccessRevision).toBe(0)
         yield* directory.invalidateAccess(
-          { workspaceId: 'workspace' },
+          { workspaceId: WorkspaceId.make('workspace') },
           { interruptRuns: true }
         )
         expect((yield* directory.get('run-other-member'))?.runAccessRevision).toBe(1)
@@ -56,32 +68,34 @@ export function assistantDirectoryContractCases(expect: ContractExpect) {
         for (const id of ['directory-a', 'directory-b', 'directory-c']) {
           yield* directory.create({
             id,
-            workspaceId: 'workspace',
-            creatorUserId: 'owner'
+            workspaceId: WorkspaceId.make('workspace'),
+            creatorUserId: UserId.make('owner')
           })
         }
         yield* directory.create({
           id: 'directory-other',
-          workspaceId: 'workspace',
-          creatorUserId: 'other'
+          workspaceId: WorkspaceId.make('workspace'),
+          creatorUserId: UserId.make('other')
         })
         const page = yield* directory.list({
-          workspaceId: 'workspace',
-          creatorUserId: 'owner',
+          workspaceId: WorkspaceId.make('workspace'),
+          creatorUserId: UserId.make('owner'),
           limit: 2
         })
         expect(page.items).toHaveLength(2)
         const next = yield* directory.list({
-          workspaceId: 'workspace',
-          creatorUserId: 'owner',
+          workspaceId: WorkspaceId.make('workspace'),
+          creatorUserId: UserId.make('owner'),
           limit: 2,
           cursor: page.nextCursor ?? undefined
         })
         expect(next.items).toHaveLength(1)
-        yield* directory.fence({ creatorUserId: 'owner' })
+        yield* directory.fence({ creatorUserId: UserId.make('owner') })
         expect(
-          (yield* directory.list({ workspaceId: 'workspace', creatorUserId: 'owner' }))
-            .items
+          (yield* directory.list({
+            workspaceId: WorkspaceId.make('workspace'),
+            creatorUserId: UserId.make('owner')
+          })).items
         ).toHaveLength(0)
         expect(yield* directory.pendingCleanup()).toHaveLength(3)
         yield* directory.completeCleanup('directory-a')
@@ -90,14 +104,16 @@ export function assistantDirectoryContractCases(expect: ContractExpect) {
           (yield* directory
             .create({
               id: 'directory-a',
-              workspaceId: 'workspace',
-              creatorUserId: 'owner'
+              workspaceId: WorkspaceId.make('workspace'),
+              creatorUserId: UserId.make('owner')
             })
             .pipe(Effect.result))._tag
         ).toBe('Failure')
         expect(
-          (yield* directory.list({ workspaceId: 'workspace', creatorUserId: 'other' }))
-            .items
+          (yield* directory.list({
+            workspaceId: WorkspaceId.make('workspace'),
+            creatorUserId: UserId.make('other')
+          })).items
         ).toHaveLength(1)
       })
     },
@@ -107,8 +123,8 @@ export function assistantDirectoryContractCases(expect: ContractExpect) {
         const directory = yield* AssistantDirectory
         yield* directory.create({
           id: 'tombstone-once',
-          workspaceId: 'workspace',
-          creatorUserId: 'other'
+          workspaceId: WorkspaceId.make('workspace'),
+          creatorUserId: UserId.make('other')
         })
         yield* directory.fence({ conversationId: 'tombstone-once' })
         const fenced = yield* directory.get('tombstone-once')
@@ -133,8 +149,8 @@ export function assistantDirectoryContractCases(expect: ContractExpect) {
         const directory = yield* AssistantDirectory
         yield* directory.create({
           id: 'policy',
-          workspaceId: 'workspace',
-          creatorUserId: 'owner'
+          workspaceId: WorkspaceId.make('workspace'),
+          creatorUserId: UserId.make('owner')
         })
         yield* Effect.all(
           [
@@ -163,15 +179,15 @@ export function assistantDirectoryContractCases(expect: ContractExpect) {
         for (const id of ['quota-a', 'quota-b', 'quota-c', 'quota-d']) {
           yield* directory.create({
             id,
-            workspaceId: 'concurrent',
-            creatorUserId: 'owner'
+            workspaceId: WorkspaceId.make('concurrent'),
+            creatorUserId: UserId.make('owner')
           })
         }
         const inputs = ['quota-a', 'quota-b', 'quota-c', 'quota-d'].map((id) => ({
           id: `reservation-${id}`,
           conversationId: id,
-          workspaceId: 'concurrent',
-          userId: 'owner',
+          workspaceId: WorkspaceId.make('concurrent'),
+          userId: UserId.make('owner'),
           deadline: now + 600_000,
           activeLimit: 3,
           rateLimit: 20
@@ -230,15 +246,15 @@ export function assistantDirectoryContractCases(expect: ContractExpect) {
         const admission = yield* AssistantAdmission
         yield* directory.create({
           id: 'expiry',
-          workspaceId: 'expiry',
-          creatorUserId: 'owner'
+          workspaceId: WorkspaceId.make('expiry'),
+          creatorUserId: UserId.make('owner')
         })
         const now = yield* Clock.currentTimeMillis
         const input = {
           id: 'expiry-first',
           conversationId: 'expiry',
-          workspaceId: 'expiry',
-          userId: 'owner',
+          workspaceId: WorkspaceId.make('expiry'),
+          userId: UserId.make('owner'),
           deadline: now + 1000,
           activeLimit: 1,
           rateLimit: 20
@@ -266,14 +282,14 @@ export function assistantDirectoryContractCases(expect: ContractExpect) {
         const admission = yield* AssistantAdmission
         yield* directory.create({
           id: 'rate',
-          workspaceId: 'rate',
-          creatorUserId: 'owner'
+          workspaceId: WorkspaceId.make('rate'),
+          creatorUserId: UserId.make('owner')
         })
         const now = yield* Clock.currentTimeMillis
         const input = {
           conversationId: 'rate',
-          workspaceId: 'rate',
-          userId: 'owner',
+          workspaceId: WorkspaceId.make('rate'),
+          userId: UserId.make('owner'),
           deadline: now + 600_000,
           activeLimit: 3,
           rateLimit: 20
@@ -308,14 +324,14 @@ export function assistantDirectoryContractCases(expect: ContractExpect) {
         const now = yield* Clock.currentTimeMillis
         yield* directory.create({
           id: 'invalid-budgets',
-          workspaceId: 'workspace',
-          creatorUserId: 'other'
+          workspaceId: WorkspaceId.make('workspace'),
+          creatorUserId: UserId.make('other')
         })
         const input = {
           id: 'validated-budget',
           conversationId: 'invalid-budgets',
-          workspaceId: 'workspace',
-          userId: 'other',
+          workspaceId: WorkspaceId.make('workspace'),
+          userId: UserId.make('other'),
           deadline: now + 600_000,
           activeLimit: 1,
           rateLimit: 1
@@ -344,12 +360,20 @@ export function assistantDirectoryContractCases(expect: ContractExpect) {
         const admission = yield* AssistantAdmission
         const now = yield* Clock.currentTimeMillis
         for (const identity of [
-          { id: 'identity-original', workspaceId: 'workspace', creatorUserId: 'owner' },
-          { id: 'identity-other', workspaceId: 'workspace', creatorUserId: 'other' },
+          {
+            id: 'identity-original',
+            workspaceId: WorkspaceId.make('workspace'),
+            creatorUserId: UserId.make('owner')
+          },
+          {
+            id: 'identity-other',
+            workspaceId: WorkspaceId.make('workspace'),
+            creatorUserId: UserId.make('other')
+          },
           {
             id: 'identity-workspace',
-            workspaceId: 'concurrent',
-            creatorUserId: 'owner'
+            workspaceId: WorkspaceId.make('concurrent'),
+            creatorUserId: UserId.make('owner')
           }
         ]) {
           yield* directory.create(identity)
@@ -357,16 +381,19 @@ export function assistantDirectoryContractCases(expect: ContractExpect) {
         const input = {
           id: 'immutable-reservation',
           conversationId: 'identity-original',
-          workspaceId: 'workspace',
-          userId: 'owner',
+          workspaceId: WorkspaceId.make('workspace'),
+          userId: UserId.make('owner'),
           deadline: now + 600_000,
           activeLimit: 10,
           rateLimit: 100
         }
         const original = yield* admission.reserve(input)
         for (const changed of [
-          { conversationId: 'identity-other', userId: 'other' },
-          { conversationId: 'identity-workspace', workspaceId: 'concurrent' }
+          { conversationId: 'identity-other', userId: UserId.make('other') },
+          {
+            conversationId: 'identity-workspace',
+            workspaceId: WorkspaceId.make('concurrent')
+          }
         ]) {
           expect(
             yield* admission.reserve({ ...input, ...changed }).pipe(Effect.result)
@@ -381,8 +408,8 @@ export function assistantDirectoryContractCases(expect: ContractExpect) {
         expect(yield* admission.reserve(input)).toEqual(original)
         for (const foreign of [
           { conversationId: 'missing-conversation' },
-          { userId: 'other' },
-          { workspaceId: 'concurrent' }
+          { userId: UserId.make('other') },
+          { workspaceId: WorkspaceId.make('concurrent') }
         ]) {
           expect(
             yield* admission
@@ -415,13 +442,13 @@ export function assistantDirectoryContractCases(expect: ContractExpect) {
         const now = yield* Clock.currentTimeMillis
         yield* directory.create({
           id: 'commit-lifecycle',
-          workspaceId: 'workspace',
-          creatorUserId: 'other'
+          workspaceId: WorkspaceId.make('workspace'),
+          creatorUserId: UserId.make('other')
         })
         const input = {
           conversationId: 'commit-lifecycle',
-          workspaceId: 'workspace',
-          userId: 'other',
+          workspaceId: WorkspaceId.make('workspace'),
+          userId: UserId.make('other'),
           deadline: now + 1000,
           activeLimit: 10,
           rateLimit: 100
@@ -474,13 +501,13 @@ export function assistantDirectoryContractCases(expect: ContractExpect) {
         const now = yield* Clock.currentTimeMillis
         yield* directory.create({
           id: 'bounded-expiry',
-          workspaceId: 'workspace',
-          creatorUserId: 'other'
+          workspaceId: WorkspaceId.make('workspace'),
+          creatorUserId: UserId.make('other')
         })
         const input = {
           conversationId: 'bounded-expiry',
-          workspaceId: 'workspace',
-          userId: 'other',
+          workspaceId: WorkspaceId.make('workspace'),
+          userId: UserId.make('other'),
           deadline: now + 1000,
           activeLimit: 10,
           rateLimit: 100
@@ -517,13 +544,13 @@ export function assistantDirectoryContractCases(expect: ContractExpect) {
         ).toBe('Failure')
         const row = yield* directory.create({
           id: 'policy-cleanup-guard',
-          workspaceId: 'workspace',
-          creatorUserId: 'other'
+          workspaceId: WorkspaceId.make('workspace'),
+          creatorUserId: UserId.make('other')
         })
         expect(
           yield* directory.list({
-            workspaceId: 'workspace',
-            creatorUserId: 'other',
+            workspaceId: WorkspaceId.make('workspace'),
+            creatorUserId: UserId.make('other'),
             cursor: 'invalid-cursor'
           })
         ).toEqual({ items: [], nextCursor: null })
@@ -545,28 +572,30 @@ export function assistantDirectoryContractCases(expect: ContractExpect) {
         const directory = yield* AssistantDirectory
         const target = yield* directory.create({
           id: 'scope-target',
-          workspaceId: 'workspace',
-          creatorUserId: 'other'
+          workspaceId: WorkspaceId.make('workspace'),
+          creatorUserId: UserId.make('other')
         })
         const foreign = yield* directory.create({
           id: 'scope-foreign',
-          workspaceId: 'concurrent',
-          creatorUserId: 'other'
+          workspaceId: WorkspaceId.make('concurrent'),
+          creatorUserId: UserId.make('other')
         })
         yield* directory.create({
           id: 'scope-deleted',
-          workspaceId: 'workspace',
-          creatorUserId: 'other'
+          workspaceId: WorkspaceId.make('workspace'),
+          creatorUserId: UserId.make('other')
         })
         yield* directory.fence({ conversationId: 'scope-deleted' })
         const deleted = yield* directory.get('scope-deleted')
-        yield* directory.invalidateAccess({ workspaceId: 'workspace' })
+        yield* directory.invalidateAccess({
+          workspaceId: WorkspaceId.make('workspace')
+        })
         expect(yield* directory.policyMatches(target.id, target.policyRevision)).toBe(
           false
         )
         expect(yield* directory.get(foreign.id)).toEqual(foreign)
         expect(yield* directory.get('scope-deleted')).toEqual(deleted)
-        yield* directory.fence({ workspaceId: 'workspace' })
+        yield* directory.fence({ workspaceId: WorkspaceId.make('workspace') })
         expect((yield* directory.get(target.id))?.deletedAt !== null).toBe(true)
         expect(yield* directory.get(foreign.id)).toEqual(foreign)
       })

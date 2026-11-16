@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { Effect } from 'effect'
 import { expect, layer } from '@effect/vitest'
 
@@ -27,7 +28,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
         inWorkspace(
           'dev-contract-lab',
           contractCase.assert,
-          { userId: 'usr_owner' },
+          { userId: UserId.make('usr_owner') },
           bindings
         )
       )
@@ -49,14 +50,14 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             })
             return task.id
           }),
-          { userId: 'usr_owner' },
+          { userId: UserId.make('usr_owner') },
           bindings
         )
 
         const saved = yield* inWorkspace(
           'dev-contract-lab',
           Effect.flatMap(WebhookInvestigationTasks, (tasks) => tasks.get({ taskId })),
-          { userId: 'usr_owner' },
+          { userId: UserId.make('usr_owner') },
           bindings
         )
         expect(saved).toMatchObject({

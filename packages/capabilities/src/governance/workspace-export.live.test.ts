@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { DateTime, Effect, Layer, Option } from 'effect'
 import { TestClock } from 'effect/testing'
 import { describe, expect, layer } from '@effect/vitest'
@@ -90,7 +91,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         const refused = yield* inWorkspace(
           'live-lab',
           Effect.flatMap(WorkspaceExports, (exports) => Effect.flip(exports.request)),
-          { userId: 'usr_owner' }
+          { userId: UserId.make('usr_owner') }
         )
         expect(refused).toMatchObject({
           _tag: 'CapabilityUnavailable',
@@ -108,7 +109,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         inWorkspace(
           'live-lab',
           contractCase.assert,
-          { userId: 'usr_owner' },
+          { userId: UserId.make('usr_owner') },
           { workspaceExports: stubPorts().workspaceExports }
         )
       )
@@ -125,7 +126,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         const requested = yield* inWorkspace(
           'live-lab',
           Effect.flatMap(WorkspaceExports, (exports) => exports.request),
-          { userId: 'usr_owner' },
+          { userId: UserId.make('usr_owner') },
           bindings
         )
         yield* inWorkspace(
@@ -133,7 +134,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
           Effect.flatMap(WorkspaceExports, (exports) =>
             exports.complete({
               exportId: requested.id,
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               archive
             })
           ),
@@ -148,7 +149,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
               exportId: requested.id
             })
           ),
-          { userId: 'usr_owner' },
+          { userId: UserId.make('usr_owner') },
           bindings
         )
         if (Option.isNone(link)) {
@@ -171,7 +172,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
                   exportId: requested.id
                 })
               ),
-              { userId: 'usr_owner' },
+              { userId: UserId.make('usr_owner') },
               bindings
             )
           )
@@ -203,7 +204,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         const requested = yield* inWorkspace(
           'live-lab',
           Effect.flatMap(WorkspaceExports, (exports) => exports.request),
-          { userId: 'usr_owner' },
+          { userId: UserId.make('usr_owner') },
           bindings
         )
         expect(requested.status).toBe('pending')
@@ -240,7 +241,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
             generation.generate({
               message: {
                 exportId: requested.id,
-                workspaceId: 'wrk_live',
+                workspaceId: WorkspaceId.make('wrk_live'),
                 workspaceSlug: 'live-lab'
               },
               finalAttempt: false
@@ -249,7 +250,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
             Effect.provide(
               WorkspaceExportGenerationLayer((slug) =>
                 testWorkspaceContext({
-                  id: 'wrk_live',
+                  id: WorkspaceId.make('wrk_live'),
                   slug,
                   name: 'Live Lab',
                   planId: 'team'
@@ -270,7 +271,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
           Effect.flatMap(WorkspaceExports, (exports) =>
             exports.complete({
               exportId: requested.id,
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               archive
             })
           ),
@@ -304,7 +305,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         const notifications = yield* inWorkspace(
           'live-lab',
           Effect.flatMap(NotificationFeed, (feed) => feed.list),
-          { userId: 'usr_owner' },
+          { userId: UserId.make('usr_owner') },
           bindings
         )
         expect(
@@ -319,7 +320,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
               exportId: requested.id
             })
           ),
-          { userId: 'usr_owner' },
+          { userId: UserId.make('usr_owner') },
           bindings
         )
         if (Option.isNone(link)) {
@@ -411,7 +412,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
           const requested = yield* inWorkspace(
             'live-lab',
             Effect.flatMap(WorkspaceExports, (exports) => exports.request),
-            { userId: 'usr_owner' },
+            { userId: UserId.make('usr_owner') },
             bindings
           )
           const generated = yield* inWorkspace(
@@ -420,7 +421,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
               generation.generate({
                 message: {
                   exportId: requested.id,
-                  workspaceId: 'wrk_live',
+                  workspaceId: WorkspaceId.make('wrk_live'),
                   workspaceSlug: 'live-lab'
                 },
                 finalAttempt: true
@@ -429,7 +430,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
               Effect.provide(
                 WorkspaceExportGenerationLayer((slug) =>
                   testWorkspaceContext({
-                    id: 'wrk_recreated',
+                    id: WorkspaceId.make('wrk_recreated'),
                     slug,
                     name: 'Recreated Live Lab',
                     planId: 'team'
@@ -465,7 +466,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         const requested = yield* inWorkspace(
           'live-lab',
           Effect.flatMap(WorkspaceExports, (exports) => exports.request),
-          { userId: 'usr_owner' },
+          { userId: UserId.make('usr_owner') },
           bindings
         )
         const generated = yield* inWorkspace(
@@ -474,7 +475,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
             generation.generate({
               message: {
                 exportId: requested.id,
-                workspaceId: 'wrk_live',
+                workspaceId: WorkspaceId.make('wrk_live'),
                 workspaceSlug: 'deleted-lab'
               },
               finalAttempt: false
@@ -513,16 +514,16 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         const requested = yield* inWorkspace(
           'live-lab',
           Effect.flatMap(WorkspaceExports, (exports) => exports.request),
-          { userId: 'usr_owner' },
+          { userId: UserId.make('usr_owner') },
           bindings
         )
         yield* inWorkspace(
           'live-lab',
           Effect.flatMap(WorkspaceSuspensionService, (suspension) =>
             suspension.transition({
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               action: 'suspend',
-              actor: { userId: 'usr_sysadmin' },
+              actor: { userId: UserId.make('usr_sysadmin') },
               internalReason: 'generation test',
               customerExplanation: 'Exports are paused.'
             })
@@ -534,7 +535,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
             generation.generate({
               message: {
                 exportId: requested.id,
-                workspaceId: 'wrk_live',
+                workspaceId: WorkspaceId.make('wrk_live'),
                 workspaceSlug: 'live-lab'
               },
               finalAttempt: true
@@ -543,7 +544,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
             Effect.provide(
               WorkspaceExportGenerationLayer((slug) =>
                 testWorkspaceContext({
-                  id: 'wrk_live',
+                  id: WorkspaceId.make('wrk_live'),
                   slug,
                   name: 'Live Lab',
                   planId: 'team'
@@ -563,9 +564,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
           'live-lab',
           Effect.flatMap(WorkspaceSuspensionService, (suspension) =>
             suspension.transition({
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               action: 'unsuspend',
-              actor: { userId: 'usr_sysadmin' },
+              actor: { userId: UserId.make('usr_sysadmin') },
               internalReason: 'generation test cleanup'
             })
           )
@@ -590,7 +591,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         const requested = yield* inWorkspace(
           'live-lab',
           Effect.flatMap(WorkspaceExports, (exports) => exports.request),
-          { userId: 'usr_owner' },
+          { userId: UserId.make('usr_owner') },
           bindings
         )
         const exports = yield* inWorkspace(
@@ -602,7 +603,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         const duringCompletion: WorkspaceExportsInterface = {
           ...exports,
           complete: () =>
-            Effect.fail(new WorkspaceSuspended({ workspaceId: 'wrk_live' }))
+            Effect.fail(
+              new WorkspaceSuspended({ workspaceId: WorkspaceId.make('wrk_live') })
+            )
         }
         const generated = yield* inWorkspace(
           'live-lab',
@@ -610,7 +613,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
             generation.generate({
               message: {
                 exportId: requested.id,
-                workspaceId: 'wrk_live',
+                workspaceId: WorkspaceId.make('wrk_live'),
                 workspaceSlug: 'live-lab'
               },
               finalAttempt: false
@@ -619,7 +622,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
             Effect.provide(
               WorkspaceExportGenerationLayer((slug) =>
                 testWorkspaceContext({
-                  id: 'wrk_live',
+                  id: WorkspaceId.make('wrk_live'),
                   slug,
                   name: 'Live Lab',
                   planId: 'team'
@@ -657,7 +660,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
           const requested = yield* inWorkspace(
             'live-lab',
             Effect.flatMap(WorkspaceExports, (exports) => exports.request),
-            { userId: 'usr_owner' },
+            { userId: UserId.make('usr_owner') },
             bindings
           )
           const membership = yield* inWorkspace(
@@ -681,7 +684,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
               generation.generate({
                 message: {
                   exportId: requested.id,
-                  workspaceId: 'wrk_live',
+                  workspaceId: WorkspaceId.make('wrk_live'),
                   workspaceSlug: 'live-lab'
                 },
                 finalAttempt: false
@@ -690,7 +693,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
               Effect.provide(
                 WorkspaceExportGenerationLayer((slug) =>
                   testWorkspaceContext({
-                    id: 'wrk_live',
+                    id: WorkspaceId.make('wrk_live'),
                     slug,
                     name: 'Live Lab',
                     planId: 'team'
@@ -713,7 +716,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
               generation.generate({
                 message: {
                   exportId: requested.id,
-                  workspaceId: 'wrk_live',
+                  workspaceId: WorkspaceId.make('wrk_live'),
                   workspaceSlug: 'live-lab'
                 },
                 finalAttempt: true
@@ -722,7 +725,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
               Effect.provide(
                 WorkspaceExportGenerationLayer((slug) =>
                   testWorkspaceContext({
-                    id: 'wrk_live',
+                    id: WorkspaceId.make('wrk_live'),
                     slug,
                     name: 'Live Lab',
                     planId: 'team'
@@ -759,7 +762,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         const requested = yield* inWorkspace(
           'live-lab',
           Effect.flatMap(WorkspaceExports, (exports) => exports.request),
-          { userId: 'usr_owner' },
+          { userId: UserId.make('usr_owner') },
           bindings
         )
         const generated = yield* inWorkspace(
@@ -768,7 +771,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
             generation.generate({
               message: {
                 exportId: requested.id,
-                workspaceId: 'wrk_live',
+                workspaceId: WorkspaceId.make('wrk_live'),
                 workspaceSlug: 'live-lab'
               },
               finalAttempt: false
@@ -777,7 +780,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
             Effect.provide(
               WorkspaceExportGenerationLayer((slug) =>
                 testWorkspaceContext({
-                  id: 'wrk_live',
+                  id: WorkspaceId.make('wrk_live'),
                   slug,
                   name: 'Live Lab',
                   planId: 'team'
@@ -806,7 +809,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         const requested = yield* inWorkspace(
           'live-lab',
           Effect.flatMap(WorkspaceExports, (exports) => exports.request),
-          { userId: 'usr_owner' },
+          { userId: UserId.make('usr_owner') },
           bindings
         )
         const exports = yield* inWorkspace(
@@ -847,7 +850,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
               generation.generate({
                 message: {
                   exportId: requested.id,
-                  workspaceId: 'wrk_live',
+                  workspaceId: WorkspaceId.make('wrk_live'),
                   workspaceSlug: 'live-lab'
                 },
                 finalAttempt: true
@@ -857,7 +860,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
             Effect.provide(
               WorkspaceExportGenerationLayer((slug) =>
                 testWorkspaceContext({
-                  id: 'wrk_live',
+                  id: WorkspaceId.make('wrk_live'),
                   slug,
                   name: 'Live Lab',
                   planId: 'team'
@@ -891,7 +894,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         const requested = yield* inWorkspace(
           'live-lab',
           Effect.flatMap(WorkspaceExports, (exports) => exports.request),
-          { userId: 'usr_owner' },
+          { userId: UserId.make('usr_owner') },
           bindings
         )
         const wrongWorkspace = yield* inWorkspace(
@@ -899,7 +902,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
           Effect.flatMap(WorkspaceExports, (exports) =>
             exports.fail({
               exportId: requested.id,
-              workspaceId: 'wrk_other',
+              workspaceId: WorkspaceId.make('wrk_other'),
               reason: 'nope'
             })
           ),
@@ -912,7 +915,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
           Effect.flatMap(WorkspaceExports, (exports) =>
             exports.fail({
               exportId: requested.id,
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               reason: 'workspace_not_found'
             })
           ),
@@ -936,7 +939,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
           Effect.flatMap(WorkspaceExports, (exports) =>
             exports.fail({
               exportId: requested.id,
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               reason: 'x'
             })
           ),
@@ -956,7 +959,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
           const requested = yield* inWorkspace(
             'live-lab',
             Effect.flatMap(WorkspaceExports, (exports) => exports.request),
-            { userId: 'usr_owner' },
+            { userId: UserId.make('usr_owner') },
             bindings
           )
           const generated = yield* inWorkspace(
@@ -965,7 +968,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
               generation.generate({
                 message: {
                   exportId: requested.id,
-                  workspaceId: 'wrk_live',
+                  workspaceId: WorkspaceId.make('wrk_live'),
                   workspaceSlug: 'live-lab'
                 },
                 finalAttempt: true
@@ -974,7 +977,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
               Effect.provide(
                 WorkspaceExportGenerationLayer((slug) =>
                   testWorkspaceContext({
-                    id: 'wrk_live',
+                    id: WorkspaceId.make('wrk_live'),
                     slug,
                     name: 'Live Lab',
                     planId: 'team'
@@ -1010,9 +1013,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
           'live-lab',
           Effect.flatMap(WorkspaceSuspensionService, (suspension) =>
             suspension.transition({
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               action: 'suspend',
-              actor: { userId: 'usr_sysadmin' },
+              actor: { userId: UserId.make('usr_sysadmin') },
               internalReason: 'export policy review',
               customerExplanation: 'Access is temporarily limited.'
             })
@@ -1021,7 +1024,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         const refused = yield* inWorkspace(
           'live-lab',
           Effect.flatMap(WorkspaceExports, (exports) => Effect.exit(exports.request)),
-          { userId: 'usr_owner' },
+          { userId: UserId.make('usr_owner') },
           bindings
         )
         expect(refused._tag).toBe('Failure')
@@ -1029,9 +1032,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
           'live-lab',
           Effect.flatMap(WorkspaceSuspensionService, (suspension) =>
             suspension.transition({
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               action: 'unsuspend',
-              actor: { userId: 'usr_sysadmin' },
+              actor: { userId: UserId.make('usr_sysadmin') },
               internalReason: 'test cleanup'
             })
           )
@@ -1046,7 +1049,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         const requested = yield* inWorkspace(
           'live-lab',
           Effect.flatMap(WorkspaceExports, (exports) => exports.request),
-          { userId: 'usr_owner' },
+          { userId: UserId.make('usr_owner') },
           bindings
         )
         yield* inWorkspace(
@@ -1054,7 +1057,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
           Effect.flatMap(WorkspaceExports, (exports) =>
             exports.complete({
               exportId: requested.id,
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               archive
             })
           ),
@@ -1069,7 +1072,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
               exportId: requested.id
             })
           ),
-          { userId: 'usr_owner' },
+          { userId: UserId.make('usr_owner') },
           bindings
         )
         expect(Option.isSome(link)).toBe(true)
@@ -1081,9 +1084,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
           'live-lab',
           Effect.flatMap(WorkspaceSuspensionService, (suspension) =>
             suspension.transition({
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               action: 'suspend',
-              actor: { userId: 'usr_sysadmin' },
+              actor: { userId: UserId.make('usr_sysadmin') },
               internalReason: 'download policy review',
               customerExplanation: 'Access is temporarily limited.'
             })
@@ -1099,7 +1102,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
               })
             )
           ),
-          { userId: 'usr_owner' },
+          { userId: UserId.make('usr_owner') },
           bindings
         )
         expect(refusedLink._tag).toBe('Failure')

@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { SeedAssistantDirectory } from './assistant/directory.seed.ts'
 import {
   BillingAuditLayer,
@@ -222,13 +223,13 @@ describe('seed mcp client connections', () => {
     () =>
       Effect.gen(function* () {
         const connections = yield* McpClientConnections
-        const listed = yield* connections.listForUser('usr_demo')
+        const listed = yield* connections.listForUser(UserId.make('usr_demo'))
         expect(listed).toHaveLength(seedMcpClientConnections.length)
         expect(listed[0]).toMatchObject({
           id: seedMcpClientConnections[0]?.id,
           client: seedMcpClients[0]
         })
-        expect(yield* connections.listForUser('usr_nobody')).toEqual([])
+        expect(yield* connections.listForUser(UserId.make('usr_nobody'))).toEqual([])
       }).pipe(Effect.provide(layer))
   )
 
@@ -243,12 +244,12 @@ describe('seed mcp client connections', () => {
 
       expect(
         yield* connections.revoke({
-          userId: 'usr_demo',
+          userId: UserId.make('usr_demo'),
           connectionId: connection.id
         })
       ).toBe(true)
 
-      const listed = yield* connections.listForUser('usr_demo')
+      const listed = yield* connections.listForUser(UserId.make('usr_demo'))
       expect(listed.some((row) => row.id === connection.id)).toBe(false)
       const page = yield* log.list({ eventType: 'mcp_client.consent_revoked' })
       expect(
@@ -263,7 +264,7 @@ describe('seed developer-platform plan-limit contract', () => {
   const layer = Layer.mergeAll(
     auditLog,
     testWorkspaceContext({
-      id: 'wrk_capped_seed',
+      id: WorkspaceId.make('wrk_capped_seed'),
       slug: 'capped-seed-lab',
       name: 'Capped Seed Lab',
       planId: 'starter'
@@ -294,7 +295,7 @@ describe('seed developer-platform plan-limit contract', () => {
 })
 
 describe('seed audit event log contract', () => {
-  const workspaceId = 'wrk_audit_contract'
+  const workspaceId = WorkspaceId.make('wrk_audit_contract')
   const layer = Layer.merge(
     SeedAuditEventLog(auditEventContractDataset(workspaceId)),
     testWorkspaceContext({
@@ -327,7 +328,7 @@ function seedFeed(rows: ReadonlyArray<SeedNotification>) {
 }
 
 describe('seed notification feed contract', () => {
-  const workspaceId = 'wrk_notification_contract'
+  const workspaceId = WorkspaceId.make('wrk_notification_contract')
   const workspace = {
     id: workspaceId,
     slug: 'notification-lab',
@@ -360,7 +361,7 @@ describe('seed notification feed contract', () => {
       Layer.merge(
         seedFeed(notificationFeedContractDataset(ids)),
         testWorkspaceContext(workspace, {
-          userId: 'usr_alice',
+          userId: UserId.make('usr_alice'),
           role: 'member',
           systemRole: 'user',
           banned: false
@@ -414,12 +415,30 @@ describe('notification feed actor scoping', () => {
   }
   const scopedFeed = seedFeed([
     { id: 'not_broadcast', title: 'broadcast', read: false, ...base },
-    { id: 'not_a_unread', title: 'for a', read: false, userId: 'usr_a', ...base },
-    { id: 'not_a_read', title: 'for a, read', read: true, userId: 'usr_a', ...base },
-    { id: 'not_b_unread', title: 'for b', read: false, userId: 'usr_b', ...base }
+    {
+      id: 'not_a_unread',
+      title: 'for a',
+      read: false,
+      userId: UserId.make('usr_a'),
+      ...base
+    },
+    {
+      id: 'not_a_read',
+      title: 'for a, read',
+      read: true,
+      userId: UserId.make('usr_a'),
+      ...base
+    },
+    {
+      id: 'not_b_unread',
+      title: 'for b',
+      read: false,
+      userId: UserId.make('usr_b'),
+      ...base
+    }
   ])
   const actorA: Actor = {
-    userId: 'usr_a',
+    userId: UserId.make('usr_a'),
     role: 'member',
     systemRole: 'user',
     banned: false
@@ -543,7 +562,7 @@ function makeFakeD1() {
 describe('workspace list projection', () => {
   it.effect('lists the seed workspace with counts for a member', () =>
     Effect.gen(function* () {
-      const items = yield* listWorkspacesForUser('usr_martin')
+      const items = yield* listWorkspacesForUser(UserId.make('usr_martin'))
       expect(items).toHaveLength(1)
       const item = items[0]
       expect(item?.workspace.slug).toBe('starter-lab')
@@ -554,7 +573,7 @@ describe('workspace list projection', () => {
 
   it.effect('returns an empty list for a user with no memberships', () =>
     Effect.gen(function* () {
-      const items = yield* listWorkspacesForUser('usr_stranger')
+      const items = yield* listWorkspacesForUser(UserId.make('usr_stranger'))
       expect(items).toEqual([])
     }).pipe(Effect.provide(SeedLayer))
   )
@@ -588,9 +607,9 @@ describe('seed workspace membership contract', () => {
       // handed its own, exactly as the live harness seeds them.
       const roster = yield* makeSeedRoster([
         ...seedMembers.filter((member) => member.id !== demoUserIdentity.id),
-        fabricateSeedMember('usr_removable', 'member'),
-        fabricateSeedMember('usr_mutable', 'member'),
-        fabricateSeedMember('usr_auditable', 'member')
+        fabricateSeedMember(UserId.make('usr_removable'), 'member'),
+        fabricateSeedMember(UserId.make('usr_mutable'), 'member'),
+        fabricateSeedMember(UserId.make('usr_auditable'), 'member')
       ])
       return Layer.mergeAll(
         SeedWebhookPublisher,
@@ -605,7 +624,7 @@ describe('seed workspace membership contract', () => {
         // the shared log in `layers.ts` does.
         SeedAuditEventLog([], seedSystemUsers),
         testWorkspaceContext(seedWorkspaceRecord, {
-          userId: 'usr_martin',
+          userId: UserId.make('usr_martin'),
           role: 'owner',
           systemRole: 'admin',
           banned: false
@@ -615,11 +634,11 @@ describe('seed workspace membership contract', () => {
   )
   const cases = workspaceMembershipContractCases(
     {
-      member: 'usr_martin',
-      removable: 'usr_removable',
-      mutable: 'usr_mutable',
-      auditable: 'usr_auditable',
-      stranger: 'usr_stranger',
+      member: UserId.make('usr_martin'),
+      removable: UserId.make('usr_removable'),
+      mutable: UserId.make('usr_mutable'),
+      auditable: UserId.make('usr_auditable'),
+      stranger: UserId.make('usr_stranger'),
       recordedEvidence: Effect.sync(() => [...evidence])
     },
     expect
@@ -640,7 +659,7 @@ describe('seed workspace membership contract', () => {
       // promoted out of the roster rather than added to it — an owner hands
       // ownership over, they do not mint a replacement.
       const promoted = yield* membership.changeRole({
-        userId: 'usr_ops',
+        userId: UserId.make('usr_ops'),
         role: 'owner'
       })
       expect(promoted.role).toBe('owner')
@@ -670,7 +689,7 @@ describe('seed workspace membership contract', () => {
       Effect.gen(function* () {
         const membership = yield* WorkspaceMembership
         const outcome = yield* Effect.exit(
-          membership.changeRole({ userId: 'usr_martin', role: 'member' })
+          membership.changeRole({ userId: UserId.make('usr_martin'), role: 'member' })
         )
         // Same rule, same reason as the Live adapter: granting or rewriting the
         // owner role is reserved to owners.
@@ -680,7 +699,7 @@ describe('seed workspace membership contract', () => {
           Layer.merge(
             contractLayer,
             testWorkspaceContext(seedWorkspaceRecord, {
-              userId: 'usr_ops',
+              userId: UserId.make('usr_ops'),
               role: 'admin',
               systemRole: 'user',
               banned: false
@@ -695,8 +714,8 @@ describe('seed platform user admin contract', () => {
   const cases = platformUserAdminContractCases(
     {
       existing: demoMemberIdentity.id,
-      outsider: 'usr_outsider',
-      unknown: 'usr_stranger',
+      outsider: UserId.make('usr_outsider'),
+      unknown: UserId.make('usr_stranger'),
       workspaceId: seedWorkspaceRecord.id,
       admin: demoUserIdentity.id
     },
@@ -711,7 +730,10 @@ describe('seed platform user admin contract', () => {
 
 // The Live half of this same list runs in the matching `*.live.test.ts`.
 describe('seed workspace invitations contract', () => {
-  const accepter = { userId: 'usr_accepter', email: 'accepter@seed-invite.test' }
+  const accepter = {
+    userId: UserId.make('usr_accepter'),
+    email: 'accepter@seed-invite.test'
+  }
   const expired = {
     invitationId: 'inv_seed_expired',
     email: 'expired@seed-invite.test'
@@ -790,7 +812,7 @@ describe('seed workspace invitations contract', () => {
 // The Live half of this same list runs in the matching `*.live.test.ts`.
 describe('seed workspace lifecycle contract', () => {
   const cases = workspaceLifecycleContractCases(
-    { creator: 'usr_newcomer', existingSlug: 'starter-lab' },
+    { creator: UserId.make('usr_newcomer'), existingSlug: 'starter-lab' },
     expect
   )
   for (const contractCase of cases) {
@@ -805,7 +827,7 @@ describe('seed workspace lifecycle contract', () => {
 // shared fixture layer above.
 describe('seed workspace lifecycle deletion', () => {
   const doomed = {
-    id: 'wrk_doomed_seed',
+    id: WorkspaceId.make('wrk_doomed_seed'),
     slug: 'doomed-lab',
     name: 'Doomed',
     planId: 'starter'
@@ -818,12 +840,12 @@ describe('seed workspace lifecycle deletion', () => {
       const created = yield* lifecycle.create({
         name: 'New Lab',
         slug: 'new-suspended-lab',
-        userId: 'usr_demo'
+        userId: UserId.make('usr_demo')
       })
       yield* suspension.transition({
         workspaceId: created.id,
         action: 'suspend',
-        actor: { userId: 'usr_demo' },
+        actor: { userId: UserId.make('usr_demo') },
         internalReason: 'Review',
         customerExplanation: 'Contact support.'
       })
@@ -834,11 +856,13 @@ describe('seed workspace lifecycle deletion', () => {
         _tag: 'Failure',
         failure: { _tag: 'WorkspaceSuspended' }
       })
-      expect((yield* suspension.get('wrk_starter')).status).toBe('active')
+      expect((yield* suspension.get(WorkspaceId.make('wrk_starter'))).status).toBe(
+        'active'
+      )
       yield* suspension.transition({
         workspaceId: created.id,
         action: 'unsuspend',
-        actor: { userId: 'usr_demo' },
+        actor: { userId: UserId.make('usr_demo') },
         internalReason: 'Resolved'
       })
       yield* Effect.provide(lifecycle.remove, testWorkspaceContext(created))
@@ -854,7 +878,7 @@ describe('seed workspace lifecycle deletion', () => {
       const created = yield* lifecycle.create({
         name: 'Doomed Lab',
         slug: 'created-doomed-lab',
-        userId: 'usr_newcomer'
+        userId: UserId.make('usr_newcomer')
       })
       yield* Effect.provide(
         lifecycle.remove,
@@ -864,7 +888,7 @@ describe('seed workspace lifecycle deletion', () => {
       const recreated = yield* lifecycle.create({
         name: 'Doomed Lab II',
         slug: created.slug,
-        userId: 'usr_newcomer'
+        userId: UserId.make('usr_newcomer')
       })
       expect(recreated.slug).toBe(created.slug)
     }).pipe(Effect.provide(SeedLayer))
@@ -953,7 +977,7 @@ describe('bearer verification write throttling', () => {
 
 function seedFixtureMember(id: string, role: 'owner' | 'admin' | 'member'): Member {
   return {
-    id,
+    id: UserId.make(id),
     name: id,
     email: `${id}@seed.test`,
     role,
@@ -1006,8 +1030,8 @@ function lifecycleLayerFor(
 
 describe('seed account lifecycle contract', () => {
   const ids: AccountLifecycleContractIds = {
-    stuckOwner: 'usr_stuck_owner',
-    planner: 'usr_planner',
+    stuckOwner: UserId.make('usr_stuck_owner'),
+    planner: UserId.make('usr_planner'),
     password: 'seed-delete-password',
     wrongPassword: ''
   }
@@ -1036,14 +1060,14 @@ describe('seed account lifecycle deletion', () => {
     Effect.gen(function* () {
       const lifecycle = yield* AccountLifecycle
       const executed = yield* lifecycle.deleteAccount({
-        userId: 'usr_solo',
+        userId: UserId.make('usr_solo'),
         password: 'any non-empty credential'
       })
       expect(executed.canDelete).toBe(true)
       expect(executed.steps[0]?.action).toBe('delete_workspace')
 
       // The workspace is gone from the plan of anyone who asks next.
-      const after = yield* lifecycle.planDeletion('usr_solo')
+      const after = yield* lifecycle.planDeletion(UserId.make('usr_solo'))
       expect(after.steps).toHaveLength(0)
 
       const events = yield* Effect.flatMap(AuditEventLog, (audit) => audit.listGlobal)
@@ -1063,13 +1087,15 @@ describe('seed account lifecycle deletion', () => {
     Effect.gen(function* () {
       const lifecycle = yield* AccountLifecycle
       const executed = yield* lifecycle.deleteAccount({
-        userId: 'usr_leaving_owner',
+        userId: UserId.make('usr_leaving_owner'),
         password: 'any non-empty credential'
       })
       expect(executed.steps[0]?.action).toBe('leave')
 
       // The remaining owner still plans a workspace — it survived.
-      const survivorsPlan = yield* lifecycle.planDeletion('usr_staying_owner')
+      const survivorsPlan = yield* lifecycle.planDeletion(
+        UserId.make('usr_staying_owner')
+      )
       expect(survivorsPlan.steps).toHaveLength(1)
 
       const events = yield* Effect.flatMap(AuditEventLog, (audit) => audit.listGlobal)

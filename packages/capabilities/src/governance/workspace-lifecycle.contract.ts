@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { Effect } from 'effect'
 import { type ContractExpect } from './contract-expect.ts'
 import { type WorkspaceChangeRejected, type WorkspaceSuspended } from '../errors.ts'
@@ -21,7 +22,7 @@ import { WorkspaceLifecycle } from './workspace-lifecycle.ts'
 
 export type LifecycleContractIds = {
   /** A user with no workspace of their own; each case creates one for them. */
-  readonly creator: string
+  readonly creator: UserId
   /** The slug already taken when the suite starts. */
   readonly existingSlug: string
 }

@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { fireEvent, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { renderWithRouter } from '@/test/router-harness'
@@ -25,7 +26,7 @@ function payload(
     unreadCount: 0,
     members: [
       {
-        id: 'usr_owner',
+        id: UserId.make('usr_owner'),
         name: 'Owner One',
         email: 'owner@seed.local',
         role: 'owner',
@@ -33,7 +34,7 @@ function payload(
         banned: false
       },
       {
-        id: 'usr_two',
+        id: UserId.make('usr_two'),
         name: 'Member Two',
         email: 'two@seed.local',
         role: 'member',
@@ -75,7 +76,7 @@ async function renderPage(data: WorkspaceMembersPayload) {
     <WorkspaceMembersPage
       workspaceSlug="starter-lab"
       data={data}
-      actorUserId="usr_owner"
+      actorUserId={UserId.make('usr_owner')}
     />,
     {
       path: '/workspaces/starter-lab/members',
@@ -90,7 +91,7 @@ describe('WorkspaceMembersPage seat prompt', () => {
       <WorkspaceMembersPage
         workspaceSlug="starter-lab"
         data={withinLimit}
-        actorUserId="usr_owner"
+        actorUserId={UserId.make('usr_owner')}
       />,
       {
         path: '/workspaces/starter-lab/members',

@@ -1,5 +1,6 @@
 // oxlint-disable-next-line import/no-unassigned-import -- Installs the explicit authenticated-session test fixture.
 import '@/test/qualified-session'
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { describe, expect, it, vi, beforeEach } from 'vite-plus/test'
 
 import { fixtureAuthModule } from '@/test/fixture-session'
@@ -35,7 +36,7 @@ vi.mock('./auth', async (importOriginal) =>
   fixtureAuthModule(await importOriginal<typeof AuthModule>(), actor)
 )
 
-function actingAs(userId: string): void {
+function actingAs(userId: UserId): void {
   actor.userId = userId
 }
 
@@ -52,7 +53,7 @@ describe('loadWorkspaceMembersHandler', () => {
   })
 
   it('shows a plain member the roster but withholds the invitations', async () => {
-    actingAs('usr_dev')
+    actingAs(UserId.make('usr_dev'))
     const payload = await loadWorkspaceMembersHandler({ workspaceSlug: 'starter-lab' })
     expect(payload.viewer).toEqual({ role: 'member' })
     expect(payload.members.length).toBeGreaterThan(0)
@@ -64,59 +65,65 @@ describe('loadWorkspaceMembersHandler', () => {
 })
 
 describe('changeMemberRoleHandler', () => {
-  beforeEach(() => actingAs('usr_demo'))
+  beforeEach(() => actingAs(UserId.make('usr_demo')))
 
   it('denies a member the change', async () => {
-    actingAs('usr_dev')
+    actingAs(UserId.make('usr_dev'))
     await expect(
       changeMemberRoleHandler({
         workspaceSlug: 'starter-lab',
-        userId: 'usr_martin',
+        userId: UserId.make('usr_martin'),
         role: 'member'
       })
     ).rejects.toMatchObject({ name: 'ForbiddenError' })
   })
 
   it('lets an admin re-role too — the matrix grants admin member:update', async () => {
-    actingAs('usr_ops')
+    actingAs(UserId.make('usr_ops'))
     const member = await changeMemberRoleHandler({
       workspaceSlug: 'starter-lab',
-      userId: 'usr_dev',
+      userId: UserId.make('usr_dev'),
       role: 'member'
     })
-    expect(member).toMatchObject({ id: 'usr_dev', role: 'member' })
+    expect(member).toMatchObject({ id: UserId.make('usr_dev'), role: 'member' })
   })
 
   it('lets an owner re-role, and answers with the changed member', async () => {
     const member = await changeMemberRoleHandler({
       workspaceSlug: 'starter-lab',
-      userId: 'usr_ops',
+      userId: UserId.make('usr_ops'),
       role: 'member'
     })
-    expect(member).toMatchObject({ id: 'usr_ops', role: 'member' })
+    expect(member).toMatchObject({ id: UserId.make('usr_ops'), role: 'member' })
   })
 })
 
 describe('removeMemberHandler', () => {
-  beforeEach(() => actingAs('usr_demo'))
+  beforeEach(() => actingAs(UserId.make('usr_demo')))
 
   it('denies a member the removal', async () => {
-    actingAs('usr_dev')
+    actingAs(UserId.make('usr_dev'))
     await expect(
-      removeMemberHandler({ workspaceSlug: 'starter-lab', userId: 'usr_martin' })
+      removeMemberHandler({
+        workspaceSlug: 'starter-lab',
+        userId: UserId.make('usr_martin')
+      })
     ).rejects.toMatchObject({ name: 'ForbiddenError' })
   })
 
   it('lets an owner off-board a member', async () => {
     await expect(
-      removeMemberHandler({ workspaceSlug: 'starter-lab', userId: 'usr_ops' })
+      removeMemberHandler({
+        workspaceSlug: 'starter-lab',
+        userId: UserId.make('usr_ops')
+      })
     ).resolves.toBeUndefined()
   })
 })
 
 describe('leaveWorkspaceHandler', () => {
   it('is any member’s own verb — no permission gate refuses a plain member', async () => {
-    actingAs('usr_dev')
+    actingAs(UserId.make('usr_dev'))
     await expect(
       leaveWorkspaceHandler({ workspaceSlug: 'starter-lab' })
     ).resolves.toBeUndefined()

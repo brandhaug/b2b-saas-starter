@@ -1,4 +1,9 @@
-import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import {
+  UserId,
+  WebhookDeliveryId,
+  WebhookEndpointId,
+  WorkspaceId
+} from '@b2b-saas-starter/db/ids'
 import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
 import {
   webhookDeliveries,
@@ -40,7 +45,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             inWorkspace(
               'dev-contract-lab',
               contractCase.assert,
-              { userId: 'usr_owner' },
+              { userId: UserId.make('usr_owner') },
               {
                 webhookQueue: {
                   send: () => Promise.resolve(),
@@ -60,7 +65,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           inWorkspace(
             'dev-contract-lab',
             contractCase.assert,
-            { userId: 'usr_owner' },
+            { userId: UserId.make('usr_owner') },
             {
               webhookQueue: {
                 send: () => Promise.resolve(),
@@ -77,7 +82,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
     describe('live developer-platform plan-limit contract', () => {
       for (const contractCase of planLimitContractCases(expect)) {
         it.effect(contractCase.name, () =>
-          inWorkspace('capped-lab', contractCase.assert, { userId: 'usr_owner' })
+          inWorkspace('capped-lab', contractCase.assert, {
+            userId: UserId.make('usr_owner')
+          })
         )
       }
     })
@@ -142,7 +149,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               )
             expect(audits).toHaveLength(1)
           }),
-          { userId: 'usr_owner' },
+          { userId: UserId.make('usr_owner') },
           {
             webhookQueue: {
               send: () => {
@@ -183,7 +190,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             .where(
               and(
                 eq(auditEvents.eventType, eventType),
-                eq(auditEvents.workspaceId, 'wrk_live')
+                eq(auditEvents.workspaceId, WorkspaceId.make('wrk_live'))
               )
             )
         })
@@ -212,7 +219,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             yield* recordAttempt({
               id: WebhookDeliveryId.make('whd_live_perm'),
               endpointId: WebhookEndpointId.make('wh_live'),
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               eventType: 'demo.event',
               status: 'failed_permanent',
               attempts: 1,
@@ -250,7 +257,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           Effect.gen(function* () {
             yield* recordAttempt({
               endpointId: WebhookEndpointId.make('wh_live'),
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               eventType: 'demo.event',
               status: 'dead_lettered',
               attempts: 5,
@@ -277,7 +284,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           yield* recordAttempt({
             id: WebhookDeliveryId.make('whd_live_ok'),
             endpointId: WebhookEndpointId.make('wh_live'),
-            workspaceId: 'wrk_live',
+            workspaceId: WorkspaceId.make('wrk_live'),
             eventType: 'demo.event',
             status: 'delivered',
             attempts: 1,
@@ -308,7 +315,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               yield* dispatch.recordTerminalDeliveryAttempt({
                 deliveryId: sent.deliveryId,
                 endpointId: WebhookEndpointId.make('wh_live'),
-                workspaceId: 'wrk_live',
+                workspaceId: WorkspaceId.make('wrk_live'),
                 eventType: 'demo.dead_letter',
                 attempts: 5,
                 status: 'dead_lettered',
@@ -345,7 +352,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             yield* dispatch.recordDeliveryAttempt({
               id: WebhookDeliveryId.make('whd_live_same_id'),
               endpointId: WebhookEndpointId.make('wh_live'),
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               eventType: 'demo.redelivery',
               status: 'failed',
               attempts: 1,
@@ -357,7 +364,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             yield* dispatch.recordDeliveryAttempt({
               id: WebhookDeliveryId.make('whd_live_same_id'),
               endpointId: WebhookEndpointId.make('wh_live'),
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               eventType: 'demo.redelivery',
               status: 'delivered',
               attempts: 2,
@@ -391,7 +398,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             yield* recordAttempt({
               id: WebhookDeliveryId.make('whd_live_ladder_reset'),
               endpointId: WebhookEndpointId.make('wh_live'),
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               eventType: 'demo.ladder',
               status: 'delivered',
               attempts: 1,
@@ -402,7 +409,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             const climb = yield* recordAttempt({
               id: WebhookDeliveryId.make('whd_live_ladder_climb'),
               endpointId: WebhookEndpointId.make('wh_live'),
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               eventType: 'demo.ladder',
               status: 'failed',
               attempts: 1,
@@ -420,7 +427,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             const reset = yield* recordAttempt({
               id: WebhookDeliveryId.make('whd_live_ladder_delivered'),
               endpointId: WebhookEndpointId.make('wh_live'),
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               eventType: 'demo.ladder',
               status: 'delivered',
               attempts: 1,
@@ -457,7 +464,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               // secret AND the one it replaced.
               const during = yield* dispatch.getDispatchTarget(
                 WebhookEndpointId.make('wh_live'),
-                'wrk_live',
+                WorkspaceId.make('wrk_live'),
                 sent.deliveryId
               )
               expect(during?.signingSecrets).toHaveLength(2)
@@ -473,7 +480,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               const secondSecret = Redacted.value(second.signingSecret)
               const afterSecond = yield* dispatch.getDispatchTarget(
                 WebhookEndpointId.make('wh_live'),
-                'wrk_live',
+                WorkspaceId.make('wrk_live'),
                 sent.deliveryId
               )
               expect(

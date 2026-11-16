@@ -1,4 +1,5 @@
 /* oxlint-disable effect/noAsyncFunction, effect/noGlobals -- Better Auth database callbacks run outside Effect and use native timestamps. */
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { assistantSessionAuthority } from '@b2b-saas-starter/db/schema/assistant'
 import { type GenericEndpointContext } from 'better-auth'
 import { and, eq, ne } from 'drizzle-orm'
@@ -37,7 +38,7 @@ export async function revokeRetainedAssistantSessions(
   if (userId === undefined) {
     return
   }
-  const conditions = [eq(assistantSessionAuthority.userId, userId)]
+  const conditions = [eq(assistantSessionAuthority.userId, UserId.make(userId))]
   const currentId = ctx.context.session?.session.id
   if (ctx.path === '/revoke-other-sessions' && currentId) {
     conditions.push(ne(assistantSessionAuthority.sessionId, currentId))

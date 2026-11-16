@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { Effect, Layer, ManagedRuntime } from 'effect'
 import { SeedAssistantDirectory } from '@b2b-saas-starter/capabilities/assistant/directory.seed'
@@ -38,8 +39,8 @@ describe('identity-owned retained conversation deletion', () => {
       Effect.flatMap(AssistantDirectory, (directory) =>
         directory.create({
           id: 'account-retained',
-          workspaceId: 'former-workspace',
-          creatorUserId: actor.userId
+          workspaceId: WorkspaceId.make('former-workspace'),
+          creatorUserId: UserId.make(actor.userId)
         })
       )
     )
@@ -66,8 +67,8 @@ describe('identity-owned retained conversation deletion', () => {
       Effect.flatMap(AssistantDirectory, (directory) =>
         directory.create({
           id: 'account-private',
-          workspaceId: 'former-workspace',
-          creatorUserId: 'usr_other'
+          workspaceId: WorkspaceId.make('former-workspace'),
+          creatorUserId: UserId.make('usr_other')
         })
       )
     )

@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { Context, type Effect, Schema } from 'effect'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 
@@ -45,11 +46,11 @@ export type PersonalDataExportDownload = {
 }
 export type PersonalDataExportInterface = {
   readonly request: (
-    userId: string,
+    userId: UserId,
     sessionId: string
   ) => Effect.Effect<PersonalDataExportReceipt, CapabilityUnavailable>
   readonly download: (
-    userId: string,
+    userId: UserId,
     sessionId: string,
     exportId: string
   ) => Effect.Effect<PersonalDataExportDownload, CapabilityUnavailable>

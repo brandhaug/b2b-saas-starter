@@ -1,3 +1,4 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import {
   type NotificationFeed,
   WorkspaceContext,
@@ -97,7 +98,7 @@ export function LiveBilling(
       })
       /** Counts the workspace's members — the seat quantity a per-seat plan bills. */
       const countMembers = Effect.fn('Billing.countMembers')(function* (
-        workspaceId: string
+        workspaceId: WorkspaceId
       ) {
         const rows = yield* unavailable(
           db
@@ -109,7 +110,7 @@ export function LiveBilling(
       })
 
       const readSubscription = Effect.fn('Billing.readSubscription')(function* (
-        workspaceId: string
+        workspaceId: WorkspaceId
       ) {
         const rows = yield* unavailable(
           db
@@ -122,7 +123,7 @@ export function LiveBilling(
       })
 
       const lifecycleForWorkspace = Effect.fn('Billing.lifecycleForWorkspace')(
-        function* (workspaceId: string) {
+        function* (workspaceId: WorkspaceId) {
           const row = yield* readSubscription(workspaceId)
           if (row !== undefined) {
             const state = yield* unavailable(decodeSubscriptionRow(row))
@@ -147,7 +148,7 @@ export function LiveBilling(
         }
       )
       const currentPlanForWorkspace = Effect.fn('Billing.currentPlanForWorkspace')(
-        function* (workspaceId: string) {
+        function* (workspaceId: WorkspaceId) {
           const plan = planById(
             (yield* lifecycleForWorkspace(workspaceId)).access.planId
           )
@@ -157,7 +158,7 @@ export function LiveBilling(
       )
       const service: BillingInterface = {
         workspaceDeletionAllowed: Effect.fn('Billing.workspaceDeletionAllowed')(
-          function* (workspaceId: string) {
+          function* (workspaceId: WorkspaceId) {
             const subscription = yield* readSubscription(workspaceId)
             // `isCurrentSubscriptionStatus` is the provider-may-still-collect
             // predicate; the deletion-fence triggers mirror it in SQL.
@@ -327,7 +328,7 @@ export function LiveBilling(
           })
         }, provideHttp),
         syncSeats: Effect.fn('Billing.syncSeats')(function* (input: {
-          readonly workspaceId: string
+          readonly workspaceId: WorkspaceId
           readonly reason: string
         }) {
           const row = yield* readSubscription(input.workspaceId)

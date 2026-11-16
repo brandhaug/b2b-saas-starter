@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import {
   AuditEventLog,
   type RecordAuditEventInput
@@ -110,7 +111,7 @@ export const recordSsoSignInAudit = Effect.fn('AuthAudit.recordSsoSignIn')(funct
 
 /** The actor an SSO callback's response signed in, read from the cookie it set. */
 function readResponseSession(cookie: string): Promise<{
-  readonly userId: string
+  readonly userId: UserId
   readonly sessionId: string
 } | null> {
   return (

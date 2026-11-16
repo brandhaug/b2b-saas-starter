@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { auditEvents } from '@b2b-saas-starter/db/schema/governance'
 import { Database } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect } from 'effect'
@@ -39,7 +40,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live audit event log', (it
           (_, index) =>
             ({
               id: `aud_pg_${String(start + index).padStart(4, '0')}`,
-              workspaceId: 'wrk_audit_pages',
+              workspaceId: WorkspaceId.make('wrk_audit_pages'),
               actorType: 'system',
               eventType: 'page.filler',
               targetType: 'test',
@@ -118,7 +119,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live audit event log', (it
 
           expect((yield* audit.list()).items).toHaveLength(before)
         }),
-        { userId: 'usr_owner' }
+        { userId: UserId.make('usr_owner') }
       )
     )
   })
@@ -131,7 +132,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live audit event log', (it
           Effect.gen(function* () {
             const audit = yield* AuditEventLog
             yield* audit.record({
-              workspaceId: 'wrk_other',
+              workspaceId: WorkspaceId.make('wrk_other'),
               actorType: 'user',
               eventType: 'workspace.created',
               targetType: 'workspace'

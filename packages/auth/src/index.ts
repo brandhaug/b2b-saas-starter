@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { assistantSessionDeleteHook } from './assistant-session-hooks.ts'
 import { passkey } from '@better-auth/passkey'
 import { accessControl, workspaceRoleAccess } from '@b2b-saas-starter/authz/client'
@@ -124,8 +125,17 @@ function userDeleteOption(options: AuthConfigInterface) {
     additionalFields,
     deleteUser: {
       enabled: true,
-      beforeDelete: options.userDeleteHooks.beforeDelete,
-      afterDelete: options.userDeleteHooks.afterDelete
+      // The plugin hands plain-string ids; the port receives branded ones.
+      beforeDelete: (user: { readonly id: string }, request?: Request) =>
+        options.userDeleteHooks.beforeDelete({ id: UserId.make(user.id) }, request),
+      afterDelete: (
+        user: {
+          readonly id: string
+          readonly email: string
+          readonly locale?: unknown
+        },
+        request?: Request
+      ) => afterUserDelete(options, user, request)
     }
   }
 }
@@ -152,7 +162,10 @@ function userDeleteDatabaseHooks(options: AuthConfigInterface) {
           if (context?.path !== '/admin/remove-user') {
             return
           }
-          await options.userDeleteHooks.beforeDelete(user, context.request)
+          await options.userDeleteHooks.beforeDelete(
+            { id: UserId.make(user.id) },
+            context.request
+          )
         },
         after: async (
           user: {
@@ -168,23 +181,28 @@ function userDeleteDatabaseHooks(options: AuthConfigInterface) {
           if (context?.path !== '/admin/remove-user') {
             return
           }
-          if (isLocale(user.locale)) {
-            await options.userDeleteHooks.afterDelete(
-              { id: user.id, email: user.email, locale: user.locale },
-              context.request
-            )
-            return
-          }
-          await options.userDeleteHooks.afterDelete(
-            { id: user.id, email: user.email },
-            context.request
-          )
+          await afterUserDelete(options, user, context.request)
         }
       }
     }
   }
 }
 // oxlint-enable effect/noAsyncFunction
+
+function afterUserDelete(
+  options: AuthConfigInterface,
+  user: { readonly id: string; readonly email: string; readonly locale?: unknown },
+  request: Request | undefined
+): Promise<void> {
+  const deleted = { id: UserId.make(user.id), email: user.email }
+  if (isLocale(user.locale)) {
+    return options.userDeleteHooks.afterDelete(
+      { ...deleted, locale: user.locale },
+      request
+    )
+  }
+  return options.userDeleteHooks.afterDelete(deleted, request)
+}
 
 // oxlint-disable effect/noAsyncFunction -- Better Auth invokes this promise-based validation callback outside Effect
 /** Provider callbacks run after the ceremony; only an existing account link needs app proof. */
@@ -200,7 +218,7 @@ function socialLinkValidation(
       !current ||
       current.user.id !== data.user.id ||
       !(await options.hasRecentAuthentication({
-        userId: current.user.id,
+        userId: UserId.make(current.user.id),
         sessionId: current.session.id
       }))
     ) {
@@ -236,6 +254,13 @@ function betterAuthSocialProviders(providers: AuthConfigInterface['socialProvide
     ...(github !== undefined && { github }),
     ...(google !== undefined && { google })
   }
+}
+
+/** The plugin's account row as its hooks deliver it: ids still unbranded. */
+type PluginAccountChange = { readonly providerId: string; readonly userId: string }
+
+function toAccountChange(account: PluginAccountChange): AuthAccountChange {
+  return { providerId: account.providerId, userId: UserId.make(account.userId) }
 }
 
 /**
@@ -294,7 +319,9 @@ export function makeAuthOptions(options: AuthConfigInterface) {
           ) => {
             if (ctx?.path !== '/get-session') {
               // oxlint-disable-next-line effect/noAsyncFunction -- Native Better Auth callback awaits the external notification.
-              await options.invalidateAssistantAuthority?.({ userId: session.userId })
+              await options.invalidateAssistantAuthority?.({
+                userId: UserId.make(session.userId)
+              })
             }
           }
         }
@@ -302,31 +329,32 @@ export function makeAuthOptions(options: AuthConfigInterface) {
       account: {
         update: {
           // oxlint-disable-next-line effect/noAsyncFunction -- Better Auth invokes this database callback outside Effect
-          after: async (account: AuthAccountChange) => {
+          after: async (account: PluginAccountChange) => {
             if (account.providerId === 'credential') {
               // oxlint-disable-next-line effect/noAsyncFunction -- native database hook callback
-              await assurance.invalidatePassword(account.userId)
+              await assurance.invalidatePassword(UserId.make(account.userId))
             }
           }
         },
         // The linking audit port, assigned straight to Better Auth's hooks —
         // fires for every account row (credential included); the app's
         // adapter decides which provider ids are audit-worthy. The parameter
-        // is the port's narrowed shape: Better Auth's full `Account` row is
-        // assignable to it, so the adapter never sees the token columns the
-        // port does not declare.
+        // is the port's narrowed shape, branded here: Better Auth's full
+        // `Account` row is assignable to it, so the adapter never sees the
+        // token columns the port does not declare.
         create: {
-          after: (account: AuthAccountChange) =>
-            options.accountHooks.onAccountLinked(account)
+          after: (account: PluginAccountChange) =>
+            options.accountHooks.onAccountLinked(toAccountChange(account))
         },
         delete: {
           // oxlint-disable-next-line effect/noAsyncFunction -- Better Auth invokes this database callback outside Effect
-          after: async (account: AuthAccountChange) => {
-            if (account.providerId === 'credential') {
+          after: async (account: PluginAccountChange) => {
+            const change = toAccountChange(account)
+            if (change.providerId === 'credential') {
               // oxlint-disable-next-line effect/noAsyncFunction -- native database hook callback
-              await assurance.invalidatePassword(account.userId)
+              await assurance.invalidatePassword(change.userId)
             }
-            return options.accountHooks.onAccountUnlinked(account)
+            return options.accountHooks.onAccountUnlinked(change)
           }
         }
       }
@@ -745,7 +773,42 @@ export const Auth = service(
  * how a user ends up looking at one workspace's URL and another's data; the
  * slug wins because it is the one the address bar shows.
  */
-export type Session = InferredSession<AuthOptions>
+export type Session = BrandedIdentities<InferredSession<AuthOptions>>
+
+/** The plugin's session as `getSession` returns it: identities still plain strings. */
+export type PluginSession = InferredSession<AuthOptions>
+
+type BrandedIdentities<S extends PluginSession> = Omit<S, 'user' | 'session'> & {
+  readonly user: Omit<S['user'], 'id'> & { readonly id: UserId }
+  readonly session: Omit<S['session'], 'userId' | 'impersonatedBy'> & {
+    readonly userId: UserId
+    readonly impersonatedBy?: UserId | null | undefined
+  }
+}
+
+/**
+ * The session-read boundary: every consumer of `getSession` brands the
+ * plugin's user and impersonator ids here once, so application code never
+ * re-brands a session-derived id.
+ */
+export function brandSession(session: PluginSession): Session {
+  return {
+    ...session,
+    user: { ...session.user, id: UserId.make(session.user.id) },
+    session: {
+      ...session.session,
+      userId: UserId.make(session.session.userId),
+      impersonatedBy: brandImpersonator(session.session.impersonatedBy)
+    }
+  }
+}
+
+function brandImpersonator(id: string | null | undefined): UserId | null | undefined {
+  if (id === null || id === undefined) {
+    return id
+  }
+  return UserId.make(id)
+}
 
 /**
  * Compile-time guard for plugin schema inference, and the reason `plugins(...)`

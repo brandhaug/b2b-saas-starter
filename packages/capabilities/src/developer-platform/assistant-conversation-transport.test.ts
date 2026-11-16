@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { expect, it } from '@effect/vitest'
 import { Deferred, Effect, Fiber, Layer } from 'effect'
 import { AssistantDirectory } from '../assistant/directory.ts'
@@ -16,16 +17,20 @@ import { type AssistantCredentialReference } from '@b2b-saas-starter/authz/assis
 
 const credential = {
   kind: 'session',
-  userId: 'user',
+  userId: UserId.make('user'),
   sessionId: 'session',
   expiresAt: Number.MAX_SAFE_INTEGER
 } satisfies AssistantCredentialReference
-const address = { id: 'conversation', workspaceId: 'workspace', creatorUserId: 'user' }
+const address = {
+  id: 'conversation',
+  workspaceId: WorkspaceId.make('workspace'),
+  creatorUserId: UserId.make('user')
+}
 const authority = {
   conversationId: address.id,
   workspaceId: address.workspaceId,
   creatorUserId: address.creatorUserId,
-  userId: 'user',
+  userId: UserId.make('user'),
   sessionId: 'session',
   policyRevision: 7
 }
@@ -191,7 +196,9 @@ it.effect(
       yield* directory.create(address)
       const lifecycle = yield* AssistantConversationLifecycle
       expect(
-        yield* lifecycle.collectForExport('user', 'session').pipe(Effect.result)
+        yield* lifecycle
+          .collectForExport(UserId.make('user'), 'session')
+          .pipe(Effect.result)
       ).toMatchObject({
         _tag: 'Failure',
         failure: {
@@ -221,7 +228,7 @@ it.effect(
       const row = yield* directory.create(address)
       const lifecycle = yield* AssistantConversationLifecycle
       const validation = yield* lifecycle
-        .validateExport('user', 'session', [
+        .validateExport(UserId.make('user'), 'session', [
           { id: row.id, policyRevision: row.policyRevision }
         ])
         .pipe(Effect.forkChild)

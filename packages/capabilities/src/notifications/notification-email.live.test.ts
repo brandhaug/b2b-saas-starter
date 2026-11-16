@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { notifications } from '@b2b-saas-starter/db/schema/notifications'
 import { Database, type RawD1 } from '@b2b-saas-starter/db/service'
 import { DateTime, Effect, Layer } from 'effect'
@@ -57,27 +58,27 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
           [],
           Effect.gen(function* () {
             const preferences = yield* NotificationPreferences
-            expect(yield* preferences.resolve('usr_owner', 'api_token.created')).toBe(
-              'instant'
-            )
-            expect(yield* preferences.resolve('usr_owner', 'announcement')).toBe(
-              'digest'
-            )
+            expect(
+              yield* preferences.resolve(UserId.make('usr_owner'), 'api_token.created')
+            ).toBe('instant')
+            expect(
+              yield* preferences.resolve(UserId.make('usr_owner'), 'announcement')
+            ).toBe('digest')
 
             yield* preferences.set({
-              userId: 'usr_owner',
+              userId: UserId.make('usr_owner'),
               kind: 'announcement',
               channel: 'off'
             })
             yield* preferences.set({
-              userId: 'usr_owner',
+              userId: UserId.make('usr_owner'),
               kind: 'announcement',
               channel: 'instant'
             })
-            expect(yield* preferences.resolve('usr_owner', 'announcement')).toBe(
-              'instant'
-            )
-            const listed = yield* preferences.list('usr_owner')
+            expect(
+              yield* preferences.resolve(UserId.make('usr_owner'), 'announcement')
+            ).toBe('instant')
+            const listed = yield* preferences.list(UserId.make('usr_owner'))
             expect(listed.filter((entry) => !entry.isDefault)).toEqual([
               { kind: 'announcement', channel: 'instant', isDefault: false }
             ])
@@ -93,16 +94,15 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
         Effect.gen(function* () {
           const preferences = yield* NotificationPreferences
           yield* preferences.set({
-            userId: 'usr_owner',
+            userId: UserId.make('usr_owner'),
             kind: 'billing.plan_changed',
             channel: 'off'
           })
-          const strangers = Array.from(
-            { length: 150 },
-            (_, index) => `usr_none_${index}`
+          const strangers = Array.from({ length: 150 }, (_, index) =>
+            UserId.make(`usr_none_${index}`)
           )
           const channels = yield* preferences.resolveForUsers(
-            [...strangers, 'usr_owner'],
+            [...strangers, UserId.make('usr_owner')],
             'billing.plan_changed'
           )
           expect(channels.size).toBe(151)
@@ -124,7 +124,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
             const feed = yield* NotificationFeed
             // `api_token.created` defaults to instant for every member.
             return yield* feed.create({
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               userId: null,
               kind: 'api_token.created',
               title: 'API token created',
@@ -139,7 +139,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
         expect(enqueued).toEqual([
           {
             notificationId: created.id,
-            recipientUserId: 'usr_owner',
+            recipientUserId: UserId.make('usr_owner'),
             traceparent: expect.stringMatching(/^00-[\da-f]{32}-[\da-f]{16}-0[01]$/u)
           }
         ])
@@ -149,7 +149,10 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
           Effect.flatMap(NotificationFeed, (feed) => feed.list),
           Layer.merge(
             feedLayer([]),
-            liveWorkspaceContext('live-lab', WorkspaceCaller.user('usr_owner'))
+            liveWorkspaceContext(
+              'live-lab',
+              WorkspaceCaller.user(UserId.make('usr_owner'))
+            )
           )
         )
         expect(listed.map((row) => row.id)).toContain(created.id)
@@ -165,7 +168,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
             enqueued,
             Effect.flatMap(NotificationFeed, (feed) =>
               feed.create({
-                workspaceId: 'wrk_live',
+                workspaceId: WorkspaceId.make('wrk_live'),
                 kind: 'webhook.delivery_failed',
                 title: 'Webhook delivery failed',
                 message: 'gave up'
@@ -187,8 +190,12 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
             (candidate) => candidate.notification.id === created.id
           )
           expect(pair).toMatchObject({
-            recipient: { userId: 'usr_owner', email: 'owner@live.test' },
-            workspace: { id: 'wrk_live', slug: 'live-lab', name: 'Live Lab' }
+            recipient: { userId: UserId.make('usr_owner'), email: 'owner@live.test' },
+            workspace: {
+              id: WorkspaceId.make('wrk_live'),
+              slug: 'live-lab',
+              name: 'Live Lab'
+            }
           })
         })
     )
@@ -200,8 +207,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
           enqueued,
           Effect.flatMap(NotificationFeed, (feed) =>
             feed.create({
-              workspaceId: 'wrk_live',
-              userId: 'usr_owner',
+              workspaceId: WorkspaceId.make('wrk_live'),
+              userId: UserId.make('usr_owner'),
               kind: 'workspace_member.role_changed',
               title: 'Your role changed',
               message: 'You are now an admin.'
@@ -213,20 +220,20 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
         const loaded = yield* withFeed(
           [],
           Effect.flatMap(NotificationFeed, (feed) =>
-            feed.loadForEmail(created.id, 'usr_owner')
+            feed.loadForEmail(created.id, UserId.make('usr_owner'))
           )
         )
         expect(loaded).toMatchObject({
           notification: { id: created.id, kind: 'workspace_member.role_changed' },
-          recipient: { userId: 'usr_owner', email: 'owner@live.test' },
-          workspace: { id: 'wrk_live', slug: 'live-lab' }
+          recipient: { userId: UserId.make('usr_owner'), email: 'owner@live.test' },
+          workspace: { id: WorkspaceId.make('wrk_live'), slug: 'live-lab' }
         })
 
         // Another user is not a recipient of a targeted row.
         const other = yield* withFeed(
           [],
           Effect.flatMap(NotificationFeed, (feed) =>
-            feed.loadForEmail(created.id, 'usr_outsider')
+            feed.loadForEmail(created.id, UserId.make('usr_outsider'))
           )
         )
         expect(other).toBeNull()
@@ -239,7 +246,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
         const afterRead = yield* withFeed(
           [],
           Effect.flatMap(NotificationFeed, (feed) =>
-            feed.loadForEmail(created.id, 'usr_owner')
+            feed.loadForEmail(created.id, UserId.make('usr_owner'))
           )
         )
         expect(afterRead).toBeNull()
@@ -261,7 +268,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
           [],
           Effect.flatMap(NotificationPreferences, (preferences) =>
             preferences.set({
-              userId: 'usr_owner',
+              userId: UserId.make('usr_owner'),
               kind: 'webhook.delivery_failed',
               channel: 'instant'
             })
@@ -271,7 +278,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
           enqueued,
           Effect.flatMap(NotificationFeed, (feed) =>
             feed.notifyWorkspaceOwners({
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               kind: 'webhook.delivery_failed',
               title,
               message: 'https://example.com/hook has failed 5 deliveries in a row.'
@@ -286,12 +293,15 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
           .from(notifications)
           .where(
             and(
-              eq(notifications.workspaceId, 'wrk_live'),
+              eq(notifications.workspaceId, WorkspaceId.make('wrk_live')),
               eq(notifications.title, title)
             )
           )
         expect(rows).toHaveLength(1)
-        expect(rows[0]).toMatchObject({ userId: 'usr_owner', readAt: null })
+        expect(rows[0]).toMatchObject({
+          userId: UserId.make('usr_owner'),
+          readAt: null
+        })
         expect(enqueued.map((message) => message.recipientUserId)).toEqual([
           'usr_owner'
         ])
@@ -307,7 +317,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
           enqueued,
           Effect.flatMap(NotificationFeed, (feed) =>
             feed.notifyWorkspaceOwners({
-              workspaceId: 'wrk_user_admin_contract',
+              workspaceId: WorkspaceId.make('wrk_user_admin_contract'),
               kind: 'webhook.delivery_failed',
               title,
               message: 'nobody holds the owner role here'
@@ -319,7 +329,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live notification feed', (
         const rows = yield* db
           .select()
           .from(notifications)
-          .where(eq(notifications.workspaceId, 'wrk_user_admin_contract'))
+          .where(
+            eq(notifications.workspaceId, WorkspaceId.make('wrk_user_admin_contract'))
+          )
         expect(rows).toHaveLength(0)
       })
     )

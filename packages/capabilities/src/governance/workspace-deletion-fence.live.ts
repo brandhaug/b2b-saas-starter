@@ -1,3 +1,4 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { workspaceDeletionFences } from '@b2b-saas-starter/db/schema/workspaces'
 import { type EffectDatabase } from '@b2b-saas-starter/db/service'
 import { orUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -13,7 +14,7 @@ export const withWorkspaceDeletionFence = Effect.fn(
   'WorkspaceLifecycle.withDeletionFence'
 )(function* <A, E, R>(
   db: EffectDatabase,
-  workspaceId: string,
+  workspaceId: WorkspaceId,
   remove: Effect.Effect<A, E, R>
 ) {
   const token = yield* newCapabilityId('deletion')

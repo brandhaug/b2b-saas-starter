@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { AssistantDirectory } from '../assistant/directory.ts'
 import { Billing } from '@b2b-saas-starter/billing/billing'
 import { Effect, Layer, Ref } from 'effect'
@@ -54,7 +55,7 @@ export function SeedAccountLifecycle(options: {
       const deletedWorkspaces = yield* Ref.make<ReadonlyArray<string>>([])
 
       const membershipsOf = Effect.fn('AccountLifecycle.membershipsOf')(function* (
-        userId: string
+        userId: UserId
       ) {
         const roster = yield* Ref.get(options.roster)
         const gone = yield* Ref.get(deletedWorkspaces)
@@ -84,12 +85,12 @@ export function SeedAccountLifecycle(options: {
         ] satisfies ReadonlyArray<MembershipForDeletion>
       })
 
-      function planDeletion(userId: string) {
+      function planDeletion(userId: UserId) {
         return Effect.map(membershipsOf(userId), planAccountDeletion)
       }
 
       const prepareDeletion = Effect.fn('AccountLifecycle.prepareDeletion')(function* (
-        userId: string
+        userId: UserId
       ) {
         const plan = yield* planDeletion(userId)
         if (!plan.canDelete) {
@@ -147,7 +148,7 @@ export function SeedAccountLifecycle(options: {
 
       // Same span as Live's after-delete hook, so the two adapters trace alike.
       const recordDeleted = Effect.fn('AccountLifecycle.recordDeleted')(
-        (input: { readonly userId: string; readonly plan: AccountDeletionPlan }) =>
+        (input: { readonly userId: UserId; readonly plan: AccountDeletionPlan }) =>
           Effect.andThen(
             recordSecurityEvidence(
               { kind: 'account_deleted', subjectId: input.userId },

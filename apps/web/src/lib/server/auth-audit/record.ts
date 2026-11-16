@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { type RecordAuditEventInput } from '@b2b-saas-starter/capabilities/governance/audit-event-log'
 import { Effect, type Scope } from 'effect'
 import { runCapabilities } from '@/lib/capabilities'
@@ -30,9 +31,9 @@ import {
 export function authAuditInput(
   exchange: AuthExchange & {
     readonly status: number
-    readonly actorUserId: string | null
+    readonly actorUserId: UserId | null
     /** The acted-on user, for the rows that name one. */
-    readonly targetUserId?: string | null
+    readonly targetUserId?: UserId | null
     readonly locationHeader?: string | null
   }
 ): RecordAuditEventInput | null {
@@ -131,14 +132,14 @@ export const recordAuthAudit = Effect.fn('AuthAudit.record')(function* (
 
   // A body that does not parse still records an event — just an
   // unattributed or untargeted one — with the reason on the wide event.
-  let actorUserId: string | null = null
+  let actorUserId: UserId | null = null
   if (row.actor === 'session') {
     actorUserId = context?.actorUserId ?? null
   } else if (row.actor === 'response' && response.ok) {
     actorUserId = yield* readAndReportBody(readResponseUserId(response))
   }
 
-  let targetUserId: string | null = context?.targetUserId ?? null
+  let targetUserId: UserId | null = context?.targetUserId ?? null
   for (const source of row.targetFrom ?? []) {
     if (targetUserId !== null) {
       break

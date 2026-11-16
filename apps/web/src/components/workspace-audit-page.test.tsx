@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { fireEvent, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vite-plus/test'
 import { WorkspaceAuditPage } from './workspace-audit-page'
@@ -30,7 +31,7 @@ const payload: WorkspaceAuditPayload = {
   ],
   nextCursor: null,
   filters: {},
-  members: [{ id: 'usr_demo', name: 'Demo Owner' }]
+  members: [{ id: UserId.make('usr_demo'), name: 'Demo Owner' }]
 }
 
 // Rendered under a real router because the shell's nav uses `Link` — same
@@ -59,13 +60,19 @@ describe('WorkspaceAuditPage', () => {
     // Regression: the page used to spread the payload's `actorUserId`-keyed
     // filters into an `actor`-keyed search update, so the actor vanished on
     // any page turn or second filter change.
-    await renderPage({ filters: { actorUserId: 'usr_demo' }, nextCursor: 'cur_2' })
+    await renderPage({
+      filters: { actorUserId: UserId.make('usr_demo') },
+      nextCursor: 'cur_2'
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     expect(applySearch).toHaveBeenCalledWith({ actor: 'usr_demo', cursor: 'cur_2' })
   })
 
   it('clears all filters and the cursor', async () => {
-    await renderPage({ filters: { actorUserId: 'usr_demo' }, nextCursor: 'cur_2' })
+    await renderPage({
+      filters: { actorUserId: UserId.make('usr_demo') },
+      nextCursor: 'cur_2'
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Clear all' }))
     expect(applySearch).toHaveBeenCalledWith({})
   })
@@ -95,7 +102,7 @@ describe('WorkspaceAuditPage', () => {
     await renderPage({
       view,
       filters: {
-        actorUserId: 'usr_demo',
+        actorUserId: UserId.make('usr_demo'),
         eventType: 'api_token.created',
         since: '2026-08-01',
         until: '2026-08-31'
@@ -128,7 +135,10 @@ describe('WorkspaceAuditPage', () => {
 
   it('translates the payload filter vocabulary into the URL vocabulary', () => {
     expect(
-      auditSearchFromFilters({ actorUserId: 'usr_demo', since: '2026-08-01' })
+      auditSearchFromFilters({
+        actorUserId: UserId.make('usr_demo'),
+        since: '2026-08-01'
+      })
     ).toEqual({
       actor: 'usr_demo',
       since: '2026-08-01'

@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { type StripeSubscriptionResponse } from './stripe.ts'
 import { testItem, testPrice } from './provider-test-fixtures.ts'
 import { billingLifecycleStatuses } from '@b2b-saas-starter/db/enums'
@@ -270,7 +271,7 @@ it('reconciles annual periods and keeps cancellation and renewal grace deadlines
     }
   }
   const input = {
-    workspaceId: 'wrk_year',
+    workspaceId: WorkspaceId.make('wrk_year'),
     customerId: 'cus_test',
     subscriptions: [subscription],
     hasMore: false,

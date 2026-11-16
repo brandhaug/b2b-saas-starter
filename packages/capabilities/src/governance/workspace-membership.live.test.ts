@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { AssistantDirectory } from '../assistant/directory.ts'
 import { workspaceMembers } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database } from '@b2b-saas-starter/db/service'
@@ -33,7 +34,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             return inWorkspace(
               'member-contract-lab',
               effect,
-              { userId: 'usr_owner' },
+              { userId: UserId.make('usr_owner') },
               {
                 memberBinding: binding,
                 assistantInvalidation: (addresses) => {
@@ -53,13 +54,13 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               const directory = yield* AssistantDirectory
               yield* directory.create({
                 id: 'member-notification-room',
-                workspaceId: 'wrk_member_contract',
-                creatorUserId: 'usr_mover'
+                workspaceId: WorkspaceId.make('wrk_member_contract'),
+                creatorUserId: UserId.make('usr_mover')
               })
               yield* directory.create({
                 id: 'member-notification-other',
-                workspaceId: 'wrk_member_contract',
-                creatorUserId: 'usr_owner'
+                workspaceId: WorkspaceId.make('wrk_member_contract'),
+                creatorUserId: UserId.make('usr_owner')
               })
             })
           )
@@ -67,7 +68,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             Effect.gen(function* () {
               const membership = yield* WorkspaceMembership
               return yield* membership.changeRole({
-                userId: 'usr_mover',
+                userId: UserId.make('usr_mover'),
                 role: 'admin'
               })
             })
@@ -78,7 +79,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           yield* run(
             Effect.gen(function* () {
               const membership = yield* WorkspaceMembership
-              return yield* membership.removeMember({ userId: 'usr_mover' })
+              return yield* membership.removeMember({
+                userId: UserId.make('usr_mover')
+              })
             })
           )
 
@@ -126,9 +129,11 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               'live-lab',
               Effect.gen(function* () {
                 const membership = yield* WorkspaceMembership
-                return yield* membership.removeMember({ userId: 'usr_outsider' })
+                return yield* membership.removeMember({
+                  userId: UserId.make('usr_outsider')
+                })
               }),
-              { userId: 'usr_owner' },
+              { userId: UserId.make('usr_owner') },
               { memberBinding: binding }
             )
           )
@@ -149,7 +154,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 const membership = yield* WorkspaceMembership
                 return yield* membership.leave
               }),
-              { userId: 'usr_owner' },
+              { userId: UserId.make('usr_owner') },
               { memberBinding: binding }
             )
           )
@@ -179,11 +184,11 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               Effect.gen(function* () {
                 const membership = yield* WorkspaceMembership
                 return yield* membership.changeRole({
-                  userId: 'usr_owner',
+                  userId: UserId.make('usr_owner'),
                   role: 'admin'
                 })
               }),
-              { userId: 'usr_bystander' },
+              { userId: UserId.make('usr_bystander') },
               { memberBinding: binding }
             )
           )
@@ -209,14 +214,14 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             yield* db.insert(workspaceMembers).values([
               {
                 id: 'mem_other_owner',
-                workspaceId: 'wrk_other',
-                userId: 'usr_owner',
+                workspaceId: WorkspaceId.make('wrk_other'),
+                userId: UserId.make('usr_owner'),
                 role: 'owner'
               },
               {
                 id: 'mem_other_bob',
-                workspaceId: 'wrk_other',
-                userId: 'usr_bob',
+                workspaceId: WorkspaceId.make('wrk_other'),
+                userId: UserId.make('usr_bob'),
                 role: 'owner'
               }
             ])
@@ -226,7 +231,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 const membership = yield* WorkspaceMembership
                 return yield* membership.leave
               }),
-              { userId: 'usr_owner' },
+              { userId: UserId.make('usr_owner') },
               { memberBinding: binding }
             )
             // The leave endpoint is addressed by workspace only — the plugin
@@ -238,7 +243,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 const membership = yield* WorkspaceMembership
                 return yield* membership.listMembers
               }),
-              { userId: 'usr_bob' }
+              { userId: UserId.make('usr_bob') }
             )
             expect(remaining.map((member) => member.id)).toEqual(['usr_bob'])
             const events = yield* inWorkspace(
@@ -247,7 +252,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 const audit = yield* AuditEventLog
                 return (yield* audit.list()).items
               }),
-              { userId: 'usr_bob' }
+              { userId: UserId.make('usr_bob') }
             )
             expect(events.map((event) => event.eventType)).toContain(
               'workspace_member.removed'
@@ -263,11 +268,11 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               Effect.gen(function* () {
                 const membership = yield* WorkspaceMembership
                 return yield* membership.changeRole({
-                  userId: 'usr_bystander',
+                  userId: UserId.make('usr_bystander'),
                   role: 'admin'
                 })
               }),
-              { userId: 'usr_owner' }
+              { userId: UserId.make('usr_owner') }
             )
           )
           expect(error).toBeInstanceOf(CapabilityUnavailable)
@@ -292,11 +297,11 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
       }
       const cases = workspaceMembershipContractCases(
         {
-          member: 'usr_owner',
-          removable: 'usr_removable',
-          mutable: 'usr_mutable',
-          auditable: 'usr_auditable',
-          stranger: 'usr_outsider',
+          member: UserId.make('usr_owner'),
+          removable: UserId.make('usr_removable'),
+          mutable: UserId.make('usr_mutable'),
+          auditable: UserId.make('usr_auditable'),
+          stranger: UserId.make('usr_outsider'),
           recordedEvidence: Effect.sync(() => [...evidence])
         },
         expect
@@ -312,7 +317,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             yield* inWorkspace(
               'member-contract-lab',
               contractCase.assert,
-              { userId: 'usr_owner' },
+              { userId: UserId.make('usr_owner') },
               { memberBinding: binding, securityEvidence: evidenceSink }
             )
           })
@@ -328,8 +333,12 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             Effect.gen(function* () {
               const membership = yield* WorkspaceMembership
               return {
-                forOwner: yield* membership.listWorkspacesForUser('usr_owner'),
-                forOutsider: yield* membership.listWorkspacesForUser('usr_outsider')
+                forOwner: yield* membership.listWorkspacesForUser(
+                  UserId.make('usr_owner')
+                ),
+                forOutsider: yield* membership.listWorkspacesForUser(
+                  UserId.make('usr_outsider')
+                )
               }
             })
           )

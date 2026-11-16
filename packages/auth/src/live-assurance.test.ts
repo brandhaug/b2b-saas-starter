@@ -1,4 +1,5 @@
 // oxlint-disable effect/noGlobals -- The native Better Auth adapter and real D1 use the wall clock.
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { session, user, twoFactor } from '@b2b-saas-starter/db/schema/auth'
 import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest'
 import { Deferred, Effect, Exit, Fiber, type Layer } from 'effect'
@@ -128,7 +129,7 @@ describe('session evidence lifecycle', () => {
             provisioned.db
               .select()
               .from(session)
-              .where(eq(session.userId, signup.userId))
+              .where(eq(session.userId, UserId.make(signup.userId)))
           )
           expect(remaining).toHaveLength(0)
         })
@@ -153,7 +154,7 @@ describe('session evidence lifecycle', () => {
             provisioned.db
               .select()
               .from(twoFactor)
-              .where(eq(twoFactor.userId, challenge.userId))
+              .where(eq(twoFactor.userId, UserId.make(challenge.userId)))
           )
           const replacementError = yield* auth.api
             .enableTwoFactor({ body: { password: PASSWORD }, headers })
@@ -165,7 +166,7 @@ describe('session evidence lifecycle', () => {
             provisioned.db
               .select()
               .from(twoFactor)
-              .where(eq(twoFactor.userId, challenge.userId))
+              .where(eq(twoFactor.userId, UserId.make(challenge.userId)))
           )
           expect(factorAfter).toEqual(factorBefore)
           const stillRecovering = yield* readSession(headers)
@@ -259,7 +260,7 @@ describe('session evidence lifecycle', () => {
             provisioned.db
               .update(user)
               .set({ role: 'admin' })
-              .where(eq(user.id, admin.userId))
+              .where(eq(user.id, UserId.make(admin.userId)))
           )
           yield* Effect.promise(() =>
             provisioned.db
@@ -319,7 +320,7 @@ describe('session evidence lifecycle', () => {
             provisioned.db
               .select()
               .from(session)
-              .where(eq(session.userId, signup.userId))
+              .where(eq(session.userId, UserId.make(signup.userId)))
           )
           expect(rows.some((row) => row.id === original.id)).toBe(false)
           expect(

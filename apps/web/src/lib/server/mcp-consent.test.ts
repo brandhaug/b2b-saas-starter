@@ -1,5 +1,6 @@
 // oxlint-disable-next-line import/no-unassigned-import -- Installs the explicit authenticated-session test fixture.
 import '@/test/qualified-session'
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { fixtureAuthModule } from '@/test/fixture-session'
 import type * as AuthModule from './auth'
@@ -34,7 +35,7 @@ import { grantOAuthConsentHandler } from './mcp-consent.effects'
 
 const input = {
   clientId: 'https://client.example/metadata.json',
-  workspaceId: 'wrk_starter',
+  workspaceId: WorkspaceId.make('wrk_starter'),
   oauthQuery: 'client_id=x&sig=abc'
 }
 
@@ -46,7 +47,10 @@ beforeEach(() => {
 describe('grantOAuthConsentHandler', () => {
   it('refuses a workspace the consenting user is not a member of', async () => {
     await expect(
-      grantOAuthConsentHandler({ ...input, workspaceId: 'wrk_not_mine' })
+      grantOAuthConsentHandler({
+        ...input,
+        workspaceId: WorkspaceId.make('wrk_not_mine')
+      })
     ).rejects.toMatchObject({ name: 'ForbiddenError' })
 
     expect(plugin.calls).toEqual([])

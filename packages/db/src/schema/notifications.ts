@@ -1,3 +1,4 @@
+import { type UserId } from '../ids.ts'
 import { index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { notificationKinds, notificationChannels } from '../enums.ts'
 import { user } from './auth.ts'
@@ -9,7 +10,9 @@ export const notifications = sqliteTable(
   {
     id: id(),
     workspaceId: workspaceRefNullable(),
-    userId: text('user_id').references(() => user.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .$type<UserId>()
+      .references(() => user.id, { onDelete: 'cascade' }),
     // What the notification is about; selects the email template and the
     // recipient's channel preference. Rows written before the column existed
     // read as `announcement`.
@@ -44,6 +47,7 @@ export const notificationPreferences = sqliteTable(
   {
     id: id(),
     userId: text('user_id')
+      .$type<UserId>()
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     kind: text('kind', { enum: notificationKinds }).notNull(),

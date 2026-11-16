@@ -1,8 +1,10 @@
 import { narrowFailure } from '@b2b-saas-starter/failure/narrowing'
 import {
   ApiTokenId,
+  UserId,
   WebhookDeliveryId,
-  WebhookEndpointId
+  WebhookEndpointId,
+  WorkspaceId
 } from '@b2b-saas-starter/db/ids'
 import { newCapabilityId } from '../internal/ids.ts'
 import { annotateWideEvent, currentTraceparent } from '@b2b-saas-starter/logger'
@@ -37,7 +39,7 @@ import { makeLiveWebhookEnqueueFailure } from './webhook-enqueue-failure.live.ts
  */
 export const WebhookQueueMessage = Schema.Struct({
   endpointId: WebhookEndpointId,
-  workspaceId: Schema.String,
+  workspaceId: WorkspaceId,
   eventType: Schema.String,
   /** Stable across queue retries and transfer to the dead-letter queue. */
   deliveryId: WebhookDeliveryId,
@@ -89,20 +91,20 @@ export const WebhookEventPayloads = {
     successRate: Schema.Number
   }),
   'workspace_member.added': Schema.Struct({
-    userId: Schema.String,
+    userId: UserId,
     role: workspaceRole
   }),
   'workspace_member.removed': Schema.Struct({
-    userId: Schema.String,
+    userId: UserId,
     reason: Schema.optionalKey(Schema.String)
   }),
   'workspace_member.role_changed': Schema.Struct({
-    userId: Schema.String,
+    userId: UserId,
     role: workspaceRole
   }),
   'workspace_invitation.accepted': Schema.Struct({
     invitationId: Schema.String,
-    userId: Schema.String,
+    userId: UserId,
     role: workspaceRole
   }),
   'billing.plan_changed': Schema.Struct({
@@ -148,7 +150,7 @@ export type PublishWebhookEventInput = WebhookEventInput
  */
 type EnqueueWebhookMessageInput = {
   readonly endpointId: WebhookEndpointId
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   readonly eventType: string
   readonly deliveryId: WebhookDeliveryId
   readonly payload: typeof Schema.Json.Type
@@ -159,7 +161,7 @@ export type WebhookPublisherInterface = {
     input: PublishWebhookEventInput
   ) => Effect.Effect<void, CapabilityUnavailable, WorkspaceContext>
   readonly publishForWorkspace: (
-    workspaceId: string,
+    workspaceId: WorkspaceId,
     input: PublishWebhookEventInput
   ) => Effect.Effect<void, CapabilityUnavailable>
 
@@ -209,7 +211,7 @@ export function publishWebhookEventWith(
 
 export function publishWebhookEventForWorkspaceWith(
   publisher: WebhookPublisherInterface,
-  workspaceId: string,
+  workspaceId: WorkspaceId,
   input: PublishWebhookEventInput
 ): Effect.Effect<void, never> {
   return Effect.asVoid(
@@ -275,7 +277,7 @@ export function LiveWebhookPublisher(
 
       function publishForWorkspace(
         input: PublishWebhookEventInput,
-        workspaceId: string
+        workspaceId: WorkspaceId
       ) {
         return Effect.gen(function* () {
           // Provider-light: without a queue binding the publisher no-ops

@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { AuthorizationDenied } from '@b2b-saas-starter/authz/errors'
 import { WorkspaceSuspended } from '@b2b-saas-starter/capabilities/errors'
@@ -31,10 +32,10 @@ describe('public problem contract', () => {
     const suspended = publicProblem(WorkspaceSuspended)
     const codec = Schema.Union([denied, suspended])
     const body = Schema.encodeSync(codec)(
-      new WorkspaceSuspended({ workspaceId: 'ws_test' })
+      new WorkspaceSuspended({ workspaceId: WorkspaceId.make('ws_test') })
     )
     expect(Schema.decodeUnknownSync(codec)(body)).toEqual(
-      new WorkspaceSuspended({ workspaceId: 'ws_test' })
+      new WorkspaceSuspended({ workspaceId: WorkspaceId.make('ws_test') })
     )
     expect(() =>
       Schema.decodeUnknownSync(denied)({

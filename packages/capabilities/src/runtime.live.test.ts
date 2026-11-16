@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { Database } from '@b2b-saas-starter/db/service'
 import { Effect } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'
@@ -39,7 +40,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             selectWorkspaceLayer(
               { DB: d1, invitationBinding: binding },
               'live-lab',
-              WorkspaceCaller.user('usr_owner')
+              WorkspaceCaller.user(UserId.make('usr_owner'))
             )
           )
 
@@ -61,7 +62,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           const d1 = yield* TestD1
           const memberships = yield* Effect.provide(
             Effect.flatMap(WorkspaceMembership, (membership) =>
-              membership.listWorkspacesForUser('usr_owner')
+              membership.listWorkspacesForUser(UserId.make('usr_owner'))
             ),
             selectCapabilitiesLayer({ DB: d1 })
           )

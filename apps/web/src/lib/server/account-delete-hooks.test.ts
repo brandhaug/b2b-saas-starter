@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Effect, Layer } from 'effect'
 import { describe, expect, it } from 'vite-plus/test'
 import {
@@ -79,7 +80,12 @@ function planFor(): AccountDeletionPlan {
   return {
     steps: [
       {
-        workspace: { id: 'wrk_1', slug: 'lab', name: 'Lab', planId: 'team' },
+        workspace: {
+          id: WorkspaceId.make('wrk_1'),
+          slug: 'lab',
+          name: 'Lab',
+          planId: 'team'
+        },
         role: 'owner',
         action: 'leave'
       }
@@ -106,10 +112,10 @@ describe('user delete hooks', () => {
     const request = new Request('https://starter.test/api/auth/delete-user', {
       method: 'POST'
     })
-    await hooks.beforeDelete({ id: 'usr_leaver' }, request)
+    await hooks.beforeDelete({ id: UserId.make('usr_leaver') }, request)
     expect(log).toEqual(['prepare:usr_leaver'])
     await hooks.afterDelete(
-      { id: 'usr_leaver', email: 'leaver@starter.local' },
+      { id: UserId.make('usr_leaver'), email: 'leaver@starter.local' },
       request
     )
     expect(log).toEqual(['prepare:usr_leaver', 'record:usr_leaver'])
@@ -130,9 +136,9 @@ describe('user delete hooks', () => {
     const request = new Request('https://starter.test/api/auth/delete-user', {
       method: 'POST'
     })
-    await hooks.beforeDelete({ id: 'usr_leaver' }, request)
+    await hooks.beforeDelete({ id: UserId.make('usr_leaver') }, request)
     await hooks.afterDelete(
-      { id: 'usr_leaver', email: 'martin@example.com', locale: 'nb' },
+      { id: UserId.make('usr_leaver'), email: 'martin@example.com', locale: 'nb' },
       request
     )
     expect(sent).toEqual([
@@ -155,7 +161,7 @@ describe('user delete hooks', () => {
       }
     })
     await hooks.afterDelete(
-      { id: 'usr_ghost', email: 'ghost@starter.local' },
+      { id: UserId.make('usr_ghost'), email: 'ghost@starter.local' },
       new Request('https://starter.test/api/auth/delete-user', { method: 'POST' })
     )
     expect(log).toEqual([])
@@ -169,7 +175,7 @@ describe('user delete hooks', () => {
     })
     await expect(
       hooks.beforeDelete(
-        { id: 'usr_blocked' },
+        { id: UserId.make('usr_blocked') },
         new Request('https://starter.test/api/auth/delete-user', { method: 'POST' })
       )
     ).rejects.toThrow('blocked')
@@ -186,9 +192,12 @@ describe('user delete hooks', () => {
     const request = new Request('https://starter.test/api/auth/delete-user', {
       method: 'POST'
     })
-    await hooks.beforeDelete({ id: 'usr_leaver' }, request)
+    await hooks.beforeDelete({ id: UserId.make('usr_leaver') }, request)
     await expect(
-      hooks.afterDelete({ id: 'usr_leaver', email: 'leaver@starter.local' }, request)
+      hooks.afterDelete(
+        { id: UserId.make('usr_leaver'), email: 'leaver@starter.local' },
+        request
+      )
     ).resolves.toBeUndefined()
     // The prepare ran; the record was attempted and its failure swallowed.
     expect(log).toEqual(['prepare:usr_leaver'])

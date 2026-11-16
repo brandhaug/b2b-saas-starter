@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Effect, Option, Schema } from 'effect'
 import { describe, expect, it } from '@effect/vitest'
 
@@ -31,7 +32,7 @@ function target(overrides: Partial<SsoSignInTarget>): Option.Option<SsoSignInTar
   return Option.some({
     providerId: 'sso_test',
     protocol: 'oidc',
-    workspaceId: 'wrk_test',
+    workspaceId: WorkspaceId.make('wrk_test'),
     domain: 'acme.test',
     enabled: true,
     requireSso: false,

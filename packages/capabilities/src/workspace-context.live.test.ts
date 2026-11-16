@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { Effect } from 'effect'
 import { describe, expect, layer } from '@effect/vitest'
 
@@ -17,7 +18,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace context', (
     it.effect('resolves the workspace and actor for a member', () =>
       Effect.gen(function* () {
         const ctx = yield* inWorkspace('live-lab', WorkspaceContext, {
-          userId: 'usr_owner'
+          userId: UserId.make('usr_owner')
         })
         expect(ctx.workspace.id).toBe('wrk_live')
         expect(ctx.actor?.role).toBe('owner')
@@ -36,7 +37,9 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace context', (
     it.effect('fails identically for a non-member actor (non-disclosing)', () =>
       Effect.gen(function* () {
         const error = yield* Effect.flip(
-          inWorkspace('live-lab', WorkspaceContext, { userId: 'usr_outsider' })
+          inWorkspace('live-lab', WorkspaceContext, {
+            userId: UserId.make('usr_outsider')
+          })
         )
         expect(error._tag).toBe('WorkspaceNotFound')
       })

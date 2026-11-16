@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { Effect } from 'effect'
 import { type ContractExpect } from '../governance/contract-expect.ts'
 import { type CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -48,7 +49,7 @@ export function notificationFeedContractDataset(
     {
       id: ids.aliceUnread,
       kind: 'announcement',
-      userId: 'usr_alice',
+      userId: UserId.make('usr_alice'),
       title: 'Addressed to Alice',
       message: 'Only Alice can see this row.',
       createdAt: '2026-06-10T06:00:00.000Z',
@@ -122,14 +123,18 @@ export function notificationFeedContractCases(
         // The contract context is actorless, so `list` holds the broadcasts:
         // exactly what a user no row addresses can see.
         const broadcasts = (yield* feed.list).length
-        const bystander = yield* feed.countVisibleToUser('usr_bystander', [
+        const bystander = yield* feed.countVisibleToUser(UserId.make('usr_bystander'), [
           ctx.workspace.id
         ])
         expect(bystander.get(ctx.workspace.id)).toBe(broadcasts)
-        const alice = yield* feed.countVisibleToUser('usr_alice', [ctx.workspace.id])
+        const alice = yield* feed.countVisibleToUser(UserId.make('usr_alice'), [
+          ctx.workspace.id
+        ])
         // Alice also sees the one row addressed to her.
         expect(alice.get(ctx.workspace.id)).toBe(broadcasts + 1)
-        expect(yield* feed.countVisibleToUser('usr_alice', [])).toEqual(new Map())
+        expect(yield* feed.countVisibleToUser(UserId.make('usr_alice'), [])).toEqual(
+          new Map()
+        )
       })
     ),
     caseWith('drops the unread count by exactly the rows marked', (ids) =>

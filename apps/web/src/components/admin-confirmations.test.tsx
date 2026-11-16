@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 
@@ -19,7 +20,7 @@ import { renderWithRouter } from '@/test/router-harness'
 import { type SystemUser } from '@/lib/server/admin'
 
 const user: SystemUser = {
-  id: 'usr_dev',
+  id: UserId.make('usr_dev'),
   name: 'Dev Member',
   email: 'dev@starter.local',
   role: 'user',

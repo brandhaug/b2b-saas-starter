@@ -1,3 +1,4 @@
+import { UserId } from '@b2b-saas-starter/db/ids'
 import {
   billingCheckoutClaims,
   billingSynchronization,
@@ -29,7 +30,7 @@ const bindings = {
   }
 }
 
-const actor = { userId: 'usr_owner' }
+const actor = { userId: UserId.make('usr_owner') }
 
 function syncRow(updatedAt: string): typeof billingSynchronization.$inferInsert {
   return {

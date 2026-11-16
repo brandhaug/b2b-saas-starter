@@ -1,3 +1,4 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { currentTraceparent } from '@b2b-saas-starter/logger'
 import { seedKeysetPage } from '../internal/keyset-cursor.ts'
 import { DateTime, Effect, Layer, Ref } from 'effect'
@@ -50,7 +51,7 @@ const defaultFixture: SeedNotificationFeedFixture = {
  * Seeded rows belong to whatever workspace is in context (the fixture is one
  * workspace); rows `create` adds carry the explicit id they were created for.
  */
-type SeedRow = SeedNotification & { readonly workspaceId?: string }
+type SeedRow = SeedNotification & { readonly workspaceId?: WorkspaceId }
 
 function recipientOf(member: Member): EmailQueueRecipient {
   return {
@@ -60,7 +61,7 @@ function recipientOf(member: Member): EmailQueueRecipient {
   }
 }
 
-function inWorkspace(row: SeedRow, workspaceId: string): boolean {
+function inWorkspace(row: SeedRow, workspaceId: WorkspaceId): boolean {
   return row.workspaceId === undefined || row.workspaceId === workspaceId
 }
 

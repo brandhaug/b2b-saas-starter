@@ -1,3 +1,4 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { type DateTime, Effect } from 'effect'
 import { annotateWideEvent } from '@b2b-saas-starter/logger'
 
@@ -42,7 +43,7 @@ const notifyPermanentFailure = Effect.fn(
 const notifyFailureLadder = Effect.fn('WebhookAttemptCompletion.notifyFailureLadder')(
   function* (input: {
     readonly failureAction: FailureLadderAction
-    readonly workspaceId: string
+    readonly workspaceId: WorkspaceId
     readonly url: string | null
     readonly consecutiveFailures: number
   }) {

@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { narrowFailure } from '@b2b-saas-starter/failure/narrowing'
 import { Effect, Redacted, Result, Schema } from 'effect'
 import { FetchHttpClient, HttpBody, HttpClient, HttpClientRequest } from 'effect/http'
@@ -41,7 +42,11 @@ const decodeStripePortalSessionResponse = Schema.decodeUnknownResult(
 const StripeCustomerResponse = Schema.Struct({
   id: Schema.String,
   deleted: Schema.optionalKey(Schema.Boolean),
-  metadata: Schema.optionalKey(Schema.Record(Schema.String, Schema.String))
+  // Customer metadata is read for its workspace only; Stripe input decodes
+  // straight to the brand.
+  metadata: Schema.optionalKey(
+    Schema.Struct({ workspaceId: Schema.optionalKey(WorkspaceId) })
+  )
 })
 
 export type StripeCustomerResponse = Schema.Schema.Type<typeof StripeCustomerResponse>
@@ -271,7 +276,7 @@ export const createStripeCheckoutSession = Effect.fn('Stripe.createCheckoutSessi
      * member count on a per-seat plan, `1` on a flat one.
      */
     readonly quantity: number
-    readonly workspaceId: string
+    readonly workspaceId: WorkspaceId
     readonly planId: string
     readonly customerId?: string | undefined
     readonly successUrl: string
@@ -370,7 +375,7 @@ function stripeResponse<T>(
 export const createStripeCustomer = Effect.fn('Stripe.createCustomer')(
   function* (input: {
     readonly secretKey: Redacted.Redacted<string>
-    readonly workspaceId: string
+    readonly workspaceId: WorkspaceId
     readonly idempotencyKey: string
     readonly email?: string | undefined
     readonly name?: string | undefined
@@ -424,7 +429,7 @@ export const searchStripeCustomersByWorkspace = Effect.fn(
   'Stripe.searchCustomersByWorkspace'
 )(function* (input: {
   readonly secretKey: Redacted.Redacted<string>
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
 }) {
   const escapedWorkspaceId = input.workspaceId
     .replaceAll(String.fromCharCode(92), String.fromCharCode(92, 92))
@@ -557,7 +562,7 @@ export const validateStripeCustomerForWorkspace = Effect.fn(
 )(function* (input: {
   readonly secretKey: Redacted.Redacted<string>
   readonly customerId: string
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   readonly knownSubscriptionId?: string | undefined
 }) {
   const customer = yield* retrieveStripeCustomer(input)
@@ -844,7 +849,7 @@ export const readStripeObject = Effect.fn('Stripe.readObject')(function* <A>(
 function stripeCheckoutBody(input: {
   readonly priceId: string
   readonly quantity: number
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
   readonly planId: string
   readonly customerId?: string | undefined
   readonly successUrl: string

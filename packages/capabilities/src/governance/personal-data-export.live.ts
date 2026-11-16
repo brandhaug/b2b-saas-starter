@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { AssistantConversationLifecycle } from '../assistant/lifecycle.ts'
 import { account, passkey, session, user } from '@b2b-saas-starter/db/schema/auth'
 import { notifications } from '@b2b-saas-starter/db/schema/notifications'
@@ -51,7 +52,7 @@ export const LivePersonalDataExports: Layer.Layer<
       unavailable
     })
     const collect = Effect.fn('PersonalDataExports.collect')(function* (
-      userId: string
+      userId: UserId
     ) {
       const [
         users,
@@ -245,7 +246,7 @@ export const LivePersonalDataExports: Layer.Layer<
      * to `request` — and stating it once is what keeps them from drifting.
      */
     const requireLiveSession = Effect.fn('PersonalDataExports.requireLiveSession')(
-      function* (userId: string, sessionId: string, now: number) {
+      function* (userId: UserId, sessionId: string, now: number) {
         const rows = yield* unavailable(
           db
             .select({ id: session.id })
@@ -268,7 +269,7 @@ export const LivePersonalDataExports: Layer.Layer<
       }
     )
     const request = Effect.fn('PersonalDataExports.request')(function* (
-      userId: string,
+      userId: UserId,
       sessionId: string
     ) {
       const data = yield* collect(userId)
@@ -308,7 +309,7 @@ export const LivePersonalDataExports: Layer.Layer<
       return { id, expiresAt }
     })
     const download = Effect.fn('PersonalDataExports.download')(function* (
-      userId: string,
+      userId: UserId,
       sessionId: string,
       exportId: string
     ) {

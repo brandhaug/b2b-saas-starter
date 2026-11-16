@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { Effect, Layer, Ref } from 'effect'
 import { expect, it } from '@effect/vitest'
 import { SeedAuditEventLog } from '../governance/audit-event-log.ts'
@@ -20,7 +21,7 @@ import { SeedWebhookPublisher } from '../developer-platform/webhook-publisher.ts
 it.effect('Seed reconciles the full lifecycle and enforces deadlines on reads', () =>
   Effect.gen(function* () {
     const providerState = yield* Ref.make<
-      ReadonlyMap<string, SeedProviderSubscriptionFixture>
+      ReadonlyMap<WorkspaceId, SeedProviderSubscriptionFixture>
     >(new Map())
     const audit = SeedAuditEventLog([])
     const feed = SeedNotificationFeed([]).pipe(
@@ -42,9 +43,9 @@ it.effect('Seed reconciles the full lifecycle and enforces deadlines on reads', 
             providerState,
             new Map([
               [
-                'wrk_lifecycle',
+                WorkspaceId.make('wrk_lifecycle'),
                 {
-                  workspaceId: 'wrk_lifecycle',
+                  workspaceId: WorkspaceId.make('wrk_lifecycle'),
                   customerId: 'cus_lifecycle',
                   subscriptionId: 'sub_lifecycle',
                   subscriptionItemId: 'si_lifecycle',
@@ -58,18 +59,18 @@ it.effect('Seed reconciles the full lifecycle and enforces deadlines on reads', 
         sync: (eventId) =>
           billing
             .processProviderEvent({
-              workspaceId: 'wrk_lifecycle',
+              workspaceId: WorkspaceId.make('wrk_lifecycle'),
               providerEventId: eventId,
               eventType: 'customer.subscription.updated'
             })
             .pipe(Effect.asVoid),
         plan: billing
-          .currentPlanForWorkspace('wrk_lifecycle')
+          .currentPlanForWorkspace(WorkspaceId.make('wrk_lifecycle'))
           .pipe(Effect.map((plan) => plan.id)),
         grace: billing.lifecycleStatus.pipe(
           Effect.provide(
             testWorkspaceContext({
-              id: 'wrk_lifecycle',
+              id: WorkspaceId.make('wrk_lifecycle'),
               slug: 'lifecycle',
               name: 'Lifecycle',
               planId: 'starter'

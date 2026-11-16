@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { notifications } from '@b2b-saas-starter/db/schema/notifications'
 import { Database } from '@b2b-saas-starter/db/service'
 import { Effect } from 'effect'
@@ -26,30 +27,30 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             yield* db.insert(notifications).values([
               {
                 id: 'not_projection_broadcast',
-                workspaceId: 'wrk_live',
+                workspaceId: WorkspaceId.make('wrk_live'),
                 title: 'Broadcast',
                 message: 'Every member sees this.',
                 createdAt: '2026-06-10T08:00:00.000Z'
               },
               {
                 id: 'not_projection_owner',
-                workspaceId: 'wrk_live',
-                userId: 'usr_owner',
+                workspaceId: WorkspaceId.make('wrk_live'),
+                userId: UserId.make('usr_owner'),
                 title: 'For the owner',
                 message: 'Only the owner sees this.',
                 createdAt: '2026-06-10T07:00:00.000Z'
               },
               {
                 id: 'not_projection_alice',
-                workspaceId: 'wrk_live',
-                userId: 'usr_alice',
+                workspaceId: WorkspaceId.make('wrk_live'),
+                userId: UserId.make('usr_alice'),
                 title: 'For Alice',
                 message: 'The owner never sees this.',
                 createdAt: '2026-06-10T06:00:00.000Z'
               },
               {
                 id: 'not_projection_other',
-                workspaceId: 'wrk_other',
+                workspaceId: WorkspaceId.make('wrk_other'),
                 title: 'Other broadcast',
                 message: 'Every member of the other lab sees this.',
                 createdAt: '2026-06-10T05:00:00.000Z'
@@ -57,7 +58,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             ])
 
             const items = yield* Effect.provide(
-              listWorkspacesForUser('usr_owner'),
+              listWorkspacesForUser(UserId.make('usr_owner')),
               makeLiveCapabilitiesLayer({})
             )
             expect(items.length).toBeGreaterThan(1)
@@ -72,7 +73,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                     notificationCount: (yield* feed.list).length
                   }
                 }),
-                { userId: 'usr_owner' }
+                { userId: UserId.make('usr_owner') }
               )
               expect({ slug: item.workspace.slug, ...expected }).toEqual({
                 slug: item.workspace.slug,

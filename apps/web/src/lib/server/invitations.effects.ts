@@ -1,3 +1,4 @@
+import { type UserId, type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { latestInvitationEmailHistory } from '@b2b-saas-starter/capabilities/governance/invitation-email-history'
 import {
   WorkspaceContext,
@@ -80,7 +81,7 @@ export async function sendInvitationHandler(
 }
 
 const limitInvitationSend = Effect.fn('Invitation.limitSend')(
-  function* (userId: string) {
+  function* (userId: UserId) {
     const limiter = yield* RateLimiter
     if (
       !(yield* limiter.take({ bucket: 'auth_sign_in', key: `invitation:${userId}` }))
@@ -98,7 +99,7 @@ const limitInvitationSend = Effect.fn('Invitation.limitSend')(
 
 const dispatchInvitation = Effect.fn('Invitation.dispatch')(function* (
   invitation: Invitation,
-  workspace: { readonly id: string; readonly name: string },
+  workspace: { readonly id: WorkspaceId; readonly name: string },
   deliveryId: string
 ) {
   const inviteUrl = `${requestOrigin()}/invitations/accept?invitation=${invitation.id}`

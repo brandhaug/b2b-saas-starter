@@ -1,3 +1,4 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { DateTime, Effect, Layer, Option } from 'effect'
 
 import { newCapabilityId } from '../internal/ids.ts'
@@ -24,7 +25,7 @@ import {
  * `describe` answer with a fabricated `null` segment.
  */
 export type SeedSsoConnection = SsoConnection & {
-  readonly workspaceId: string
+  readonly workspaceId: WorkspaceId
 } & (
     | {
         readonly protocol: 'oidc'
@@ -78,7 +79,7 @@ export function SeedSsoConnections(
           const ctx = yield* WorkspaceContext
           // New connections start disabled: an owner enables one after a
           // successful test, so a half-configured IdP never intercepts.
-          const base: SsoConnection & { readonly workspaceId: string } = {
+          const base: SsoConnection & { readonly workspaceId: WorkspaceId } = {
             id: yield* newCapabilityId('sso'),
             protocol: input.protocol,
             domain: input.domain,
@@ -189,7 +190,7 @@ export function SeedSsoConnections(
             const match = rows.find((row) => row.id === providerId)
             if (match === undefined) {
               return Option.none<{
-                readonly workspaceId: string
+                readonly workspaceId: WorkspaceId
                 readonly domain: string
               }>()
             }

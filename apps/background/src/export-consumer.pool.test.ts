@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { type WorkspaceExportQueueMessage } from '@b2b-saas-starter/capabilities/governance/workspace-export'
 import { workspaceExportQueueName } from '@b2b-saas-starter/infra'
 import { type MessageBatchMessage } from 'cloudflare:test'
@@ -16,7 +17,7 @@ import { applyPoolMigrations, consume, db, row, rows } from './test-pool.ts'
 // Effect lint rules ban them, so promise steps ride `Effect.promise` inside
 // `Effect.runPromise`, like the live suites in `packages/auth`.
 
-const WORKSPACE_ID = 'ws_export'
+const WORKSPACE_ID = WorkspaceId.make('ws_export')
 const WORKSPACE_SLUG = 'pool-exports'
 const EXPORT_ID = 'wexp_pool'
 const OBJECT_KEY = `workspaces/${WORKSPACE_ID}/${EXPORT_ID}.json.gz`

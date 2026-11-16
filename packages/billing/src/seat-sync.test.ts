@@ -1,3 +1,4 @@
+import { WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { expect, it } from '@effect/vitest'
 import { Effect, Logger } from 'effect'
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
@@ -27,7 +28,7 @@ it.effect(
                 })
               )
           },
-          { workspaceId: 'wrk_test', reason: 'member_removed' }
+          { workspaceId: WorkspaceId.make('wrk_test'), reason: 'member_removed' }
         )
       )
       expect(records).toHaveLength(1)

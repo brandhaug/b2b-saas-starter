@@ -1,3 +1,4 @@
+import { UserId, WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { type PermissionRequest } from './principal.ts'
 import { Result, Schema } from 'effect'
 import {
@@ -18,16 +19,16 @@ export const ASSISTANT_RESOURCE_SCOPES = [
 export const AssistantCredentialReference = Schema.Union([
   Schema.Struct({
     kind: Schema.Literal('session'),
-    userId: Schema.String,
+    userId: UserId,
     sessionId: Schema.String,
     expiresAt: Schema.Number
   }),
   Schema.Struct({
     kind: Schema.Literal('oauth'),
-    userId: Schema.String,
+    userId: UserId,
     sessionId: Schema.String,
     expiresAt: Schema.Number,
-    workspaceId: Schema.String,
+    workspaceId: WorkspaceId,
     clientId: Schema.String,
     consentBinding: Schema.String,
     resource: Schema.String,
@@ -41,12 +42,12 @@ export type AssistantOAuthPrincipal = Extract<
 >
 
 const Claims = Schema.Struct({
-  sub: Schema.String,
+  sub: UserId,
   exp: Schema.Number,
   aud: Schema.String,
   scope: Schema.String,
   client_id: Schema.String,
-  [MCP_WORKSPACE_ID_CLAIM]: Schema.String,
+  [MCP_WORKSPACE_ID_CLAIM]: WorkspaceId,
   [MCP_SESSION_ID_CLAIM]: Schema.String,
   [MCP_CONSENT_CLAIM]: Schema.String,
   cnf: Schema.optionalKey(Schema.Unknown)

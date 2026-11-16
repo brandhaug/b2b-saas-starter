@@ -1,4 +1,9 @@
-import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
+import {
+  UserId,
+  WebhookDeliveryId,
+  WebhookEndpointId,
+  WorkspaceId
+} from '@b2b-saas-starter/db/ids'
 import { expect, layer } from '@effect/vitest'
 import { Clock, Effect, Layer } from 'effect'
 import { Database } from '@b2b-saas-starter/db/service'
@@ -26,7 +31,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           const db = yield* Database
           yield* db.insert(webhookInvestigationTasks).values({
             id: 'host-task',
-            workspaceId: 'wrk_live',
+            workspaceId: WorkspaceId.make('wrk_live'),
             status: 'completed',
             replayDeliveryId: null,
             record: {
@@ -50,8 +55,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             const directory = yield* AssistantDirectory
             const room = yield* directory.create({
               id: 'host-room',
-              workspaceId: 'wrk_live',
-              creatorUserId: 'usr_owner'
+              workspaceId: WorkspaceId.make('wrk_live'),
+              creatorUserId: UserId.make('usr_owner')
             })
             const evidence = yield* assistantTaskEvidence('host-task')
             expect(evidence).toMatchObject({ taskId: 'host-task', sourceId: 'source' })
@@ -77,7 +82,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 authority.authorize({
                   credential: {
                     kind: 'session',
-                    userId: 'usr_owner',
+                    userId: UserId.make('usr_owner'),
                     sessionId: 'missing',
                     expiresAt: now + 60_000
                   },
@@ -90,7 +95,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             ).toBe('AssistantAuthorityDenied')
             yield* db.insert(webhookEndpoints).values({
               id: WebhookEndpointId.make('host-endpoint'),
-              workspaceId: 'wrk_live',
+              workspaceId: WorkspaceId.make('wrk_live'),
               url: 'https://private.example',
               signingSecret: 'private',
               events: [],
@@ -126,7 +131,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             )
             yield* db
               .update(webhookEndpoints)
-              .set({ workspaceId: 'wrk_other' })
+              .set({ workspaceId: WorkspaceId.make('wrk_other') })
               .where(eq(webhookEndpoints.id, WebhookEndpointId.make('host-endpoint')))
             expect((yield* assistantTaskEvidence('host-task'))?.text).toContain(
               '"outcome":"unavailable"'
@@ -142,7 +147,10 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             Effect.provide(
               Layer.merge(
                 LiveConversationHost(),
-                liveWorkspaceContext('live-lab', WorkspaceCaller.user('usr_owner'))
+                liveWorkspaceContext(
+                  'live-lab',
+                  WorkspaceCaller.user(UserId.make('usr_owner'))
+                )
               )
             )
           )

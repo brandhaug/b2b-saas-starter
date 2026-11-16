@@ -1,3 +1,4 @@
+import { type UserId } from '@b2b-saas-starter/db/ids'
 import { Effect } from 'effect'
 
 import { AccountLifecycle } from './account-lifecycle.ts'
@@ -22,9 +23,9 @@ import { failureTag } from '../internal/failure-tag.ts'
  */
 export type AccountLifecycleContractIds = {
   /** The workspace's only owner, among several members: blocked. */
-  readonly stuckOwner: string
+  readonly stuckOwner: UserId
   /** A non-owner member of the same workspace: their plan is `leave`. */
-  readonly planner: string
+  readonly planner: UserId
   /** The password the adapters accept in `deleteAccount` cases. */
   readonly password: string
   /** A credential the adapters refuse — the seed models the check with the empty string. */

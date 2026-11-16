@@ -20,6 +20,10 @@ constraints; [Effect examples](effect-examples.md) point to current implementati
 - Prefer `const` and early returns. Name intermediate decisions and repeated work.
   Choose loops, array methods and destructuring for clarity; avoid nested multi-step
   expressions. Backend Effect lint restrictions still apply.
+- Workspace, user and resource identities are `@b2b-saas-starter/db/ids` brands.
+  Decode them where they enter (HTTP and server-fn inputs, queue messages, Better
+  Auth callbacks, columns typed `.$type<Brand>()`) and keep them branded through
+  service contracts. Build fixtures and generated IDs with `Brand.make`, never `as`.
 
 ## State machines
 

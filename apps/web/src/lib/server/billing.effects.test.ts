@@ -1,3 +1,4 @@
+import { type WorkspaceId } from '@b2b-saas-starter/db/ids'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { Effect, Layer } from 'effect'
 import { withWideEventFacts } from '@b2b-saas-starter/logger'
@@ -25,7 +26,7 @@ type Role = 'owner' | 'admin' | 'member'
 type TestState = { role: Role; facts: Readonly<Record<string, unknown>> }
 const state = vi.hoisted<TestState>(() => ({ role: 'owner', facts: {} }))
 const reconcileCalls = vi.hoisted<
-  Array<{ workspaceId: string; reason: string | undefined }>
+  Array<{ workspaceId: WorkspaceId; reason: string | undefined }>
 >(() => [])
 const portalReturnUrls = vi.hoisted<Array<string>>(() => [])
 const suspensionOperations = vi.hoisted<Array<string>>(() => [])
@@ -57,15 +58,16 @@ vi.mock('cloudflare:workers', async (importOriginal) => {
 
 vi.mock('../capabilities', () => ({
   runWorkspaceCapabilities: async (_slug: string, effect: Effect.Effect<unknown>) => {
+    const ids = await import('@b2b-saas-starter/db/ids')
     const context = {
       workspace: {
-        id: 'wrk_starter',
+        id: ids.WorkspaceId.make('wrk_starter'),
         slug: 'starter-lab',
         name: 'Starter Lab',
         planId: 'team'
       },
       actor: {
-        userId: `usr_${state.role}`,
+        userId: ids.UserId.make(`usr_${state.role}`),
         role: state.role,
         systemRole: state.role === 'owner' ? 'admin' : 'user',
         banned: false
