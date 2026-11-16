@@ -154,15 +154,16 @@ const EFFECT = `
 
 // The three remaining JS plugins, each listed in full — every rule the plugin
 // ships as of the pinned version. anti-slop and vite-plus do export a `rules`
-// map and could be derived the way react-doctor is; 26 names between the three
-// of them is not worth making every `vp` command load three more plugin modules
-// to answer `vp dev`.
+// map and could be derived the way react-doctor is; under thirty names between
+// the three of them is not worth making every `vp` command load three more
+// plugin modules to answer `vp dev`.
 const ANTI_SLOP = `
-  no-chained-type-assertions no-conditional-empty-object-spread
-  no-known-value-widening no-module-mocking no-object-parameters no-reflect-apply
-  no-reflect-get no-runtime-typeof no-shape-in-symbol-names no-unknown-parameters
-  no-unknown-returns no-unknown-type-aliases no-unsafe-dictionary-type
-  no-widen-then-assert require-safety-comment-for-type-assertion
+  no-array-filter-map no-chained-type-assertions no-conditional-empty-object-spread
+  no-known-value-widening no-module-mocking no-object-parameters
+  no-reduce-accumulator-copy no-reflect-apply no-reflect-get no-runtime-typeof
+  no-shape-in-symbol-names no-unknown-parameters no-unknown-returns
+  no-unknown-type-aliases no-unsafe-dictionary-type no-widen-then-assert
+  require-readable-spacing require-safety-comment-for-type-assertion
 `
 
 // no-nested-service-yield checks imported Effect generator bindings, so it also
@@ -604,6 +605,9 @@ const { lint = {} } = defineConfig({
       // kept that way so the resolved rule set does not change. React 17+ needs no
       // React import in scope.
       'react-in-jsx-scope': 'off',
+      // Blank-line placement is formatting, which vite.config.ts owns. The rule
+      // reports about 13,000 sites the formatter already settles.
+      'anti-slop/require-readable-spacing': 'off',
       // Misidentifies Effect.flatMap(source, callback) as Array.flatMap with a
       // thisArg. Keep data-first Effect calls valid.
       'unicorn/no-array-method-this-argument': 'off',

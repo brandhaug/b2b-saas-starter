@@ -68,15 +68,20 @@ export async function renderWithRouter(
     beforeLoad: () => routeContext,
     component: () => ui
   })
-  const destinations = [...new Set(options?.destinations ?? [])]
-    .filter((destination) => destination !== path)
-    .map((destination) =>
-      createRoute({
-        getParentRoute: () => rootRoute,
-        path: destination,
-        component: () => <p>{destination}</p>
-      })
-    )
+  const destinations = [...new Set(options?.destinations ?? [])].flatMap(
+    (destination) => {
+      if (destination === path) {
+        return []
+      }
+      return [
+        createRoute({
+          getParentRoute: () => rootRoute,
+          path: destination,
+          component: () => <p>{destination}</p>
+        })
+      ]
+    }
+  )
   const router = createRouter({
     routeTree: rootRoute.addChildren([routeUnderTest, ...destinations]),
     history: createMemoryHistory({ initialEntries: [options?.initialEntry ?? path] }),
