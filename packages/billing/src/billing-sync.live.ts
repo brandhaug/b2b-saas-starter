@@ -23,15 +23,24 @@ import { and, asc, count, eq, inArray, isNull, lte, ne, or, sql } from 'drizzle-
 import {
   completedProviderEventStatus,
   failureStatus,
+  isCompletedProviderEvent,
+  providerEventFailureSources,
   settledBySynchronization
 } from './provider-event-status.ts'
 import { openCheckoutClaimStatuses } from './checkout-claims.ts'
-import { unresolvedSynchronizationStatuses } from './synchronization-status.ts'
+import {
+  nextSynchronizationStatus,
+  unresolvedSynchronizationStatuses
+} from './synchronization-status.ts'
 
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { billingConfigured, type BillingOptions } from './billing-config.ts'
 import { resolveBillingState, type PaymentEvidence } from './billing-state.ts'
-import { type makeBillingSyncStore } from './billing-sync-store.ts'
+import {
+  billingRetryDelayMinutes,
+  providerEventRowIn,
+  type makeBillingSyncStore
+} from './billing-sync-store.ts'
 import { recoverCheckoutClaim } from './checkout-recovery.ts'
 import { AuditEventLog } from './ports.ts'
 import {
@@ -105,7 +114,14 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
       return Effect.succeed(secretKey)
     })
 
-    const runWorkspace = Effect.fn('Billing.synchronizeWorkspace')(function* (
+    /**
+     * One fenced pass under the workspace lease: authoritative Stripe reads,
+     * seat repair written back to Stripe, checkout recovery, and one atomic
+     * D1 commit, with failures recorded as durable synchronization evidence.
+     * A provider event pass passes `input`; a reconciliation passes `reason`
+     * and `recovery` instead.
+     */
+    const synchronizeWorkspace = Effect.fn('Billing.synchronizeWorkspace')(function* (
       workspaceId: string,
       input: ProcessProviderEventInput | undefined,
       reason: string | undefined,
@@ -120,7 +136,7 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
         Effect.gen(function* () {
           if (
             input !== undefined &&
-            (yield* store.event(input.providerEventId))?.status === 'completed'
+            isCompletedProviderEvent(yield* store.event(input.providerEventId))
           ) {
             return {
               result: { workspaceId, outcome: 'current', drift: [] },
@@ -200,7 +216,9 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
                   db
                     .update(billingSynchronization)
                     .set({
-                      status: 'current',
+                      status: nextSynchronizationStatus({
+                        kind: 'customer_absence_verified'
+                      }),
                       failureReason: null,
                       conflictReason: null,
                       unresolvedSince: null,
@@ -459,7 +477,7 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
     ): Effect.fn.Return<ProcessProviderEventResult, CapabilityUnavailable> {
       yield* providerKey()
       yield* annotateWideEvent({ stripeEventId: input.providerEventId })
-      if ((yield* store.event(input.providerEventId))?.status === 'completed') {
+      if (isCompletedProviderEvent(yield* store.event(input.providerEventId))) {
         yield* annotateWideEvent({ billingOutcome: 'duplicate' })
         return { outcome: 'duplicate', providerEventId: input.providerEventId }
       }
@@ -470,8 +488,8 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
           Effect.gen(function* () {
             const now = yield* DateTime.now
             const evidence = yield* store.event(input.providerEventId)
-            // The row is freshly born `processing`; the failure half of the
-            // event machine is total from that state.
+            // This statement is the routing attempt and its failure together;
+            // a row another invocation completed meanwhile refuses both.
             yield* unavailable(
               db
                 .update(billingProviderEvents)
@@ -481,7 +499,9 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
                   attemptCount: sql`${billingProviderEvents.attemptCount} + 1`,
                   updatedAt: DateTime.formatIso(now)
                 })
-                .where(eq(billingProviderEvents.providerEventId, input.providerEventId))
+                .where(
+                  providerEventRowIn(input.providerEventId, providerEventFailureSources)
+                )
             )
             let unresolvedMs = 0
             if (evidence !== undefined) {
@@ -511,7 +531,9 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
               failureReason: 'unknown_workspace',
               updatedAt: now
             })
-            .where(eq(billingProviderEvents.providerEventId, input.providerEventId))
+            .where(
+              providerEventRowIn(input.providerEventId, providerEventFailureSources)
+            )
         )
         yield* annotateWideEvent({
           stripeEventId: input.providerEventId,
@@ -525,7 +547,12 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
           reason: 'unknown_workspace'
         }
       }
-      const result = yield* runWorkspace(workspaceId, input, undefined, undefined)
+      const result = yield* synchronizeWorkspace(
+        workspaceId,
+        input,
+        undefined,
+        undefined
+      )
       yield* store.deliverNotices(workspaceId)
       if (result.duplicate) {
         return { outcome: 'duplicate', providerEventId: input.providerEventId }
@@ -543,7 +570,7 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
     const reconcileWorkspace = Effect.fn('Billing.reconcileWorkspace')(function* (
       input: ReconcileWorkspaceInput
     ) {
-      const result = yield* runWorkspace(
+      const result = yield* synchronizeWorkspace(
         input.workspaceId,
         undefined,
         input.reason,
@@ -586,12 +613,12 @@ export const makeBillingSynchronization = Effect.fn('Billing.makeSynchronization
           .limit(Math.min(5, limit * 2))
       )
       const retryableUnresolved = unresolved
-        .filter((evidence) => {
-          const delayMinutes = Math.min(15, 2 ** Math.min(evidence.attemptCount - 1, 4))
-          return (
-            Date.parse(evidence.updatedAt) + delayMinutes * 60_000 <= Date.parse(now)
-          )
-        })
+        .filter(
+          (evidence) =>
+            Date.parse(evidence.updatedAt) +
+              billingRetryDelayMinutes(evidence.attemptCount) * 60_000 <=
+            Date.parse(now)
+        )
         .slice(0, Math.min(5, limit))
       const workspaceBudget = reconcileWorkspaceBudget(
         limit,

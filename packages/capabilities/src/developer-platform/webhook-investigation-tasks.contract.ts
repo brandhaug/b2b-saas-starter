@@ -181,6 +181,54 @@ export function webhookInvestigationTaskContractCases(
       })
     },
     {
+      name: 'cancellation refuses completed and approved tasks',
+      assert: Effect.gen(function* () {
+        const retrying = yield* prepareInvestigationDelivery('cancel-finding', 'failed')
+        const approvable = yield* prepareInvestigationDelivery(
+          'cancel-approved',
+          'dead_lettered'
+        )
+        const tasks = yield* WebhookInvestigationTasks
+        const finding = yield* tasks.create({
+          deliveryId: retrying.deliveryId,
+          question: 'Cancel a finding that needs no action'
+        })
+        expect(finding.status).toBe('completed')
+        expect(
+          failureTag(yield* Effect.exit(tasks.cancel({ taskId: finding.id })))
+        ).toBe('WebhookInvestigationTaskRejected')
+        expect((yield* tasks.get({ taskId: finding.id })).status).toBe('completed')
+
+        const proposal = yield* tasks.create({
+          deliveryId: approvable.deliveryId,
+          question: 'Cancel an approved replay'
+        })
+        yield* tasks.approve({ taskId: proposal.id })
+        expect(
+          failureTag(yield* Effect.exit(tasks.cancel({ taskId: proposal.id })))
+        ).toBe('WebhookInvestigationTaskRejected')
+        expect((yield* tasks.get({ taskId: proposal.id })).status).toBe('approved')
+      })
+    },
+    {
+      name: 'repeat cancellation returns the cancelled task idempotently',
+      assert: Effect.gen(function* () {
+        const source = yield* prepareInvestigationDelivery(
+          'cancel-twice',
+          'dead_lettered'
+        )
+        const tasks = yield* WebhookInvestigationTasks
+        const proposal = yield* tasks.create({
+          deliveryId: source.deliveryId,
+          question: 'Cancel this proposal twice'
+        })
+        const first = yield* tasks.cancel({ taskId: proposal.id })
+        const second = yield* tasks.cancel({ taskId: proposal.id })
+        expect(second).toEqual(first)
+        expect(second).toMatchObject({ status: 'cancelled', replayDeliveryId: null })
+      })
+    },
+    {
       name: 'duplicate approval reuses the same replay identity',
       assert: Effect.gen(function* () {
         const source = yield* prepareInvestigationDelivery('duplicate', 'dead_lettered')

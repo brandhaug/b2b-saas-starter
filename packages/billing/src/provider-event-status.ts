@@ -1,4 +1,7 @@
-import { type BillingProviderEventStatus } from '@b2b-saas-starter/db/enums'
+import {
+  billingProviderEventStatuses,
+  type BillingProviderEventStatus
+} from '@b2b-saas-starter/db/enums'
 
 /**
  * The owner of the `billing_provider_events.status` machine (ADR 0077).
@@ -13,6 +16,13 @@ import { type BillingProviderEventStatus } from '@b2b-saas-starter/db/enums'
  * - the `workspace_deletion_fences` triggers refuse deletion while an event
  *   has `status <> 'completed' AND resolved_at IS NULL` (migration
  *   `20261024202744_strong_captain_america`).
+ *
+ * Every adapter write keyed by one event row filters on the source set below
+ * for its transition (`providerEventAttemptSources`,
+ * `providerEventFailureSources`), so a stale invocation cannot move a row the
+ * map refuses. Commits need no source filter: the input event's commit runs
+ * after the duplicate check, and the bulk settle filters on
+ * `settledBySynchronization`.
  */
 
 /** The outcomes that can move a provider event row. */
@@ -77,6 +87,31 @@ export const settledBySynchronization: ReadonlyArray<BillingProviderEventStatus>
  */
 export const attemptProviderEventStatus: BillingProviderEventStatus = 'processing'
 
+/** The rows an `attempt` may re-enter into `processing`. */
+export const providerEventAttemptSources: ReadonlyArray<BillingProviderEventStatus> =
+  billingProviderEventStatuses.filter(
+    (status) => nextProviderEventStatus(status, { kind: 'attempt' }) !== null
+  )
+
+/**
+ * The rows a failure write may land on. A failure is recorded against an
+ * attempt: `begin` re-enters `processing` first under the lease, and the
+ * unleased routing path writes the attempt and its failure in one statement.
+ * So a row accepts a failure when its attempt is legal and the attempted
+ * status admits either classification — never a `completed` row.
+ */
+export const providerEventFailureSources: ReadonlyArray<BillingProviderEventStatus> =
+  billingProviderEventStatuses.filter((status) => {
+    const attempted = nextProviderEventStatus(status, { kind: 'attempt' })
+    return (
+      attempted !== null &&
+      [false, true].every(
+        (conflict) =>
+          nextProviderEventStatus(attempted, { kind: 'failure', conflict }) !== null
+      )
+    )
+  })
+
 /**
  * The status a successful commit writes. Both commit sites write under guards
  * that exclude `completed` rows (the input event by the duplicate check, the
@@ -84,6 +119,13 @@ export const attemptProviderEventStatus: BillingProviderEventStatus = 'processin
  * every row they touch.
  */
 export const completedProviderEventStatus: BillingProviderEventStatus = 'completed'
+
+/** Whether a stored provider event has already been settled by its commit. */
+export function isCompletedProviderEvent(
+  evidence: { readonly status: string } | undefined
+): boolean {
+  return evidence?.status === completedProviderEventStatus
+}
 
 /**
  * The failure classification for an in-flight attempt. `begin` re-enters

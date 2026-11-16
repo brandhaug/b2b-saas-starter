@@ -1,5 +1,9 @@
 import { WebhookDeliveryId, WebhookEndpointId } from '@b2b-saas-starter/db/ids'
-import { deliveryAttemptPhases, type DeliveryStatus } from '@b2b-saas-starter/db/enums'
+import {
+  deliveryAttemptPhases,
+  deliveryStatuses,
+  type DeliveryStatus
+} from '@b2b-saas-starter/db/enums'
 import { DateTime, Duration, Option, Schema } from 'effect'
 
 import { type AuditEventType } from '../governance/audit-event-taxonomy.ts'
@@ -178,15 +182,14 @@ const webhookDeliveryTransitions = {
 /**
  * Applies one outcome to a stored status; `null` refuses the transition.
  *
- * Authority split (ADR 0077): this map is the declared contract — it pins
- * every legal move and refusal in tests, including replay-as-new-row and
- * `enqueue_failure` only from `pending`. At runtime the write authority is
- * the store: the acceptance guard admits exactly
- * `dispatchableDeliveryStatuses` rows, and callers arrive with an already
- * classified status (`planDeliveryAttempt`, the enqueue-failure path, the
- * dead-letter consumer) rather than a transition event, so no adapter
- * consults this function — the row's current status is known only to the
- * store that guards the write.
+ * Authority split (ADR 0077): callers arrive with an already classified
+ * target status (`planDeliveryAttempt`, the enqueue-failure path, the
+ * dead-letter consumer) rather than a transition event, and only the store
+ * that guards the write knows the row's current status. So adapters consume
+ * the map through the predicate sets derived from it below:
+ * `dispatchableDeliveryStatuses` is the acceptance guard both stores apply,
+ * and `settledDeliveryStatuses` is what dispatch-target reads and history
+ * cleanup filter on.
  */
 export function nextWebhookDeliveryStatus(
   status: WebhookDeliveryStatus,
@@ -210,18 +213,28 @@ function deliveryTransitionKey(
   return 'dispatch_terminal'
 }
 
-/**
- * The statuses a recorded attempt may move — every status the queue's
- * acceptance guard admits. The Live guard's `status in ('pending',
- * 'failed')` and the Seed `advances` check mirror this set.
- */
-export const dispatchableDeliveryStatuses: ReadonlyArray<WebhookDeliveryStatus> = [
-  pendingDeliveryStatus,
-  failedDeliveryStatus
+const dispatchDecisions: ReadonlyArray<DeliveryDecision> = [
+  'delivered',
+  'retry',
+  'terminal'
 ]
 
-export function isDispatchableDeliveryStatus(status: WebhookDeliveryStatus): boolean {
-  return dispatchableDeliveryStatuses.includes(status)
+/**
+ * The statuses a recorded attempt may move — the rows the map lets every
+ * dispatch outcome leave. The Live acceptance guard and the Seed `advances`
+ * check compose from this set.
+ */
+export const dispatchableDeliveryStatuses: ReadonlyArray<WebhookDeliveryStatus> =
+  deliveryStatuses.filter((status) =>
+    dispatchDecisions.every(
+      (decision) =>
+        nextWebhookDeliveryStatus(status, { kind: 'dispatch', decision }) !== null
+    )
+  )
+
+/** Accepts the wire `string` status the delivery schema carries. */
+export function isDispatchableDeliveryStatus(status: string): boolean {
+  return dispatchableDeliveryStatuses.some((dispatchable) => dispatchable === status)
 }
 
 /**
@@ -239,18 +252,17 @@ export function isTerminalDeliveryStatus(status: WebhookDeliveryStatus): boolean
 }
 
 /**
- * A settled delivery never dispatches again: delivered, or terminally
- * failed. Dispatch-target reads and history cleanup both filter on this
- * set; the cleanup SQL's `status in ('delivered', 'failed_permanent',
- * 'dead_lettered')` mirrors it.
+ * A settled delivery never dispatches again: the rows the map refuses every
+ * outcome — delivered, or terminally failed. Dispatch-target reads and
+ * history cleanup both filter on this set.
  */
-export const settledDeliveryStatuses: ReadonlyArray<WebhookDeliveryStatus> = [
-  deliveredDeliveryStatus,
-  ...terminalDeliveryStatuses
-]
+export const settledDeliveryStatuses: ReadonlyArray<WebhookDeliveryStatus> =
+  deliveryStatuses.filter((status) =>
+    Object.values(webhookDeliveryTransitions[status]).every((target) => target === null)
+  )
 
 export function isSettledDeliveryStatus(status: WebhookDeliveryStatus): boolean {
-  return status === deliveredDeliveryStatus || isTerminalDeliveryStatus(status)
+  return settledDeliveryStatuses.includes(status)
 }
 
 /**

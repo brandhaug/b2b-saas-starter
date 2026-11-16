@@ -37,6 +37,10 @@ describe('nextSynchronizationStatus', () => {
   it('marks an opened checkout claim pending', () => {
     expect(nextSynchronizationStatus({ kind: 'checkout_claim_opened' })).toBe('pending')
   })
+
+  it('keeps a configured provider no pass has read pending', () => {
+    expect(nextSynchronizationStatus({ kind: 'provider_unread' })).toBe('pending')
+  })
 })
 
 describe('unresolvedSynchronizationStatuses', () => {

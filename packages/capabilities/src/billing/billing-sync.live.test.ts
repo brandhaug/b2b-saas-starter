@@ -18,7 +18,7 @@ import {
 } from '@b2b-saas-starter/db/schema/developer-platform'
 import { workspaceMembers, workspaces } from '@b2b-saas-starter/db/schema/workspaces'
 import { Database, RawD1 } from '@b2b-saas-starter/db/service'
-import { DateTime, type Context, Effect } from 'effect'
+import { DateTime, type Context, Effect, Layer } from 'effect'
 import * as TestClock from 'effect/testing/TestClock'
 import { expect, layer } from '@effect/vitest'
 import { vi } from 'vite-plus/test'
@@ -34,6 +34,12 @@ import {
   type ProcessProviderEventInput
 } from '@b2b-saas-starter/billing/billing'
 import { type StripeSubscriptionResponse } from '@b2b-saas-starter/billing/stripe'
+import { makeBillingSyncStore } from '@b2b-saas-starter/billing/billing-sync-store'
+import {
+  BillingAuditLayer,
+  BillingNotificationLayer,
+  BillingWebhookLayer
+} from '../billing-adapters.ts'
 import { WebhookEndpoints } from '../developer-platform/webhook-endpoints.ts'
 import { type WebhookQueueMessage } from '../developer-platform/webhook-publisher.ts'
 
@@ -260,6 +266,27 @@ function billingRun<A, E>(
   run: (billing: Context.Service.Shape<typeof Billing>) => Effect.Effect<A, E>
 ) {
   return inWorkspace('live-lab', Effect.flatMap(Billing, run), undefined, bindings)
+}
+
+/**
+ * The fenced storage boundary on its own, for an invocation whose view of a
+ * provider event went stale while another invocation completed it.
+ */
+function syncStoreRun<A, E>(
+  run: (
+    store: Effect.Success<ReturnType<typeof makeBillingSyncStore>>
+  ) => Effect.Effect<A, E, Database | RawD1>
+) {
+  return inWorkspace(
+    'live-lab',
+    Effect.flatMap(makeBillingSyncStore(), run).pipe(
+      Effect.provide(
+        Layer.mergeAll(BillingAuditLayer, BillingNotificationLayer, BillingWebhookLayer)
+      )
+    ),
+    undefined,
+    bindings
+  )
 }
 
 const stored = Effect.gen(function* () {
@@ -1016,6 +1043,49 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           expect(state.seatWrites).toEqual([2, 1, 2])
         })
       )
+    )
+
+    it.effect(
+      'a stale attempt and its failure never reopen a completed provider event',
+      () =>
+        withStripe(() =>
+          Effect.gen(function* () {
+            // `completed` refuses every provider-event transition. An attempt
+            // that read the event before another invocation committed it must
+            // not re-enter it into `processing`, nor record its failure there.
+            yield* billingRun((billing) =>
+              billing.processProviderEvent(event('evt_settled'))
+            )
+            const settled = (yield* stored).events.find(
+              (row) => row.providerEventId === 'evt_settled'
+            )
+            expect(settled?.status).toBe('completed')
+            yield* syncStoreRun((store) =>
+              store.leases.withLease(workspaceId, (lease) =>
+                Effect.gen(function* () {
+                  yield* store.begin(lease, event('evt_settled'))
+                  yield* store.fail(
+                    lease,
+                    'stripe request failed',
+                    false,
+                    event('evt_settled')
+                  )
+                })
+              )
+            )
+            const after = (yield* stored).events.find(
+              (row) => row.providerEventId === 'evt_settled'
+            )
+            expect(after).toMatchObject({
+              status: 'completed',
+              outcome: settled?.outcome,
+              failureReason: null,
+              attemptCount: settled?.attemptCount,
+              resolvedAt: settled?.resolvedAt
+            })
+            expect(after?.resolvedAt).not.toBeNull()
+          })
+        )
     )
   }
 )

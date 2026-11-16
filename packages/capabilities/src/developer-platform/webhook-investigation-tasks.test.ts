@@ -29,11 +29,16 @@ describe('investigation task transition map', () => {
     expect(nextInvestigationTaskStatus('approved', { kind: 'cancel' })).toBeNull()
   })
 
-  it('refuses both outcomes from the terminal statuses', () => {
-    for (const status of ['cancelled', 'completed'] as const) {
-      expect(nextInvestigationTaskStatus(status, { kind: 'approve' })).toBeNull()
-      expect(nextInvestigationTaskStatus(status, { kind: 'cancel' })).toBeNull()
-    }
+  it('re-enters cancelled idempotently and never approves a cancelled task', () => {
+    expect(nextInvestigationTaskStatus('cancelled', { kind: 'cancel' })).toBe(
+      'cancelled'
+    )
+    expect(nextInvestigationTaskStatus('cancelled', { kind: 'approve' })).toBeNull()
+  })
+
+  it('refuses both outcomes from a completed finding', () => {
+    expect(nextInvestigationTaskStatus('completed', { kind: 'approve' })).toBeNull()
+    expect(nextInvestigationTaskStatus('completed', { kind: 'cancel' })).toBeNull()
   })
 
   it('births a proposal only for an unavailable receiver', () => {

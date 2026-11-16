@@ -11,6 +11,7 @@ import { annotateWideEvent } from '@b2b-saas-starter/logger'
 
 import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
 import { newCapabilityId } from './internal/ids.ts'
+import { initialSynchronizationStatus } from './synchronization-status.ts'
 
 export type BillingLease = {
   readonly workspaceId: string
@@ -42,7 +43,7 @@ export const makeBillingLease = Effect.fn('Billing.makeLease')(function* () {
         .insert(billingSynchronization)
         .values({
           workspaceId,
-          status: 'current',
+          status: initialSynchronizationStatus,
           updatedAt: timestamp
         })
         .onConflictDoNothing()
