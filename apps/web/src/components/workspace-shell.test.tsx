@@ -93,7 +93,7 @@ describe('WorkspaceShell', () => {
   it('keeps preview navigation public and leaves the signed-in workspace memory alone', async () => {
     const remembered = { slug: 'private-workspace', name: 'Private workspace' }
     const { router } = await renderWithRouter(
-      <PreviewProvider>
+      <PreviewProvider workspace={{ slug: 'starter-lab', name: 'Starter Lab' }}>
         <WorkspaceShell
           workspaceSlug="starter-lab"
           frame={{ viewer: { role: 'owner' }, unreadCount: 2 }}

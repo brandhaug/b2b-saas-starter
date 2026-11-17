@@ -10,13 +10,17 @@ import { cn } from '@/lib/utils'
  */
 export function Identifier({
   children,
-  className
+  className,
+  title
 }: {
   readonly children: ReactNode
   readonly className?: string
+  /** The full value, for a consumer that clamps a long identifier. */
+  readonly title?: string
 }) {
   return (
     <code
+      title={title}
       className={cn(
         'min-w-0 max-w-full rounded-sm bg-muted px-1.5 py-0.5 font-mono text-xs wrap-anywhere',
         className

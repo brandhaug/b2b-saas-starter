@@ -21,7 +21,7 @@ import { type DemoDataKind } from '@/lib/demo-data-kind'
  * Dev-only datasets for `/demo?data=…`: the realistic worst case each page can
  * meet, plus the empty, single-record and 1,000-row extremes. Every value is
  * either a plausible production value or the longest one the schema accepts
- * (workspace name 80, token name 100, webhook URL 2048, invitation email 320);
+ * (workspace name 80, webhook URL 2048, token name 100);
  * user names, notification copy and audit actors have no limit, so they use
  * long but real shapes. Only `demo-stress-preview.tsx` imports this module,
  * and only behind `import.meta.env.DEV`.
@@ -33,7 +33,7 @@ const demoUserId = demoUserIdentity.id
 const longWorkspace = {
   id: WorkspaceId.make('wrk_starter'),
   slug: seedWorkspaceRecord.slug,
-  name: 'Nordisk Sikkerhetsrådgivning og Compliance AS – Avdeling for antihvitvasking (EU)',
+  name: 'Nordisk Sikkerhetsrådgivning og Compliance AS – Avdeling for antihvitvasking EØS',
   planId: 'team'
 } satisfies DemoRecords['workspace']
 
@@ -104,7 +104,7 @@ const worstMembers = [
 const worstInvitations = [
   {
     id: 'inv_long',
-    // A distribution list on a long subsidiary domain.
+    // A distribution list on a long subsidiary domain; the schema allows 320.
     email:
       'procurement-and-vendor-onboarding-notifications.nordics@subsidiary.enterprise-holdings-international.co.uk',
     role: 'admin',
@@ -120,8 +120,15 @@ const worstInvitations = [
   }
 ] satisfies DemoRecords['invitations']
 
-const longEndpointUrl =
-  'https://hooks.eu-west-1.integrations.nordisk-sikkerhetsradgivning.no/api/v2/integrations/b2b-saas-starter/webhooks/receive?tenant=8f14e45f-ceea-467a-9a37-0a1f9c2b5d3e&signature_version=2&source=starter-lab&retry_policy=exponential'
+const endpointBase =
+  'https://hooks.eu-west-1.integrations.nordisk-sikkerhetsradgivning.no/api/v2/integrations/b2b-saas-starter/webhooks/receive?tenant=8f14e45f-ceea-467a-9a37-0a1f9c2b5d3e&signature_version=2&source=starter-lab&retry_policy=exponential&access_token='
+const base64Url = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
+// 2,048 characters, the endpoint schema maximum: a receiver that authenticates
+// with a signed JWT in the query string, the usual way a URL gets this long.
+const longEndpointUrl = `${endpointBase}${Array.from(
+  { length: 2048 - endpointBase.length },
+  (_, index) => base64Url[(index * 37 + 11) % base64Url.length] ?? 'A'
+).join('')}`
 const allEventTypes = [
   'api_token.created',
   'api_token.revoked',
@@ -216,7 +223,7 @@ const worstEndpoints = [
 const worstTokens = [
   {
     id: ApiTokenId.make('tok_long'),
-    // 100 characters: the token-name schema maximum.
+    // 99 characters, one under the token-name schema maximum.
     name: 'Production ingestion pipeline – Snowflake → warehouse sync (owner: data-platform, rotate quarterly)',
     prefix: 'starter_prod_in1',
     scopes: ['read', 'write', 'admin'],
@@ -241,9 +248,9 @@ const worstNotifications = [
   {
     id: 'not_long',
     kind: 'webhook.delivery_failed',
-    title:
-      'Webhook delivery to hooks.eu-west-1.integrations.nordisk-sikkerhetsradgivning.no gave up after 12 attempts',
-    message: `The endpoint ${longEndpointUrl} rejected workspace_member.role_changed with 502 Bad Gateway.`,
+    // The producer's own copy (webhook-attempt-completion.ts): the full URL.
+    title: 'Webhook delivery failed',
+    message: `${longEndpointUrl}: workspace_member.role_changed was rejected and will not be retried.`,
     read: false,
     createdAt: '2026-05-16T08:41:30.000Z'
   },
@@ -414,6 +421,11 @@ function hugeMembers(count: number): DemoRecords['members'] {
 }
 
 const bulkMembers = hugeMembers(1284)
+// Bulk rows cite every member but the demo owner in row 0.
+function bulkMember(index: number) {
+  const position = (index % (bulkMembers.length - 1)) + 1
+  return { id: `usr_bulk_${position}`, name: bulkMembers[position]?.name ?? 'Ola' }
+}
 const hugeRecords: DemoRecords = {
   ...worstRecords,
   workspace: seedWorkspaceRecord,
@@ -428,7 +440,7 @@ const hugeRecords: DemoRecords = {
   notifications: Array.from({ length: 1000 }, (_, index) => ({
     id: `not_bulk_${index}`,
     kind: 'workspace_member.joined',
-    title: `${bulkMembers[(index % 1283) + 1]?.name ?? 'Ola'} joined Starter Lab`,
+    title: `${bulkMember(index).name} joined Starter Lab`,
     message: 'Invited by Demo Admin.',
     read: index > 40,
     createdAt: new Date(Date.UTC(2026, 4, 16, 8) - index * 3_600_000).toISOString()
@@ -448,10 +460,10 @@ const hugeRecords: DemoRecords = {
     actorType: 'user',
     eventType: 'workspace_member.joined',
     targetType: 'member',
-    targetId: `usr_bulk_${(index % 1283) + 1}`,
-    actor: bulkMembers[(index % 1283) + 1]?.name ?? 'Ola',
+    targetId: bulkMember(index).id,
+    actor: bulkMember(index).name,
     createdAt: new Date(Date.UTC(2026, 4, 16, 8) - index * 3_600_000).toISOString(),
-    actorUserId: UserId.make(`usr_bulk_${(index % 1283) + 1}`),
+    actorUserId: UserId.make(bulkMember(index).id),
     metadata: { role: 'member' }
   }))
 }

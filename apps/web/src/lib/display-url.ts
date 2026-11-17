@@ -13,3 +13,14 @@ export function displayUrl(url: string): string {
   const path = pathname === '/' ? '' : pathname
   return `${host}${path}${search === '' && hash === '' ? '' : '?…'}`
 }
+
+const urlInText = /https?:\/\/[^\s]+?(?=[.,:;)]*(?:\s|$))/gu
+
+/**
+ * Free text with every URL in it shortened by {@link displayUrl}. Server copy
+ * such as a webhook failure notification embeds the full endpoint URL, which
+ * would otherwise bury the sentence around it.
+ */
+export function withDisplayUrls(text: string): string {
+  return text.replaceAll(urlInText, (url) => displayUrl(url))
+}

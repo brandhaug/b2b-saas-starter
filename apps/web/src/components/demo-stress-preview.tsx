@@ -1,6 +1,5 @@
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { DemoRenderer } from '@/components/demo-renderer'
-import { PreviewProvider } from '@/components/preview-provider'
+import { DemoPreviewFrame } from '@/components/demo-renderer'
 import { Button } from '@/components/ui/button'
 import { SegmentGroup } from '@/components/ui/segment-group'
 import { defaultDemoDataset, type DemoSection } from '@/lib/demo-fixtures'
@@ -36,12 +35,13 @@ export default function DemoStressPreview({
   const dataset = kind === 'demo' ? defaultDemoDataset : stressDatasets[kind]
   return (
     <>
-      <PreviewProvider key={kind} workspace={dataset.workspace}>
-        <DemoRenderer section={section} dataset={dataset} />
-      </PreviewProvider>
+      <DemoPreviewFrame key={kind} section={section} dataset={dataset} />
       <div className="pointer-events-none fixed inset-x-4 bottom-4 z-50 flex justify-center">
         <div className="pointer-events-auto max-w-full overflow-x-auto rounded-md bg-background shadow-md">
-          <SegmentGroup aria-label="Preview dataset">
+          <SegmentGroup
+            aria-label="Preview dataset"
+            className="flex-wrap justify-center"
+          >
             {demoDataKinds.map((option) => (
               <Button
                 key={option}

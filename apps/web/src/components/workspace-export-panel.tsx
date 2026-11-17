@@ -113,7 +113,7 @@ export function WorkspaceExportPanel({
                     {statusLabel(row.status)}
                   </Badge>
                 </ItemTitle>
-                <ItemDescription className="line-clamp-none">
+                <ItemDescription>
                   {row.status === 'ready'
                     ? m.export_available_until({
                         time: formatTimestampOr(row.expiresAt, m.unknown_value())

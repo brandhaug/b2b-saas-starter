@@ -13,6 +13,7 @@ import {
 import { LiveNotifications } from '@/components/live-notifications'
 import { PageHeader } from '@/components/page/page-header'
 import { WorkspaceShell } from '@/components/workspace-shell'
+import { PreviewProvider } from '@/components/preview-provider'
 import { useState } from 'react'
 import {
   demoBillingPorts,
@@ -40,7 +41,22 @@ function previewAssistantAsk(
   })
 }
 
-export function DemoRenderer({
+/** One preview: the dataset's workspace in the chrome, its payloads in the page. */
+export function DemoPreviewFrame({
+  section,
+  dataset
+}: {
+  readonly section: DemoSection
+  readonly dataset: DemoDataset
+}) {
+  return (
+    <PreviewProvider workspace={dataset.workspace}>
+      <DemoRenderer section={section} dataset={dataset} />
+    </PreviewProvider>
+  )
+}
+
+function DemoRenderer({
   section,
   dataset
 }: {

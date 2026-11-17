@@ -323,9 +323,6 @@ export type DemoDataset = ReturnType<typeof demoDataset>
 /** Projects one record set into every preview page's payload. */
 export function demoDataset(records: DemoRecords) {
   const { unreadCount } = records
-  const roster = records.members
-  const tokenRecords = records.tokens
-  const endpointRecords = records.endpoints
   const auditEvents = records.auditDetails.map((event) => ({
     id: event.id,
     eventType: event.eventType,
@@ -338,12 +335,12 @@ export function demoDataset(records: DemoRecords) {
   const seatUsage = {
     pricing: 'per_seat',
     included: null,
-    used: roster.length,
+    used: records.members.length,
     overLimit: false
   } satisfies WorkspaceMembersPayload['seatUsage']
-  const tokenIds = tokenRecords.map(({ id }) => id)
-  const endpointIds = endpointRecords.map(({ id }) => id)
-  const enabledEndpointIds = endpointRecords.flatMap((endpoint) =>
+  const tokenIds = records.tokens.map(({ id }) => id)
+  const endpointIds = records.endpoints.map(({ id }) => id)
+  const enabledEndpointIds = records.endpoints.flatMap((endpoint) =>
     endpoint.enabled ? [endpoint.id] : []
   )
   const fixtures = {
@@ -353,8 +350,8 @@ export function demoDataset(records: DemoRecords) {
       unreadCount,
       notifications: records.notifications,
       invitations: records.invitations,
-      apiTokens: tokenRecords,
-      webhooks: endpointRecords.map((endpoint) => ({
+      apiTokens: records.tokens,
+      webhooks: records.endpoints.map((endpoint) => ({
         id: endpoint.id,
         url: endpoint.url,
         enabled: endpoint.enabled,
@@ -378,7 +375,7 @@ export function demoDataset(records: DemoRecords) {
     members: {
       viewer,
       unreadCount,
-      members: roster,
+      members: records.members,
       invitations: records.invitations,
       emailDeliveries: [],
       seatUsage
@@ -386,19 +383,19 @@ export function demoDataset(records: DemoRecords) {
     apiTokens: {
       viewer,
       unreadCount,
-      tokens: tokenRecords
+      tokens: records.tokens
     } satisfies WorkspaceApiTokensPayload,
     webhooks: {
       viewer,
       unreadCount,
-      endpoints: endpointRecords
+      endpoints: records.endpoints
     } satisfies WorkspaceWebhooksPayload,
     audit: {
       viewer,
       events: auditEvents,
       nextCursor: null,
       filters: {},
-      members: roster.map(({ id, name }) => ({ id, name })),
+      members: records.members.map(({ id, name }) => ({ id, name })),
       selectedEvent: null,
       unreadCount
     } satisfies WorkspaceAuditPayload,
@@ -430,7 +427,7 @@ export function demoDataset(records: DemoRecords) {
         apiTokens: {
           resource: 'api_token',
           limit: null,
-          used: tokenRecords.length,
+          used: records.tokens.length,
           eligibleIds: tokenIds,
           selectedIds: tokenIds,
           activeIds: tokenIds,
@@ -439,15 +436,15 @@ export function demoDataset(records: DemoRecords) {
         webhookEndpoints: {
           resource: 'webhook_endpoint',
           limit: null,
-          used: endpointRecords.length,
+          used: records.endpoints.length,
           eligibleIds: endpointIds,
           selectedIds: enabledEndpointIds,
           activeIds: endpointIds,
           paused: false
         }
       },
-      apiTokens: tokenRecords.map(({ id, name }) => ({ id, name })),
-      webhookEndpoints: endpointRecords.map(({ id, url }) => ({ id, url }))
+      apiTokens: records.tokens.map(({ id, name }) => ({ id, name })),
+      webhookEndpoints: records.endpoints.map(({ id, url }) => ({ id, url }))
     } satisfies WorkspaceBillingPayload,
     settings: {
       viewer,
@@ -525,7 +522,6 @@ export const defaultDemoDataset = demoDataset({
     }
   ]
 })
-export const demoFixtures = defaultDemoDataset.fixtures
 
 /**
  * Billing's server functions, refused. Without these the page falls back to

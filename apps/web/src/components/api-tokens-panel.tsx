@@ -304,13 +304,13 @@ export function ApiTokensPanel({
                         {token.name}
                         <Identifier>{token.prefix}…</Identifier>
                       </ItemTitle>
-                      <ItemDescription className="line-clamp-none">
+                      <ItemDescription>
                         {m.token_created_label()}{' '}
                         {formatTimestampOr(token.createdAt, m.never())} ·{' '}
                         {m.token_last_used_label()}{' '}
                         {formatTimestampOr(token.lastUsedAt, m.never())}
                       </ItemDescription>
-                      <ItemDescription className="line-clamp-none">
+                      <ItemDescription>
                         {token.expiresAt !== null && Date.parse(token.expiresAt) <= now
                           ? m.token_expired()
                           : m.token_expires()}{' '}

@@ -346,7 +346,7 @@ function WorkspaceMembers({
                   <ItemMedia aria-hidden="true" variant="initials">
                     {initials(member.name) || <UserRoundIcon className="size-4" />}
                   </ItemMedia>
-                  <ItemContent className="min-w-0">
+                  <ItemContent>
                     <div className="grid min-w-0 gap-0.5">
                       <ItemTitle>
                         {/* The role rides with the name so the trailing
@@ -355,9 +355,7 @@ function WorkspaceMembers({
                         <span>{member.name}</span>
                         <Badge variant="neutral">{roleLabel(member.role)}</Badge>
                       </ItemTitle>
-                      <ItemDescription className="line-clamp-none">
-                        {member.email}
-                      </ItemDescription>
+                      <ItemDescription>{member.email}</ItemDescription>
                     </div>
                     {failedRow?.key === member.id ? (
                       <ActionFeedback error={failedRow.message} />

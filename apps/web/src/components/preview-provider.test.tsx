@@ -30,7 +30,7 @@ it('does not reuse signed-in notification data or overwrite its cache', async ()
   client.setQueryData(key, privateNotifications)
   await renderWithRouter(
     <QueryClientProvider client={client}>
-      <PreviewProvider>
+      <PreviewProvider workspace={{ slug: 'starter-lab', name: 'Starter Lab' }}>
         <LiveNotifications
           workspaceSlug="starter-lab"
           fallback={samples}

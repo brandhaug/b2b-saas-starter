@@ -126,18 +126,21 @@ function ConnectionRow({
         </ItemTitle>
         {/* The issuer is the value an owner checks against their IdP, so it
             wraps in full on its own line instead of clamping mid-URL. */}
-        <ItemDescription className="line-clamp-none">
-          {connection.issuer}
-        </ItemDescription>
-        <ItemDescription className="line-clamp-none">
+        <ItemDescription>{connection.issuer}</ItemDescription>
+        <ItemDescription>
           {/* The provider id is what owners paste into their IdP config, so it
               renders as a copyable identifier, not prose. */}
           <Identifier>{connection.id}</Identifier>
           {' · '}
           {connection.protocol.toUpperCase()}
-          {connection.clientIdLastFour === null
-            ? null
-            : ` · ${m.sso_connection_client({ id: connection.clientIdLastFour })}`}
+          {connection.clientIdLastFour === null ? null : (
+            <>
+              {' · '}
+              <span className="whitespace-nowrap">
+                {m.sso_connection_client({ id: connection.clientIdLastFour })}
+              </span>
+            </>
+          )}
           {' · '}
           {m.sso_connection_joins()} {roleLabel(connection.defaultWorkspaceRole)}
         </ItemDescription>

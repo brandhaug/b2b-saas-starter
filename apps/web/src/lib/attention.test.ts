@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vite-plus/test'
 import { attentionItems } from './attention'
-import { demoFixtures } from './demo-fixtures'
+import { defaultDemoDataset } from './demo-fixtures'
 
 describe('dashboard audit provenance', () => {
   it('distinguishes an API token from a system job without a joined user', () => {
@@ -29,9 +29,9 @@ describe('dashboard audit provenance', () => {
 describe('workspace attention decisions', () => {
   it('keeps pending invitations informational and highlights only unhealthy endpoints', () => {
     const items = attentionItems({
-      invitations: demoFixtures.dashboard.invitations,
+      invitations: defaultDemoDataset.fixtures.dashboard.invitations,
       apiTokens: null,
-      webhooks: demoFixtures.dashboard.webhooks,
+      webhooks: defaultDemoDataset.fixtures.dashboard.webhooks,
       auditEvents: null
     })
     expect(items.find((item) => item.id === 'pending-invitations')?.severity).toBe(
@@ -43,7 +43,7 @@ describe('workspace attention decisions', () => {
 })
 
 it('links an unhealthy endpoint directly to its deliveries', () => {
-  const [endpoint] = demoFixtures.dashboard.webhooks
+  const [endpoint] = defaultDemoDataset.fixtures.dashboard.webhooks
   if (endpoint === undefined) {
     throw new Error('Missing fixture endpoint')
   }

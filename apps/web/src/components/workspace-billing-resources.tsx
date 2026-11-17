@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
+import { Identifier } from '@/components/page/identifier'
 import { type SelectBillingResources } from './workspace-billing'
 
 const EMPTY_RESOURCE_IDS: ReadonlyArray<string> = []
@@ -231,7 +232,12 @@ function ResourceChoices({
               disabled={disabled}
               onCheckedChange={() => onToggle(item.id)}
             />
-            <code>{item.name ?? item.url ?? item.id}</code>
+            <Identifier
+              className="line-clamp-2"
+              title={item.name ?? item.url ?? item.id}
+            >
+              {item.name ?? item.url ?? item.id}
+            </Identifier>
           </Label>
         ))}
       </div>

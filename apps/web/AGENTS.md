@@ -30,6 +30,7 @@ Before changing auth HTTP handling, session reads, workspace authentication gate
 - Never re-gate inside `/workspaces/*`, never add an admin bypass to the workspace guard (no audit trace), never redirect from a server fn.
 - No bare client-only imports; they enter the server graph and bloat the Worker upload. Call `createClientOnlyFn(loader)` literally in the component module (ADR 0063), since a shared wrapper defeats the transform.
 - No demo-slug fallback: authenticated pages carry the current `workspaceSlug`. `/demo` renders synthetic fixtures under `PreviewProvider`, with isolated queries and local action refusal; preview reads never select Live adapters. The homepage's actorless aggregate stays pinned to the showcase workspace.
+- The `/demo?data=` stress datasets and their toggle are development-only: `components/demo-preview.tsx` loads them behind `import.meta.env.DEV`, and `scripts/assert-client-boundary.mjs` fails a build whose client output contains them.
 - UI errors cross the SSR boundary through `uiErrorAdapter` with allowlisted codes and details. Translate them with `causeMessage`; unexpected exceptions use a safe fallback. Keep diagnostic messages server-side.
 - A parent route with a `component` and no `<Outlet />` swallows its children, hence flat trailing-underscore siblings; only e2e catches it.
 

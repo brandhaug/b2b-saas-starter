@@ -323,7 +323,11 @@ export function WebhooksPanel({
                   >
                     <ItemContent>
                       <ItemTitle>
-                        <Identifier>{endpoint.url}</Identifier>
+                        {/* A URL can run to 2,048 characters; the list shows three
+                            lines and the deliveries drawer shows it whole. */}
+                        <Identifier className="line-clamp-3" title={endpoint.url}>
+                          {endpoint.url}
+                        </Identifier>
                         <Badge variant={enabledVariant(endpoint.enabled)}>
                           {endpoint.enabled ? m.common_enabled() : m.common_disabled()}
                         </Badge>

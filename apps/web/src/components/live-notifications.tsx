@@ -6,6 +6,7 @@ import { BellIcon, RefreshCwIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { causeMessage } from '@/lib/cause-message'
 import { formatTimestamp } from '@/lib/format-date'
+import { withDisplayUrls } from '@/lib/display-url'
 import {
   listNotificationsServerFn,
   markNotificationsReadServerFn,
@@ -194,9 +195,10 @@ export function LiveNotifications({
           { value: 'unread', label: m.workspace_notifications_unread() }
         ]}
         value={filter}
-        onValueChange={(value) =>
+        onValueChange={(value) => {
+          setShown(notificationPageSize)
           update({ filter: value === 'unread' ? 'unread' : undefined })
-        }
+        }}
       >
         <SelectTrigger aria-label={m.workspace_notification_filter()}>
           <SelectValue />
@@ -232,12 +234,15 @@ export function LiveNotifications({
                   `sm` (`max-sm:basis-full`), so a read row and an unread row
                   stack the same way on a phone instead of two different
                   squeezes. The copy clamps nowhere: a notification is the
-                  content, not chrome. */
+                  content, not chrome. URLs inside it show host and path, with
+                  the full message in the title: webhook failures embed the
+                  endpoint URL, which the schema allows to run to 2,048
+                  characters. */
               <Item key={notification.id} size="sm" className="items-start">
-                <ItemContent className="min-w-0">
+                <ItemContent>
                   <ItemTitle>{notification.title}</ItemTitle>
-                  <ItemDescription className="line-clamp-none">
-                    {notification.message}
+                  <ItemDescription title={notification.message}>
+                    {withDisplayUrls(notification.message)}
                   </ItemDescription>
                   {/* Mono tabular digits, the tables' timestamp convention. */}
                   <span className="font-mono text-xs text-muted-foreground tabular-nums">
