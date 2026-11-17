@@ -60,7 +60,11 @@ records and translate the controls with the rest of the app.
 
 The overview gives attention the main column and setup a narrower secondary column on wide screens. Notifications use a quieter separated list. Setup progress is a native progress element styled with the shared primary and muted tokens in both Chromium and Firefox; optional developer guidance opens in a disclosure.
 
-Settings align the field explanation and a bounded control on desktop, stacking them on mobile. Save actions sit in a consistent footer. Separate destructive actions from everyday edits without making them the brightest region. Member rows group initials, name, and email; role and actions align at the end.
+Settings align the field explanation and a bounded control on desktop, stacking them on mobile. Save actions sit in a consistent footer. Separate destructive actions from everyday edits without making them the brightest region. Member and invitation rows put the role or status badge beside the name or email, so only the actions menu holds the trailing column and identity text keeps the row's width on a phone. Initials come from whole graphemes of the first and last letter-led words, skipping generational suffixes.
+
+Long values follow one rule per kind. Names, emails, URLs, and identifiers wrap with `wrap-anywhere`; `break-all` splits prose mid-word, and `break-words` does not shrink a flex or grid item, so neither stays. Dates, sizes, and counts never truncate. A truncated label carries its full value in `title`. Sentences that cite a webhook URL show host and path only; the record holds the full URL. The header unread badge caps at 99+ and its label keeps the exact count. Byte sizes pick the largest decimal unit. Long feeds reveal 50 rows at a time.
+
+In development, `/demo?data=worst|empty|one|huge` swaps the preview's fixtures for schema-limit values, empty lists, single records, and 1,000-row lists through a segmented control at the bottom of the viewport. Check new list and row layouts against it at 320px and at the widest layout before merging. Production builds drop the control and its fixtures.
 
 Audit places its toolbar directly above records. Keep pagination guidance at the footer rather than adding an extra panel heading. Delivery attempts use a status marker, summary, timestamp, and expandable request/response evidence. Diagnostic text has a labeled header, copy feedback, wrapping control, and a keyboard-scrollable body.
 

@@ -116,14 +116,14 @@ function EventDetails({ event }: { readonly event: AuditEventDetail }) {
         {fields.map(([label, value]) => (
           <div key={label} className="grid gap-1">
             <dt className="text-muted-foreground">{label}</dt>
-            <dd className="font-mono [overflow-wrap:anywhere]">{value}</dd>
+            <dd className="font-mono wrap-anywhere">{value}</dd>
           </div>
         ))}
       </dl>
       <section className="grid gap-2" aria-label={m.permitted_metadata()}>
         <h3 className="font-medium">{m.audit_metadata()}</h3>
         {Object.keys(event.metadata).length > 0 ? (
-          <pre className="whitespace-pre-wrap bg-muted p-3 font-mono [overflow-wrap:anywhere]">
+          <pre className="whitespace-pre-wrap bg-muted p-3 font-mono wrap-anywhere">
             {JSON.stringify(event.metadata, null, 2)}
           </pre>
         ) : (

@@ -42,6 +42,8 @@ import { Spinner } from '@/components/ui/spinner'
 import { useServerAction } from '@/hooks/use-server-action'
 import { useKeyedFailure } from '@/hooks/use-keyed-failure'
 import { m } from '@b2b-saas-starter/i18n/messages'
+import { formatNumber } from '@b2b-saas-starter/i18n/format'
+import { getLocale } from '@b2b-saas-starter/i18n/runtime'
 
 export type NotificationPreview = Pick<
   CapabilityNotification,
@@ -60,6 +62,9 @@ export type ListNotifications = (input: {
 export type MarkNotificationsRead = (input: {
   readonly data: { readonly workspaceSlug: string; readonly ids: ReadonlyArray<string> }
 }) => Promise<number>
+
+/** Rows the panel mounts per reveal. */
+const notificationPageSize = 50
 
 export function LiveNotifications({
   workspaceSlug,
@@ -125,8 +130,14 @@ export function LiveNotifications({
   const { failure: failedMark, runWith: markRowsRead } =
     useKeyedFailure<ReadonlyArray<string>>()
 
-  const visible =
+  const matching =
     filter === 'unread' ? data.filter((notification) => !notification.read) : data
+  // The feed has no upper bound — a 1,284-member workspace produces a join
+  // notification per member — so the panel reveals it a page at a time
+  // instead of mounting every row.
+  const [shown, setShown] = useState(notificationPageSize)
+  const visible = matching.slice(0, shown)
+  const hidden = matching.length - visible.length
 
   return (
     <Panel
@@ -224,10 +235,8 @@ export function LiveNotifications({
                   content, not chrome. */
               <Item key={notification.id} size="sm" className="items-start">
                 <ItemContent className="min-w-0">
-                  <ItemTitle className="line-clamp-none">
-                    {notification.title}
-                  </ItemTitle>
-                  <ItemDescription className="line-clamp-none break-words">
+                  <ItemTitle>{notification.title}</ItemTitle>
+                  <ItemDescription className="line-clamp-none">
                     {notification.message}
                   </ItemDescription>
                   {/* Mono tabular digits, the tables' timestamp convention. */}
@@ -239,7 +248,7 @@ export function LiveNotifications({
                     <ActionFeedback error={failedMark.message} />
                   ) : null}
                 </ItemContent>
-                <ItemActions className="ml-auto min-w-0 flex-wrap self-center max-md:basis-full max-md:pt-1 max-md:justify-end">
+                <ItemActions className="ml-auto min-w-0 self-center max-md:basis-full max-md:pt-1 max-md:justify-end">
                   {notification.read ? (
                     <Badge variant="neutral">{m.common_read()}</Badge>
                   ) : (
@@ -266,6 +275,18 @@ export function LiveNotifications({
               </Item>
             ))}
           </ItemGroup>
+          {hidden > 0 ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="justify-self-start"
+              onClick={() => setShown((count) => count + notificationPageSize)}
+            >
+              {m.notifications_show_more({
+                count: formatNumber(Math.min(hidden, notificationPageSize), getLocale())
+              })}
+            </Button>
+          ) : null}
         </>
       )}
     </Panel>

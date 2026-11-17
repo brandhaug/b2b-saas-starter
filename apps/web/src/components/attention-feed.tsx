@@ -39,16 +39,14 @@ export function AttentionFeed({
             className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-3 first:pt-0 last:pb-0"
           >
             <div className="grid min-w-0 flex-1 gap-0.5 max-md:basis-full">
-              <p className="flex min-w-0 items-center gap-2 text-sm font-medium">
+              <p className="flex min-w-0 items-start gap-2 text-sm font-medium">
                 {/* One status hue per state: warn needs attention, info is
                     informational. Never the mauve `default` — that means
                     current/selected. */}
                 <Badge variant={item.severity}>{severityLabel(item.severity)}</Badge>
-                <span className="min-w-0 flex-1 truncate" title={item.title}>
-                  {item.title}
-                </span>
+                <span className="min-w-0 flex-1 wrap-anywhere">{item.title}</span>
               </p>
-              <p className="min-w-0 text-sm text-muted-foreground">
+              <p className="min-w-0 text-sm text-muted-foreground wrap-anywhere">
                 {item.description}
               </p>
             </div>

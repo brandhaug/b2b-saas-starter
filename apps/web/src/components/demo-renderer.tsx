@@ -15,11 +15,8 @@ import { PageHeader } from '@/components/page/page-header'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { useState } from 'react'
 import {
-  demoAuditDetails,
   demoBillingPorts,
-  demoFixtures,
-  demoNotificationPorts,
-  demoWebhookPorts,
+  type DemoDataset,
   type DemoSection
 } from '@/lib/demo-fixtures'
 import {
@@ -43,66 +40,71 @@ function previewAssistantAsk(
   })
 }
 
-export function DemoRenderer({ section }: { readonly section: DemoSection }) {
+export function DemoRenderer({
+  section,
+  dataset
+}: {
+  readonly section: DemoSection
+  readonly dataset: DemoDataset
+}) {
   const slug = DEMO_WORKSPACE_SLUG
+  const { fixtures } = dataset
   switch (section) {
     case 'overview': {
       return (
         <WorkspaceDashboardPage
-          data={demoFixtures.dashboard}
+          data={fixtures.dashboard}
           ports={{
-            listNotifications: demoNotificationPorts.list,
-            markNotificationsRead: demoNotificationPorts.markRead
+            listNotifications: dataset.notificationPorts.list,
+            markNotificationsRead: dataset.notificationPorts.markRead
           }}
         />
       )
     }
     case 'notifications': {
-      return <DemoNotifications />
+      return <DemoNotifications dataset={dataset} />
     }
     case 'members': {
       return (
         <WorkspaceMembersPage
           workspaceSlug={slug}
-          data={demoFixtures.members}
+          data={fixtures.members}
           actorUserId={UserId.make('usr_demo')}
         />
       )
     }
     case 'api-tokens': {
-      return (
-        <WorkspaceApiTokensPage workspaceSlug={slug} data={demoFixtures.apiTokens} />
-      )
+      return <WorkspaceApiTokensPage workspaceSlug={slug} data={fixtures.apiTokens} />
     }
     case 'webhooks': {
       return (
         <WorkspaceWebhooksPage
           workspaceSlug={slug}
-          data={demoFixtures.webhooks}
-          ports={{ listDeliveryAttempts: demoWebhookPorts.listAttempts }}
+          data={fixtures.webhooks}
+          ports={{ listDeliveryAttempts: dataset.webhookPorts.listAttempts }}
         />
       )
     }
     case 'audit': {
-      return <DemoAudit />
+      return <DemoAudit dataset={dataset} />
     }
     case 'billing': {
       return (
         <WorkspaceBillingPage
           workspaceSlug={slug}
-          data={demoFixtures.billing}
+          data={fixtures.billing}
           ports={demoBillingPorts}
         />
       )
     }
     case 'settings': {
-      return <WorkspaceSettingsPage workspaceSlug={slug} data={demoFixtures.settings} />
+      return <WorkspaceSettingsPage workspaceSlug={slug} data={fixtures.settings} />
     }
     case 'assistant': {
       return (
         <WorkspaceAssistantPage
           workspaceSlug={slug}
-          data={demoFixtures.assistant}
+          data={fixtures.assistant}
           ask={previewAssistantAsk}
         />
       )
@@ -117,25 +119,29 @@ function unreachable(value: never): never {
   return value
 }
 
-function DemoNotifications() {
+function DemoNotifications({ dataset }: { readonly dataset: DemoDataset }) {
   return (
-    <WorkspaceShell workspaceSlug={DEMO_WORKSPACE_SLUG} frame={demoFixtures.dashboard}>
+    <WorkspaceShell
+      workspaceSlug={DEMO_WORKSPACE_SLUG}
+      frame={dataset.fixtures.dashboard}
+    >
       <PageHeader title={m.notifications_title()} />
       <LiveNotifications
         workspaceSlug={DEMO_WORKSPACE_SLUG}
-        fallback={demoFixtures.dashboard.notifications}
-        listNotifications={demoNotificationPorts.list}
-        markRead={demoNotificationPorts.markRead}
+        fallback={dataset.fixtures.dashboard.notifications}
+        listNotifications={dataset.notificationPorts.list}
+        markRead={dataset.notificationPorts.markRead}
       />
     </WorkspaceShell>
   )
 }
 
-function DemoAudit() {
+function DemoAudit({ dataset }: { readonly dataset: DemoDataset }) {
+  const { auditDetails, fixtures } = dataset
   const [search, setSearch] = useState<WorkspaceAuditSearchUpdate>({})
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
   const matchingDetailIds = new Set<string>()
-  for (const event of demoAuditDetails) {
+  for (const event of auditDetails) {
     if (search.actor !== undefined && event.actorUserId !== search.actor) {
       continue
     }
@@ -158,12 +164,12 @@ function DemoAudit() {
   }
   const view = auditViewFromSearch(search.view)
   const events = applyTableView(
-    demoFixtures.audit.events.filter((event) => matchingDetailIds.has(event.id)),
+    fixtures.audit.events.filter((event) => matchingDetailIds.has(event.id)),
     view,
     (event, field) => {
       if (field === 'actorUserId') {
         return (
-          demoAuditDetails.find((detail) => detail.id === event.id)?.actorUserId ?? null
+          auditDetails.find((detail) => detail.id === event.id)?.actorUserId ?? null
         )
       }
       if (field === 'actorType') {
@@ -178,13 +184,13 @@ function DemoAudit() {
   const selectedEvent =
     selectedEventId === null
       ? null
-      : (demoAuditDetails.find((event) => event.id === selectedEventId) ?? null)
+      : (auditDetails.find((event) => event.id === selectedEventId) ?? null)
   const filters = decodeWorkspaceAuditFilters(auditFiltersFromSearch(search))
   return (
     <WorkspaceAuditPage
       workspaceSlug={DEMO_WORKSPACE_SLUG}
       data={{
-        ...demoFixtures.audit,
+        ...fixtures.audit,
         events,
         filters,
         selectedEvent,

@@ -148,7 +148,7 @@ function deliveryColumns(): Array<DataTableColumnDef<EmailDeliveryRow>> {
       accessorKey: 'providerMessageId',
       header: m.email_delivery_message_id(),
       cell: ({ row }) => (
-        <span className="break-all font-mono">
+        <span className="font-mono wrap-anywhere">
           {row.original.providerMessageId ?? row.original.id}
         </span>
       )

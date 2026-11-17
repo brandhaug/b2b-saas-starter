@@ -25,6 +25,7 @@ import {
   type UpdateSsoConnectionInput
 } from '@/lib/server/workspace-sso'
 import { enabledVariant } from '@/lib/badge-variants'
+import { roleLabel } from '@/lib/value-labels'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
@@ -123,17 +124,22 @@ function ConnectionRow({
         <ItemTitle>
           <Identifier>{connection.domain}</Identifier>
         </ItemTitle>
-        <ItemDescription>
+        {/* The issuer is the value an owner checks against their IdP, so it
+            wraps in full on its own line instead of clamping mid-URL. */}
+        <ItemDescription className="line-clamp-none">
+          {connection.issuer}
+        </ItemDescription>
+        <ItemDescription className="line-clamp-none">
           {/* The provider id is what owners paste into their IdP config, so it
               renders as a copyable identifier, not prose. */}
           <Identifier>{connection.id}</Identifier>
           {' · '}
-          {connection.protocol.toUpperCase()} · {connection.issuer}
+          {connection.protocol.toUpperCase()}
           {connection.clientIdLastFour === null
             ? null
             : ` · ${m.sso_connection_client({ id: connection.clientIdLastFour })}`}
           {' · '}
-          {m.sso_connection_joins()} {connection.defaultWorkspaceRole}
+          {m.sso_connection_joins()} {roleLabel(connection.defaultWorkspaceRole)}
         </ItemDescription>
         {testResult === null ? null : (
           <Alert variant={testResult.outcome === 'passed' ? 'default' : 'destructive'}>
@@ -148,7 +154,7 @@ function ConnectionRow({
           </Alert>
         )}
       </ItemContent>
-      <ItemActions className="flex-wrap">
+      <ItemActions>
         <Badge variant={enabledVariant(connection.enabled)}>
           {connection.enabled
             ? m.sso_connection_routing()

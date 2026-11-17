@@ -94,8 +94,8 @@ export function WebhookDeliveriesDrawer({
         data-testid="deliveries-drawer"
       >
         <SheetHeader>
-          <SheetTitle className="break-all">{m.deliveries_title()}</SheetTitle>
-          <SheetDescription className="break-all">{endpoint.url}</SheetDescription>
+          <SheetTitle>{m.deliveries_title()}</SheetTitle>
+          <SheetDescription className="wrap-anywhere">{endpoint.url}</SheetDescription>
         </SheetHeader>
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pb-4">
           <ActionFeedback error={replay.error} />

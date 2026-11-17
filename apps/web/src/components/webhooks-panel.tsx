@@ -322,7 +322,7 @@ export function WebhooksPanel({
                     className="flex-col items-stretch"
                   >
                     <ItemContent>
-                      <ItemTitle className="flex-wrap">
+                      <ItemTitle>
                         <Identifier>{endpoint.url}</Identifier>
                         <Badge variant={enabledVariant(endpoint.enabled)}>
                           {endpoint.enabled ? m.common_enabled() : m.common_disabled()}
@@ -348,7 +348,7 @@ export function WebhooksPanel({
                     />
 
                     {(canDisable || canRotate) && endpoint.enabled ? (
-                      <ItemActions className="flex-wrap">
+                      <ItemActions>
                         <DropdownMenu>
                           <DropdownMenuTrigger
                             render={

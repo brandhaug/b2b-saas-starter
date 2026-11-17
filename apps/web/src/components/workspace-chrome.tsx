@@ -10,6 +10,8 @@ import { WorkspaceNav } from '@/components/workspace-nav'
 import { type Viewer } from '@/lib/permissions'
 import { type SidebarWorkspace } from '@/lib/workspace-directory'
 import { m } from '@b2b-saas-starter/i18n/messages'
+import { formatNumber } from '@b2b-saas-starter/i18n/format'
+import { getLocale } from '@b2b-saas-starter/i18n/runtime'
 
 /**
  * The workspace chrome both shells compose: sidebar, header controls, unread
@@ -90,7 +92,9 @@ export function WorkspaceChrome({
             <div className="hidden shrink-0 md:block">
               <LanguageSwitcher />
             </div>
-            <div className="hidden shrink-0 md:block">
+            {/* The search control yields width first, so raised text sizes
+                keep the badge and account menu on screen. */}
+            <div className="hidden min-w-0 md:block">
               <SearchButton />
             </div>
             {notifications === null ? null : (
@@ -100,11 +104,12 @@ export function WorkspaceChrome({
                 variant="neutral"
                 typography="numeric"
                 size="touch"
+                className="shrink-0"
                 aria-label={m.unread_notifications({ count: notifications.count })}
                 render={notifications.link}
               >
                 <BellIcon className="size-3" />
-                {notifications.count}
+                {unreadBadgeLabel(notifications.count)}
               </Badge>
             )}
             {accountMenu}
@@ -140,4 +145,14 @@ function HeaderHome({ render }: { readonly render: ReactElement }) {
         'min-w-0 flex-1 truncate text-sm text-muted-foreground hover:text-foreground hover:underline underline-offset-4 lg:invisible'
     }
   })
+}
+
+/**
+ * The header badge's visible count: locale-grouped, capped at 99+ so a busy
+ * workspace's 1,284 unread notifications cannot widen the header. The
+ * accessible label carries the exact number.
+ */
+function unreadBadgeLabel(count: number): string {
+  const locale = getLocale()
+  return count > 99 ? `${formatNumber(99, locale)}+` : formatNumber(count, locale)
 }

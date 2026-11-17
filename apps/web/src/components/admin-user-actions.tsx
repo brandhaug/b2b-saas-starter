@@ -205,7 +205,7 @@ function MembershipList({
           key={workspace.id}
           className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1"
         >
-          <span className="min-w-0 text-sm break-words">{workspace.name}</span>
+          <span className="min-w-0 text-sm wrap-anywhere">{workspace.name}</span>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={roleVariant(member.role)}>{roleLabel(member.role)}</Badge>
             <RoleChangeButtons

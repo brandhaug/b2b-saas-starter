@@ -29,7 +29,7 @@ import {
 } from '@/lib/workspace-directory'
 import { WorkspaceChrome } from '@/components/workspace-chrome'
 import { PreviewShell } from '@/components/preview-shell'
-import { usePreview } from '@/lib/preview-context'
+import { usePreviewWorkspace } from '@/lib/preview-context'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 export { type StopImpersonating }
@@ -37,9 +37,13 @@ export { type StopImpersonating }
 export function WorkspaceShell(
   props: ComponentProps<typeof AuthenticatedWorkspaceShell>
 ) {
-  const preview = usePreview()
+  const preview = usePreviewWorkspace()
   return preview ? (
-    <PreviewShell unreadCount={props.frame.unreadCount} layout={props.layout}>
+    <PreviewShell
+      workspace={preview}
+      unreadCount={props.frame.unreadCount}
+      layout={props.layout}
+    >
       {props.children}
     </PreviewShell>
   ) : (

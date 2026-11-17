@@ -4,7 +4,7 @@ import {
   type Member,
   type WorkspaceRole
 } from '@b2b-saas-starter/capabilities/governance/workspace-identity'
-import { MoreHorizontalIcon, SearchIcon } from 'lucide-react'
+import { MoreHorizontalIcon, SearchIcon, UserRoundIcon } from 'lucide-react'
 import { Fragment, useEffect, useState, type ComponentProps } from 'react'
 import { toast } from 'sonner'
 
@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
+import { initials } from '@/lib/initials'
 import { TableViewControls } from '@/components/table-view-controls'
 import {
   Item,
@@ -120,7 +121,6 @@ function MemberActions({
   const hasMenu = ownRow || canReRole || canRemove
   return (
     <ItemActions>
-      <Badge variant="neutral">{roleLabel(member.role)}</Badge>
       {ownRow && leaveArmed ? (
         <ConfirmButton
           label={m.action_leave_workspace()}
@@ -344,18 +344,18 @@ function WorkspaceMembers({
               <Fragment key={member.id}>
                 <Item size="row" className="flex-nowrap">
                   <ItemMedia aria-hidden="true" variant="initials">
-                    {member.name
-                      .trim()
-                      .split(/\s+/u)
-                      .slice(0, 2)
-                      .map((part) => part.charAt(0))
-                      .join('')
-                      .toLocaleUpperCase()}
+                    {initials(member.name) || <UserRoundIcon className="size-4" />}
                   </ItemMedia>
                   <ItemContent className="min-w-0">
                     <div className="grid min-w-0 gap-0.5">
-                      <ItemTitle className="truncate">{member.name}</ItemTitle>
-                      <ItemDescription className="line-clamp-none break-all">
+                      <ItemTitle>
+                        {/* The role rides with the name so the trailing
+                            column holds only the menu, and a long name or
+                            email keeps the row's width on a phone. */}
+                        <span>{member.name}</span>
+                        <Badge variant="neutral">{roleLabel(member.role)}</Badge>
+                      </ItemTitle>
+                      <ItemDescription className="line-clamp-none">
                         {member.email}
                       </ItemDescription>
                     </div>

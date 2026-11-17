@@ -118,7 +118,7 @@ export function WebhookDeliveryTimeline({
                     {formatTimestampOr(attempt.attemptedAt, '')}
                   </p>
                   {attempt.failureReason === null ? null : (
-                    <p className="text-sm break-words">{attempt.failureReason}</p>
+                    <p className="text-sm wrap-anywhere">{attempt.failureReason}</p>
                   )}
                   <AttemptEvidence attempt={attempt} />
                 </li>
