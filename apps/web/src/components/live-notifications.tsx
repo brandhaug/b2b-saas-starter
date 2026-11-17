@@ -135,8 +135,10 @@ export function LiveNotifications({
     filter === 'unread' ? data.filter((notification) => !notification.read) : data
   // The feed has no upper bound — a 1,284-member workspace produces a join
   // notification per member — so the panel reveals it a page at a time
-  // instead of mounting every row.
-  const [shown, setShown] = useState(notificationPageSize)
+  // instead of mounting every row. The count belongs to one filter, so
+  // switching filters (or navigating back to another) starts a page over.
+  const [reveal, setReveal] = useState({ filter, shown: notificationPageSize })
+  const shown = reveal.filter === filter ? reveal.shown : notificationPageSize
   const visible = matching.slice(0, shown)
   const hidden = matching.length - visible.length
 
@@ -195,10 +197,9 @@ export function LiveNotifications({
           { value: 'unread', label: m.workspace_notifications_unread() }
         ]}
         value={filter}
-        onValueChange={(value) => {
-          setShown(notificationPageSize)
+        onValueChange={(value) =>
           update({ filter: value === 'unread' ? 'unread' : undefined })
-        }}
+        }
       >
         <SelectTrigger aria-label={m.workspace_notification_filter()}>
           <SelectValue />
@@ -241,9 +242,7 @@ export function LiveNotifications({
               <Item key={notification.id} size="sm" className="items-start">
                 <ItemContent>
                   <ItemTitle>{notification.title}</ItemTitle>
-                  <ItemDescription title={notification.message}>
-                    {withDisplayUrls(notification.message)}
-                  </ItemDescription>
+                  <NotificationMessage message={notification.message} />
                   {/* Mono tabular digits, the tables' timestamp convention. */}
                   <span className="font-mono text-xs text-muted-foreground tabular-nums">
                     {formatTimestamp(notification.createdAt)}
@@ -285,7 +284,7 @@ export function LiveNotifications({
               type="button"
               variant="outline"
               className="justify-self-start"
-              onClick={() => setShown((count) => count + notificationPageSize)}
+              onClick={() => setReveal({ filter, shown: shown + notificationPageSize })}
             >
               {m.notifications_show_more({
                 count: formatNumber(Math.min(hidden, notificationPageSize), getLocale())
@@ -295,5 +294,15 @@ export function LiveNotifications({
         </>
       )}
     </Panel>
+  )
+}
+
+/** The message with URLs shortened; the title restores it when that changed it. */
+function NotificationMessage({ message }: { readonly message: string }) {
+  const shortened = withDisplayUrls(message)
+  return (
+    <ItemDescription title={shortened === message ? undefined : message}>
+      {shortened}
+    </ItemDescription>
   )
 }

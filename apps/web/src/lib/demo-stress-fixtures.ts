@@ -21,7 +21,7 @@ import { type DemoDataKind } from '@/lib/demo-data-kind'
  * Dev-only datasets for `/demo?data=…`: the realistic worst case each page can
  * meet, plus the empty, single-record and 1,000-row extremes. Every value is
  * either a plausible production value or the longest one the schema accepts
- * (workspace name 80, webhook URL 2048, token name 100);
+ * (workspace name 80, webhook URL 2048) or sit just under it (token name 99 of 100);
  * user names, notification copy and audit actors have no limit, so they use
  * long but real shapes. Only `demo-stress-preview.tsx` imports this module,
  * and only behind `import.meta.env.DEV`.

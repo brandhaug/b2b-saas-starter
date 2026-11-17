@@ -14,7 +14,7 @@ export function displayUrl(url: string): string {
   return `${host}${path}${search === '' && hash === '' ? '' : '?…'}`
 }
 
-const urlInText = /https?:\/\/[^\s]+?(?=[.,:;)]*(?:\s|$))/gu
+const urlInText = /https?:\/\/[^\s]+?(?=[.,:;!?)\]"'>]*(?:\s|$))/gu
 
 /**
  * Free text with every URL in it shortened by {@link displayUrl}. Server copy
