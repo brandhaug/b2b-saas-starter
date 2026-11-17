@@ -36,13 +36,17 @@ export function WorkspaceSwitcher({
   const directory = useWorkspaceDirectory()
   const navigate = useNavigate()
   const current = findWorkspace(directory, workspaceSlug)
+  const name = current?.name ?? fallbackName ?? workspaceSlug
 
   if (directory === null || directory.length === 0 || current === undefined) {
     // No directory (system surfaces) or nothing to switch between: the
     // current name is a label, not a menu.
     return (
-      <div className="truncate rounded-md border border-sidebar-border px-3 py-2 text-sm font-medium text-sidebar-foreground">
-        {current?.name ?? fallbackName ?? workspaceSlug}
+      <div
+        title={name}
+        className="truncate rounded-md border border-sidebar-border px-3 py-2 text-sm font-medium text-sidebar-foreground"
+      >
+        {name}
       </div>
     )
   }
@@ -58,7 +62,9 @@ export function WorkspaceSwitcher({
           />
         }
       >
-        <span className="min-w-0 truncate">{current.name}</span>
+        <span className="min-w-0 truncate" title={current.name}>
+          {current.name}
+        </span>
         <ChevronsUpDownIcon className="size-4 shrink-0 text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-(--anchor-width)">
@@ -83,7 +89,9 @@ export function WorkspaceSwitcher({
                   <CheckIcon className="size-4" />
                 ) : null}
               </span>
-              <span className="min-w-0 truncate">{workspace.name}</span>
+              <span className="min-w-0 truncate" title={workspace.name}>
+                {workspace.name}
+              </span>
             </DropdownMenuItem>
           ))}
         </DropdownMenuGroup>

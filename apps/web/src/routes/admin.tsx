@@ -93,7 +93,7 @@ function auditColumns(): Array<DataTableColumnDef<AuditEvent>> {
       header: m.actor_label(),
       enableSorting: true,
       cell: ({ row }) => (
-        <span className="flex flex-wrap items-center gap-1.5 break-words">
+        <span className="flex min-w-40 flex-wrap items-center gap-1.5 whitespace-normal wrap-anywhere">
           {row.original.actor}{' '}
           <Badge variant={auditActorTypeVariant(row.original.actorType)}>
             {auditActorTypeLabel(row.original.actorType)}

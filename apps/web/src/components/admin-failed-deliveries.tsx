@@ -65,7 +65,7 @@ function columns(): Array<DataTableColumnDef<GlobalWebhookDelivery>> {
       header: m.endpoint_url(),
       cell: ({ row }) => (
         <div className="flex max-w-72 flex-col gap-2 whitespace-normal">
-          <span className="font-mono break-all">{row.original.endpointUrl}</span>
+          <span className="font-mono wrap-anywhere">{row.original.endpointUrl}</span>
           {row.original.endpointEnabled ? null : (
             <span>
               {m.delivery_endpoint_disabled({

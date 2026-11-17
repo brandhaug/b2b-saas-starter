@@ -13,7 +13,6 @@ import {
 import { usePreview } from '@/lib/preview-context'
 import { previewWorkspaceLocation } from '@/lib/preview-navigation'
 import { m } from '@b2b-saas-starter/i18n/messages'
-import { seedWorkspaceRecord } from '@b2b-saas-starter/capabilities/governance/workspace-identity.seed'
 
 /** The active marker, typed here so no call site needs an assertion. */
 const activeLinkProps = { 'aria-current': 'page' } satisfies {
@@ -122,13 +121,7 @@ export function WorkspaceNav({
           workspace in play the slot becomes the picker's doorway — the column
           keeps its shape instead of collapsing to a logo. */}
       <div className="mt-6">
-        {preview ? (
-          <div className="rounded-md border border-sidebar-border px-3 py-2 text-sm font-medium">
-            {seedWorkspaceRecord.name}
-          </div>
-        ) : (
-          <WorkspaceChoice workspace={workspace} onNavigate={onNavigate} />
-        )}
+        <WorkspaceChoice workspace={workspace} onNavigate={onNavigate} />
       </div>
       <nav aria-label={m.main_navigation()} className="mt-6 flex flex-1 flex-col gap-1">
         {navRows}

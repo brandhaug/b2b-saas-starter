@@ -6,6 +6,7 @@ import { BellIcon, RefreshCwIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { causeMessage } from '@/lib/cause-message'
 import { formatTimestamp } from '@/lib/format-date'
+import { withDisplayUrls } from '@/lib/display-url'
 import {
   listNotificationsServerFn,
   markNotificationsReadServerFn,
@@ -42,6 +43,8 @@ import { Spinner } from '@/components/ui/spinner'
 import { useServerAction } from '@/hooks/use-server-action'
 import { useKeyedFailure } from '@/hooks/use-keyed-failure'
 import { m } from '@b2b-saas-starter/i18n/messages'
+import { formatNumber } from '@b2b-saas-starter/i18n/format'
+import { getLocale } from '@b2b-saas-starter/i18n/runtime'
 
 export type NotificationPreview = Pick<
   CapabilityNotification,
@@ -60,6 +63,9 @@ export type ListNotifications = (input: {
 export type MarkNotificationsRead = (input: {
   readonly data: { readonly workspaceSlug: string; readonly ids: ReadonlyArray<string> }
 }) => Promise<number>
+
+/** Rows the panel mounts per reveal. */
+const notificationPageSize = 50
 
 export function LiveNotifications({
   workspaceSlug,
@@ -125,8 +131,16 @@ export function LiveNotifications({
   const { failure: failedMark, runWith: markRowsRead } =
     useKeyedFailure<ReadonlyArray<string>>()
 
-  const visible =
+  const matching =
     filter === 'unread' ? data.filter((notification) => !notification.read) : data
+  // The feed has no upper bound — a 1,284-member workspace produces a join
+  // notification per member — so the panel reveals it a page at a time
+  // instead of mounting every row. The count belongs to one filter, so
+  // switching filters (or navigating back to another) starts a page over.
+  const [reveal, setReveal] = useState({ filter, shown: notificationPageSize })
+  const shown = reveal.filter === filter ? reveal.shown : notificationPageSize
+  const visible = matching.slice(0, shown)
+  const hidden = matching.length - visible.length
 
   return (
     <Panel
@@ -221,15 +235,14 @@ export function LiveNotifications({
                   `sm` (`max-sm:basis-full`), so a read row and an unread row
                   stack the same way on a phone instead of two different
                   squeezes. The copy clamps nowhere: a notification is the
-                  content, not chrome. */
+                  content, not chrome. URLs inside it show host and path, with
+                  the full message in the title: webhook failures embed the
+                  endpoint URL, which the schema allows to run to 2,048
+                  characters. */
               <Item key={notification.id} size="sm" className="items-start">
-                <ItemContent className="min-w-0">
-                  <ItemTitle className="line-clamp-none">
-                    {notification.title}
-                  </ItemTitle>
-                  <ItemDescription className="line-clamp-none break-words">
-                    {notification.message}
-                  </ItemDescription>
+                <ItemContent>
+                  <ItemTitle>{notification.title}</ItemTitle>
+                  <NotificationMessage message={notification.message} />
                   {/* Mono tabular digits, the tables' timestamp convention. */}
                   <span className="font-mono text-xs text-muted-foreground tabular-nums">
                     {formatTimestamp(notification.createdAt)}
@@ -239,7 +252,7 @@ export function LiveNotifications({
                     <ActionFeedback error={failedMark.message} />
                   ) : null}
                 </ItemContent>
-                <ItemActions className="ml-auto min-w-0 flex-wrap self-center max-md:basis-full max-md:pt-1 max-md:justify-end">
+                <ItemActions className="ml-auto min-w-0 self-center max-md:basis-full max-md:pt-1 max-md:justify-end">
                   {notification.read ? (
                     <Badge variant="neutral">{m.common_read()}</Badge>
                   ) : (
@@ -266,8 +279,30 @@ export function LiveNotifications({
               </Item>
             ))}
           </ItemGroup>
+          {hidden > 0 ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="justify-self-start"
+              onClick={() => setReveal({ filter, shown: shown + notificationPageSize })}
+            >
+              {m.notifications_show_more({
+                count: formatNumber(Math.min(hidden, notificationPageSize), getLocale())
+              })}
+            </Button>
+          ) : null}
         </>
       )}
     </Panel>
+  )
+}
+
+/** The message with URLs shortened; the title restores it when that changed it. */
+function NotificationMessage({ message }: { readonly message: string }) {
+  const shortened = withDisplayUrls(message)
+  return (
+    <ItemDescription title={shortened === message ? undefined : message}>
+      {shortened}
+    </ItemDescription>
   )
 }

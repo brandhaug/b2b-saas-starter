@@ -220,14 +220,7 @@ const invitations = [
     expiresAt: '2026-06-01T12:00:00.000Z'
   }
 ] satisfies NonNullable<WorkspaceMembersPayload['invitations']>
-const dashboardWebhooks = endpoints.map((endpoint) => ({
-  id: endpoint.id,
-  url: endpoint.url,
-  enabled: endpoint.enabled,
-  events: endpoint.events,
-  successRate: endpoint.successRate
-})) satisfies NonNullable<WorkspaceDashboardPayload['webhooks']>
-export const demoAuditDetails = [
+const auditDetails = [
   {
     id: 'aud_export',
     actorType: 'system',
@@ -261,20 +254,7 @@ export const demoAuditDetails = [
     actorUserId: UserId.make('usr_demo'),
     metadata: { role: 'member' }
   }
-] satisfies ReadonlyArray<NonNullable<WorkspaceAuditPayload['selectedEvent']>>
-const auditEvents = demoAuditDetails.map((event) => ({
-  id: event.id,
-  eventType: event.eventType,
-  targetType: event.targetType,
-  targetId: event.targetId,
-  actor: event.actor,
-  actorType: event.actorType,
-  createdAt: event.createdAt
-})) satisfies WorkspaceAuditPayload['events']
-const selectedResources = {
-  apiTokenIds: [ApiTokenId.make('tok_docs'), ApiTokenId.make('tok_mcp')],
-  webhookEndpointIds: [WebhookEndpointId.make('wh_release')]
-}
+] satisfies ReadonlyArray<DemoAuditDetail>
 // Display-only sample values. The preview never imports the billing catalog or
 // evaluates entitlement policy in the browser.
 const billingPlans = [
@@ -314,163 +294,235 @@ const billingPlans = [
     providerPrice: null
   }
 ] satisfies WorkspaceBillingPayload['plans']
-const memberSeatUsage = {
-  pricing: 'per_seat',
-  included: null,
-  used: members.length,
-  overLimit: false
-} satisfies WorkspaceMembersPayload['seatUsage']
-const resourceEntitlements = {
-  apiTokens: {
-    resource: 'api_token',
-    limit: null,
-    used: 2,
-    eligibleIds: [ApiTokenId.make('tok_docs'), ApiTokenId.make('tok_mcp')],
-    selectedIds: [ApiTokenId.make('tok_docs'), ApiTokenId.make('tok_mcp')],
-    activeIds: [ApiTokenId.make('tok_docs'), ApiTokenId.make('tok_mcp')],
-    paused: false
-  },
-  webhookEndpoints: {
-    resource: 'webhook_endpoint',
-    limit: null,
-    used: 2,
-    eligibleIds: [
-      WebhookEndpointId.make('wh_release'),
-      WebhookEndpointId.make('wh_billing')
-    ],
-    selectedIds: [WebhookEndpointId.make('wh_release')],
-    activeIds: [
-      WebhookEndpointId.make('wh_release'),
-      WebhookEndpointId.make('wh_billing')
-    ],
-    paused: false
-  }
-} satisfies WorkspaceBillingPayload['resourceEntitlements']
 
-export const demoFixtures = {
-  dashboard: {
-    workspace: seedWorkspaceRecord,
-    viewer,
-    unreadCount: 2,
-    notifications,
-    invitations,
-    apiTokens: tokens,
-    webhooks: dashboardWebhooks,
-    auditEvents,
-    progress: {
-      steps: [
-        { id: 'invite_member', complete: true },
-        { id: 'create_api_token', complete: true },
-        { id: 'add_webhook_endpoint', complete: true },
-        { id: 'enable_two_factor', complete: false },
-        { id: 'choose_plan', complete: true }
-      ],
-      completedCount: 4,
-      totalCount: 5,
-      dismissedAt: null
-    }
-  } satisfies WorkspaceDashboardPayload,
-  members: {
-    viewer,
-    unreadCount: 2,
-    members,
-    invitations,
-    emailDeliveries: [],
-    seatUsage: memberSeatUsage
-  } satisfies WorkspaceMembersPayload,
-  apiTokens: { viewer, unreadCount: 2, tokens } satisfies WorkspaceApiTokensPayload,
-  webhooks: { viewer, unreadCount: 2, endpoints } satisfies WorkspaceWebhooksPayload,
-  audit: {
-    viewer,
-    events: auditEvents,
-    nextCursor: null,
-    filters: {},
-    members: members.map(({ id, name }) => ({ id, name })),
-    selectedEvent: null,
-    unreadCount: 2
-  } satisfies WorkspaceAuditPayload,
-  billing: {
-    viewer,
-    workspaceName: seedWorkspaceRecord.name,
-    unreadCount: 2,
-    plans: billingPlans,
-    pricingUnavailable: false,
-    currentPlanId: 'team',
-    seatUsage: memberSeatUsage,
-    stripeConfigured: false,
-    synchronization: { status: 'current', lastSyncedAt: '2026-05-16T07:30:05.000Z' },
-    lifecycle: {
-      interval: null,
-      access: { planId: 'team', paid: true, reason: 'active', endsAt: null },
-      status: 'active',
-      planId: 'team',
-      currentPeriodEnd: '2026-06-16T00:00:00.000Z',
-      cancelAtPeriodEnd: false,
-      trialEnd: null,
-      graceEndsAt: null
-    },
-    resourceSelection: selectedResources,
-    resourceEntitlements,
-    apiTokens: tokens.map(({ id, name }) => ({ id, name })),
-    webhookEndpoints: endpoints.map(({ id, url }) => ({ id, url }))
-  } satisfies WorkspaceBillingPayload,
-  settings: {
-    viewer,
-    workspaceName: seedWorkspaceRecord.name,
-    unreadCount: 2,
-    ssoConnections: [
-      {
-        id: 'sso_example_oidc',
-        protocol: 'oidc',
-        domain: 'acme-corp.example',
-        issuer: 'https://login.acme-corp.example',
-        enabled: false,
-        requireSso: false,
-        defaultWorkspaceRole: 'member',
-        clientIdLastFour: '7f2a',
-        createdAt: '2026-05-15T09:30:00.000Z'
+export type DemoAuditDetail = NonNullable<WorkspaceAuditPayload['selectedEvent']>
+type DemoWebhookEndpoint = WorkspaceWebhooksPayload['endpoints'][number]
+
+/**
+ * The records one preview renders, before they are projected into each page's
+ * payload. The default preview and the dev-only stress datasets
+ * (`demo-stress-fixtures.ts`) both enter here, so every page reads the same
+ * shapes the loaders return whichever dataset is showing.
+ */
+export type DemoRecords = {
+  readonly workspace: typeof seedWorkspaceRecord
+  readonly unreadCount: number
+  readonly members: WorkspaceMembersPayload['members']
+  readonly invitations: NonNullable<WorkspaceMembersPayload['invitations']>
+  readonly notifications: ReadonlyArray<Notification & NotificationPreview>
+  readonly tokens: WorkspaceApiTokensPayload['tokens']
+  readonly endpoints: ReadonlyArray<DemoWebhookEndpoint>
+  readonly deliveryAttempts: ReadonlyArray<WebhookDeliveryAttempt>
+  readonly auditDetails: ReadonlyArray<DemoAuditDetail>
+  readonly ssoConnections: NonNullable<WorkspaceSettingsPayload['ssoConnections']>
+  readonly exports: NonNullable<WorkspaceSettingsPayload['exports']>['exports']
+}
+
+export type DemoDataset = ReturnType<typeof demoDataset>
+
+/** Projects one record set into every preview page's payload. */
+export function demoDataset(records: DemoRecords) {
+  const { unreadCount } = records
+  const auditEvents = records.auditDetails.map((event) => ({
+    id: event.id,
+    eventType: event.eventType,
+    targetType: event.targetType,
+    targetId: event.targetId,
+    actor: event.actor,
+    actorType: event.actorType,
+    createdAt: event.createdAt
+  })) satisfies WorkspaceAuditPayload['events']
+  const seatUsage = {
+    pricing: 'per_seat',
+    included: null,
+    used: records.members.length,
+    overLimit: false
+  } satisfies WorkspaceMembersPayload['seatUsage']
+  const tokenIds = records.tokens.map(({ id }) => id)
+  const endpointIds = records.endpoints.map(({ id }) => id)
+  const enabledEndpointIds = records.endpoints.flatMap((endpoint) =>
+    endpoint.enabled ? [endpoint.id] : []
+  )
+  const fixtures = {
+    dashboard: {
+      workspace: records.workspace,
+      viewer,
+      unreadCount,
+      notifications: records.notifications,
+      invitations: records.invitations,
+      apiTokens: records.tokens,
+      webhooks: records.endpoints.map((endpoint) => ({
+        id: endpoint.id,
+        url: endpoint.url,
+        enabled: endpoint.enabled,
+        events: endpoint.events,
+        successRate: endpoint.successRate
+      })),
+      auditEvents,
+      progress: {
+        steps: [
+          { id: 'invite_member', complete: true },
+          { id: 'create_api_token', complete: true },
+          { id: 'add_webhook_endpoint', complete: true },
+          { id: 'enable_two_factor', complete: false },
+          { id: 'choose_plan', complete: true }
+        ],
+        completedCount: 4,
+        totalCount: 5,
+        dismissedAt: null
       }
-    ],
-    exports: {
-      availability: { available: true },
-      exports: [
-        {
-          id: 'exp_ready',
-          status: 'ready',
-          requestedAt: '2026-05-16T06:30:00.000Z',
-          completedAt: '2026-05-16T06:30:05.000Z',
-          expiresAt: '2026-05-23T06:30:05.000Z',
-          sizeBytes: 8192,
-          failureReason: null
+    } satisfies WorkspaceDashboardPayload,
+    members: {
+      viewer,
+      unreadCount,
+      members: records.members,
+      invitations: records.invitations,
+      emailDeliveries: [],
+      seatUsage
+    } satisfies WorkspaceMembersPayload,
+    apiTokens: {
+      viewer,
+      unreadCount,
+      tokens: records.tokens
+    } satisfies WorkspaceApiTokensPayload,
+    webhooks: {
+      viewer,
+      unreadCount,
+      endpoints: records.endpoints
+    } satisfies WorkspaceWebhooksPayload,
+    audit: {
+      viewer,
+      events: auditEvents,
+      nextCursor: null,
+      filters: {},
+      members: records.members.map(({ id, name }) => ({ id, name })),
+      selectedEvent: null,
+      unreadCount
+    } satisfies WorkspaceAuditPayload,
+    billing: {
+      viewer,
+      workspaceName: records.workspace.name,
+      unreadCount,
+      plans: billingPlans,
+      pricingUnavailable: false,
+      currentPlanId: 'team',
+      seatUsage,
+      stripeConfigured: false,
+      synchronization: { status: 'current', lastSyncedAt: '2026-05-16T07:30:05.000Z' },
+      lifecycle: {
+        interval: null,
+        access: { planId: 'team', paid: true, reason: 'active', endsAt: null },
+        status: 'active',
+        planId: 'team',
+        currentPeriodEnd: '2026-06-16T00:00:00.000Z',
+        cancelAtPeriodEnd: false,
+        trialEnd: null,
+        graceEndsAt: null
+      },
+      resourceSelection: {
+        apiTokenIds: tokenIds,
+        webhookEndpointIds: enabledEndpointIds
+      },
+      resourceEntitlements: {
+        apiTokens: {
+          resource: 'api_token',
+          limit: null,
+          used: records.tokens.length,
+          eligibleIds: tokenIds,
+          selectedIds: tokenIds,
+          activeIds: tokenIds,
+          paused: false
+        },
+        webhookEndpoints: {
+          resource: 'webhook_endpoint',
+          limit: null,
+          used: records.endpoints.length,
+          eligibleIds: endpointIds,
+          selectedIds: enabledEndpointIds,
+          activeIds: endpointIds,
+          paused: false
         }
-      ]
+      },
+      apiTokens: records.tokens.map(({ id, name }) => ({ id, name })),
+      webhookEndpoints: records.endpoints.map(({ id, url }) => ({ id, url }))
+    } satisfies WorkspaceBillingPayload,
+    settings: {
+      viewer,
+      workspaceName: records.workspace.name,
+      unreadCount,
+      ssoConnections: records.ssoConnections,
+      exports: { availability: { available: true }, exports: records.exports }
+    } satisfies WorkspaceSettingsPayload,
+    // Both providers read as inactive, the provider-light default the landing
+    // page promises: an unset key leaves the surface honest instead of faking
+    // a configured deployment.
+    assistant: {
+      viewer,
+      unreadCount,
+      configured: false
+    } satisfies AssistantPagePayload
+  }
+  return {
+    workspace: records.workspace,
+    fixtures,
+    auditDetails: records.auditDetails,
+    notificationPorts: {
+      // oxlint-disable-next-line typescript/require-await -- static preview port implements the production promise contract without I/O
+      list: async () => records.notifications,
+      // oxlint-disable-next-line effect/noNewPromise -- this port deliberately rejects to make standalone preview usage explicitly read-only
+      markRead: () => Promise.reject(new LocalizedError(m.shell_demo_read_only()))
+    },
+    webhookPorts: {
+      listAttempts: async ({
+        data
+      }: {
+        readonly data: { readonly deliveryId: WebhookDeliveryId }
+        // oxlint-disable-next-line typescript/require-await -- static preview port implements the production promise contract without I/O
+      }) =>
+        records.deliveryAttempts.filter(
+          (attempt) => attempt.deliveryId === data.deliveryId
+        )
     }
-  } satisfies WorkspaceSettingsPayload,
-  // Both providers read as inactive, the provider-light default the landing
-  // page promises: an unset key leaves the surface honest instead of faking
-  // a configured deployment.
-  assistant: {
-    viewer,
-    unreadCount: 2,
-    configured: false
-  } satisfies AssistantPagePayload
-} satisfies {
-  readonly dashboard: WorkspaceDashboardPayload
-  readonly members: WorkspaceMembersPayload
-  readonly apiTokens: WorkspaceApiTokensPayload
-  readonly webhooks: WorkspaceWebhooksPayload
-  readonly audit: WorkspaceAuditPayload
-  readonly billing: WorkspaceBillingPayload
-  readonly settings: WorkspaceSettingsPayload
-  readonly assistant: AssistantPagePayload
+  }
 }
 
-export const demoNotificationPorts = {
-  // oxlint-disable-next-line typescript/require-await -- static preview port implements the production promise contract without I/O
-  list: async () => notifications,
-  // oxlint-disable-next-line effect/noNewPromise -- this port deliberately rejects to make standalone preview usage explicitly read-only
-  markRead: () => Promise.reject(new LocalizedError(m.shell_demo_read_only()))
-}
+/** The preview everyone sees: the seed workspace and its roster. */
+export const defaultDemoDataset = demoDataset({
+  workspace: seedWorkspaceRecord,
+  unreadCount: 2,
+  members,
+  invitations,
+  notifications,
+  tokens,
+  endpoints,
+  deliveryAttempts,
+  auditDetails,
+  ssoConnections: [
+    {
+      id: 'sso_example_oidc',
+      protocol: 'oidc',
+      domain: 'acme-corp.example',
+      issuer: 'https://login.acme-corp.example',
+      enabled: false,
+      requireSso: false,
+      defaultWorkspaceRole: 'member',
+      clientIdLastFour: '7f2a',
+      createdAt: '2026-05-15T09:30:00.000Z'
+    }
+  ],
+  exports: [
+    {
+      id: 'exp_ready',
+      status: 'ready',
+      requestedAt: '2026-05-16T06:30:00.000Z',
+      completedAt: '2026-05-16T06:30:05.000Z',
+      expiresAt: '2026-05-23T06:30:05.000Z',
+      sizeBytes: 8192,
+      failureReason: null
+    }
+  ]
+})
+
 /**
  * Billing's server functions, refused. Without these the page falls back to
  * the real checkout and portal server fns, so a guest clicking Upgrade in the
@@ -484,12 +536,4 @@ export const demoBillingPorts: BillingPorts = {
   startCheckout: refusePreviewAction,
   startPortalSession: refusePreviewAction,
   selectBillingResources: refusePreviewAction
-}
-export const demoWebhookPorts = {
-  listAttempts: async ({
-    data
-  }: {
-    readonly data: { readonly deliveryId: WebhookDeliveryId }
-    // oxlint-disable-next-line typescript/require-await -- static preview port implements the production promise contract without I/O
-  }) => deliveryAttempts.filter((attempt) => attempt.deliveryId === data.deliveryId)
 }

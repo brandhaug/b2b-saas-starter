@@ -89,10 +89,12 @@ export function SearchButton() {
         onMouseEnter={preloadCommandPalette}
         onFocus={preloadCommandPalette}
         aria-label={m.common_search()}
-        className="hidden w-56 gap-2 md:flex"
+        className="hidden w-56 max-w-full min-w-0 gap-2 md:flex"
       >
         <SearchIcon className="size-4" />
-        <span className="flex-1 text-left">{m.common_search_placeholder()}</span>
+        <span className="min-w-0 flex-1 truncate text-left">
+          {m.common_search_placeholder()}
+        </span>
         <kbd className="flex items-center gap-0.5 rounded-sm bg-muted px-1.5 py-0.5 font-mono text-xs">
           {isMac ? (
             <>

@@ -485,6 +485,7 @@
   "two_factor_disable_failed": "Kunne ikke deaktivere tofaktorautentisering.",
   "delete_workspace_named": "Slett arbeidsområdet {name}",
   "verifying": "Bekrefter …",
+  "notifications_show_more": "Vis {count} til",
   "notifications_mark_all_read": "Merk alle som lest",
   "reset_link_sent_notice": "Hvis denne e-postadressen finnes i systemet vårt, kan du sjekke innboksen etter en tilbakestillingslenke. Den utløper om tretti minutter.",
   "assistant_placeholder": "Spør om dette arbeidsområdet …",

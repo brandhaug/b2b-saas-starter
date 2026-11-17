@@ -199,7 +199,7 @@ function WorkspaceInviteForm({ workspaceSlug }: { readonly workspaceSlug: string
                       : m.invitation_batch_failure()}
                   </Badge>
                   <div className="grid min-w-0 gap-0.5">
-                    <span className="break-all">{result.email}</span>
+                    <span className="wrap-anywhere">{result.email}</span>
                     {result.ok ? null : (
                       <span className="text-xs/relaxed text-muted-foreground">
                         {result.message}

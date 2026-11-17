@@ -1,7 +1,6 @@
 import { workspaceViewSearch } from '@/lib/workspace-view'
 import { createFileRoute, notFound } from '@tanstack/react-router'
-import { DemoRenderer } from '@/components/demo-renderer'
-import { PreviewProvider } from '@/components/preview-provider'
+import { DemoPreview } from '@/components/demo-preview'
 import { isDemoSection } from '@/lib/demo-fixtures'
 
 export const Route = createFileRoute('/demo_/$section')({
@@ -20,9 +19,5 @@ export const Route = createFileRoute('/demo_/$section')({
 
 function DemoSectionRoute() {
   const { section } = Route.useRouteContext()
-  return (
-    <PreviewProvider>
-      <DemoRenderer section={section} />
-    </PreviewProvider>
-  )
+  return <DemoPreview section={section} />
 }

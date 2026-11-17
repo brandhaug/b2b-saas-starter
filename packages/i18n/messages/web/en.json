@@ -485,6 +485,7 @@
   "two_factor_disable_failed": "Could not disable two-factor authentication.",
   "delete_workspace_named": "Delete workspace {name}",
   "verifying": "Verifying…",
+  "notifications_show_more": "Show {count} more",
   "notifications_mark_all_read": "Mark all read",
   "reset_link_sent_notice": "If this email exists in our system, check your inbox for a reset link. It expires in thirty minutes.",
   "assistant_placeholder": "Ask about this workspace…",

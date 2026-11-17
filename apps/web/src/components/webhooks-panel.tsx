@@ -322,8 +322,12 @@ export function WebhooksPanel({
                     className="flex-col items-stretch"
                   >
                     <ItemContent>
-                      <ItemTitle className="flex-wrap">
-                        <Identifier>{endpoint.url}</Identifier>
+                      <ItemTitle>
+                        {/* A URL can run to 2,048 characters; the list shows three
+                            lines and the deliveries drawer shows it whole. */}
+                        <Identifier className="line-clamp-3" title={endpoint.url}>
+                          {endpoint.url}
+                        </Identifier>
                         <Badge variant={enabledVariant(endpoint.enabled)}>
                           {endpoint.enabled ? m.common_enabled() : m.common_disabled()}
                         </Badge>
@@ -348,7 +352,7 @@ export function WebhooksPanel({
                     />
 
                     {(canDisable || canRotate) && endpoint.enabled ? (
-                      <ItemActions className="flex-wrap">
+                      <ItemActions>
                         <DropdownMenu>
                           <DropdownMenuTrigger
                             render={

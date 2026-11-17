@@ -64,6 +64,29 @@ export function formatNumber(
   return new Intl.NumberFormat(intlLocale(locale), options).format(value)
 }
 
+const byteUnits = ['byte', 'kilobyte', 'megabyte', 'gigabyte', 'terabyte'] as const
+
+/**
+ * Format a byte count in the largest decimal unit that keeps it at or above
+ * one ("8.2 kB", "4.8 GB"), so a multi-gigabyte archive never renders as
+ * millions of kilobytes.
+ */
+export function formatByteSize(bytes: number, locale: Locale): string {
+  let value = bytes
+  let unit = 0
+  while (value >= 1000 && unit < byteUnits.length - 1) {
+    value /= 1000
+    unit += 1
+  }
+  return new Intl.NumberFormat(intlLocale(locale), {
+    style: 'unit',
+    unit: byteUnits[unit],
+    unitDisplay: 'short',
+    // Whole bytes; one decimal for every larger unit.
+    maximumFractionDigits: Math.min(unit, 1)
+  }).format(value)
+}
+
 /** Format money while preserving the amount's actual currency. */
 export function formatCurrency(
   value: number,

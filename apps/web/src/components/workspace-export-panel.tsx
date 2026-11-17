@@ -26,7 +26,7 @@ import {
 } from '@/lib/server/workspace-exports'
 import { m } from '@b2b-saas-starter/i18n/messages'
 import { getLocale } from '@b2b-saas-starter/i18n/runtime'
-import { formatNumber } from '@b2b-saas-starter/i18n/format'
+import { formatByteSize } from '@b2b-saas-starter/i18n/format'
 
 /** Requesting an export, as a port — same shape as `RevokeApiToken`. */
 export type RequestWorkspaceExport = (input: {
@@ -34,13 +34,7 @@ export type RequestWorkspaceExport = (input: {
 }) => Promise<WorkspaceExport>
 
 function formatSize(sizeBytes: number | null): string {
-  if (sizeBytes === null) {
-    return ''
-  }
-  if (sizeBytes < 1024) {
-    return ` · ${sizeBytes} B`
-  }
-  return ` · ${formatNumber(sizeBytes / 1024, getLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} KB`
+  return sizeBytes === null ? '' : ` · ${formatByteSize(sizeBytes, getLocale())}`
 }
 
 /**

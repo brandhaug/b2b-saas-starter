@@ -84,7 +84,7 @@ export function McpClientsPanel({
                   </ItemTitle>
                   <ItemDescription>
                     {connection.resources?.length ? (
-                      <span className="block break-all">
+                      <span className="block wrap-anywhere">
                         {connection.resources.join(', ')}
                       </span>
                     ) : null}

@@ -56,6 +56,13 @@ const MARKERS = [
   '@b2b-saas-starter/db/RawD1'
 ]
 
+/**
+ * Development-only code that production builds must drop: the `/demo?data=`
+ * stress toggle and its fixtures (`components/demo-preview.tsx` gates them on
+ * `import.meta.env.DEV`). The markers are literals only those modules contain.
+ */
+const DEV_ONLY_MARKERS = ['dead_lettered_after_max_attempts', 'Preview dataset']
+
 const CLIENT_DIR = new URL('../dist/client', import.meta.url)
 
 function walk(dir, files = []) {
@@ -78,6 +85,11 @@ for (const file of walk(CLIENT_DIR.pathname)) {
       offenders.push(`${file} contains ${marker}`)
     }
   }
+  for (const marker of DEV_ONLY_MARKERS) {
+    if (contents.includes(marker)) {
+      offenders.push(`${file} contains development-only ${marker}`)
+    }
+  }
 }
 
 if (offenders.length > 0) {
@@ -88,7 +100,8 @@ if (offenders.length > 0) {
       '',
       'Effect Schema is allowed. Database services, email rendering and the',
       'server capability runtime are not. Keep server behavior in sibling',
-      '.effects.ts modules reached through dynamic imports in server handlers.'
+      '.effects.ts modules reached through dynamic imports in server handlers.',
+      'Development-only preview code stays behind import.meta.env.DEV.'
     ].join('\n')
   )
   process.exit(1)

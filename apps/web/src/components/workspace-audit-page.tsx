@@ -91,7 +91,7 @@ function auditColumns(
       // Target ids are the long values — this wraps instead of forcing the
       // table out to 700px on a phone, where the other columns clip.
       cell: ({ row }) => (
-        <span className="text-muted-foreground break-words">
+        <span className="inline-block min-w-48 whitespace-normal text-muted-foreground wrap-anywhere">
           {row.original.targetType}
           {row.original.targetId ? ` · ${row.original.targetId}` : ''}
         </span>
@@ -105,7 +105,7 @@ function auditColumns(
       // from "an API token did" — both render as `system` when no user row
       // joins — so the actor type rides beside it as a badge.
       cell: ({ row }) => (
-        <span className="flex flex-wrap items-center gap-1.5 break-words">
+        <span className="flex min-w-40 flex-wrap items-center gap-1.5 whitespace-normal wrap-anywhere">
           {row.original.actor}{' '}
           <Badge variant={auditActorTypeVariant(row.original.actorType)}>
             {auditActorTypeLabel(row.original.actorType)}

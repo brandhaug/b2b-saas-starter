@@ -231,7 +231,12 @@ function WorkspaceInvitations({
                 {visibleInvitations.map((invitation) => (
                   <Item key={invitation.id} variant="outline" size="sm">
                     <ItemContent>
-                      <ItemTitle>{invitation.email}</ItemTitle>
+                      <ItemTitle>
+                        <span>{invitation.email}</span>
+                        <Badge variant={invitationStatusVariant(invitation.status)}>
+                          {statusLabel(invitation.status)}
+                        </Badge>
+                      </ItemTitle>
                       <ItemDescription>{roleLabel(invitation.role)}</ItemDescription>
                       {failedRow?.key === invitation.id ? (
                         <ActionFeedback error={failedRow.message} />
@@ -253,9 +258,6 @@ function WorkspaceInvitations({
                           {m.email_delivery_resend_invitation()}
                         </Button>
                       ) : null}
-                      <Badge variant={invitationStatusVariant(invitation.status)}>
-                        {statusLabel(invitation.status)}
-                      </Badge>
                       {invitation.status === 'pending' ? (
                         <Button
                           variant="ghost"

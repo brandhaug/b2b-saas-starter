@@ -6,6 +6,7 @@ import { type AuditEvent } from '@b2b-saas-starter/capabilities/governance/audit
 import { type ApiToken } from '@b2b-saas-starter/capabilities/developer-platform/api-token-registry'
 import { type WebhookEndpoint } from '@b2b-saas-starter/capabilities/developer-platform/webhook-endpoints'
 import { m } from '@b2b-saas-starter/i18n/messages'
+import { displayUrl } from '@/lib/display-url'
 
 /**
  * The dashboard's attention feed derivation: one ordered list of what an owner
@@ -84,7 +85,7 @@ export function attentionItems({
           severity: 'warn',
           title: m.attention_endpoint_title({ rate: endpoint.successRate }),
           description: m.attention_endpoint_description({
-            url: endpoint.url,
+            url: displayUrl(endpoint.url),
             threshold: SUCCESS_RATE_THRESHOLD
           }),
           to: '/workspaces/$workspaceSlug/webhooks',
