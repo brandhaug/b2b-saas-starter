@@ -119,12 +119,16 @@ Every lint suppression must explain why the rule is inappropriate, using `-- rea
 or adjacent prose. Stacked directives may share a reason; blank lines and code break
 adjacency. A syntactically valid explanation must still justify the exception.
 
-## Browser test synchronization
+## Test synchronization
 
 Wait for observable readiness with locators, responses or events. Do not add fixed
 delays or inflate deadlines/retries to hide flakes. Existing runner deadlines and
 operation/assertion timeouts remain valid. Diagnose first-attempt evidence and keep
-focused/skipped-test bans enabled. Follow the [testing policy](../../AGENTS.md#testing)
+focused/skipped-test bans enabled. In Vitest, await the hand-off itself: a
+deferred promise the double resolves (`apps/web/src/test/deferred.ts`), not `vi.waitFor` or
+`expect.poll` on spy or recorder state. `starter/no-fixed-sleep`,
+`starter/no-unsignaled-poll` and `starter/no-test-retry` enforce the syntactic
+cases. Follow the [testing policy](../../AGENTS.md#testing)
 and preserve meaningful existing assertions during cleanup.
 
 ## Enforcement and review
@@ -144,6 +148,6 @@ no rule can answer:
 
 See the
 [style-rule limits](../../packages/oxlint-plugin/test/style-rule-matrix.md) and
-[suppression/browser fixtures](../../packages/oxlint-plugin/test/conventions-failure-matrix.md).
+[suppression, browser and test-synchronization fixtures](../../packages/oxlint-plugin/test/conventions-failure-matrix.md).
 Do not impose blanket bans on loops, aliases, destructuring or `else`, or arbitrary
 name-length and file-size limits.

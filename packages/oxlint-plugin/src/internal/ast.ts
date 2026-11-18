@@ -145,3 +145,66 @@ function isExpressionWrapper(node: ESTree.Node): node is ExpressionWrapper {
     node.type === 'TSTypeAssertion'
   )
 }
+
+/**
+ * Static name of an object property's key: `{ name }`, `{ 'name' }` and
+ * `{ ['name'] }`. Dynamic computed keys and spreads give `undefined`.
+ */
+export function staticPropertyKey(node: ESTree.Node): string | undefined {
+  if (node.type !== 'Property') {
+    return undefined
+  }
+  if (node.computed) {
+    return getStringValue(node.key)
+  }
+  return getPropertyName(node.key)
+}
+
+/** True for a non-computed `object.property` access, after unwrapping. */
+export function isMemberOf(
+  node: ESTree.Node | null | undefined,
+  object: string,
+  property: string
+): node is ESTree.MemberExpression {
+  const expression = unwrapExpression(node)
+  return (
+    expression?.type === 'MemberExpression' &&
+    !expression.computed &&
+    isIdentifier(unwrapExpression(expression.object), object) &&
+    getPropertyName(expression.property) === property
+  )
+}
+
+/**
+ * The one expression a function evaluates: an expression body, or a block of
+ * a single expression or `return` statement. `undefined` for anything longer.
+ */
+export function soleBodyExpression(
+  fn: ESTree.Node | null | undefined
+): ESTree.Node | undefined {
+  const expression = unwrapExpression(fn)
+  if (
+    expression?.type !== 'ArrowFunctionExpression' &&
+    expression?.type !== 'FunctionExpression'
+  ) {
+    return undefined
+  }
+  const { body } = expression
+  if (body === null) {
+    return undefined
+  }
+  if (body.type !== 'BlockStatement') {
+    return unwrapExpression(body)
+  }
+  const [statement, ...rest] = body.body
+  if (rest.length > 0) {
+    return undefined
+  }
+  if (statement?.type === 'ReturnStatement') {
+    return unwrapExpression(statement.argument)
+  }
+  if (statement?.type === 'ExpressionStatement') {
+    return unwrapExpression(statement.expression)
+  }
+  return undefined
+}

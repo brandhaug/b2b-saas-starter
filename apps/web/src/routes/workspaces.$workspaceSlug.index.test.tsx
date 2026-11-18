@@ -3,6 +3,7 @@ import '@/test/qualified-session'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
+import { deferred } from '@/test/deferred'
 import { renderWithRouter } from '@/test/router-harness'
 import {
   type ListNotifications,
@@ -101,12 +102,15 @@ describe('WorkspaceDashboardPage', () => {
       name: 'Mark as read: Email needs configuration'
     })
     // ...and the panel a mark-all control over every unread id.
+    const marked = deferred<Parameters<MarkNotificationsRead>[0]>()
+    markNotificationsRead.mockImplementationOnce(async (input) => {
+      marked.resolve(input)
+      return 1
+    })
     fireEvent.click(screen.getByText(/Mark all read/))
-    await vi.waitFor(() =>
-      expect(markNotificationsRead).toHaveBeenCalledWith({
-        data: { workspaceSlug: 'starter-lab', ids: ['not_email'] }
-      })
-    )
+    expect(await marked.promise).toEqual({
+      data: { workspaceSlug: 'starter-lab', ids: ['not_email'] }
+    })
   })
 
   it('omits every gated segment for a member, who holds no owner permissions', async () => {

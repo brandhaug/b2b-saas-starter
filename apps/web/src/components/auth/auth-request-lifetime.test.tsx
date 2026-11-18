@@ -10,7 +10,7 @@ import { TwoFactorChallengePage } from '@/routes/two-factor'
 import { ResetPasswordPage } from '@/routes/reset-password'
 import { OAuthConsentPage } from '@/routes/oauth.consent'
 import { m } from '@b2b-saas-starter/i18n/messages'
-import { deferred } from './auth-deferred.test-support'
+import { deferred } from '@/test/deferred'
 import { Button } from '@/components/ui/button'
 import { useAuthRequest, useAuthRequestScope, type AuthRequest } from './auth-request'
 

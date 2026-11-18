@@ -1,5 +1,10 @@
 import { defineRule, type ESTree } from 'vite-plus/lint/plugins'
-import { getPropertyName, getStringValue, unwrapExpression } from '../internal/ast.ts'
+import {
+  getPropertyName,
+  getStringValue,
+  staticPropertyKey,
+  unwrapExpression
+} from '../internal/ast.ts'
 
 export default defineRule({
   meta: {
@@ -77,13 +82,7 @@ function hasInflation(node: ESTree.Node | undefined): boolean {
     return false
   }
   return options.properties.some((property) => {
-    if (property.type !== 'Property') {
-      return false
-    }
-    let name = getPropertyName(property.key)
-    if (property.computed) {
-      name = getStringValue(property.key)
-    }
+    const name = staticPropertyKey(property)
     return name === 'timeout' || name === 'retries'
   })
 }
