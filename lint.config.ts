@@ -168,11 +168,14 @@ const ANTI_SLOP = `
 
 // no-nested-service-yield checks imported Effect generator bindings, so it also
 // applies safely to mixed-runtime files and tests without path exemptions.
+// no-fixed-sleep, no-test-retry and no-unsignaled-poll match test-runner call
+// shapes (test/it bodies, vi.waitFor, expect.poll, runner configuration), so
+// they run everywhere and stay quiet outside tests and runner config.
 const STARTER = `
-  no-effect-internal-tags no-inline-schema-compile
+  no-effect-internal-tags no-fixed-sleep no-inline-schema-compile
   no-interface-merge-outside-dts no-mismatched-augmentation-context
-  no-nested-service-yield no-unknown-error-message prefer-effect-predicate
-  require-suppression-reason
+  no-nested-service-yield no-test-retry no-unknown-error-message
+  no-unsignaled-poll prefer-effect-predicate require-suppression-reason
 `
 
 const VITE_PLUS = `

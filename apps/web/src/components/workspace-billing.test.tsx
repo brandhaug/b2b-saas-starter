@@ -16,6 +16,7 @@ import {
   type ResourceEntitlement
 } from '@b2b-saas-starter/billing/plan-catalog'
 import { type WorkspaceViewer } from '@/lib/permissions'
+import { deferred } from '@/test/deferred'
 import { renderWithRouter } from '@/test/router-harness'
 import {
   BillingPlans,
@@ -42,10 +43,33 @@ const checkout: StartCheckout = vi.fn(async () => ({
 const portal: StartPortalSession = vi.fn(async () => ({
   url: 'https://billing.stripe.com/p/session/test'
 }))
-const selectResources: SelectBillingResources = vi.fn(async () => ({
+const savedSelection = {
   apiTokenIds: [ApiTokenId.make('tok_1'), ApiTokenId.make('tok_2')],
   webhookEndpointIds: [WebhookEndpointId.make('wh_1')]
-}))
+}
+const selectResources: SelectBillingResources = vi.fn(async () => savedSelection)
+
+/** Resolves with the URL the page hands to `location.assign`. */
+function stubLocationAssign(): Promise<string> {
+  const assigned = deferred<string>()
+  vi.stubGlobal('location', {
+    assign: (url: string) => {
+      assigned.resolve(url)
+    },
+    href: 'http://localhost/workspaces/starter-lab/billing'
+  })
+  return assigned.promise
+}
+
+/** Resolves with the next selection the page saves through the port. */
+function nextSavedSelection(): Promise<Parameters<SelectBillingResources>[0]> {
+  const saved = deferred<Parameters<SelectBillingResources>[0]>()
+  vi.mocked(selectResources).mockImplementationOnce(async (input) => {
+    saved.resolve(input)
+    return savedSelection
+  })
+  return saved.promise
+}
 
 function withProviderPrice(plan: BillingPlan): BillingPlan {
   return {
@@ -237,17 +261,9 @@ function PollingBillingPlans({
 
 describe('BillingPlans', () => {
   it('prevents checkout while a portal handoff is pending', async () => {
-    let finish: ((value: { url: string }) => void) | undefined
-    vi.mocked(portal).mockReturnValueOnce(
-      new Promise((resolve) => {
-        finish = resolve
-      })
-    )
-    const assign = vi.fn()
-    vi.stubGlobal('location', {
-      assign,
-      href: 'http://localhost/workspaces/starter-lab/billing'
-    })
+    const handoff = deferred<{ url: string }>()
+    vi.mocked(portal).mockReturnValueOnce(handoff.promise)
+    const assigned = stubLocationAssign()
     try {
       await renderPlans({ currentPlanId: 'starter' })
       fireEvent.click(screen.getByRole('button', { name: /manage billing/i }))
@@ -258,8 +274,8 @@ describe('BillingPlans', () => {
             .hasAttribute('disabled')
         ).toBe(true)
       )
-      finish?.({ url: 'https://billing.stripe.com/p/session/test' })
-      await vi.waitFor(() => expect(assign).toHaveBeenCalled())
+      handoff.resolve({ url: 'https://billing.stripe.com/p/session/test' })
+      expect(await assigned).toBe('https://billing.stripe.com/p/session/test')
     } finally {
       vi.unstubAllGlobals()
     }
@@ -289,17 +305,11 @@ describe('BillingPlans', () => {
   })
 
   it('hands the portal URL to the browser when Stripe is configured', async () => {
-    const assign = vi.fn()
-    vi.stubGlobal('location', {
-      assign,
-      href: 'http://localhost/workspaces/starter-lab/billing'
-    })
+    const assigned = stubLocationAssign()
     try {
       await renderPlans()
       fireEvent.click(screen.getByRole('button', { name: /manage billing/i }))
-      await vi.waitFor(() => {
-        expect(assign).toHaveBeenCalledWith('https://billing.stripe.com/p/session/test')
-      })
+      expect(await assigned).toBe('https://billing.stripe.com/p/session/test')
     } finally {
       vi.unstubAllGlobals()
     }
@@ -358,9 +368,9 @@ describe('BillingPlans', () => {
     fireEvent.click(
       screen.getByRole('checkbox', { name: 'https://example.test/hook-one' })
     )
+    const saved = nextSavedSelection()
     fireEvent.click(screen.getByRole('button', { name: /save selection/i }))
-    await vi.waitFor(() => expect(selectResources).toHaveBeenCalled())
-    expect(selectResources).toHaveBeenLastCalledWith({
+    expect(await saved).toEqual({
       data: {
         workspaceSlug: 'starter-lab',
         apiTokenIds: [ApiTokenId.make('tok_1'), ApiTokenId.make('tok_2')],
@@ -480,16 +490,15 @@ describe('BillingPlans', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: 'Second token' }))
     fireEvent.click(screen.getByRole('button', { name: 'refresh loader' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Third token' }))
+    const saved = nextSavedSelection()
     fireEvent.click(screen.getByRole('button', { name: /save selection/i }))
-    await vi.waitFor(() =>
-      expect(selectResources).toHaveBeenLastCalledWith({
-        data: {
-          workspaceSlug: 'starter-lab',
-          apiTokenIds: [ApiTokenId.make('tok_3')],
-          webhookEndpointIds: []
-        }
-      })
-    )
+    expect(await saved).toEqual({
+      data: {
+        workspaceSlug: 'starter-lab',
+        apiTokenIds: [ApiTokenId.make('tok_3')],
+        webhookEndpointIds: []
+      }
+    })
   })
 
   it('shows active-status renewal grace alongside scheduled cancellation', async () => {

@@ -8,7 +8,7 @@ import {
   verifyCurrentPasswordServerFn
 } from '@/lib/server/strong-authentication'
 import { m } from '@b2b-saas-starter/i18n/messages'
-import { deferred } from './auth-deferred.test-support'
+import { deferred } from '@/test/deferred'
 import { CapabilityUnavailableError } from '@/lib/capability-error'
 
 vi.mock('@/lib/auth-client', async () => {

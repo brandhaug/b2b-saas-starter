@@ -4,6 +4,7 @@ import namedServiceOperation from './rules/named-service-operation.ts'
 import noBrowserTestInflation from './rules/no-browser-test-inflation.ts'
 import noDarkPrefix from './rules/no-dark-prefix.ts'
 import noEffectInternalTags from './rules/no-effect-internal-tags.ts'
+import noFixedSleep from './rules/no-fixed-sleep.ts'
 import noHexColor from './rules/no-hex-color.ts'
 import noInlineSchemaCompile from './rules/no-inline-schema-compile.ts'
 import noInterfaceMergeOutsideDts from './rules/no-interface-merge-outside-dts.ts'
@@ -11,8 +12,10 @@ import noMismatchedAugmentationContext from './rules/no-mismatched-augmentation-
 import noNestedServiceYield from './rules/no-nested-service-yield.ts'
 import noRunPromiseInTests from './rules/no-run-promise-in-tests.ts'
 import noRuntimeExecution from './rules/no-runtime-execution.ts'
+import noTestRetry from './rules/no-test-retry.ts'
 import noUiAppearanceOverride from './rules/no-ui-appearance-override.ts'
 import noUnknownErrorMessage from './rules/no-unknown-error-message.ts'
+import noUnsignaledPoll from './rules/no-unsignaled-poll.ts'
 import preferEffectPredicate from './rules/prefer-effect-predicate.ts'
 import requireSuppressionReason from './rules/require-suppression-reason.ts'
 
@@ -26,6 +29,7 @@ export default definePlugin({
     'no-browser-test-inflation': noBrowserTestInflation,
     'no-dark-prefix': noDarkPrefix,
     'no-effect-internal-tags': noEffectInternalTags,
+    'no-fixed-sleep': noFixedSleep,
     'no-hex-color': noHexColor,
     'no-inline-schema-compile': noInlineSchemaCompile,
     'no-interface-merge-outside-dts': noInterfaceMergeOutsideDts,
@@ -33,8 +37,10 @@ export default definePlugin({
     'no-nested-service-yield': noNestedServiceYield,
     'no-run-promise-in-tests': noRunPromiseInTests,
     'no-runtime-execution': noRuntimeExecution,
+    'no-test-retry': noTestRetry,
     'no-ui-appearance-override': noUiAppearanceOverride,
     'no-unknown-error-message': noUnknownErrorMessage,
+    'no-unsignaled-poll': noUnsignaledPoll,
     'prefer-effect-predicate': preferEffectPredicate,
     'require-suppression-reason': requireSuppressionReason
   }

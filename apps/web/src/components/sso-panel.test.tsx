@@ -220,11 +220,11 @@ describe('SsoPanel', () => {
     expect(
       await screen.findByText('Add the metadata URL or paste the metadata XML')
     ).not.toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Add connection' }))
-    // One macrotask so a wrongly-fired submit would have reached the port.
-    await new Promise((resolve) => {
-      setTimeout(resolve, 0)
-    })
+    // The invalid form disables submission outright, so the click below has no
+    // pending submit to wait for.
+    const submit = screen.getByRole('button', { name: 'Add connection' })
+    expect(submit.hasAttribute('disabled')).toBe(true)
+    fireEvent.click(submit)
     expect(calls.create).toHaveLength(0)
   })
 

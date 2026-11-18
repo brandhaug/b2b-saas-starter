@@ -67,15 +67,19 @@ it('serves overlapping cold docs and warm locale-specific follow-ups in workerd'
 
 it('keeps overlapping pending metadata work owned by each request', async () => {
   const release = Promise.withResolvers<boolean>()
+  const allArrived = Promise.withResolvers<boolean>()
   const arrived = new Set<string>()
   const worker = runtime(async (request) => {
     arrived.add(new URL(request.headers.get('x-docs-request')!).pathname.split('/')[1]!)
+    if (arrived.size === locales.length) {
+      allArrived.resolve(true)
+    }
     await release.promise
     return new Response('')
   })
   const pending = locales.map((locale) => article(worker, locale))
   try {
-    await expect.poll(() => arrived.size, { timeout: 5000 }).toBe(2)
+    await allArrived.promise
     release.resolve(true)
     const results = await Promise.all(pending)
     results.forEach((result, index) => expectArticle(result, locales[index]!))
