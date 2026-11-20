@@ -8,5 +8,7 @@
   "compilerOptions": {
     "types": ["node"],
     "lib": ["ESNext", "DOM", "DOM.Iterable"]
-  }
+  },
+  // The default `**/*` skips dot-directories, so CI scripts are named explicitly.
+  "include": ["**/*", ".github/**/*"]
 }

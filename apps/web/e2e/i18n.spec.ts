@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { hasLocalD1State } from '../src/lib/local-d1-state'
+import { withBaseURL } from './authentication'
 import { isolatedClientIp } from './test-isolation'
 
 const isolatedAccountPassword = 'i18n-e2e-password'
@@ -71,10 +72,7 @@ test('public English URLs override browser language while private routes use it'
   browser,
   baseURL
 }) => {
-  const context = await browser.newContext({
-    locale: 'nb-NO',
-    baseURL: baseURL ?? 'http://localhost:3071'
-  })
+  const context = await browser.newContext(withBaseURL(baseURL, { locale: 'nb-NO' }))
   const page = await context.newPage()
   await page.goto('/')
   expect(new URL(page.url()).pathname).toBe('/')
@@ -116,14 +114,15 @@ test('saved account language and time zone override browser preferences in a new
     await expect(page.locator('html')).toHaveAttribute('lang', 'nb')
     await expect(page.locator('html')).toHaveAttribute('data-time-zone', 'Europe/Oslo')
 
-    const secondContext = await browser.newContext({
-      baseURL: baseURL ?? 'http://localhost:3071',
-      locale: 'en-US',
-      timezoneId: 'America/New_York',
-      extraHTTPHeaders: {
-        'cf-connecting-ip': isolatedClientIp(`${testInfo.testId}:second`)
-      }
-    })
+    const secondContext = await browser.newContext(
+      withBaseURL(baseURL, {
+        locale: 'en-US',
+        timezoneId: 'America/New_York',
+        extraHTTPHeaders: {
+          'cf-connecting-ip': isolatedClientIp(`${testInfo.testId}:second`)
+        }
+      })
+    )
     // oxlint-disable-next-line effect/noTryCatch -- Playwright owns browser contexts; always release this one and delete the temporary account
     try {
       // Only the login travels. The second browser has no remembered language.

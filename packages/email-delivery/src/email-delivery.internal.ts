@@ -312,6 +312,8 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
   })
   const abandon = Effect.fn('EmailDelivery.abandon')(function* (
     id: string,
+    // Annotated: the type-aware linter reads an Effect.fn generator's defaulted
+    // parameter as `any`.
     reason: string = 'no_longer_relevant'
   ) {
     return yield* casRetry(

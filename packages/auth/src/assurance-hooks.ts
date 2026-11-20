@@ -203,7 +203,6 @@ export function makeAssuranceHooks(options: AuthConfigInterface) {
     after: createAuthMiddleware(async (ctx) => {
       const recoveringEnrollment = recoveryEnrollments.get(ctx.context)
       recoveryEnrollments.delete(ctx.context)
-      // Better Auth types the body as `any`; the guards in endpoint-body.ts narrow it.
       const body: unknown = ctx.body
       const result = ctx.context.returned
       if (!result || isAPIError(result)) {
@@ -307,6 +306,8 @@ export function makeAssuranceHooks(options: AuthConfigInterface) {
           ) {
             break
           }
+          // Better Auth validates the body before after-hooks run; a malformed one
+          // is refused like a reused code rather than trusted.
           if (
             !hasCodeBody(body) ||
             !(await consumeTotpCode(options, factor.id, body.code, now))

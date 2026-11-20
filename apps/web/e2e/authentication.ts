@@ -5,6 +5,7 @@ import {
   expect,
   test as base,
   type BrowserContext,
+  type BrowserContextOptions,
   type Route,
   type Page
 } from '@playwright/test'
@@ -26,6 +27,17 @@ export function fixturePasskeyName(worker: number): string {
   return `E2E shared authentication ${worker}`
 }
 export const demoPassword = 'demo-starter-password'
+
+/**
+ * Context options carrying the project's `baseURL`. Playwright types it as
+ * optional, and `exactOptionalPropertyTypes` refuses an explicit `undefined`.
+ */
+export function withBaseURL(
+  baseURL: string | undefined,
+  options: BrowserContextOptions = {}
+): BrowserContextOptions {
+  return baseURL === undefined ? options : { ...options, baseURL }
+}
 
 function initializeVirtualWebAuthn() {
   // Playwright supplies credentials and signatures, but does not expose this
@@ -172,8 +184,9 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
         await provide({ cookies: [], origins: [] })
         return
       }
-      const { baseURL } = testInfo.project.use
-      const context = await browser.newContext(baseURL === undefined ? {} : { baseURL })
+      const context = await browser.newContext(
+        withBaseURL(testInfo.project.use.baseURL)
+      )
       await context.setExtraHTTPHeaders({
         'cf-connecting-ip': isolatedClientIp(`owner-auth:${testInfo.workerIndex}`)
       })

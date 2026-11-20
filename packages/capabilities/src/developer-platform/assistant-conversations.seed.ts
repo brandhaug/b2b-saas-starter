@@ -181,6 +181,8 @@ export const makeSeedAssistantConversationHost = Effect.fn('SeedConversationHost
       id: string,
       credential: AssistantCredentialReference,
       cursor?: string,
+      // Annotated: the type-aware linter reads an Effect.fn generator's defaulted
+      // parameter as `any`.
       full: boolean = false
     ) {
       const row = yield* authorized(id, credential, 'read')
