@@ -280,9 +280,11 @@ export default {
     const url = new URL(request.url)
     const conversationId = url.pathname.split('/')[1] ?? ''
     const name = JSON.stringify(['wrk_do', 'usr_do', conversationId])
-    const stub = env.ASSISTANT_CONVERSATIONS.get(
-      env.ASSISTANT_CONVERSATIONS.idFromName(name)
-    )
+    const namespace = env.ASSISTANT_CONVERSATIONS
+    if (namespace === undefined) {
+      return new Response('ASSISTANT_CONVERSATIONS binding is absent', { status: 503 })
+    }
+    const stub = namespace.get(namespace.idFromName(name))
     url.pathname = `/${url.pathname.split('/').slice(2).join('/')}`
     return stub.fetch(new Request(url, request))
   }

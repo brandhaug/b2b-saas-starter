@@ -59,7 +59,8 @@ async function runWrangler(
     // wrangler streams straight through and only the exit code comes back.
     try {
       const child = spawn(wranglerBin, wranglerArgs, { stdio: 'inherit' })
-      const [code] = await once(child, 'exit')
+      const exit: Array<unknown> = await once(child, 'exit')
+      const [code] = exit
       const exitCode = Option.getOrElse(decodeExitCode(code), () => 1)
       return exitCode === 0
         ? { ok: true, stdout: '' }

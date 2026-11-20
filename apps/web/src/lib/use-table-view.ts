@@ -30,7 +30,7 @@ function readViews(value: unknown): SerializedViews {
   }
   return Object.fromEntries(
     Object.entries(decoded.value)
-      .flatMap(([key, serialized]) =>
+      .flatMap(([key, serialized]): Array<[string, string]> =>
         key.length <= 128 && isSerializedView(serialized) ? [[key, serialized]] : []
       )
       .slice(0, MAX_VIEWS)

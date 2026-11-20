@@ -4,13 +4,7 @@
 // were the only TypeScript in the repo nothing type-checked. `test:scripts`
 // runs it before the script tests, so `pnpm run check` covers it.
 {
-  "extends": "./tsconfig.base.json",
-  "compilerOptions": {
-    "types": ["node"],
-    // Node-only tooling uses Map upsert from Node 26. The pinned compilers
-    // expose it through ESNext; app packages retain their shared runtime baseline.
-    "lib": ["ESNext", "DOM", "DOM.Iterable"]
-  },
+  "extends": "./tsconfig.json",
   "include": [
     "alchemy.run.ts",
     "alchemy.bootstrap.ts",

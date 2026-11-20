@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path'
 import { promisify } from 'node:util'
 
 import { afterEach, describe, expect, it } from 'vite-plus/test'
+import { Schema } from 'effect'
 
 import {
   decryptBackup,
@@ -17,6 +18,10 @@ import {
 
 const run = promisify(execFile)
 const SCRIPT = join(import.meta.dirname, 'd1-backup.ts')
+// The fake AWS CLI logs each invocation's argument list as one JSON line.
+const decodeAwsCalls = Schema.decodeUnknownSync(
+  Schema.Array(Schema.fromJsonString(Schema.Array(Schema.String)))
+)
 const DESTROY_SCRIPT = join(import.meta.dirname, 'alchemy-destroy.ts')
 const KEY = Buffer.alloc(32, 7)
 const KEY_HEX = KEY.toString('hex')
@@ -373,10 +378,7 @@ describe('freshness and prune subprocesses', () => {
     })
     expect(result.stdout).toContain('Deleted 1 expired backup(s)')
     const log = await readFile(fixture.log, 'utf8')
-    const calls = log
-      .trim()
-      .split('\n')
-      .map((line) => JSON.parse(line))
+    const calls = decodeAwsCalls(log.trim().split('\n'))
     expect(
       calls.filter((args) => args[0] === 's3api' && args[1] === 'delete-object')
     ).toHaveLength(2)

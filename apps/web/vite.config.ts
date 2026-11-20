@@ -120,6 +120,7 @@ function localWorkerLifecyclePlugin(): PluginOption {
     const moduleUrl = pathToFileURL(
       resolve(import.meta.dirname, 'scripts/local-worker-runtime.mjs')
     ).href
+    // oxlint-disable-next-line typescript/no-unsafe-assignment -- import() of a computed URL is untyped; the type-only import above names this exact module
     const runtime: typeof LocalWorkerRuntime = await import(
       /* @vite-ignore */ moduleUrl
     )

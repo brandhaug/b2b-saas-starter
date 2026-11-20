@@ -73,7 +73,7 @@ export const makeEmailSendingLifecycle = Effect.fn('EmailSending.makeLifecycle')
     ) {
       const matches: Array<Subscription> = []
       let current = 1
-      let total = 1
+      let total: number
       do {
         const response = yield* run(
           'GET',

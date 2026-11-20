@@ -1,6 +1,14 @@
+// The project for TypeScript outside every workspace project: root deploy and
+// tool configs, operator CLIs, CI scripts, and package scripts. Editors and the
+// type-aware linter resolve those files here, so it carries the same compiler
+// options `tsconfig.repo.json` type-checks them with. Node-only tooling uses
+// Map upsert from Node 26; the pinned compilers expose it through ESNext.
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "types": ["@types/node"]
-  }
+    "types": ["node"],
+    "lib": ["ESNext", "DOM", "DOM.Iterable"]
+  },
+  // The default `**/*` skips dot-directories, so CI scripts are named explicitly.
+  "include": ["**/*", ".github/**/*"]
 }

@@ -6,8 +6,9 @@
     // lib is ES2023 while target stays ES2022: the non-mutating array methods
     // (`toSorted`, `toReversed`, `with`) that `unicorn/no-array-sort` steers to are ES2023,
     // and every runtime the starter targets — Workers, Node, and the browsers shadcn/Base UI
-    // support — has shipped them since 2023.
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    // support — has shipped them since 2023. `Promise.withResolvers` (ES2024.Promise) has
+    // shipped in the same runtimes since 2024.
+    "lib": ["ES2023", "ES2024.Promise", "DOM", "DOM.Iterable"],
     "allowJs": false,
     "skipLibCheck": true,
     "esModuleInterop": true,

@@ -39,6 +39,7 @@ export function localAssistantSockets(): Plugin {
       const close = installAssistantSocketBridge(
         server.httpServer,
         async (request, id) => {
+          // oxlint-disable-next-line typescript/no-unsafe-assignment -- import() of a computed URL is untyped; `Entry` names the built server boundary
           const boundary: Entry = await import(/* @vite-ignore */ entryUrl)
           return boundary.connectAssistantConversation(request, id)
         }

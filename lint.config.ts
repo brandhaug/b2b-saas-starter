@@ -23,9 +23,9 @@ const CORE = `
   no-proto no-prototype-builtins no-regex-spaces no-return-assign no-script-url
   no-self-compare no-sequences no-shadow no-template-curly-in-string no-throw-literal
   no-unexpected-multiline no-unmodified-loop-condition no-unneeded-ternary
-  no-unreachable-loop no-unused-expressions no-useless-call no-useless-concat
-  no-useless-constructor no-useless-rename no-var object-shorthand prefer-const
-  prefer-exponentiation-operator prefer-object-has-own prefer-object-spread
+  no-unreachable-loop no-unused-expressions no-useless-assignment no-useless-call
+  no-useless-concat no-useless-constructor no-useless-rename no-var object-shorthand
+  prefer-const prefer-exponentiation-operator prefer-object-has-own prefer-object-spread
   prefer-regex-literals prefer-template preserve-caught-error radix
 `
 
@@ -43,7 +43,9 @@ const TYPESCRIPT = `
   no-non-null-assertion no-require-imports no-this-alias
   no-unnecessary-boolean-literal-compare no-unnecessary-condition
   no-unnecessary-template-expression no-unnecessary-type-constraint
-  no-unsafe-declaration-merging no-unsafe-enum-comparison no-unsafe-function-type
+  no-unsafe-argument no-unsafe-assignment no-unsafe-call no-unsafe-declaration-merging
+  no-unsafe-enum-comparison no-unsafe-function-type no-unsafe-member-access
+  no-unsafe-return
   no-wrapper-object-types prefer-enum-initializers prefer-for-of prefer-function-type
   prefer-literal-enum-member prefer-namespace-keyword prefer-optional-chain
   prefer-ts-expect-error require-array-sort-compare require-await
@@ -73,7 +75,7 @@ const UNICORN = `
   prefer-modern-math-apis prefer-native-coercion-functions prefer-node-protocol
   prefer-number-properties prefer-object-from-entries prefer-optional-catch-binding
   prefer-regexp-test prefer-set-has prefer-set-size prefer-single-call prefer-spread
-  prefer-string-raw prefer-string-replace-all prefer-string-slice
+  prefer-string-raw prefer-string-replace-all prefer-string-slice prefer-top-level-await
   prefer-structured-clone prefer-type-error require-array-join-separator
   require-number-to-fixed-digits-argument require-post-message-target-origin
   switch-case-braces text-encoding-identifier-case throw-new-error
@@ -589,15 +591,13 @@ const { lint = {} } = defineConfig({
       // "no requirements" to the reader; collapsing them to the defaults makes an Effect
       // signature harder to read, not easier.
       '@typescript-eslint/no-unnecessary-type-arguments': 'off',
-      // no-unnecessary-type-assertion is absent rather than listed, and stays that way.
-      // Under oxlint-tsgolint 7.x it is at least deterministic (0.24 flagged necessary casts
-      // at random), but it still reports false positives: it called
-      // `(await res.json()) as { _tag: string }` unnecessary, and applying the fix produced
-      // TS2571 because `Response.json()` returns `unknown`. Since `oxlint --fix` runs in
-      // `pnpm run check:fix`, a false positive here silently strips a needed cast.
-      // Re-evaluate on the next oxlint-tsgolint upgrade.
+      // no-unnecessary-type-assertion stays on through the `suspicious` category. Its past
+      // false positives came from the linter resolving a file against a different tsconfig
+      // than tsc. A wrong autofix from `pnpm run check:fix` cannot land silently: the
+      // stripped cast's disable comment for consistent-type-assertions becomes unused,
+      // which `reportUnusedDisableDirectives` rejects, and `typecheck` fails.
       //
-      // effect/noNullish is absent for the same reason. It bans `null` and `undefined`
+      // effect/noNullish is absent. It bans `null` and `undefined`
       // outright, which contradicts the Effect v4 schema guidance this repo follows:
       // `Schema.optionalKey` for absent keys, `Schema.optional` when explicit `undefined`
       // is part of the contract, and `Schema.NullOr` / `UndefinedOr` / `NullishOr` when
@@ -1087,6 +1087,28 @@ const { lint = {} } = defineConfig({
           'effect/noDynamicImports': 'off'
         },
         plugins: ['react']
+      },
+      {
+        // The no-unsafe family follows `any` from third-party types into typed
+        // code. Plain JavaScript has no types to protect, so every value is `any`.
+        files: ['**/*.{js,jsx,mjs,cjs}'],
+        rules: {
+          '@typescript-eslint/no-unsafe-argument': 'off',
+          '@typescript-eslint/no-unsafe-assignment': 'off',
+          '@typescript-eslint/no-unsafe-call': 'off',
+          '@typescript-eslint/no-unsafe-member-access': 'off',
+          '@typescript-eslint/no-unsafe-return': 'off'
+        }
+      },
+      {
+        // Tests read untyped fixtures and response bodies to assert on them;
+        // a wrong field fails the assertion. Calls and returns stay checked.
+        files: ['**/test/**', '**/*.{test,spec}.{ts,tsx}', 'apps/web/e2e/**'],
+        rules: {
+          '@typescript-eslint/no-unsafe-argument': 'off',
+          '@typescript-eslint/no-unsafe-assignment': 'off',
+          '@typescript-eslint/no-unsafe-member-access': 'off'
+        }
       }
     ]
   }

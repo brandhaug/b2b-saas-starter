@@ -52,11 +52,16 @@ export function localeFromLanguage(input: LanguageInput): Locale {
   return DEFAULT_LOCALE
 }
 
+// `Array.isArray` narrows a readonly array to `any[]`; this keeps the element type.
+function isLanguageList(input: LanguageInput): input is ReadonlyArray<string> {
+  return Array.isArray(input)
+}
+
 function languagePreferences(
   input: LanguageInput,
   startOrder = 0
 ): Array<LanguagePreference> {
-  if (Array.isArray(input)) {
+  if (isLanguageList(input)) {
     return input.flatMap((item, index) => {
       return languagePreferences(item, startOrder + index)
     })

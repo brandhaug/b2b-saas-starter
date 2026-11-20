@@ -4,6 +4,7 @@ import { AssistantBearerAuth } from '@b2b-saas-starter/api/assistant-conversatio
 import { BearerAuth, rateLimitBucketFor, StarterApi } from '@b2b-saas-starter/api'
 import { describe, expect, it } from '@effect/vitest'
 import { Effect, Schema } from 'effect'
+import { type HttpApiEndpoint } from 'effect/http-api'
 import { buildWebHandler } from './http.ts'
 import { jsonBody } from './test-utils.ts'
 import {
@@ -324,7 +325,7 @@ describe('permission matrix', () => {
     const gated = Object.values(StarterApi.groups)
       .filter((group) =>
         Object.values(group.endpoints).some(
-          (endpoint) =>
+          (endpoint: HttpApiEndpoint.Top) =>
             endpoint.middlewares.has(BearerAuth) ||
             endpoint.middlewares.has(AssistantBearerAuth)
         )

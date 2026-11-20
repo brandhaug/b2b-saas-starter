@@ -317,7 +317,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('Stripe webhook ingress', (
             }
           }
           // oxlint-disable-next-line anti-slop/no-reflect-get -- the proxy forwards every real D1 method unchanged
-          return Reflect.get(target, property, receiver)
+          const forwarded: unknown = Reflect.get(target, property, receiver)
+          return forwarded
         }
       })
       const header = yield* Effect.promise(() => signedHeader(payload))

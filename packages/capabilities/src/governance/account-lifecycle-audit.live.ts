@@ -16,9 +16,7 @@ function metadataContainsExactEmail(value: JsonValue, email: string): boolean {
   if (typeof value === 'string') {
     return value === email
   }
-  if (Array.isArray(value)) {
-    return value.some((entry) => metadataContainsExactEmail(entry, email))
-  }
+  // Arrays are objects too: `Object.values` walks their entries.
   if (value !== null && typeof value === 'object') {
     return Object.values(value).some((entry) =>
       metadataContainsExactEmail(entry, email)

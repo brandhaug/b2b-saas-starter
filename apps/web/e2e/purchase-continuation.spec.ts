@@ -1,6 +1,12 @@
 import { createEmailVerificationToken } from 'better-auth/api'
 import { submitPurchase } from './purchase-requests'
-import { expect, test, installDemoPasskey, signInWithPassword } from './authentication'
+import {
+  expect,
+  test,
+  installDemoPasskey,
+  signInWithPassword,
+  withBaseURL
+} from './authentication'
 import { isolatedClientIp } from './test-isolation'
 
 // Failure cases defined before implementation: lost auth/enrollment return URL,
@@ -161,9 +167,9 @@ test('signup carries email verification return and a new workspace keeps the pla
   expect(new URL(page.url()).searchParams.get('redirect')).toBe(
     `/workspaces/purchase-${suffix}/billing?purchase=team`
   )
-  const outsiderContext = await browser.newContext({
-    baseURL: info.project.use.baseURL
-  })
+  const outsiderContext = await browser.newContext(
+    withBaseURL(info.project.use.baseURL)
+  )
   const outsider = await outsiderContext.newPage()
   await outsiderContext.setExtraHTTPHeaders({
     'cf-connecting-ip': isolatedClientIp(`${info.testId}:outsider`)

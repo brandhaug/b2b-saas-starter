@@ -18,7 +18,8 @@
     "scripts/*.ts",
     "vite.config.ts",
     "vitest.lifecycle.config.ts",
-    "test/assistant/lifecycle*.ts",
+    "test",
+    "e2e",
     "playwright.config.ts"
   ]
 }

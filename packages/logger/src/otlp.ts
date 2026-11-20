@@ -30,7 +30,7 @@ function otlpHeaders(
     value
       .split(',')
       .filter((entry) => entry.includes('='))
-      .map((entry) => {
+      .map((entry): [string, string] => {
         // Split on the first `=` only: header values carry `=` themselves,
         // such as the padding on a base64 credential.
         const separator = entry.indexOf('=')

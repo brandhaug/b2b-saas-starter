@@ -87,7 +87,7 @@ export function docsSearchIndex(): Plugin {
       this.addWatchFile(root)
       const json = JSON.stringify(buildIndex(root))
       assert(
-        Buffer.byteLength(json) <= 512_000,
+        new TextEncoder().encode(json).byteLength <= 512_000,
         'Public docs search index exceeds 512 KB; revisit the index budget'
       )
       return `export default ${json}`

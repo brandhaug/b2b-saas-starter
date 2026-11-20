@@ -1,6 +1,6 @@
 // @vitest-environment node
 /* oxlint-disable effect/noNodeBuiltinImport -- The regression test owns Node and workerd sockets. */
-import { createServer } from 'node:http'
+import { createServer, type IncomingMessage } from 'node:http'
 import { once } from 'node:events'
 import {
   Miniflare,
@@ -61,7 +61,12 @@ it('checks the application boundary before bridging real saved-history socket fr
     ]
     for (const [headers, status] of deniedRequests) {
       const denied = new WebSocket(url, { headers })
-      const [, response] = await once(denied, 'unexpected-response')
+      // ws types this event's listener; `once()` from node:events would return `any[]`.
+      const unexpected = Promise.withResolvers<IncomingMessage>()
+      denied.once('unexpected-response', (_request, response) => {
+        unexpected.resolve(response)
+      })
+      const response = await unexpected.promise
       expect(response.statusCode).toBe(status)
       response.resume()
       denied.terminate()
@@ -74,14 +79,14 @@ it('checks the application boundary before bridging real saved-history socket fr
     })
     const first = once(client, 'message')
     const [snapshot] = await first
-    expect(JSON.parse(snapshot.toString())).toEqual({
+    expect(JSON.parse(String(snapshot))).toEqual({
       type: 'conversation_snapshot',
       history: { items: [] }
     })
     const echo = once(client, 'message')
     client.send('resume-observation')
     const [message] = await echo
-    expect(message.toString()).toBe('resume-observation')
+    expect(String(message)).toBe('resume-observation')
     expect(accepted).toBe(1)
     client.close()
     await once(client, 'close')

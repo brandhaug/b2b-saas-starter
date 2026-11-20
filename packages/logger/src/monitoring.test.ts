@@ -1,11 +1,14 @@
 // Promise-native vendor boundary: test the SDK protocol and preserve rejected operations.
 // oxlint-disable effect/noAsyncFunction, effect/noTestLifecycleHooks, effect/noGlobals
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
+import { Schema } from 'effect'
 import {
   captureMonitoringSignal,
   captureOperationalSnapshot,
   withCronMonitor
 } from './providers.ts'
+
+const decodeJsonLine = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Json))
 
 // Failure modes: thrown failures must propagate,
 // successful cron completion and zero snapshots must remain visible without credentials.
@@ -37,12 +40,12 @@ describe('operator telemetry boundary', () => {
       withCronMonitor('drill', () => Promise.reject(new Error('fault')))
     ).rejects.toThrow('fault')
     await withCronMonitor('drill', () => Promise.resolve())
-    expect(output.mock.calls.map(([line]) => JSON.parse(String(line)))).toEqual([
+    expect(output.mock.calls.map(([line]) => decodeJsonLine(String(line)))).toEqual([
       { event: 'cron.check_in', monitorSlug: 'drill', status: 'in_progress' },
       { event: 'cron.check_in', monitorSlug: 'drill', status: 'in_progress' },
       { event: 'cron.check_in', monitorSlug: 'drill', status: 'ok' }
     ])
-    expect(errors.mock.calls.map(([line]) => JSON.parse(String(line)))).toEqual([
+    expect(errors.mock.calls.map(([line]) => decodeJsonLine(String(line)))).toEqual([
       { event: 'cron.check_in', monitorSlug: 'drill', status: 'error' }
     ])
   })

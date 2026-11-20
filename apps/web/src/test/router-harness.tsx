@@ -6,7 +6,8 @@ import {
   createRoute,
   createRouter,
   RouterProvider,
-  type AnyRouter
+  type AnyRouter,
+  type RouterHistory
 } from '@tanstack/react-router'
 import { render, type RenderResult } from '@testing-library/react'
 
@@ -45,6 +46,9 @@ import { render, type RenderResult } from '@testing-library/react'
  * client-session memory production keeps there (`lastWorkspace`, see
  * `lib/workspace-directory.ts`), for tests of the surfaces that read it back.
  */
+// `AnyRouter` leaves `history` as `any`; tests step through it, so it keeps its real type.
+type HarnessRouter = Omit<AnyRouter, 'history'> & { readonly history: RouterHistory }
+
 export async function renderWithRouter(
   ui: ReactNode,
   options?: {
@@ -55,7 +59,7 @@ export async function renderWithRouter(
     readonly rootLoaderData?: Record<string, unknown>
     readonly routerContext?: Record<string, unknown>
   }
-): Promise<RenderResult & { readonly router: AnyRouter }> {
+): Promise<RenderResult & { readonly router: HarnessRouter }> {
   const path = options?.path ?? '/'
   const rootLoaderData = options?.rootLoaderData
   const rootRoute = createRootRoute(
