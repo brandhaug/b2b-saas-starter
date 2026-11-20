@@ -139,8 +139,10 @@ function deploymentBase(env: NodeJS.ProcessEnv): string {
 }
 
 if (import.meta.main) {
-  main().catch(() => {
+  try {
+    await main()
+  } catch {
     console.error('preview status reporting failed')
     process.exitCode = 1
-  })
+  }
 }

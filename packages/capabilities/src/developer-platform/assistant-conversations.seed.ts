@@ -181,7 +181,7 @@ export const makeSeedAssistantConversationHost = Effect.fn('SeedConversationHost
       id: string,
       credential: AssistantCredentialReference,
       cursor?: string,
-      full = false
+      full: boolean = false
     ) {
       const row = yield* authorized(id, credential, 'read')
       const store = state(id)

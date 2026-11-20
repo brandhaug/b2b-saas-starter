@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vite-plus/test'
 import { InviteMemberForm } from './invite-member-form'
 import { renderWithRouter } from '@/test/router-harness'
 
-const sendInvitation = vi.hoisted(() => vi.fn())
+const sendInvitation = vi.hoisted(() =>
+  vi.fn<(input: { data: { email: string; role: string } }) => Promise<object>>()
+)
 
 vi.mock('@/lib/server/invitations', () => ({
   sendInvitationServerFn: sendInvitation

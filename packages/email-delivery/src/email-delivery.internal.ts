@@ -312,7 +312,7 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
   })
   const abandon = Effect.fn('EmailDelivery.abandon')(function* (
     id: string,
-    reason = 'no_longer_relevant'
+    reason: string = 'no_longer_relevant'
   ) {
     return yield* casRetry(
       'Concurrent delivery updates prevented cancellation',

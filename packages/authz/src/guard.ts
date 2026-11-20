@@ -1,4 +1,4 @@
-import { apiTokenScopeAccess, type ApiTokenScope } from './roles.ts'
+import { apiTokenScopeAccess, type ApiTokenScope, type StarterRole } from './roles.ts'
 import { Effect, type Scope } from 'effect'
 import { AUTHORIZATION_DENIED_REASONS, AuthorizationDenied } from './errors.ts'
 import { authorize, type PermissionRequest, type Principal } from './principal.ts'
@@ -51,9 +51,10 @@ export const requireTokenScopes = Effect.fn('Authorization.requireTokenScopes')(
     scopes: ReadonlyArray<ApiTokenScope>
   ): Effect.fn.Return<void, AuthorizationDenied, Scope.Scope> {
     for (const scope of scopes) {
-      for (const [resource, actions] of Object.entries(
-        apiTokenScopeAccess[scope].statements
-      )) {
+      // Each scope's role has its own exact statement type; the shared role type
+      // keeps `Object.entries` from collapsing the union to `any`.
+      const granted: StarterRole['statements'] = apiTokenScopeAccess[scope].statements
+      for (const [resource, actions] of Object.entries(granted)) {
         if (actions.length > 0) {
           yield* requirePermission(principal, { [resource]: actions })
         }

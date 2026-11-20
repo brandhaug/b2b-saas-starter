@@ -32,7 +32,9 @@ async function deviceContext(
   ip: string,
   options?: { readonly userAgent?: string }
 ) {
-  const context = await browser.newContext({ userAgent: options?.userAgent })
+  const context = await browser.newContext(
+    options?.userAgent === undefined ? {} : { userAgent: options.userAgent }
+  )
   await context.route('**/*', (route) =>
     route.continue({
       headers: { ...route.request().headers(), 'cf-connecting-ip': ip }

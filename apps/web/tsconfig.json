@@ -1,6 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    // The base lib plus `Promise.withResolvers`, which the browser and runtime
+    // tests use to hold a request open. Every runtime the app targets ships it.
+    "lib": ["ES2023", "ES2024.Promise", "DOM", "DOM.Iterable"],
     "paths": {
       "@/*": ["./src/*"],
       "virtual:docs-search": ["./src/docs-search-index.d.ts"]
@@ -18,7 +21,8 @@
     "scripts/*.ts",
     "vite.config.ts",
     "vitest.lifecycle.config.ts",
-    "test/assistant/lifecycle*.ts",
+    "test",
+    "e2e",
     "playwright.config.ts"
   ]
 }

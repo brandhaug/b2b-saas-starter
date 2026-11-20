@@ -161,9 +161,10 @@ test('signup carries email verification return and a new workspace keeps the pla
   expect(new URL(page.url()).searchParams.get('redirect')).toBe(
     `/workspaces/purchase-${suffix}/billing?purchase=team`
   )
-  const outsiderContext = await browser.newContext({
-    baseURL: info.project.use.baseURL
-  })
+  const { baseURL } = info.project.use
+  const outsiderContext = await browser.newContext(
+    baseURL === undefined ? {} : { baseURL }
+  )
   const outsider = await outsiderContext.newPage()
   await outsiderContext.setExtraHTTPHeaders({
     'cf-connecting-ip': isolatedClientIp(`${info.testId}:outsider`)

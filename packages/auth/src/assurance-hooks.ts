@@ -13,11 +13,9 @@ import {
 import { and, eq } from 'drizzle-orm'
 import { passwordTOTPCanPair, recoveryExpiresAt } from './assurance.ts'
 import { isLocale } from '@b2b-saas-starter/i18n/locale'
-import { Schema } from 'effect'
+import { hasCodeBody, hasIdBody, hasUserIdBody } from './endpoint-body.ts'
 import { type AuthConfigInterface } from './ports.ts'
 import { consumeTotpCode } from './totp-replay.ts'
-
-const isString = Schema.is(Schema.String)
 
 const emptyProof = {
   passwordVerifiedAt: null,
@@ -205,6 +203,8 @@ export function makeAssuranceHooks(options: AuthConfigInterface) {
     after: createAuthMiddleware(async (ctx) => {
       const recoveringEnrollment = recoveryEnrollments.get(ctx.context)
       recoveryEnrollments.delete(ctx.context)
+      // Better Auth types the body as `any`; the guards in endpoint-body.ts narrow it.
+      const body: unknown = ctx.body
       const result = ctx.context.returned
       if (!result || isAPIError(result)) {
         return
@@ -216,8 +216,8 @@ export function makeAssuranceHooks(options: AuthConfigInterface) {
       const currentUserId = pluginUserId(current?.user.id)
       const targetUserId = pluginUserId(target?.user.id)
       let invalidationUser = currentUserId
-      if (ctx.path === '/admin/revoke-user-sessions' && isString(ctx.body?.userId)) {
-        invalidationUser = UserId.make(ctx.body.userId)
+      if (ctx.path === '/admin/revoke-user-sessions' && hasUserIdBody(body)) {
+        invalidationUser = UserId.make(body.userId)
       }
       if (
         invalidationUser !== undefined &&
@@ -307,7 +307,10 @@ export function makeAssuranceHooks(options: AuthConfigInterface) {
           ) {
             break
           }
-          if (!(await consumeTotpCode(options, factor.id, ctx.body.code, now))) {
+          if (
+            !hasCodeBody(body) ||
+            !(await consumeTotpCode(options, factor.id, body.code, now))
+          ) {
             // The plugin can create a session before its after-hook runs. A
             // refused ceremony must not leave that new session usable.
             if (ctx.context.newSession && sessionId !== current?.session.id) {
@@ -375,14 +378,14 @@ export function makeAssuranceHooks(options: AuthConfigInterface) {
           break
         }
         case '/passkey/delete-passkey': {
-          if (isString(ctx.body?.id)) {
+          if (hasIdBody(body)) {
             await db
               .update(schema.session)
               .set(emptyStrongProof)
               .where(
                 and(
                   eq(schema.session.userId, userId),
-                  eq(schema.session.strongAuthCredentialId, ctx.body.id)
+                  eq(schema.session.strongAuthCredentialId, body.id)
                 )
               )
           }

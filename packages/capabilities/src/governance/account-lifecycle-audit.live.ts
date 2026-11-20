@@ -11,12 +11,17 @@ import {
 } from '@b2b-saas-starter/failure/capability'
 import { decodeAuditEventMetadata } from './audit-event-metadata.ts'
 
+// `Array.isArray` narrows a readonly array to `any[]`; this keeps the element type.
+function isJsonArray(value: JsonValue): value is ReadonlyArray<JsonValue> {
+  return Array.isArray(value)
+}
+
 // oxlint-disable anti-slop/no-runtime-typeof -- persisted JSON has already crossed Drizzle's typed boundary; this recursive walk only finds an exact email value before the allowlist decoder runs.
 function metadataContainsExactEmail(value: JsonValue, email: string): boolean {
   if (typeof value === 'string') {
     return value === email
   }
-  if (Array.isArray(value)) {
+  if (isJsonArray(value)) {
     return value.some((entry) => metadataContainsExactEmail(entry, email))
   }
   if (value !== null && typeof value === 'object') {

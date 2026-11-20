@@ -172,9 +172,8 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
         await provide({ cookies: [], origins: [] })
         return
       }
-      const context = await browser.newContext({
-        baseURL: testInfo.project.use.baseURL
-      })
+      const { baseURL } = testInfo.project.use
+      const context = await browser.newContext(baseURL === undefined ? {} : { baseURL })
       await context.setExtraHTTPHeaders({
         'cf-connecting-ip': isolatedClientIp(`owner-auth:${testInfo.workerIndex}`)
       })

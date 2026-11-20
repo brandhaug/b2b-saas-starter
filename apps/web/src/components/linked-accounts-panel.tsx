@@ -93,7 +93,7 @@ export function LinkedAccountsPanel({
           ))}
         </ul>
       ) : null}
-      {Array.isArray(rows) ? (
+      {rows === undefined ? null : (
         <ul className="grid gap-2">
           {rows.map((row) => {
             return (
@@ -151,7 +151,7 @@ export function LinkedAccountsPanel({
             )
           })}
         </ul>
-      ) : null}
+      )}
     </>
   )
 }

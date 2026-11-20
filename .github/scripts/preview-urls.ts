@@ -37,8 +37,10 @@ export async function main(
 }
 
 if (import.meta.main) {
-  main().catch((error: unknown) => {
+  try {
+    await main()
+  } catch (error) {
     console.error('preview URL resolution failed', error)
     process.exitCode = 1
-  })
+  }
 }

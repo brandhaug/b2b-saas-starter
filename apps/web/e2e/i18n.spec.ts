@@ -117,7 +117,7 @@ test('saved account language and time zone override browser preferences in a new
     await expect(page.locator('html')).toHaveAttribute('data-time-zone', 'Europe/Oslo')
 
     const secondContext = await browser.newContext({
-      baseURL,
+      baseURL: baseURL ?? 'http://localhost:3071',
       locale: 'en-US',
       timezoneId: 'America/New_York',
       extraHTTPHeaders: {

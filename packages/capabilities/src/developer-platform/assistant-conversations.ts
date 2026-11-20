@@ -166,7 +166,7 @@ export function AssistantConversationsLayer(
         if (response.ok || response.status === 101) {
           return response
         }
-        const body = yield* attemptPromise({
+        const body: unknown = yield* attemptPromise({
           try: () => response.json(),
           narrow: conversationStorageFailure
         })

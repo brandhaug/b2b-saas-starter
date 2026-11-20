@@ -108,11 +108,11 @@ export function PasskeysPanel({
         </ul>
       ) : null}
 
-      {Array.isArray(rows) && rows.length === 0 ? (
+      {rows !== undefined && rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">{m.no_passkeys_description()}</p>
       ) : null}
 
-      {Array.isArray(rows) && rows.length > 0 ? (
+      {rows !== undefined && rows.length > 0 ? (
         <ul className="grid gap-2">
           {rows.map((row) => (
             <li

@@ -59,7 +59,8 @@ function projection<S extends Schema.Constraint, Options>(
     endpoint: operation.endpoint,
     permission: operation.permission,
     input,
-    decode: (payload: Schema.Json) =>
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the protocol hands tool arguments over as opaque JSON; decoding them against the row's schema is this very function
+    decode: (payload: unknown) =>
       Schema.decodeUnknownEffect(input)(payload).pipe(
         Effect.map((args) => Effect.suspend(() => operation.run(adapt(args))))
       ),

@@ -116,7 +116,8 @@ export function SeedNotificationPreferences(
       const audit = yield* AuditEventLog
       const initial = new Map<string, Map<NotificationKind, NotificationChannel>>()
       for (const row of seed) {
-        const byKind = initial.get(row.userId) ?? new Map()
+        const byKind =
+          initial.get(row.userId) ?? new Map<NotificationKind, NotificationChannel>()
         byKind.set(row.kind, row.channel)
         initial.set(row.userId, byKind)
       }

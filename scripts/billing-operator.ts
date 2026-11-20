@@ -282,13 +282,15 @@ function retry(
 }
 
 if (import.meta.main) {
-  runOperator(process.argv.slice(2), process.env, globalThis.fetch, (text) =>
-    process.stdout.write(text)
-  ).catch((error: unknown) => {
+  try {
+    await runOperator(process.argv.slice(2), process.env, globalThis.fetch, (text) =>
+      process.stdout.write(text)
+    )
+  } catch (error) {
     const message = Option.getOrElse(decodeErrorOption(error), () => ({
       message: 'operator command failed'
     })).message
     process.stderr.write(`${message}\n`)
     process.exitCode = 1
-  })
+  }
 }
