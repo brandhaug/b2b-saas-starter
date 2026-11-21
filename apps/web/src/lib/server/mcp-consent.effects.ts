@@ -120,9 +120,7 @@ export async function grantOAuthConsentHandler(
         // returning early would skip the suspension check below and hand the
         // pick to the provider, which grants a consent scoped to a workspace
         // the app never authorized.
-        return yield* Effect.fail(
-          new AuthorizationDenied({ reason: 'insufficient_permission' })
-        )
+        return yield* new AuthorizationDenied({ reason: 'insufficient_permission' })
       }
       const suspension = yield* WorkspaceSuspensionService
       yield* suspension.requireAllowed(input.workspaceId, 'product')

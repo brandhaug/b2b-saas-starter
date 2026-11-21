@@ -14,7 +14,7 @@ import { guardFailureResponse, RateLimited, Unauthorized } from './errors.ts'
  * Annotations are an open `unknown` bag, so the status is decoded rather
  * than read on faith; a class that lost its annotation fails the row.
  */
-const StatusAnnotation = Schema.Struct({ httpApiStatus: Schema.Number })
+const StatusAnnotation = Schema.Struct({ httpApiStatus: Schema.Finite })
 const decodeStatusAnnotation = Schema.decodeUnknownOption(StatusAnnotation)
 
 function annotatedStatus(schema: Schema.Top): number {

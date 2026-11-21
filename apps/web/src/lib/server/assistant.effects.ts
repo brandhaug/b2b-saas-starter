@@ -38,7 +38,7 @@ const assistantPagePayload = workspacePage({ assistant: ['read'] }, () =>
         const deliveryLog = yield* WebhookDeliveries
         const { tasks: recentTasks, deliveries } = yield* Effect.all(
           {
-            tasks: tasks.list(),
+            tasks: tasks.list,
             deliveries: webhooks.list.pipe(
               Effect.flatMap((endpoints) =>
                 Effect.forEach(

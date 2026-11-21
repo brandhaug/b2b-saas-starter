@@ -67,11 +67,12 @@ function VerifyAuthenticationContent({
         // and an outage must not read as a wrong password.
         const failure = await verifyCurrentPasswordServerFn({
           data: { password: value.password }
-        }).then(
-          (checked) => (checked ? null : m.security_verification_failed()),
-          // oxlint-disable-next-line anti-slop/no-unknown-parameters -- a rejected promise is untrusted input at the UI boundary; causeMessage parses it
-          (error: unknown) => causeMessage(error, m.security_verification_failed())
-        )
+        })
+          .then((checked) => (checked ? null : m.security_verification_failed()))
+          .catch(
+            // oxlint-disable-next-line anti-slop/no-unknown-parameters -- a rejected promise is untrusted input at the UI boundary; causeMessage parses it
+            (error: unknown) => causeMessage(error, m.security_verification_failed())
+          )
         if (!request.current()) {
           return
         }

@@ -188,9 +188,9 @@ beforeEach(() => {
   state.plugin.mockReturnValue(Effect.succeed(new Response('plugin')))
   state.twoFactor.mockReturnValue(Effect.succeed(null))
   state.audit.mockReturnValue(Effect.succeed('skipped'))
-  state.ssoAudit.mockReturnValue(Effect.succeed(undefined))
-  state.notification.mockReturnValue(Effect.succeed(undefined))
-  state.evidence.mockReturnValue(Effect.succeed(undefined))
+  state.ssoAudit.mockReturnValue(Effect.undefined)
+  state.notification.mockReturnValue(Effect.undefined)
+  state.evidence.mockReturnValue(Effect.undefined)
   state.turnstile.rejected = false
   state.turnstile.unavailable = false
   state.turnstileTokens = []

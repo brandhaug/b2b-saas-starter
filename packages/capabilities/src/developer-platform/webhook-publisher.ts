@@ -17,7 +17,8 @@ import { Context, Effect, Layer, Result, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
 import {
   CapabilityUnavailable,
-  orUnavailable
+  orUnavailable,
+  tryPromiseOrUnavailable
 } from '@b2b-saas-starter/failure/capability'
 import { bestEffort } from '../internal/best-effort.ts'
 import {
@@ -88,7 +89,7 @@ export const WebhookEventPayloads = {
     url: Schema.String,
     enabled: Schema.Boolean,
     events: Schema.Array(Schema.String),
-    successRate: Schema.Number
+    successRate: Schema.Finite
   }),
   'workspace_member.added': Schema.Struct({
     userId: UserId,
@@ -127,9 +128,9 @@ const decodeJson = Schema.decodeUnknownEffect(Schema.Json)
 
 function sanitizeWebhookPayload(
   input: PublishWebhookEventInput
-): Effect.Effect<typeof Schema.Json.Type, CapabilityUnavailable> {
+): Effect.Effect<Schema.Json, CapabilityUnavailable> {
   const schema = WebhookEventPayloads[input.eventType]
-  return Schema.decodeUnknownEffect(schema)(input.payload).pipe(
+  return Schema.decodeEffect(schema)(input.payload).pipe(
     Effect.flatMap(decodeJson),
     narrowFailure(
       () =>
@@ -153,7 +154,7 @@ type EnqueueWebhookMessageInput = {
   readonly workspaceId: WorkspaceId
   readonly eventType: string
   readonly deliveryId: WebhookDeliveryId
-  readonly payload: typeof Schema.Json.Type
+  readonly payload: Schema.Json
 }
 
 export type WebhookPublisherInterface = {
@@ -355,11 +356,8 @@ export function LiveWebhookPublisher(
             )
           )
           const enqueued = yield* Effect.result(
-            unavailable(
-              Effect.tryPromise({
-                try: () => queue.sendBatch(messages),
-                catch: (cause) => cause
-              })
+            tryPromiseOrUnavailable('webhook-publisher', () =>
+              queue.sendBatch(messages)
             )
           )
           if (Result.isFailure(enqueued)) {
@@ -374,7 +372,7 @@ export function LiveWebhookPublisher(
                 )
               )
             )
-            return yield* Effect.fail(enqueued.failure)
+            return yield* enqueued.failure
           }
         })
       }

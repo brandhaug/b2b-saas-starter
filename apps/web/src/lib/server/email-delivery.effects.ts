@@ -38,7 +38,7 @@ export async function loadSystemEmailDeliveryHandler() {
   }
   await requireStrongAuthentication(session)
   return runCapabilities(
-    Effect.flatMap(EmailDelivery, (delivery) => delivery.listSystem()).pipe(
+    Effect.flatMap(EmailDelivery, (delivery) => delivery.listSystem).pipe(
       Effect.flatMap(deliveryRows)
     )
   )

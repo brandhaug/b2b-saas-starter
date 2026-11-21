@@ -46,7 +46,7 @@ describe('webhook response evidence', () => {
         {
           pull() {
             // Native stream callback signals that the response reader is waiting.
-            Deferred.doneUnsafe(reading, Effect.succeed(undefined))
+            Deferred.doneUnsafe(reading, Effect.undefined)
           },
           cancel() {
             cancelled = true

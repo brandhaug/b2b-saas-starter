@@ -75,7 +75,7 @@ describe('Seed Workspace Export generation', () => {
       const ids = decodeNotifications(json).notifications.map((notice) => notice.id)
       expect(ids).toContain(broadcast.id)
       expect(ids).not.toContain(personal.id)
-    }).pipe(Effect.provide(exportsLayer), Effect.provide(dependencies))
+    }).pipe(Effect.provide(exportsLayer.pipe(Layer.provideMerge(dependencies))))
   )
 
   it.effect(
@@ -118,7 +118,7 @@ describe('Seed Workspace Export generation', () => {
             })
           )
         ).toBe(true)
-      }).pipe(Effect.provide(exportsLayer), Effect.provide(dependencies))
+      }).pipe(Effect.provide(exportsLayer.pipe(Layer.provideMerge(dependencies))))
   )
 
   it.effect('retries deferred failure settlement after audit storage recovers', () => {
@@ -178,9 +178,12 @@ describe('Seed Workspace Export generation', () => {
         evidence.items.filter((event) => event.targetId === requested.id)
       ).toHaveLength(1)
     }).pipe(
-      Effect.provide(exportsLayer),
-      Effect.provide(unavailableAudit),
-      Effect.provide(dependencies)
+      Effect.provide(
+        exportsLayer.pipe(
+          Layer.provideMerge(unavailableAudit),
+          Layer.provideMerge(dependencies)
+        )
+      )
     )
   })
 })

@@ -75,7 +75,7 @@ const DEMO_USER_PASSWORD = 'demo-starter-password'
 // mapToDriverValue only yields string | number | null for this schema; parse
 // for that rather than probing, so anything else fails loudly here instead of
 // silently serializing as '[object Object]'.
-const decodeDriverNumber = Schema.decodeUnknownOption(Schema.Number)
+const decodeDriverNumber = Schema.decodeUnknownOption(Schema.Finite)
 const decodeDriverString = Schema.decodeUnknownOption(Schema.String)
 
 function quote(value: unknown): string {

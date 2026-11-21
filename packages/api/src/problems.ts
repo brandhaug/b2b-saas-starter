@@ -2,7 +2,7 @@ import { Effect, Schema, SchemaGetter } from 'effect'
 import { HttpApiError, HttpApiSchema } from 'effect/http-api'
 
 const decodeStatus = Schema.decodeUnknownSync(
-  Schema.Struct({ httpApiStatus: Schema.Number })
+  Schema.Struct({ httpApiStatus: Schema.Finite })
 )
 
 /** Public REST projection. Domain errors keep their identity and safe extensions. */

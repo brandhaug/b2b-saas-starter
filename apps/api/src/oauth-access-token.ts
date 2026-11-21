@@ -155,7 +155,7 @@ export function makeOAuthTokenVerifier(
         })
         if (!outcome.ok) {
           yield* annotateWideEvent({ authReason: outcome.reason })
-          return yield* Effect.fail(new Unauthorized({ message: outcome.reason }))
+          return yield* new Unauthorized({ message: outcome.reason })
         }
         if (
           !hasOAuthResourceAudience(
@@ -164,9 +164,7 @@ export function makeOAuthTokenVerifier(
             outcome.principal.scopes
           )
         ) {
-          return yield* Effect.fail(
-            new Unauthorized({ message: 'access_token_aud_mismatch' })
-          )
+          return yield* new Unauthorized({ message: 'access_token_aud_mismatch' })
         }
         return outcome.principal
       })

@@ -115,16 +115,15 @@ describe('production configuration gate', () => {
     }
     const { enforceRequiredEnvOnce } = await import('./env-gate.ts')
     let settled = false
-    const request = enforceRequiredEnvOnce().then(
-      () => {
+    const request = enforceRequiredEnvOnce()
+      .then(() => {
         settled = true
         return null
-      },
-      (error: unknown) => {
+      })
+      .catch((error: unknown) => {
         settled = true
         return error
-      }
-    )
+      })
     await started
     expect(settled).toBe(false)
     finishExport?.()

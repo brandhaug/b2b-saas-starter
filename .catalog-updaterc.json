@@ -64,6 +64,8 @@
     { "pattern": "oxlint" },
     { "pattern": "oxlint-*" },
     { "pattern": "@oxlint/*" },
-    { "pattern": "oxfmt" }
+    { "pattern": "oxfmt" },
+    { "pattern": "tsrs" },
+    { "pattern": "@effect/tsgo" }
   ]
 }

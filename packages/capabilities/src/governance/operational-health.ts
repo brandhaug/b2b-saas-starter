@@ -5,7 +5,7 @@ import {
   type CapabilityUnavailable
 } from '@b2b-saas-starter/failure/capability'
 
-const HealthCount = Schema.Struct({ count: Schema.Number })
+const HealthCount = Schema.Struct({ count: Schema.Finite })
 const decodeCount = Schema.decodeUnknownEffect(HealthCount)
 
 export type OperationalHealthSnapshot = {

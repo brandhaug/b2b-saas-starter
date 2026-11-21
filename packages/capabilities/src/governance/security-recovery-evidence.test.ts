@@ -130,20 +130,19 @@ describe('security recovery evidence', () => {
       }
     })
     return Effect.acquireUseRelease(
-      Effect.tryPromise({
-        try: () =>
+      Effect.promise(
+        () =>
           new Promise<typeof server>((resolve, reject) => {
             server.once('error', reject)
             server.listen(0, '127.0.0.1', () => resolve(server))
-          }),
-        catch: () => new Error('test server failed to listen')
-      }),
+          })
+      ),
       (listeningServer) =>
         Effect.gen(function* () {
           const address = listeningServer.address()
           // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Node's address API returns a string for named pipes
           if (address === null || typeof address === 'string') {
-            return yield* Effect.fail(new Error('test server did not expose a port'))
+            return yield* Effect.die('test server did not expose a port')
           }
           const record = {
             id: 'sec_test',

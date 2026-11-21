@@ -581,6 +581,8 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
       const { question, attempt } = acceptance
       const run: ConversationRun = {
         attemptId: attempt.id,
+        // The run outlives this admission fiber: a later stop request aborts it.
+        // oxlint-disable-next-line effecttsgo/abort-controller-in-effect -- Effect.abortSignal would end with this fiber, before the run settles
         controller: new AbortController(),
         text: '',
         settled: false

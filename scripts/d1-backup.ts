@@ -36,14 +36,14 @@ const BackupEvidenceSchema = Schema.Struct({
   objectKey: Schema.String,
   createdAt: Schema.String,
   completedAt: Schema.String,
-  durationMs: Schema.Number,
-  exportDurationMs: Schema.Number,
-  exportBlockingBudgetMs: Schema.Number,
+  durationMs: Schema.Finite,
+  exportDurationMs: Schema.Finite,
+  exportBlockingBudgetMs: Schema.Finite,
   exportWithinBudget: Schema.Boolean,
-  plaintextBytes: Schema.Number,
-  encryptedBytes: Schema.Number,
+  plaintextBytes: Schema.Finite,
+  encryptedBytes: Schema.Finite,
   sha256: Schema.String,
-  retentionDays: Schema.Number
+  retentionDays: Schema.Finite
 })
 const decodeEvidence = Schema.decodeUnknownSync(BackupEvidenceSchema)
 
@@ -63,13 +63,13 @@ const DrillCountsSchema = Schema.Array(
   Schema.Struct({
     results: Schema.Array(
       Schema.Struct({
-        tableCount: Schema.Number,
-        userCount: Schema.Number,
-        workspaceCount: Schema.Number,
-        membershipCount: Schema.Number,
-        sessionCount: Schema.Number,
-        orphanMembershipCount: Schema.Number,
-        orphanSessionCount: Schema.Number
+        tableCount: Schema.Finite,
+        userCount: Schema.Finite,
+        workspaceCount: Schema.Finite,
+        membershipCount: Schema.Finite,
+        sessionCount: Schema.Finite,
+        orphanMembershipCount: Schema.Finite,
+        orphanSessionCount: Schema.Finite
       })
     )
   })

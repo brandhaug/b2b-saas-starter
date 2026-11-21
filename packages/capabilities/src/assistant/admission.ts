@@ -7,10 +7,10 @@ export const AssistantReservation = Schema.Struct({
   conversationId: Schema.String,
   workspaceId: WorkspaceId,
   userId: UserId,
-  createdAt: Schema.Number,
-  deadline: Schema.Number,
-  committedAt: Schema.NullOr(Schema.Number),
-  releasedAt: Schema.NullOr(Schema.Number)
+  createdAt: Schema.Finite,
+  deadline: Schema.Finite,
+  committedAt: Schema.NullOr(Schema.Finite),
+  releasedAt: Schema.NullOr(Schema.Finite)
 })
 export type AssistantReservation = typeof AssistantReservation.Type
 export type ReserveAssistantInput = Pick<
@@ -25,7 +25,7 @@ export class AssistantAdmissionRefused extends Schema.TaggedError<AssistantAdmis
   'AssistantAdmissionRefused',
   {
     reason: Schema.Literals(['concurrency_limit', 'generation_rate_limit']),
-    retryAfterSeconds: Schema.Number
+    retryAfterSeconds: Schema.Finite
   },
   { httpApiStatus: 429 }
 ) {}

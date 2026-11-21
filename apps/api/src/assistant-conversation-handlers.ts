@@ -15,8 +15,10 @@ import { HttpApiBuilder } from 'effect/http-api'
 import { assistantAuthorityFailure } from './assistant-conversation-guards.ts'
 import { observed } from './request-guards.ts'
 
-export function assistantConversationsGroup() {
-  return HttpApiBuilder.group(StarterApi, 'assistant-conversations', (handlers) =>
+export const assistantConversationsGroup = HttpApiBuilder.group(
+  StarterApi,
+  'assistant-conversations',
+  (handlers) =>
     Effect.gen(function* () {
       const conversations = yield* AssistantConversations
       const selectWorkspace = Effect.fn('AssistantRest.selectWorkspace')(function* (
@@ -136,8 +138,7 @@ export function assistantConversationsGroup() {
           )
         )
     })
-  )
-}
+)
 
 function read<A, R>(event: string, operation: Effect.Effect<A, ConversationError, R>) {
   return observed(

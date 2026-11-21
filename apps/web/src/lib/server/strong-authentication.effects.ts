@@ -90,7 +90,7 @@ const STRONG_AUTHENTICATION = 'strong-authentication'
 /** The plugin's code for a password that does not match the account's. */
 const INVALID_PASSWORD = 'INVALID_PASSWORD'
 
-const PluginStatus = Schema.Struct({ statusCode: Schema.Number })
+const PluginStatus = Schema.Struct({ statusCode: Schema.Finite })
 const decodePluginStatus = Schema.decodeUnknownOption(PluginStatus)
 
 /** Why the check failed, in code-owned terms: the plugin's message stays out. */

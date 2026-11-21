@@ -22,6 +22,7 @@ export const Notification = Schema.Struct({
   read: Schema.Boolean,
   event: Schema.optional(NotificationEventSchema)
 })
+// oxlint-disable-next-line effecttsgo/unnecessary-typeof-type -- the exported `Notification` type narrows `event`, so it is not the schema's own type
 type NotificationSchemaType = typeof Notification.Type
 export type Notification = Omit<NotificationSchemaType, 'event'> & {
   readonly event?: SystemNotificationEvent | undefined

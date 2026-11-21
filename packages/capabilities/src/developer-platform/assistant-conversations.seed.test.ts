@@ -730,8 +730,7 @@ it.live('Seed revalidation fails on unavailable authority, as Live does', () =>
   }).pipe(
     Effect.scoped,
     Effect.provideService(WorkspaceContext, workspace),
-    Effect.provide(SeedLayer),
-    Effect.provide(MockConversationModelLayer)
+    Effect.provide(SeedLayer.pipe(Layer.provideMerge(MockConversationModelLayer)))
   )
 )
 

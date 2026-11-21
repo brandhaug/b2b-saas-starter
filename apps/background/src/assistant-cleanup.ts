@@ -45,7 +45,7 @@ export function cleanupAssistant(env: Env, scheduledTime: number) {
           outcome: 'failed',
           reason: 'conversation_cleanup_unavailable'
         })
-        return yield* Effect.fail(result.failure)
+        return yield* result.failure
       }
       yield* Metric.update(
         Metric.withAttributes(cleanupRuns, { outcome: 'completed' }),

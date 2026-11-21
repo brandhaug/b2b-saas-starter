@@ -47,11 +47,7 @@ const encodeJsonBody = Schema.encodeSync(Schema.fromJsonString(Schema.Json))
 
 const readOnlyBearer = { authorization: `Bearer ${SEED_READONLY_API_TOKEN}` }
 
-function makeRequest(
-  method: string,
-  path: string,
-  body?: typeof Schema.Json.Type
-): Request {
+function makeRequest(method: string, path: string, body?: Schema.Json): Request {
   if (body === undefined) {
     return new Request(`https://api.test${path}`, { method, headers: readOnlyBearer })
   }

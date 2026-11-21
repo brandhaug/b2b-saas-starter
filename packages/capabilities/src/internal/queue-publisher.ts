@@ -3,7 +3,7 @@ import { Effect } from 'effect'
 
 import {
   type CapabilityUnavailable,
-  orUnavailable
+  tryPromiseOrUnavailable
 } from '@b2b-saas-starter/failure/capability'
 import { withTraceparent } from './traceparent.ts'
 
@@ -32,7 +32,6 @@ export function makeQueuePublisher<Message extends object, Input>(
   queue: QueueSendBinding<Message> | undefined,
   buildMessage: (input: Input) => Message
 ): (input: Input) => Effect.Effect<void, CapabilityUnavailable> {
-  const unavailable = orUnavailable(capability)
   return (input) =>
     Effect.gen(function* () {
       if (!queue) {
@@ -41,11 +40,8 @@ export function makeQueuePublisher<Message extends object, Input>(
       // Absent outside a span (tests, direct calls); the consumer then starts
       // its own trace instead of continuing one (ADR 0050).
       const traceparent = yield* currentTraceparent
-      yield* unavailable(
-        Effect.tryPromise({
-          try: () => queue.send(withTraceparent(buildMessage(input), traceparent)),
-          catch: (cause) => cause
-        })
+      yield* tryPromiseOrUnavailable(capability, () =>
+        queue.send(withTraceparent(buildMessage(input), traceparent))
       )
     })
 }

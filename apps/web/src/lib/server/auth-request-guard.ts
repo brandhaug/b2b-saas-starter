@@ -313,9 +313,7 @@ export const runAuthRequestGuards = Effect.fn('AuthRequestGuard.run')(function* 
   const resolvedAudit =
     audit === undefined
       ? undefined
-      : yield* resolveAuthTarget(exchange, audit).pipe(
-          Effect.catch(() => Effect.succeed(null))
-        )
+      : yield* resolveAuthTarget(exchange, audit).pipe(Effect.orElseSucceed(() => null))
   if (resolvedAudit === null) {
     yield* Effect.annotateLogsScoped({ outcome: 'auth_target_unavailable' })
     return refused(authRefusal(503, 'session_unavailable'), audit)

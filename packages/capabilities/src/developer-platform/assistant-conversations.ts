@@ -172,7 +172,7 @@ export function AssistantConversationsLayer(
         })
         const failure = decodeFailure(body)
         if (Result.isSuccess(failure)) {
-          return yield* Effect.fail(failure.success)
+          return yield* failure.success
         }
         return yield* new ConversationUnavailable({ reason: 'storage' })
       })
@@ -226,8 +226,10 @@ export function AssistantConversationsLayer(
             page.items,
             (row) =>
               read({ credential: input.credential, conversationId: row.id }).pipe(
-                Effect.catchTag('AssistantAuthorityDenied', () => Effect.succeed(null)),
-                Effect.catchTag('ConversationNotFound', () => Effect.succeed(null))
+                Effect.catchTags({
+                  AssistantAuthorityDenied: () => Effect.succeed(null),
+                  ConversationNotFound: () => Effect.succeed(null)
+                })
               ),
             { concurrency: 4 }
           )

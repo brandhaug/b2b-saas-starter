@@ -111,7 +111,7 @@ export function cleanRetention(env: Env, scheduledTime: number) {
           Metric.withAttributes(retentionRunCount, { status: 'failed' }),
           1
         )
-        return yield* Effect.fail(attempt.failure)
+        return yield* attempt.failure
       }
       const result = attempt.success
       yield* Effect.annotateLogsScoped({
@@ -142,7 +142,7 @@ export function cleanRetention(env: Env, scheduledTime: number) {
           reason: 'retention_rule_query_failed'
         })
         yield* captureRetentionFailure(env, databaseTarget, failure)
-        return yield* Effect.fail(failure)
+        return yield* failure
       }
     }).pipe(Effect.provide(selectCapabilitiesLayer(starterEnv(env))))
   )

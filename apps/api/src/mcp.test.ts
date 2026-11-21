@@ -151,7 +151,7 @@ const GuardFailureBody = Schema.Struct({
 describe('POST /mcp protocol', () => {
   it.effect('admin credentials expose reads and writes with distinct annotations', () =>
     Effect.gen(function* () {
-      const client = yield* mcpProtocolClient()
+      const client = yield* mcpProtocolClient
       const result = yield* client.listTools()
       // This is the permitted public tool contract, independent of catalog rows.
       expect(result.tools).toHaveLength(19)
@@ -234,7 +234,7 @@ describe('POST /mcp protocol', () => {
 
   it.effect('tools/call list_notifications honors the paging input like REST', () =>
     Effect.gen(function* () {
-      const client = yield* mcpProtocolClient()
+      const client = yield* mcpProtocolClient
       const result = yield* client.callTool({
         name: 'list_notifications',
         arguments: { limit: 2, cursor: 'not-a-cursor' }
@@ -250,7 +250,7 @@ describe('POST /mcp protocol', () => {
 
   it.effect('resources/read serves the workspace overview resource', () =>
     Effect.gen(function* () {
-      const client = yield* mcpProtocolClient()
+      const client = yield* mcpProtocolClient
       const result = yield* client.readResource({ uri: 'workspace://overview' })
       expect(result.contents).toEqual([
         expect.objectContaining({
@@ -323,7 +323,7 @@ describe('POST /mcp protocol', () => {
         Schema.Struct({
           jsonrpc: Schema.Literal('2.0'),
           id: Schema.NullOr(Schema.Unknown),
-          error: Schema.Struct({ code: Schema.Number })
+          error: Schema.Struct({ code: Schema.Finite })
         })
       )
       expect(body.error.code).toBe(-32_700)

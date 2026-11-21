@@ -277,15 +277,15 @@ export function SeedWorkspaceMembership(
             }
           )
           if (refusal !== null) {
-            return yield* Effect.fail(new MembershipChangeRejected({ reason: refusal }))
+            return yield* new MembershipChangeRejected({ reason: refusal })
           }
         }
       )
 
       return {
-        listMembers: Effect.fn('WorkspaceMembership.listMembers')(() =>
-          Ref.get(roster)
-        )(),
+        listMembers: Ref.get(roster).pipe(
+          Effect.withSpan('WorkspaceMembership.listMembers')
+        ),
         listMembersPage: Effect.fn('WorkspaceMembership.listMembersPage')(
           (input?: ListPageInput) =>
             Effect.map(
@@ -345,7 +345,7 @@ export function SeedWorkspaceMembership(
             ownerCount: ownerCountOf(current)
           })
           if (refusal !== null) {
-            return yield* Effect.fail(new MembershipChangeRejected({ reason: refusal }))
+            return yield* new MembershipChangeRejected({ reason: refusal })
           }
           yield* conversations.invalidateAccess(
             { workspaceId: workspace.id, creatorUserId: input.userId },
@@ -387,7 +387,7 @@ export function SeedWorkspaceMembership(
             payload: { userId: input.userId }
           })
         }),
-        leave: Effect.fn('WorkspaceMembership.leave')(function* () {
+        leave: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           const current = yield* Ref.get(roster)
           // The actor's own row — no actor, or an actor the roster no longer
@@ -396,11 +396,9 @@ export function SeedWorkspaceMembership(
           // non-null roles.
           const own = current.find((member) => member.id === ctx.actor?.userId)
           if (own === undefined) {
-            return yield* Effect.fail(
-              new MembershipChangeRejected({
-                reason: MEMBERSHIP_REFUSAL_REASONS.notAMember
-              })
-            )
+            return yield* new MembershipChangeRejected({
+              reason: MEMBERSHIP_REFUSAL_REASONS.notAMember
+            })
           }
           const refusal = refuseMembershipChange('leave', {
             actorRole: own.role,
@@ -408,7 +406,7 @@ export function SeedWorkspaceMembership(
             ownerCount: ownerCountOf(current)
           })
           if (refusal !== null) {
-            return yield* Effect.fail(new MembershipChangeRejected({ reason: refusal }))
+            return yield* new MembershipChangeRejected({ reason: refusal })
           }
           yield* conversations.invalidateAccess(
             { workspaceId: workspace.id, creatorUserId: own.id },
@@ -447,7 +445,7 @@ export function SeedWorkspaceMembership(
             eventType: 'workspace_member.removed',
             payload: { userId: own.id, reason: 'left' }
           })
-        })(),
+        }).pipe(Effect.withSpan('WorkspaceMembership.leave')),
         changeRole: Effect.fn('WorkspaceMembership.changeRole')(function* (
           input: MemberRoleInput
         ) {
@@ -457,11 +455,9 @@ export function SeedWorkspaceMembership(
           const current = yield* Ref.get(roster)
           const member = current.find((candidate) => candidate.id === input.userId)
           if (member === undefined) {
-            return yield* Effect.fail(
-              new MembershipChangeRejected({
-                reason: MEMBERSHIP_REFUSAL_REASONS.notAMember
-              })
-            )
+            return yield* new MembershipChangeRejected({
+              reason: MEMBERSHIP_REFUSAL_REASONS.notAMember
+            })
           }
           const refusal = refuseMembershipChange('change_role', {
             actorRole: ctx.actor?.role ?? null,
@@ -470,7 +466,7 @@ export function SeedWorkspaceMembership(
             nextRole: input.role
           })
           if (refusal !== null) {
-            return yield* Effect.fail(new MembershipChangeRejected({ reason: refusal }))
+            return yield* new MembershipChangeRejected({ reason: refusal })
           }
           if (member.role === input.role) {
             return member

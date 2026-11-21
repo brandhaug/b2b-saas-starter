@@ -7,7 +7,7 @@ export class PlanLimitExceeded extends Schema.TaggedError<PlanLimitExceeded>()(
   {
     planId: Schema.String,
     resource: Schema.String,
-    limit: Schema.Number
+    limit: Schema.Finite
   },
   { httpApiStatus: 402 }
 ) {}

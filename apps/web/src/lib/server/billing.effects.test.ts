@@ -44,7 +44,7 @@ vi.mock('./auth', async () => {
   }
   return {
     requireRequestSession: async () => session(),
-    requireRequestSessionEffect: () => effect.Effect.sync(session)
+    requireRequestSessionEffect: effect.Effect.sync(session)
   }
 })
 
@@ -112,7 +112,7 @@ vi.mock('../capabilities', () => ({
       }
     })
     const resources = Layer.mock(ResourceEntitlements, {
-      getSelection: () => Effect.succeed({ apiTokenIds: [], webhookEndpointIds: [] }),
+      getSelection: Effect.succeed({ apiTokenIds: [], webhookEndpointIds: [] }),
       summarize: ({
         resource
       }: {

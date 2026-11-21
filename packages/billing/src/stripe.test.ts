@@ -5,7 +5,7 @@ import {
   testSubscriptionFields
 } from './provider-test-fixtures.ts'
 import { describe, expect, it, vi } from '@effect/vitest'
-import { Deferred, Effect, Fiber, Redacted, Schema } from 'effect'
+import { Deferred, Effect, Fiber, Layer, Redacted, Schema } from 'effect'
 import { TestClock } from 'effect/testing'
 import { wireHttpClient, type WireRequest } from '@b2b-saas-starter/failure/http-client'
 
@@ -43,7 +43,7 @@ describe('Stripe provider adapter', () => {
           new Response(
             new ReadableStream({
               pull() {
-                Effect.runSync(Deferred.succeed(reading, undefined))
+                Deferred.doneUnsafe(reading, Effect.undefined)
                 return new Promise(() => {})
               }
             })
@@ -227,8 +227,9 @@ describe('Stripe provider adapter', () => {
           }
         })
       }).pipe(
-        Effect.provide(wireHttpClient(wire)),
-        Effect.provide(WideEventLoggerLive),
+        Effect.provide(
+          wireHttpClient(wire).pipe(Layer.provideMerge(WideEventLoggerLive))
+        ),
         Effect.ensuring(Effect.sync(() => errors.mockRestore()))
       )
     }

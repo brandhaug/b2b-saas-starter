@@ -21,23 +21,23 @@ const WebhookDeadLetterEvent = Schema.Struct({
   type: Schema.Literal('webhook.dead_letter'),
   endpointUrl: Schema.String,
   eventType: Schema.String,
-  attempts: Schema.Number
+  attempts: Schema.Finite
 })
 const WebhookLadderThresholdEvent = Schema.Struct({
   type: Schema.Literal('webhook.ladder_threshold'),
   target: Schema.String,
-  consecutiveFailures: Schema.Number
+  consecutiveFailures: Schema.Finite
 })
 const WebhookLadderWarningEvent = Schema.Struct({
   type: Schema.Literal('webhook.ladder_warning'),
   target: Schema.String,
-  consecutiveFailures: Schema.Number,
-  disableAt: Schema.Number
+  consecutiveFailures: Schema.Finite,
+  disableAt: Schema.Finite
 })
 const AccountImpersonatedEvent = Schema.Struct({
   type: Schema.Literal('account.impersonated'),
   adminName: Schema.String,
-  minutes: Schema.Number
+  minutes: Schema.Finite
 })
 const WorkspaceExportReadyEvent = Schema.Struct({
   type: Schema.Literal('workspace.export_ready'),

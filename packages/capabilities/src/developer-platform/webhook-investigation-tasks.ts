@@ -106,7 +106,7 @@ export function initialInvestigationTaskStatus(
 const AttemptEvidence = Schema.Struct({
   id: Schema.String,
   attemptedAt: Schema.String,
-  responseStatus: Schema.NullOr(Schema.Number),
+  responseStatus: Schema.NullOr(Schema.Finite),
   status: Schema.String
 })
 
@@ -129,7 +129,7 @@ export const WebhookInvestigationTask = Schema.Struct({
     endpointUrl: Schema.String,
     eventType: Schema.String,
     deliveryStatus: Schema.String,
-    lastResponseStatus: Schema.NullOr(Schema.Number),
+    lastResponseStatus: Schema.NullOr(Schema.Finite),
     attempts: Schema.Array(AttemptEvidence)
   }),
   replayDeliveryId: Schema.NullOr(WebhookDeliveryId),
@@ -176,7 +176,7 @@ export class WebhookInvestigationTasks extends Context.Service<
     readonly get: (
       input: TaskId
     ) => Effect.Effect<WebhookInvestigationTask, TaskError, WorkspaceContext>
-    readonly list: () => Effect.Effect<
+    readonly list: Effect.Effect<
       ReadonlyArray<WebhookInvestigationTask>,
       TaskError,
       WorkspaceContext
@@ -342,12 +342,12 @@ export function makeInvestigationTasks(store: InvestigationTaskStore) {
     const get = Effect.fn('WebhookInvestigationTasks.get')(function* (input: TaskId) {
       return yield* project(yield* read(input.taskId))
     })
-    const list = Effect.fn('WebhookInvestigationTasks.list')(function* () {
+    const list = Effect.gen(function* () {
       const ctx = yield* WorkspaceContext
       return yield* Effect.forEach(yield* store.list(ctx.workspace.id), project, {
         concurrency: 4
       })
-    })
+    }).pipe(Effect.withSpan('WebhookInvestigationTasks.list'))
     const approve = Effect.fn('WebhookInvestigationTasks.approve')(function* (
       input: TaskId
     ) {

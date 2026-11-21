@@ -125,10 +125,10 @@ export const LiveResourceEntitlements: Layer.Layer<
       )
       return normalizeSelection(selection, inventory)
     })
-    const getSelection = Effect.fn('ResourceEntitlements.getSelection')(function* () {
+    const getSelection = Effect.gen(function* () {
       const ctx = yield* WorkspaceContext
       return yield* getSelectionForWorkspace(ctx.workspace.id)
-    })
+    }).pipe(Effect.withSpan('ResourceEntitlements.getSelection'))
     const summarizeForWorkspace = Effect.fn(
       'ResourceEntitlements.summarizeForWorkspace'
     )(function* (workspaceId: WorkspaceId, resource: 'api_token' | 'webhook_endpoint') {

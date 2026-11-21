@@ -5,7 +5,7 @@ import { type ProcessProviderEventInput } from './billing.ts'
 
 import {
   type CapabilityUnavailable,
-  orUnavailable
+  tryPromiseOrUnavailable
 } from '@b2b-saas-starter/failure/capability'
 import { annotateWideEvent, currentTraceparent } from '@b2b-saas-starter/logger'
 
@@ -76,7 +76,7 @@ export const StripeProviderEventQueueMessage = Schema.Struct({
       customerId: Schema.optionalKey(Schema.String),
       subscriptionId: Schema.optionalKey(Schema.String),
       subscriptionItemId: Schema.optionalKey(Schema.String),
-      quantity: Schema.optionalKey(Schema.Number),
+      quantity: Schema.optionalKey(Schema.Finite),
       deleted: Schema.optionalKey(Schema.Boolean)
     })
   ),
@@ -155,11 +155,8 @@ export const publishProviderEvent = Effect.fn('Billing.publishProviderEvent')(
     if (traceparent !== undefined) {
       message = { ...message, traceparent }
     }
-    yield* orUnavailable('billing-provider-event-publisher')(
-      Effect.tryPromise({
-        try: () => queue.send(message),
-        catch: (cause) => cause
-      })
+    yield* tryPromiseOrUnavailable('billing-provider-event-publisher', () =>
+      queue.send(message)
     )
   }
 )
@@ -230,12 +227,7 @@ export function LiveSeatSyncPublisher(
       if (traceparent !== undefined) {
         message = { ...message, traceparent }
       }
-      yield* orUnavailable('seat-sync-publisher')(
-        Effect.tryPromise({
-          try: () => queue.send(message),
-          catch: (cause) => cause
-        })
-      )
+      yield* tryPromiseOrUnavailable('seat-sync-publisher', () => queue.send(message))
     })
   })
 }

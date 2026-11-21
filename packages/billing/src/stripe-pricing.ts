@@ -59,9 +59,10 @@ export const validatedStripePrice = Effect.fn('Billing.validatePrice')(function*
     price.recurring.interval_count !== 1 ||
     price.recurring.usage_type !== 'licensed'
   ) {
-    return yield* Effect.fail(
-      new CapabilityUnavailable({ capability: 'billing', reason: 'unsupported_price' })
-    )
+    return yield* new CapabilityUnavailable({
+      capability: 'billing',
+      reason: 'unsupported_price'
+    })
   }
   return {
     amount: stripeUnitAmount(price.unit_amount, price.currency),
@@ -90,12 +91,10 @@ export const displayedBillingPlans = Effect.fn('Billing.displayedPlans')(functio
         }
         const priceId = options.priceIds?.[plan.id]
         if (priceId === undefined) {
-          return yield* Effect.fail(
-            new CapabilityUnavailable({
-              capability: 'billing',
-              reason: 'price_not_configured'
-            })
-          )
+          return yield* new CapabilityUnavailable({
+            capability: 'billing',
+            reason: 'price_not_configured'
+          })
         }
         const annualId = options.annualPriceIds?.[plan.id]
         const [providerPrice, annualProviderPrice] = yield* Effect.all(

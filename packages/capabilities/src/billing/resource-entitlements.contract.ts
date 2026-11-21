@@ -74,7 +74,7 @@ export function resourceEntitlementsContract(expect: typeof VitestExpect) {
       apiTokenIds: [a.id, b.id],
       webhookEndpointIds: [first.endpoint.id]
     })
-    expect((yield* entitlements.getSelection()).apiTokenIds).toEqual([a.id, b.id])
+    expect((yield* entitlements.getSelection).apiTokenIds).toEqual([a.id, b.id])
     expect(
       (yield* audit.list({ eventType: 'billing.resource_selection_updated' })).items
         .length
@@ -112,13 +112,13 @@ export function resourceEntitlementsContract(expect: typeof VitestExpect) {
         secondSend.deliveryId
       )
     ).toBeNull()
-    const replacements = yield* Effect.all(
-      [a, b].map((token) =>
-        tokens.replace({ tokenId: token.id, scopes: ['read'], overlapSeconds: 60 })
-      ),
+    const replacements = yield* Effect.forEach(
+      [a, b],
+      (token) =>
+        tokens.replace({ tokenId: token.id, scopes: ['read'], overlapSeconds: 60 }),
       { concurrency: 'unbounded' }
     )
-    expect(new Set((yield* entitlements.getSelection()).apiTokenIds)).toEqual(
+    expect(new Set((yield* entitlements.getSelection).apiTokenIds)).toEqual(
       new Set(replacements.map((token) => token.id))
     )
     for (const token of replacements) {
@@ -126,11 +126,9 @@ export function resourceEntitlementsContract(expect: typeof VitestExpect) {
     }
     const replacement = Array.getUnsafe(replacements, 0)
     yield* tokens.revoke({ tokenId: replacement.id })
-    expect((yield* entitlements.getSelection()).apiTokenIds).not.toContain(
-      replacement.id
-    )
+    expect((yield* entitlements.getSelection).apiTokenIds).not.toContain(replacement.id)
     yield* endpoints.update({ endpointId: first.endpoint.id, enabled: false })
-    expect((yield* entitlements.getSelection()).webhookEndpointIds).toEqual([])
+    expect((yield* entitlements.getSelection).webhookEndpointIds).toEqual([])
     // Disabled endpoints stop dispatching but remain stored and consume the
     // creation slot.
     expect(
@@ -156,7 +154,7 @@ export function resourceEntitlementsContract(expect: typeof VitestExpect) {
       )
     ).not.toBeNull()
     yield* endpoints.delete({ endpointId: first.endpoint.id })
-    expect((yield* entitlements.getSelection()).webhookEndpointIds).toEqual([])
+    expect((yield* entitlements.getSelection).webhookEndpointIds).toEqual([])
     expect(
       failureTag(
         yield* Effect.exit(
@@ -192,7 +190,7 @@ export function resourceEntitlementsContract(expect: typeof VitestExpect) {
       )
     ).not.toBeNull()
     yield* TestClock.setTime(Date.parse('2026-09-03T00:00:00.000Z'))
-    expect((yield* entitlements.getSelection()).apiTokenIds).toEqual([])
+    expect((yield* entitlements.getSelection).apiTokenIds).toEqual([])
     expect(
       failureTag(yield* Effect.exit(tokens.verifyBearerToken(Redacted.value(c.token))))
     ).toBe('AuthorizationDenied')

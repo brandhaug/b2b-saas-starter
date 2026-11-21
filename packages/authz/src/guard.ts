@@ -20,9 +20,9 @@ export const requirePermission = Effect.fn('Authorization.requirePermission')(
         authReason: 'no_principal',
         permission: describe(request)
       })
-      return yield* Effect.fail(
-        new AuthorizationDenied({ reason: AUTHORIZATION_DENIED_REASONS.noPrincipal })
-      )
+      return yield* new AuthorizationDenied({
+        reason: AUTHORIZATION_DENIED_REASONS.noPrincipal
+      })
     }
 
     const decision = authorize(principal, request)
@@ -36,11 +36,9 @@ export const requirePermission = Effect.fn('Authorization.requirePermission')(
       authDetail: decision.error,
       permission: describe(request)
     })
-    return yield* Effect.fail(
-      new AuthorizationDenied({
-        reason: AUTHORIZATION_DENIED_REASONS.insufficientPermission
-      })
-    )
+    return yield* new AuthorizationDenied({
+      reason: AUTHORIZATION_DENIED_REASONS.insufficientPermission
+    })
   }
 )
 

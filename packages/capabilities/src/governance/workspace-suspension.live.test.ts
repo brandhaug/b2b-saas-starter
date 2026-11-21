@@ -172,16 +172,16 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           const feed = yield* NotificationFeed
           const beforeAudit = yield* audit.listGlobal
           const beforeNotices = yield* feed.list
-          yield* Effect.all(
-            [1, 2].map(() =>
+          yield* Effect.forEach(
+            [1, 2],
+            () =>
               suspension.transition({
                 workspaceId: WorkspaceId.make('wrk_live'),
                 action: 'suspend',
                 actor: { userId: UserId.make('usr_sysadmin') },
                 internalReason: 'concurrent review',
                 customerExplanation: 'Access is temporarily limited.'
-              })
-            ),
+              }),
             { concurrency: 'unbounded' }
           )
           const afterAudit = yield* audit.listGlobal

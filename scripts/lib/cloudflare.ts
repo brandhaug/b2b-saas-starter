@@ -1,6 +1,6 @@
 import { fromApiToken, type Credentials } from '@distilled.cloud/cloudflare/Credentials'
 import { none } from '@distilled.cloud/cloudflare/Retry'
-import { Effect, Redacted, Schema } from 'effect'
+import { Effect, Layer, Redacted, Schema } from 'effect'
 import {
   FetchHttpClient,
   HttpClient,
@@ -16,7 +16,7 @@ const decodeSuccess = HttpClientResponse.schemaBodyJson(
 export function requireCloudflareSuccess(client: HttpClient.HttpClient) {
   return HttpClient.transformResponse(HttpClient.filterStatusOk(client), (response) =>
     response.pipe(
-      Effect.flatMap((value) =>
+      Effect.tap((value) =>
         decodeSuccess(value).pipe(
           Effect.mapError(
             () =>
@@ -27,13 +27,18 @@ export function requireCloudflareSuccess(client: HttpClient.HttpClient) {
                   description: 'Malformed Cloudflare acknowledgement'
                 })
               })
-          ),
-          Effect.as(value)
+          )
         )
       )
     )
   )
 }
+
+// oxlint-disable-next-line unicorn/throw-new-error -- TaggedError is Effect's error-class factory.
+class CloudflareRequestFailed extends Schema.TaggedError<CloudflareRequestFailed>()(
+  'CloudflareRequestFailed',
+  { message: Schema.String }
+) {}
 
 /** Operator calls never retry implicitly, especially message publication. */
 export function withCloudflareToken<A, E>(
@@ -53,17 +58,22 @@ export function withCloudflareToken<A, E>(
       Effect.provideService(HttpClient.HttpClient, requireCloudflareSuccess(observed)),
       Effect.mapError(
         () =>
-          new Error(
-            status === undefined
-              ? 'Cloudflare API request failed'
-              : `Cloudflare API returned HTTP ${status} or a malformed acknowledgement`
-          )
+          new CloudflareRequestFailed({
+            message:
+              status === undefined
+                ? 'Cloudflare API request failed'
+                : `Cloudflare API returned HTTP ${status} or a malformed acknowledgement`
+          })
       )
     )
   }).pipe(
     none,
-    Effect.provide(fromApiToken({ apiToken: Redacted.make(token) })),
-    Effect.provide(FetchHttpClient.layer),
+    Effect.provide(
+      Layer.mergeAll(
+        fromApiToken({ apiToken: Redacted.make(token) }),
+        FetchHttpClient.layer
+      )
+    ),
     Effect.provideService(FetchHttpClient.Fetch, request)
   )
 }

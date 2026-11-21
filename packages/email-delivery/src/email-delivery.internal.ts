@@ -233,7 +233,7 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
         if (yield* store.put(row, old.revision)) {
           return
         }
-        return yield* Effect.fail(new Contended())
+        return yield* new Contended()
       })
     )
   })
@@ -306,7 +306,7 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
         if (yield* store.put(row, old.revision)) {
           return 'updated'
         }
-        return yield* Effect.fail(new Contended())
+        return yield* new Contended()
       })
     )
   })
@@ -338,7 +338,7 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
         ) {
           return
         }
-        return yield* Effect.fail(new Contended())
+        return yield* new Contended()
       })
     )
   })
@@ -376,9 +376,9 @@ export function makeEmailDelivery(store: DeliveryStore): EmailDelivery['Service'
     }
     return null
   })
-  const listSystem = Effect.fn('EmailDelivery.listSystem')(function* () {
+  const listSystem = Effect.gen(function* () {
     return (yield* store.list({})).map(evidence)
-  })
+  }).pipe(Effect.withSpan('EmailDelivery.listSystem'))
   const get = Effect.fn('EmailDelivery.get')(function* (id: string) {
     const row = yield* store.get(id)
     if (row) {

@@ -346,7 +346,7 @@ export const updateStripeSubscriptionItemQuantity = Effect.fn(
     input.idempotencyKey
   )
   if (!response.ok) {
-    return yield* Effect.fail(stripeUnavailable(`stripe http:${response.status}`))
+    return yield* stripeUnavailable(`stripe http:${response.status}`)
   }
 })
 
@@ -567,14 +567,14 @@ export const validateStripeCustomerForWorkspace = Effect.fn(
 }) {
   const customer = yield* retrieveStripeCustomer(input)
   if (customer.deleted === true) {
-    return yield* Effect.fail(stripeUnavailable('customer_deleted'))
+    return yield* stripeUnavailable('customer_deleted')
   }
   if (customer.metadata?.workspaceId !== input.workspaceId) {
-    return yield* Effect.fail(stripeUnavailable('customer_ownership_conflict'))
+    return yield* stripeUnavailable('customer_ownership_conflict')
   }
   const listed = yield* listStripeCustomerSubscriptions(input)
   if (listed.has_more) {
-    return yield* Effect.fail(stripeUnavailable('multiple_subscriptions'))
+    return yield* stripeUnavailable('multiple_subscriptions')
   }
   const activeSubscriptions = listed.data.filter((subscription) =>
     isCurrentSubscriptionStatus(subscription.status)
@@ -586,10 +586,10 @@ export const validateStripeCustomerForWorkspace = Effect.fn(
         subscription.metadata?.workspaceId !== input.workspaceId
     )
   ) {
-    return yield* Effect.fail(stripeUnavailable('subscription_ownership_conflict'))
+    return yield* stripeUnavailable('subscription_ownership_conflict')
   }
   if (activeSubscriptions.length > 1) {
-    return yield* Effect.fail(stripeUnavailable('multiple_subscriptions'))
+    return yield* stripeUnavailable('multiple_subscriptions')
   }
   if (activeSubscriptions.length === 0 && input.knownSubscriptionId !== undefined) {
     const known = yield* retrieveStripeSubscription({
@@ -600,7 +600,7 @@ export const validateStripeCustomerForWorkspace = Effect.fn(
       known.customer !== input.customerId ||
       known.metadata?.workspaceId !== input.workspaceId
     ) {
-      return yield* Effect.fail(stripeUnavailable('subscription_ownership_conflict'))
+      return yield* stripeUnavailable('subscription_ownership_conflict')
     }
     if (isCurrentSubscriptionStatus(known.status)) {
       return {

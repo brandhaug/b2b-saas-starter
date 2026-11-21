@@ -29,7 +29,7 @@ vi.mock('@/lib/server/auth', async (importOriginal) => {
   return {
     ...(await importOriginal<typeof AuthModule>()),
     requireRequestSession: async () => fixtureSession(actor),
-    requireRequestSessionEffect: () => Effect.succeed(fixtureSession(actor))
+    requireRequestSessionEffect: Effect.sync(() => fixtureSession(actor))
   }
 })
 

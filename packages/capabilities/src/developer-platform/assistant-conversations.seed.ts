@@ -175,7 +175,7 @@ export const makeSeedAssistantConversationHost = Effect.fn('SeedConversationHost
             status,
             reason
           ).pipe(Effect.asVoid)
-      }).pipe(Effect.catch(() => Effect.void))
+      }).pipe(Effect.ignore)
     })
     const history = Effect.fn('SeedConversationHost.history')(function* (
       id: string,

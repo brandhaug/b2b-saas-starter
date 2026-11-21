@@ -232,6 +232,7 @@ function registerAndRun(
  * and Start's own error handling sees exactly what it would have seen.
  */
 function runNext(next: () => Promise<Response>): Effect.Effect<Response, unknown> {
+  // oxlint-disable-next-line effecttsgo/unknown-in-effect-catch -- `settle` re-raises the rejection itself, so it must stay the original value
   return Effect.tryPromise({ try: next, catch: (error: unknown) => error })
 }
 

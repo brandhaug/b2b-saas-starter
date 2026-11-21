@@ -57,6 +57,7 @@ let selected: Layer.Layer<EmailDispatcher> | undefined
  * environment without bindings does not touch env, exactly like
  * `AuthConfigLive`'s `Layer.sync`.
  */
+// oxlint-disable-next-line effecttsgo/lazy-effect -- the call defers the env read until a send, as described above
 export function emailDispatcherLayer(): Layer.Layer<EmailDispatcher> {
   // The env bag goes through as it is: `EmailDispatcherEnv` names the same
   // `CLOUDFLARE_EMAIL_FROM` the schema and the deploy do, so there is no

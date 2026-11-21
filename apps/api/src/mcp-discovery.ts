@@ -61,7 +61,7 @@ function operationVisible(env: ApiEnv, caller: McpCaller, target: string) {
     authorizeMcpOperation(caller, operation.permission, requiredScope).pipe(
       Effect.scoped
     )
-  ).pipe(Effect.match({ onFailure: () => false, onSuccess: () => true }))
+  ).pipe(Effect.isSuccess)
 }
 
 export const scopedMcpDiscovery = Effect.fn('Mcp.discovery')(function* (

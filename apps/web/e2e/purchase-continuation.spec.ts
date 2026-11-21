@@ -110,7 +110,6 @@ test('member cannot select a workspace for purchase or act through a crafted bil
   ).toBeVisible()
 })
 
-// oxlint-disable-next-line vitest/prefer-each -- Playwright parameterizes tests with a declaration loop; it has no test.each API.
 for (const plan of ['enterprise', 'starter', 'price_arbitrary']) {
   test(`rejects ${plan} as a purchase intent`, async ({ ownerPage: page }) => {
     await page.goto(`/purchase?plan=${plan}`)

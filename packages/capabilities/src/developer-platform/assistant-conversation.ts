@@ -16,14 +16,14 @@ const attemptFields = {
   id: Schema.String,
   questionId: Schema.String,
   createdAt: Schema.String,
-  deadline: Schema.Number,
+  deadline: Schema.Finite,
   provider: Schema.NullOr(Schema.String),
   modelId: Schema.NullOr(Schema.String),
   providerRequestId: Schema.NullOr(Schema.String),
   finishReason: Schema.NullOr(Schema.String),
-  inputTokens: Schema.NullOr(Schema.Number),
-  outputTokens: Schema.NullOr(Schema.Number),
-  omittedExchanges: Schema.Number,
+  inputTokens: Schema.NullOr(Schema.Finite),
+  outputTokens: Schema.NullOr(Schema.Finite),
+  omittedExchanges: Schema.Finite,
   evidence: Schema.NullOr(
     Schema.Struct({
       taskId: Schema.String,
@@ -120,7 +120,7 @@ export type ConversationExchange = typeof ConversationExchange.Type
 export const ConversationPage = Schema.Struct({
   items: Schema.Array(ConversationExchange),
   nextCursor: Schema.NullOr(Schema.String),
-  policyRevision: Schema.Number
+  policyRevision: Schema.Finite
 })
 
 /** The same chronological page and attempt projection serves stored and seeded history. */
@@ -300,7 +300,7 @@ export const ConversationSummary = Schema.Struct({
   createdAt: Schema.String,
   title: Schema.NullOr(Schema.String),
   activeAttempt: Schema.NullOr(ConversationAttempt),
-  policyRevision: Schema.Number
+  policyRevision: Schema.Finite
 })
 export type ConversationSummary = typeof ConversationSummary.Type
 export const ConversationList = Schema.Struct({

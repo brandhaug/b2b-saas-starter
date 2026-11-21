@@ -9,8 +9,8 @@ export const ConversationDirectoryEntry = Schema.Struct({
   workspaceId: WorkspaceId,
   creatorUserId: UserId,
   requiredPermissions: Schema.Array(Schema.String),
-  policyRevision: Schema.Number,
-  runAccessRevision: Schema.Number,
+  policyRevision: Schema.Finite,
+  runAccessRevision: Schema.Finite,
   createdAt: Schema.String,
   deletedAt: Schema.NullOr(Schema.String),
   cleanedAt: Schema.NullOr(Schema.String)

@@ -109,7 +109,7 @@ function queuePorts(batch?: {
 }
 
 function receiver() {
-  const requests: Array<{ url: string; body: typeof Schema.Json.Type }> = []
+  const requests: Array<{ url: string; body: Schema.Json }> = []
   const response = { status: 200 }
   const http = Layer.succeed(HttpClient.HttpClient)(
     HttpClient.make((request) => {
@@ -338,7 +338,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
           const confirmation = yield* Deferred.make<undefined, Error>()
           const ports = queuePorts({
             started: () => {
-              Deferred.doneUnsafe(started, Effect.succeed(undefined))
+              Deferred.doneUnsafe(started, Effect.undefined)
             },
             confirmation: Deferred.await(confirmation)
           })

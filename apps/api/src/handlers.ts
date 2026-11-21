@@ -75,11 +75,9 @@ function workspaceOperation<A, E, R>(
   )
 }
 
-export function healthGroup() {
-  return HttpApiBuilder.group(StarterApi, 'health', (handlers) =>
-    handlers.handle('check', () => observed('health', Effect.succeed(HEALTH_OK)))
-  )
-}
+export const healthGroup = HttpApiBuilder.group(StarterApi, 'health', (handlers) =>
+  handlers.handle('check', () => observed('health', Effect.succeed(HEALTH_OK)))
+)
 
 export function workspaceGroup(env: ApiEnv) {
   // Infer each concrete row's input, success, errors, and requirements rather

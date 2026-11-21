@@ -39,10 +39,11 @@ vi.mock('./auth', async () => {
   return {
     UnauthorizedError: TestUnauthorizedError,
     requireRequestSession: async () => makeSession({ userId: 'usr_owner' }),
-    requireRequestSessionEffect: () =>
+    requireRequestSessionEffect: effect.Effect.suspend(() =>
       session.expired
         ? effect.Effect.fail(new TestUnauthorizedError())
         : effect.Effect.succeed(makeSession({ userId: 'usr_owner' }))
+    )
   }
 })
 
@@ -75,9 +76,10 @@ function decide(
     Effect.as('allowed'),
     Effect.catchTag('AuthorizationDenied', (error) => Effect.succeed(error.reason)),
     Effect.provide(
-      testWorkspaceContext(workspace, actorOrNull ?? WorkspaceCaller.system)
-    ),
-    Effect.provide(suspensionLayer)
+      testWorkspaceContext(workspace, actorOrNull ?? WorkspaceCaller.system).pipe(
+        Layer.provideMerge(suspensionLayer)
+      )
+    )
   )
 }
 
@@ -123,8 +125,11 @@ describe('requireWorkspacePermission', () => {
         })
         yield* requireWorkspacePermission({ notification: ['read'] })
       }).pipe(
-        Effect.provide(testWorkspaceContext(workspace, actor('owner'))),
-        Effect.provide(suspensionLayer)
+        Effect.provide(
+          testWorkspaceContext(workspace, actor('owner')).pipe(
+            Layer.provideMerge(suspensionLayer)
+          )
+        )
       )
   )
 

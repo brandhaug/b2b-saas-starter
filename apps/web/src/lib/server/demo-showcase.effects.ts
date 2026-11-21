@@ -40,14 +40,13 @@ export function loadDemoShowcase(): Promise<DemoShowcase | null> {
       { concurrency: 'unbounded' }
     ),
     WorkspaceCaller.system
-  ).then(
-    (raw) => ({
+  )
+    .then((raw) => ({
       overview: raw.overview,
       memberCount: raw.memberCount,
       notificationCount: raw.overview.notifications.length,
       roleCount: workspaceRoles.length,
       auditEventTypeCount: AUDIT_EVENT_TYPES.length
-    }),
-    () => null
-  )
+    }))
+    .catch(() => null)
 }

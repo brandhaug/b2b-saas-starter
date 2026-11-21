@@ -214,14 +214,13 @@ describe('openai-compatible model', () => {
         }
       })
       const listeningServer = yield* Effect.acquireRelease(
-        Effect.tryPromise({
-          try: () =>
+        Effect.promise(
+          () =>
             new Promise<typeof server>((resolve, reject) => {
               server.once('error', reject)
               server.listen(0, '127.0.0.1', () => resolve(server))
-            }),
-          catch: () => new Error('test server failed to listen')
-        }),
+            })
+        ),
         (activeServer) =>
           Effect.promise(
             () =>
@@ -233,7 +232,7 @@ describe('openai-compatible model', () => {
       const address = listeningServer.address()
       // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Node's address API returns a string for named pipes
       if (address === null || typeof address === 'string') {
-        return yield* Effect.fail(new Error('test server did not expose a port'))
+        return yield* Effect.die('test server did not expose a port')
       }
       yield* Effect.promise(() =>
         askFails(

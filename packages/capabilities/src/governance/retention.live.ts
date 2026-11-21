@@ -229,9 +229,7 @@ export const LiveRetention = Layer.effect(
         now = input.now.getTime()
       }
       if (!Number.isFinite(now)) {
-        return yield* Effect.fail(
-          new RetentionPolicyError({ reason: 'retention_clock_invalid' })
-        )
+        return yield* new RetentionPolicyError({ reason: 'retention_clock_invalid' })
       }
       const evaluatedAt = DateTime.formatIso(DateTime.makeUnsafe(now))
       const digest = retentionPolicyDigest(input.policy)
@@ -242,9 +240,9 @@ export const LiveRetention = Layer.effect(
         Math.floor(input.policy.workBudget / rules.length)
       )
       if (limit < 1) {
-        return yield* Effect.fail(
-          new RetentionPolicyError({ reason: 'retention_work_budget_too_small' })
-        )
+        return yield* new RetentionPolicyError({
+          reason: 'retention_work_budget_too_small'
+        })
       }
       const saved = yield* query(() =>
         d1

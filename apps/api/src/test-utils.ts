@@ -14,33 +14,33 @@ const decodeJsonObject = Schema.decodeUnknownEffect(
   Schema.fromJsonString(Schema.JsonObject)
 )
 
+const protocolBearer = SEED_API_TOKEN
+const protocolAuthority = McpServer.middleware<{ provides: CurrentMcpRequest }>()(
+  Effect.gen(function* () {
+    const caller = yield* verifyMcpCredential(protocolBearer)
+    return (effect) =>
+      Effect.provideService(effect, CurrentMcpRequest, {
+        caller,
+        origin: 'https://api.test',
+        rateKey: 'mcp-protocol-test',
+        bearer: protocolBearer
+      })
+  })
+)
+
 /** Real registrations over JSON-RPC, with a fixed verified Seed caller.
  * HTTP authentication, sessions and tenant isolation stay in transport tests.
  */
-export function mcpProtocolClient() {
-  const bearer = SEED_API_TOKEN
-  const authority = McpServer.middleware<{ provides: CurrentMcpRequest }>()(
-    Effect.gen(function* () {
-      const caller = yield* verifyMcpCredential(bearer)
-      return (effect) =>
-        Effect.provideService(effect, CurrentMcpRequest, {
-          caller,
-          origin: 'https://api.test',
-          rateKey: 'mcp-protocol-test',
-          bearer
-        })
-    })
-  )
-  return McpTest.makeClient(mcpRegistrations({}).pipe(Layer.provide(authority.layer)), {
-    protocols: [McpProtocol.v2025_11_25]
-  }).pipe(
-    Effect.provide([
-      selectCapabilitiesLayer({}),
-      makeOAuthTokenVerifierLayer({}),
-      Layer.succeed(RateLimiter, { take: () => Effect.succeed(true) })
-    ])
-  )
-}
+export const mcpProtocolClient = McpTest.makeClient(
+  mcpRegistrations({}).pipe(Layer.provide(protocolAuthority.layer)),
+  { protocols: [McpProtocol.v2025_11_25] }
+).pipe(
+  Effect.provide([
+    selectCapabilitiesLayer({}),
+    makeOAuthTokenVerifierLayer({}),
+    Layer.succeed(RateLimiter, { take: () => Effect.succeed(true) })
+  ])
+)
 
 /**
  * Shared helpers for the API worker's protocol-driving tests. Imported by
@@ -52,7 +52,7 @@ export function jsonBody<S extends Schema.Top>(response: Response, schema: S) {
   return Effect.gen(function* () {
     const text = yield* Effect.promise(() => response.text())
     if (!response.headers.get('content-type')?.includes('text/event-stream')) {
-      return yield* Schema.decodeUnknownEffect(Schema.fromJsonString(schema))(text)
+      return yield* Schema.decodeEffect(Schema.fromJsonString(schema))(text)
     }
     const responses = yield* Stream.make(text).pipe(
       Stream.pipeThroughChannel(Sse.decode()),
@@ -63,7 +63,7 @@ export function jsonBody<S extends Schema.Top>(response: Response, schema: S) {
       Stream.runCollect
     )
     expect(responses).toHaveLength(1)
-    return yield* Schema.decodeUnknownEffect(schema)(responses[0])
+    return yield* Schema.decodeEffect(schema)(responses[0])
   })
 }
 

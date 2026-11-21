@@ -20,12 +20,9 @@ describe('auth without D1', () => {
   })
 
   it('redirects protected pages to sign-in', async () => {
-    const refusal = await requireSession('/demo', () =>
-      readSessionFromHeaders(headers)
-    ).then(
-      () => undefined,
-      (error: unknown) => error
-    )
+    const refusal = await requireSession('/demo', () => readSessionFromHeaders(headers))
+      .then(() => undefined)
+      .catch((error: unknown) => error)
     expect(isRedirect(refusal)).toBe(true)
   })
 

@@ -32,7 +32,7 @@ export const WorkspaceExport = Schema.Struct({
   completedAt: Schema.NullOr(Schema.String),
   /** When the artifact stops being downloadable — the bucket's lifecycle horizon. */
   expiresAt: Schema.NullOr(Schema.String),
-  sizeBytes: Schema.NullOr(Schema.Number),
+  sizeBytes: Schema.NullOr(Schema.Finite),
   failureReason: Schema.NullOr(Schema.String)
 })
 export type WorkspaceExport = typeof WorkspaceExport.Type

@@ -48,10 +48,10 @@ export const nativeObserver = Effect.fn('ConversationHostTest.nativeObserver')(
           socket.addEventListener('message', receive)
           return Effect.sync(() => socket.removeEventListener('message', receive))
         }).pipe(
-          Effect.timeout('5 seconds'),
-          Effect.catchTag('TimeoutError', () =>
-            Effect.die(`No socket frame containing ${includes}`)
-          )
+          Effect.timeoutOrElse({
+            duration: '5 seconds',
+            orElse: () => Effect.die(`No socket frame containing ${includes}`)
+          })
         )
     )
     const waitForClose = Effect.callback<number>((resume) => {
@@ -65,8 +65,10 @@ export const nativeObserver = Effect.fn('ConversationHostTest.nativeObserver')(
       socket.addEventListener('close', receive)
       return Effect.sync(() => socket.removeEventListener('close', receive))
     }).pipe(
-      Effect.timeout('5 seconds'),
-      Effect.catchTag('TimeoutError', () => Effect.die('Socket did not close'))
+      Effect.timeoutOrElse({
+        duration: '5 seconds',
+        orElse: () => Effect.die('Socket did not close')
+      })
     )
     const send = Effect.fn('ConversationHostTest.socketSend')((frame: Schema.Json) =>
       Effect.sync(() => socket.send(encodeJson(frame)))

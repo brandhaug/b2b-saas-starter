@@ -1,5 +1,5 @@
 import { Cause, Effect, Schema } from 'effect'
-import { narrowedFrom } from './narrowing.ts'
+import { attemptPromise, narrowedFrom } from './narrowing.ts'
 import { isPersistenceDecodeError, persistenceReason } from './persistence.ts'
 
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call, not an un-new-ed error constructor
@@ -67,4 +67,20 @@ function passedReason(error: unknown): string {
     return error.reason
   }
   return 'unavailable'
+}
+
+/**
+ * `Effect.tryPromise` for a platform binding call (queue send, R2 object): a
+ * rejection becomes this capability's `unavailable` failure and remembers the
+ * thrown value's identity (`untagged` for a plain throw), as `orUnavailable`
+ * records it.
+ */
+export function tryPromiseOrUnavailable<A>(
+  capability: string,
+  run: (signal: AbortSignal) => PromiseLike<A>
+): Effect.Effect<A, CapabilityUnavailable> {
+  return attemptPromise({
+    try: run,
+    narrow: () => new CapabilityUnavailable({ capability, reason: 'unavailable' })
+  })
 }

@@ -22,7 +22,6 @@ async function expectPageFits(page: Page) {
     .toBeLessThanOrEqual(1)
 }
 
-// oxlint-disable-next-line vitest/prefer-each -- Playwright parameterizes tests with loops; its test API has no each method.
 for (const { locale, signInLabel, demoLabel } of [
   { locale: 'en', signInLabel: 'Sign in', demoLabel: 'Explore demo' },
   { locale: 'nb', signInLabel: 'Logg inn', demoLabel: 'Utforsk demoen' }

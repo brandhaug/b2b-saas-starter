@@ -24,7 +24,6 @@ test.beforeEach(async ({ context }, testInfo) => {
 
 // The badge comes from the page frame every workspace loader shares; Audit
 // and Assistant once shipped without it.
-// oxlint-disable-next-line vitest/prefer-each -- Playwright parameterizes tests with loops; its test API has no each method.
 for (const segment of [
   '',
   '/members',

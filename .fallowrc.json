@@ -46,6 +46,9 @@
   ],
   "ignoreExportsUsedInFile": true,
   "ignoreDependencies": [
+    // The tsconfig plugin name @effect/tsgo's patched tsrs reads for rule
+    // options; @effect/tsgo provides it, and no package by this name exists.
+    "@effect/language-service",
     // The inlang SDK loads this through the local data-URL plugin bridge.
     "@inlang/plugin-message-format",
     // Root lint.config.ts loads the ESLint subpath; Fallow misses this imported config.

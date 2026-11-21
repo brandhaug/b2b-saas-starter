@@ -66,7 +66,7 @@ export function LivePlatformUserAdmin(
         )
         const row = rows[0]
         if (!row) {
-          return yield* Effect.fail(new UserAdminRejected({ reason: 'unknown_user' }))
+          return yield* new UserAdminRejected({ reason: 'unknown_user' })
         }
         return toAccount(row)
       })
@@ -152,9 +152,9 @@ export function LivePlatformUserAdmin(
             if (!member) {
               // The write succeeded but the read-back found nothing — treat it
               // the way a rejected change reads, without claiming success.
-              return yield* Effect.fail(
-                new UserAdminRejected({ reason: 'not_a_member_after_write' })
-              )
+              return yield* new UserAdminRejected({
+                reason: 'not_a_member_after_write'
+              })
             }
             yield* recordCompletedAudit(
               audit,

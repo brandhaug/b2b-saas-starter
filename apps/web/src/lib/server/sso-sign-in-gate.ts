@@ -130,13 +130,11 @@ function readBody(request: Request): Effect.Effect<SignInBody | null> {
     request
       .clone()
       .json()
-      .then(
-        (parsed) => {
-          const decoded = decodeSignInBody(parsed)
-          return Option.isSome(decoded) ? decoded.value : null
-        },
-        () => null
-      )
+      .then((parsed) => {
+        const decoded = decodeSignInBody(parsed)
+        return Option.isSome(decoded) ? decoded.value : null
+      })
+      .catch(() => null)
   )
 }
 

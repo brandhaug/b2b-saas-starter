@@ -1,4 +1,4 @@
-import { Effect, Schema } from 'effect'
+import { Effect, Layer, Schema } from 'effect'
 import { WideEventLoggerLive, withRequestScope } from '@b2b-saas-starter/logger'
 import { render } from 'react-email'
 import { describe, expect, it, vi } from '@effect/vitest'
@@ -46,9 +46,8 @@ describe('EmailDispatcher', () => {
           Effect.provide(
             makeCloudflareEmailDispatcherLayer({
               send: () => Promise.resolve({ messageId: 'private-provider-id' })
-            })
-          ),
-          Effect.provide(WideEventLoggerLive)
+            }).pipe(Layer.provideMerge(WideEventLoggerLive))
+          )
         )
       )
       expect(result.providerMessageId).toBe('private-provider-id')

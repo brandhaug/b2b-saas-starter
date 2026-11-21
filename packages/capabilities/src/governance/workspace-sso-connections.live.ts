@@ -200,7 +200,7 @@ export function LiveSsoConnections(
       })
 
       return {
-        list: Effect.fn('SsoConnections.list')(function* () {
+        list: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           const rows = yield* unavailable(
             db
@@ -210,7 +210,7 @@ export function LiveSsoConnections(
               .orderBy(desc(workspaceSsoConnections.createdAt))
           )
           return rows.map(toConnection)
-        })(),
+        }).pipe(Effect.withSpan('SsoConnections.list')),
         get: Effect.fn('SsoConnections.get')(function* ({ providerId }) {
           const ctx = yield* WorkspaceContext
           const row = yield* readInWorkspace(ctx.workspace.id, providerId)
@@ -229,9 +229,9 @@ export function LiveSsoConnections(
           )
           const row = yield* readInWorkspace(ctx.workspace.id, providerId)
           if (Option.isNone(row)) {
-            return yield* Effect.fail(
-              new MembershipChangeRejected({ reason: 'connection_not_created' })
-            )
+            return yield* new MembershipChangeRejected({
+              reason: 'connection_not_created'
+            })
           }
           const connection = toConnection(row.value)
           yield* recordCompletedMutationAudit(

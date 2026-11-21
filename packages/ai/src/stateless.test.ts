@@ -50,7 +50,7 @@ it.effect('times out while consuming the OpenAI body and aborts its request', ()
       const response = new Response(
         new ReadableStream({
           pull() {
-            Effect.runSync(Deferred.succeed(consuming, undefined))
+            Deferred.doneUnsafe(consuming, Effect.undefined)
             return new Promise(() => {})
           }
         })
@@ -103,7 +103,7 @@ it.effect('times out a held Workers AI call without retrying', () =>
   Effect.gen(function* () {
     const started = yield* Deferred.make<undefined>()
     const run = vi.fn(() => {
-      Effect.runSync(Deferred.succeed(started, undefined))
+      Deferred.doneUnsafe(started, Effect.undefined)
       return new Promise<null>(() => {})
     })
     const fiber = yield* AssistantService.use((assistant) =>
@@ -127,7 +127,7 @@ it.effect('preserves external interruption of an in-flight request', () =>
     let signal: AbortSignal | undefined
     const wire = vi.fn((_url: string, request: WireRequest) => {
       signal = request.signal
-      Effect.runSync(Deferred.succeed(started, undefined))
+      Deferred.doneUnsafe(started, Effect.undefined)
       return new Promise<Response>(() => {})
     })
     const fiber = yield* AssistantService.use((assistant) =>

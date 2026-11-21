@@ -95,7 +95,7 @@ describe('toRouteSession', () => {
 /** The gate under its own runtime: the assertion is about the Exit's channel. */
 function runExit() {
   // oxlint-disable-next-line starter/no-run-promise-in-tests -- the Exit is the assertion; `it.effect` would hide the channel this test is about
-  return Effect.runPromiseExit(requireRequestSessionEffect())
+  return Effect.runPromiseExit(requireRequestSessionEffect)
 }
 
 describe('requireRequestSessionEffect', () => {

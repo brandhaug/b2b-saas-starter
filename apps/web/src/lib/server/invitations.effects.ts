@@ -86,12 +86,10 @@ const limitInvitationSend = Effect.fn('Invitation.limitSend')(
     if (
       !(yield* limiter.take({ bucket: 'auth_sign_in', key: `invitation:${userId}` }))
     ) {
-      return yield* Effect.fail(
-        new CapabilityUnavailable({
-          capability: 'email-delivery',
-          reason: 'rate_limited'
-        })
-      )
+      return yield* new CapabilityUnavailable({
+        capability: 'email-delivery',
+        reason: 'rate_limited'
+      })
     }
   },
   Effect.provide(makeRateLimiterLayer(env))
@@ -152,20 +150,16 @@ export async function resendInvitationHandler(
       const rows = yield* invitations.list
       const invitation = rows.find((candidate) => candidate.id === input.invitationId)
       if (invitation === undefined) {
-        return yield* Effect.fail(
-          new MembershipChangeRejected({ reason: 'invitation_not_found' })
-        )
+        return yield* new MembershipChangeRejected({ reason: 'invitation_not_found' })
       }
       yield* requirePending(invitation)
       yield* requireUnexpired(invitation)
       const latest = yield* latestInvitationEmailHistory(invitation.id)
       if (!canResendInvitation(latest)) {
-        return yield* Effect.fail(
-          new CapabilityUnavailable({
-            capability: 'email-delivery',
-            reason: 'provider_refused_recipient'
-          })
-        )
+        return yield* new CapabilityUnavailable({
+          capability: 'email-delivery',
+          reason: 'provider_refused_recipient'
+        })
       }
       const ctx = yield* WorkspaceContext
       // Concurrent requests that observed the same failure claim the same next

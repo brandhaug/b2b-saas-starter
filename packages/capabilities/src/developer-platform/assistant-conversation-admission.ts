@@ -37,8 +37,10 @@ type Stored<A> = Effect.Effect<A, ConversationUnavailable>
 /** The host supplies its atomic SQLite ledger and SDK-authoritative saved text. */
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- Fallow tracks class implementations through interface inheritance, but not intersected type aliases.
 export interface ConversationAdmissionLedger extends ConversationTranscript {
+  // oxlint-disable-next-line effecttsgo/lazy-effect -- the ledger port is a set of storage queries, all methods like the transcript it extends
   latestAttempt(): Stored<ConversationAttempt | null>
   attempt(id: string): Stored<ConversationAttempt | null>
+  // oxlint-disable-next-line effecttsgo/lazy-effect -- a storage query, a method like the rest of this port
   active(): Stored<ConversationAttempt | null>
   previous(key: string): Stored<{
     readonly payloadHash: string
@@ -179,11 +181,7 @@ export const acceptConversationAnswer = Effect.fn('AssistantConversation.accept'
         acceptance,
         execution: { credential, prompt, runAccessRevision: row.runAccessRevision }
       })
-      .pipe(
-        Effect.catch((error) =>
-          admission.release(attempt.id).pipe(Effect.andThen(Effect.fail(error)))
-        )
-      )
+      .pipe(Effect.tapError(() => admission.release(attempt.id)))
     yield* admission.commit(attempt.id).pipe(
       Effect.catch((error) =>
         Effect.gen(function* () {
@@ -194,7 +192,7 @@ export const acceptConversationAnswer = Effect.fn('AssistantConversation.accept'
             completedAt: DateTime.formatIso(yield* DateTime.now)
           })
           yield* admission.release(attempt.id)
-          return yield* Effect.fail(error)
+          return yield* error
         })
       )
     )

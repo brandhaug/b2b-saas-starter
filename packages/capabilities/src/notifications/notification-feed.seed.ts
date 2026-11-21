@@ -212,7 +212,7 @@ export function SeedNotificationFeed(
       })
 
       return {
-        list: Effect.fn('NotificationFeed.list')(function* () {
+        list: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           const all = yield* Ref.get(rows)
           return all
@@ -223,7 +223,7 @@ export function SeedNotificationFeed(
             )
             .toSorted((a, b) => b.createdAt.localeCompare(a.createdAt))
             .map(stripStorage)
-        })(),
+        }).pipe(Effect.withSpan('NotificationFeed.list')),
         countVisibleToUser: (userId, workspaceIds) =>
           Effect.map(
             Ref.get(rows),
@@ -265,7 +265,7 @@ export function SeedNotificationFeed(
             input
           )
         }),
-        unreadCount: Effect.fn('NotificationFeed.unreadCount')(function* () {
+        unreadCount: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           const all = yield* Ref.get(rows)
           return all.filter(
@@ -274,7 +274,7 @@ export function SeedNotificationFeed(
               !row.read &&
               visibleToActor(row.userId, ctx.actor)
           ).length
-        })(),
+        }).pipe(Effect.withSpan('NotificationFeed.unreadCount')),
         markRead: Effect.fn('NotificationFeed.markRead')(function* (ids) {
           const ctx = yield* WorkspaceContext
           const requested = new Set(ids)

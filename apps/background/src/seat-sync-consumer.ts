@@ -73,7 +73,7 @@ function operatorRetryMetadata(
  * open for tests, like its siblings.
  */
 export function processSeatSyncMessage(
-  delivery: QueueDelivery<typeof BillingQueueMessage.Type>
+  delivery: QueueDelivery<BillingQueueMessage>
 ): Effect.Effect<
   DeliveryOutcome,
   CapabilityUnavailable,

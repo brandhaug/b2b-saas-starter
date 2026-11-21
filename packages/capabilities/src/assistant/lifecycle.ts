@@ -10,7 +10,7 @@ import { type ConversationUnavailable } from '../developer-platform/assistant-co
 import { AssistantDirectory, isDeletedConversation } from './directory.ts'
 
 export const ConversationExportManifest = Schema.Array(
-  Schema.Struct({ id: Schema.String, policyRevision: Schema.Number })
+  Schema.Struct({ id: Schema.String, policyRevision: Schema.Finite })
 )
 export type ConversationExportManifest = typeof ConversationExportManifest.Type
 export const ExportedConversation = Schema.Struct({

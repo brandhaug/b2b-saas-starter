@@ -1,3 +1,4 @@
+import { strict as effectTsgoStrict } from '@effect/tsgo/oxlint-presets'
 import { defineConfig } from 'vite-plus'
 import {
   type Capability,
@@ -385,6 +386,11 @@ const RD_DECLINED = `
 // plugins `defineConfig` adds to its result are discarded.
 const { lint = {} } = defineConfig({
   lint: {
+    // Effect's type-aware diagnostics, every default-enabled one as an error.
+    // The `effecttsgo` plugin exists only under `effect-tsgo vp lint`, which
+    // loads the Effect-patched oxlint binding and tsrs; plain `vp lint` rejects
+    // this config as naming an unknown plugin.
+    extends: [effectTsgoStrict],
     plugins: [
       'typescript',
       // `react-hooks/*` rules ship inside oxlint's `react` plugin; `react-hooks`
@@ -429,12 +435,10 @@ const { lint = {} } = defineConfig({
     options: {
       reportUnusedDisableDirectives: 'deny',
       typeAware: true,
-      // Full TS diagnostics stay off: the bundled tsgolint resolves monorepo deps
-      // (pnpm's aliased vite, Alchemy's Effect generators) differently from the
-      // repo's own `typescript@7.0.2`, reporting overloads tsc accepts — and the
-      // repo already has `typecheck` as the dedicated tsc gate. `typeAware` keeps
-      // the type-aware lint rules; `typeCheck` would duplicate the tsc gate with a
-      // different engine. Revisit when vp bundles a tsgolint that matches.
+      // Type-aware rules run on the tsrs build Vite+ bundles, the same version the
+      // `typecheck` scripts run. Full TS diagnostics stay with `typecheck`: it
+      // checks every tsconfig project, including generated files this config
+      // ignores, so `typeCheck` here would repeat it for a subset of files.
       typeCheck: false
     },
     categories: {
@@ -485,6 +489,18 @@ const { lint = {} } = defineConfig({
       // --- Deviations ------------------------------------------------------
       // Everything below overrides the blanket `error` above. These are the
       // decisions; the lists above are the defaults.
+
+      // Effect's rule set is its upstream `strict` preset (extended above). The
+      // oxlint categories also switch on four Effect rules upstream ships off.
+      // unsafe-effect-type-assertion stays on. strict-effect-provide reports
+      // every Worker handler, queue consumer, script and test, each of which is
+      // an entry point that provides its own layers. The other two report the
+      // intended unknown error channels: a framework bridge that re-raises the
+      // original rejection, tests of narrowing itself, and Effect's own
+      // `UnknownError` from a `tryPromise` the caller maps or ignores.
+      'effecttsgo/any-unknown-in-error-context': 'off',
+      'effecttsgo/effect-try-without-catch': 'off',
+      'effecttsgo/strict-effect-provide': 'off',
 
       // Options, not exceptions: the rule is on, tuned to a repo convention.
       '@typescript-eslint/array-type': ['error', { default: 'generic' }],

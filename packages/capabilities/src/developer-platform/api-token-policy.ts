@@ -25,9 +25,9 @@ export const validateTokenCreation = Effect.fn('ApiTokenRegistry.validateCreatio
       )
     )
     if (decoded.expiresAt !== undefined && isExpiredToken(decoded.expiresAt, now)) {
-      return yield* Effect.fail(
-        new InvalidApiTokenInput({ message: 'Expiry must be in the future.' })
-      )
+      return yield* new InvalidApiTokenInput({
+        message: 'Expiry must be in the future.'
+      })
     }
     return decoded
   }
@@ -36,7 +36,7 @@ export const validateTokenCreation = Effect.fn('ApiTokenRegistry.validateCreatio
 export const planTokenReplacement = Effect.fn('ApiTokenRegistry.planReplacement')(
   function* (source: ApiToken, input: ReplaceApiTokenInput, now: number) {
     if (source.replacedByTokenId !== null || isExpiredToken(source.expiresAt, now)) {
-      return yield* Effect.fail(new ApiTokenNotRotatable({ tokenId: input.tokenId }))
+      return yield* new ApiTokenNotRotatable({ tokenId: input.tokenId })
     }
     const decoded = yield* decodeReplacement(input).pipe(
       Effect.mapError(
@@ -49,24 +49,20 @@ export const planTokenReplacement = Effect.fn('ApiTokenRegistry.planReplacement'
     )
     const originalScopes = new Set(source.scopes)
     if (decoded.scopes.some((scope) => !originalScopes.has(scope))) {
-      return yield* Effect.fail(
-        new InvalidApiTokenInput({
-          message:
-            'Replacement scopes must be the same as or narrower than the original token.'
-        })
-      )
+      return yield* new InvalidApiTokenInput({
+        message:
+          'Replacement scopes must be the same as or narrower than the original token.'
+      })
     }
     const expiresAt = decoded.expiresAt ?? source.expiresAt
     if (
       isExpiredToken(expiresAt, now) ||
       (source.expiresAt !== null && expiresAt !== null && expiresAt > source.expiresAt)
     ) {
-      return yield* Effect.fail(
-        new InvalidApiTokenInput({
-          message:
-            'Replacement expiry must be in the future and cannot extend the original expiry.'
-        })
-      )
+      return yield* new InvalidApiTokenInput({
+        message:
+          'Replacement expiry must be in the future and cannot extend the original expiry.'
+      })
     }
     const overlapEndsAt = DateTime.formatIso(
       DateTime.makeUnsafe(now + decoded.overlapSeconds * 1000)

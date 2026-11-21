@@ -56,11 +56,9 @@ export function approveRetentionPolicy(input: {
       input.confirmation !== digest ||
       input.recoveryEvidenceRef.trim().length === 0
     ) {
-      return yield* Effect.fail(
-        new RetentionPolicyError({
-          reason: 'retention_preview_or_confirmation_mismatch'
-        })
-      )
+      return yield* new RetentionPolicyError({
+        reason: 'retention_preview_or_confirmation_mismatch'
+      })
     }
     return {
       ...input.policy,
@@ -78,14 +76,14 @@ export function validateRetentionPolicy(
 ): Effect.Effect<void, RetentionPolicyError> {
   return Effect.gen(function* () {
     if (policy.version !== RETENTION_POLICY_VERSION) {
-      return yield* Effect.fail(
-        new RetentionPolicyError({ reason: 'retention_policy_version_invalid' })
-      )
+      return yield* new RetentionPolicyError({
+        reason: 'retention_policy_version_invalid'
+      })
     }
     if (policy.target.trim().length === 0) {
-      return yield* Effect.fail(
-        new RetentionPolicyError({ reason: 'retention_policy_target_invalid' })
-      )
+      return yield* new RetentionPolicyError({
+        reason: 'retention_policy_target_invalid'
+      })
     }
     const positive: ReadonlyArray<readonly [string, number]> = [
       ['auditDays', policy.auditDays],
@@ -93,9 +91,9 @@ export function validateRetentionPolicy(
     ]
     for (const [key, value] of positive) {
       if (!Number.isInteger(value) || value < 1) {
-        return yield* Effect.fail(
-          new RetentionPolicyError({ reason: `retention_${key}_must_be_positive` })
-        )
+        return yield* new RetentionPolicyError({
+          reason: `retention_${key}_must_be_positive`
+        })
       }
     }
     const safety: ReadonlyArray<readonly [string, number, number]> = [
@@ -107,42 +105,40 @@ export function validateRetentionPolicy(
     ]
     for (const [key, value, minimum] of safety) {
       if (!Number.isInteger(value) || value < minimum) {
-        return yield* Effect.fail(
-          new RetentionPolicyError({ reason: `retention_${key}_below_safety_window` })
-        )
+        return yield* new RetentionPolicyError({
+          reason: `retention_${key}_below_safety_window`
+        })
       }
     }
     if (policy.emailDays > 90) {
-      return yield* Effect.fail(
-        new RetentionPolicyError({ reason: 'retention_emailDays_above_safety_window' })
-      )
+      return yield* new RetentionPolicyError({
+        reason: 'retention_emailDays_above_safety_window'
+      })
     }
     if (
       !Number.isInteger(policy.unresolvedEmailDays) ||
       policy.unresolvedEmailDays < policy.emailDays ||
       policy.unresolvedEmailDays > 90
     ) {
-      return yield* Effect.fail(
-        new RetentionPolicyError({ reason: 'retention_unresolvedEmailDays_invalid' })
-      )
+      return yield* new RetentionPolicyError({
+        reason: 'retention_unresolvedEmailDays_invalid'
+      })
     }
     if (
       !Number.isInteger(policy.batchSize) ||
       policy.batchSize < 1 ||
       policy.batchSize > 100
     ) {
-      return yield* Effect.fail(
-        new RetentionPolicyError({ reason: 'retention_batch_size_invalid' })
-      )
+      return yield* new RetentionPolicyError({ reason: 'retention_batch_size_invalid' })
     }
     if (
       !Number.isInteger(policy.workBudget) ||
       policy.workBudget < 18 ||
       policy.workBudget > 1000
     ) {
-      return yield* Effect.fail(
-        new RetentionPolicyError({ reason: 'retention_work_budget_invalid' })
-      )
+      return yield* new RetentionPolicyError({
+        reason: 'retention_work_budget_invalid'
+      })
     }
     if (
       policy.destructiveEnabled &&
@@ -154,9 +150,9 @@ export function validateRetentionPolicy(
         policy.recoveryEvidenceRef === undefined ||
         policy.recoveryEvidenceRef.trim().length === 0)
     ) {
-      return yield* Effect.fail(
-        new RetentionPolicyError({ reason: 'retention_approval_missing_or_stale' })
-      )
+      return yield* new RetentionPolicyError({
+        reason: 'retention_approval_missing_or_stale'
+      })
     }
   })
 }

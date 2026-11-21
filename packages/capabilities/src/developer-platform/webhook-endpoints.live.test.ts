@@ -372,20 +372,19 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               payload: { event: 'demo.redelivery' }
             })
           })
-        )
-          .pipe(Effect.andThen(deliveryRow(WebhookDeliveryId.make('whd_live_same_id'))))
-          .pipe(
-            Effect.tap((rows) =>
-              Effect.sync(() => {
-                expect(rows).toHaveLength(1)
-                expect(rows[0]).toMatchObject({
-                  status: 'delivered',
-                  attempts: 2,
-                  responseStatus: 200
-                })
+        ).pipe(
+          Effect.andThen(deliveryRow(WebhookDeliveryId.make('whd_live_same_id'))),
+          Effect.tap((rows) =>
+            Effect.sync(() => {
+              expect(rows).toHaveLength(1)
+              expect(rows[0]).toMatchObject({
+                status: 'delivered',
+                attempts: 2,
+                responseStatus: 200
               })
-            )
+            })
           )
+        )
       )
 
       it.effect(

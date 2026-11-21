@@ -89,9 +89,9 @@ export function LiveWorkspaceInvitations(
         const rows = yield* unavailable(pendingByEmail(db, workspaceId, email).limit(1))
         const row = rows[0]
         if (!row) {
-          return yield* Effect.fail(
-            new MembershipChangeRejected({ reason: 'invitation_not_created' })
-          )
+          return yield* new MembershipChangeRejected({
+            reason: 'invitation_not_created'
+          })
         }
         return toInvitation(row)
       })
@@ -138,15 +138,15 @@ export function LiveWorkspaceInvitations(
         )
         const row = rows[0]
         if (!row) {
-          return yield* Effect.fail(
-            new MembershipChangeRejected({ reason: 'invitation_not_pending' })
-          )
+          return yield* new MembershipChangeRejected({
+            reason: 'invitation_not_pending'
+          })
         }
         return toInvitation(row)
       })
 
       return {
-        list: Effect.fn('WorkspaceInvitations.list')(function* () {
+        list: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           const rows = yield* unavailable(
             db
@@ -163,7 +163,7 @@ export function LiveWorkspaceInvitations(
               )
           )
           return rows.map(toInvitation)
-        })(),
+        }).pipe(Effect.withSpan('WorkspaceInvitations.list')),
         find: Effect.fn('WorkspaceInvitations.find')((invitationId: string) =>
           findJoined(invitationId).pipe(
             Effect.map(
@@ -191,9 +191,7 @@ export function LiveWorkspaceInvitations(
             pendingByEmail(db, ctx.workspace.id, email).limit(1)
           )
           if (existing[0]) {
-            return yield* Effect.fail(
-              new MembershipChangeRejected({ reason: 'already_invited' })
-            )
+            return yield* new MembershipChangeRejected({ reason: 'already_invited' })
           }
           yield* callBinding(binding, (bound) =>
             bound.create({
@@ -245,9 +243,9 @@ export function LiveWorkspaceInvitations(
           // the workspace does not yet contain.
           const joined = yield* findJoined(input.invitationId)
           if (Option.isNone(joined)) {
-            return yield* Effect.fail(
-              new MembershipChangeRejected({ reason: 'invitation_not_pending' })
-            )
+            return yield* new MembershipChangeRejected({
+              reason: 'invitation_not_pending'
+            })
           }
           const row = joined.value
           const pending = toInvitation(row.invitation)

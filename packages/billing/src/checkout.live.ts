@@ -97,7 +97,7 @@ export function makeValidatedPortalSession(deps: CheckoutServices) {
       Effect.gen(function* () {
         const subscription = yield* readSubscription(deps, input.workspaceId)
         if (subscription === undefined) {
-          return yield* Effect.fail(checkoutFailure('no_billing_profile'))
+          return yield* checkoutFailure('no_billing_profile')
         }
         yield* validateStripeCustomerForWorkspace({
           ...input,
@@ -142,7 +142,7 @@ export function makeDurableCheckout(deps: CheckoutServices) {
         if (customerId === undefined) {
           const found = yield* searchStripeCustomersByWorkspace(input)
           if (found.has_more || found.data.length > 1) {
-            return yield* Effect.fail(checkoutFailure('multiple_customers'))
+            return yield* checkoutFailure('multiple_customers')
           }
           customerId = found.data[0]?.id
         }
@@ -187,12 +187,12 @@ export function makeDurableCheckout(deps: CheckoutServices) {
         }
         const decision = decideCheckoutClaim(input, recovery.claim, timestamp)
         if (decision.outcome === 'conflict') {
-          return yield* Effect.fail(checkoutFailure(decision.reason))
+          return yield* checkoutFailure(decision.reason)
         }
         if (decision.outcome === 'reuse') {
           const url = recovery.session?.url
           if (url === null || url === undefined) {
-            return yield* Effect.fail(checkoutFailure('checkout_session_uncertain'))
+            return yield* checkoutFailure('checkout_session_uncertain')
           }
           return { url }
         }
@@ -274,7 +274,7 @@ export function makeDurableCheckout(deps: CheckoutServices) {
           kind: 'provider_session_created'
         })
         if (claimStatus === null) {
-          return yield* Effect.fail(checkoutFailure('checkout_recovery_required'))
+          return yield* checkoutFailure('checkout_recovery_required')
         }
         const audit = yield* deps.audit.prepareRecord({
           workspaceId: input.workspaceId,

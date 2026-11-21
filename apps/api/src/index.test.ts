@@ -57,8 +57,8 @@ const DeliveriesBody = Schema.Array(
     endpointId: WebhookEndpointId,
     eventType: Schema.String,
     status: Schema.String,
-    attempts: Schema.Number,
-    responseStatus: Schema.NullOr(Schema.Number),
+    attempts: Schema.Finite,
+    responseStatus: Schema.NullOr(Schema.Finite),
     payload: Schema.NullOr(Schema.Unknown),
     requestHeaders: Schema.NullOr(Schema.Record(Schema.String, Schema.String)),
     responseBody: Schema.NullOr(Schema.String),
@@ -102,7 +102,7 @@ function get(path: string, headers?: Record<string, string>): Request {
 
 function post(
   path: string,
-  body: typeof Schema.Json.Type,
+  body: Schema.Json,
   headers?: Record<string, string>
 ): Request {
   return new Request(`https://api.test${path}`, {
@@ -405,7 +405,7 @@ describe('contract-served routes', () => {
 
   it.effect('PATCH webhook endpoint updates the provided fields', () =>
     Effect.gen(function* () {
-      function patch(payload: typeof Schema.Json.Type) {
+      function patch(payload: Schema.Json) {
         return send(
           new Request('https://api.test/workspaces/starter-lab/webhooks/wh_release', {
             method: 'PATCH',
@@ -429,7 +429,7 @@ describe('contract-served routes', () => {
 
   it.effect('PATCH webhook endpoint re-validates the URL and 404s unknown ids', () =>
     Effect.gen(function* () {
-      function patch(endpointId: WebhookEndpointId, payload: typeof Schema.Json.Type) {
+      function patch(endpointId: WebhookEndpointId, payload: Schema.Json) {
         return send(
           new Request(
             `https://api.test/workspaces/starter-lab/webhooks/${endpointId}`,

@@ -93,7 +93,7 @@ it('shows a read error with retry and reports an empty retained history', async 
 })
 
 it('shows loading followed by a never-dispatched terminal outcome', async () => {
-  const result = Effect.runSync(Deferred.make<ReadonlyArray<WebhookDeliveryAttempt>>())
+  const result = Deferred.makeUnsafe<ReadonlyArray<WebhookDeliveryAttempt>>()
   const listAttempts = vi
     .fn<ListDeliveryAttempts>()
     // oxlint-disable-next-line starter/no-run-promise-in-tests -- Bridge the deterministic Deferred to the listAttempts Promise port consumed by React Query.

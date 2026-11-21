@@ -47,7 +47,7 @@ export const SeedWebhookEndpoints: Layer.Layer<
     /** Mirror the Live join against the fixture's workspace catalog. */
 
     return {
-      list: Effect.fn('WebhookEndpoints.list')(function* () {
+      list: Effect.gen(function* () {
         const ctx = yield* WorkspaceContext
         const projections: Array<WebhookEndpoint> = []
         for (const endpoint of endpoints) {
@@ -57,7 +57,7 @@ export const SeedWebhookEndpoints: Layer.Layer<
           projections.push(store.projection(endpoint))
         }
         return projections
-      })(),
+      }).pipe(Effect.withSpan('WebhookEndpoints.list')),
       listPage: Effect.fn('WebhookEndpoints.listPage')(function* (input) {
         const ctx = yield* WorkspaceContext
         const projections: Array<WebhookEndpoint> = []
@@ -126,9 +126,7 @@ export const SeedWebhookEndpoints: Layer.Layer<
         const ctx = yield* WorkspaceContext
         const endpoint = yield* inWorkspace(input.endpointId)
         if (!endpoint) {
-          return yield* Effect.fail(
-            new WebhookEndpointNotFound({ endpointId: input.endpointId })
-          )
+          return yield* new WebhookEndpointNotFound({ endpointId: input.endpointId })
         }
         if (input.url !== undefined) {
           endpoint.url = input.url
@@ -162,9 +160,7 @@ export const SeedWebhookEndpoints: Layer.Layer<
         const ctx = yield* WorkspaceContext
         const endpoint = yield* inWorkspace(input.endpointId)
         if (!endpoint) {
-          return yield* Effect.fail(
-            new WebhookEndpointNotFound({ endpointId: input.endpointId })
-          )
+          return yield* new WebhookEndpointNotFound({ endpointId: input.endpointId })
         }
         // Deliveries cascade with the endpoint row, and attempts cascade
         // with their delivery — the same two hops D1's foreign keys make.
@@ -196,14 +192,10 @@ export const SeedWebhookEndpoints: Layer.Layer<
         const ctx = yield* WorkspaceContext
         const endpoint = yield* inWorkspace(input.endpointId)
         if (!endpoint) {
-          return yield* Effect.fail(
-            new WebhookEndpointNotFound({ endpointId: input.endpointId })
-          )
+          return yield* new WebhookEndpointNotFound({ endpointId: input.endpointId })
         }
         if (!endpoint.enabled) {
-          return yield* Effect.fail(
-            new WebhookDispatchRejected({ reason: 'endpoint is disabled' })
-          )
+          return yield* new WebhookDispatchRejected({ reason: 'endpoint is disabled' })
         }
         const payload = {
           test: true,
@@ -235,9 +227,7 @@ export const SeedWebhookEndpoints: Layer.Layer<
         const ctx = yield* WorkspaceContext
         const endpoint = yield* inWorkspace(input.endpointId)
         if (!endpoint) {
-          return yield* Effect.fail(
-            new WebhookEndpointNotFound({ endpointId: input.endpointId })
-          )
+          return yield* new WebhookEndpointNotFound({ endpointId: input.endpointId })
         }
         // Same shift as Live: the replaced secret moves into the grace
         // columns and keeps signing until the window closes.

@@ -7,6 +7,7 @@ import { env } from 'cloudflare:workers'
 import { Layer, Redacted } from 'effect'
 
 /** Per-request verifier layer, built from worker env like the rate limiter's. */
+// oxlint-disable-next-line effecttsgo/lazy-effect -- reads the secret from worker env at request time, not at module import
 export function makeTurnstileLayer() {
   const secretKey = env.TURNSTILE_SECRET_KEY
   return Layer.succeed(TurnstileVerifier)(

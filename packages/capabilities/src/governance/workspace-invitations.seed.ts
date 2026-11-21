@@ -157,14 +157,14 @@ export function SeedWorkspaceInvitations(options: {
         // workspace's invitations, so the context read is the assertion that
         // it is *this* workspace's — and the sort is the `ORDER BY` the
         // interface promises.
-        list: Effect.fn('WorkspaceInvitations.list')(function* () {
+        list: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           if (ctx.workspace.id !== options.workspace.id) {
             return []
           }
           const rows = yield* Ref.get(store)
           return rows.toSorted(newestFirst).map(toWire)
-        })(),
+        }).pipe(Effect.withSpan('WorkspaceInvitations.list')),
         find: Effect.fn('WorkspaceInvitations.find')((invitationId: string) =>
           Ref.get(store).pipe(
             Effect.map((rows) => {
@@ -195,9 +195,7 @@ export function SeedWorkspaceInvitations(options: {
               isPendingInvitation(each.status)
           )
           if (alreadyInvited) {
-            return yield* Effect.fail(
-              new MembershipChangeRejected({ reason: 'already_invited' })
-            )
+            return yield* new MembershipChangeRejected({ reason: 'already_invited' })
           }
           const id = yield* newCapabilityId('inv')
           const now = yield* DateTime.now

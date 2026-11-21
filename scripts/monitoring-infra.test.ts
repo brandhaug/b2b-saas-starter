@@ -67,7 +67,7 @@ test('cold same-name policy collision fails instead of silently adopting', async
     Effect.runPromise(
       checkMonitoringPolicyOwnership('a'.repeat(32), [desiredPolicy], {
         list: Effect.succeed([policy]),
-        saved: () => Effect.succeed(undefined)
+        saved: () => Effect.undefined
       })
     ),
     /unowned/
@@ -90,7 +90,7 @@ test('saved ownership and exact explicit adoption permit the intended policy', a
         [{ ...desiredPolicy, adoptPolicyId: policy.id }],
         {
           list: Effect.succeed([policy]),
-          saved: () => Effect.succeed(undefined)
+          saved: () => Effect.undefined
         }
       )
     )
@@ -115,7 +115,7 @@ test('permission failure is propagated rather than interpreted as no existing po
     Effect.runPromise(
       checkMonitoringPolicyOwnership('a'.repeat(32), [desiredPolicy], {
         list: Effect.fail(denied),
-        saved: () => Effect.succeed(undefined)
+        saved: () => Effect.undefined
       })
     ),
     /Forbidden policy inventory/
@@ -143,7 +143,7 @@ test('wrong-account state and mismatched explicit adoption IDs fail closed', asy
         [{ ...desiredPolicy, adoptPolicyId: 'other' }],
         {
           list: Effect.succeed([policy]),
-          saved: () => Effect.succeed(undefined)
+          saved: () => Effect.undefined
         }
       )
     ),
@@ -155,7 +155,7 @@ test('an empty inventory permits creation but cannot satisfy explicit adoption',
   await Effect.runPromise(
     checkMonitoringPolicyOwnership('a'.repeat(32), [desiredPolicy], {
       list: Effect.succeed([]),
-      saved: () => Effect.succeed(undefined)
+      saved: () => Effect.undefined
     })
   )
   await assert.rejects(
@@ -165,7 +165,7 @@ test('an empty inventory permits creation but cannot satisfy explicit adoption',
         [{ ...desiredPolicy, adoptPolicyId: policy.id }],
         {
           list: Effect.succeed([]),
-          saved: () => Effect.succeed(undefined)
+          saved: () => Effect.undefined
         }
       )
     ),

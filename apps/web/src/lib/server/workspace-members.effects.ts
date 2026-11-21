@@ -31,7 +31,7 @@ import {
 const membersPayload: WorkspacePageFrame<WorkspaceMembersPayload> = workspacePage(
   { notification: ['read'] },
   () =>
-    Effect.flatMap(
+    Effect.map(
       Effect.all(
         {
           plan: Effect.flatMap(Billing, (billing) => billing.currentPlan),
@@ -47,13 +47,12 @@ const membersPayload: WorkspacePageFrame<WorkspaceMembersPayload> = workspacePag
         },
         { concurrency: 'unbounded' }
       ),
-      (segments) =>
-        Effect.succeed({
-          ...segments,
-          // The plan gate's seat half: a flat plan past its included seats
-          // prompts for an upgrade; a per-seat plan just bills the seats.
-          seatUsage: seatUsage(segments.plan, segments.members.length)
-        })
+      (segments) => ({
+        ...segments,
+        // The plan gate's seat half: a flat plan past its included seats
+        // prompts for an upgrade; a per-seat plan just bills the seats.
+        seatUsage: seatUsage(segments.plan, segments.members.length)
+      })
     )
 )
 

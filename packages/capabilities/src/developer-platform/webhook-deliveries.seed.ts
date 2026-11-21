@@ -79,9 +79,7 @@ export const SeedWebhookDeliveries: Layer.Layer<
           }
           const endpoint = endpointFor(delivery.endpointId, ctx.workspace.id)
           if (!endpoint) {
-            return yield* Effect.fail(
-              new WebhookDeliveryNotFound({ deliveryId: input.deliveryId })
-            )
+            return yield* new WebhookDeliveryNotFound({ deliveryId: input.deliveryId })
           }
           return {
             endpoint: store.projection(endpoint),

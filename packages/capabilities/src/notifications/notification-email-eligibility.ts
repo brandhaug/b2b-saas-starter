@@ -124,7 +124,7 @@ export const make: Effect.Effect<
           yield* delivery.abandon(id, 'workspace_suspended')
           return { _tag: 'skip', reason: 'workspace_suspended' }
         }
-        return yield* Effect.fail(allowed.failure)
+        return yield* allowed.failure
       }
     }
 
@@ -175,7 +175,7 @@ export const make: Effect.Effect<
           if (allowed.failure._tag === 'WorkspaceSuspended') {
             return { candidate, status: 'suspended' as const }
           }
-          return yield* Effect.fail(allowed.failure)
+          return yield* allowed.failure
         }),
       { concurrency: 4 }
     )

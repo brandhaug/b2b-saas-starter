@@ -292,9 +292,7 @@ export function requireUnexpired(
       Option.isNone(parsed) ||
       DateTime.toEpochMillis(parsed.value) < DateTime.toEpochMillis(now)
     ) {
-      return yield* Effect.fail(
-        new MembershipChangeRejected({ reason: 'invitation_expired' })
-      )
+      return yield* new MembershipChangeRejected({ reason: 'invitation_expired' })
     }
   })
 }

@@ -21,7 +21,7 @@ import { Effect } from 'effect'
  * ```
  *
  * `fixtureAuthModule` answers BOTH session gates — the Promise-returning
- * `requireRequestSession` a handler awaits and the Effect-returning
+ * `requireRequestSession` a handler awaits and the Effect
  * `requireRequestSessionEffect` the authorization enforcement point yields —
  * so a test cannot answer one and leave the other reading the real cookie
  * jar (which has none, making every permission check an expired session).
@@ -97,11 +97,11 @@ export function fixtureAuthModule<Actual extends object>(
   actor: FixtureSession
 ): Actual & {
   readonly requireRequestSession: () => Promise<Session>
-  readonly requireRequestSessionEffect: () => Effect.Effect<Session>
+  readonly requireRequestSessionEffect: Effect.Effect<Session>
 } {
   return {
     ...actual,
     requireRequestSession: async () => fixtureSession(actor),
-    requireRequestSessionEffect: () => Effect.succeed(fixtureSession(actor))
+    requireRequestSessionEffect: Effect.sync(() => fixtureSession(actor))
   }
 }

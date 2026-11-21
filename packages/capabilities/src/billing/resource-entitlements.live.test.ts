@@ -295,14 +295,14 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             )
             const replacements = yield* Effect.gen(function* () {
               const racing = yield* ApiTokenRegistry
-              return yield* Effect.all(
-                parents.map((token) =>
+              return yield* Effect.forEach(
+                parents,
+                (token) =>
                   racing.replace({
                     tokenId: token.id,
                     scopes: ['read'],
                     overlapSeconds: 0
-                  })
-                ),
+                  }),
                 { concurrency: 'unbounded' }
               )
             }).pipe(
@@ -310,7 +310,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 Layer.fresh(LiveApiTokenRegistry()).pipe(Layer.provide(racingAudit))
               )
             )
-            expect(new Set((yield* selection.getSelection()).apiTokenIds)).toEqual(
+            expect(new Set((yield* selection.getSelection).apiTokenIds)).toEqual(
               new Set(replacements.map((token) => token.id))
             )
           }),

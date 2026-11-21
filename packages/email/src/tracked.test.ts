@@ -150,7 +150,7 @@ describe('dispatchTrackedEmail', () => {
         )
       }
 
-      return Effect.all(cases.map(runCase))
+      return Effect.forEach(cases, runCase)
     }
   )
 })

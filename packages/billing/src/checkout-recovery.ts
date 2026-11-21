@@ -94,7 +94,7 @@ export const recoverCheckoutClaim = Effect.fn('Billing.recoverCheckoutClaim')(
     let customerId = input.customerId
     if (claim === undefined) {
       if (input.checkoutSessionId !== undefined) {
-        return yield* Effect.fail(checkoutFailure('checkout_recovery_required'))
+        return yield* checkoutFailure('checkout_recovery_required')
       }
       return { pending: false, uncertain: false, customerId, claim, session: undefined }
     }
@@ -113,7 +113,7 @@ export const recoverCheckoutClaim = Effect.fn('Billing.recoverCheckoutClaim')(
         (customer) => customer.metadata?.workspaceId === input.workspaceId
       )
       if (listed.has_more || matches.length > 1) {
-        return yield* Effect.fail(checkoutFailure('checkout_recovery_required'))
+        return yield* checkoutFailure('checkout_recovery_required')
       }
       customerId = matches[0]?.id
       if (customerId === undefined) {
@@ -156,7 +156,7 @@ export const recoverCheckoutClaim = Effect.fn('Billing.recoverCheckoutClaim')(
           candidate.metadata.claimId === claim.id
       )
       if (listed.hasMore || matches.length > 1) {
-        return yield* Effect.fail(checkoutFailure('checkout_recovery_required'))
+        return yield* checkoutFailure('checkout_recovery_required')
       }
       session = matches[0]
       if (session === undefined && old) {
@@ -188,13 +188,13 @@ export const recoverCheckoutClaim = Effect.fn('Billing.recoverCheckoutClaim')(
       (session.metadata?.workspaceId !== input.workspaceId ||
         session.metadata.claimId !== claim.id)
     ) {
-      return yield* Effect.fail(checkoutFailure('checkout_recovery_required'))
+      return yield* checkoutFailure('checkout_recovery_required')
     }
     if (
       session.customer === null ||
       (customerId !== undefined && session.customer !== customerId)
     ) {
-      return yield* Effect.fail(checkoutFailure('customer_ownership_conflict'))
+      return yield* checkoutFailure('customer_ownership_conflict')
     }
     customerId = session.customer
     yield* validateStripeCustomerForWorkspace({ ...input, customerId })
@@ -207,7 +207,7 @@ export const recoverCheckoutClaim = Effect.fn('Billing.recoverCheckoutClaim')(
       status = nextCheckoutClaimStatus(claim.status, claimEvent)
     }
     if (status === null) {
-      return yield* Effect.fail(checkoutFailure('checkout_recovery_required'))
+      return yield* checkoutFailure('checkout_recovery_required')
     }
     const pending = session.status === 'open'
     const statements = [

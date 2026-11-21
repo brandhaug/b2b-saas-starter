@@ -88,6 +88,8 @@ describe('session evidence lifecycle', () => {
     () =>
       run(
         Effect.gen(function* () {
+          const effectContext = yield* Effect.context<never>()
+
           const signup = yield* signUpSession('pending-notice@assurance.test')
           const enrolled = yield* enableTotp(signup)
           const code = enrolled.response.backupCodes[0]
@@ -98,9 +100,10 @@ describe('session evidence lifecycle', () => {
           const original = yield* readSession(headers)
           const callbackStarted = yield* Deferred.make<undefined>()
           const completeCallback = yield* Deferred.make<undefined>()
+          // onRecoveryStarted is Better Auth's Promise callback; Deferred controls
+          // its real request boundary.
           recoveryStarted.mockImplementationOnce(() =>
-            // oxlint-disable-next-line starter/no-run-promise-in-tests -- onRecoveryStarted is Better Auth's Promise callback; Deferred controls its real request boundary
-            Effect.runPromise(
+            Effect.runPromiseWith(effectContext)(
               Effect.gen(function* () {
                 yield* Deferred.succeed(callbackStarted, undefined)
                 yield* Deferred.await(completeCallback)
