@@ -259,8 +259,8 @@ catalogs:
       specifier: 2.0.8
       version: 2.0.8
     standardwebhooks:
-      specifier: 1.1.1
-      version: 1.1.1
+      specifier: 1.3.0
+      version: 1.3.0
     stripe:
       specifier: 23.1.0
       version: 23.1.0
@@ -491,7 +491,7 @@ importers:
         version: 4.1.4
       standardwebhooks:
         specifier: 'catalog:'
-        version: 1.1.1
+        version: 1.3.0
     devDependencies:
       '@cloudflare/vitest-plugin':
         specifier: 'catalog:'
@@ -6743,8 +6743,8 @@ packages:
     engines: {node: '>=20.16.0'}
     hasBin: true
 
-  standardwebhooks@1.1.1:
-    resolution: {integrity: sha512-bCbX9ZEyFkWPsRz7Bl3NuQUJohmwGSev/yhr7vhaGPlc4AfIrspIRa6cPTBuI1ItmrTDJ4d/S2hCsfe4+vQGnQ==}
+  standardwebhooks@1.3.0:
+    resolution: {integrity: sha512-5W9skHjqAm2dlA9wWvglTP+oX47JX4lFXVk1aJV7+TG1snvTR4QXaVgPscEzvOw9GRreeavMwbqEeL+MGhZHCg==}
 
   std-env@4.3.0:
     resolution: {integrity: sha512-OtU/EgQ1kIm5KwqQpBC6ZEMXrZRui11w8zgfTWp8cdO9B8OaPsbA8bTHO2P+HNo1VlUTGMVBwPhydu6poeXiag==}
@@ -12450,7 +12450,7 @@ snapshots:
 
   srvx@1.0.8: {}
 
-  standardwebhooks@1.1.1:
+  standardwebhooks@1.3.0:
     dependencies:
       '@stablelib/base64': 1.0.1
       fast-sha256: 1.3.0
