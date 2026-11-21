@@ -22,9 +22,9 @@ export function callServerFn<A>(
   // oxlint-disable-next-line effect/noNewPromise -- folds a Promise-based server call into its UI result, including synchronous failures
   return Promise.resolve()
     .then(run)
-    .then(
-      (value) => ({ ok: true, value }),
+    .then((value) => ({ ok: true as const, value }))
+    .catch(
       // oxlint-disable-next-line anti-slop/no-unknown-parameters -- a rejected promise's value is `unknown` by construction; `describe` (default `causeMessage`) is the parse step, and there is no schema that could narrow it first
-      (error: unknown) => ({ ok: false, message: describe(error) })
+      (error: unknown) => ({ ok: false as const, message: describe(error) })
     )
 }

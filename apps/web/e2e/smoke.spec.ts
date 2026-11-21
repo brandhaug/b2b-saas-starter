@@ -67,7 +67,6 @@ test('the homepage renders the live seed numbers and the real overview payload',
   await expect(page.getByText(/"name": "Starter Lab"/).first()).toBeVisible()
 })
 
-// oxlint-disable-next-line vitest/prefer-each -- Playwright uses loops to parameterize tests; it has no test.each.
 for (const { entry, locale } of [
   { entry: '/docs', locale: 'en' },
   { entry: '/no/docs', locale: 'nb' }

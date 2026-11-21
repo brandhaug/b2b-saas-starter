@@ -230,8 +230,10 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             ).toBe(true)
             yield* db
               .update(session)
-              // oxlint-disable-next-line effect/noGlobals -- test fixture date derived from the live clock
-              .set({ strongAuthAt: new Date(now.getTime() - 12 * 60 * 60 * 1000 - 1) })
+              .set({
+                // oxlint-disable-next-line effect/noGlobals -- test fixture date derived from the live clock
+                strongAuthAt: new Date(now.getTime() - 12 * 60 * 60 * 1000 - 1)
+              })
               .where(eq(session.id, sessionId))
             expect(
               (yield* assurance.status({ userId: UserId.make('usr_owner'), sessionId }))
@@ -241,11 +243,13 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               .update(session)
               .set({ strongAuthAt: now })
               .where(eq(session.id, sessionId))
-            yield* db
-              .update(session)
-              // oxlint-disable-next-line effect/noGlobals -- test fixture date derived from the live clock
-              .set({ recoveryUntil: new Date(now.getTime() + 60 * 60 * 1000) })
-              .where(eq(session.id, sessionId))
+            yield* (
+              db
+                .update(session)
+                // oxlint-disable-next-line effect/noGlobals -- test fixture date derived from the live clock
+                .set({ recoveryUntil: new Date(now.getTime() + 60 * 60 * 1000) })
+                .where(eq(session.id, sessionId))
+            )
             expect(
               yield* assurance.status({ userId: UserId.make('usr_owner'), sessionId })
             ).toEqual({
@@ -268,11 +272,13 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               hasFactors: true,
               passwordVerified: false
             })
-            yield* db
-              .update(session)
-              // oxlint-disable-next-line effect/noGlobals -- test fixture date derived from the live clock
-              .set({ impersonatedBy: null, expiresAt: new Date(now.getTime() - 1) })
-              .where(eq(session.id, sessionId))
+            yield* (
+              db
+                .update(session)
+                // oxlint-disable-next-line effect/noGlobals -- test fixture date derived from the live clock
+                .set({ impersonatedBy: null, expiresAt: new Date(now.getTime() - 1) })
+                .where(eq(session.id, sessionId))
+            )
             expect(
               yield* assurance.status({ userId: UserId.make('usr_owner'), sessionId })
             ).toEqual({

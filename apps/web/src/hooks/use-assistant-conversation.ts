@@ -111,10 +111,8 @@ export function useAssistantConversation(
             )
           }
         })
-        .then(
-          () => undefined,
-          () => undefined
-        )
+        .then(() => undefined)
+        .catch(() => undefined)
     }
 
     observer.current = { actorId, workspaceSlug, conversationId, load }

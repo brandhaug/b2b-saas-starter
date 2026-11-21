@@ -83,6 +83,7 @@
     "@distilled.cloud/cloudflare": "catalog:",
     "@distilled.cloud/github": "catalog:",
     "@effect/platform-node": "catalog:",
+    "@effect/tsgo": "catalog:",
     "@effect/vitest": "catalog:",
     "@inlang/paraglide-js": "catalog:",
     "@types/node": "catalog:",

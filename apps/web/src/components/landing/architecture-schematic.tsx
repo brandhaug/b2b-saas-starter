@@ -1,4 +1,3 @@
-/* oxlint-disable jsx-a11y/prefer-tag-over-role -- inline SVG uses role="img" for its accessible description */
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 export type SchematicNode =

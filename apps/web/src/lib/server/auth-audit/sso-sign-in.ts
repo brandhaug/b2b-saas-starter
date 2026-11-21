@@ -70,10 +70,9 @@ export const recordSsoSignInAudit = Effect.fn('AuthAudit.recordSsoSignIn')(funct
   const workspaceId = yield* Effect.promise(() =>
     runCapabilities(
       Effect.flatMap(SsoConnections, (sso) => sso.resolveProvider(providerId))
-    ).then(
-      (provider) => (Option.isSome(provider) ? provider.value.workspaceId : null),
-      () => null
     )
+      .then((provider) => (Option.isSome(provider) ? provider.value.workspaceId : null))
+      .catch(() => null)
   )
 
   if (callbackFailed(response)) {
@@ -136,10 +135,9 @@ function writeAndReport(
 ): Effect.Effect<void, never, Scope.Scope> {
   return Effect.gen(function* () {
     const failed = yield* Effect.promise(() =>
-      run(Effect.flatMap(AuditEventLog, (audit) => audit.record(input))).then(
-        () => false,
-        () => true
-      )
+      run(Effect.flatMap(AuditEventLog, (audit) => audit.record(input)))
+        .then(() => false)
+        .catch(() => true)
     )
     if (failed) {
       yield* Effect.annotateLogsScoped({ ssoAuditError: 'write_failed' })

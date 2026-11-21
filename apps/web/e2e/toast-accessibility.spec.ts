@@ -2,7 +2,6 @@ import { expect, test } from '@playwright/test'
 
 // Failure cases: English labels leak into Norwegian, the hotkey hint disappears,
 // or the live region loses polite announcements.
-// oxlint-disable-next-line vitest/prefer-each -- Playwright declares parameterized cases with a loop.
 for (const locale of [
   { path: '/', label: 'Notifications' },
   { path: '/no', label: 'Varsler' }

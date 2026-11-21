@@ -108,6 +108,13 @@ function Investigation({
     (selectedDeliveryId
       ? tasks.find((task) => task.sourceDeliveryId === selectedDeliveryId)?.id
       : tasks[0]?.id)
+  const selectionVersion = useRef(0)
+  useEffect(
+    () => () => {
+      selectionVersion.current += 1
+    },
+    []
+  )
   const action = useServerAction(
     async (input: {
       operation: 'create' | 'approve' | 'cancel'
@@ -150,13 +157,6 @@ function Investigation({
   )
   const pending = action.pendingInput?.operation ?? null
   const error = action.error
-  const selectionVersion = useRef(0)
-  useEffect(
-    () => () => {
-      selectionVersion.current += 1
-    },
-    []
-  )
 
   const initialTask = tasks.find((task) => task.id === activeTaskId)
   const get = investigation.get
