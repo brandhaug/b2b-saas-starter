@@ -597,7 +597,7 @@ export function makeLiveCapabilitiesLayer(
     options.memberBinding,
     options.securityEvidence
   ).pipe(Layer.provide(directory))
-  // And for the feed: a mergeAll member the shell reads AND the layer
+  // And for the feed: a service the shell reads AND the layer
   // `PlatformUserAdmin` is provided so its impersonation `notifyUser` lands in
   // the same instance every other consumer reads.
   const feed = LiveNotificationFeed({
@@ -699,6 +699,8 @@ export function makeLiveCapabilitiesLayer(
         seatSyncPublisher
       )
     ),
+    // Outermost: conversation lifecycle and the merged members above all read
+    // the one directory instance.
     Layer.provideMerge(directory)
   )
 }

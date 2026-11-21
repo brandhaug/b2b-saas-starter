@@ -5,7 +5,7 @@ import { type ProcessProviderEventInput } from './billing.ts'
 
 import {
   type CapabilityUnavailable,
-  orUnavailable
+  tryPromiseOrUnavailable
 } from '@b2b-saas-starter/failure/capability'
 import { annotateWideEvent, currentTraceparent } from '@b2b-saas-starter/logger'
 
@@ -155,8 +155,8 @@ export const publishProviderEvent = Effect.fn('Billing.publishProviderEvent')(
     if (traceparent !== undefined) {
       message = { ...message, traceparent }
     }
-    yield* orUnavailable('billing-provider-event-publisher')(
-      Effect.tryPromise(() => queue.send(message))
+    yield* tryPromiseOrUnavailable('billing-provider-event-publisher', () =>
+      queue.send(message)
     )
   }
 )
@@ -227,9 +227,7 @@ export function LiveSeatSyncPublisher(
       if (traceparent !== undefined) {
         message = { ...message, traceparent }
       }
-      yield* orUnavailable('seat-sync-publisher')(
-        Effect.tryPromise(() => queue.send(message))
-      )
+      yield* tryPromiseOrUnavailable('seat-sync-publisher', () => queue.send(message))
     })
   })
 }

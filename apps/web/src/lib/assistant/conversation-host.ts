@@ -293,7 +293,7 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
   revalidateAuthority() {
     return this.runtime.runPromise(
       Effect.gen({ self: this }, function* () {
-        const active = yield* this.ledger.active
+        const active = yield* this.ledger.active()
         if (active !== null) {
           const input = yield* this.ledger.input(active.id, Execution)
           yield* this.authorize(
@@ -311,7 +311,7 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
           )
         }
         if (
-          (yield* this.ledger.active) === null &&
+          (yield* this.ledger.active()) === null &&
           [...this.getConnections()].length === 0
         ) {
           const schedules = yield* Effect.tryPromise(() => this.listSchedules())
@@ -331,7 +331,7 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
       Effect.gen({ self: this }, function* () {
         const pending = yield* this.ledger.pendingOutput()
         this.recoveryAttemptId = pending?.id
-        const active = yield* this.ledger.active
+        const active = yield* this.ledger.active()
         if (active !== null) {
           yield* this.terminal(active, 'Interrupted', 'process')
         }
@@ -436,7 +436,7 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
           return new Response(null, { status: 204 })
         }
         const run = this.run
-        const active = yield* this.ledger.active
+        const active = yield* this.ledger.active()
         if (active !== null) {
           yield* this.terminal(active, 'Interrupted', 'deleted')
         }
@@ -508,7 +508,7 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
         if (action === 'read') {
           const { row } = yield* this.authorize(credential, 'read')
           const first = yield* this.ledger.firstQuestion()
-          const activeAttempt = yield* this.ledger.active
+          const activeAttempt = yield* this.ledger.active()
           const directory = yield* AssistantDirectory
           if (!(yield* directory.policyMatches(row.id, row.policyRevision))) {
             return yield* new ConversationUnavailable({ reason: 'authority' })
@@ -629,7 +629,7 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
     return this.runtime.runPromise(
       Effect.gen({ self: this }, function* () {
         const run = this.run
-        const attempt = yield* this.ledger.active
+        const attempt = yield* this.ledger.active()
         if (
           attempt === null ||
           run?.attemptId !== attempt.id ||

@@ -428,8 +428,8 @@ it.effect(
   () =>
     Effect.gen(function* () {
       const host = yield* setup()
-      expect(yield* host.store.ledger.latestAttempt).toBeNull()
-      expect(yield* host.store.ledger.active).toBeNull()
+      expect(yield* host.store.ledger.latestAttempt()).toBeNull()
+      expect(yield* host.store.ledger.active()).toBeNull()
       expect(yield* host.store.ledger.question('absent')).toBeNull()
       expect(yield* host.store.ledger.attempt('absent')).toBeNull()
       expect((yield* host.store.execution('absent').pipe(Effect.flip))._tag).toBe(

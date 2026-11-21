@@ -36,7 +36,8 @@ import { enforceRateLimit, observed, provideWorkspace } from './request-guards.t
  */
 
 const DownloadQuery = Schema.Struct({
-  expires: Schema.FiniteFromString,
+  // oxlint-disable-next-line effecttsgo/schema-number -- a non-finite expiry must reach signature verification and its not_found outcome, not the bad_query path
+  expires: Schema.NumberFromString,
   signature: Schema.String,
   user: Schema.NullOr(UserIdInput),
   session: Schema.NullOr(Schema.NonEmptyString),

@@ -35,7 +35,7 @@ export function requireCloudflareSuccess(client: HttpClient.HttpClient) {
 }
 
 // oxlint-disable-next-line unicorn/throw-new-error -- TaggedError is Effect's error-class factory.
-export class CloudflareRequestFailed extends Schema.TaggedError<CloudflareRequestFailed>()(
+class CloudflareRequestFailed extends Schema.TaggedError<CloudflareRequestFailed>()(
   'CloudflareRequestFailed',
   { message: Schema.String }
 ) {}

@@ -164,23 +164,30 @@ export function decodeOperationInput(
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the protocol hands tool arguments over as opaque JSON; decoding them against the row's schema is this very function
   payload: unknown
 ): Effect.Effect<CapabilityRead, InvalidParams> {
+  const input = payload ?? {}
   if (operation.param !== undefined) {
     if (operation.input === 'deliveryId') {
-      return decodeDeliveryIdInput(payload ?? {}).pipe(
-        invalidParams,
-        Effect.map((args) => Effect.suspend(() => operation.read(undefined, args)))
+      return bindRead(decodeDeliveryIdInput(input), (args) =>
+        operation.read(undefined, args)
       )
     }
-    return decodeEndpointIdInput(payload ?? {}).pipe(
-      invalidParams,
-      Effect.map((args) => Effect.suspend(() => operation.read(undefined, args)))
+    return bindRead(decodeEndpointIdInput(input), (args) =>
+      operation.read(undefined, args)
     )
   }
   if (operation.paged) {
-    return decodePagedInput(payload ?? {}).pipe(
-      invalidParams,
-      Effect.map((page) => Effect.suspend(() => operation.read(page)))
-    )
+    return bindRead(decodePagedInput(input), (page) => operation.read(page))
   }
   return Effect.succeed(Effect.suspend(() => operation.read(undefined)))
+}
+
+/** The read, bound to its decoded input but not yet run. */
+function bindRead<A>(
+  decoded: Effect.Effect<A, Schema.SchemaError>,
+  read: (input: A) => CapabilityRead
+): Effect.Effect<CapabilityRead, InvalidParams> {
+  return decoded.pipe(
+    invalidParams,
+    Effect.map((input) => Effect.suspend(() => read(input)))
+  )
 }

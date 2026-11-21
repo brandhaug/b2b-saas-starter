@@ -37,9 +37,11 @@ type Stored<A> = Effect.Effect<A, ConversationUnavailable>
 /** The host supplies its atomic SQLite ledger and SDK-authoritative saved text. */
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- Fallow tracks class implementations through interface inheritance, but not intersected type aliases.
 export interface ConversationAdmissionLedger extends ConversationTranscript {
-  readonly latestAttempt: Stored<ConversationAttempt | null>
+  // oxlint-disable-next-line effecttsgo/lazy-effect -- the ledger port is a set of storage queries, all methods like the transcript it extends
+  latestAttempt(): Stored<ConversationAttempt | null>
   attempt(id: string): Stored<ConversationAttempt | null>
-  readonly active: Stored<ConversationAttempt | null>
+  // oxlint-disable-next-line effecttsgo/lazy-effect -- a storage query, a method like the rest of this port
+  active(): Stored<ConversationAttempt | null>
   previous(key: string): Stored<{
     readonly payloadHash: string
     readonly acceptance: ConversationAcceptance
@@ -84,7 +86,7 @@ export const acceptConversationAnswer = Effect.fn('AssistantConversation.accept'
     const hash = yield* hashSha256(canonicalConversationOperation(operation)).pipe(
       Effect.catchDefect((cause) => Effect.fail(new Cause.UnknownError(cause)))
     )
-    const latest = yield* ledger.latestAttempt
+    const latest = yield* ledger.latestAttempt()
     let retry: Parameters<typeof admitConversationOperation>[0]['retry']
     if ('attemptId' in operation) {
       retry = {
@@ -96,7 +98,7 @@ export const acceptConversationAnswer = Effect.fn('AssistantConversation.accept'
     const joined = yield* admitConversationOperation({
       payloadHash: hash,
       previous: yield* ledger.previous(operation.idempotencyKey),
-      active: yield* ledger.active,
+      active: yield* ledger.active(),
       executionBusy: input.executionBusy,
       retry
     })

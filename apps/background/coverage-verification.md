@@ -13,7 +13,7 @@ Verified 2026-11-03. From the repository root:
 ```sh
 pnpm -C apps/background exec vp test run --project background src/stripe-request.live.test.ts src/notification-digest.test.ts src/queue-consumer.test.ts src/stripe-endpoint.test.ts
 pnpm -C apps/background typecheck
-pnpm exec vp lint --type-aware apps/background
+pnpm exec effect-tsgo vp lint --type-aware apps/background
 ```
 
 Observed: 4 test files and 35 tests passed; typecheck and lint passed.

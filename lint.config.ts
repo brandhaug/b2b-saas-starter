@@ -487,18 +487,20 @@ const { lint = {} } = defineConfig({
       ...reactDoctorRules(),
 
       // --- Deviations ------------------------------------------------------
-      // Effect's rule set is its upstream `strict` preset (extended above). Oxlint
-      // categories also switch on Effect rules that upstream ships off; these
-      // three are those. Every Worker handler, queue consumer, script and test is
-      // its own entry point that provides its layers, which is what
-      // strict-effect-provide reports. The other two flag a deliberately
-      // untyped `tryPromise`/`try` that `orUnavailable` or a framework bridge
-      // narrows on the next line.
+      // Everything below overrides the blanket `error` above. These are the
+      // decisions; the lists above are the defaults.
+
+      // Effect's rule set is its upstream `strict` preset (extended above). The
+      // oxlint categories also switch on four Effect rules upstream ships off.
+      // unsafe-effect-type-assertion stays on. strict-effect-provide reports
+      // every Worker handler, queue consumer, script and test, each of which is
+      // an entry point that provides its own layers. The other two report the
+      // intended unknown error channels: a framework bridge that re-raises the
+      // original rejection, tests of narrowing itself, and Effect's own
+      // `UnknownError` from a `tryPromise` the caller maps or ignores.
       'effecttsgo/any-unknown-in-error-context': 'off',
       'effecttsgo/effect-try-without-catch': 'off',
       'effecttsgo/strict-effect-provide': 'off',
-      // Everything below overrides the blanket `error` above. These are the
-      // decisions; the lists above are the defaults.
 
       // Options, not exceptions: the rule is on, tuned to a repo convention.
       '@typescript-eslint/array-type': ['error', { default: 'generic' }],

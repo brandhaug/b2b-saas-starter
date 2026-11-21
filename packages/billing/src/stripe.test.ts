@@ -35,8 +35,6 @@ function jsonResponse(body: unknown, status = 200): Response {
 describe('Stripe provider adapter', () => {
   it.effect('keeps the deadline and cancellation active while reading the body', () =>
     Effect.gen(function* () {
-      const effectContext = yield* Effect.context<never>()
-
       const reading = yield* Deferred.make<undefined>()
       let signal: AbortSignal | undefined
       const wire = vi.fn((_url: string, request: WireRequest) => {
@@ -45,7 +43,7 @@ describe('Stripe provider adapter', () => {
           new Response(
             new ReadableStream({
               pull() {
-                Effect.runSyncWith(effectContext)(Deferred.succeed(reading, undefined))
+                Deferred.doneUnsafe(reading, Effect.undefined)
                 return new Promise(() => {})
               }
             })

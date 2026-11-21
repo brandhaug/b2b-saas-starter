@@ -17,7 +17,8 @@ import { Context, Effect, Layer, Result, Schema } from 'effect'
 import { and, eq } from 'drizzle-orm'
 import {
   CapabilityUnavailable,
-  orUnavailable
+  orUnavailable,
+  tryPromiseOrUnavailable
 } from '@b2b-saas-starter/failure/capability'
 import { bestEffort } from '../internal/best-effort.ts'
 import {
@@ -355,7 +356,9 @@ export function LiveWebhookPublisher(
             )
           )
           const enqueued = yield* Effect.result(
-            unavailable(Effect.tryPromise(() => queue.sendBatch(messages)))
+            tryPromiseOrUnavailable('webhook-publisher', () =>
+              queue.sendBatch(messages)
+            )
           )
           if (Result.isFailure(enqueued)) {
             yield* annotateWideEvent({ reason: 'webhook_enqueue_confirmation_failed' })

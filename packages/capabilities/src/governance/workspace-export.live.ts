@@ -8,7 +8,8 @@ import { desc, eq } from 'drizzle-orm'
 
 import {
   CapabilityUnavailable,
-  orUnavailable
+  orUnavailable,
+  tryPromiseOrUnavailable
 } from '@b2b-saas-starter/failure/capability'
 import { randomHex } from '@b2b-saas-starter/failure/crypto'
 import { newCapabilityId } from '../internal/ids.ts'
@@ -288,12 +289,10 @@ export function LiveWorkspaceExports(
           // The object first: a row marked `ready` must point at bytes that
           // exist. A crash between the two leaves an orphan object the
           // lifecycle rule collects and a pending row the retry completes.
-          yield* unavailable(
-            Effect.tryPromise(() =>
-              bucket.put(objectKey, input.archive, {
-                httpMetadata: { contentType: 'application/gzip' }
-              })
-            )
+          yield* tryPromiseOrUnavailable(CAPABILITY, () =>
+            bucket.put(objectKey, input.archive, {
+              httpMetadata: { contentType: 'application/gzip' }
+            })
           )
           const completedAt = yield* DateTime.now
           const expiresAt = workspaceExportExpiresAt(completedAt)
@@ -378,13 +377,15 @@ export function LiveWorkspaceExports(
           if (!valid) {
             return Option.none()
           }
-          const object = yield* unavailable(
-            Effect.tryPromise(() => bucket.get(objectKey))
+          const object = yield* tryPromiseOrUnavailable(CAPABILITY, () =>
+            bucket.get(objectKey)
           )
           if (object === null) {
             return Option.none()
           }
-          const body = yield* unavailable(Effect.tryPromise(() => object.arrayBuffer()))
+          const body = yield* tryPromiseOrUnavailable(CAPABILITY, () =>
+            object.arrayBuffer()
+          )
           yield* audit.record({
             workspaceId: found.row.workspaceId,
             ...workspaceExportDownloadAttribution(input.human),

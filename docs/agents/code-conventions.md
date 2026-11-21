@@ -99,9 +99,10 @@ Use named `Effect.fn('Service.operation')` for reusable service operations and I
 Preserve existing labels and span options; new labels are static, code-owned names,
 never request data. Do not add a second `withSpan` for the same operation.
 Inline programs, callbacks and Layer construction may use `Effect.gen`.
-An operation without arguments is an Effect value, not a function returning one:
-`Effect.gen(...).pipe(Effect.withSpan('Service.operation'))`. Lint rejects
-`Effect.fn` invoked immediately and zero-argument members that return an Effect.
+A service operation without arguments is an Effect value, not a function returning
+one: `Effect.gen(...).pipe(Effect.withSpan('Service.operation'))`. Lint rejects an
+immediately invoked `Effect.fn`, and zero-argument exported functions and service
+members that return an Effect.
 
 Use `Effect.fnUntraced` for per-event work, tight loops or small helpers already
 covered by an operation. Explain the frequency or enclosing boundary in a local
