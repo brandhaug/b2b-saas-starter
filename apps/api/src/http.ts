@@ -196,13 +196,13 @@ function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRou
   )
 
   const groups = Layer.mergeAll(
-    healthGroup(),
+    healthGroup,
     workspaceGroup(env),
     apiTokenGroup(env),
     webhookGroup(env),
     workspaceExportGroup(env),
     assistantGroup(env),
-    assistantConversationsGroup(),
+    assistantConversationsGroup,
     mcpGroup(env)
   )
 
@@ -210,8 +210,8 @@ function makeApiLayer(env: ApiEnv): Layer.Layer<never, never, HttpRouter.HttpRou
     Layer.provide(groups),
     // The contract's bearer gate: declared in `packages/api`, implemented in
     // `request-guards.ts`, attached to every group but `health`.
-    Layer.provide(bearerAuth()),
-    Layer.provide(assistantBearerAuth()),
+    Layer.provide(bearerAuth),
+    Layer.provide(assistantBearerAuth),
     Layer.provide(HttpApiMiddleware.layerProblemDetails())
   )
 

@@ -84,7 +84,7 @@ export const makeBillingLease = Effect.fn('Billing.makeLease')(function* () {
     )
     const row = rows[0]
     if (row === undefined) {
-      return yield* Effect.fail(billingFailure('workspace_billing_busy'))
+      return yield* billingFailure('workspace_billing_busy')
     }
     return { workspaceId, owner, fence: row.fence, expiresAt } satisfies BillingLease
   })

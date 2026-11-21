@@ -28,13 +28,13 @@ export const GlobalWebhookDelivery = Schema.Struct({
   endpointId: WebhookEndpointId,
   endpointUrl: Schema.String,
   endpointEnabled: Schema.Boolean,
-  endpointConsecutiveFailures: Schema.Number,
+  endpointConsecutiveFailures: Schema.Finite,
   endpointFailureLimitReached: Schema.Boolean,
   eventType: Schema.String,
   status: Schema.String,
-  attempts: Schema.Number,
+  attempts: Schema.Finite,
   lastAttemptAt: Schema.NullOr(Schema.String),
-  responseStatus: Schema.NullOr(Schema.Number),
+  responseStatus: Schema.NullOr(Schema.Finite),
   workspace: Workspace
 })
 export type GlobalWebhookDelivery = typeof GlobalWebhookDelivery.Type
@@ -53,33 +53,25 @@ export type AdminReplaySource = {
 export const planAdminReplay = Effect.fn('WebhookDeliveryAdmin.planAdminReplay')(
   function* (source: AdminReplaySource | undefined, actorUserId: UserId) {
     if (source === undefined) {
-      return yield* Effect.fail(
-        new WebhookDispatchRejected({
-          reason: 'delivery or endpoint no longer exists'
-        })
-      )
+      return yield* new WebhookDispatchRejected({
+        reason: 'delivery or endpoint no longer exists'
+      })
     }
     if (!isTerminalDeliveryStatus(source.status)) {
-      return yield* Effect.fail(
-        new WebhookDispatchRejected({
-          reason: `delivery is ${source.status}, only terminal deliveries replay from admin`
-        })
-      )
+      return yield* new WebhookDispatchRejected({
+        reason: `delivery is ${source.status}, only terminal deliveries replay from admin`
+      })
     }
     if (!source.enabled) {
-      return yield* Effect.fail(
-        new WebhookDispatchRejected({
-          reason:
-            'endpoint is disabled; a workspace operator must re-enable it before replay'
-        })
-      )
+      return yield* new WebhookDispatchRejected({
+        reason:
+          'endpoint is disabled; a workspace operator must re-enable it before replay'
+      })
     }
     if (source.payload === undefined) {
-      return yield* Effect.fail(
-        new WebhookDispatchRejected({
-          reason: 'delivery payload is missing; replay cannot reconstruct it'
-        })
-      )
+      return yield* new WebhookDispatchRejected({
+        reason: 'delivery payload is missing; replay cannot reconstruct it'
+      })
     }
     const deliveryId = yield* newCapabilityId('whd').pipe(
       Effect.map((id) => WebhookDeliveryId.make(id))

@@ -407,6 +407,7 @@ describe('narrowed failure identity', () => {
       yield* Effect.exit(
         withRequestScope(
           { service: 'assistant', event: 'assistant.request' },
+          // oxlint-disable-next-line effecttsgo/unknown-in-effect-catch -- the case under test is a raw thrown value reaching the narrowing
           Effect.try({
             try: () => {
               throw new Error('no such table: assistant_questions')
@@ -433,7 +434,7 @@ describe('narrowed failure identity', () => {
                   narrowFailure(() => new Unavailable())
                 )
               )
-              return yield* Effect.fail(new Boom({ why: 'unrelated' }))
+              return yield* new Boom({ why: 'unrelated' })
             })
           )
         )
@@ -474,7 +475,7 @@ describe('narrowed failure identity', () => {
         Effect.fail({ _tag: 'SqlError' }).pipe(
           narrowFailure(() => new StorageUnavailable()),
           Effect.tapCause(annotateWideEventCause),
-          Effect.catch(() => Effect.succeed(new Response(null, { status: 503 })))
+          Effect.orElseSucceed(() => new Response(null, { status: 503 }))
         )
       )
       expect(only(records).annotations).toMatchObject({

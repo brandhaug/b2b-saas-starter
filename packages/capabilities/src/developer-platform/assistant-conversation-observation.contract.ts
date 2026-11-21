@@ -28,7 +28,7 @@ export const conversationObservationContract = Effect.fn(
 }) {
   const attempt = input.history.items[0]?.attempts[0]
   if (attempt === undefined) {
-    return yield* Effect.fail(new ConversationUnavailable({ reason: 'storage' }))
+    return yield* new ConversationUnavailable({ reason: 'storage' })
   }
   const attemptId = attempt.id
   function cursor(conversationId: string, revision: number) {

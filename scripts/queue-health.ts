@@ -13,8 +13,8 @@ const QueueTarget = Schema.Struct({
 const decodeTargets = Schema.decodeUnknownSync(Schema.Array(QueueTarget))
 const decodeMetrics = Schema.decodeUnknownSync(
   Schema.Struct({
-    backlogCount: Schema.Number,
-    oldestMessageTimestampMs: Schema.Number
+    backlogCount: Schema.Finite,
+    oldestMessageTimestampMs: Schema.Finite
   })
 )
 

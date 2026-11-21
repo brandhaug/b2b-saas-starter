@@ -322,7 +322,7 @@ type WorkspaceMutationOperation = {
   readonly permission: PermissionRequest
   readonly param?: OperationParam
   /** A concrete request body the permission matrix sends; absent when the endpoint declares no payload. */
-  readonly samplePayload?: typeof Schema.Json.Type
+  readonly samplePayload?: Schema.Json
   readonly run: (
     options: never
   ) => Effect.Effect<

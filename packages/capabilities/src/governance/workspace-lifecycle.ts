@@ -153,9 +153,7 @@ export function SeedWorkspaceLifecycle(options: {
         taken: ReadonlyArray<string>
       ) {
         if (taken.includes(slug)) {
-          return yield* Effect.fail(
-            new WorkspaceChangeRejected({ reason: 'slug_taken' })
-          )
+          return yield* new WorkspaceChangeRejected({ reason: 'slug_taken' })
         }
       })
 
@@ -229,13 +227,11 @@ export function SeedWorkspaceLifecycle(options: {
           }
           return renamed
         }),
-        remove: Effect.fn('WorkspaceLifecycle.remove')(function* () {
+        remove: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           yield* suspension.requireAllowed(ctx.workspace.id, 'product')
           if (!(yield* billing.workspaceDeletionAllowed(ctx.workspace.id))) {
-            return yield* Effect.fail(
-              new WorkspaceChangeRejected({ reason: 'billing_obligations' })
-            )
+            return yield* new WorkspaceChangeRejected({ reason: 'billing_obligations' })
           }
           // Captured before the delete, as in Live: the audit event must
           // still name what was removed.
@@ -263,7 +259,7 @@ export function SeedWorkspaceLifecycle(options: {
               metadata: {}
             })
           }
-        })()
+        }).pipe(Effect.withSpan('WorkspaceLifecycle.remove'))
       }
     })
   )
@@ -296,9 +292,7 @@ export function LiveWorkspaceLifecycle(
         )
         const row = rows[0]
         if (!row) {
-          return yield* Effect.fail(
-            new WorkspaceChangeRejected({ reason: 'workspace_not_created' })
-          )
+          return yield* new WorkspaceChangeRejected({ reason: 'workspace_not_created' })
         }
         return toWorkspace(row)
       })
@@ -343,9 +337,7 @@ export function LiveWorkspaceLifecycle(
           )
           const row = rows[0]
           if (!row) {
-            return yield* Effect.fail(
-              new WorkspaceChangeRejected({ reason: 'workspace_missing' })
-            )
+            return yield* new WorkspaceChangeRejected({ reason: 'workspace_missing' })
           }
           const renamed: Workspace = toWorkspace(row)
           yield* recordCompletedMutationAudit(
@@ -360,13 +352,11 @@ export function LiveWorkspaceLifecycle(
           )
           return renamed
         }),
-        remove: Effect.fn('WorkspaceLifecycle.remove')(function* () {
+        remove: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           yield* suspension.requireAllowed(ctx.workspace.id, 'product')
           if (!(yield* billing.workspaceDeletionAllowed(ctx.workspace.id))) {
-            return yield* Effect.fail(
-              new WorkspaceChangeRejected({ reason: 'billing_obligations' })
-            )
+            return yield* new WorkspaceChangeRejected({ reason: 'billing_obligations' })
           }
           // Captured before the delete: once the row is gone, so are its
           // cascaded children, and the audit event must still name what was
@@ -400,7 +390,7 @@ export function LiveWorkspaceLifecycle(
             },
             'workspace_lifecycle.remove'
           )
-        })()
+        }).pipe(Effect.withSpan('WorkspaceLifecycle.remove'))
       }
     })
   )

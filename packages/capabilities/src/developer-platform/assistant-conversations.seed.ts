@@ -175,7 +175,7 @@ export const makeSeedAssistantConversationHost = Effect.fn('SeedConversationHost
             status,
             reason
           ).pipe(Effect.asVoid)
-      }).pipe(Effect.catch(() => Effect.void))
+      }).pipe(Effect.ignore)
     })
     const history = Effect.fn('SeedConversationHost.history')(function* (
       id: string,
@@ -220,7 +220,7 @@ export const makeSeedAssistantConversationHost = Effect.fn('SeedConversationHost
           workspaceId: row.workspaceId,
           createdAt: row.createdAt,
           title,
-          activeAttempt: yield* store.ledger.active(),
+          activeAttempt: yield* store.ledger.active,
           policyRevision: row.policyRevision
         })
       }
@@ -392,7 +392,7 @@ export const makeSeedAssistantConversationHost = Effect.fn('SeedConversationHost
               if (store.fiber !== null) {
                 yield* Fiber.interrupt(store.fiber)
               }
-              const active = yield* store.ledger.active()
+              const active = yield* store.ledger.active
               if (active !== null) {
                 yield* admission.release(active.id)
               }

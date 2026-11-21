@@ -399,23 +399,16 @@ const SeedCore = Layer.mergeAll(
   SeedAssistantAdmission.pipe(Layer.provide(SeedAssistantDirectory)),
   SeedRetention,
   SeedEmailDelivery(seedSystemUsers),
-  // The mutating developer-platform capabilities write audit events and fan
-  // out webhooks below their interface; the shared fixture audit log and the
-  // no-op Seed publisher are provided once on the merged layer so every member
-  // sees the same instances.
   SeedApiTokenRegistry(seedApiTokens).pipe(
     Layer.provide(SeedEntitlements),
     Layer.provide(SeedGovernance)
   ),
   SeedEntitlements,
-  SeedAuditLog,
   SeedMcpClientConnections({
     clients: seedMcpClients,
     connections: seedMcpClientConnections
   }),
-  SeedNotifications,
   SeedAccountPrefs,
-  SeedSeatSyncPublisher,
   SeedSsoConnections(seedSsoConnections),
   SeedWebhooks(
     seedWebhookEndpoints,
@@ -423,16 +416,23 @@ const SeedCore = Layer.mergeAll(
     undefined,
     seedDeliveryAttempts
   ).pipe(Layer.provide(SeedEntitlements), Layer.provide(SeedGovernance)),
-  SeedWebhookPublisher,
   SeedGovernance,
   SeedPlatformUserAdmin(seedSystemUsers, seedUserAdminMemberships),
   SeedWorkspaceOnboarding({ twoFactorUserIds: seedTwoFactorUserIds }),
   SeedStrongAuthentication
 ).pipe(
-  Layer.provide(SeedAuditLog),
-  Layer.provide(SeedNotifications),
-  Layer.provide(SeedWebhookPublisher),
-  Layer.provide(SeedSeatSyncPublisher)
+  // The mutating developer-platform capabilities write audit events and fan
+  // out webhooks below their interface; the shared fixture audit log and the
+  // no-op Seed publishers are provided and exposed once, so every member sees
+  // the same instances.
+  Layer.provideMerge(
+    Layer.mergeAll(
+      SeedAuditLog,
+      SeedNotifications,
+      SeedWebhookPublisher,
+      SeedSeatSyncPublisher
+    )
+  )
 )
 
 /**
@@ -634,7 +634,6 @@ export function makeLiveCapabilitiesLayer(
     options.assistantLifecycle
   ).pipe(Layer.provide(directory))
   return Layer.mergeAll(
-    directory,
     AssistantConversationsLayer(options.assistantTransport).pipe(
       Layer.provide(
         LiveAssistantAuthority(options.assistantResource).pipe(
@@ -646,7 +645,6 @@ export function makeLiveCapabilitiesLayer(
       Layer.provide(LiveMcpClientConnections(options.securityEvidence))
     ),
     LiveAssistantAdmission.pipe(Layer.provide(LiveAuditEventLog)),
-    conversationLifecycle,
     tasks,
     AssistantTaskEvidenceLayer.pipe(Layer.provide(tasks)),
     LiveRetention,
@@ -659,17 +657,14 @@ export function makeLiveCapabilitiesLayer(
       Layer.provide(entitlements),
       Layer.provide(billing)
     ),
-    LiveAuditEventLog,
     billing,
     entitlements,
     LiveMcpClientConnections(options.securityEvidence),
     preferences,
     accountPreferences,
-    feed,
     emailEligibility,
     LiveSsoConnections(options.ssoBinding),
     webhooks,
-    publisher,
     LiveWorkspaceInvitations(options.invitationBinding),
     membership,
     LiveWorkspaceLifecycle(options.lifecycleBinding, options.securityEvidence).pipe(
@@ -687,19 +682,23 @@ export function makeLiveCapabilitiesLayer(
       Layer.provide(membership),
       Layer.provide(LiveAuditEventLog)
     ),
-    suspension,
-    seatSyncPublisher
+    suspension
   ).pipe(
-    Layer.provide(directory),
-    Layer.provide(conversationLifecycle),
-    Layer.provide(BillingAuditLayer.pipe(Layer.provideMerge(LiveAuditEventLog))),
+    Layer.provide(BillingAuditLayer),
     // The user-admin capability notifies the impersonated user below its
     // interface, the export adapter notifies the requester below its, and the
     // webhook capability's dead-letter notification rides the same provide —
-    // the same queue-wired `feed` value is a member above, so one instance
+    // the queue-wired `feed` is provided and exposed once, so one instance
     // serves all three.
-    Layer.provide(feed),
-    Layer.provide(publisher),
-    Layer.provide(seatSyncPublisher)
+    Layer.provideMerge(
+      Layer.mergeAll(
+        conversationLifecycle,
+        LiveAuditEventLog,
+        feed,
+        publisher,
+        seatSyncPublisher
+      )
+    ),
+    Layer.provideMerge(directory)
   )
 }

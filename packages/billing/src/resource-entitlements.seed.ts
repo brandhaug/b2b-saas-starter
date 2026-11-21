@@ -23,6 +23,7 @@ import {
   type ResourceEntitlementsInterface
 } from './resource-entitlements.ts'
 
+// oxlint-disable-next-line effecttsgo/lazy-effect -- each call is an independent in-memory fixture; one shared layer value would be memoized into a single instance per build
 export function SeedResourceEntitlements() {
   return Layer.effect(
     ResourceEntitlements,
@@ -67,10 +68,10 @@ export function SeedResourceEntitlements() {
       })
       const service: ResourceEntitlementsInterface = {
         getSelectionForWorkspace,
-        getSelection: Effect.fn('ResourceEntitlements.getSelection')(function* () {
+        getSelection: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           return yield* getSelectionForWorkspace(ctx.workspace.id)
-        }),
+        }).pipe(Effect.withSpan('ResourceEntitlements.getSelection')),
         select: Effect.fn('ResourceEntitlements.select')(function* (input) {
           const ctx = yield* WorkspaceContext
           yield* validateSelection(input, inventory.known(ctx.workspace.id))
@@ -110,7 +111,7 @@ export function SeedResourceEntitlements() {
             plan,
             ctx.workspace.id,
             input.resource,
-            yield* service.getSelection()
+            yield* service.getSelection
           )
         }),
         isActiveForWorkspace: Effect.fn('ResourceEntitlements.isActiveForWorkspace')(

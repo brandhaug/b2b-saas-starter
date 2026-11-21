@@ -6,7 +6,7 @@ describe('resource identity boundaries', () => {
   it('rejects empty input and preserves wire strings', () => {
     for (const schema of [ApiTokenId, WebhookEndpointId, WebhookDeliveryId]) {
       expect(Schema.is(schema)('')).toBe(false)
-      expect(Schema.decodeUnknownSync(schema)('resource-id')).toBe('resource-id')
+      expect(Schema.decodeSync(schema)('resource-id')).toBe('resource-id')
       expect(Schema.encodeSync(schema)(schema.make('resource-id'))).toBe('resource-id')
     }
   })

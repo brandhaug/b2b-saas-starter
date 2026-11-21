@@ -201,9 +201,9 @@ describe('MCP workspace mutations over streamable HTTP', () => {
         })
         expect(createdResult.isError).not.toBe(true)
         const createdText = createdResult.content[0]?.text ?? ''
-        const token = yield* Schema.decodeUnknownEffect(
-          Schema.fromJsonString(createdToken)
-        )(createdText)
+        const token = yield* Schema.decodeEffect(Schema.fromJsonString(createdToken))(
+          createdText
+        )
         expect(token.scopes).toEqual(['read'])
         // The tool's explicit reveal: plaintext on the wire, exactly once.
         expect(token.token).toMatch(/^bsk_/)

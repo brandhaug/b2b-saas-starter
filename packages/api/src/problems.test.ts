@@ -24,7 +24,7 @@ describe('public problem contract', () => {
       status: 503
     })
     expect(encodeJson(body)).not.toContain('secret credential')
-    expect(Schema.decodeUnknownSync(codec)(body)).toBeInstanceOf(CapabilityUnavailable)
+    expect(Schema.decodeSync(codec)(body)).toBeInstanceOf(CapabilityUnavailable)
   })
 
   it('discriminates problems with the same status and retains safe extensions', () => {
@@ -34,7 +34,7 @@ describe('public problem contract', () => {
     const body = Schema.encodeSync(codec)(
       new WorkspaceSuspended({ workspaceId: WorkspaceId.make('ws_test') })
     )
-    expect(Schema.decodeUnknownSync(codec)(body)).toEqual(
+    expect(Schema.decodeSync(codec)(body)).toEqual(
       new WorkspaceSuspended({ workspaceId: WorkspaceId.make('ws_test') })
     )
     expect(() =>

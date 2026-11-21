@@ -62,7 +62,7 @@ const StripeEventBody = Schema.Struct({
           data: Schema.Array(
             Schema.Struct({
               id: Schema.optionalKey(Schema.String),
-              quantity: Schema.optionalKey(Schema.Number)
+              quantity: Schema.optionalKey(Schema.Finite)
             })
           )
         })

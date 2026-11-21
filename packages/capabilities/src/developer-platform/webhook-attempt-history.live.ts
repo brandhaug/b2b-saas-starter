@@ -42,10 +42,10 @@ import { type RecordedWebhookAttempt } from './webhook-dispatch.ts'
 // Only `WebhookDispatch` records attempts, so its failures carry that label.
 const unavailable = orUnavailable('webhook-dispatch')
 const Recorded = Schema.Struct({
-  recorded: Schema.Number,
-  ladderChanged: Schema.Number,
-  attempts: Schema.Number,
-  consecutiveFailures: Schema.Number,
+  recorded: Schema.Finite,
+  ladderChanged: Schema.Finite,
+  attempts: Schema.Finite,
+  consecutiveFailures: Schema.Finite,
   url: Schema.String,
   status: Schema.Literals(deliveryStatuses)
 })

@@ -103,6 +103,6 @@ export function databaseIsReady(
   ).pipe(
     Effect.timeout('3 seconds'),
     Effect.as(true),
-    Effect.catch(() => Effect.succeed(false))
+    Effect.orElseSucceed(() => false)
   )
 }

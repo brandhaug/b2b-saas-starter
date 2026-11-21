@@ -281,7 +281,7 @@ export function LiveNotificationFeed(
       })
 
       return {
-        list: Effect.fn('NotificationFeed.list')(function* () {
+        list: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           const rows = yield* unavailable(
             db
@@ -291,7 +291,7 @@ export function LiveNotificationFeed(
               .orderBy(desc(notifications.createdAt))
           )
           return rows.map(toNotification)
-        })(),
+        }).pipe(Effect.withSpan('NotificationFeed.list')),
         countVisibleToUser: Effect.fn('NotificationFeed.countVisibleToUser')(function* (
           userId: UserId,
           workspaceIds: ReadonlyArray<WorkspaceId>
@@ -346,7 +346,7 @@ export function LiveNotificationFeed(
             id: row.id
           }))
         }),
-        unreadCount: Effect.fn('NotificationFeed.unreadCount')(function* () {
+        unreadCount: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           const rows = yield* unavailable(
             db
@@ -360,7 +360,7 @@ export function LiveNotificationFeed(
               )
           )
           return rows[0]?.value ?? 0
-        })(),
+        }).pipe(Effect.withSpan('NotificationFeed.unreadCount')),
         markRead: Effect.fn('NotificationFeed.markRead')(function* (ids) {
           if (ids.length === 0) {
             return 0

@@ -121,12 +121,12 @@ export function SeedApiTokenRegistry(
         return ids
       })
       return ApiTokenRegistry.of({
-        list: Effect.fn('ApiTokenRegistry.list')(function* () {
+        list: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           return activeIn(ctx.workspace.id)
             .map((entry) => entry.token)
             .toSorted((a, b) => b.createdAt.localeCompare(a.createdAt))
-        })(),
+        }).pipe(Effect.withSpan('ApiTokenRegistry.list')),
         listPage: Effect.fn('ApiTokenRegistry.listPage')(function* (input) {
           const ctx = yield* WorkspaceContext
           return seedKeysetPage(
@@ -192,9 +192,7 @@ export function SeedApiTokenRegistry(
             (candidate) => candidate.token.id === input.tokenId
           )
           if (!entry) {
-            return yield* Effect.fail(
-              new ApiTokenNotRotatable({ tokenId: input.tokenId })
-            )
+            return yield* new ApiTokenNotRotatable({ tokenId: input.tokenId })
           }
           const now = yield* DateTime.now
           const plan = yield* planTokenReplacement(
@@ -298,9 +296,7 @@ export function SeedApiTokenRegistry(
               !entry ||
               isExpiredToken(entry.token.expiresAt, DateTime.toEpochMillis(now))
             ) {
-              return yield* Effect.fail(
-                new AuthorizationDenied({ reason: 'invalid_token' })
-              )
+              return yield* new AuthorizationDenied({ reason: 'invalid_token' })
             }
             let leaf = entry
             const storeById = new Map(
@@ -319,9 +315,7 @@ export function SeedApiTokenRegistry(
               resourceId: leaf.token.id
             })
             if (!allowed) {
-              return yield* Effect.fail(
-                new AuthorizationDenied({ reason: 'invalid_token' })
-              )
+              return yield* new AuthorizationDenied({ reason: 'invalid_token' })
             }
             if (
               shouldBumpLastUsedAt(entry.token.lastUsedAt, DateTime.toEpochMillis(now))

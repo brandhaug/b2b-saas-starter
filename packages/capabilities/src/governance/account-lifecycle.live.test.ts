@@ -269,6 +269,8 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
     'leaves shared workspaces, deletes sole-member ones, detaches the rows that would block the delete',
     () =>
       Effect.gen(function* () {
+        const effectContext = yield* Effect.context<never>()
+
         const db = yield* Database
         const d1 = yield* TestD1
         yield* db.insert(user).values([
@@ -488,9 +490,10 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
         const { binding, calls } = fakeAccountLifecycleBinding(db, {
           userId: UserId.make('usr_mixed'),
           password: DELETE_PASSWORD,
+          // Better Auth calls these hooks as plain promise callbacks outside any
+          // Effect runtime; running with the test's context is the port.
           beforeDelete: (userId) =>
-            // oxlint-disable-next-line starter/no-run-promise-in-tests -- Better Auth calls these hooks as plain promise callbacks outside any Effect runtime; the runPromise is the port
-            Effect.runPromise(
+            Effect.runPromiseWith(effectContext)(
               Effect.flatMap(AccountLifecycle, (lifecycle) =>
                 lifecycle.prepareDeletion(userId)
               ).pipe(
@@ -504,8 +507,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live account lifecycle', (
               )
             ),
           afterDelete: (userId) =>
-            // oxlint-disable-next-line starter/no-run-promise-in-tests -- Better Auth calls these hooks as plain promise callbacks outside any Effect runtime; the runPromise is the port
-            Effect.runPromise(
+            Effect.runPromiseWith(effectContext)(
               Effect.flatMap(AccountLifecycle, (lifecycle) =>
                 Effect.flatMap(readHandoffPlan(hookPlan), (plan) =>
                   lifecycle.recordDeleted({ userId, plan })

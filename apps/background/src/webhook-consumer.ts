@@ -146,7 +146,7 @@ export const processWebhookMessage = Effect.fn('WebhookConsumer.process')(functi
         })
         return 'ack' satisfies DeliveryOutcome
       }
-      return yield* Effect.fail(allowed.failure)
+      return yield* allowed.failure
     }
   }
   // Re-check the destination at dispatch time — an endpoint created before

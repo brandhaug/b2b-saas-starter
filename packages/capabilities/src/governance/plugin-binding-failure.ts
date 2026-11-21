@@ -13,7 +13,7 @@ import { CapabilityUnavailable } from '@b2b-saas-starter/failure/capability'
  * capabilities, which otherwise each probe the value by hand.
  */
 const PluginRejection = Schema.Struct({
-  statusCode: Schema.Number
+  statusCode: Schema.Finite
 })
 
 const decodePluginRejection = Schema.decodeUnknownOption(PluginRejection)
@@ -26,9 +26,7 @@ const decodePluginRejection = Schema.decodeUnknownOption(PluginRejection)
  * error has no other field — so it names its reason instead of falling
  * through to the error's generic message.
  */
-const MissingRequestHeadersRejection = Schema.Struct({
-  _tag: Schema.Literal('MissingRequestHeaders')
-})
+const MissingRequestHeadersRejection = Schema.TaggedStruct('MissingRequestHeaders', {})
 
 const isMissingRequestHeaders = Schema.is(MissingRequestHeadersRejection)
 

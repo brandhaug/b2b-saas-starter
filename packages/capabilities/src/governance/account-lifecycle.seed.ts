@@ -94,9 +94,9 @@ export function SeedAccountLifecycle(options: {
       ) {
         const plan = yield* planDeletion(userId)
         if (!plan.canDelete) {
-          return yield* Effect.fail(
-            new AccountDeletionBlocked({ workspaces: blockingWorkspaces(plan) })
-          )
+          return yield* new AccountDeletionBlocked({
+            workspaces: blockingWorkspaces(plan)
+          })
         }
         yield* conversations.fence({ creatorUserId: userId })
         for (const step of plan.steps) {
@@ -174,9 +174,9 @@ export function SeedAccountLifecycle(options: {
         deleteAccount: Effect.fn('AccountLifecycle.deleteAccount')(function* (input) {
           const plan = yield* planDeletion(input.userId)
           if (!plan.canDelete) {
-            return yield* Effect.fail(
-              new AccountDeletionBlocked({ workspaces: blockingWorkspaces(plan) })
-            )
+            return yield* new AccountDeletionBlocked({
+              workspaces: blockingWorkspaces(plan)
+            })
           }
           yield* requireSeedPassword(input.password)
           const executed = yield* prepareDeletion(input.userId)

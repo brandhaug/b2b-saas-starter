@@ -525,12 +525,10 @@ export function SeedBilling(options?: {
                 })
                 return next
               })
-              return yield* Effect.fail(
-                new CapabilityUnavailable({
-                  capability: 'billing',
-                  reason: 'provider_not_configured'
-                })
-              )
+              return yield* new CapabilityUnavailable({
+                capability: 'billing',
+                reason: 'provider_not_configured'
+              })
             }
             const provider = (yield* Ref.get(providerSubscriptions)).get(workspaceId)
             if (provider === undefined) {
@@ -603,14 +601,14 @@ export function SeedBilling(options?: {
         ),
         configured: Effect.succeed(configured),
         currentPlanForWorkspace,
-        currentPlan: Effect.fn('Billing.currentPlan')(function* () {
+        currentPlan: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           return yield* currentPlanForWorkspace(ctx.workspace.id)
-        })(),
-        lifecycleStatus: Effect.fn('Billing.lifecycleStatus')(function* () {
+        }).pipe(Effect.withSpan('Billing.currentPlan')),
+        lifecycleStatus: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           return yield* lifecycleForWorkspace(ctx.workspace.id)
-        })(),
+        }).pipe(Effect.withSpan('Billing.lifecycleStatus')),
         displayedPlans: Effect.sync(() => {
           const plans = []
           for (const plan of PLANS) {
@@ -622,7 +620,7 @@ export function SeedBilling(options?: {
           }
           return plans
         }),
-        synchronizationStatus: Effect.fn('Billing.synchronizationStatus')(function* () {
+        synchronizationStatus: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           if (!(yield* Ref.get(subscriptions)).has(ctx.workspace.id) && !configured) {
             return {
@@ -642,7 +640,7 @@ export function SeedBilling(options?: {
             status,
             lastSyncedAt: null
           } satisfies BillingSynchronizationStatus
-        })(),
+        }).pipe(Effect.withSpan('Billing.synchronizationStatus')),
         processProviderEvent,
         recordProviderEvent: Effect.fn('Billing.recordProviderEvent')(function* (
           input: ProcessProviderEventInput
@@ -687,23 +685,19 @@ export function SeedBilling(options?: {
             Effect.uninterruptible(
               Effect.gen(function* () {
                 if (!configured) {
-                  return yield* Effect.fail(
-                    new CapabilityUnavailable({
-                      capability: 'billing',
-                      reason: 'provider_not_configured'
-                    })
-                  )
+                  return yield* new CapabilityUnavailable({
+                    capability: 'billing',
+                    reason: 'provider_not_configured'
+                  })
                 }
                 if (
                   planById(input.planId).purchase !== 'self_serve' ||
                   planById(input.planId).id !== input.planId
                 ) {
-                  return yield* Effect.fail(
-                    new CapabilityUnavailable({
-                      capability: 'billing',
-                      reason: 'plan_not_self_serve'
-                    })
-                  )
+                  return yield* new CapabilityUnavailable({
+                    capability: 'billing',
+                    reason: 'plan_not_self_serve'
+                  })
                 }
                 const ctx = yield* WorkspaceContext
                 const existingSubscription = (yield* Ref.get(subscriptions)).get(
@@ -735,12 +729,10 @@ export function SeedBilling(options?: {
                     existing.planId !== input.planId ||
                     existing.interval !== (input.interval ?? 'month')
                   ) {
-                    return yield* Effect.fail(
-                      new CapabilityUnavailable({
-                        capability: 'billing',
-                        reason: 'checkout_in_progress'
-                      })
-                    )
+                    return yield* new CapabilityUnavailable({
+                      capability: 'billing',
+                      reason: 'checkout_in_progress'
+                    })
                   }
                   return { url: existing.url }
                 }
@@ -779,22 +771,18 @@ export function SeedBilling(options?: {
           readonly returnUrl: string
         }) {
           if (!configured) {
-            return yield* Effect.fail(
-              new CapabilityUnavailable({
-                capability: 'billing',
-                reason: 'provider_not_configured'
-              })
-            )
+            return yield* new CapabilityUnavailable({
+              capability: 'billing',
+              reason: 'provider_not_configured'
+            })
           }
           const ctx = yield* WorkspaceContext
           const current = (yield* Ref.get(subscriptions)).get(ctx.workspace.id)
           if (current === undefined) {
-            return yield* Effect.fail(
-              new CapabilityUnavailable({
-                capability: 'billing',
-                reason: 'no_billing_profile'
-              })
-            )
+            return yield* new CapabilityUnavailable({
+              capability: 'billing',
+              reason: 'no_billing_profile'
+            })
           }
           yield* audit.record({
             ...workspaceAuditAttribution(ctx),
@@ -831,12 +819,10 @@ export function SeedBilling(options?: {
                 if (configured && provider !== undefined) {
                   const reconciled = yield* reconcileWorkspaceUnsafe(input)
                   if (reconciled.outcome === 'conflict') {
-                    return yield* Effect.fail(
-                      new CapabilityUnavailable({
-                        capability: 'billing',
-                        reason: reconciled.drift[0] ?? 'billing_conflict'
-                      })
-                    )
+                    return yield* new CapabilityUnavailable({
+                      capability: 'billing',
+                      reason: reconciled.drift[0] ?? 'billing_conflict'
+                    })
                   }
                   const updated = (yield* Ref.get(subscriptions)).get(input.workspaceId)
                   if (updated?.subscriptionItemId === null || updated === undefined) {

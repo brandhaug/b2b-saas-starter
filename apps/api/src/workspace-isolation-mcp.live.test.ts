@@ -19,7 +19,7 @@ const decodeRecord = Schema.decodeUnknownEffect(
   Schema.fromJsonString(Schema.Struct({ id: Schema.String }))
 )
 const rpcError = Schema.Struct({
-  error: Schema.Struct({ code: Schema.Number, message: Schema.String }),
+  error: Schema.Struct({ code: Schema.Finite, message: Schema.String }),
   result: Schema.optional(Schema.Json)
 })
 const resourceResult = Schema.Struct({

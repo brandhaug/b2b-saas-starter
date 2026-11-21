@@ -71,7 +71,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
                 Layer.fresh(LiveApiTokenRegistry()).pipe(Layer.provide(racingAudit))
               )
             )
-            expect(new Set((yield* selection.getSelection()).apiTokenIds)).toEqual(
+            expect(new Set((yield* selection.getSelection).apiTokenIds)).toEqual(
               new Set([b.id, c.id])
             )
           }).pipe(Effect.provide(BillingAuditLayer)),
@@ -139,7 +139,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               (yield* Effect.flip(tokens.verifyBearerToken(Redacted.value(b.token))))
                 ._tag
             ).toBe('AuthorizationDenied')
-            expect(new Set((yield* selection.getSelection()).apiTokenIds)).toEqual(
+            expect(new Set((yield* selection.getSelection).apiTokenIds)).toEqual(
               new Set([replacement.id, c.id])
             )
           }).pipe(Effect.provide(BillingAuditLayer)),

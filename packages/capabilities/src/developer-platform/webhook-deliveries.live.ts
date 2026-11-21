@@ -128,9 +128,7 @@ export const LiveWebhookDeliveries: Layer.Layer<
           )
           const row = rows[0]
           if (!row) {
-            return yield* Effect.fail(
-              new WebhookDeliveryNotFound({ deliveryId: input.deliveryId })
-            )
+            return yield* new WebhookDeliveryNotFound({ deliveryId: input.deliveryId })
           }
           const endpoint = yield* endpointProjection(row.endpoint.id, ctx.workspace.id)
           if (endpoint === null) {

@@ -65,7 +65,7 @@ export const enforceRateLimitKey = Effect.fn('Api.enforceRateLimitKey')(function
       outcome: 'rate_limited',
       rateLimitBucket: bucket
     })
-    return yield* Effect.fail(new RateLimited({ bucket }))
+    return yield* new RateLimited({ bucket })
   }
 })
 
@@ -84,7 +84,7 @@ export const verifyToken = Effect.fn('Api.verifyToken')(function* (
 > {
   if (!token) {
     yield* annotateWideEvent({ outcome: 'missing_bearer_token' })
-    return yield* Effect.fail(new Unauthorized({ message: 'missing_bearer_token' }))
+    return yield* new Unauthorized({ message: 'missing_bearer_token' })
   }
 
   const registry = yield* ApiTokenRegistry
@@ -97,7 +97,7 @@ export const verifyToken = Effect.fn('Api.verifyToken')(function* (
         capability: failure.capability,
         capabilityReason: failure.reason
       })
-      return yield* Effect.fail(failure)
+      return yield* failure
     }
     // Verification only ever fails for an unknown or revoked token, which is
     // an authentication failure: 401, not 403.
@@ -105,7 +105,7 @@ export const verifyToken = Effect.fn('Api.verifyToken')(function* (
       outcome: 'unauthorized',
       authReason: failure.reason
     })
-    return yield* Effect.fail(new Unauthorized({ message: failure.reason }))
+    return yield* new Unauthorized({ message: failure.reason })
   }
 
   yield* annotateWideEvent({
@@ -146,11 +146,9 @@ export const enforcePermission = Effect.fn('Api.enforcePermission')(function* (
       outcome: 'forbidden',
       authReason: 'token_workspace_mismatch'
     })
-    return yield* Effect.fail(
-      new AuthorizationDenied({
-        reason: AUTHORIZATION_DENIED_REASONS.tokenWorkspaceMismatch
-      })
-    )
+    return yield* new AuthorizationDenied({
+      reason: AUTHORIZATION_DENIED_REASONS.tokenWorkspaceMismatch
+    })
   }
 
   yield* requirePermission(tokenPrincipal(verified.scopes), permission)
@@ -230,40 +228,36 @@ export function provideWorkspace<A, E, R>(
  *
  * Gate facts accumulate in the outer HTTP invocation, including rejections.
  */
-export function bearerAuth(): Layer.Layer<BearerAuth> {
-  return Layer.succeed(BearerAuth)(
-    BearerAuth.of({
-      // oxlint-disable-next-line starter/named-service-operation -- HttpApiMiddleware, not a service operation: it runs the handler effect it receives, so a span here would enclose the whole request
-      bearer: (httpEffect, { credential, endpoint, group }) =>
-        Effect.gen(function* () {
-          const request = yield* HttpServerRequest.HttpServerRequest
-          yield* annotateWideEvent({
-            operation: `request.${group.identifier}.${endpoint.identifier}`
-          })
-          const bucket = rateLimitBucketFor(group.identifier)
-          if (bucket === undefined) {
-            // A gated group with no bucket row is a wiring mistake, and the
-            // honest answer is that this worker cannot rate limit the call —
-            // fail closed with the contract's 503 rather than serve it
-            // unlimited. `permission-matrix.test.ts` asserts the contract's
-            // table covers every group carrying this middleware, so the row is
-            // missing only while someone is mid-change.
-            return yield* Effect.fail(
-              new CapabilityUnavailable({
-                capability: 'rate-limit',
-                reason: `no bucket declared for group ${group.identifier}`
-              })
-            )
-          }
-
-          const gate = Effect.gen(function* () {
-            yield* enforceRateLimit(request, bucket)
-            return yield* verifyToken(Redacted.value(credential) || null)
-          }).pipe(Effect.tapError(annotateRequestFailure))
-
-          const principal = yield* gate
-          return yield* Effect.provideService(httpEffect, ApiPrincipal, principal)
+export const bearerAuth: Layer.Layer<BearerAuth> = Layer.succeed(BearerAuth)(
+  BearerAuth.of({
+    // oxlint-disable-next-line starter/named-service-operation -- HttpApiMiddleware, not a service operation: it runs the handler effect it receives, so a span here would enclose the whole request
+    bearer: (httpEffect, { credential, endpoint, group }) =>
+      Effect.gen(function* () {
+        const request = yield* HttpServerRequest.HttpServerRequest
+        yield* annotateWideEvent({
+          operation: `request.${group.identifier}.${endpoint.identifier}`
         })
-    })
-  )
-}
+        const bucket = rateLimitBucketFor(group.identifier)
+        if (bucket === undefined) {
+          // A gated group with no bucket row is a wiring mistake, and the
+          // honest answer is that this worker cannot rate limit the call —
+          // fail closed with the contract's 503 rather than serve it
+          // unlimited. `permission-matrix.test.ts` asserts the contract's
+          // table covers every group carrying this middleware, so the row is
+          // missing only while someone is mid-change.
+          return yield* new CapabilityUnavailable({
+            capability: 'rate-limit',
+            reason: `no bucket declared for group ${group.identifier}`
+          })
+        }
+
+        const gate = Effect.gen(function* () {
+          yield* enforceRateLimit(request, bucket)
+          return yield* verifyToken(Redacted.value(credential) || null)
+        }).pipe(Effect.tapError(annotateRequestFailure))
+
+        const principal = yield* gate
+        return yield* Effect.provideService(httpEffect, ApiPrincipal, principal)
+      })
+  })
+)

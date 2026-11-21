@@ -8,7 +8,7 @@ const Identity = Schema.Struct({
   provider: Schema.Literal('openai-compatible'),
   endpoint: Schema.Literal('https://api.openai.com/v1'),
   modelId: Schema.String.check(Schema.isMinLength(1)),
-  maxOutputTokens: Schema.Number,
+  maxOutputTokens: Schema.Finite,
   sampling: Schema.Literal('provider-default; no temperature or seed sent'),
   samplesPerCase: Schema.Number.check(
     Schema.isInt(),
@@ -22,7 +22,7 @@ type Identity = typeof Identity.Type
 
 const Sample = Schema.Struct({
   caseId: Schema.String,
-  repetition: Schema.Number,
+  repetition: Schema.Finite,
   status: Schema.Literals(['ok', 'error']),
   output: Schema.String
 })

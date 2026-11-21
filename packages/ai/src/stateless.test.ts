@@ -43,6 +43,8 @@ it.effect('bounds requests and supplies action rules without evidence', () =>
 
 it.effect('times out while consuming the OpenAI body and aborts its request', () =>
   Effect.gen(function* () {
+    const effectContext = yield* Effect.context<never>()
+
     const consuming = yield* Deferred.make<undefined>()
     let signal: AbortSignal | undefined
     const wire = vi.fn((_url: string, request: WireRequest) => {
@@ -50,7 +52,7 @@ it.effect('times out while consuming the OpenAI body and aborts its request', ()
       const response = new Response(
         new ReadableStream({
           pull() {
-            Effect.runSync(Deferred.succeed(consuming, undefined))
+            Effect.runSyncWith(effectContext)(Deferred.succeed(consuming, undefined))
             return new Promise(() => {})
           }
         })
@@ -101,9 +103,11 @@ it.effect('rejects oversized input before contacting the provider', () =>
 
 it.effect('times out a held Workers AI call without retrying', () =>
   Effect.gen(function* () {
+    const effectContext = yield* Effect.context<never>()
+
     const started = yield* Deferred.make<undefined>()
     const run = vi.fn(() => {
-      Effect.runSync(Deferred.succeed(started, undefined))
+      Effect.runSyncWith(effectContext)(Deferred.succeed(started, undefined))
       return new Promise<null>(() => {})
     })
     const fiber = yield* AssistantService.use((assistant) =>
@@ -123,11 +127,13 @@ it.effect('times out a held Workers AI call without retrying', () =>
 
 it.effect('preserves external interruption of an in-flight request', () =>
   Effect.gen(function* () {
+    const effectContext = yield* Effect.context<never>()
+
     const started = yield* Deferred.make<undefined>()
     let signal: AbortSignal | undefined
     const wire = vi.fn((_url: string, request: WireRequest) => {
       signal = request.signal
-      Effect.runSync(Deferred.succeed(started, undefined))
+      Effect.runSyncWith(effectContext)(Deferred.succeed(started, undefined))
       return new Promise<Response>(() => {})
     })
     const fiber = yield* AssistantService.use((assistant) =>

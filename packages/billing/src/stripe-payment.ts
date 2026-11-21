@@ -77,11 +77,11 @@ export const retrievePaymentEvidence = Effect.fn('Stripe.retrievePaymentEvidence
           InvoiceList
         )
         if (result.data.some((invoice) => !owns(invoice))) {
-          return yield* Effect.fail(unavailable('invoice_ownership_mismatch'))
+          return yield* unavailable('invoice_ownership_mismatch')
         }
         const next = result.data.at(-1)?.id
         if (result.has_more && (page >= 99 || next === undefined || next === cursor)) {
-          return yield* Effect.fail(unavailable('payment_history_incomplete'))
+          return yield* unavailable('payment_history_incomplete')
         }
         let nextPage = Option.none<{ cursor: string; page: number }>()
         if (result.has_more && next !== undefined) {
@@ -137,7 +137,7 @@ export const retrievePaymentEvidence = Effect.fn('Stripe.retrievePaymentEvidence
       }
     }
     if (current !== null && !owns(current)) {
-      return yield* Effect.fail(unavailable('invoice_ownership_mismatch'))
+      return yield* unavailable('invoice_ownership_mismatch')
     }
     const currentInvoicePaid =
       current?.status === 'paid' && current.status_transitions.paid_at !== null
@@ -203,7 +203,7 @@ export const retrievePaymentEvidence = Effect.fn('Stripe.retrievePaymentEvidence
           }
           cursor = failures.data.at(-1)?.id ?? null
           if (page === 9 || cursor === null) {
-            return yield* Effect.fail(unavailable('payment_history_incomplete'))
+            return yield* unavailable('payment_history_incomplete')
           }
         }
       }

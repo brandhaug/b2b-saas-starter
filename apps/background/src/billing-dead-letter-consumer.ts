@@ -24,7 +24,7 @@ import {
  * audited retry trail without an unauthenticated HTTP recovery endpoint.
  */
 export function processBillingDeadLetterMessage(
-  delivery: QueueDelivery<typeof BillingQueueMessage.Type>
+  delivery: QueueDelivery<BillingQueueMessage>
 ): Effect.Effect<DeliveryOutcome, CapabilityUnavailable, Billing | Scope.Scope> {
   return Effect.as(
     Effect.gen(function* () {

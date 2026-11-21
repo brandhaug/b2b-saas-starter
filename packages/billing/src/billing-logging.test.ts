@@ -32,9 +32,9 @@ it.effect('records the resolved plan on one canonical billing request event', ()
       SeedBilling({ workspacePlans: { wrk_logging: 'team' } }).pipe(
         Layer.provide(Layer.mock(AuditEventLog, {})),
         Layer.provide(Layer.mock(NotificationFeed, {})),
-        Layer.provide(Layer.mock(BillingWebhookPublisher, {}))
+        Layer.provide(Layer.mock(BillingWebhookPublisher, {})),
+        Layer.provideMerge(capture)
       )
-    ),
-    Effect.provide(capture)
+    )
   )
 })

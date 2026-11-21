@@ -71,8 +71,9 @@ const billingPayload: WorkspacePageFrame<WorkspaceBillingPayload> = workspacePag
             synchronization: billing.synchronizationStatus,
             lifecycle: billing.lifecycleStatus,
             plans: displayedPlansOrUnavailable(billing),
-            resourceSelection: Effect.flatMap(ResourceEntitlements, (resources) =>
-              resources.getSelection()
+            resourceSelection: Effect.flatMap(
+              ResourceEntitlements,
+              (resources) => resources.getSelection
             ),
             apiTokenEntitlements: Effect.flatMap(ResourceEntitlements, (resources) =>
               resources.summarize({ resource: 'api_token' })

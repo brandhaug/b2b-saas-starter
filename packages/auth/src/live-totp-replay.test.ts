@@ -74,8 +74,9 @@ it.live(
       )
       expect(Result.isFailure(anotherSession)).toBe(true)
       const next = yield* nextTotpCode(decodeUriSecret(secret))
-      const attempts = yield* Effect.all(
-        [0, 1].map(() => Effect.result(auth.api.verifyTOTP({ body: next, headers }))),
+      const attempts = yield* Effect.forEach(
+        [0, 1],
+        () => Effect.result(auth.api.verifyTOTP({ body: next, headers })),
         { concurrency: 'unbounded' }
       )
       expect(attempts.filter(Result.isSuccess)).toHaveLength(1)

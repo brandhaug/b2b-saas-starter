@@ -219,16 +219,16 @@ export function LiveBilling(
         ...synchronization,
         configured: Effect.succeed(billingConfigured(options)),
         currentPlanForWorkspace,
-        currentPlan: Effect.fn('Billing.currentPlan')(function* () {
+        currentPlan: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           return yield* currentPlanForWorkspace(ctx.workspace.id)
-        })(),
-        lifecycleStatus: Effect.fn('Billing.lifecycleStatus')(function* () {
+        }).pipe(Effect.withSpan('Billing.currentPlan')),
+        lifecycleStatus: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           return yield* lifecycleForWorkspace(ctx.workspace.id)
-        })(),
+        }).pipe(Effect.withSpan('Billing.lifecycleStatus')),
         displayedPlans: displayedBillingPlans(options).pipe(provideHttp),
-        synchronizationStatus: Effect.fn('Billing.synchronizationStatus')(function* () {
+        synchronizationStatus: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           if (!billingConfigured(options)) {
             return {
@@ -253,23 +253,21 @@ export function LiveBilling(
               lastSyncedAt: null
             } satisfies BillingSynchronizationStatus)
           )
-        })(),
+        }).pipe(Effect.withSpan('Billing.synchronizationStatus')),
         startCheckout: Effect.fn('Billing.startCheckout')(function* (
           input: CheckoutInput
         ) {
           const ctx = yield* WorkspaceContext
           const secretKey = options.secretKey
           if (secretKey === undefined) {
-            return yield* Effect.fail(providerNotConfigured())
+            return yield* providerNotConfigured()
           }
           const plan = planById(input.planId)
           if (plan.purchase !== 'self_serve' || plan.id !== input.planId) {
-            return yield* Effect.fail(
-              new CapabilityUnavailable({
-                capability: 'billing',
-                reason: 'plan_not_self_serve'
-              })
-            )
+            return yield* new CapabilityUnavailable({
+              capability: 'billing',
+              reason: 'plan_not_self_serve'
+            })
           }
           let priceId: string | undefined
           if (plan.stripePriceEnv !== null) {
@@ -279,12 +277,10 @@ export function LiveBilling(
             }
           }
           if (priceId === undefined || priceId.length === 0) {
-            return yield* Effect.fail(
-              new CapabilityUnavailable({
-                capability: 'billing',
-                reason: `price_not_configured:${plan.stripePriceEnv ?? input.planId}`
-              })
-            )
+            return yield* new CapabilityUnavailable({
+              capability: 'billing',
+              reason: `price_not_configured:${plan.stripePriceEnv ?? input.planId}`
+            })
           }
           const [, quantity] = yield* Effect.all(
             [
@@ -319,7 +315,7 @@ export function LiveBilling(
           const ctx = yield* WorkspaceContext
           const secretKey = options.secretKey
           if (secretKey === undefined) {
-            return yield* Effect.fail(providerNotConfigured())
+            return yield* providerNotConfigured()
           }
           return yield* portal({
             ...workspaceAuditAttribution(ctx),
@@ -350,12 +346,10 @@ export function LiveBilling(
             reason: input.reason
           })
           if (result.outcome === 'conflict') {
-            return yield* Effect.fail(
-              new CapabilityUnavailable({
-                capability: 'billing',
-                reason: result.drift[0] ?? 'billing_conflict'
-              })
-            )
+            return yield* new CapabilityUnavailable({
+              capability: 'billing',
+              reason: result.drift[0] ?? 'billing_conflict'
+            })
           }
           const updated = yield* readSubscription(input.workspaceId)
           if (updated?.stripeSubscriptionItemId === null || updated === undefined) {

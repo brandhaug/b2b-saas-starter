@@ -106,7 +106,7 @@ export const makeBillingNotices = Effect.fn('Billing.makeNotices')(function* () 
       )
       for (const outcome of outcomes) {
         if (Result.isFailure(outcome)) {
-          return yield* Effect.fail(outcome.failure)
+          return yield* outcome.failure
         }
       }
       yield* billingStoreUnavailable(

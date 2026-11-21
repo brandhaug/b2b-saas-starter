@@ -18,12 +18,11 @@ export function makeSeedConversationLedger() {
   const executions = new Map<string, typeof ConversationExecution.Type>()
   const texts = new Map<string, string>()
   const ledger: ConversationAdmissionLedger = {
-    latestAttempt: () => Effect.sync(() => [...attempts.values()].at(-1) ?? null),
+    latestAttempt: Effect.sync(() => [...attempts.values()].at(-1) ?? null),
     attempt: (id) => Effect.sync(() => attempts.get(id) ?? null),
-    active: () =>
-      Effect.sync(
-        () => [...attempts.values()].findLast(activeConversationAttempt) ?? null
-      ),
+    active: Effect.sync(
+      () => [...attempts.values()].findLast(activeConversationAttempt) ?? null
+    ),
     question: (id) => Effect.sync(() => questions.get(id) ?? null),
     questions: (page) =>
       Effect.sync(() => {

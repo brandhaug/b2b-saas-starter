@@ -13,9 +13,7 @@ export const zonedDayBoundary = Effect.fn('Audit.zonedDayBoundary')(function* (
 ) {
   const wall = DateTime.make(`${day}T00:00:00.000Z`)
   if (Option.isNone(wall) || DateTime.formatIsoDateUtc(wall.value) !== day) {
-    return yield* Effect.fail(
-      new InvalidCalendarDay({ message: 'Invalid calendar day' })
-    )
+    return yield* new InvalidCalendarDay({ message: 'Invalid calendar day' })
   }
   // Compatible chooses the earlier repeated midnight, or advances through a
   // midnight gap. A whole skipped day must not become an adjacent day's filter.
@@ -26,11 +24,9 @@ export const zonedDayBoundary = Effect.fn('Audit.zonedDayBoundary')(function* (
   } as const
   const start = DateTime.makeZoned(wall.value, options)
   if (Option.isNone(start) || DateTime.formatIsoDate(start.value) !== day) {
-    return yield* Effect.fail(
-      new InvalidCalendarDay({
-        message: 'Calendar day does not exist in the time zone'
-      })
-    )
+    return yield* new InvalidCalendarDay({
+      message: 'Calendar day does not exist in the time zone'
+    })
   }
   if (edge === 'start') {
     return DateTime.formatIso(start.value)

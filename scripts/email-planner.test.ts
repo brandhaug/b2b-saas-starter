@@ -165,7 +165,7 @@ async function planFor(name: string, previewEnabled = false) {
       bindings: {},
       actions: {},
       output: {}
-    }).pipe(Effect.provide(providers), Effect.provide(state), Effect.scoped)
+    }).pipe(Effect.provide(providers.pipe(Layer.provideMerge(state))), Effect.scoped)
   )
 }
 

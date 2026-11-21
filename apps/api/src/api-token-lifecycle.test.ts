@@ -13,12 +13,7 @@ const encodeBody = Schema.encodeSync(Schema.fromJsonString(Schema.Json))
 
 function client() {
   const { handler } = buildWebHandler({})
-  return (
-    method: string,
-    path: string,
-    body?: typeof Schema.Json.Type,
-    token = SEED_API_TOKEN
-  ) => {
+  return (method: string, path: string, body?: Schema.Json, token = SEED_API_TOKEN) => {
     const options: RequestInit = {
       method,
       headers: {

@@ -81,7 +81,7 @@ export class ConversationLedger implements ConversationAdmissionLedger {
     ).pipe(Effect.map((rows) => rows[0] ?? null))
   }
 
-  active() {
+  get active() {
     return this.read(
       ConversationAttempt,
       "SELECT data FROM assistant_attempts WHERE status IN ('Accepted','Running') ORDER BY sequence DESC LIMIT 1"
@@ -95,7 +95,7 @@ export class ConversationLedger implements ConversationAdmissionLedger {
     ).pipe(Effect.map((rows) => rows[0] ?? null))
   }
 
-  latestAttempt() {
+  get latestAttempt() {
     return this.read(
       ConversationAttempt,
       'SELECT data FROM assistant_attempts ORDER BY sequence DESC LIMIT 1'

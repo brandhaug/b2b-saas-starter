@@ -67,7 +67,7 @@ const TaggedFailure = Schema.Struct({
       'history_invalid'
     ])
   ),
-  retryAfterSeconds: Schema.optionalKey(Schema.Number)
+  retryAfterSeconds: Schema.optionalKey(Schema.Finite)
 })
 export const decodeFailure = Schema.decodeUnknownResult(TaggedFailure)
 

@@ -47,7 +47,7 @@ const ExecFileFailure = Schema.Struct({
   stderr: Schema.optionalKey(Schema.String)
 })
 const decodeExecFileFailure = Schema.decodeUnknownOption(ExecFileFailure)
-const decodeExitCode = Schema.decodeUnknownOption(Schema.Number)
+const decodeExitCode = Schema.decodeUnknownOption(Schema.Finite)
 
 async function runWrangler(
   args: ReadonlyArray<string>,

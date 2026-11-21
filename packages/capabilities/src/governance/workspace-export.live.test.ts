@@ -596,7 +596,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         )
         const exports = yield* inWorkspace(
           'live-lab',
-          Effect.flatMap(WorkspaceExports, (service) => Effect.succeed(service)),
+          WorkspaceExports,
           undefined,
           bindings
         )
@@ -665,7 +665,7 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
           )
           const membership = yield* inWorkspace(
             'live-lab',
-            Effect.flatMap(WorkspaceMembership, (service) => Effect.succeed(service)),
+            WorkspaceMembership,
             undefined,
             bindings
           )
@@ -814,13 +814,13 @@ layer(TestDatabase, { timeout: LIVE_SUITE_TIMEOUT })('live workspace exports', (
         )
         const exports = yield* inWorkspace(
           'live-lab',
-          Effect.flatMap(WorkspaceExports, (service) => Effect.succeed(service)),
+          WorkspaceExports,
           undefined,
           bindings
         )
         const membership = yield* inWorkspace(
           'live-lab',
-          Effect.flatMap(WorkspaceMembership, (service) => Effect.succeed(service)),
+          WorkspaceMembership,
           undefined,
           bindings
         )

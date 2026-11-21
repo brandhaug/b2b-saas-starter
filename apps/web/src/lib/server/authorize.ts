@@ -48,7 +48,7 @@ const checkWorkspacePermission = Effect.fn('Authorization.requireWorkspacePermis
     )
     yield* requireWorkspaceAccess(operation)
     if (needsRecentAuthentication(permission) && operation !== 'credential_recovery') {
-      const session = yield* requireRequestSessionEffect()
+      const session = yield* requireRequestSessionEffect
       const authentication = yield* StrongAuthentication
       yield* authentication.requireRecent({
         userId: session.user.id,
@@ -71,7 +71,7 @@ const requireWorkspaceAccess = Effect.fn('Authorization.requireWorkspaceAccess')
         workspaceRole: ctx.actor.role
       })
     ) {
-      const session = yield* requireRequestSessionEffect()
+      const session = yield* requireRequestSessionEffect
       const authentication = yield* StrongAuthentication
       yield* authentication.require({
         userId: ctx.actor.userId,

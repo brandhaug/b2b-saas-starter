@@ -92,7 +92,7 @@ export function LiveApiTokenRegistry(
       })
 
       return {
-        list: Effect.fn('ApiTokenRegistry.list')(function* () {
+        list: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           const rows = yield* unavailable(
             db
@@ -102,7 +102,7 @@ export function LiveApiTokenRegistry(
               .orderBy(desc(apiTokens.createdAt))
           )
           return rows.map(toTokenProjection)
-        })(),
+        }).pipe(Effect.withSpan('ApiTokenRegistry.list')),
         listPage: Effect.fn('ApiTokenRegistry.listPage')(function* (input) {
           const ctx = yield* WorkspaceContext
           const limit = clampPageLimit(input?.limit)
@@ -204,7 +204,7 @@ export function LiveApiTokenRegistry(
             ]
           })
           if (!created) {
-            return yield* Effect.fail(admission.rejected)
+            return yield* admission.rejected
           }
           // Fan-out sits beside the audit write, below the interface: the
           // projection only — never the minted secret.
@@ -224,9 +224,7 @@ export function LiveApiTokenRegistry(
               .limit(1)
           ).pipe(Effect.map((rows) => rows[0]))
           if (!source) {
-            return yield* Effect.fail(
-              new ApiTokenNotRotatable({ tokenId: input.tokenId })
-            )
+            return yield* new ApiTokenNotRotatable({ tokenId: input.tokenId })
           }
           const now = yield* DateTime.now
           const createdAt = DateTime.formatIso(now)
@@ -380,9 +378,7 @@ export function LiveApiTokenRegistry(
               !row ||
               isExpiredToken(row.token.expiresAt, DateTime.toEpochMillis(usedAt))
             ) {
-              return yield* Effect.fail(
-                new AuthorizationDenied({ reason: 'invalid_token' })
-              )
+              return yield* new AuthorizationDenied({ reason: 'invalid_token' })
             }
             const workspaceTokens = yield* unavailable(
               db
@@ -409,9 +405,7 @@ export function LiveApiTokenRegistry(
               resourceId: leafId
             })
             if (!entitled) {
-              return yield* Effect.fail(
-                new AuthorizationDenied({ reason: 'invalid_token' })
-              )
+              return yield* new AuthorizationDenied({ reason: 'invalid_token' })
             }
             // Bump `lastUsedAt` at most once per LAST_USED_WRITE_INTERVAL_MS.
             // The per-request `api_token.used` audit event was removed: it did a

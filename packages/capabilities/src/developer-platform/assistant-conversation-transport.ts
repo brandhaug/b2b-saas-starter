@@ -65,7 +65,7 @@ const encodeInvocation = Schema.encodeSync(
 )
 const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Json))
 const decodeRevision = Schema.decodeUnknownEffect(
-  Schema.Struct({ policyRevision: Schema.Number })
+  Schema.Struct({ policyRevision: Schema.Finite })
 )
 
 /** Only immutable server-resolved identity chooses an object. */

@@ -164,19 +164,23 @@ export function decodeOperationInput(
   // oxlint-disable-next-line anti-slop/no-unknown-parameters -- the protocol hands tool arguments over as opaque JSON; decoding them against the row's schema is this very function
   payload: unknown
 ): Effect.Effect<CapabilityRead, InvalidParams> {
-  return Effect.gen(function* () {
-    if (operation.param !== undefined) {
-      if (operation.input === 'deliveryId') {
-        const args = yield* decodeDeliveryIdInput(payload ?? {}).pipe(invalidParams)
-        return Effect.suspend(() => operation.read(undefined, args))
-      }
-      const args = yield* decodeEndpointIdInput(payload ?? {}).pipe(invalidParams)
-      return Effect.suspend(() => operation.read(undefined, args))
+  if (operation.param !== undefined) {
+    if (operation.input === 'deliveryId') {
+      return decodeDeliveryIdInput(payload ?? {}).pipe(
+        invalidParams,
+        Effect.map((args) => Effect.suspend(() => operation.read(undefined, args)))
+      )
     }
-    if (operation.paged) {
-      const page = yield* decodePagedInput(payload ?? {}).pipe(invalidParams)
-      return Effect.suspend(() => operation.read(page))
-    }
-    return Effect.suspend(() => operation.read(undefined))
-  })
+    return decodeEndpointIdInput(payload ?? {}).pipe(
+      invalidParams,
+      Effect.map((args) => Effect.suspend(() => operation.read(undefined, args)))
+    )
+  }
+  if (operation.paged) {
+    return decodePagedInput(payload ?? {}).pipe(
+      invalidParams,
+      Effect.map((page) => Effect.suspend(() => operation.read(page)))
+    )
+  }
+  return Effect.succeed(Effect.suspend(() => operation.read(undefined)))
 }

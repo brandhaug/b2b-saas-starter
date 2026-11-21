@@ -49,7 +49,7 @@ installed packages until the target migrator can identify the old test runner.
 Run the target CLI from the workspace root, for example:
 
 ```bash
-pnpm dlx --package=vite-plus@1.4.0 vp migrate --no-interactive
+pnpm dlx --package=vite-plus@1.7.0 vp migrate --no-interactive
 vp install
 pnpm run validate
 ```
@@ -59,24 +59,36 @@ lockfile diff. `vp upgrade` updates the global CLI only. Keep the CI installer i
 `.github/actions/setup/action.yml` aligned with the project release, including its
 immutable commit and checksum described in [CI security](ci-security.md).
 
-The current toolchain is Vite+ 1.4.0, with the `vite` alias pointing to
-`@voidzero-dev/vite-plus-core@1.4.0` and Vitest/coverage at 5.0.5. This includes the fix for
+The current toolchain is Vite+ 1.7.0, with the `vite` alias pointing to
+`@voidzero-dev/vite-plus-core@8.3.8000` and Vitest/coverage at 5.1.0. This includes the fix for
 [the bundled launch-editor advisory](https://github.com/advisories/GHSA-698v-4r3x-3vcv)
 affecting Vite+ through 1.0.0 and the Vitest server file-deny fix shipped in Vite+ 1.3.0.
 The bundled browser/UI packages now use patched versions without overrides.
 Keep these versions coordinated through the target
 migrator; the existing React plugin remains compatible.
 
+Vite+ pins its own `tsrs` and `oxlint`, and `@effect/tsgo` ships patched builds
+for specific versions of both. After the migrator, set the catalog's `tsrs` to the
+version `vite-plus` depends on, then pick an `@effect/tsgo` release whose
+supported-versions table lists that `tsrs` and the bundled `oxlint`. The catalog
+updater skips all three for this reason.
+
 ## Type checking
 
 `pnpm run typecheck` uses the Rust TypeScript compiler, `tsrs`, across the
-workspace. The catalog pins its version. TypeScript remains installed for tools
-that consume its compiler API.
+workspace. The catalog pins the same `tsrs` build Vite+ bundles for type-aware
+linting. TypeScript remains installed for tools that consume its compiler API.
 
-The compiler is no longer patched with `@effect/tsgo`, so Effect-specific compiler
-diagnostics are not part of type checking. The Effect oxlint rules still run in
-`pnpm run lint`. Verify compiler upgrades with
-`vp install --frozen-lockfile` and `pnpm run check`.
+Effect diagnostics run in `pnpm run lint`, which is `effect-tsgo vp lint`. The
+`@effect/tsgo` wrapper starts Vite+ with Effect-patched oxlint and tsrs builds
+without modifying `node_modules`. `lint.config.ts` extends the package's `strict`
+preset, so every default-enabled Effect rule is an error. Plain `vp lint` fails
+with an unknown `effecttsgo` plugin, so run lint through the script or
+`pnpm exec effect-tsgo vp lint`. Rule options such as the allowed unstable Effect
+modules live on the `@effect/language-service` plugin entry in
+`tsconfig.base.json`.
+
+Verify compiler upgrades with `vp install --frozen-lockfile` and `pnpm run check`.
 
 ## Validation
 

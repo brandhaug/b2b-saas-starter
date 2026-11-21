@@ -109,9 +109,7 @@ export function SeedPlatformUserAdmin(
             const key = `${input.workspaceId}:${input.userId}`
             const current = yield* Ref.get(overrides)
             if (!current.has(key)) {
-              return yield* Effect.fail(
-                new UserAdminRejected({ reason: 'not_a_member' })
-              )
+              return yield* new UserAdminRejected({ reason: 'not_a_member' })
             }
             yield* Ref.update(overrides, (map) => new Map(map).set(key, input.role))
             yield* recordSecurityEvidence(
@@ -173,9 +171,7 @@ export function SeedPlatformUserAdmin(
             const current = yield* Ref.get(impersonating)
             if (current !== input.userId) {
               // Mirrors the plugin's 400 "not impersonating anyone".
-              return yield* Effect.fail(
-                new UserAdminRejected({ reason: 'not_impersonating' })
-              )
+              return yield* new UserAdminRejected({ reason: 'not_impersonating' })
             }
             yield* Ref.set(impersonating, null)
             yield* audit.record({

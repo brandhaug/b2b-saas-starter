@@ -192,29 +192,26 @@ export function assistantDirectoryContractCases(expect: ContractExpect) {
           activeLimit: 3,
           rateLimit: 20
         }))
-        const outcomes = yield* Effect.all(
-          inputs.map((input) => admission.reserve(input).pipe(Effect.result)),
+        const outcomes = yield* Effect.forEach(
+          inputs,
+          (input) => admission.reserve(input).pipe(Effect.result),
           { concurrency: 'unbounded' }
         )
         expect(outcomes.filter(Result.isSuccess)).toHaveLength(3)
         expect(outcomes.filter(Result.isFailure)).toHaveLength(1)
         const accepted = outcomes.find(Result.isSuccess)
         if (!accepted || !Result.isSuccess(accepted)) {
-          return yield* Effect.fail(
-            new CapabilityUnavailable({
-              capability: 'assistant-contract',
-              reason: 'No accepted reservation'
-            })
-          )
+          return yield* new CapabilityUnavailable({
+            capability: 'assistant-contract',
+            reason: 'No accepted reservation'
+          })
         }
         const input = inputs.find((candidate) => candidate.id === accepted.success.id)
         if (!input) {
-          return yield* Effect.fail(
-            new CapabilityUnavailable({
-              capability: 'assistant-contract',
-              reason: 'Missing fixture input'
-            })
-          )
+          return yield* new CapabilityUnavailable({
+            capability: 'assistant-contract',
+            reason: 'Missing fixture input'
+          })
         }
         expect((yield* admission.reserve(input)).id).toBe(accepted.success.id)
         yield* admission.commit(input.id)
@@ -225,12 +222,10 @@ export function assistantDirectoryContractCases(expect: ContractExpect) {
           return outcome !== undefined && Result.isFailure(outcome)
         })
         if (!refused) {
-          return yield* Effect.fail(
-            new CapabilityUnavailable({
-              capability: 'assistant-contract',
-              reason: 'No refused reservation'
-            })
-          )
+          return yield* new CapabilityUnavailable({
+            capability: 'assistant-contract',
+            reason: 'No refused reservation'
+          })
         }
         expect((yield* admission.reserve(refused)).id).toBe(refused.id)
         yield* directory.fence({ conversationId: refused.conversationId })

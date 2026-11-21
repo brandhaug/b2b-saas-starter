@@ -18,13 +18,11 @@ export const assertWithinPlanLimit = Effect.fn(
   const plan = yield* billing.currentPlan
   const limit = limitFor(plan, input.resource)
   if (limit !== null && input.used >= limit) {
-    return yield* Effect.fail(
-      new PlanLimitExceeded({
-        planId: plan.id,
-        resource: input.resource,
-        limit
-      })
-    )
+    return yield* new PlanLimitExceeded({
+      planId: plan.id,
+      resource: input.resource,
+      limit
+    })
   }
 })
 

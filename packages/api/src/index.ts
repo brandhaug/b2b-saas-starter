@@ -211,6 +211,7 @@ const DeliveryParams = Schema.Struct({
  */
 export const ListPageQuery = Schema.Struct({
   cursor: Schema.optionalKey(Schema.String),
+  // oxlint-disable-next-line effecttsgo/schema-number -- the contract accepts any number; the capability clamp absorbs NaN and Infinity
   limit: Schema.optionalKey(Schema.NumberFromString)
 })
 export type ListPageQuery = typeof ListPageQuery.Type

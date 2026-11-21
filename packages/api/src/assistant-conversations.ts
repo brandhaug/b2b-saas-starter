@@ -58,6 +58,7 @@ const WorkspaceSelection = Schema.Struct({ workspaceSlug: Schema.String })
 const ConversationListQuery = Schema.Struct({
   ...WorkspaceSelection.fields,
   cursor: Schema.optionalKey(Schema.String),
+  // oxlint-disable-next-line effecttsgo/schema-number -- same paging vocabulary as ListPageQuery: the clamp, not a 400, absorbs any number
   limit: Schema.optionalKey(Schema.NumberFromString)
 })
 const HistoryQuery = Schema.Struct({ cursor: Schema.optionalKey(Schema.String) })

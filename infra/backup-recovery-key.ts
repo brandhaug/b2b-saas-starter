@@ -43,7 +43,7 @@ const readFingerprint = Effect.fn('Backup.readKeyIdentity')(function* (props: Pr
     })
     .pipe(
       Effect.map((variable) => ({ fingerprint: variable.value })),
-      Effect.catchTag('NotFound', () => Effect.succeed(undefined)),
+      Effect.catchTag('NotFound', () => Effect.undefined),
       Effect.mapError(
         (cause) =>
           new Config.ConfigError(

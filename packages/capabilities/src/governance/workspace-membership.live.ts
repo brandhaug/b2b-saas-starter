@@ -93,9 +93,7 @@ export function LiveWorkspaceMembership(
       ) {
         const member = yield* findWorkspaceMember(db, { workspaceId, userId })
         if (!member) {
-          return yield* Effect.fail(
-            new MembershipChangeRejected({ reason: 'not_a_member' })
-          )
+          return yield* new MembershipChangeRejected({ reason: 'not_a_member' })
         }
         return member
       })
@@ -128,18 +126,16 @@ export function LiveWorkspaceMembership(
             Effect.gen(function* () {
               const facts = yield* rosterFacts(workspaceId, userId)
               if (facts.targetRole === 'owner' && facts.ownerCount <= 1) {
-                return yield* Effect.fail(
-                  new MembershipChangeRejected({ reason: 'sole_owner' })
-                )
+                return yield* new MembershipChangeRejected({ reason: 'sole_owner' })
               }
-              return yield* Effect.fail(error)
+              return yield* error
             })
           )
         )
       }
 
       return {
-        listMembers: Effect.fn('WorkspaceMembership.listMembers')(function* () {
+        listMembers: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           const rows = yield* unavailable(
             db
@@ -149,7 +145,7 @@ export function LiveWorkspaceMembership(
               .where(eq(workspaceMembers.workspaceId, ctx.workspace.id))
           )
           return rows.map(toMember)
-        })(),
+        }).pipe(Effect.withSpan('WorkspaceMembership.listMembers')),
         listMembersPage: Effect.fn('WorkspaceMembership.listMembersPage')(function* (
           input?: ListPageInput
         ) {
@@ -228,7 +224,7 @@ export function LiveWorkspaceMembership(
             ownerCount: facts.ownerCount
           })
           if (refusal !== null) {
-            return yield* Effect.fail(new MembershipChangeRejected({ reason: refusal }))
+            return yield* new MembershipChangeRejected({ reason: refusal })
           }
           const memberId = yield* resolveMemberId(ctx.workspace.id, input.userId)
           yield* conversations.invalidateAccess(
@@ -268,17 +264,15 @@ export function LiveWorkspaceMembership(
             payload: { userId: input.userId }
           })
         }),
-        leave: Effect.fn('WorkspaceMembership.leave')(function* () {
+        leave: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           const actor = ctx.actor
           if (actor === null) {
             // An actorless context has no membership to end — the same
             // fail-closed read the rule itself states.
-            return yield* Effect.fail(
-              new MembershipChangeRejected({
-                reason: MEMBERSHIP_REFUSAL_REASONS.notAMember
-              })
-            )
+            return yield* new MembershipChangeRejected({
+              reason: MEMBERSHIP_REFUSAL_REASONS.notAMember
+            })
           }
           // The actor's own row is both sides of the rule: an actor the
           // context resolved but the roster no longer carries (a concurrent
@@ -290,7 +284,7 @@ export function LiveWorkspaceMembership(
             ownerCount: facts.ownerCount
           })
           if (refusal !== null) {
-            return yield* Effect.fail(new MembershipChangeRejected({ reason: refusal }))
+            return yield* new MembershipChangeRejected({ reason: refusal })
           }
           // The plugin's leave endpoint resolves the member from the session,
           // so no row id is resolved here — the session IS the address.
@@ -331,7 +325,7 @@ export function LiveWorkspaceMembership(
             eventType: 'workspace_member.removed',
             payload: { userId: actor.userId, reason: 'left' }
           })
-        })(),
+        }).pipe(Effect.withSpan('WorkspaceMembership.leave')),
         changeRole: Effect.fn('WorkspaceMembership.changeRole')(function* (
           input: MemberRoleInput
         ) {
@@ -344,7 +338,7 @@ export function LiveWorkspaceMembership(
             nextRole: input.role
           })
           if (refusal !== null) {
-            return yield* Effect.fail(new MembershipChangeRejected({ reason: refusal }))
+            return yield* new MembershipChangeRejected({ reason: refusal })
           }
           if (facts.targetRole === input.role) {
             return yield* readMember(ctx.workspace.id, input.userId)

@@ -57,7 +57,7 @@ export function SeedSsoConnections(
       })
 
       return {
-        list: Effect.fn('SsoConnections.list')(function* () {
+        list: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           const visible: Array<SsoConnection> = []
           for (const row of rows) {
@@ -66,7 +66,7 @@ export function SeedSsoConnections(
             }
           }
           return visible.toSorted(byNewestFirst)
-        })(),
+        }).pipe(Effect.withSpan('SsoConnections.list')),
         get: Effect.fn('SsoConnections.get')(function* ({ providerId }) {
           const row = yield* findInWorkspace(providerId)
           return Option.fromNullishOr(row).pipe(Option.map(toDto))

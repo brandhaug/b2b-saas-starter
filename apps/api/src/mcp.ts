@@ -322,9 +322,7 @@ function registerOverviewResource(env: ApiEnv) {
           // The protocol's resource channel has no `isError` half, so every
           // typed failure answers as an internal error carrying the same text
           // vocabulary the tools use — one mapper, both channels.
-          return yield* Effect.fail(
-            new InternalError({ message: failureText(outcome.failure) })
-          )
+          return yield* new InternalError({ message: failureText(outcome.failure) })
         }
         // oxlint-disable-next-line effect/noGlobals -- MCP resource contents are JSON text by protocol definition
         return JSON.stringify(outcome.success, null, 2)

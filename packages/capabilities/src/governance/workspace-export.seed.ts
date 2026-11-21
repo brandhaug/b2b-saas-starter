@@ -142,7 +142,7 @@ export function SeedWorkspaceExports(options: {
     Effect.gen(function* () {
       const audit = yield* AuditEventLog
       const feed = yield* NotificationFeed
-      const snapshotContext = yield* workspaceExportSnapshotContextEffect()
+      const snapshotContext = yield* workspaceExportSnapshotContextEffect
       const suspension = yield* WorkspaceSuspensionService
       const scope = yield* Effect.scope
       function requireProduct(workspaceId: WorkspaceId) {
@@ -241,10 +241,12 @@ export function SeedWorkspaceExports(options: {
       }
 
       const service: WorkspaceExportsInterface = {
-        availability: Effect.fn('WorkspaceExports.availability')(() =>
-          Effect.succeed({ available: true } satisfies WorkspaceExportAvailability)
-        )(),
-        list: Effect.fn('WorkspaceExports.list')(function* () {
+        availability: Effect.succeed({
+          available: true
+        } satisfies WorkspaceExportAvailability).pipe(
+          Effect.withSpan('WorkspaceExports.availability')
+        ),
+        list: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           yield* requireProduct(ctx.workspace.id)
           yield* drainDeferredBuilds
@@ -252,8 +254,8 @@ export function SeedWorkspaceExports(options: {
             .filter((row) => row.workspaceId === ctx.workspace.id)
             .toSorted(byRequestedAtDesc)
             .map((row) => row.record)
-        })(),
-        request: Effect.fn('WorkspaceExports.request')(function* () {
+        }).pipe(Effect.withSpan('WorkspaceExports.list')),
+        request: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           yield* requireProduct(ctx.workspace.id)
           const id = yield* newCapabilityId('exp')
@@ -309,7 +311,7 @@ export function SeedWorkspaceExports(options: {
             )
           )
           return row.record
-        })(),
+        }).pipe(Effect.withSpan('WorkspaceExports.request')),
         issueDownloadLink: Effect.fn('WorkspaceExports.issueDownloadLink')(function* (
           input: IssueWorkspaceExportDownloadInput
         ) {

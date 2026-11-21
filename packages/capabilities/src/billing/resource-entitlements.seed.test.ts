@@ -61,14 +61,9 @@ function seedFixture(
     Layer.provide(billing),
     Layer.provide(audit)
   )
-  return Layer.mergeAll(
-    billing,
-    selection,
-    SeedApiTokenRegistry([]),
-    SeedWebhooks([])
-  ).pipe(
-    Layer.provide(selection),
-    Layer.provide(billing),
+  return Layer.mergeAll(SeedApiTokenRegistry([]), SeedWebhooks([])).pipe(
+    Layer.provideMerge(selection),
+    Layer.provideMerge(billing),
     Layer.provideMerge(audit),
     Layer.provide(feed),
     Layer.provide(SeedWebhookPublisher),
@@ -101,15 +96,15 @@ it.effect(
   () =>
     Effect.gen(function* () {
       const endpoints = yield* WebhookEndpoints
-      const outcomes = yield* Effect.all(
-        [1, 2].map((id) =>
+      const outcomes = yield* Effect.forEach(
+        [1, 2],
+        (id) =>
           Effect.exit(
             endpoints.create({
               url: `https://example.com/concurrent-${id}`,
               events: []
             })
-          )
-        ),
+          ),
         { concurrency: 'unbounded' }
       )
       const successful = outcomes.filter(Exit.isSuccess)
@@ -142,10 +137,11 @@ it.effect('full SeedLayer exposes the selection that rotation changes', () =>
       scopes: ['read'],
       overlapSeconds: 0
     })
-    expect((yield* selection.getSelection()).apiTokenIds).toEqual([replaced.id])
+    expect((yield* selection.getSelection).apiTokenIds).toEqual([replaced.id])
   }).pipe(
-    Effect.provide(SeedLayer),
-    Effect.provide(testWorkspaceContext(seedWorkspaceRecord))
+    Effect.provide(
+      SeedLayer.pipe(Layer.provideMerge(testWorkspaceContext(seedWorkspaceRecord)))
+    )
   )
 )
 
@@ -159,7 +155,7 @@ it.effect('Seed audit failure leaves selection unchanged', () =>
         )
       )
     ).toBe('CapabilityUnavailable')
-    expect(yield* selection.getSelection()).toEqual({
+    expect(yield* selection.getSelection).toEqual({
       apiTokenIds: [],
       webhookEndpointIds: []
     })

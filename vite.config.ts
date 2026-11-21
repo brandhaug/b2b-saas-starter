@@ -37,6 +37,6 @@ export default defineConfig({
   },
   // The lint block is the repo's largest piece of policy; it lives in
   // ./lint.config.ts so the decisions in it are readable. `vp` discovers only
-  // this file, so importing it keeps `vp lint` working with no extra flags.
+  // this file, so importing it keeps `effect-tsgo vp lint` working with no extra flags.
   lint: lintConfig
 })

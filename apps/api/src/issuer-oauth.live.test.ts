@@ -37,6 +37,10 @@ import {
   type ProvisionedAuthD1
 } from '../../../packages/auth/src/test-auth-layer.ts'
 
+const decodeTokenPair = Schema.decodeUnknownEffect(
+  Schema.Struct({ access_token: Schema.String, refresh_token: Schema.String })
+)
+
 // Drive the real issuer's discovery, workspace consent, code/PKCE and refresh flow.
 // Both resource servers must accept their own tokens and reject the other resource's.
 
@@ -327,12 +331,7 @@ describe('mcp oauth authorization server', () => {
                 .where(eq(oauthClientResource.clientId, clientId))
             )
             expect(resourceLinks.map((link) => link.resourceId)).toContain(resource)
-            const TokenPair = Schema.Struct({
-              access_token: Schema.String,
-              refresh_token: Schema.String
-            })
-            const decodeTokenPair = Schema.decodeUnknownSync(TokenPair)
-            const tokens = decodeTokenPair(
+            const tokens = yield* decodeTokenPair(
               yield* Effect.promise(() => tokenResponse.json())
             )
             expect(tokens.access_token.length).toBeGreaterThan(0)
@@ -431,7 +430,7 @@ describe('mcp oauth authorization server', () => {
               )
             )
             expect(refreshResponse.status).toBe(200)
-            const refreshed = decodeTokenPair(
+            const refreshed = yield* decodeTokenPair(
               yield* Effect.promise(() => refreshResponse.json())
             )
             expect(
@@ -474,7 +473,7 @@ describe('mcp oauth authorization server', () => {
                     headers: { 'content-type': 'application/x-www-form-urlencoded' },
                     body: new URLSearchParams({
                       grant_type: 'refresh_token',
-                      refresh_token: decodeTokenPair(refreshed).refresh_token,
+                      refresh_token: refreshed.refresh_token,
                       client_id: clientId,
                       resource
                     })
@@ -525,7 +524,7 @@ describe('mcp oauth authorization server', () => {
                   headers: { 'content-type': 'application/x-www-form-urlencoded' },
                   body: new URLSearchParams({
                     grant_type: 'refresh_token',
-                    refresh_token: decodeTokenPair(refreshed).refresh_token,
+                    refresh_token: refreshed.refresh_token,
                     client_id: clientId,
                     resource
                   })

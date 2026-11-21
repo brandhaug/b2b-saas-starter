@@ -24,7 +24,7 @@ const decodeDetails = Schema.decodeUnknownOption(
 const decodePlanLimit = Schema.decodeUnknownOption(
   Schema.Struct({
     planId: Schema.String,
-    limit: Schema.Number
+    limit: Schema.Finite
   })
 )
 const isReason = Schema.is(Schema.String)

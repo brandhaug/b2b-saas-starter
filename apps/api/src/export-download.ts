@@ -36,7 +36,7 @@ import { enforceRateLimit, observed, provideWorkspace } from './request-guards.t
  */
 
 const DownloadQuery = Schema.Struct({
-  expires: Schema.NumberFromString,
+  expires: Schema.FiniteFromString,
   signature: Schema.String,
   user: Schema.NullOr(UserIdInput),
   session: Schema.NullOr(Schema.NonEmptyString),
@@ -121,18 +121,17 @@ export function exportDownloadLayer(env: ApiEnv) {
           ['StrongAuthenticationRequired', 'WorkspaceNotFound', 'AuthorizationDenied'],
           () => Effect.succeed(notFound)
         ),
-        Effect.catchTag('WorkspaceSuspended', () =>
-          annotateWideEvent({
-            outcome: 'not_found',
-            skipReason: 'workspace_suspended'
-          }).pipe(Effect.as(notFound))
-        ),
-        // A rate-limited or unavailable download is still a plain response on
-        // this non-contract route; the wide event above carries the failure.
-        Effect.catchTag('RateLimited', (error) => Effect.succeed(guardResponse(error))),
-        Effect.catchTag('CapabilityUnavailable', (error) =>
-          Effect.succeed(guardResponse(error))
-        )
+        Effect.catchTags({
+          WorkspaceSuspended: () =>
+            annotateWideEvent({
+              outcome: 'not_found',
+              skipReason: 'workspace_suspended'
+            }).pipe(Effect.as(notFound)),
+          // A rate-limited or unavailable download is still a plain response on
+          // this non-contract route; the wide event above carries the failure.
+          RateLimited: (error) => Effect.succeed(guardResponse(error)),
+          CapabilityUnavailable: (error) => Effect.succeed(guardResponse(error))
+        })
       )
     )
   )

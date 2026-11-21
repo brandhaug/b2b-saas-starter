@@ -155,9 +155,9 @@ export function LiveAccountLifecycle(
         const memberships = yield* membershipsOf(userId)
         const plan = planAccountDeletion(memberships)
         if (!plan.canDelete) {
-          return yield* Effect.fail(
-            new AccountDeletionBlocked({ workspaces: blockingWorkspaces(plan) })
-          )
+          return yield* new AccountDeletionBlocked({
+            workspaces: blockingWorkspaces(plan)
+          })
         }
         const accountRows = yield* unavailable(
           db
@@ -168,9 +168,7 @@ export function LiveAccountLifecycle(
         )
         const account = accountRows[0]
         if (!account) {
-          return yield* Effect.fail(
-            new AccountDeletionRejected({ reason: 'unknown_user' })
-          )
+          return yield* new AccountDeletionRejected({ reason: 'unknown_user' })
         }
         yield* conversations.fence({ creatorUserId: userId })
         // Wire steps carry no internal row ids, so the leave binding reads the
@@ -350,9 +348,9 @@ export function LiveAccountLifecycle(
           // cheap and fail-closed wins over a stale plan.
           const plan = yield* planDeletion(input.userId)
           if (!plan.canDelete) {
-            return yield* Effect.fail(
-              new AccountDeletionBlocked({ workspaces: blockingWorkspaces(plan) })
-            )
+            return yield* new AccountDeletionBlocked({
+              workspaces: blockingWorkspaces(plan)
+            })
           }
           yield* callBinding(binding, (bound) =>
             bound.deleteUser({ password: input.password })

@@ -5,7 +5,7 @@ import {
   testSubscriptionFields
 } from './provider-test-fixtures.ts'
 import { describe, expect, it, vi } from '@effect/vitest'
-import { Deferred, Effect, Fiber, Redacted, Schema } from 'effect'
+import { Deferred, Effect, Fiber, Layer, Redacted, Schema } from 'effect'
 import { TestClock } from 'effect/testing'
 import { wireHttpClient, type WireRequest } from '@b2b-saas-starter/failure/http-client'
 
@@ -35,6 +35,8 @@ function jsonResponse(body: unknown, status = 200): Response {
 describe('Stripe provider adapter', () => {
   it.effect('keeps the deadline and cancellation active while reading the body', () =>
     Effect.gen(function* () {
+      const effectContext = yield* Effect.context<never>()
+
       const reading = yield* Deferred.make<undefined>()
       let signal: AbortSignal | undefined
       const wire = vi.fn((_url: string, request: WireRequest) => {
@@ -43,7 +45,7 @@ describe('Stripe provider adapter', () => {
           new Response(
             new ReadableStream({
               pull() {
-                Effect.runSync(Deferred.succeed(reading, undefined))
+                Effect.runSyncWith(effectContext)(Deferred.succeed(reading, undefined))
                 return new Promise(() => {})
               }
             })
@@ -227,8 +229,9 @@ describe('Stripe provider adapter', () => {
           }
         })
       }).pipe(
-        Effect.provide(wireHttpClient(wire)),
-        Effect.provide(WideEventLoggerLive),
+        Effect.provide(
+          wireHttpClient(wire).pipe(Layer.provideMerge(WideEventLoggerLive))
+        ),
         Effect.ensuring(Effect.sync(() => errors.mockRestore()))
       )
     }

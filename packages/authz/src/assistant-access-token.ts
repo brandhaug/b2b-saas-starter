@@ -21,13 +21,13 @@ export const AssistantCredentialReference = Schema.Union([
     kind: Schema.Literal('session'),
     userId: UserId,
     sessionId: Schema.String,
-    expiresAt: Schema.Number
+    expiresAt: Schema.Finite
   }),
   Schema.Struct({
     kind: Schema.Literal('oauth'),
     userId: UserId,
     sessionId: Schema.String,
-    expiresAt: Schema.Number,
+    expiresAt: Schema.Finite,
     workspaceId: WorkspaceId,
     clientId: Schema.String,
     consentBinding: Schema.String,
@@ -43,7 +43,7 @@ export type AssistantOAuthPrincipal = Extract<
 
 const Claims = Schema.Struct({
   sub: UserId,
-  exp: Schema.Number,
+  exp: Schema.Finite,
   aud: Schema.String,
   scope: Schema.String,
   client_id: Schema.String,

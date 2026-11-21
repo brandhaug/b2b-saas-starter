@@ -39,23 +39,21 @@ export type WorkspaceExportSnapshotServices =
  * caller's `WorkspaceContext`, which can defeat a queue resolver supplied
  * later.
  */
-export function workspaceExportSnapshotContextEffect(): Effect.Effect<
+export const workspaceExportSnapshotContextEffect: Effect.Effect<
   Context.Context<WorkspaceExportSnapshotServices>,
   never,
   WorkspaceExportSnapshotServices
-> {
-  return Effect.gen(function* () {
-    return Context.mergeAll(
-      Context.make(ApiTokenRegistry, yield* ApiTokenRegistry),
-      Context.make(AuditEventLog, yield* AuditEventLog),
-      Context.make(NotificationFeed, yield* NotificationFeed),
-      Context.make(WebhookDeliveries, yield* WebhookDeliveries),
-      Context.make(WebhookEndpoints, yield* WebhookEndpoints),
-      Context.make(WorkspaceInvitations, yield* WorkspaceInvitations),
-      Context.make(WorkspaceMembership, yield* WorkspaceMembership)
-    )
-  })
-}
+> = Effect.gen(function* () {
+  return Context.mergeAll(
+    Context.make(ApiTokenRegistry, yield* ApiTokenRegistry),
+    Context.make(AuditEventLog, yield* AuditEventLog),
+    Context.make(NotificationFeed, yield* NotificationFeed),
+    Context.make(WebhookDeliveries, yield* WebhookDeliveries),
+    Context.make(WebhookEndpoints, yield* WebhookEndpoints),
+    Context.make(WorkspaceInvitations, yield* WorkspaceInvitations),
+    Context.make(WorkspaceMembership, yield* WorkspaceMembership)
+  )
+})
 
 /**
  * Every page of the workspace's audit trail, newest first — complete or the

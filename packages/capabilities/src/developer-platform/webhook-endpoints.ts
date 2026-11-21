@@ -37,7 +37,7 @@ export const WebhookEndpoint = Schema.Struct({
   url: Schema.String,
   enabled: Schema.Boolean,
   events: Schema.Array(Schema.String),
-  successRate: Schema.Number
+  successRate: Schema.Finite
 })
 export type WebhookEndpoint = typeof WebhookEndpoint.Type
 

@@ -128,7 +128,7 @@ export function SeedAccountPreferences(
           }
           const rejected = validateInput(input)
           if (rejected !== null) {
-            return yield* Effect.fail(rejected)
+            return yield* rejected
           }
           if (
             input.locale === undefined &&
@@ -281,7 +281,7 @@ export const LiveAccountPreferences: Layer.Layer<
         }
         const rejected = validateInput(input)
         if (rejected !== null) {
-          return yield* Effect.fail(rejected)
+          return yield* rejected
         }
         let locale = current.locale
         if (input.locale !== undefined) {

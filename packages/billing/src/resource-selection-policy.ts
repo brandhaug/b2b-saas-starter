@@ -29,18 +29,17 @@ export const validateSelection = Effect.fn('ResourceSelection.validate')(functio
   for (const [resource, ids] of categories) {
     const knownIds = new Set(resourceIds(known, resource))
     if (ids.some((id) => !knownIds.has(id))) {
-      return yield* Effect.fail(
-        new ResourceSelectionRejected({
-          resource,
-          reason: 'selection_unknown_resource'
-        })
-      )
+      return yield* new ResourceSelectionRejected({
+        resource,
+        reason: 'selection_unknown_resource'
+      })
     }
     const limit = limitFor(STARTER_PLAN, resource)
     if (limit !== null && new Set(ids).size > limit) {
-      return yield* Effect.fail(
-        new ResourceSelectionRejected({ resource, reason: 'selection_exceeds_limit' })
-      )
+      return yield* new ResourceSelectionRejected({
+        resource,
+        reason: 'selection_exceeds_limit'
+      })
     }
   }
 })

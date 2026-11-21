@@ -181,10 +181,10 @@ export function LiveWorkspaceExports(
       }
 
       return {
-        availability: Effect.fn('WorkspaceExports.availability')(() =>
-          Effect.succeed(availability)
-        )(),
-        list: Effect.fn('WorkspaceExports.list')(function* () {
+        availability: Effect.succeed(availability).pipe(
+          Effect.withSpan('WorkspaceExports.availability')
+        ),
+        list: Effect.gen(function* () {
           const ctx = yield* WorkspaceContext
           yield* requireProduct(ctx.workspace.id)
           const rows = yield* unavailable(
@@ -195,8 +195,8 @@ export function LiveWorkspaceExports(
               .orderBy(desc(workspaceExports.createdAt), desc(workspaceExports.id))
           )
           return rows.map(toRecord)
-        })(),
-        request: Effect.fn('WorkspaceExports.request')(function* () {
+        }).pipe(Effect.withSpan('WorkspaceExports.list')),
+        request: Effect.gen(function* () {
           if (!availability.available) {
             return yield* new CapabilityUnavailable({
               capability: CAPABILITY,
@@ -246,7 +246,7 @@ export function LiveWorkspaceExports(
             return yield* enqueued.failure
           }
           return toRecord(row)
-        })(),
+        }).pipe(Effect.withSpan('WorkspaceExports.request')),
         issueDownloadLink: Effect.fn('WorkspaceExports.issueDownloadLink')(function* (
           input: IssueWorkspaceExportDownloadInput
         ) {
@@ -289,13 +289,11 @@ export function LiveWorkspaceExports(
           // exist. A crash between the two leaves an orphan object the
           // lifecycle rule collects and a pending row the retry completes.
           yield* unavailable(
-            Effect.tryPromise({
-              try: () =>
-                bucket.put(objectKey, input.archive, {
-                  httpMetadata: { contentType: 'application/gzip' }
-                }),
-              catch: (cause) => cause
-            })
+            Effect.tryPromise(() =>
+              bucket.put(objectKey, input.archive, {
+                httpMetadata: { contentType: 'application/gzip' }
+              })
+            )
           )
           const completedAt = yield* DateTime.now
           const expiresAt = workspaceExportExpiresAt(completedAt)
@@ -381,20 +379,12 @@ export function LiveWorkspaceExports(
             return Option.none()
           }
           const object = yield* unavailable(
-            Effect.tryPromise({
-              try: () => bucket.get(objectKey),
-              catch: (cause) => cause
-            })
+            Effect.tryPromise(() => bucket.get(objectKey))
           )
           if (object === null) {
             return Option.none()
           }
-          const body = yield* unavailable(
-            Effect.tryPromise({
-              try: () => object.arrayBuffer(),
-              catch: (cause) => cause
-            })
-          )
+          const body = yield* unavailable(Effect.tryPromise(() => object.arrayBuffer()))
           yield* audit.record({
             workspaceId: found.row.workspaceId,
             ...workspaceExportDownloadAttribution(input.human),

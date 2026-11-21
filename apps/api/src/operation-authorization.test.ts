@@ -22,12 +22,7 @@ const encodeBody = Schema.encodeSync(Schema.fromJsonString(Schema.Json))
 it.effect('denied mutations leave the audit trail and token registry unchanged', () =>
   Effect.gen(function* () {
     const { handler } = buildWebHandler({})
-    function send(
-      method: string,
-      path: string,
-      token: string,
-      body?: typeof Schema.Json.Type
-    ) {
+    function send(method: string, path: string, token: string, body?: Schema.Json) {
       const options: RequestInit = {
         method,
         headers: {

@@ -65,5 +65,5 @@ Without authorized credentials, record **paid evaluation unverified** and run:
 ```sh
 pnpm -C packages/ai test
 pnpm -C packages/ai typecheck
-vp lint --type-aware packages/ai
+pnpm exec effect-tsgo vp lint --type-aware packages/ai
 ```

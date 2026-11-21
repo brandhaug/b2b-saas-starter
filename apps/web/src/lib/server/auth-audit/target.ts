@@ -43,7 +43,7 @@ export const resolveAuthTarget = Effect.fn('AuthAudit.resolveTarget')(function* 
     const { sessionToken } = body
     const availability = authAvailability()
     if (!availability.available) {
-      return yield* Effect.fail(new MissingD1Binding({ property: 'DB' }))
+      return yield* new MissingD1Binding({ property: 'DB' })
     }
     targetUserId = yield* Effect.tryPromise(() =>
       availability.runtime.runPromise(

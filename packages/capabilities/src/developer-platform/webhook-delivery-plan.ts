@@ -17,7 +17,7 @@ import {
 } from '../notifications/notification-events.ts'
 
 /** The JSON value type `Schema.Json` decodes — the payload column's contract. */
-export type Json = typeof Schema.Json.Type
+export type Json = Schema.Json
 
 /** A recorded delivery attempt, newest first in `listDeliveries`. */
 export const WebhookDelivery = Schema.Struct({
@@ -25,10 +25,10 @@ export const WebhookDelivery = Schema.Struct({
   endpointId: WebhookEndpointId,
   eventType: Schema.String,
   status: Schema.String,
-  attempts: Schema.Number,
+  attempts: Schema.Finite,
   lastAttemptAt: Schema.NullOr(Schema.String),
   nextAttemptAt: Schema.NullOr(Schema.String),
-  responseStatus: Schema.NullOr(Schema.Number),
+  responseStatus: Schema.NullOr(Schema.Finite),
   /**
    * Operator evidence, recorded per latest attempt: the payload that was (or
    * will be, while `pending`) sent, the request header block the worker
@@ -47,13 +47,13 @@ export type WebhookDelivery = typeof WebhookDelivery.Type
 export const WebhookDeliveryAttempt = Schema.Struct({
   id: Schema.String,
   deliveryId: WebhookDeliveryId,
-  attempts: Schema.Number,
+  attempts: Schema.Finite,
   phase: Schema.Literals(deliveryAttemptPhases),
   status: Schema.String,
   attemptedAt: Schema.String,
-  durationMs: Schema.NullOr(Schema.Number),
+  durationMs: Schema.NullOr(Schema.Finite),
   failureReason: Schema.NullOr(Schema.String),
-  responseStatus: Schema.NullOr(Schema.Number),
+  responseStatus: Schema.NullOr(Schema.Finite),
   requestHeaders: Schema.NullOr(Schema.Record(Schema.String, Schema.String)),
   responseBody: Schema.NullOr(Schema.String)
 })

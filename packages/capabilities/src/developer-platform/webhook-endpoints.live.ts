@@ -54,7 +54,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
     } = yield* makeLiveWebhookStorage('webhook-endpoints')
 
     return {
-      list: Effect.fn('WebhookEndpoints.list')(function* () {
+      list: Effect.gen(function* () {
         const ctx = yield* WorkspaceContext
         const rows = yield* unavailable(
           aggregateQuery()
@@ -62,7 +62,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
             .groupBy(webhookEndpoints.id)
         )
         return rows.map(projectionFromAggregate)
-      })(),
+      }).pipe(Effect.withSpan('WebhookEndpoints.list')),
       listPage: Effect.fn('WebhookEndpoints.listPage')(function* (input) {
         const ctx = yield* WorkspaceContext
         const limit = clampPageLimit(input?.limit)
@@ -157,7 +157,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
           ]
         })
         if (!created) {
-          return yield* Effect.fail(admission.rejected)
+          return yield* admission.rejected
         }
         // Publish only the projection, never the signing secret.
         yield* publishWebhookEventWith(publisher, {
@@ -203,16 +203,12 @@ export const LiveWebhookEndpoints: Layer.Layer<
           ]
         })
         if (!applied) {
-          return yield* Effect.fail(
-            new WebhookEndpointNotFound({ endpointId: input.endpointId })
-          )
+          return yield* new WebhookEndpointNotFound({ endpointId: input.endpointId })
         }
         const projection = yield* endpointProjection(input.endpointId, ctx.workspace.id)
         if (projection === null) {
           // Another request deleted the endpoint after the committed update.
-          return yield* Effect.fail(
-            new WebhookEndpointNotFound({ endpointId: input.endpointId })
-          )
+          return yield* new WebhookEndpointNotFound({ endpointId: input.endpointId })
         }
         return projection
       }),
@@ -222,9 +218,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
         // deliveries cascade with the endpoint row (FK `onDelete`).
         const endpoint = yield* endpointRow(input.endpointId, ctx.workspace.id)
         if (!endpoint) {
-          return yield* Effect.fail(
-            new WebhookEndpointNotFound({ endpointId: input.endpointId })
-          )
+          return yield* new WebhookEndpointNotFound({ endpointId: input.endpointId })
         }
         const applied = yield* auditedMutation({
           matched: Effect.succeed(true),
@@ -242,23 +236,17 @@ export const LiveWebhookEndpoints: Layer.Layer<
           ]
         })
         if (!applied) {
-          return yield* Effect.fail(
-            new WebhookEndpointNotFound({ endpointId: input.endpointId })
-          )
+          return yield* new WebhookEndpointNotFound({ endpointId: input.endpointId })
         }
       }),
       sendTestEvent: Effect.fn('WebhookEndpoints.sendTestEvent')(function* (input) {
         const ctx = yield* WorkspaceContext
         const endpoint = yield* endpointRow(input.endpointId, ctx.workspace.id)
         if (!endpoint) {
-          return yield* Effect.fail(
-            new WebhookEndpointNotFound({ endpointId: input.endpointId })
-          )
+          return yield* new WebhookEndpointNotFound({ endpointId: input.endpointId })
         }
         if (!endpoint.enabled) {
-          return yield* Effect.fail(
-            new WebhookDispatchRejected({ reason: 'endpoint is disabled' })
-          )
+          return yield* new WebhookDispatchRejected({ reason: 'endpoint is disabled' })
         }
         const now = yield* DateTime.now
         const payload = { test: true, sentAt: DateTime.formatIso(now) }
@@ -291,9 +279,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
         // update moves the current secret into its grace window atomically.
         const endpoint = yield* endpointRow(input.endpointId, ctx.workspace.id)
         if (!endpoint) {
-          return yield* Effect.fail(
-            new WebhookEndpointNotFound({ endpointId: input.endpointId })
-          )
+          return yield* new WebhookEndpointNotFound({ endpointId: input.endpointId })
         }
         const rotatedAt = yield* DateTime.now
         const expiresAt = planSecretRotation(rotatedAt)
@@ -323,9 +309,7 @@ export const LiveWebhookEndpoints: Layer.Layer<
           }
         })
         if (!applied) {
-          return yield* Effect.fail(
-            new WebhookEndpointNotFound({ endpointId: input.endpointId })
-          )
+          return yield* new WebhookEndpointNotFound({ endpointId: input.endpointId })
         }
         return { signingSecret: Redacted.make(signingSecret) }
       })

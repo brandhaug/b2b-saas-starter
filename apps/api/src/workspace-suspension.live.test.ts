@@ -31,10 +31,7 @@ const toolEnvelope = Schema.Struct({
     isError: Schema.optional(Schema.Boolean),
     content: Schema.Array(Schema.Struct({ text: Schema.String })),
     structuredContent: Schema.optional(
-      Schema.Struct({
-        _tag: Schema.Literal('WorkspaceSuspended'),
-        workspaceId: WorkspaceId
-      })
+      Schema.TaggedStruct('WorkspaceSuspended', { workspaceId: WorkspaceId })
     )
   })
 })

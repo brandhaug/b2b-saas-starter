@@ -25,7 +25,7 @@ export const EmailDeliveryRecord = Schema.Struct({
   updatedAt: Schema.String,
   retryUntil: Schema.String,
   nextAttemptAt: Schema.String,
-  attemptCount: Schema.Number,
+  attemptCount: Schema.Finite,
   uncertain: Schema.Boolean
 })
 export type EmailDeliveryRecord = typeof EmailDeliveryRecord.Type
@@ -110,7 +110,7 @@ export type EmailDeliveryInterface = {
     referenceId: string
   ) => Result<EmailDeliveryRecord | null>
   /** Caller must require System Admin. */
-  readonly listSystem: () => Result<ReadonlyArray<EmailDeliveryRecord>>
+  readonly listSystem: Result<ReadonlyArray<EmailDeliveryRecord>>
   readonly resolveUserId: (email: string) => Result<UserId | null>
 }
 export class EmailDelivery extends Context.Service<

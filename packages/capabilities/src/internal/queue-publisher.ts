@@ -42,10 +42,9 @@ export function makeQueuePublisher<Message extends object, Input>(
       // its own trace instead of continuing one (ADR 0050).
       const traceparent = yield* currentTraceparent
       yield* unavailable(
-        Effect.tryPromise({
-          try: () => queue.send(withTraceparent(buildMessage(input), traceparent)),
-          catch: (cause) => cause
-        })
+        Effect.tryPromise(() =>
+          queue.send(withTraceparent(buildMessage(input), traceparent))
+        )
       )
     })
 }

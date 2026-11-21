@@ -26,6 +26,30 @@
     "exactOptionalPropertyTypes": true,
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        // `effect-tsgo vp lint` reports Effect diagnostics; the editor service
+        // keeps hovers, completions and refactors without repeating them.
+        "diagnostics": false,
+        // Tagged classes are already nominal through their `_tag` literal.
+        "brandedSchemaClasses": ["Class", "Error", "Opaque"],
+        // Effect v4 marks these modules unstable; the starter builds on them.
+        "allowedUnstableApis": [
+          "@effect/vitest",
+          "@effect/sql-d1",
+          "effect/ai",
+          "effect/crypto",
+          "effect/encoding",
+          "effect/ErrorReporter",
+          "effect/FileSystem",
+          "effect/http",
+          "effect/http-api",
+          "effect/observability",
+          "effect/Path"
+        ]
+      }
+    ]
   }
 }

@@ -39,78 +39,76 @@ export function assistantAuthorityFailure(error: AssistantAuthorityDenied) {
   }
 }
 
-export function assistantBearerAuth() {
-  return Layer.effect(
-    AssistantBearerAuth,
-    Effect.gen(function* () {
-      const verifier = yield* AssistantOAuthTokenVerifier
-      const authority = yield* AssistantAuthority
-      const limiter = yield* RateLimiter
-      return AssistantBearerAuth.of({
-        // oxlint-disable-next-line starter/named-service-operation -- HttpApiMiddleware, not a service operation: it runs the handler effect it receives, so a span here would enclose the whole request
-        assistantBearer: (httpEffect, { credential, endpoint, group }) =>
-          Effect.gen(function* () {
-            const request = yield* HttpServerRequest.HttpServerRequest
-            const gate = Effect.gen(function* () {
-              const bucket = rateLimitBucketFor(group.identifier)
-              if (bucket === undefined) {
-                return yield* new CapabilityUnavailable({
-                  capability: 'rate-limit',
-                  reason: 'assistant bucket missing'
-                })
-              }
-              yield* enforceRateLimit(request, bucket).pipe(
-                Effect.provideService(RateLimiter, limiter)
-              )
-              const principal = yield* verifier.verify(Redacted.value(credential))
-              yield* annotateWideEvent({
-                credential: 'oauth',
-                actorUserId: principal.userId,
-                workspaceId: principal.workspaceId
+export const assistantBearerAuth = Layer.effect(
+  AssistantBearerAuth,
+  Effect.gen(function* () {
+    const verifier = yield* AssistantOAuthTokenVerifier
+    const authority = yield* AssistantAuthority
+    const limiter = yield* RateLimiter
+    return AssistantBearerAuth.of({
+      // oxlint-disable-next-line starter/named-service-operation -- HttpApiMiddleware, not a service operation: it runs the handler effect it receives, so a span here would enclose the whole request
+      assistantBearer: (httpEffect, { credential, endpoint, group }) =>
+        Effect.gen(function* () {
+          const request = yield* HttpServerRequest.HttpServerRequest
+          const gate = Effect.gen(function* () {
+            const bucket = rateLimitBucketFor(group.identifier)
+            if (bucket === undefined) {
+              return yield* new CapabilityUnavailable({
+                capability: 'rate-limit',
+                reason: 'assistant bucket missing'
               })
-              let operation: 'read' | 'write' = 'write'
-              if (endpoint.method === 'GET') {
-                operation = 'read'
-              }
-              const context = yield* authority
-                .authorize({
-                  credential: principal,
-                  workspaceId: principal.workspaceId,
-                  requiredPermissions: ['assistant:read'],
-                  operation,
-                  mode: 'observe'
+            }
+            yield* enforceRateLimit(request, bucket).pipe(
+              Effect.provideService(RateLimiter, limiter)
+            )
+            const principal = yield* verifier.verify(Redacted.value(credential))
+            yield* annotateWideEvent({
+              credential: 'oauth',
+              actorUserId: principal.userId,
+              workspaceId: principal.workspaceId
+            })
+            let operation: 'read' | 'write' = 'write'
+            if (endpoint.method === 'GET') {
+              operation = 'read'
+            }
+            const context = yield* authority
+              .authorize({
+                credential: principal,
+                workspaceId: principal.workspaceId,
+                requiredPermissions: ['assistant:read'],
+                operation,
+                mode: 'observe'
+              })
+              .pipe(
+                Effect.mapError((error) => {
+                  if (error._tag === 'AssistantAuthorityDenied') {
+                    return assistantAuthorityFailure(error)
+                  }
+                  return error
                 })
-                .pipe(
-                  Effect.mapError((error) => {
-                    if (error._tag === 'AssistantAuthorityDenied') {
-                      return assistantAuthorityFailure(error)
-                    }
-                    return error
-                  })
-                )
-              return { principal, context }
-            }).pipe(
-              Effect.catch((error) =>
-                observed(
-                  `assistant-conversations.${endpoint.identifier}`,
-                  Effect.fail(error)
-                )
+              )
+            return { principal, context }
+          }).pipe(
+            Effect.catch((error) =>
+              observed(
+                `assistant-conversations.${endpoint.identifier}`,
+                Effect.fail(error)
               )
             )
-            const authorized = yield* gate
-            return yield* httpEffect.pipe(
-              Effect.provideService(AssistantApiPrincipal, authorized.principal),
-              Effect.provideService(WorkspaceContext, authorized.context),
-              Effect.map((response) =>
-                HttpServerResponse.setHeader(
-                  response,
-                  'cache-control',
-                  'private, no-store'
-                )
+          )
+          const authorized = yield* gate
+          return yield* httpEffect.pipe(
+            Effect.provideService(AssistantApiPrincipal, authorized.principal),
+            Effect.provideService(WorkspaceContext, authorized.context),
+            Effect.map((response) =>
+              HttpServerResponse.setHeader(
+                response,
+                'cache-control',
+                'private, no-store'
               )
             )
-          })
-      })
+          )
+        })
     })
-  )
-}
+  })
+)

@@ -37,9 +37,9 @@ type Stored<A> = Effect.Effect<A, ConversationUnavailable>
 /** The host supplies its atomic SQLite ledger and SDK-authoritative saved text. */
 // eslint-disable-next-line @typescript-eslint/consistent-type-definitions -- Fallow tracks class implementations through interface inheritance, but not intersected type aliases.
 export interface ConversationAdmissionLedger extends ConversationTranscript {
-  latestAttempt(): Stored<ConversationAttempt | null>
+  readonly latestAttempt: Stored<ConversationAttempt | null>
   attempt(id: string): Stored<ConversationAttempt | null>
-  active(): Stored<ConversationAttempt | null>
+  readonly active: Stored<ConversationAttempt | null>
   previous(key: string): Stored<{
     readonly payloadHash: string
     readonly acceptance: ConversationAcceptance
@@ -84,7 +84,7 @@ export const acceptConversationAnswer = Effect.fn('AssistantConversation.accept'
     const hash = yield* hashSha256(canonicalConversationOperation(operation)).pipe(
       Effect.catchDefect((cause) => Effect.fail(new Cause.UnknownError(cause)))
     )
-    const latest = yield* ledger.latestAttempt()
+    const latest = yield* ledger.latestAttempt
     let retry: Parameters<typeof admitConversationOperation>[0]['retry']
     if ('attemptId' in operation) {
       retry = {
@@ -96,7 +96,7 @@ export const acceptConversationAnswer = Effect.fn('AssistantConversation.accept'
     const joined = yield* admitConversationOperation({
       payloadHash: hash,
       previous: yield* ledger.previous(operation.idempotencyKey),
-      active: yield* ledger.active(),
+      active: yield* ledger.active,
       executionBusy: input.executionBusy,
       retry
     })
@@ -179,11 +179,7 @@ export const acceptConversationAnswer = Effect.fn('AssistantConversation.accept'
         acceptance,
         execution: { credential, prompt, runAccessRevision: row.runAccessRevision }
       })
-      .pipe(
-        Effect.catch((error) =>
-          admission.release(attempt.id).pipe(Effect.andThen(Effect.fail(error)))
-        )
-      )
+      .pipe(Effect.tapError(() => admission.release(attempt.id)))
     yield* admission.commit(attempt.id).pipe(
       Effect.catch((error) =>
         Effect.gen(function* () {
@@ -194,7 +190,7 @@ export const acceptConversationAnswer = Effect.fn('AssistantConversation.accept'
             completedAt: DateTime.formatIso(yield* DateTime.now)
           })
           yield* admission.release(attempt.id)
-          return yield* Effect.fail(error)
+          return yield* error
         })
       )
     )

@@ -60,7 +60,7 @@ export type SecurityEvidenceSink = {
 // oxlint-disable-next-line unicorn/throw-new-error -- Schema.TaggedError is a curried factory call
 class SecurityEvidenceWriteFailed extends Schema.TaggedError<SecurityEvidenceWriteFailed>()(
   'SecurityEvidenceWriteFailed',
-  { status: Schema.Number }
+  { status: Schema.Finite }
 ) {}
 
 /** Build the HTTP store adapter while leaving alert delivery with the owning app. */

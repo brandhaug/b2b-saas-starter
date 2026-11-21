@@ -14,7 +14,7 @@ export type ResourceEntitlementInput = {
 }
 
 export type ResourceEntitlementsInterface = {
-  readonly getSelection: () => Effect.Effect<
+  readonly getSelection: Effect.Effect<
     ResourceSelection,
     CapabilityUnavailable,
     WorkspaceContext

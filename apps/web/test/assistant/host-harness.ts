@@ -23,9 +23,9 @@ const decodeProbe = Schema.decodeUnknownEffect(
     page: ConversationPage,
     prepared: PreparedConversationPrompt,
     reference: PreparedConversationPrompt,
-    historyDecoded: Schema.Number,
-    hydratedMessages: Schema.Number,
-    promptDecoded: Schema.Number
+    historyDecoded: Schema.Finite,
+    hydratedMessages: Schema.Finite,
+    promptDecoded: Schema.Finite
   })
 )
 const decodeHistory = Schema.decodeUnknownEffect(ConversationPage)

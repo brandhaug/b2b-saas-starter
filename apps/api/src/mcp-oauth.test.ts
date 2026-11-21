@@ -190,7 +190,7 @@ describe('POST /mcp with an OAuth access token', () => {
           jsonrpc: Schema.Literal('2.0'),
           id: Schema.Unknown,
           error: Schema.Struct({
-            code: Schema.Number,
+            code: Schema.Finite,
             message: Schema.String
           })
         })

@@ -96,12 +96,10 @@ layer(UserAdminDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
               record: () =>
                 Effect.gen(function* () {
                   order.push('audit')
-                  return yield* Effect.fail(
-                    new CapabilityUnavailable({
-                      capability: 'audit-event-log',
-                      reason: 'test_audit_failure'
-                    })
-                  )
+                  return yield* new CapabilityUnavailable({
+                    capability: 'audit-event-log',
+                    reason: 'test_audit_failure'
+                  })
                 })
             })
           ),
@@ -179,6 +177,8 @@ layer(UserAdminDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
       'keeps role evidence when the successful binding loses its readback row',
       () =>
         Effect.gen(function* () {
+          const effectContext = yield* Effect.context<never>()
+
           const db = yield* Database
           yield* db.insert(workspaceMembers).values({
             id: 'mem_readback',
@@ -212,9 +212,10 @@ layer(UserAdminDatabase, { timeout: LIVE_SUITE_TIMEOUT })(
             {
               userAdminBinding: {
                 ...fakeUserAdminBinding(db),
+                // Bridges the Promise-returning admin plugin binding to the
+                // isolated D1 adapter.
                 setMemberRole: () =>
-                  // oxlint-disable-next-line starter/no-run-promise-in-tests -- bridges the Promise-returning admin plugin binding to the isolated D1 adapter
-                  Effect.runPromise(
+                  Effect.runPromiseWith(effectContext)(
                     Effect.asVoid(
                       db
                         .delete(workspaceMembers)

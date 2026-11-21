@@ -109,21 +109,21 @@ export const processNotificationEmailMessage = Effect.fn('NotificationEmail.proc
         })
       }
     ).pipe(
-      // A render failure is a deterministic template bug: redelivery can
-      // never fix it and this queue has no DLQ, so an identical retry would
-      // burn every attempt and drop the email silently. Terminal like a
-      // malformed body — annotate the wide event and ack. A send failure
-      // keeps its error channel and rides the queue's backoff.
-      Effect.catchTag('EmailRenderError', () =>
-        Effect.annotateLogsScoped({
-          outcome: 'skipped',
-          skipReason: 'render_failed',
-          renderError: 'template_failed'
-        }).pipe(Effect.as(ack))
-      ),
-      // The capability persists the sanitized failure; completion below owns
-      // whether the queue should retry, including an active-lease skip.
-      Effect.catchTag('EmailSendError', () => Effect.succeed(ack))
+      Effect.catchTags({
+        // A render failure is a deterministic template bug: redelivery can
+        // never fix it and this queue has no DLQ, so an identical retry would
+        // burn every attempt and drop the email silently. Terminal like a
+        // malformed body — annotate the wide event and ack.
+        EmailRenderError: () =>
+          Effect.annotateLogsScoped({
+            outcome: 'skipped',
+            skipReason: 'render_failed',
+            renderError: 'template_failed'
+          }).pipe(Effect.as(ack)),
+        // The capability persists the sanitized failure; completion below owns
+        // whether the queue should retry, including an active-lease skip.
+        EmailSendError: () => Effect.succeed(ack)
+      })
     )
     const completion = yield* history.completionDecision(messageId)
     if (completion.outcome === 'retry_pending') {
@@ -159,19 +159,18 @@ export function sendNotificationEmail(
       )
     )
   }).pipe(
-    Effect.flatMap((outcome) => {
-      if (outcome !== 'retry') {
-        return Effect.succeed(outcome)
-      }
+    Effect.filterOrElse(
+      (outcome) => outcome !== 'retry',
       // Store failures have no persisted due time yet, so the queue attempt
       // follows the delivery backoff to cover the full retry window.
-      return Random.next.pipe(
-        Effect.map((jitter) => ({
-          retryAfterSeconds: Math.ceil(
-            deliveryRetryDelayMs(envelope.attempts, jitter) / 1000
-          )
-        }))
-      )
-    })
+      () =>
+        Random.next.pipe(
+          Effect.map((jitter) => ({
+            retryAfterSeconds: Math.ceil(
+              deliveryRetryDelayMs(envelope.attempts, jitter) / 1000
+            )
+          }))
+        )
+    )
   )
 }

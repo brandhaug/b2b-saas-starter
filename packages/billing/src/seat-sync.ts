@@ -76,7 +76,7 @@ export const StripeProviderEventQueueMessage = Schema.Struct({
       customerId: Schema.optionalKey(Schema.String),
       subscriptionId: Schema.optionalKey(Schema.String),
       subscriptionItemId: Schema.optionalKey(Schema.String),
-      quantity: Schema.optionalKey(Schema.Number),
+      quantity: Schema.optionalKey(Schema.Finite),
       deleted: Schema.optionalKey(Schema.Boolean)
     })
   ),
@@ -156,10 +156,7 @@ export const publishProviderEvent = Effect.fn('Billing.publishProviderEvent')(
       message = { ...message, traceparent }
     }
     yield* orUnavailable('billing-provider-event-publisher')(
-      Effect.tryPromise({
-        try: () => queue.send(message),
-        catch: (cause) => cause
-      })
+      Effect.tryPromise(() => queue.send(message))
     )
   }
 )
@@ -231,10 +228,7 @@ export function LiveSeatSyncPublisher(
         message = { ...message, traceparent }
       }
       yield* orUnavailable('seat-sync-publisher')(
-        Effect.tryPromise({
-          try: () => queue.send(message),
-          catch: (cause) => cause
-        })
+        Effect.tryPromise(() => queue.send(message))
       )
     })
   })

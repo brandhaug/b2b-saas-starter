@@ -167,14 +167,10 @@ export async function requireRequestSession(): Promise<Session> {
  * would send the expiry to the defect channel, where `catchTag` cannot see it
  * and the wide event reports a crash instead of an expired session.
  */
-export function requireRequestSessionEffect(): Effect.Effect<
-  Session,
-  UnauthorizedError
-> {
-  return Effect.tryPromise({
+export const requireRequestSessionEffect: Effect.Effect<Session, UnauthorizedError> =
+  Effect.tryPromise({
     try: requireRequestSession,
     // Every failure of this read means the same thing to the caller: this
     // request has no session it may act on.
     catch: () => new UnauthorizedError()
   })
-}

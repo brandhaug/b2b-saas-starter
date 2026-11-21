@@ -36,7 +36,7 @@ export async function deleteAccountHandler(
   return runCapabilities(
     Effect.gen(function* () {
       if (session.session.impersonatedBy) {
-        return yield* Effect.fail(new StrongAuthenticationRequired())
+        return yield* new StrongAuthenticationRequired()
       }
       const lifecycle = yield* AccountLifecycle
       const plan = yield* lifecycle.planDeletion(session.user.id)

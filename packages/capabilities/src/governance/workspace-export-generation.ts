@@ -92,7 +92,7 @@ function failed(
     reason
   }
   const result = { _tag: 'skipped', reason } satisfies WorkspaceExportGenerationResult
-  return exports.fail(failure).pipe(Effect.map(() => result))
+  return exports.fail(failure).pipe(Effect.as(result))
 }
 
 function unavailable(
@@ -125,7 +125,7 @@ export function workspaceExportGenerationEffect(
     const exports = yield* WorkspaceExports
     const suspension = yield* WorkspaceSuspensionService
     const scope = yield* Effect.scope
-    const snapshotContext = yield* workspaceExportSnapshotContextEffect()
+    const snapshotContext = yield* workspaceExportSnapshotContextEffect
     const generate = Effect.fn('WorkspaceExportGeneration.generate')(function* (
       input: WorkspaceExportGenerationInput
     ) {

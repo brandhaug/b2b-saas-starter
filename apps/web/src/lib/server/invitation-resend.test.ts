@@ -51,14 +51,12 @@ vi.mock('./auth-emails', () => ({
           yield* Deferred.await(release)
         }
         if (failSend) {
-          return yield* Effect.fail(
-            new EmailSendError({
-              message: 'transport_unavailable',
-              to: message.to,
-              subject: message.subject,
-              failureKind: 'transient'
-            })
-          )
+          return yield* new EmailSendError({
+            message: 'transport_unavailable',
+            to: message.to,
+            subject: message.subject,
+            failureKind: 'transient'
+          })
         }
         return {
           mode: 'cloudflare-email',
