@@ -262,8 +262,8 @@ catalogs:
       specifier: 1.3.0
       version: 1.3.0
     stripe:
-      specifier: 23.1.0
-      version: 23.1.0
+      specifier: 23.2.0
+      version: 23.2.0
     tailwindcss:
       specifier: 4.3.5
       version: 4.3.5
@@ -968,7 +968,7 @@ importers:
         version: 4.1.4
       stripe:
         specifier: 'catalog:'
-        version: 23.1.0(@types/node@26.6.6)
+        version: 23.2.0(@types/node@26.6.6)
     devDependencies:
       '@effect/vitest':
         specifier: 4.1.4
@@ -6908,8 +6908,8 @@ packages:
     resolution: {integrity: sha512-vavAMRXOgBVNF6nyEEmL3DBK19iRpDcoIwW+swQ+CbGiu7lju6t+JklA1MHweoWtadgt4ISVUsXLyDq34ddcwA==}
     engines: {node: '>=4'}
 
-  stripe@23.1.0:
-    resolution: {integrity: sha512-fVUfMSfTPoukfoV//MUKAx2+YxyKmYaYtnAL9VkfnHfaPNQylFdWZMD+zgUFerI8rjbaiER8Vzj2XEUQ2AhAsQ==}
+  stripe@23.2.0:
+    resolution: {integrity: sha512-0W0J4yA9qFO2rnF61v8Y62OiO2SmAR+Cv04VJaFUMpCxiq8lG5bxEYbeSMSpMDR9ofFZGd+Z/iUIgSFbOolmUw==}
     engines: {node: '>=20'}
     peerDependencies:
       '@types/node': '>=20'
@@ -12781,7 +12781,7 @@ snapshots:
 
   strip-bom@3.0.0: {}
 
-  stripe@23.1.0(@types/node@26.6.6):
+  stripe@23.2.0(@types/node@26.6.6):
     optionalDependencies:
       '@types/node': 26.6.6
 
