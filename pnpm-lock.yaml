@@ -262,8 +262,8 @@ catalogs:
       specifier: 1.3.0
       version: 1.3.0
     stripe:
-      specifier: 23.1.0
-      version: 23.1.0
+      specifier: 23.2.0
+      version: 23.2.0
     tailwindcss:
       specifier: 4.3.5
       version: 4.3.5
@@ -968,7 +968,7 @@ importers:
         version: 4.1.4
       stripe:
         specifier: 'catalog:'
-        version: 23.1.0(@types/node@26.6.6)
+        version: 23.2.0(@types/node@26.6.6)
     devDependencies:
       '@effect/vitest':
         specifier: 4.1.4
@@ -1906,9 +1906,6 @@ packages:
     engines: {node: '>=16'}
     cpu: [x64]
     os: [win32]
-
-  '@cloudflare/workers-types@5.20261117.1':
-    resolution: {integrity: sha512-0Qg3kAn8DPRQLaT8ZkqCm6+2/ctc61zdWZqN/1JtlrXV+Db1fNwnjHBLz+/GB/yX+/JgdDAFs+fr8vYyC0w9aw==}
 
   '@cloudflare/workers-types@5.20261118.1':
     resolution: {integrity: sha512-b1ppAa/0wrXvboTHbfyYnyYsh13OHu4ONP1h0HclZ0fEabwh2qT18YPY/z+wjyOs3o/BkyD0HCA800Ox+nju/Q==}
@@ -6771,8 +6768,8 @@ packages:
     resolution: {integrity: sha512-vavAMRXOgBVNF6nyEEmL3DBK19iRpDcoIwW+swQ+CbGiu7lju6t+JklA1MHweoWtadgt4ISVUsXLyDq34ddcwA==}
     engines: {node: '>=4'}
 
-  stripe@23.1.0:
-    resolution: {integrity: sha512-fVUfMSfTPoukfoV//MUKAx2+YxyKmYaYtnAL9VkfnHfaPNQylFdWZMD+zgUFerI8rjbaiER8Vzj2XEUQ2AhAsQ==}
+  stripe@23.2.0:
+    resolution: {integrity: sha512-0W0J4yA9qFO2rnF61v8Y62OiO2SmAR+Cv04VJaFUMpCxiq8lG5bxEYbeSMSpMDR9ofFZGd+Z/iUIgSFbOolmUw==}
     engines: {node: '>=20'}
     peerDependencies:
       '@types/node': '>=20'
@@ -7950,8 +7947,6 @@ snapshots:
   '@cloudflare/workerd-windows-64@1.20261117.1':
     optional: true
 
-  '@cloudflare/workers-types@5.20261117.1': {}
-
   '@cloudflare/workers-types@5.20261118.1': {}
 
   '@cspotcode/source-map-support@0.8.1':
@@ -8016,7 +8011,7 @@ snapshots:
 
   '@effect/sql-d1@4.1.4(effect@4.1.4)':
     dependencies:
-      '@cloudflare/workers-types': 5.20261117.1
+      '@cloudflare/workers-types': 5.20261118.1
       effect: 4.1.4
 
   '@effect/tsgo-darwin-arm64@0.73.2':
@@ -12484,7 +12479,7 @@ snapshots:
 
   strip-bom@3.0.0: {}
 
-  stripe@23.1.0(@types/node@26.6.6):
+  stripe@23.2.0(@types/node@26.6.6):
     optionalDependencies:
       '@types/node': 26.6.6
 
