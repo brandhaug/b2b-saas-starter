@@ -148,8 +148,8 @@ catalogs:
       specifier: 5.1.0
       version: 5.1.0
     agents:
-      specifier: 0.33.0
-      version: 0.33.0
+      specifier: 0.34.0
+      version: 0.34.0
     ai:
       specifier: 7.0.169
       version: 7.0.169
@@ -582,7 +582,7 @@ importers:
         version: 1.7.20(c5744836864d7b2bf9424cb625739abc)
       '@cloudflare/ai-chat':
         specifier: 'catalog:'
-        version: 0.12.2(agents@0.33.0(@ai-sdk/provider@4.0.37)(@babel/core@8.1.0)(@babel/runtime@8.1.0)(@modelcontextprotocol/client@2.4.0)(@voidzero-dev/vite-plus-core@8.3.8000(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.169(zod@4.6.7))(react@19.3.1)(rolldown@1.2.13)(zod@4.6.7))(ai@7.0.169(zod@4.6.7))(react@19.3.1)
+        version: 0.12.2(agents@0.34.0(@ai-sdk/provider@4.0.37)(@babel/core@8.1.0)(@babel/runtime@8.1.0)(@modelcontextprotocol/client@2.4.0)(@voidzero-dev/vite-plus-core@8.3.8000(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.169(zod@4.6.7))(react@19.3.1)(rolldown@1.2.13)(zod@4.6.7))(ai@7.0.169(zod@4.6.7))(react@19.3.1)
       '@fontsource-variable/geist':
         specifier: 'catalog:'
         version: 5.3.0
@@ -615,7 +615,7 @@ importers:
         version: 9.3.1
       agents:
         specifier: 'catalog:'
-        version: 0.33.0(@ai-sdk/provider@4.0.37)(@babel/core@8.1.0)(@babel/runtime@8.1.0)(@modelcontextprotocol/client@2.4.0)(@voidzero-dev/vite-plus-core@8.3.8000(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.169(zod@4.6.7))(react@19.3.1)(rolldown@1.2.13)(zod@4.6.7)
+        version: 0.34.0(@ai-sdk/provider@4.0.37)(@babel/core@8.1.0)(@babel/runtime@8.1.0)(@modelcontextprotocol/client@2.4.0)(@voidzero-dev/vite-plus-core@8.3.8000(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.169(zod@4.6.7))(react@19.3.1)(rolldown@1.2.13)(zod@4.6.7)
       ai:
         specifier: 'catalog:'
         version: 7.0.169(zod@4.6.7)
@@ -4822,17 +4822,17 @@ packages:
     resolution: {integrity: sha512-kja8j7PjmncONqaTsB8fQ+wE2mSU2DJ9D4XKoJ5PFWIdRMa6SLSN1ff4mOr4jCbfRSsxR4keIiySJU0N9T5hIQ==}
     engines: {node: '>= 8.0.0'}
 
-  agents@0.33.0:
-    resolution: {integrity: sha512-P6z56NXpYRXHuC1qkMakZBGpZo5btD5478X2AiEplPsTb4DPkYnkMfPt6H3Pv6vRR5mVKIgbvFzpdu24x9wiAA==}
+  agents@0.34.0:
+    resolution: {integrity: sha512-h7lm9gfdsj8oq+CheccDC0zcWf2K2D+U13B0+zrWyBFnigjNXQ2ZAHtZsg5fO7AMcQq4c9jPlKc169FB1RzRGg==}
     hasBin: true
     peerDependencies:
       '@ai-sdk/provider': ^4.0.0
       '@ai-sdk/react': ^3.0.0 || ^4.0.0
       '@cloudflare/codemode': '>=0.5.0'
-      '@earendil-works/chord': ~1.5.0
-      '@earendil-works/pi-ai': ~1.5.0
-      '@earendil-works/pi-durable': ~1.5.0
-      '@earendil-works/pi-schema': ~1.5.0
+      '@earendil-works/chord': ~1.6.0
+      '@earendil-works/pi-ai': ~1.6.0
+      '@earendil-works/pi-durable': ~1.6.0
+      '@earendil-works/pi-schema': ~1.6.0
       '@modelcontextprotocol/client': 2.4.0
       '@modelcontextprotocol/sdk': 1.32.2
       '@modelcontextprotocol/server': 2.4.0
@@ -8035,9 +8035,9 @@ snapshots:
 
   '@cfworker/json-schema@4.1.4': {}
 
-  '@cloudflare/ai-chat@0.12.2(agents@0.33.0(@ai-sdk/provider@4.0.37)(@babel/core@8.1.0)(@babel/runtime@8.1.0)(@modelcontextprotocol/client@2.4.0)(@voidzero-dev/vite-plus-core@8.3.8000(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.169(zod@4.6.7))(react@19.3.1)(rolldown@1.2.13)(zod@4.6.7))(ai@7.0.169(zod@4.6.7))(react@19.3.1)':
+  '@cloudflare/ai-chat@0.12.2(agents@0.34.0(@ai-sdk/provider@4.0.37)(@babel/core@8.1.0)(@babel/runtime@8.1.0)(@modelcontextprotocol/client@2.4.0)(@voidzero-dev/vite-plus-core@8.3.8000(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.169(zod@4.6.7))(react@19.3.1)(rolldown@1.2.13)(zod@4.6.7))(ai@7.0.169(zod@4.6.7))(react@19.3.1)':
     dependencies:
-      agents: 0.33.0(@ai-sdk/provider@4.0.37)(@babel/core@8.1.0)(@babel/runtime@8.1.0)(@modelcontextprotocol/client@2.4.0)(@voidzero-dev/vite-plus-core@8.3.8000(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.169(zod@4.6.7))(react@19.3.1)(rolldown@1.2.13)(zod@4.6.7)
+      agents: 0.34.0(@ai-sdk/provider@4.0.37)(@babel/core@8.1.0)(@babel/runtime@8.1.0)(@modelcontextprotocol/client@2.4.0)(@voidzero-dev/vite-plus-core@8.3.8000(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.169(zod@4.6.7))(react@19.3.1)(rolldown@1.2.13)(zod@4.6.7)
       ai: 7.0.169(zod@4.6.7)
       nanoid: 5.1.16
     optionalDependencies:
@@ -10337,7 +10337,7 @@ snapshots:
     dependencies:
       humanize-ms: 1.2.1
 
-  agents@0.33.0(@ai-sdk/provider@4.0.37)(@babel/core@8.1.0)(@babel/runtime@8.1.0)(@modelcontextprotocol/client@2.4.0)(@voidzero-dev/vite-plus-core@8.3.8000(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.169(zod@4.6.7))(react@19.3.1)(rolldown@1.2.13)(zod@4.6.7):
+  agents@0.34.0(@ai-sdk/provider@4.0.37)(@babel/core@8.1.0)(@babel/runtime@8.1.0)(@modelcontextprotocol/client@2.4.0)(@voidzero-dev/vite-plus-core@8.3.8000(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))(ai@7.0.169(zod@4.6.7))(react@19.3.1)(rolldown@1.2.13)(zod@4.6.7):
     dependencies:
       '@babel/plugin-proposal-decorators': 8.0.2(@babel/core@8.1.0)
       '@cfworker/json-schema': 4.1.4
