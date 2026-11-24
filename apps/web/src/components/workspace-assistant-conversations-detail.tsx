@@ -205,7 +205,7 @@ export function ConversationDetail({
         </Button>
       ) : null}
       {state.loading && state.history === null ? (
-        <ContentPending label={m.assistant_conversations_loading()} lines={4} />
+        <ContentPending label={m.common_loading()} lines={4} />
       ) : null}
       {state.history ? (
         <ConversationHistoryList

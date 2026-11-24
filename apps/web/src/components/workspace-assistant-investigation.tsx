@@ -11,6 +11,7 @@ import { DeliveryPicker } from './workspace-assistant-delivery-picker'
 import { Panel } from '@/components/page/panel'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { Spinner } from '@/components/ui/spinner'
+import { ContentPending } from '@/components/content-pending'
 import { callServerFn } from '@/lib/server-call'
 import { formatTimestampOr } from '@/lib/format-date'
 import { statusLabel as deliveryStatusLabel } from '@/lib/value-labels'
@@ -350,6 +351,9 @@ function Investigation({
                 canReplay={canReplay}
                 update={update}
               />
+            ) : null}
+            {selected === undefined && taskQuery.isLoading ? (
+              <ContentPending label={m.common_loading()} lines={4} />
             ) : null}
           </div>
         ) : (
