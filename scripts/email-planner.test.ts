@@ -44,6 +44,7 @@ type PlannerResource = ResourceLike<
   Record<string, unknown>,
   object,
   undefined,
+  undefined,
   undefined
 >
 
@@ -65,7 +66,8 @@ function resource(
     FormerFqns: undefined,
     Attributes: {},
     Binding: undefined,
-    Providers: undefined
+    Providers: undefined,
+    Lookup: undefined
   }
 }
 

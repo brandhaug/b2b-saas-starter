@@ -7,9 +7,9 @@ export type DnsSettings =
   | { enabled: true; accountId: string; records: ReadonlyArray<ManagedRecord> }
 
 type ObservedZone = {
-  id?: string | null
-  name?: string | null
-  account?: { id?: string | null } | null
+  id?: string | null | undefined
+  name?: string | null | undefined
+  account?: { id?: string | null | undefined } | null | undefined
 }
 
 /** Explicit FQDNs make zone ownership and conflicts reviewable before deployment. */

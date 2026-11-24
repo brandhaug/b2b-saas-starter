@@ -185,8 +185,9 @@ export async function mcpWorkspaceAccessTokenClaims(
     })
   }
   if (input.assistantResource && input.resources.includes(input.assistantResource)) {
-    // The refresh token keeps the original session identity after natural
-    // cleanup. Issuance still requires retained proof and rejects revocation.
+    // Better Auth passes the session only while it is active, so an assistant
+    // token, including a refresh, ends with its issuing session. Retained
+    // proof still rejects a revoked session that races issuance.
     const sessionId = input.sessionId
     if (!sessionId) {
       // oxlint-disable-next-line effect/noThrowStatement -- Better Auth callback error channel

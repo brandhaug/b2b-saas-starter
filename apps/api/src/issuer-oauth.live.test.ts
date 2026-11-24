@@ -414,6 +414,52 @@ describe('mcp oauth authorization server', () => {
                   .where(eq(oauthRefreshToken.userId, UserId.make(userId)))
               )
               expect(retainedRefresh?.sessionId).toBe(issuing.session.id)
+              // Better Auth passes the session to issuance only while it is
+              // active, so an assistant refresh ends with its issuing session.
+              const expiredRefresh = yield* Effect.promise(() =>
+                auth.instance.handler(
+                  new Request('http://localhost:3071/api/auth/oauth2/token', {
+                    method: 'POST',
+                    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({
+                      grant_type: 'refresh_token',
+                      refresh_token: tokens.refresh_token,
+                      client_id: clientId,
+                      resource
+                    })
+                  })
+                )
+              )
+              expect(expiredRefresh.status).toBe(403)
+              expect(yield* Effect.promise(() => expiredRefresh.json())).toMatchObject({
+                error: 'invalid_grant'
+              })
+              // Explicit revocation still marks the retained proof that
+              // accepted runs check after natural expiry.
+              const signedIn = yield* auth.full.signInEmail({
+                body: {
+                  email: `member@${resourceName}.test`,
+                  password: 'correct-horse-battery-staple'
+                }
+              })
+              yield* auth.api.revokeOtherSessions({
+                headers: new Headers({
+                  cookie: cookieHeader(cookiePairs(signedIn.headers))
+                })
+              })
+              const [retained] = yield* Effect.promise(() =>
+                db
+                  .select()
+                  .from(assistantSessionAuthority)
+                  .where(
+                    eq(
+                      assistantSessionAuthority.sessionId,
+                      String(payload[MCP_SESSION_ID_CLAIM])
+                    )
+                  )
+              )
+              expect(retained?.revokedAt).not.toBe(null)
+              return
             }
             const refreshResponse = yield* Effect.promise(() =>
               auth.instance.handler(
@@ -453,48 +499,6 @@ describe('mcp oauth authorization server', () => {
             expect(verifiedRefresh.payload[MCP_SESSION_ID_CLAIM]).toBe(
               issuing?.session.id
             )
-
-            if (scenario.expireSession) {
-              const signedIn = yield* auth.full.signInEmail({
-                body: {
-                  email: `member@${resourceName}.test`,
-                  password: 'correct-horse-battery-staple'
-                }
-              })
-              yield* auth.api.revokeOtherSessions({
-                headers: new Headers({
-                  cookie: cookieHeader(cookiePairs(signedIn.headers))
-                })
-              })
-              const denied = yield* Effect.promise(() =>
-                auth.instance.handler(
-                  new Request('http://localhost:3071/api/auth/oauth2/token', {
-                    method: 'POST',
-                    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-                    body: new URLSearchParams({
-                      grant_type: 'refresh_token',
-                      refresh_token: refreshed.refresh_token,
-                      client_id: clientId,
-                      resource
-                    })
-                  })
-                )
-              )
-              expect(denied.status).toBeGreaterThanOrEqual(400)
-              const [retained] = yield* Effect.promise(() =>
-                db
-                  .select()
-                  .from(assistantSessionAuthority)
-                  .where(
-                    eq(
-                      assistantSessionAuthority.sessionId,
-                      String(payload[MCP_SESSION_ID_CLAIM])
-                    )
-                  )
-              )
-              expect(retained?.revokedAt).not.toBe(null)
-              return
-            }
 
             // The consent row carries the workspace as its reference, so a consent
             // for this workspace is no consent for another.
