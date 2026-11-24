@@ -1053,11 +1053,10 @@ new file mode 100644
 index 00000000..200b76d9
 --- /dev/null
 +++ b/apps/web/src/routes/workspaces.$workspaceSlug.notes.tsx
-@@ -0,0 +1,29 @@
+@@ -0,0 +1,27 @@
 +import { m } from '@b2b-saas-starter/i18n/messages'
 +import { workspaceRouteError } from '@/components/workspace-route-error'
 +import { createFileRoute } from '@tanstack/react-router'
-+import { RoutePending } from '@/components/route-pending'
 +import { WorkspaceNotesPage } from '@/components/workspace-notes-page'
 +import { loadWorkspaceNotesServerFn } from '@/lib/server/workspace-notes'
 +
@@ -1071,7 +1070,6 @@ index 00000000..200b76d9
 +export const Route = createFileRoute('/workspaces/$workspaceSlug/notes')({
 +  loader: ({ params }) =>
 +    loadWorkspaceNotesServerFn({ data: { workspaceSlug: params.workspaceSlug } }),
-+  pendingComponent: RoutePending,
 +  errorComponent: NotesRouteError,
 +  component: NotesRoute
 +})

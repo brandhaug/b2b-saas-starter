@@ -4,6 +4,7 @@ import { ArrowLeftIcon } from 'lucide-react'
 import { createElement, Suspense, useRef } from 'react'
 import { mdxComponents } from '@/components/mdx-components'
 import { TableOfContents } from '@/components/table-of-contents'
+import { ContentPending } from '@/components/content-pending'
 import {
   docCategoryName,
   docJsonLd,
@@ -156,9 +157,7 @@ function DocArticlePage() {
             >
               <Suspense
                 fallback={
-                  <p className="text-sm text-muted-foreground">
-                    {m.public_knowledge_loading()}
-                  </p>
+                  <ContentPending label={m.public_knowledge_loading()} lines={6} />
                 }
               >
                 {/* createElement, not JSX: the component is resolved per article at runtime, and React Compiler requires JSX component types to be static. */}

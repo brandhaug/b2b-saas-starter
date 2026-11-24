@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { pageQueryOptions } from '@/lib/page-query'
 import { pageTitle } from '@/components/page/page-title'
-import { RoutePending } from '@/components/route-pending'
 import { WorkspaceSettingsPage } from '@/components/workspace-settings-page'
 import { loadWorkspaceSettingsServerFn } from '@/lib/server/workspace-settings'
 import { m } from '@b2b-saas-starter/i18n/messages'
@@ -24,7 +23,6 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/settings')({
       ...settingsQuery(context.session.user.id, params.workspaceSlug),
       staleTime: 0
     }),
-  pendingComponent: RoutePending,
   component: WorkspaceSettingsRoute,
   head: ({ params }) => ({
     meta: [{ title: pageTitle(m.public_meta_settings(), params.workspaceSlug) }]

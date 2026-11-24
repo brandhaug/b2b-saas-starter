@@ -1,7 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { pageQueryOptions } from '@/lib/page-query'
-import { RoutePending } from '@/components/route-pending'
 import { WorkspaceDashboardPage } from '@/components/workspace-dashboard-page'
 import { pageTitle } from '@/components/page/page-title'
 import { loadWorkspaceDashboardServerFn } from '@/lib/server/workspace-dashboard'
@@ -25,7 +24,6 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/')({
       ...dashboardQuery(context.session.user.id, params.workspaceSlug),
       staleTime: 0
     }),
-  pendingComponent: RoutePending,
   component: WorkspaceDashboardRoute,
   head: ({ params }) => ({
     meta: [{ title: pageTitle(m.public_meta_overview(), params.workspaceSlug) }]

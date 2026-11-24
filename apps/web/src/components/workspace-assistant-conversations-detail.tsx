@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Spinner } from '@/components/ui/spinner'
+import { ContentPending } from '@/components/content-pending'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import {
   AlertDialog,
@@ -204,10 +205,7 @@ export function ConversationDetail({
         </Button>
       ) : null}
       {state.loading && state.history === null ? (
-        <div className="flex items-center gap-2 text-sm">
-          <Spinner />
-          {m.assistant_conversations_loading()}
-        </div>
+        <ContentPending label={m.common_loading()} lines={4} />
       ) : null}
       {state.history ? (
         <ConversationHistoryList

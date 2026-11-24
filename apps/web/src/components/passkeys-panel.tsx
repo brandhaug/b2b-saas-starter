@@ -15,7 +15,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Skeleton } from '@/components/ui/skeleton'
+import { ContentPending } from '@/components/content-pending'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { useServerAction } from '@/hooks/use-server-action'
 import { useAuthClientAction, useAuthClientRows } from '@/hooks/use-auth-client-rows'
@@ -100,12 +100,7 @@ export function PasskeysPanel({
       <ActionFeedback error={remove.error} />
 
       {hydrated && isPending ? (
-        <ul className="grid gap-2" aria-busy="true">
-          <li className="rounded-sm border border-border px-3 py-2">
-            <Skeleton className="h-4 w-40" />
-            <Skeleton className="mt-1 h-3 w-56" />
-          </li>
-        </ul>
+        <ContentPending label={m.common_loading()} lines={2} />
       ) : null}
 
       {rows !== undefined && rows.length === 0 ? (
