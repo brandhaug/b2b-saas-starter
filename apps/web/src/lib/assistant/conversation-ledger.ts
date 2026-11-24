@@ -88,6 +88,8 @@ export class ConversationLedger implements ConversationAdmissionLedger {
     ).pipe(Effect.map((rows) => rows[0] ?? null))
   }
 
+  // Called through `this` inside `Effect.gen({ self: this }, ...)`, which Fallow does not trace.
+  // fallow-ignore-next-line unused-class-member
   pendingOutput() {
     return this.read(
       ConversationAttempt,
@@ -235,6 +237,8 @@ export class ConversationLedger implements ConversationAdmissionLedger {
     })
   }
 
+  // Called through `this` inside `Effect.gen({ self: this }, ...)`, which Fallow does not trace.
+  // fallow-ignore-next-line unused-class-member
   input<A>(id: string, schema: Schema.Codec<A, unknown>) {
     return this.read(
       schema,

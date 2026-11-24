@@ -290,6 +290,8 @@ export class WorkspaceAssistantConversation extends AIChatAgent<Env> {
     }).pipe(Effect.asVoid)
   }
 
+  // Called through `this` inside `Effect.gen({ self: this }, ...)`, which Fallow does not trace.
+  // fallow-ignore-next-line unused-class-member
   revalidateAuthority() {
     return this.runtime.runPromise(
       Effect.gen({ self: this }, function* () {
