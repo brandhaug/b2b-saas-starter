@@ -11,7 +11,6 @@ import { pageTitle } from '@/components/page/page-title'
 import { CreateAction, Panel } from '@/components/page/panel'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { noWorkspaceFrame } from '@/lib/workspace-frame'
-import { RoutePending } from '@/components/route-pending'
 import { getTurnstileSiteKey } from '@/lib/server/turnstile'
 import {
   Item,
@@ -33,7 +32,6 @@ export const Route = createFileRoute('/workspaces/')({
   // here is the Turnstile site key the unverified-email banner's resend needs
   // (env-gated: `null` renders no widget and sends no token).
   loader: () => getTurnstileSiteKey(),
-  pendingComponent: RoutePending,
   component: WorkspacesRoute,
   head: () => ({ meta: [{ title: pageTitle(m.public_meta_workspaces()) }] })
 })

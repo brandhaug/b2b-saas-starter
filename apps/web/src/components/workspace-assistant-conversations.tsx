@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Panel } from '@/components/page/panel'
 import { ActionFeedback } from '@/components/page/action-feedback'
 import { Spinner } from '@/components/ui/spinner'
+import { ContentPending } from '@/components/content-pending'
 import { callConversation } from '@/lib/assistant-conversation-call'
 import { ConversationDetail } from './workspace-assistant-conversations-detail'
 import { m } from '@b2b-saas-starter/i18n/messages'
@@ -113,7 +114,9 @@ export function WorkspaceAssistantConversations({
           aria-label={m.assistant_conversations_title()}
           className="grid content-start gap-2 border-b border-border pb-4 md:border-r md:border-b-0 md:pr-4 md:pb-0"
         >
-          {loading && conversations.length === 0 ? <Spinner /> : null}
+          {loading && conversations.length === 0 ? (
+            <ContentPending label={m.common_loading()} />
+          ) : null}
           {conversations.map((conversation) => (
             <Button
               key={conversation.id}

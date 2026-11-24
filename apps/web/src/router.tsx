@@ -1,6 +1,7 @@
 import { isInvalidCalendarDayError, isStrongAuthenticationError } from '@/lib/ui-error'
 import { CalendarFilterError } from '@/components/calendar-filter-error'
 import { FallbackPage } from '@/components/fallback-page'
+import { RoutePending } from '@/components/route-pending'
 import { SupportDetails } from '@/components/support-details'
 import * as m from '@b2b-saas-starter/i18n/messages'
 import { deLocalizeUrl, localizeUrl } from '@b2b-saas-starter/i18n/runtime'
@@ -105,6 +106,9 @@ export function getRouter() {
     },
     defaultPreload: 'intent',
     defaultNotFoundComponent: NotFound,
+    // Every route with a loader shows the same coarse skeleton while it is
+    // pending; routes never declare their own.
+    defaultPendingComponent: RoutePending,
     defaultErrorComponent: RouteError,
     context
   })

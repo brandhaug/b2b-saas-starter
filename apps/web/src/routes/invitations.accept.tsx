@@ -4,7 +4,6 @@ import { pageTitle } from '@/components/page/page-title'
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { MailCheckIcon } from 'lucide-react'
 import { PublicLayout } from '@/components/public-layout'
-import { RoutePending } from '@/components/route-pending'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -48,7 +47,6 @@ export const Route = createFileRoute('/invitations/accept')({
     }
     return invitationPreviewServerFn({ data: { invitationId: deps.invitation } })
   },
-  pendingComponent: RoutePending,
   component: AcceptInvitationRoute,
   head: () => ({ meta: [{ title: pageTitle(m.public_meta_accept_invitation()) }] })
 })

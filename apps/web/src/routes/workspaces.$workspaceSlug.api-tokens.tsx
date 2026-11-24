@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { pageQueryOptions } from '@/lib/page-query'
 import { pageTitle } from '@/components/page/page-title'
-import { RoutePending } from '@/components/route-pending'
 import { workspaceRouteError } from '@/components/workspace-route-error'
 import { WorkspaceApiTokensPage } from '@/components/workspace-api-tokens-page'
 import { loadWorkspaceApiTokensServerFn } from '@/lib/server/api-tokens'
@@ -34,7 +33,6 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/api-tokens')({
       ...apiTokensQuery(context.session.user.id, params.workspaceSlug),
       staleTime: 0
     }),
-  pendingComponent: RoutePending,
   errorComponent: ApiTokensRouteError,
   component: WorkspaceApiTokensRoute,
   head: ({ params }) => ({

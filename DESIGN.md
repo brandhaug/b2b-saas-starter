@@ -117,3 +117,8 @@ Accordion height transitions reverse from their current position.
 
 Submit buttons reserve spinner space. Copy controls announce success or failure
 beside the action and keep the source available for manual selection.
+
+Spinners mark a running action inside its control. Loading content shows coarse
+skeleton bars, never a replica of the content: the router's default
+`RoutePending` covers every route loader, so routes declare no pending
+component, and content loading inside a rendered page uses `ContentPending`.

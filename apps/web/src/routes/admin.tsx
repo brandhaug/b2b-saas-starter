@@ -26,7 +26,6 @@ import { Panel } from '@/components/page/panel'
 import { WorkspaceShell } from '@/components/workspace-shell'
 import { noWorkspaceFrame } from '@/lib/workspace-frame'
 import { Badge } from '@/components/ui/badge'
-import { RoutePending } from '@/components/route-pending'
 import { formatTimestamp } from '@/lib/format-date'
 import { auditActorTypeLabel } from '@/lib/audit-labels'
 import { auditActorTypeVariant } from '@/lib/badge-variants'
@@ -201,7 +200,6 @@ export const Route = createFileRoute('/admin')({
       ...adminQuery(context.session.user.id, deps),
       staleTime: 0
     }),
-  pendingComponent: RoutePending,
   component: AdminPage,
   head: () => ({ meta: [{ title: pageTitle(m.public_meta_admin()) }] })
 })

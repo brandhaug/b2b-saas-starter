@@ -1,5 +1,4 @@
 import { Outlet, createFileRoute } from '@tanstack/react-router'
-import { RoutePending } from '@/components/route-pending'
 import { requireSession } from '@/lib/server/auth'
 import { loadWorkspaceDirectoryServerFn } from '@/lib/server/workspace-directory'
 import {
@@ -24,7 +23,6 @@ export const Route = createFileRoute('/workspaces')({
   // The read itself lives behind the server fn in lib/server, so the route
   // tree stays free of the capabilities graph.
   loader: () => loadWorkspaceDirectoryServerFn(),
-  pendingComponent: RoutePending,
   component: WorkspacesLayout
 })
 

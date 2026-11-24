@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { pageQueryOptions } from '@/lib/page-query'
 import { pageTitle } from '@/components/page/page-title'
-import { RoutePending } from '@/components/route-pending'
 import { workspaceRouteError } from '@/components/workspace-route-error'
 import { WorkspaceWebhooksPage } from '@/components/workspace-webhooks-page'
 import { loadWorkspaceWebhooksServerFn } from '@/lib/server/webhooks'
@@ -34,7 +33,6 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/webhooks')({
       ...webhooksQuery(context.session.user.id, params.workspaceSlug),
       staleTime: 0
     }),
-  pendingComponent: RoutePending,
   errorComponent: WebhooksRouteError,
   component: WorkspaceWebhooksRoute,
   head: ({ params }) => ({

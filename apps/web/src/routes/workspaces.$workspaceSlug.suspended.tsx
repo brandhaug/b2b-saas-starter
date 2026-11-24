@@ -4,7 +4,6 @@ import { pageQueryOptions } from '@/lib/page-query'
 
 import { SuspendedWorkspaceRecovery } from '@/components/suspended-workspace-recovery'
 import { pageTitle } from '@/components/page/page-title'
-import { RoutePending } from '@/components/route-pending'
 import { loadWorkspaceRecoveryServerFn } from '@/lib/server/workspace-suspension'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
@@ -20,7 +19,6 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/suspended')({
       ...recoveryQuery(context.session.user.id, params.workspaceSlug),
       staleTime: 0
     }),
-  pendingComponent: RoutePending,
   component: SuspendedWorkspaceRoute,
   head: ({ params }) => ({
     meta: [

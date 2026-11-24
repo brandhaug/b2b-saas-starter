@@ -3,7 +3,6 @@ import { useSuspenseQuery } from '@tanstack/react-query'
 import { pageQueryOptions } from '@/lib/page-query'
 import { pageTitle } from '@/components/page/page-title'
 import { workspaceRouteError } from '@/components/workspace-route-error'
-import { RoutePending } from '@/components/route-pending'
 import { WorkspaceAuditPage } from '@/components/workspace-audit-page'
 import {
   auditFiltersFromSearch,
@@ -88,7 +87,6 @@ export const Route = createFileRoute('/workspaces/$workspaceSlug/audit')({
         staleTime: 0
       })
   },
-  pendingComponent: RoutePending,
   errorComponent: AuditRouteError,
   component: WorkspaceAuditRoute,
   head: ({ params }) => ({
