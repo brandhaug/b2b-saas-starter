@@ -15,6 +15,7 @@ import { webhookDeliveryStatusVariant } from '@/lib/badge-variants'
 import { formatTimestampOr } from '@/lib/format-date'
 import { listWebhookDeliveryAttemptsServerFn } from '@/lib/server/webhooks'
 import { m } from '@b2b-saas-starter/i18n/messages'
+import { ContentPending } from '@/components/content-pending'
 
 export type ListDeliveryAttempts = (input: {
   readonly data: {
@@ -65,9 +66,7 @@ export function WebhookDeliveryTimeline({
             value={JSON.stringify(delivery.payload, null, 2)}
           />
           {attempts.isPending ? (
-            <output className="text-sm text-muted-foreground">
-              {m.loading_attempt_history()}
-            </output>
+            <ContentPending label={m.loading_attempt_history()} lines={2} />
           ) : null}
           {attempts.isError ? (
             <div>

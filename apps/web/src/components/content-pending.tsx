@@ -13,7 +13,7 @@ export function ContentPending({
   readonly lines?: number
 }) {
   return (
-    <output className="grid w-full gap-3" aria-live="polite">
+    <output className="flex w-full flex-col gap-3" aria-live="polite">
       <span className="sr-only">{label}</span>
       {Array.from({ length: lines }, (_, index) => (
         <Skeleton

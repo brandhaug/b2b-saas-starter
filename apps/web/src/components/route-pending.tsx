@@ -5,18 +5,17 @@ import { PublicLayoutContext } from '@/components/public-layout-context'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
- * The router's `defaultPendingComponent`: a coarse skeleton of the shape every
- * page shares (heading block, then one panel), not of any particular page.
- * Page components render their own shell, so a pending leaf replaces it; the
- * skeleton keeps the shell's content column. Inside a public layout it joins
- * the surrounding column instead, like `FallbackPage`.
+ * A coarse skeleton of the shape every page shares (heading block, then one
+ * panel). Page components render their own shell, so a pending leaf replaces
+ * it; the skeleton keeps an inset content column. Inside a public layout it
+ * joins the surrounding column instead, like `FallbackPage`.
  */
 export function RoutePending() {
   const withinPublicLayout = useContext(PublicLayoutContext)
   const skeleton = (
-    <output className="grid w-full gap-6" aria-live="polite">
+    <output className="flex w-full flex-col gap-6" aria-live="polite">
       <span className="sr-only">{m.common_loading()}</span>
-      <div className="grid gap-2">
+      <div className="flex flex-col gap-2">
         <Skeleton className="h-7 w-56 max-w-full" />
         <Skeleton className="h-4 w-96 max-w-full" />
       </div>

@@ -32,9 +32,23 @@ test('a slow page read shows the route skeleton until the page arrives', async (
   const pending = page.getByRole('status').filter({ hasText: 'Loading…' })
   await expect(pending).toBeVisible()
   await expect(pending.locator('[data-slot="skeleton"]').first()).toBeVisible()
-  const box = await pending.boundingBox()
-  expect(box?.x ?? 0).toBeGreaterThanOrEqual(16)
-  await page.screenshot({ path: testInfo.outputPath('route-pending.png') })
+  await page.screenshot({ path: testInfo.outputPath('route-pending-desktop.png') })
+  // At phone width the centered column has no slack, so only the skeleton's
+  // own padding keeps it off the viewport edges.
+  const phoneWidth = 390
+  await page.setViewportSize({ width: phoneWidth, height: 844 })
+  const edges = await pending.locator('[data-slot="skeleton"]').evaluateAll((bars) =>
+    bars.map((bar) => {
+      const rect = bar.getBoundingClientRect()
+      return { left: rect.left, right: rect.right }
+    })
+  )
+  expect(edges.length).toBeGreaterThan(0)
+  for (const edge of edges) {
+    expect(edge.left).toBeGreaterThanOrEqual(16)
+    expect(edge.right).toBeLessThanOrEqual(phoneWidth - 16)
+  }
+  await page.screenshot({ path: testInfo.outputPath('route-pending-phone.png') })
 
   await Effect.runPromise(Deferred.succeed(release, true))
   await expect(page.getByRole('heading', { name: 'Team', exact: true })).toBeVisible()

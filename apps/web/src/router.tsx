@@ -106,8 +106,7 @@ export function getRouter() {
     },
     defaultPreload: 'intent',
     defaultNotFoundComponent: NotFound,
-    // Every route with a loader shows the same coarse skeleton while it is
-    // pending; routes never declare their own.
+    // Loading-state rule: DESIGN.md, Interaction feedback.
     defaultPendingComponent: RoutePending,
     defaultErrorComponent: RouteError,
     context

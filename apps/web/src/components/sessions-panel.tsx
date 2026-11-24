@@ -17,7 +17,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger
 } from '@/components/ui/alert-dialog'
-import { Skeleton } from '@/components/ui/skeleton'
+import { ContentPending } from '@/components/content-pending'
 import { m } from '@b2b-saas-starter/i18n/messages'
 
 /**
@@ -151,16 +151,7 @@ export function SessionsPanel({
         </>
       }
     >
-      {hydrated && isPending ? (
-        <ul className="grid gap-2" aria-busy="true">
-          {[0, 1].map((index) => (
-            <li key={index} className="rounded-sm border border-border px-3 py-2">
-              <Skeleton className="h-4 w-40" />
-              <Skeleton className="mt-1 h-3 w-56" />
-            </li>
-          ))}
-        </ul>
-      ) : null}
+      {hydrated && isPending ? <ContentPending label={m.common_loading()} /> : null}
       {rows === undefined ? null : (
         <ul className="grid gap-2">
           {rows.map((row) => {
