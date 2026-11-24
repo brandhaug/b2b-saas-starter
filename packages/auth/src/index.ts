@@ -264,6 +264,18 @@ function toAccountChange(account: PluginAccountChange): AuthAccountChange {
 }
 
 /**
+ * CIMD metadata fields that must share the client ID's origin. The consent
+ * screen shows `client_uri` as the client's identity, so a client must not
+ * claim another origin there. Better Auth stopped binding `client_uri` by
+ * default in 1.7.27 because CIMD draft-03 §4.4 forbids it; this starter keeps
+ * the stricter policy.
+ */
+export const cimdOriginBoundFields = [
+  'post_logout_redirect_uris',
+  'client_uri'
+] as const
+
+/**
  * Kept as a plain function returning a single (non-union) object type: the
  * plugins array is the literal that effectful-better-auth's inference reads,
  * and a union return type would poison `Instance<AuthOptions>`. The plugin
@@ -676,7 +688,8 @@ export function makeAuthOptions(options: AuthConfigInterface) {
       // dynamic registration. The transport is the app's.
       cimd({
         fetchClientMetadataResource: options.mcp.fetchClientMetadataResource,
-        metadataProfile: 'mcp-2026-07-28'
+        metadataProfile: 'mcp-2026-07-28',
+        originBoundFields: cimdOriginBoundFields
       }),
       // Workspace-scoped SSO (ADR 0069). The plugin owns the connection rows
       // and the protocol flows; the starter owns the vocabulary and the

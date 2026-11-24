@@ -6,7 +6,7 @@ import { adminSystemRole } from '@b2b-saas-starter/db/enums'
 import { eq } from 'drizzle-orm'
 import { Effect, type Layer } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest'
-import { Auth } from './index.ts'
+import { Auth, cimdOriginBoundFields } from './index.ts'
 import { testMcpConfig } from './test-mcp.ts'
 import {
   buildAuthLayer,
@@ -95,7 +95,7 @@ describe('pinned auth security boundaries', () => {
           client_name: 'Trusted product',
           client_uri: 'https://trusted.example.com'
         },
-        { metadataProfile: 'mcp-2026-07-28' }
+        { metadataProfile: 'mcp-2026-07-28', originBoundFields: cimdOriginBoundFields }
       )
     ).toMatchObject({
       valid: false,

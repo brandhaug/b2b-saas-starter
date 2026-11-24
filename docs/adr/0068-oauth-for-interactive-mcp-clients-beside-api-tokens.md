@@ -26,6 +26,8 @@ every 15 seconds. Natural observation-credential expiry closes that subscription
 but does not cancel an accepted answer. Bounded retained session proof distinguishes
 natural expiry from explicit revocation; current membership, consent and assurance
 still apply. A failed authority lookup closes access and interrupts the run.
+Assistant token issuance, including refresh, requires the issuing session to be
+active: Better Auth withholds an expired session, so the client signs in again.
 
 Client metadata fetches reject unsafe hosts and redirects but cannot pin DNS
 resolution in Workers. Proof-of-possession tokens are refused because the resource
