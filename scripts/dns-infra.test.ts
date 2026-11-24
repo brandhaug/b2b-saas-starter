@@ -12,7 +12,7 @@ const zone = {
 const record = {
   key: 'verification',
   zoneId: zone.id,
-  type: 'TXT',
+  type: 'TXT' as const,
   name: '_verify.example.com',
   content: 'public-verification'
 }
