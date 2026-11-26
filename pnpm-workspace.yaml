@@ -90,7 +90,7 @@ catalog:
   jsdom: 31.0.1
   js-yaml: 5.5.0
   jose: 6.2.18
-  lucide-react: 1.77.0
+  lucide-react: 1.78.0
   oxlint-plugin-effect: 0.29.0
   oxlint-plugin-react-doctor: 0.9.12
   qrcode.react: ^4.2.0
